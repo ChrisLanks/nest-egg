@@ -2,7 +2,7 @@
  * Axios API client with JWT token management
  */
 
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
@@ -16,7 +16,7 @@ export const api = axios.create({
 
 // Request interceptor to add JWT token
 api.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
+  (config) => {
     const token = localStorage.getItem('access_token');
 
     if (token && config.headers) {
@@ -33,11 +33,11 @@ api.interceptors.request.use(
 // Response interceptor for token refresh
 api.interceptors.response.use(
   (response) => response,
-  async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+  async (error) => {
+    const originalRequest = error.config;
 
     // If 401 and not already retried, try to refresh token
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest?._retry) {
       originalRequest._retry = true;
 
       try {
