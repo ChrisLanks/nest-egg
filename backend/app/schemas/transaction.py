@@ -78,3 +78,33 @@ class TransactionListResponse(BaseModel):
     page: int
     page_size: int
     has_more: bool
+
+
+class LabelCreate(BaseModel):
+    """Label creation schema."""
+
+    name: str
+    color: Optional[str] = None
+    is_income: bool = False
+
+
+class LabelUpdate(BaseModel):
+    """Label update schema."""
+
+    name: Optional[str] = None
+    color: Optional[str] = None
+    is_income: Optional[bool] = None
+
+
+class LabelResponse(BaseModel):
+    """Label response schema."""
+
+    id: UUID
+    organization_id: UUID
+    name: str
+    color: Optional[str] = None
+    is_income: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

@@ -18,14 +18,30 @@ import {
   Spinner,
   Center,
 } from '@chakra-ui/react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { transactionApi } from '../services/transactionApi';
+import { TransactionDetailModal } from '../components/TransactionDetailModal';
+import type { Transaction } from '../types/transaction';
 
 export const TransactionsPage = () => {
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const { data: transactions, isLoading } = useQuery({
     queryKey: ['transactions'],
     queryFn: () => transactionApi.listTransactions({ page_size: 50 }),
   });
+
+  const handleTransactionClick = (txn: Transaction) => {
+    setSelectedTransaction(txn);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedTransaction(null);
+  };
 
   if (isLoading) {
     return (
@@ -59,7 +75,7 @@ export const TransactionsPage = () => {
           <Heading size="lg">Transactions</Heading>
           <Text color="gray.600" mt={2}>
             Showing {transactions?.transactions.length || 0} of{' '}
-            {transactions?.total || 0} transactions
+            {transactions?.total || 0} transactions. Click any transaction to view details.
           </Text>
         </Box>
 
@@ -79,7 +95,12 @@ export const TransactionsPage = () => {
               {transactions?.transactions.map((txn) => {
                 const { formatted, isNegative } = formatCurrency(txn.amount);
                 return (
-                  <Tr key={txn.id}>
+                  <Tr
+                    key={txn.id}
+                    onClick={() => handleTransactionClick(txn)}
+                    cursor="pointer"
+                    _hover={{ bg: 'gray.50' }}
+                  >
                     <Td>{formatDate(txn.date)}</Td>
                     <Td>
                       <Text fontWeight="medium">{txn.merchant_name}</Text>
@@ -122,6 +143,12 @@ export const TransactionsPage = () => {
             </Tbody>
           </Table>
         </Box>
+
+        <TransactionDetailModal
+          transaction={selectedTransaction}
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+        />
       </VStack>
     </Container>
   );
