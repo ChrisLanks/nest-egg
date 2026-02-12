@@ -17,12 +17,14 @@ import {
   StatNumber,
   StatHelpText,
 } from '@chakra-ui/react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../features/auth/stores/authStore';
 import { useLogout } from '../features/auth/hooks/useAuth';
 
 export const DashboardPage = () => {
   const { user } = useAuthStore();
   const logoutMutation = useLogout();
+  const navigate = useNavigate();
 
   const handleLogout = () => {
     logoutMutation.mutate();
@@ -90,11 +92,19 @@ export const DashboardPage = () => {
               Next steps:
             </Text>
             <VStack align="start" pl={4} spacing={2}>
-              <Text>• Set up Plaid integration to connect bank accounts</Text>
-              <Text>• Add transaction tracking and labeling</Text>
+              <Text>• Set up Plaid integration to connect bank accounts ✅</Text>
+              <Text>• Add transaction tracking and labeling ✅ (mock data)</Text>
               <Text>• Build investment tracking features</Text>
               <Text>• Create custom reports and predictions</Text>
             </VStack>
+            <Button
+              colorScheme="brand"
+              size="lg"
+              onClick={() => navigate('/transactions')}
+              mt={4}
+            >
+              View Mock Transactions (30 txns)
+            </Button>
           </VStack>
         </Box>
       </VStack>
