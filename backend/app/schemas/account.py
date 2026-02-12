@@ -1,0 +1,66 @@
+"""Account schemas."""
+
+from datetime import datetime
+from decimal import Decimal
+from typing import Optional
+from uuid import UUID
+
+from pydantic import BaseModel
+
+from app.models.account import AccountType, AccountSource
+
+
+class AccountBase(BaseModel):
+    """Base account schema."""
+
+    name: str
+    account_type: AccountType
+    account_source: AccountSource
+    institution_name: Optional[str] = None
+    mask: Optional[str] = None
+
+
+class AccountCreate(AccountBase):
+    """Account creation schema."""
+
+    pass
+
+
+class AccountUpdate(BaseModel):
+    """Account update schema."""
+
+    name: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class Account(AccountBase):
+    """Account response schema."""
+
+    id: UUID
+    organization_id: UUID
+    user_id: UUID
+    external_account_id: Optional[str] = None
+    current_balance: Optional[Decimal] = None
+    available_balance: Optional[Decimal] = None
+    limit: Optional[Decimal] = None
+    balance_as_of: Optional[datetime] = None
+    is_active: bool
+    is_manual: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AccountSummary(BaseModel):
+    """Account summary for lists."""
+
+    id: UUID
+    name: str
+    account_type: AccountType
+    institution_name: Optional[str] = None
+    mask: Optional[str] = None
+    current_balance: Optional[Decimal] = None
+    is_active: bool
+
+    model_config = {"from_attributes": True}
