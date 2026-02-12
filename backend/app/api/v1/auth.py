@@ -1,0 +1,257 @@
+"""Authentication API endpoints."""
+
+import hashlib
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.core.security import create_access_token, create_refresh_token, decode_token, verify_password
+from app.crud.user import organization_crud, refresh_token_crud, user_crud
+from app.dependencies import get_current_user
+from app.models.user import User
+from app.schemas.auth import (
+    AccessTokenResponse,
+    LoginRequest,
+    RefreshTokenRequest,
+    RegisterRequest,
+    TokenResponse,
+)
+from app.schemas.user import User as UserSchema
+
+router = APIRouter()
+
+
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def register(
+    data: RegisterRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Register a new user and organization.
+
+    Creates both an organization and the first user (admin) in a single transaction.
+    """
+    # Check if user already exists
+    existing_user = await user_crud.get_by_email(db, data.email)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
+
+    # Create organization
+    organization = await organization_crud.create(
+        db=db,
+        name=data.organization_name,
+    )
+
+    # Create user (first user is org admin)
+    user = await user_crud.create(
+        db=db,
+        email=data.email,
+        password=data.password,
+        organization_id=organization.id,
+        first_name=data.first_name,
+        last_name=data.last_name,
+        is_org_admin=True,  # First user is always org admin
+    )
+
+    # Update last login
+    await user_crud.update_last_login(db, user.id)
+
+    # Generate tokens
+    access_token = create_access_token(
+        data={"sub": str(user.id), "org_id": str(organization.id), "email": user.email}
+    )
+    refresh_token_str, jti, expires_at = create_refresh_token(str(user.id))
+
+    # Store refresh token hash
+    token_hash = hashlib.sha256(jti.encode()).hexdigest()
+    await refresh_token_crud.create(
+        db=db,
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+    )
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token_str,
+        user=UserSchema.from_orm(user),
+    )
+
+
+@router.post("/login", response_model=TokenResponse)
+async def login(
+    data: LoginRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Login with email and password.
+
+    Returns access and refresh tokens.
+    """
+    # Get user by email
+    user = await user_crud.get_by_email(db, data.email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+        )
+
+    # Verify password
+    if not verify_password(data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+        )
+
+    # Check if user is active
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive",
+        )
+
+    # Update last login
+    await user_crud.update_last_login(db, user.id)
+
+    # Generate tokens
+    access_token = create_access_token(
+        data={
+            "sub": str(user.id),
+            "org_id": str(user.organization_id),
+            "email": user.email,
+        }
+    )
+    refresh_token_str, jti, expires_at = create_refresh_token(str(user.id))
+
+    # Store refresh token hash
+    token_hash = hashlib.sha256(jti.encode()).hexdigest()
+    await refresh_token_crud.create(
+        db=db,
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+    )
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token_str,
+        user=UserSchema.from_orm(user),
+    )
+
+
+@router.post("/refresh", response_model=AccessTokenResponse)
+async def refresh_access_token(
+    data: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Refresh access token using refresh token.
+    """
+    try:
+        # Decode refresh token
+        payload = decode_token(data.refresh_token)
+
+        # Check token type
+        if payload.get("type") != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type",
+            )
+
+        # Get JTI and user ID
+        jti = payload.get("jti")
+        user_id_str = payload.get("sub")
+
+        if not jti or not user_id_str:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token",
+            )
+
+        # Check if token is in database and not revoked
+        token_hash = hashlib.sha256(jti.encode()).hexdigest()
+        refresh_token = await refresh_token_crud.get_by_token_hash(db, token_hash)
+
+        if not refresh_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token not found",
+            )
+
+        if refresh_token.is_revoked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+            )
+
+        if refresh_token.is_expired:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has expired",
+            )
+
+        # Get user
+        user = await user_crud.get_by_id(db, refresh_token.user_id)
+        if not user or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or inactive",
+            )
+
+        # Generate new access token
+        access_token = create_access_token(
+            data={
+                "sub": str(user.id),
+                "org_id": str(user.organization_id),
+                "email": user.email,
+            }
+        )
+
+        return AccessTokenResponse(access_token=access_token)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate token",
+        )
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    data: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Logout by revoking the refresh token.
+    """
+    try:
+        # Decode refresh token to get JTI
+        payload = decode_token(data.refresh_token)
+        jti = payload.get("jti")
+
+        if jti:
+            # Revoke token
+            token_hash = hashlib.sha256(jti.encode()).hexdigest()
+            await refresh_token_crud.revoke(db, token_hash)
+
+    except Exception:
+        # If token is invalid, that's fine - just return success
+        pass
+
+    return None
+
+
+@router.get("/me", response_model=UserSchema)
+async def get_current_user_info(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get current user information.
+    """
+    return UserSchema.from_orm(current_user)

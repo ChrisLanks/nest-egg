@@ -52,6 +52,7 @@ async def health_check():
     return {"status": "healthy"}
 
 
-# Import and include routers here (will be added in next phases)
-# from app.api.v1 import auth, accounts, transactions
-# app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+# Import and include routers
+from app.api.v1 import auth
+
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
