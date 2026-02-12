@@ -2,7 +2,7 @@
  * Authentication types
  */
 
-import { User } from './user';
+import type { User } from './user';
 
 export interface RegisterRequest {
   email: string;

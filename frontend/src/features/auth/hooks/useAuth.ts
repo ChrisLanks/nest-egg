@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../services/authApi';
 import { useAuthStore } from '../stores/authStore';
-import { LoginRequest, RegisterRequest } from '../../../types/auth';
+import type { LoginRequest, RegisterRequest } from '../../../types/auth';
 import { queryKeys } from '../../../services/queryClient';
 
 export const useLogin = () => {
