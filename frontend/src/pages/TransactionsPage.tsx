@@ -29,7 +29,7 @@ import {
   WrapItem,
 } from '@chakra-ui/react';
 import { SearchIcon, ChevronUpIcon, ChevronDownIcon } from '@chakra-ui/icons';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { transactionApi } from '../services/transactionApi';
@@ -62,29 +62,89 @@ export const TransactionsPage = () => {
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const itemsPerPage = 50;
+  const [allTransactions, setAllTransactions] = useState<any[]>([]);
+  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const toast = useToast();
   const navigate = useNavigate();
 
+  // Reset state when date range changes
+  useEffect(() => {
+    setAllTransactions([]);
+    setCurrentCursor(null);
+    setNextCursor(null);
+    setHasMore(false);
+  }, [dateRange.start, dateRange.end]);
+
   const { data: transactions, isLoading } = useQuery({
-    queryKey: ['transactions', dateRange.start, dateRange.end],
-    queryFn: () =>
-      transactionApi.listTransactions({
-        page_size: 10000, // Get all for client-side filtering/sorting
+    queryKey: ['transactions', dateRange.start, dateRange.end, currentCursor],
+    queryFn: async () => {
+      const result = await transactionApi.listTransactions({
+        page_size: 100, // Load in batches of 100
         start_date: dateRange.start,
         end_date: dateRange.end,
-      }),
+        cursor: currentCursor || undefined,
+      });
+
+      if (currentCursor) {
+        // Append to existing transactions
+        setAllTransactions((prev) => [...prev, ...result.transactions]);
+      } else {
+        // Replace transactions (new date range)
+        setAllTransactions(result.transactions);
+      }
+      setNextCursor(result.next_cursor || null);
+      setHasMore(result.has_more);
+
+      return result;
+    },
   });
 
-  // Client-side filtering, sorting, and pagination
-  const processedTransactions = useMemo(() => {
-    if (!transactions?.transactions) return [];
+  const handleLoadMore = () => {
+    if (nextCursor && !isLoadingMore && !isLoading) {
+      setIsLoadingMore(true);
+      setCurrentCursor(nextCursor);
+    }
+  };
 
-    let filtered = [...transactions.transactions];
+  // Intersection observer for infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current || !hasMore || isLoading || isLoadingMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && nextCursor) {
+          handleLoadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(loadMoreRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, nextCursor, isLoading, isLoadingMore]);
+
+  // Reset isLoadingMore when query completes
+  useEffect(() => {
+    if (!isLoading) {
+      setIsLoadingMore(false);
+    }
+  }, [isLoading]);
+
+  // Client-side filtering and sorting (no pagination)
+  const processedTransactions = useMemo(() => {
+    if (!allTransactions.length) return [];
+
+    let filtered = [...allTransactions];
 
     // Filter by search query (searches merchant, account, category, description, and labels)
     if (searchQuery) {
@@ -147,16 +207,7 @@ export const TransactionsPage = () => {
     });
 
     return filtered;
-  }, [transactions, searchQuery, sortField, sortDirection]);
-
-  // Paginate
-  const paginatedTransactions = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return processedTransactions.slice(startIndex, endIndex);
-  }, [processedTransactions, currentPage, itemsPerPage]);
-
-  const totalPages = Math.ceil(processedTransactions.length / itemsPerPage);
+  }, [allTransactions, searchQuery, sortField, sortDirection]);
 
   const handleTransactionClick = (txn: Transaction) => {
     if (bulkSelectMode) {
@@ -200,12 +251,12 @@ export const TransactionsPage = () => {
   };
 
   const toggleSelectAll = () => {
-    if (!paginatedTransactions) return;
+    if (!processedTransactions.length) return;
 
-    if (selectedTransactions.size === paginatedTransactions.length) {
+    if (selectedTransactions.size === processedTransactions.length) {
       setSelectedTransactions(new Set());
     } else {
-      setSelectedTransactions(new Set(paginatedTransactions.map(t => t.id)));
+      setSelectedTransactions(new Set(processedTransactions.map(t => t.id)));
     }
   };
 
@@ -218,13 +269,11 @@ export const TransactionsPage = () => {
       setSortField(field);
       setSortDirection(field === 'date' || field === 'amount' || field === 'status' ? 'desc' : 'asc');
     }
-    setCurrentPage(1); // Reset to first page on sort
   };
 
   const handleCategoryClick = (category: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
     setSearchQuery(category);
-    setCurrentPage(1);
   };
 
   const handleAccountClick = (accountName: string, e: React.MouseEvent) => {
@@ -232,7 +281,6 @@ export const TransactionsPage = () => {
     // For now, just search by account name
     // TODO: Navigate to account detail page in the future
     setSearchQuery(accountName);
-    setCurrentPage(1);
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -314,11 +362,11 @@ export const TransactionsPage = () => {
           <Box flex={1}>
             <Heading size="lg">Transactions</Heading>
             <Text color="gray.600" mt={2}>
-              Showing {paginatedTransactions.length} of{' '}
-              {processedTransactions.length} transactions
-              {processedTransactions.length !== transactions?.total &&
-                ` (${transactions?.total} total)`}.
-              {bulkSelectMode && ` ${selectedTransactions.size} selected.`}
+              Showing {processedTransactions.length} transactions
+              {transactions?.total > 0 && ` (${transactions.total} total)`}
+              {bulkSelectMode && `. ${selectedTransactions.size} selected`}
+              {hasMore && '. Scroll down to load more'}
+              {!bulkSelectMode && !hasMore && '.'}
             </Text>
           </Box>
           <HStack spacing={2}>
@@ -356,10 +404,7 @@ export const TransactionsPage = () => {
           <Input
             placeholder="Search transactions..."
             value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1); // Reset to first page on search
-            }}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </InputGroup>
 
@@ -394,8 +439,8 @@ export const TransactionsPage = () => {
                   <Th width="40px">
                     <Checkbox
                       isChecked={
-                        paginatedTransactions.length > 0 &&
-                        selectedTransactions.size === paginatedTransactions.length
+                        processedTransactions.length > 0 &&
+                        selectedTransactions.size === processedTransactions.length
                       }
                       onChange={toggleSelectAll}
                     />
@@ -475,7 +520,7 @@ export const TransactionsPage = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {paginatedTransactions.map((txn) => {
+              {processedTransactions.map((txn) => {
                 const { formatted, isNegative } = formatCurrency(txn.amount);
                 const isSelected = selectedTransactions.has(txn.id);
                 return (
@@ -585,68 +630,31 @@ export const TransactionsPage = () => {
           </Table>
         </Box>
 
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <HStack justify="center" spacing={2}>
-            <Button
-              size="sm"
-              onClick={() => setCurrentPage(1)}
-              isDisabled={currentPage === 1}
-            >
-              First
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => setCurrentPage(currentPage - 1)}
-              isDisabled={currentPage === 1}
-            >
-              Previous
-            </Button>
-            <HStack spacing={1}>
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                // Show current page and 2 pages on each side
-                let pageNum;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
+        {/* Infinite Scroll Sentinel */}
+        {hasMore && (
+          <Box ref={loadMoreRef} py={8}>
+            <Center>
+              {(isLoading || isLoadingMore) && (
+                <VStack spacing={2}>
+                  <Spinner size="lg" color="brand.500" />
+                  <Text fontSize="sm" color="gray.600">
+                    Loading more transactions...
+                  </Text>
+                </VStack>
+              )}
+            </Center>
+          </Box>
+        )}
 
-                return (
-                  <Button
-                    key={pageNum}
-                    size="sm"
-                    variant={currentPage === pageNum ? 'solid' : 'outline'}
-                    colorScheme={currentPage === pageNum ? 'brand' : 'gray'}
-                    onClick={() => setCurrentPage(pageNum)}
-                  >
-                    {pageNum}
-                  </Button>
-                );
-              })}
-            </HStack>
-            <Button
-              size="sm"
-              onClick={() => setCurrentPage(currentPage + 1)}
-              isDisabled={currentPage === totalPages}
-            >
-              Next
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => setCurrentPage(totalPages)}
-              isDisabled={currentPage === totalPages}
-            >
-              Last
-            </Button>
-            <Text fontSize="sm" color="gray.600" ml={4}>
-              Page {currentPage} of {totalPages}
-            </Text>
-          </HStack>
+        {/* End of results indicator */}
+        {!hasMore && allTransactions.length > 0 && (
+          <Box py={4}>
+            <Center>
+              <Text fontSize="sm" color="gray.500">
+                No more transactions to load
+              </Text>
+            </Center>
+          </Box>
         )}
 
         <TransactionDetailModal

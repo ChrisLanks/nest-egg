@@ -13,8 +13,8 @@ export const transactionApi = {
   },
 
   listTransactions: async (params?: {
-    page?: number;
     page_size?: number;
+    cursor?: string;
     account_id?: string;
     start_date?: string;
     end_date?: string;

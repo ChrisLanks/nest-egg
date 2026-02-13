@@ -22,6 +22,10 @@ class AccountType(str, enum.Enum):
     RETIREMENT_IRA = "retirement_ira"
     RETIREMENT_ROTH = "retirement_roth"
     HSA = "hsa"
+    LOAN = "loan"
+    MORTGAGE = "mortgage"
+    PROPERTY = "property"
+    CRYPTO = "crypto"
     MANUAL = "manual"
     OTHER = "other"
 

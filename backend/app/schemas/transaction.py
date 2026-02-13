@@ -91,6 +91,7 @@ class TransactionListResponse(BaseModel):
     page: int
     page_size: int
     has_more: bool
+    next_cursor: Optional[str] = None  # Cursor for next page
 
 
 class CategoryCreate(BaseModel):

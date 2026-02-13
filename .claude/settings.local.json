@@ -13,7 +13,10 @@
       "Bash(python3:*)",
       "Bash(docker exec:*)",
       "Bash(find:*)",
-      "Bash(docker compose exec:*)"
+      "Bash(docker compose exec:*)",
+      "Bash(python -m alembic revision:*)",
+      "Bash(source:*)",
+      "Bash(alembic revision:*)"
     ]
   }
 }

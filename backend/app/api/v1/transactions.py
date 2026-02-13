@@ -3,9 +3,11 @@
 from typing import Optional
 from uuid import UUID
 from datetime import date, datetime
+import base64
+import json
 
 from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -19,10 +21,35 @@ from app.schemas.transaction import TransactionDetail, TransactionListResponse, 
 router = APIRouter()
 
 
+def encode_cursor(txn_date: date, created_at: datetime, txn_id: UUID) -> str:
+    """Encode transaction cursor for pagination."""
+    cursor_data = {
+        'date': txn_date.isoformat(),
+        'created_at': created_at.isoformat(),
+        'id': str(txn_id)
+    }
+    json_str = json.dumps(cursor_data)
+    return base64.b64encode(json_str.encode()).decode()
+
+
+def decode_cursor(cursor: str) -> tuple:
+    """Decode transaction cursor."""
+    try:
+        json_str = base64.b64decode(cursor.encode()).decode()
+        cursor_data = json.loads(json_str)
+        return (
+            datetime.fromisoformat(cursor_data['date']).date(),
+            datetime.fromisoformat(cursor_data['created_at']),
+            UUID(cursor_data['id'])
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid cursor: {str(e)}")
+
+
 @router.get("/", response_model=TransactionListResponse)
 async def list_transactions(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=10000),  # Increased limit for displaying all transactions
+    page_size: int = Query(50, ge=1, le=1000),
+    cursor: Optional[str] = None,
     account_id: Optional[UUID] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
@@ -30,7 +57,7 @@ async def list_transactions(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List transactions with filtering and pagination."""
+    """List transactions with filtering and cursor-based pagination."""
     # Parse date strings if provided
     start_date_obj = None
     end_date_obj = None
@@ -73,18 +100,61 @@ async def list_transactions(
             | Transaction.description.ilike(search_pattern)
         )
 
-    # Get total count
-    count_query = select(func.count()).select_from(query.subquery())
-    total_result = await db.execute(count_query)
-    total = total_result.scalar()
+    # Apply cursor pagination
+    if cursor:
+        cursor_date, cursor_created_at, cursor_id = decode_cursor(cursor)
+        # Use tuple comparison for stable ordering
+        query = query.where(
+            tuple_(Transaction.date, Transaction.created_at, Transaction.id) <
+            tuple_(cursor_date, cursor_created_at, cursor_id)
+        )
 
-    # Get paginated results
-    offset = (page - 1) * page_size
-    query = query.order_by(Transaction.date.desc(), Transaction.created_at.desc())
-    query = query.offset(offset).limit(page_size)
+    # Order by date DESC, created_at DESC, id DESC for consistent ordering
+    query = query.order_by(
+        Transaction.date.desc(),
+        Transaction.created_at.desc(),
+        Transaction.id.desc()
+    )
+
+    # Fetch one extra to determine if there are more results
+    query = query.limit(page_size + 1)
 
     result = await db.execute(query)
     transactions = result.unique().scalars().all()
+
+    # Check if there are more results
+    has_more = len(transactions) > page_size
+    if has_more:
+        transactions = transactions[:page_size]
+
+    # Generate next cursor from last transaction
+    next_cursor = None
+    if has_more and transactions:
+        last_txn = transactions[-1]
+        next_cursor = encode_cursor(last_txn.date, last_txn.created_at, last_txn.id)
+
+    # Get total count (only when no cursor, for first page)
+    total = 0
+    if not cursor:
+        # Build count query with same filters
+        count_query = select(func.count()).where(
+            Transaction.organization_id == current_user.organization_id
+        )
+        if account_id:
+            count_query = count_query.where(Transaction.account_id == account_id)
+        if start_date_obj:
+            count_query = count_query.where(Transaction.date >= start_date_obj)
+        if end_date_obj:
+            count_query = count_query.where(Transaction.date <= end_date_obj)
+        if search:
+            search_pattern = f"%{search}%"
+            count_query = count_query.where(
+                Transaction.merchant_name.ilike(search_pattern)
+                | Transaction.description.ilike(search_pattern)
+            )
+
+        total_result = await db.execute(count_query)
+        total = total_result.scalar()
 
     # Transform to response format
     transaction_details = []
@@ -124,14 +194,13 @@ async def list_transactions(
         )
         transaction_details.append(detail)
 
-    has_more = (offset + page_size) < total
-
     return TransactionListResponse(
         transactions=transaction_details,
         total=total,
-        page=page,
+        page=1,  # Always return 1 for cursor-based pagination
         page_size=page_size,
         has_more=has_more,
+        next_cursor=next_cursor,
     )
 
 

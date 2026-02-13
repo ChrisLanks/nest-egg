@@ -43,4 +43,5 @@ export interface TransactionListResponse {
   page: number;
   page_size: number;
   has_more: boolean;
+  next_cursor?: string | null;
 }
