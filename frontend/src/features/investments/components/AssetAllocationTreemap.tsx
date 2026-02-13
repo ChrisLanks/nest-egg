@@ -2,7 +2,7 @@
  * Interactive treemap for asset allocation with drill-down capability
  */
 
-import { Box, Heading, HStack, Button, Text, Tooltip } from '@chakra-ui/react';
+import { Box, Heading, HStack, Button, Text } from '@chakra-ui/react';
 import { useState } from 'react';
 import { Treemap, ResponsiveContainer } from 'recharts';
 
@@ -70,11 +70,14 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
   };
 
   const CustomizedContent = (props: any) => {
-    const { x, y, width, height, name, value, percent } = props;
+    const { x, y, width, height, name, value, percent, fill, children, color } = props;
 
     // Only show label if box is large enough
     const showLabel = width > 60 && height > 40;
     const showPercent = width > 80 && height > 50;
+
+    // Calculate percent if not provided (shouldn't happen, but safety check)
+    const displayPercent = percent || 0;
 
     return (
       <g>
@@ -84,50 +87,48 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
           width={width}
           height={height}
           style={{
-            fill: props.fill,
+            fill: color || fill,
             stroke: '#fff',
             strokeWidth: 2,
-            cursor: props.children ? 'pointer' : 'default',
+            cursor: children ? 'pointer' : 'default',
           }}
-          onClick={() => props.children && handleClick(props)}
+          onClick={() => children && handleClick(props)}
         />
-        {showLabel && (
-          <Tooltip label={`${name}: ${formatCurrency(value)} (${percent.toFixed(1)}%)`}>
-            <g>
-              <text
-                x={x + width / 2}
-                y={y + height / 2 - (showPercent ? 8 : 0)}
-                textAnchor="middle"
-                fill="#fff"
-                fontSize={width > 100 ? 14 : 11}
-                fontWeight="bold"
-              >
-                {name}
-              </text>
-              {showPercent && (
-                <>
-                  <text
-                    x={x + width / 2}
-                    y={y + height / 2 + 6}
-                    textAnchor="middle"
-                    fill="#fff"
-                    fontSize={11}
-                  >
-                    {formatCurrency(value)}
-                  </text>
-                  <text
-                    x={x + width / 2}
-                    y={y + height / 2 + 20}
-                    textAnchor="middle"
-                    fill="#fff"
-                    fontSize={10}
-                  >
-                    {percent.toFixed(1)}%
-                  </text>
-                </>
-              )}
-            </g>
-          </Tooltip>
+        {showLabel && name && (
+          <g>
+            <text
+              x={x + width / 2}
+              y={y + height / 2 - (showPercent ? 8 : 0)}
+              textAnchor="middle"
+              fill="#fff"
+              fontSize={width > 100 ? 14 : 11}
+              fontWeight="bold"
+            >
+              {name}
+            </text>
+            {showPercent && (
+              <>
+                <text
+                  x={x + width / 2}
+                  y={y + height / 2 + 6}
+                  textAnchor="middle"
+                  fill="#fff"
+                  fontSize={11}
+                >
+                  {formatCurrency(value)}
+                </text>
+                <text
+                  x={x + width / 2}
+                  y={y + height / 2 + 20}
+                  textAnchor="middle"
+                  fill="#fff"
+                  fontSize={10}
+                >
+                  {Number(displayPercent).toFixed(1)}%
+                </text>
+              </>
+            )}
+          </g>
         )}
       </g>
     );
@@ -173,13 +174,19 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
 
       {/* Treemap */}
       <ResponsiveContainer width="100%" height={400}>
-        <Treemap
-          data={currentNode.children || []}
-          dataKey="value"
-          stroke="#fff"
-          fill="#8884d8"
-          content={<CustomizedContent />}
-        />
+        {currentNode.children && currentNode.children.length > 0 ? (
+          <Treemap
+            data={currentNode.children}
+            dataKey="value"
+            stroke="#fff"
+            fill="#8884d8"
+            content={<CustomizedContent />}
+          />
+        ) : (
+          <Text fontSize="sm" color="gray.600" textAlign="center" py={8}>
+            No data to display
+          </Text>
+        )}
       </ResponsiveContainer>
 
       {/* Help Text */}
