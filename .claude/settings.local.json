@@ -24,7 +24,8 @@
       "Bash(pip install:*)",
       "Bash(docker-compose restart:*)",
       "Bash(lsof:*)",
-      "Bash(docker-compose up:*)"
+      "Bash(docker-compose up:*)",
+      "WebFetch(domain:plaid.com)"
     ]
   }
 }
