@@ -37,7 +37,9 @@ import {
   Input,
   NumberInput,
   NumberInputField,
+  IconButton,
 } from '@chakra-ui/react';
+import { FiEdit2, FiCheck, FiX } from 'react-icons/fi';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
@@ -84,6 +86,8 @@ export const AccountDetailPage = () => {
   const [transactionsCursor, setTransactionsCursor] = useState<string | null>(null);
   const [vehicleMileage, setVehicleMileage] = useState('');
   const [vehicleValue, setVehicleValue] = useState('');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
 
   // Fetch account details
   const { data: account, isLoading } = useQuery<Account>({
@@ -111,9 +115,9 @@ export const AccountDetailPage = () => {
     enabled: !!accountId,
   });
 
-  // Update account type mutation
+  // Update account mutation
   const updateAccountMutation = useMutation({
-    mutationFn: async (data: { account_type?: string; is_active?: boolean }) => {
+    mutationFn: async (data: { name?: string; account_type?: string; is_active?: boolean }) => {
       const response = await api.patch(`/accounts/${accountId}`, data);
       return response.data;
     },
@@ -253,6 +257,25 @@ export const AccountDetailPage = () => {
     }
   };
 
+  const handleStartEditName = () => {
+    if (account) {
+      setEditedName(account.name);
+      setIsEditingName(true);
+    }
+  };
+
+  const handleSaveName = () => {
+    if (editedName && editedName !== account?.name) {
+      updateAccountMutation.mutate({ name: editedName });
+    }
+    setIsEditingName(false);
+  };
+
+  const handleCancelEditName = () => {
+    setIsEditingName(false);
+    setEditedName('');
+  };
+
   if (isLoading) {
     return (
       <Center h="100vh">
@@ -286,10 +309,55 @@ export const AccountDetailPage = () => {
             >
               ← Back to Dashboard
             </Button>
-            <Heading size="lg">{account.name}</Heading>
+            {isEditingName ? (
+              <HStack spacing={2} mb={1}>
+                <Input
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  size="lg"
+                  fontSize="2xl"
+                  fontWeight="bold"
+                  maxW="400px"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSaveName();
+                    } else if (e.key === 'Escape') {
+                      handleCancelEditName();
+                    }
+                  }}
+                />
+                <IconButton
+                  aria-label="Save name"
+                  icon={<FiCheck />}
+                  colorScheme="green"
+                  size="sm"
+                  onClick={handleSaveName}
+                  isLoading={updateAccountMutation.isPending}
+                />
+                <IconButton
+                  aria-label="Cancel"
+                  icon={<FiX />}
+                  size="sm"
+                  onClick={handleCancelEditName}
+                  isDisabled={updateAccountMutation.isPending}
+                />
+              </HStack>
+            ) : (
+              <HStack spacing={2}>
+                <Heading size="lg">{account.name}</Heading>
+                <IconButton
+                  aria-label="Edit account name"
+                  icon={<FiEdit2 />}
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleStartEditName}
+                />
+              </HStack>
+            )}
             <Text color="gray.600" mt={1}>
               {accountTypeLabels[account.account_type] || account.account_type}
-              {account.mask && ` ••${account.mask}`}
+              {account.mask && account.account_type !== 'vehicle' && ` ••${account.mask}`}
             </Text>
           </Box>
           <Box textAlign="right">

@@ -186,6 +186,7 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
       account_type: 'vehicle' as any,
       balance: data.value,
       institution: `${data.year} ${data.make} ${data.model}`,
+      account_number_last4: data.mileage?.toString() || undefined,
     } as any);
   };
 
