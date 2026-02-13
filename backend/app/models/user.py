@@ -18,6 +18,7 @@ class Organization(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     custom_month_end_day = Column(Integer, default=30, nullable=False)
+    monthly_start_day = Column(Integer, default=1, nullable=False)  # Day of month to start tracking (1-31)
     timezone = Column(String(50), default="UTC", nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -41,6 +42,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     first_name = Column(String(100))
     last_name = Column(String(100))
+    display_name = Column(String(255))  # Optional display name
     is_active = Column(Boolean, default=True, nullable=False)
     is_org_admin = Column(Boolean, default=False, nullable=False)
     email_verified = Column(Boolean, default=False, nullable=False)

@@ -13,6 +13,7 @@ class UserBase(BaseModel):
     email: EmailStr
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    display_name: Optional[str] = None
 
 
 class UserCreate(UserBase):
@@ -26,6 +27,7 @@ class UserUpdate(BaseModel):
 
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    display_name: Optional[str] = None
     email: Optional[EmailStr] = None
 
 
@@ -56,6 +58,7 @@ class OrganizationBase(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=255)
     custom_month_end_day: int = Field(default=30, ge=1, le=31)
+    monthly_start_day: int = Field(default=1, ge=1, le=31)
     timezone: str = Field(default="UTC")
 
 
@@ -70,6 +73,7 @@ class OrganizationUpdate(BaseModel):
 
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     custom_month_end_day: Optional[int] = Field(None, ge=1, le=31)
+    monthly_start_day: Optional[int] = Field(None, ge=1, le=31)
     timezone: Optional[str] = None
 
 
