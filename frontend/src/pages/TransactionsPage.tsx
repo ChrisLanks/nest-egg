@@ -93,7 +93,8 @@ export const TransactionsPage = () => {
         (txn) =>
           txn.merchant_name?.toLowerCase().includes(query) ||
           txn.account_name?.toLowerCase().includes(query) ||
-          txn.category_primary?.toLowerCase().includes(query) ||
+          txn.category?.name?.toLowerCase().includes(query) ||
+          txn.category?.parent_name?.toLowerCase().includes(query) ||
           txn.description?.toLowerCase().includes(query) ||
           txn.labels?.some((label) => label.name.toLowerCase().includes(query))
       );
@@ -118,8 +119,9 @@ export const TransactionsPage = () => {
           bVal = Number(b.amount);
           break;
         case 'category_primary':
-          aVal = a.category_primary?.toLowerCase() || '';
-          bVal = b.category_primary?.toLowerCase() || '';
+          // Sort by parent name if exists, otherwise by category name
+          aVal = (a.category?.parent_name || a.category?.name || '').toLowerCase();
+          bVal = (b.category?.parent_name || b.category?.name || '').toLowerCase();
           break;
         case 'account_name':
           aVal = a.account_name?.toLowerCase() || '';
@@ -254,13 +256,15 @@ export const TransactionsPage = () => {
     );
 
     const merchants = new Set(selected.map(t => t.merchant_name));
-    const categories = new Set(selected.map(t => t.category_primary).filter(Boolean));
+    const categoryIds = new Set(selected.map(t => t.category?.id).filter(Boolean));
 
     // Create a synthetic transaction with commonalities
     const commonTransaction: Transaction = {
       id: 'bulk',
       merchant_name: merchants.size === 1 ? Array.from(merchants)[0] : 'Multiple merchants',
-      category_primary: categories.size === 1 ? Array.from(categories)[0] : undefined,
+      category_primary: null,
+      category_detailed: null,
+      category: categoryIds.size === 1 ? selected[0]?.category : undefined,
       amount: 0,
       date: new Date().toISOString(),
       account_id: selected[0]?.account_id || '',
@@ -515,19 +519,26 @@ export const TransactionsPage = () => {
                       </Text>
                     </Td>
                     <Td
-                      onClick={(e) =>
-                        txn.category_primary && handleCategoryClick(txn.category_primary, e)
-                      }
+                      onClick={(e) => {
+                        const categoryName = txn.category?.name || txn.category_primary;
+                        if (categoryName) handleCategoryClick(categoryName, e);
+                      }}
                     >
-                      {txn.category_primary && (
+                      {(txn.category || txn.category_primary) && (
                         <Badge
-                          colorScheme="blue"
+                          colorScheme={txn.category?.color ? undefined : 'blue'}
+                          bg={txn.category?.color || undefined}
+                          color={txn.category?.color ? 'white' : undefined}
                           fontSize="xs"
                           cursor="pointer"
                           _hover={{ transform: 'scale(1.05)' }}
                           transition="transform 0.2s"
                         >
-                          {txn.category_primary}
+                          {txn.category
+                            ? txn.category.parent_name
+                              ? `${txn.category.parent_name} (${txn.category.name})`
+                              : txn.category.name
+                            : txn.category_primary}
                         </Badge>
                       )}
                     </Td>
@@ -536,7 +547,15 @@ export const TransactionsPage = () => {
                         {txn.labels?.map((label) => (
                           <WrapItem key={label.id}>
                             <Badge
-                              colorScheme={label.is_income ? 'green' : 'purple'}
+                              colorScheme={
+                                label.color
+                                  ? undefined
+                                  : label.is_income
+                                  ? 'green'
+                                  : 'purple'
+                              }
+                              bg={label.color || undefined}
+                              color={label.color ? 'white' : undefined}
                               fontSize="xs"
                             >
                               {label.name}

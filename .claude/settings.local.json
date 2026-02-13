@@ -1,7 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(docker-compose exec:*)",
+      "Bash(git reset:*)",
+      "Bash(docker-compose ps:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker restart:*)",
+      "Bash(python3:*)",
+      "Bash(docker exec:*)",
+      "Bash(find:*)",
+      "Bash(docker compose exec:*)"
     ]
   }
 }

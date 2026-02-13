@@ -9,9 +9,18 @@ export interface Label {
   is_income: boolean;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  color?: string;
+  parent_id?: string;
+  parent_name?: string;
+}
+
 export interface Transaction {
   id: string;
   account_id: string;
+  organization_id?: string;
   date: string; // ISO date string
   amount: number;
   merchant_name: string | null;
@@ -21,7 +30,11 @@ export interface Transaction {
   is_pending: boolean;
   account_name: string | null;
   account_mask: string | null;
+  category?: Category;
   labels?: Label[];
+  deduplication_hash?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface TransactionListResponse {

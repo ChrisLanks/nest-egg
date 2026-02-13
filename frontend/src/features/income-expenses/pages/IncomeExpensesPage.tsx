@@ -39,6 +39,11 @@ import {
   WrapItem,
   Button,
   ButtonGroup,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  Checkbox,
 } from '@chakra-ui/react';
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -139,11 +144,24 @@ export const IncomeExpensesPage = () => {
   const [expenseSortDirection, setExpenseSortDirection] = useState<SortDirection>('desc');
 
   const [groupBy, setGroupBy] = useState<'category' | 'label'>('category');
+  const [hiddenItems, setHiddenItems] = useState<Set<string>>(new Set());
+
+  // Fetch organization settings for custom month boundaries
+  const { data: orgSettings } = useQuery({
+    queryKey: ['orgPreferences'],
+    queryFn: async () => {
+      const response = await api.get('/settings/organization');
+      return response.data;
+    },
+  });
+
+  const customMonthStartDay = orgSettings?.monthly_start_day || 1;
 
   // Reset drill-down states when groupBy changes
   useEffect(() => {
     setIncomeDrillDown({ level: 'categories' });
     setExpenseDrillDown({ level: 'categories' });
+    setHiddenItems(new Set()); // Clear hidden items when switching grouping
   }, [groupBy]);
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
@@ -215,11 +233,51 @@ export const IncomeExpensesPage = () => {
     },
   });
 
-  // Filter transactions based on drill-down state
+  // Filter summary data to exclude hidden items
+  const filteredSummary = useMemo(() => {
+    if (!summary || hiddenItems.size === 0) return summary;
+    return {
+      ...summary,
+      income_categories: summary.income_categories?.filter(
+        item => !hiddenItems.has(item.category)
+      ),
+      expense_categories: summary.expense_categories?.filter(
+        item => !hiddenItems.has(item.category)
+      ),
+    };
+  }, [summary, hiddenItems]);
+
+  // Get unique items (categories or labels) from summary
+  const uniqueItems = useMemo(() => {
+    if (!summary) return [];
+    const items = new Set<string>();
+    summary.income_categories?.forEach(item => items.add(item.category));
+    summary.expense_categories?.forEach(item => items.add(item.category));
+    return Array.from(items).sort();
+  }, [summary]);
+
+  // Filter transactions based on drill-down state and hidden items
   const incomeTransactions = useMemo(() => {
     if (!allIncomeTransactions) return [];
 
     let filtered = allIncomeTransactions;
+
+    // Filter out transactions with hidden categories/labels
+    if (hiddenItems.size > 0) {
+      if (groupBy === 'label') {
+        // For labels: exclude if transaction has any hidden label
+        filtered = filtered.filter(t => {
+          if (!t.labels || t.labels.length === 0) return !hiddenItems.has('Unlabeled');
+          return !t.labels.some(label => hiddenItems.has(label.name));
+        });
+      } else {
+        // For categories: exclude if transaction category is hidden
+        filtered = filtered.filter(t => {
+          if (!t.category_primary) return !hiddenItems.has('Uncategorized');
+          return !hiddenItems.has(t.category_primary);
+        });
+      }
+    }
 
     // Filter by category/label if drilling down
     if (incomeDrillDown.category) {
@@ -244,12 +302,29 @@ export const IncomeExpensesPage = () => {
     }
 
     return filtered;
-  }, [allIncomeTransactions, incomeDrillDown, groupBy]);
+  }, [allIncomeTransactions, incomeDrillDown, groupBy, hiddenItems]);
 
   const expenseTransactions = useMemo(() => {
     if (!allExpenseTransactions) return [];
 
     let filtered = allExpenseTransactions;
+
+    // Filter out transactions with hidden categories/labels
+    if (hiddenItems.size > 0) {
+      if (groupBy === 'label') {
+        // For labels: exclude if transaction has any hidden label
+        filtered = filtered.filter(t => {
+          if (!t.labels || t.labels.length === 0) return !hiddenItems.has('Unlabeled');
+          return !t.labels.some(label => hiddenItems.has(label.name));
+        });
+      } else {
+        // For categories: exclude if transaction category is hidden
+        filtered = filtered.filter(t => {
+          if (!t.category_primary) return !hiddenItems.has('Uncategorized');
+          return !hiddenItems.has(t.category_primary);
+        });
+      }
+    }
 
     // Filter by category/label if drilling down
     if (expenseDrillDown.category) {
@@ -274,7 +349,7 @@ export const IncomeExpensesPage = () => {
     }
 
     return filtered;
-  }, [allExpenseTransactions, expenseDrillDown, groupBy]);
+  }, [allExpenseTransactions, expenseDrillDown, groupBy, hiddenItems]);
 
   // Calculate statistics for both income and expenses
   const incomeStats = useMemo(() => {
@@ -591,6 +666,31 @@ export const IncomeExpensesPage = () => {
     });
   };
 
+  // Calculate totals from filtered summary (must be before early returns for hooks)
+  const filteredTotals = useMemo(() => {
+    if (!filteredSummary) return { total_income: 0, total_expenses: 0, net: 0 };
+
+    const total_income = filteredSummary.income_categories?.reduce(
+      (sum, item) => sum + Number(item.amount || 0),
+      0
+    ) || 0;
+
+    const total_expenses = Math.abs(
+      filteredSummary.expense_categories?.reduce(
+        (sum, item) => sum + Number(item.amount || 0),
+        0
+      ) || 0
+    );
+
+    return {
+      total_income,
+      total_expenses,
+      net: total_income - total_expenses,
+    };
+  }, [filteredSummary]);
+
+  const net = filteredTotals.net;
+
   if (summaryLoading || trendLoading) {
     return (
       <Center h="100vh">
@@ -598,8 +698,6 @@ export const IncomeExpensesPage = () => {
       </Center>
     );
   }
-
-  const net = summary?.net || 0;
 
   const renderChart = (
     data: CategoryBreakdown[] | any[],
@@ -856,7 +954,7 @@ export const IncomeExpensesPage = () => {
               Analyze your income sources and spending patterns
             </Text>
           </Box>
-          <DateRangePicker value={dateRange} onChange={setDateRange} />
+          <DateRangePicker value={dateRange} onChange={setDateRange} customMonthStartDay={customMonthStartDay} />
         </HStack>
 
         {/* Group By Toggle */}
@@ -880,6 +978,35 @@ export const IncomeExpensesPage = () => {
               Labels
             </Button>
           </ButtonGroup>
+
+          {/* Filter Dropdown */}
+          {uniqueItems.length > 0 && (
+            <Menu closeOnSelect={false}>
+              <MenuButton as={Button} size="sm" variant="outline" ml={4}>
+                Hide {groupBy === 'category' ? 'Categories' : 'Labels'} ({hiddenItems.size})
+              </MenuButton>
+              <MenuList maxH="400px" overflowY="auto">
+                {uniqueItems.map((item) => (
+                  <MenuItem
+                    key={item}
+                    onClick={() => {
+                      const newHidden = new Set(hiddenItems);
+                      if (hiddenItems.has(item)) {
+                        newHidden.delete(item);
+                      } else {
+                        newHidden.add(item);
+                      }
+                      setHiddenItems(newHidden);
+                    }}
+                  >
+                    <Checkbox isChecked={!hiddenItems.has(item)} pointerEvents="none">
+                      {item}
+                    </Checkbox>
+                  </MenuItem>
+                ))}
+              </MenuList>
+            </Menu>
+          )}
         </HStack>
 
         {/* Summary Cards */}
@@ -889,7 +1016,7 @@ export const IncomeExpensesPage = () => {
               <Stat>
                 <StatLabel>Total Income</StatLabel>
                 <StatNumber color="green.600">
-                  {formatCurrency(summary?.total_income || 0)}
+                  {formatCurrency(filteredTotals.total_income)}
                 </StatNumber>
                 <StatHelpText>{dateRange.label}</StatHelpText>
               </Stat>
@@ -901,7 +1028,7 @@ export const IncomeExpensesPage = () => {
               <Stat>
                 <StatLabel>Total Expenses</StatLabel>
                 <StatNumber color="red.600">
-                  {formatCurrency(summary?.total_expenses || 0)}
+                  {formatCurrency(filteredTotals.total_expenses)}
                 </StatNumber>
                 <StatHelpText>{dateRange.label}</StatHelpText>
               </Stat>
@@ -938,220 +1065,44 @@ export const IncomeExpensesPage = () => {
                 {/* Combined Tab */}
                 <TabPanel>
                   <VStack spacing={6}>
-                    {/* Income Statistics Section */}
+                    {/* Summary Statistics for Combined View */}
                     {combinedStats && (
                       <>
-                        <Box w="full">
-                          <Heading size="sm" mb={4} color="green.600">Income</Heading>
-                          <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} w="full">
-                            <Card size="sm">
-                              <CardBody>
-                                <Stat size="sm">
-                                  <StatLabel fontSize="xs">Total Received</StatLabel>
-                                  <StatNumber fontSize="lg" color="green.600">
-                                    {formatCurrency(combinedStats.totalReceived)}
-                                  </StatNumber>
-                                </Stat>
-                              </CardBody>
-                            </Card>
-                            <Card size="sm">
-                              <CardBody>
-                                <Stat size="sm">
-                                  <StatLabel fontSize="xs">Avg Received</StatLabel>
-                                  <StatNumber fontSize="lg">
-                                    {formatCurrency(combinedStats.avgReceived)}
-                                  </StatNumber>
-                                </Stat>
-                              </CardBody>
-                            </Card>
-                            <Card
-                              size="sm"
-                              cursor="pointer"
-                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
-                              onClick={() => combinedStats.minReceivedTransaction && handleTransactionClick(combinedStats.minReceivedTransaction)}
-                            >
-                              <CardBody>
-                                <Stat size="sm">
-                                  <StatLabel fontSize="xs">Min Received</StatLabel>
-                                  <StatNumber fontSize="lg">
-                                    {formatCurrency(combinedStats.minReceived)}
-                                  </StatNumber>
-                                  <StatHelpText fontSize="xs" color="gray.500">
-                                    Click to view
-                                  </StatHelpText>
-                                </Stat>
-                              </CardBody>
-                            </Card>
-                            <Card
-                              size="sm"
-                              cursor="pointer"
-                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
-                              onClick={() => combinedStats.maxReceivedTransaction && handleTransactionClick(combinedStats.maxReceivedTransaction)}
-                            >
-                              <CardBody>
-                                <Stat size="sm">
-                                  <StatLabel fontSize="xs">Max Received</StatLabel>
-                                  <StatNumber fontSize="lg">
-                                    {formatCurrency(combinedStats.maxReceived)}
-                                  </StatNumber>
-                                  <StatHelpText fontSize="xs" color="gray.500">
-                                    Click to view
-                                  </StatHelpText>
-                                </Stat>
-                              </CardBody>
-                            </Card>
-                            <Card
-                              size="sm"
-                              cursor="pointer"
-                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
-                              onClick={() => combinedStats.topSource?.transactions?.[0] && handleTransactionClick(combinedStats.topSource.transactions[0])}
-                            >
-                              <CardBody>
-                                <Stat size="sm">
-                                  <StatLabel fontSize="xs">Top Source</StatLabel>
-                                  <StatNumber fontSize="sm" noOfLines={1}>
-                                    {combinedStats.topSource?.name || 'N/A'}
-                                  </StatNumber>
-                                  <StatHelpText fontSize="xs">
-                                    {combinedStats.topSource && formatCurrency(combinedStats.topSource.total)}
-                                  </StatHelpText>
-                                </Stat>
-                              </CardBody>
-                            </Card>
-                            <Card
-                              size="sm"
-                              cursor="pointer"
-                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
-                              onClick={() => combinedStats.mostIncomeTransactions?.transactions?.[0] && handleTransactionClick(combinedStats.mostIncomeTransactions.transactions[0])}
-                            >
-                              <CardBody>
-                                <Stat size="sm">
-                                  <StatLabel fontSize="xs">Most Transactions</StatLabel>
-                                  <StatNumber fontSize="sm" noOfLines={1}>
-                                    {combinedStats.mostIncomeTransactions?.name || 'N/A'}
-                                  </StatNumber>
-                                  <StatHelpText fontSize="xs">
-                                    {combinedStats.mostIncomeTransactions?.count || 0} txns
-                                  </StatHelpText>
-                                </Stat>
-                              </CardBody>
-                            </Card>
-                          </SimpleGrid>
-                        </Box>
-
-                        {/* Expense Statistics Section */}
-                        <Box w="full">
-                          <Heading size="sm" mb={4} color="red.600">Expenses</Heading>
-                          <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} w="full">
-                            <Card size="sm">
-                              <CardBody>
-                                <Stat size="sm">
-                                  <StatLabel fontSize="xs">Total Spent</StatLabel>
-                                  <StatNumber fontSize="lg" color="red.600">
-                                    {formatCurrency(combinedStats.totalSpent)}
-                                  </StatNumber>
-                                </Stat>
-                              </CardBody>
-                            </Card>
-                            <Card size="sm">
-                              <CardBody>
-                                <Stat size="sm">
-                                  <StatLabel fontSize="xs">Avg Spent</StatLabel>
-                                  <StatNumber fontSize="lg">
-                                    {formatCurrency(combinedStats.avgSpent)}
-                                  </StatNumber>
-                                </Stat>
-                              </CardBody>
-                            </Card>
-                            <Card
-                              size="sm"
-                              cursor="pointer"
-                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
-                              onClick={() => combinedStats.minSpentTransaction && handleTransactionClick(combinedStats.minSpentTransaction)}
-                            >
-                              <CardBody>
-                                <Stat size="sm">
-                                  <StatLabel fontSize="xs">Min Spent</StatLabel>
-                                  <StatNumber fontSize="lg">
-                                    {formatCurrency(combinedStats.minSpent)}
-                                  </StatNumber>
-                                  <StatHelpText fontSize="xs" color="gray.500">
-                                    Click to view
-                                  </StatHelpText>
-                                </Stat>
-                              </CardBody>
-                            </Card>
-                            <Card
-                              size="sm"
-                              cursor="pointer"
-                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
-                              onClick={() => combinedStats.maxSpentTransaction && handleTransactionClick(combinedStats.maxSpentTransaction)}
-                            >
-                              <CardBody>
-                                <Stat size="sm">
-                                  <StatLabel fontSize="xs">Max Spent</StatLabel>
-                                  <StatNumber fontSize="lg">
-                                    {formatCurrency(combinedStats.maxSpent)}
-                                  </StatNumber>
-                                  <StatHelpText fontSize="xs" color="gray.500">
-                                    Click to view
-                                  </StatHelpText>
-                                </Stat>
-                              </CardBody>
-                            </Card>
-                            <Card
-                              size="sm"
-                              cursor="pointer"
-                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
-                              onClick={() => combinedStats.topPayee?.transactions?.[0] && handleTransactionClick(combinedStats.topPayee.transactions[0])}
-                            >
-                              <CardBody>
-                                <Stat size="sm">
-                                  <StatLabel fontSize="xs">Top Payee</StatLabel>
-                                  <StatNumber fontSize="sm" noOfLines={1}>
-                                    {combinedStats.topPayee?.name || 'N/A'}
-                                  </StatNumber>
-                                  <StatHelpText fontSize="xs">
-                                    {combinedStats.topPayee && formatCurrency(combinedStats.topPayee.total)}
-                                  </StatHelpText>
-                                </Stat>
-                              </CardBody>
-                            </Card>
-                            <Card
-                              size="sm"
-                              cursor="pointer"
-                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
-                              onClick={() => combinedStats.mostExpenseTransactions?.transactions?.[0] && handleTransactionClick(combinedStats.mostExpenseTransactions.transactions[0])}
-                            >
-                              <CardBody>
-                                <Stat size="sm">
-                                  <StatLabel fontSize="xs">Most Transactions</StatLabel>
-                                  <StatNumber fontSize="sm" noOfLines={1}>
-                                    {combinedStats.mostExpenseTransactions?.name || 'N/A'}
-                                  </StatNumber>
-                                  <StatHelpText fontSize="xs">
-                                    {combinedStats.mostExpenseTransactions?.count || 0} txns
-                                  </StatHelpText>
-                                </Stat>
-                              </CardBody>
-                            </Card>
-                          </SimpleGrid>
-                        </Box>
-
-                        {/* Net Cashflow */}
-                        <Card size="sm" w="full">
-                          <CardBody>
-                            <Stat>
-                              <StatLabel>Net Cashflow</StatLabel>
-                              <StatNumber fontSize="2xl" color={net >= 0 ? 'green.600' : 'red.600'}>
-                                {net >= 0 ? '+' : ''}{formatCurrency(net)}
-                              </StatNumber>
-                              <StatHelpText>
-                                Total Transactions: {combinedStats.totalTransactions}
-                              </StatHelpText>
-                            </Stat>
-                          </CardBody>
-                        </Card>
+                        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} w="full">
+                          <Card size="sm">
+                            <CardBody>
+                              <Stat size="sm">
+                                <StatLabel fontSize="xs">Total Received</StatLabel>
+                                <StatNumber fontSize="lg" color="green.600">
+                                  {formatCurrency(combinedStats.totalReceived)}
+                                </StatNumber>
+                              </Stat>
+                            </CardBody>
+                          </Card>
+                          <Card size="sm">
+                            <CardBody>
+                              <Stat size="sm">
+                                <StatLabel fontSize="xs">Total Spent</StatLabel>
+                                <StatNumber fontSize="lg" color="red.600">
+                                  {formatCurrency(combinedStats.totalSpent)}
+                                </StatNumber>
+                              </Stat>
+                            </CardBody>
+                          </Card>
+                          <Card size="sm">
+                            <CardBody>
+                              <Stat size="sm">
+                                <StatLabel fontSize="xs">Net Cashflow</StatLabel>
+                                <StatNumber fontSize="lg" color={net >= 0 ? 'green.600' : 'red.600'}>
+                                  {net >= 0 ? '+' : ''}{formatCurrency(net)}
+                                </StatNumber>
+                                <StatHelpText fontSize="xs">
+                                  {combinedStats.totalTransactions} transactions
+                                </StatHelpText>
+                              </Stat>
+                            </CardBody>
+                          </Card>
+                        </SimpleGrid>
                       </>
                     )}
 
@@ -1182,7 +1133,7 @@ export const IncomeExpensesPage = () => {
                     {/* Side by side categories */}
                     <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6} w="full">
                       {/* Income Section */}
-                      {summary && summary.income_categories.length > 0 && (
+                      {summary && filteredSummary.income_categories.length > 0 && (
                         <VStack align="stretch" spacing={4}>
                           <HStack justify="space-between">
                             <Heading size="sm">{groupBy === 'label' ? 'Income by Label' : 'Income by Category'}</Heading>
@@ -1224,7 +1175,7 @@ export const IncomeExpensesPage = () => {
                             )}
                           </Breadcrumb>
                           {incomeDrillDown.level === 'categories'
-                            ? renderChart(summary.income_categories, 'income', incomeChartType, incomeDrillDown)
+                            ? renderChart(filteredSummary.income_categories, 'income', incomeChartType, incomeDrillDown)
                             : incomeDrillDown.level === 'merchants' && incomeMerchants
                             ? renderChart(incomeMerchants, 'income', incomeChartType, incomeDrillDown)
                             : renderChart(incomeTransactionBreakdown, 'income', incomeChartType, incomeDrillDown)
@@ -1240,7 +1191,7 @@ export const IncomeExpensesPage = () => {
                       )}
 
                       {/* Expense Section */}
-                      {summary && summary.expense_categories.length > 0 && (
+                      {summary && filteredSummary.expense_categories.length > 0 && (
                         <VStack align="stretch" spacing={4}>
                           <HStack justify="space-between">
                             <Heading size="sm">{groupBy === 'label' ? 'Expenses by Label' : 'Expenses by Category'}</Heading>
@@ -1282,7 +1233,7 @@ export const IncomeExpensesPage = () => {
                             )}
                           </Breadcrumb>
                           {expenseDrillDown.level === 'categories'
-                            ? renderChart(summary.expense_categories, 'expense', expenseChartType, expenseDrillDown)
+                            ? renderChart(filteredSummary.expense_categories, 'expense', expenseChartType, expenseDrillDown)
                             : expenseDrillDown.level === 'merchants' && expenseMerchants
                             ? renderChart(expenseMerchants, 'expense', expenseChartType, expenseDrillDown)
                             : renderChart(expenseTransactionBreakdown, 'expense', expenseChartType, expenseDrillDown)
@@ -1409,7 +1360,7 @@ export const IncomeExpensesPage = () => {
                       </SimpleGrid>
                     )}
 
-                    {summary && summary.income_categories.length > 0 ? (
+                    {summary && filteredSummary.income_categories.length > 0 ? (
                       <>
                         <HStack justify="space-between">
                           <Heading size="md">{groupBy === 'label' ? 'Income by Label' : 'Income by Category'}</Heading>
@@ -1452,7 +1403,7 @@ export const IncomeExpensesPage = () => {
                         </Breadcrumb>
                         <Box>
                           {incomeDrillDown.level === 'categories'
-                            ? renderChart(summary.income_categories, 'income', incomeChartType, incomeDrillDown)
+                            ? renderChart(filteredSummary.income_categories, 'income', incomeChartType, incomeDrillDown)
                             : incomeDrillDown.level === 'merchants' && incomeMerchants
                             ? renderChart(incomeMerchants, 'income', incomeChartType, incomeDrillDown)
                             : renderChart(incomeTransactionBreakdown, 'income', incomeChartType, incomeDrillDown)
@@ -1581,7 +1532,7 @@ export const IncomeExpensesPage = () => {
                       </SimpleGrid>
                     )}
 
-                    {summary && summary.expense_categories.length > 0 ? (
+                    {summary && filteredSummary.expense_categories.length > 0 ? (
                       <>
                         <HStack justify="space-between">
                           <Heading size="md">{groupBy === 'label' ? 'Expenses by Label' : 'Expenses by Category'}</Heading>
@@ -1624,7 +1575,7 @@ export const IncomeExpensesPage = () => {
                         </Breadcrumb>
                         <Box>
                           {expenseDrillDown.level === 'categories'
-                            ? renderChart(summary.expense_categories, 'expense', expenseChartType, expenseDrillDown)
+                            ? renderChart(filteredSummary.expense_categories, 'expense', expenseChartType, expenseDrillDown)
                             : expenseDrillDown.level === 'merchants' && expenseMerchants
                             ? renderChart(expenseMerchants, 'expense', expenseChartType, expenseDrillDown)
                             : renderChart(expenseTransactionBreakdown, 'expense', expenseChartType, expenseDrillDown)
@@ -1649,7 +1600,7 @@ export const IncomeExpensesPage = () => {
         </Card>
 
         {/* Empty State */}
-        {summary && summary.income_categories.length === 0 && summary.expense_categories.length === 0 && (
+        {summary && filteredSummary.income_categories.length === 0 && filteredSummary.expense_categories.length === 0 && (
           <Card>
             <CardBody textAlign="center" py={12}>
               <Text color="gray.600" fontSize="lg">

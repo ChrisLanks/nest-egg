@@ -28,9 +28,10 @@ export interface DateRange {
 interface DateRangePickerProps {
   value: DateRange;
   onChange: (range: DateRange) => void;
+  customMonthStartDay?: number; // Day of month to start custom months (e.g., 16)
 }
 
-export const DateRangePicker = ({ value, onChange }: DateRangePickerProps) => {
+export const DateRangePicker = ({ value, onChange, customMonthStartDay = 1 }: DateRangePickerProps) => {
   const [isCustom, setIsCustom] = useState(false);
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -45,6 +46,36 @@ export const DateRangePicker = ({ value, onChange }: DateRangePickerProps) => {
     },
   });
 
+  const getCustomMonthDates = (monthOffset: number = 0) => {
+    const now = new Date();
+    const currentDay = now.getDate();
+
+    // Determine if we're in the current custom month or the next one
+    const start = new Date(now);
+    const end = new Date(now);
+
+    if (currentDay >= customMonthStartDay) {
+      // We're in the current custom month period
+      // Start: customMonthStartDay of current month
+      // End: (customMonthStartDay - 1) of next month
+      start.setDate(customMonthStartDay);
+      start.setMonth(start.getMonth() + monthOffset);
+      end.setMonth(start.getMonth() + 1);
+      end.setDate(customMonthStartDay - 1);
+    } else {
+      // We're in the previous custom month period
+      // Start: customMonthStartDay of previous month
+      // End: (customMonthStartDay - 1) of current month
+      start.setMonth(start.getMonth() - 1);
+      start.setDate(customMonthStartDay);
+      start.setMonth(start.getMonth() + monthOffset);
+      end.setMonth(start.getMonth() + 1);
+      end.setDate(customMonthStartDay - 1);
+    }
+
+    return { start, end };
+  };
+
   const getDateRange = (preset: string): DateRange => {
     const now = new Date();
     const start = new Date();
@@ -52,10 +83,21 @@ export const DateRangePicker = ({ value, onChange }: DateRangePickerProps) => {
 
     switch (preset) {
       case 'this_month':
-        start.setDate(1);
-        start.setHours(0, 0, 0, 0);
-        end.setMonth(end.getMonth() + 1, 0);
-        end.setHours(23, 59, 59, 999);
+        if (customMonthStartDay === 1) {
+          // Standard calendar month
+          start.setDate(1);
+          start.setHours(0, 0, 0, 0);
+          end.setMonth(end.getMonth() + 1, 0);
+          end.setHours(23, 59, 59, 999);
+        } else {
+          // Custom month boundary
+          const { start: customStart, end: customEnd } = getCustomMonthDates(0);
+          return {
+            start: customStart.toISOString().split('T')[0],
+            end: customEnd.toISOString().split('T')[0],
+            label: 'This Month',
+          };
+        }
         return {
           start: start.toISOString().split('T')[0],
           end: end.toISOString().split('T')[0],
@@ -63,10 +105,21 @@ export const DateRangePicker = ({ value, onChange }: DateRangePickerProps) => {
         };
 
       case 'last_month':
-        start.setMonth(start.getMonth() - 1, 1);
-        start.setHours(0, 0, 0, 0);
-        end.setMonth(end.getMonth(), 0);
-        end.setHours(23, 59, 59, 999);
+        if (customMonthStartDay === 1) {
+          // Standard calendar month
+          start.setMonth(start.getMonth() - 1, 1);
+          start.setHours(0, 0, 0, 0);
+          end.setMonth(end.getMonth(), 0);
+          end.setHours(23, 59, 59, 999);
+        } else {
+          // Custom month boundary
+          const { start: customStart, end: customEnd } = getCustomMonthDates(-1);
+          return {
+            start: customStart.toISOString().split('T')[0],
+            end: customEnd.toISOString().split('T')[0],
+            label: 'Last Month',
+          };
+        }
         return {
           start: start.toISOString().split('T')[0],
           end: end.toISOString().split('T')[0],

@@ -145,9 +145,12 @@ async def get_income_expense_trend(
 ):
     """Get monthly income vs expense trend."""
 
+    # Create the date_trunc expression once to reuse
+    month_expr = func.date_trunc('month', Transaction.date)
+
     result = await db.execute(
         select(
-            func.date_trunc('month', Transaction.date).label('month'),
+            month_expr.label('month'),
             func.sum(
                 case((Transaction.amount > 0, Transaction.amount), else_=0)
             ).label('income'),
@@ -158,8 +161,8 @@ async def get_income_expense_trend(
             Transaction.organization_id == current_user.organization_id,
             Transaction.date >= start_date,
             Transaction.date <= end_date
-        ).group_by(func.date_trunc('month', Transaction.date))
-        .order_by(func.date_trunc('month', Transaction.date))
+        ).group_by(month_expr)
+        .order_by(month_expr)
     )
 
     trend = []

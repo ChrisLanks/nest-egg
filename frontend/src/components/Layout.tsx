@@ -31,12 +31,14 @@ interface NavItemProps {
   path: string;
   isActive: boolean;
   onClick: () => void;
+  isSubItem?: boolean;
 }
 
-const NavItem = ({ icon, label, path, isActive, onClick }: NavItemProps) => {
+const NavItem = ({ icon, label, path, isActive, onClick, isSubItem = false }: NavItemProps) => {
   return (
     <Box
       px={4}
+      pl={isSubItem ? 8 : 4}
       py={3}
       borderRadius="md"
       cursor="pointer"
@@ -50,8 +52,8 @@ const NavItem = ({ icon, label, path, isActive, onClick }: NavItemProps) => {
       transition="all 0.2s"
     >
       <HStack spacing={3}>
-        <Icon as={icon} boxSize={5} />
-        <Text fontSize="sm">{label}</Text>
+        <Icon as={icon} boxSize={isSubItem ? 4 : 5} />
+        <Text fontSize={isSubItem ? 'xs' : 'sm'}>{label}</Text>
       </HStack>
     </Box>
   );
@@ -63,13 +65,25 @@ export const Layout = () => {
   const { user } = useAuthStore();
   const logoutMutation = useLogout();
 
-  const navItems = [
-    { icon: ViewIcon, label: 'Dashboard', path: '/dashboard' },
-    { icon: RepeatIcon, label: 'Transactions', path: '/transactions' },
-    { icon: SettingsIcon, label: 'Rules', path: '/rules' },
-    { icon: ArrowUpDownIcon, label: 'Cash Flow', path: '/income-expenses' },
-    { icon: StarIcon, label: 'Categories', path: '/categories' },
-    { icon: FiSettings, label: 'Settings', path: '/settings' },
+  const navSections = [
+    {
+      items: [
+        { icon: ViewIcon, label: 'Dashboard', path: '/dashboard' },
+        { icon: ArrowUpDownIcon, label: 'Cash Flow', path: '/income-expenses' },
+      ],
+    },
+    {
+      items: [
+        { icon: RepeatIcon, label: 'Transactions', path: '/transactions' },
+        { icon: SettingsIcon, label: 'Rules', path: '/rules', isSubItem: true },
+        { icon: StarIcon, label: 'Categories', path: '/categories', isSubItem: true },
+      ],
+    },
+    {
+      items: [
+        { icon: FiSettings, label: 'Settings', path: '/settings' },
+      ],
+    },
   ];
 
   const handleLogout = () => {
@@ -99,15 +113,23 @@ export const Layout = () => {
 
         {/* Navigation */}
         <VStack spacing={1} p={4} flex={1} align="stretch">
-          {navItems.map((item) => (
-            <NavItem
-              key={item.path}
-              icon={item.icon}
-              label={item.label}
-              path={item.path}
-              isActive={location.pathname === item.path}
-              onClick={() => navigate(item.path)}
-            />
+          {navSections.map((section, sectionIndex) => (
+            <Box key={sectionIndex}>
+              {section.items.map((item) => (
+                <NavItem
+                  key={item.path}
+                  icon={item.icon}
+                  label={item.label}
+                  path={item.path}
+                  isActive={location.pathname === item.path}
+                  onClick={() => navigate(item.path)}
+                  isSubItem={item.isSubItem}
+                />
+              ))}
+              {sectionIndex < navSections.length - 1 && (
+                <Divider my={2} />
+              )}
+            </Box>
           ))}
         </VStack>
 

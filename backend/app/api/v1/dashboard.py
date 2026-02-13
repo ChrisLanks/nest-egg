@@ -135,7 +135,7 @@ async def get_dashboard_data(
         
         # Get account info
         account_name = txn.account.name if txn.account else None
-        account_mask = txn.account.account_mask if txn.account else None
+        account_mask = txn.account.mask if txn.account else None
         
         transaction_details.append(TransactionDetail(
             id=txn.id,

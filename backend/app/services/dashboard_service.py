@@ -3,11 +3,11 @@
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.models.account import Account
+from app.models.account import Account, AccountType
 from app.models.transaction import Transaction, TransactionLabel
 
 
@@ -30,15 +30,16 @@ class DashboardService:
         total = Decimal(0)
         for account in accounts:
             balance = account.current_balance or Decimal(0)
-            
+
             # Asset accounts add to net worth
-            if account.account_type in ['checking', 'savings', 'brokerage', 'retirement_401k', 
-                                       'retirement_ira', 'hsa', 'manual']:
+            if account.account_type in [AccountType.CHECKING, AccountType.SAVINGS, AccountType.BROKERAGE,
+                                       AccountType.RETIREMENT_401K, AccountType.RETIREMENT_IRA,
+                                       AccountType.HSA, AccountType.MANUAL]:
                 total += balance
-            # Debt accounts subtract from net worth (credit cards, loans)
-            elif account.account_type in ['credit_card', 'loan', 'mortgage']:
+            # Debt accounts subtract from net worth (credit cards)
+            elif account.account_type == AccountType.CREDIT_CARD:
                 total -= abs(balance)
-        
+
         return total
 
     async def get_total_assets(self, organization_id: str) -> Decimal:
@@ -47,25 +48,27 @@ class DashboardService:
             select(Account).where(
                 Account.organization_id == organization_id,
                 Account.account_type.in_([
-                    'checking', 'savings', 'brokerage', 'retirement_401k',
-                    'retirement_ira', 'hsa', 'manual'
+                    AccountType.CHECKING, AccountType.SAVINGS, AccountType.BROKERAGE,
+                    AccountType.RETIREMENT_401K, AccountType.RETIREMENT_IRA,
+                    AccountType.HSA, AccountType.MANUAL
                 ])
             )
         )
         accounts = result.scalars().all()
-        
+
         return sum((account.current_balance or Decimal(0) for account in accounts), Decimal(0))
 
     async def get_total_debts(self, organization_id: str) -> Decimal:
-        """Calculate total debts."""
+        """Calculate total debts (accounts with negative balances)."""
         result = await self.db.execute(
             select(Account).where(
                 Account.organization_id == organization_id,
-                Account.account_type.in_(['credit_card', 'loan', 'mortgage'])
+                Account.account_type == AccountType.CREDIT_CARD
             )
         )
         accounts = result.scalars().all()
-        
+
+        # For credit cards, return absolute value of negative balances
         return sum((abs(account.current_balance or Decimal(0)) for account in accounts), Decimal(0))
 
     async def get_monthly_spending(
@@ -171,7 +174,10 @@ class DashboardService:
         """Get recent transactions."""
         result = await self.db.execute(
             select(Transaction)
-            .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
+            .options(
+                joinedload(Transaction.labels).joinedload(TransactionLabel.label),
+                joinedload(Transaction.account)
+            )
             .where(Transaction.organization_id == organization_id)
             .order_by(Transaction.date.desc(), Transaction.created_at.desc())
             .limit(limit)
@@ -188,14 +194,16 @@ class DashboardService:
         start_date = end_date - timedelta(days=months * 30)
 
         # Get transactions grouped by month
+        month_expr = func.date_trunc('month', Transaction.date)
+
         result = await self.db.execute(
             select(
-                func.date_trunc('month', Transaction.date).label('month'),
+                month_expr.label('month'),
                 func.sum(
-                    func.case((Transaction.amount > 0, Transaction.amount), else_=0)
+                    case((Transaction.amount > 0, Transaction.amount), else_=0)
                 ).label('income'),
                 func.sum(
-                    func.case((Transaction.amount < 0, Transaction.amount), else_=0)
+                    case((Transaction.amount < 0, Transaction.amount), else_=0)
                 ).label('expenses')
             )
             .where(
@@ -203,8 +211,8 @@ class DashboardService:
                 Transaction.date >= start_date,
                 Transaction.date <= end_date
             )
-            .group_by(func.date_trunc('month', Transaction.date))
-            .order_by(func.date_trunc('month', Transaction.date))
+            .group_by(month_expr)
+            .order_by(month_expr)
         )
 
         trend = []

@@ -21,9 +21,7 @@ import {
   FormHelperText,
 } from '@chakra-ui/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import api from '../services/api';
 
 interface UserProfile {
   id: string;
@@ -82,9 +80,7 @@ export default function SettingsPage() {
   const { data: profile, isLoading: profileLoading } = useQuery<UserProfile>({
     queryKey: ['userProfile'],
     queryFn: async () => {
-      const response = await axios.get(`${API_URL}/api/v1/settings/profile`, {
-        withCredentials: true,
-      });
+      const response = await api.get('/settings/profile');
       const data = response.data;
       setFirstName(data.first_name || '');
       setLastName(data.last_name || '');
@@ -98,9 +94,7 @@ export default function SettingsPage() {
   const { data: orgPrefs, isLoading: orgLoading } = useQuery<OrganizationPreferences>({
     queryKey: ['orgPreferences'],
     queryFn: async () => {
-      const response = await axios.get(`${API_URL}/api/v1/settings/organization`, {
-        withCredentials: true,
-      });
+      const response = await api.get('/settings/organization');
       const data = response.data;
       setMonthlyStartDay(data.monthly_start_day || 1);
       return data;
@@ -110,9 +104,7 @@ export default function SettingsPage() {
   // Update profile mutation
   const updateProfileMutation = useMutation({
     mutationFn: async (data: UpdateProfileData) => {
-      const response = await axios.patch(`${API_URL}/api/v1/settings/profile`, data, {
-        withCredentials: true,
-      });
+      const response = await api.patch('/settings/profile', data);
       return response.data;
     },
     onSuccess: () => {
@@ -136,11 +128,7 @@ export default function SettingsPage() {
   // Change password mutation
   const changePasswordMutation = useMutation({
     mutationFn: async (data: ChangePasswordData) => {
-      const response = await axios.post(
-        `${API_URL}/api/v1/settings/profile/change-password`,
-        data,
-        { withCredentials: true }
-      );
+      const response = await api.post('/settings/profile/change-password', data);
       return response.data;
     },
     onSuccess: () => {
@@ -166,9 +154,7 @@ export default function SettingsPage() {
   // Update org preferences mutation
   const updateOrgMutation = useMutation({
     mutationFn: async (data: UpdateOrgData) => {
-      const response = await axios.patch(`${API_URL}/api/v1/settings/organization`, data, {
-        withCredentials: true,
-      });
+      const response = await api.patch('/settings/organization', data);
       return response.data;
     },
     onSuccess: () => {
