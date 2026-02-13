@@ -385,11 +385,23 @@ export const IncomeExpensesPage = () => {
       return null;
     }
 
+    // Income statistics
+    const income = allIncomeTransactions || [];
+    const totalIncome = income.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+    const avgReceived = income.length > 0 ? totalIncome / income.length : 0;
+
+    const minReceivedTransaction = income.length > 0
+      ? income.reduce((min, t) => Number(t.amount || 0) < Number(min.amount || 0) ? t : min)
+      : null;
+    const maxReceivedTransaction = income.length > 0
+      ? income.reduce((max, t) => Number(t.amount || 0) > Number(max.amount || 0) ? t : max)
+      : null;
+
+    // Expense statistics
     const expenses = allExpenseTransactions || [];
     const totalExpense = expenses.reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
     const avgSpent = expenses.length > 0 ? totalExpense / expenses.length : 0;
 
-    // Find min and max spent transactions
     const minSpentTransaction = expenses.length > 0
       ? expenses.reduce((min, t) => Math.abs(t.amount || 0) < Math.abs(min.amount || 0) ? t : min)
       : null;
@@ -397,9 +409,29 @@ export const IncomeExpensesPage = () => {
       ? expenses.reduce((max, t) => Math.abs(t.amount || 0) > Math.abs(max.amount || 0) ? t : max)
       : null;
 
-    // Combine merchant data with transaction references
+    // Income merchant data
+    const incomeSourceMap = new Map<string, { total: number; count: number; transactions: Transaction[] }>();
+    income.forEach(t => {
+      const source = t.merchant_name || 'Unknown';
+      const existing = incomeSourceMap.get(source) || { total: 0, count: 0, transactions: [] };
+      incomeSourceMap.set(source, {
+        total: existing.total + Number(t.amount || 0),
+        count: existing.count + 1,
+        transactions: [...existing.transactions, t],
+      });
+    });
+
+    const incomeSourceArray = Array.from(incomeSourceMap.entries()).map(([name, data]) => ({
+      name,
+      ...data,
+    }));
+
+    const topSource = incomeSourceArray.sort((a, b) => b.total - a.total)[0];
+    const mostIncomeTransactions = incomeSourceArray.sort((a, b) => b.count - a.count)[0];
+
+    // Expense merchant data
     const merchantMap = new Map<string, { total: number; count: number; transactions: Transaction[] }>();
-    allTransactions.forEach(t => {
+    expenses.forEach(t => {
       const merchant = t.merchant_name || 'Unknown';
       const existing = merchantMap.get(merchant) || { total: 0, count: 0, transactions: [] };
       merchantMap.set(merchant, {
@@ -415,10 +447,20 @@ export const IncomeExpensesPage = () => {
     }));
 
     const topPayee = merchantArray.sort((a, b) => b.total - a.total)[0];
-    const mostTransactionsMerchant = merchantArray.sort((a, b) => b.count - a.count)[0];
+    const mostExpenseTransactions = merchantArray.sort((a, b) => b.count - a.count)[0];
 
     return {
       totalTransactions: allTransactions.length,
+      // Income stats
+      totalReceived: totalIncome,
+      avgReceived,
+      minReceived: minReceivedTransaction ? Number(minReceivedTransaction.amount || 0) : 0,
+      maxReceived: maxReceivedTransaction ? Number(maxReceivedTransaction.amount || 0) : 0,
+      minReceivedTransaction,
+      maxReceivedTransaction,
+      topSource,
+      mostIncomeTransactions,
+      // Expense stats
       totalSpent: totalExpense,
       avgSpent,
       minSpent: minSpentTransaction ? Math.abs(minSpentTransaction.amount || 0) : 0,
@@ -426,7 +468,7 @@ export const IncomeExpensesPage = () => {
       minSpentTransaction,
       maxSpentTransaction,
       topPayee,
-      mostTransactions: mostTransactionsMerchant,
+      mostExpenseTransactions,
     };
   }, [allIncomeTransactions, allExpenseTransactions]);
 
@@ -882,134 +924,235 @@ export const IncomeExpensesPage = () => {
           </Card>
         </SimpleGrid>
 
-        {/* Tabs for Income, Expenses, Both */}
+        {/* Tabs for Income, Expenses, Combined */}
         <Card>
           <CardBody>
             <Tabs>
               <TabList>
-                <Tab>Both</Tab>
+                <Tab>Combined</Tab>
                 <Tab>Income</Tab>
                 <Tab>Expenses</Tab>
               </TabList>
 
               <TabPanels>
-                {/* Both Tab */}
+                {/* Combined Tab */}
                 <TabPanel>
                   <VStack spacing={6}>
-                    {/* Statistics Cards */}
+                    {/* Income Statistics Section */}
                     {combinedStats && (
-                      <SimpleGrid columns={{ base: 2, md: 4, lg: 8 }} spacing={4} w="full">
-                        <Card size="sm">
+                      <>
+                        <Box w="full">
+                          <Heading size="sm" mb={4} color="green.600">Income</Heading>
+                          <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} w="full">
+                            <Card size="sm">
+                              <CardBody>
+                                <Stat size="sm">
+                                  <StatLabel fontSize="xs">Total Received</StatLabel>
+                                  <StatNumber fontSize="lg" color="green.600">
+                                    {formatCurrency(combinedStats.totalReceived)}
+                                  </StatNumber>
+                                </Stat>
+                              </CardBody>
+                            </Card>
+                            <Card size="sm">
+                              <CardBody>
+                                <Stat size="sm">
+                                  <StatLabel fontSize="xs">Avg Received</StatLabel>
+                                  <StatNumber fontSize="lg">
+                                    {formatCurrency(combinedStats.avgReceived)}
+                                  </StatNumber>
+                                </Stat>
+                              </CardBody>
+                            </Card>
+                            <Card
+                              size="sm"
+                              cursor="pointer"
+                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                              onClick={() => combinedStats.minReceivedTransaction && handleTransactionClick(combinedStats.minReceivedTransaction)}
+                            >
+                              <CardBody>
+                                <Stat size="sm">
+                                  <StatLabel fontSize="xs">Min Received</StatLabel>
+                                  <StatNumber fontSize="lg">
+                                    {formatCurrency(combinedStats.minReceived)}
+                                  </StatNumber>
+                                  <StatHelpText fontSize="xs" color="gray.500">
+                                    Click to view
+                                  </StatHelpText>
+                                </Stat>
+                              </CardBody>
+                            </Card>
+                            <Card
+                              size="sm"
+                              cursor="pointer"
+                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                              onClick={() => combinedStats.maxReceivedTransaction && handleTransactionClick(combinedStats.maxReceivedTransaction)}
+                            >
+                              <CardBody>
+                                <Stat size="sm">
+                                  <StatLabel fontSize="xs">Max Received</StatLabel>
+                                  <StatNumber fontSize="lg">
+                                    {formatCurrency(combinedStats.maxReceived)}
+                                  </StatNumber>
+                                  <StatHelpText fontSize="xs" color="gray.500">
+                                    Click to view
+                                  </StatHelpText>
+                                </Stat>
+                              </CardBody>
+                            </Card>
+                            <Card
+                              size="sm"
+                              cursor="pointer"
+                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                              onClick={() => combinedStats.topSource?.transactions?.[0] && handleTransactionClick(combinedStats.topSource.transactions[0])}
+                            >
+                              <CardBody>
+                                <Stat size="sm">
+                                  <StatLabel fontSize="xs">Top Source</StatLabel>
+                                  <StatNumber fontSize="sm" noOfLines={1}>
+                                    {combinedStats.topSource?.name || 'N/A'}
+                                  </StatNumber>
+                                  <StatHelpText fontSize="xs">
+                                    {combinedStats.topSource && formatCurrency(combinedStats.topSource.total)}
+                                  </StatHelpText>
+                                </Stat>
+                              </CardBody>
+                            </Card>
+                            <Card
+                              size="sm"
+                              cursor="pointer"
+                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                              onClick={() => combinedStats.mostIncomeTransactions?.transactions?.[0] && handleTransactionClick(combinedStats.mostIncomeTransactions.transactions[0])}
+                            >
+                              <CardBody>
+                                <Stat size="sm">
+                                  <StatLabel fontSize="xs">Most Transactions</StatLabel>
+                                  <StatNumber fontSize="sm" noOfLines={1}>
+                                    {combinedStats.mostIncomeTransactions?.name || 'N/A'}
+                                  </StatNumber>
+                                  <StatHelpText fontSize="xs">
+                                    {combinedStats.mostIncomeTransactions?.count || 0} txns
+                                  </StatHelpText>
+                                </Stat>
+                              </CardBody>
+                            </Card>
+                          </SimpleGrid>
+                        </Box>
+
+                        {/* Expense Statistics Section */}
+                        <Box w="full">
+                          <Heading size="sm" mb={4} color="red.600">Expenses</Heading>
+                          <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} w="full">
+                            <Card size="sm">
+                              <CardBody>
+                                <Stat size="sm">
+                                  <StatLabel fontSize="xs">Total Spent</StatLabel>
+                                  <StatNumber fontSize="lg" color="red.600">
+                                    {formatCurrency(combinedStats.totalSpent)}
+                                  </StatNumber>
+                                </Stat>
+                              </CardBody>
+                            </Card>
+                            <Card size="sm">
+                              <CardBody>
+                                <Stat size="sm">
+                                  <StatLabel fontSize="xs">Avg Spent</StatLabel>
+                                  <StatNumber fontSize="lg">
+                                    {formatCurrency(combinedStats.avgSpent)}
+                                  </StatNumber>
+                                </Stat>
+                              </CardBody>
+                            </Card>
+                            <Card
+                              size="sm"
+                              cursor="pointer"
+                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                              onClick={() => combinedStats.minSpentTransaction && handleTransactionClick(combinedStats.minSpentTransaction)}
+                            >
+                              <CardBody>
+                                <Stat size="sm">
+                                  <StatLabel fontSize="xs">Min Spent</StatLabel>
+                                  <StatNumber fontSize="lg">
+                                    {formatCurrency(combinedStats.minSpent)}
+                                  </StatNumber>
+                                  <StatHelpText fontSize="xs" color="gray.500">
+                                    Click to view
+                                  </StatHelpText>
+                                </Stat>
+                              </CardBody>
+                            </Card>
+                            <Card
+                              size="sm"
+                              cursor="pointer"
+                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                              onClick={() => combinedStats.maxSpentTransaction && handleTransactionClick(combinedStats.maxSpentTransaction)}
+                            >
+                              <CardBody>
+                                <Stat size="sm">
+                                  <StatLabel fontSize="xs">Max Spent</StatLabel>
+                                  <StatNumber fontSize="lg">
+                                    {formatCurrency(combinedStats.maxSpent)}
+                                  </StatNumber>
+                                  <StatHelpText fontSize="xs" color="gray.500">
+                                    Click to view
+                                  </StatHelpText>
+                                </Stat>
+                              </CardBody>
+                            </Card>
+                            <Card
+                              size="sm"
+                              cursor="pointer"
+                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                              onClick={() => combinedStats.topPayee?.transactions?.[0] && handleTransactionClick(combinedStats.topPayee.transactions[0])}
+                            >
+                              <CardBody>
+                                <Stat size="sm">
+                                  <StatLabel fontSize="xs">Top Payee</StatLabel>
+                                  <StatNumber fontSize="sm" noOfLines={1}>
+                                    {combinedStats.topPayee?.name || 'N/A'}
+                                  </StatNumber>
+                                  <StatHelpText fontSize="xs">
+                                    {combinedStats.topPayee && formatCurrency(combinedStats.topPayee.total)}
+                                  </StatHelpText>
+                                </Stat>
+                              </CardBody>
+                            </Card>
+                            <Card
+                              size="sm"
+                              cursor="pointer"
+                              _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                              onClick={() => combinedStats.mostExpenseTransactions?.transactions?.[0] && handleTransactionClick(combinedStats.mostExpenseTransactions.transactions[0])}
+                            >
+                              <CardBody>
+                                <Stat size="sm">
+                                  <StatLabel fontSize="xs">Most Transactions</StatLabel>
+                                  <StatNumber fontSize="sm" noOfLines={1}>
+                                    {combinedStats.mostExpenseTransactions?.name || 'N/A'}
+                                  </StatNumber>
+                                  <StatHelpText fontSize="xs">
+                                    {combinedStats.mostExpenseTransactions?.count || 0} txns
+                                  </StatHelpText>
+                                </Stat>
+                              </CardBody>
+                            </Card>
+                          </SimpleGrid>
+                        </Box>
+
+                        {/* Net Cashflow */}
+                        <Card size="sm" w="full">
                           <CardBody>
-                            <Stat size="sm">
-                              <StatLabel fontSize="xs">Total Transactions</StatLabel>
-                              <StatNumber fontSize="lg">{combinedStats.totalTransactions}</StatNumber>
-                            </Stat>
-                          </CardBody>
-                        </Card>
-                        <Card size="sm">
-                          <CardBody>
-                            <Stat size="sm">
-                              <StatLabel fontSize="xs">Total Spent</StatLabel>
-                              <StatNumber fontSize="lg" color="red.600">
-                                {formatCurrency(combinedStats.totalSpent)}
-                              </StatNumber>
-                            </Stat>
-                          </CardBody>
-                        </Card>
-                        <Card size="sm">
-                          <CardBody>
-                            <Stat size="sm">
-                              <StatLabel fontSize="xs">Avg Spent</StatLabel>
-                              <StatNumber fontSize="lg">
-                                {formatCurrency(combinedStats.avgSpent)}
-                              </StatNumber>
-                            </Stat>
-                          </CardBody>
-                        </Card>
-                        <Card
-                          size="sm"
-                          cursor="pointer"
-                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
-                          onClick={() => combinedStats.minSpentTransaction && handleTransactionClick(combinedStats.minSpentTransaction)}
-                        >
-                          <CardBody>
-                            <Stat size="sm">
-                              <StatLabel fontSize="xs">Min Spent</StatLabel>
-                              <StatNumber fontSize="lg">
-                                {formatCurrency(combinedStats.minSpent)}
-                              </StatNumber>
-                              <StatHelpText fontSize="xs" color="gray.500">
-                                Click to view
-                              </StatHelpText>
-                            </Stat>
-                          </CardBody>
-                        </Card>
-                        <Card
-                          size="sm"
-                          cursor="pointer"
-                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
-                          onClick={() => combinedStats.maxSpentTransaction && handleTransactionClick(combinedStats.maxSpentTransaction)}
-                        >
-                          <CardBody>
-                            <Stat size="sm">
-                              <StatLabel fontSize="xs">Max Spent</StatLabel>
-                              <StatNumber fontSize="lg">
-                                {formatCurrency(combinedStats.maxSpent)}
-                              </StatNumber>
-                              <StatHelpText fontSize="xs" color="gray.500">
-                                Click to view
-                              </StatHelpText>
-                            </Stat>
-                          </CardBody>
-                        </Card>
-                        <Card
-                          size="sm"
-                          cursor="pointer"
-                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
-                          onClick={() => combinedStats.topPayee?.transactions?.[0] && handleTransactionClick(combinedStats.topPayee.transactions[0])}
-                        >
-                          <CardBody>
-                            <Stat size="sm">
-                              <StatLabel fontSize="xs">Top Payee</StatLabel>
-                              <StatNumber fontSize="sm" noOfLines={1}>
-                                {combinedStats.topPayee?.name || 'N/A'}
-                              </StatNumber>
-                              <StatHelpText fontSize="xs">
-                                {combinedStats.topPayee && formatCurrency(combinedStats.topPayee.total)}
-                              </StatHelpText>
-                            </Stat>
-                          </CardBody>
-                        </Card>
-                        <Card
-                          size="sm"
-                          cursor="pointer"
-                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
-                          onClick={() => combinedStats.mostTransactions?.transactions?.[0] && handleTransactionClick(combinedStats.mostTransactions.transactions[0])}
-                        >
-                          <CardBody>
-                            <Stat size="sm">
-                              <StatLabel fontSize="xs">Most Transactions</StatLabel>
-                              <StatNumber fontSize="sm" noOfLines={1}>
-                                {combinedStats.mostTransactions?.name || 'N/A'}
-                              </StatNumber>
-                              <StatHelpText fontSize="xs">
-                                {combinedStats.mostTransactions?.count || 0} txns
-                              </StatHelpText>
-                            </Stat>
-                          </CardBody>
-                        </Card>
-                        <Card size="sm">
-                          <CardBody>
-                            <Stat size="sm">
-                              <StatLabel fontSize="xs">Net Cashflow</StatLabel>
-                              <StatNumber fontSize="lg" color={net >= 0 ? 'green.600' : 'red.600'}>
+                            <Stat>
+                              <StatLabel>Net Cashflow</StatLabel>
+                              <StatNumber fontSize="2xl" color={net >= 0 ? 'green.600' : 'red.600'}>
                                 {net >= 0 ? '+' : ''}{formatCurrency(net)}
                               </StatNumber>
+                              <StatHelpText>
+                                Total Transactions: {combinedStats.totalTransactions}
+                              </StatHelpText>
                             </Stat>
                           </CardBody>
                         </Card>
-                      </SimpleGrid>
+                      </>
                     )}
 
                     {/* Monthly Trend Chart */}
