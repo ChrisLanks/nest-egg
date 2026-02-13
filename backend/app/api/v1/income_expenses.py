@@ -234,3 +234,265 @@ async def get_merchant_breakdown(
         ))
 
     return merchants
+
+@router.get("/label-summary", response_model=IncomeExpenseSummary)
+async def get_label_summary(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get income vs expense summary grouped by labels."""
+    from app.models.transaction import transaction_labels
+    from app.models.label import Label
+    
+    # Get total income
+    income_result = await db.execute(
+        select(func.sum(Transaction.amount)).where(
+            Transaction.organization_id == current_user.organization_id,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount > 0
+        )
+    )
+    total_income = float(income_result.scalar() or 0)
+    
+    # Get total expenses
+    expense_result = await db.execute(
+        select(func.sum(Transaction.amount)).where(
+            Transaction.organization_id == current_user.organization_id,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount < 0
+        )
+    )
+    total_expenses = abs(float(expense_result.scalar() or 0))
+    
+    # Get income by label
+    income_labels_result = await db.execute(
+        select(
+            Label.name,
+            func.sum(Transaction.amount).label('total'),
+            func.count(Transaction.id).label('count')
+        ).select_from(Transaction)
+        .join(transaction_labels, Transaction.id == transaction_labels.c.transaction_id)
+        .join(Label, Label.id == transaction_labels.c.label_id)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount > 0
+        ).group_by(Label.name)
+        .order_by(func.sum(Transaction.amount).desc())
+    )
+    
+    income_categories = []
+    labeled_income_total = 0
+    for row in income_labels_result:
+        amount = float(row.total)
+        labeled_income_total += amount
+        percentage = (amount / total_income * 100) if total_income > 0 else 0
+        income_categories.append(CategoryBreakdown(
+            category=row.name,
+            amount=amount,
+            count=row.count,
+            percentage=percentage
+        ))
+    
+    # Add "Unlabeled" category for income transactions without labels
+    if labeled_income_total < total_income:
+        unlabeled_income = total_income - labeled_income_total
+        unlabeled_income_count_result = await db.execute(
+            select(func.count(Transaction.id)).where(
+                Transaction.organization_id == current_user.organization_id,
+                Transaction.date >= start_date,
+                Transaction.date <= end_date,
+                Transaction.amount > 0,
+                ~Transaction.id.in_(
+                    select(transaction_labels.c.transaction_id).select_from(transaction_labels)
+                )
+            )
+        )
+        unlabeled_count = unlabeled_income_count_result.scalar() or 0
+        percentage = (unlabeled_income / total_income * 100) if total_income > 0 else 0
+        income_categories.append(CategoryBreakdown(
+            category="Unlabeled",
+            amount=unlabeled_income,
+            count=unlabeled_count,
+            percentage=percentage
+        ))
+    
+    # Get expenses by label
+    expense_labels_result = await db.execute(
+        select(
+            Label.name,
+            func.sum(Transaction.amount).label('total'),
+            func.count(Transaction.id).label('count')
+        ).select_from(Transaction)
+        .join(transaction_labels, Transaction.id == transaction_labels.c.transaction_id)
+        .join(Label, Label.id == transaction_labels.c.label_id)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount < 0
+        ).group_by(Label.name)
+        .order_by(func.sum(Transaction.amount).asc())
+    )
+    
+    expense_categories = []
+    labeled_expense_total = 0
+    for row in expense_labels_result:
+        amount = abs(float(row.total))
+        labeled_expense_total += amount
+        percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
+        expense_categories.append(CategoryBreakdown(
+            category=row.name,
+            amount=amount,
+            count=row.count,
+            percentage=percentage
+        ))
+    
+    # Add "Unlabeled" category for expense transactions without labels
+    if labeled_expense_total < total_expenses:
+        unlabeled_expense = total_expenses - labeled_expense_total
+        unlabeled_expense_count_result = await db.execute(
+            select(func.count(Transaction.id)).where(
+                Transaction.organization_id == current_user.organization_id,
+                Transaction.date >= start_date,
+                Transaction.date <= end_date,
+                Transaction.amount < 0,
+                ~Transaction.id.in_(
+                    select(transaction_labels.c.transaction_id).select_from(transaction_labels)
+                )
+            )
+        )
+        unlabeled_count = unlabeled_expense_count_result.scalar() or 0
+        percentage = (unlabeled_expense / total_expenses * 100) if total_expenses > 0 else 0
+        expense_categories.append(CategoryBreakdown(
+            category="Unlabeled",
+            amount=unlabeled_expense,
+            count=unlabeled_count,
+            percentage=percentage
+        ))
+    
+    return IncomeExpenseSummary(
+        total_income=total_income,
+        total_expenses=total_expenses,
+        net=total_income - total_expenses,
+        income_categories=income_categories,
+        expense_categories=expense_categories
+    )
+
+
+@router.get("/label-merchants", response_model=List[CategoryBreakdown])
+async def get_label_merchant_breakdown(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    label: Optional[str] = Query(None),
+    transaction_type: str = Query(..., description="income or expense"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get merchant breakdown for a label."""
+    from app.models.transaction import transaction_labels
+    from app.models.label import Label
+    
+    # Build base conditions
+    conditions = [
+        Transaction.organization_id == current_user.organization_id,
+        Transaction.date >= start_date,
+        Transaction.date <= end_date,
+        Transaction.merchant_name.isnot(None),
+    ]
+    
+    # Add transaction type filter
+    if transaction_type == 'income':
+        conditions.append(Transaction.amount > 0)
+    else:
+        conditions.append(Transaction.amount < 0)
+    
+    # Handle "Unlabeled" special case
+    if label == "Unlabeled":
+        # Get transactions without any labels
+        result = await db.execute(
+            select(
+                Transaction.merchant_name,
+                func.sum(Transaction.amount).label('total'),
+                func.count(Transaction.id).label('count')
+            ).where(
+                and_(*conditions),
+                ~Transaction.id.in_(
+                    select(transaction_labels.c.transaction_id).select_from(transaction_labels)
+                )
+            ).group_by(Transaction.merchant_name)
+            .order_by(func.sum(Transaction.amount).desc() if transaction_type == 'income' else func.sum(Transaction.amount).asc())
+        )
+        
+        # Calculate total for percentage
+        total_result = await db.execute(
+            select(func.sum(Transaction.amount)).where(
+                and_(*conditions),
+                ~Transaction.id.in_(
+                    select(transaction_labels.c.transaction_id).select_from(transaction_labels)
+                )
+            )
+        )
+    elif label:
+        # Get transactions with specific label
+        result = await db.execute(
+            select(
+                Transaction.merchant_name,
+                func.sum(Transaction.amount).label('total'),
+                func.count(Transaction.id).label('count')
+            ).select_from(Transaction)
+            .join(transaction_labels, Transaction.id == transaction_labels.c.transaction_id)
+            .join(Label, Label.id == transaction_labels.c.label_id)
+            .where(
+                and_(*conditions),
+                Label.name == label
+            ).group_by(Transaction.merchant_name)
+            .order_by(func.sum(Transaction.amount).desc() if transaction_type == 'income' else func.sum(Transaction.amount).asc())
+        )
+        
+        # Calculate total for percentage
+        total_result = await db.execute(
+            select(func.sum(Transaction.amount))
+            .select_from(Transaction)
+            .join(transaction_labels, Transaction.id == transaction_labels.c.transaction_id)
+            .join(Label, Label.id == transaction_labels.c.label_id)
+            .where(
+                and_(*conditions),
+                Label.name == label
+            )
+        )
+    else:
+        # No label filter - return all merchants
+        result = await db.execute(
+            select(
+                Transaction.merchant_name,
+                func.sum(Transaction.amount).label('total'),
+                func.count(Transaction.id).label('count')
+            ).where(and_(*conditions))
+            .group_by(Transaction.merchant_name)
+            .order_by(func.sum(Transaction.amount).desc() if transaction_type == 'income' else func.sum(Transaction.amount).asc())
+        )
+        
+        total_result = await db.execute(
+            select(func.sum(Transaction.amount)).where(and_(*conditions))
+        )
+    
+    total = abs(float(total_result.scalar() or 0))
+    
+    merchants = []
+    for row in result:
+        amount = abs(float(row.total))
+        percentage = (amount / total * 100) if total > 0 else 0
+        merchants.append(CategoryBreakdown(
+            category=row.merchant_name,
+            amount=amount,
+            count=row.count,
+            percentage=percentage
+        ))
+    
+    return merchants

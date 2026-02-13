@@ -141,10 +141,11 @@ export const IncomeExpensesPage = () => {
   const [groupBy, setGroupBy] = useState<'category' | 'label'>('category');
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
-    queryKey: ['income-expenses-summary', dateRange.start, dateRange.end],
+    queryKey: ['income-expenses-summary', dateRange.start, dateRange.end, groupBy],
     queryFn: async () => {
+      const endpoint = groupBy === 'label' ? '/income-expenses/label-summary' : '/income-expenses/summary';
       const response = await api.get<IncomeExpenseSummary>(
-        `/income-expenses/summary?start_date=${dateRange.start}&end_date=${dateRange.end}`
+        `${endpoint}?start_date=${dateRange.start}&end_date=${dateRange.end}`
       );
       return response.data;
     },
@@ -162,10 +163,12 @@ export const IncomeExpensesPage = () => {
 
   // Fetch merchant breakdown when drilling down
   const { data: incomeMerchants } = useQuery({
-    queryKey: ['income-merchants', dateRange.start, dateRange.end, incomeDrillDown.category],
+    queryKey: ['income-merchants', dateRange.start, dateRange.end, incomeDrillDown.category, groupBy],
     queryFn: async () => {
+      const endpoint = groupBy === 'label' ? '/income-expenses/label-merchants' : '/income-expenses/merchants';
+      const paramName = groupBy === 'label' ? 'label' : 'category';
       const response = await api.get<CategoryBreakdown[]>(
-        `/income-expenses/merchants?start_date=${dateRange.start}&end_date=${dateRange.end}&transaction_type=income&category=${incomeDrillDown.category || ''}`
+        `${endpoint}?start_date=${dateRange.start}&end_date=${dateRange.end}&transaction_type=income&${paramName}=${incomeDrillDown.category || ''}`
       );
       return response.data;
     },
@@ -173,10 +176,12 @@ export const IncomeExpensesPage = () => {
   });
 
   const { data: expenseMerchants } = useQuery({
-    queryKey: ['expense-merchants', dateRange.start, dateRange.end, expenseDrillDown.category],
+    queryKey: ['expense-merchants', dateRange.start, dateRange.end, expenseDrillDown.category, groupBy],
     queryFn: async () => {
+      const endpoint = groupBy === 'label' ? '/income-expenses/label-merchants' : '/income-expenses/merchants';
+      const paramName = groupBy === 'label' ? 'label' : 'category';
       const response = await api.get<CategoryBreakdown[]>(
-        `/income-expenses/merchants?start_date=${dateRange.start}&end_date=${dateRange.end}&transaction_type=expense&category=${expenseDrillDown.category || ''}`
+        `${endpoint}?start_date=${dateRange.start}&end_date=${dateRange.end}&transaction_type=expense&${paramName}=${expenseDrillDown.category || ''}`
       );
       return response.data;
     },
@@ -1007,7 +1012,7 @@ export const IncomeExpensesPage = () => {
                       {summary && summary.income_categories.length > 0 && (
                         <VStack align="stretch" spacing={4}>
                           <HStack justify="space-between">
-                            <Heading size="sm">Income by Category</Heading>
+                            <Heading size="sm">{groupBy === 'label' ? 'Income by Label' : 'Income by Category'}</Heading>
                             <IconButton
                               aria-label={incomeChartType === 'pie' ? 'Switch to bar chart' : 'Switch to pie chart'}
                               icon={incomeChartType === 'pie' ? <IoBarChart /> : <IoPieChart />}
@@ -1023,7 +1028,7 @@ export const IncomeExpensesPage = () => {
                                 color={incomeDrillDown.level === 'categories' ? 'brand.600' : 'gray.600'}
                                 fontWeight={incomeDrillDown.level === 'categories' ? 'bold' : 'normal'}
                               >
-                                All Categories
+                                {groupBy === 'label' ? 'All Labels' : 'All Categories'}
                               </BreadcrumbLink>
                             </BreadcrumbItem>
                             {incomeDrillDown.category && (
@@ -1065,7 +1070,7 @@ export const IncomeExpensesPage = () => {
                       {summary && summary.expense_categories.length > 0 && (
                         <VStack align="stretch" spacing={4}>
                           <HStack justify="space-between">
-                            <Heading size="sm">Expenses by Category</Heading>
+                            <Heading size="sm">{groupBy === 'label' ? 'Expenses by Label' : 'Expenses by Category'}</Heading>
                             <IconButton
                               aria-label={expenseChartType === 'pie' ? 'Switch to bar chart' : 'Switch to pie chart'}
                               icon={expenseChartType === 'pie' ? <IoBarChart /> : <IoPieChart />}
@@ -1081,7 +1086,7 @@ export const IncomeExpensesPage = () => {
                                 color={expenseDrillDown.level === 'categories' ? 'brand.600' : 'gray.600'}
                                 fontWeight={expenseDrillDown.level === 'categories' ? 'bold' : 'normal'}
                               >
-                                All Categories
+                                {groupBy === 'label' ? 'All Labels' : 'All Categories'}
                               </BreadcrumbLink>
                             </BreadcrumbItem>
                             {expenseDrillDown.category && (
@@ -1234,7 +1239,7 @@ export const IncomeExpensesPage = () => {
                     {summary && summary.income_categories.length > 0 ? (
                       <>
                         <HStack justify="space-between">
-                          <Heading size="md">Income by Category</Heading>
+                          <Heading size="md">{groupBy === 'label' ? 'Income by Label' : 'Income by Category'}</Heading>
                           <IconButton
                             aria-label={incomeChartType === 'pie' ? 'Switch to bar chart' : 'Switch to pie chart'}
                             icon={incomeChartType === 'pie' ? <IoBarChart /> : <IoPieChart />}
@@ -1406,7 +1411,7 @@ export const IncomeExpensesPage = () => {
                     {summary && summary.expense_categories.length > 0 ? (
                       <>
                         <HStack justify="space-between">
-                          <Heading size="md">Expenses by Category</Heading>
+                          <Heading size="md">{groupBy === 'label' ? 'Expenses by Label' : 'Expenses by Category'}</Heading>
                           <IconButton
                             aria-label={expenseChartType === 'pie' ? 'Switch to bar chart' : 'Switch to pie chart'}
                             icon={expenseChartType === 'pie' ? <IoBarChart /> : <IoPieChart />}
