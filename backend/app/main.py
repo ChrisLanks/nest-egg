@@ -67,7 +67,7 @@ async def health_check():
 
 
 # Import and include routers
-from app.api.v1 import auth, accounts, transactions, labels, rules, categories, dev, dashboard
+from app.api.v1 import auth, accounts, transactions, labels, rules, categories, dev, dashboard, income_expenses
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(accounts.router, prefix="/api/v1/accounts", tags=["Accounts"])
@@ -76,4 +76,5 @@ app.include_router(labels.router, prefix="/api/v1/labels", tags=["Labels"])
 app.include_router(rules.router, prefix="/api/v1/rules", tags=["Rules"])
 app.include_router(categories.router, prefix="/api/v1/categories", tags=["Categories"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
+app.include_router(income_expenses.router, prefix="/api/v1/income-expenses", tags=["Income vs Expenses"])
 app.include_router(dev.router, prefix="/api/v1/dev", tags=["Development"])

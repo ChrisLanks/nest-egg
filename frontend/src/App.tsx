@@ -15,6 +15,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 import { RulesPage } from './pages/RulesPage';
 import { CategoriesPage } from './pages/CategoriesPage';
+import { IncomeExpensesPage } from './features/income-expenses/pages/IncomeExpensesPage';
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/transactions" element={<TransactionsPage />} />
                 <Route path="/rules" element={<RulesPage />} />
+                <Route path="/income-expenses" element={<IncomeExpensesPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
               </Route>
             </Route>

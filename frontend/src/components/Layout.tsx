@@ -17,6 +17,7 @@ import {
   RepeatIcon,
   SettingsIcon,
   StarIcon,
+  ArrowUpDownIcon,
 } from '@chakra-ui/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../features/auth/stores/authStore';
@@ -64,6 +65,7 @@ export const Layout = () => {
     { icon: ViewIcon, label: 'Dashboard', path: '/dashboard' },
     { icon: RepeatIcon, label: 'Transactions', path: '/transactions' },
     { icon: SettingsIcon, label: 'Rules', path: '/rules' },
+    { icon: ArrowUpDownIcon, label: 'Income vs Expenses', path: '/income-expenses' },
     { icon: StarIcon, label: 'Categories', path: '/categories' },
   ];
 
