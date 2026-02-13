@@ -1,5 +1,5 @@
 /**
- * Income vs Expenses analysis page with drill-down capabilities and transaction tables
+ * Cash Flow analysis page with multi-level drill-down capabilities
  */
 
 import {
@@ -38,7 +38,7 @@ import {
   Wrap,
   WrapItem,
 } from '@chakra-ui/react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRightIcon, ChevronUpIcon, ChevronDownIcon } from '@chakra-ui/icons';
 import { IoBarChart, IoPieChart } from 'react-icons/io5';
@@ -73,15 +73,22 @@ interface MonthlyTrend {
 }
 
 type ChartType = 'pie' | 'bar';
-type DrillDownLevel = 'categories' | 'merchants';
+type DrillDownLevel = 'categories' | 'merchants' | 'transactions';
 
 interface DrillDownState {
   level: DrillDownLevel;
   category?: string;
+  merchant?: string;
 }
 
 type SortField = 'date' | 'merchant_name' | 'amount';
 type SortDirection = 'asc' | 'desc';
+
+const COLORS = [
+  '#48BB78', '#4299E1', '#9F7AEA', '#ED8936', '#F56565',
+  '#38B2AC', '#DD6B20', '#805AD5', '#D69E2E', '#E53E3E',
+  '#06B6D4', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981',
+];
 
 export const IncomeExpensesPage = () => {
   // Default to current month
@@ -139,7 +146,7 @@ export const IncomeExpensesPage = () => {
       );
       return response.data;
     },
-    enabled: incomeDrillDown.level === 'merchants',
+    enabled: incomeDrillDown.level === 'merchants' || incomeDrillDown.level === 'transactions',
   });
 
   const { data: expenseMerchants } = useQuery({
@@ -150,35 +157,95 @@ export const IncomeExpensesPage = () => {
       );
       return response.data;
     },
-    enabled: expenseDrillDown.level === 'merchants',
+    enabled: expenseDrillDown.level === 'merchants' || expenseDrillDown.level === 'transactions',
   });
 
-  // Fetch transactions for the current drill-down level
-  const { data: incomeTransactions } = useQuery({
-    queryKey: ['income-transactions', dateRange.start, dateRange.end, incomeDrillDown.category],
+  // Fetch ALL transactions for the date range
+  const { data: allIncomeTransactions } = useQuery({
+    queryKey: ['all-income-transactions', dateRange.start, dateRange.end],
     queryFn: async () => {
-      let url = `/transactions/?start_date=${dateRange.start}&end_date=${dateRange.end}&page=1&page_size=1000`;
-      if (incomeDrillDown.category) {
-        url += `&category=${incomeDrillDown.category}`;
-      }
-      const response = await api.get<{ transactions: Transaction[] }>(url);
-      // Filter for income only
+      const response = await api.get<{ transactions: Transaction[] }>(
+        `/transactions/?start_date=${dateRange.start}&end_date=${dateRange.end}&page=1&page_size=10000`
+      );
       return response.data.transactions.filter(t => t.amount > 0);
     },
   });
 
-  const { data: expenseTransactions } = useQuery({
-    queryKey: ['expense-transactions', dateRange.start, dateRange.end, expenseDrillDown.category],
+  const { data: allExpenseTransactions } = useQuery({
+    queryKey: ['all-expense-transactions', dateRange.start, dateRange.end],
     queryFn: async () => {
-      let url = `/transactions/?start_date=${dateRange.start}&end_date=${dateRange.end}&page=1&page_size=1000`;
-      if (expenseDrillDown.category) {
-        url += `&category=${expenseDrillDown.category}`;
-      }
-      const response = await api.get<{ transactions: Transaction[] }>(url);
-      // Filter for expenses only
+      const response = await api.get<{ transactions: Transaction[] }>(
+        `/transactions/?start_date=${dateRange.start}&end_date=${dateRange.end}&page=1&page_size=10000`
+      );
       return response.data.transactions.filter(t => t.amount < 0);
     },
   });
+
+  // Filter transactions based on drill-down state
+  const incomeTransactions = useMemo(() => {
+    if (!allIncomeTransactions) return [];
+
+    let filtered = allIncomeTransactions;
+
+    // Filter by category if drilling down
+    if (incomeDrillDown.category) {
+      filtered = filtered.filter(t => t.category_primary === incomeDrillDown.category);
+    }
+
+    // Filter by merchant if drilling down to that level
+    if (incomeDrillDown.merchant) {
+      filtered = filtered.filter(t => t.merchant_name === incomeDrillDown.merchant);
+    }
+
+    return filtered;
+  }, [allIncomeTransactions, incomeDrillDown]);
+
+  const expenseTransactions = useMemo(() => {
+    if (!allExpenseTransactions) return [];
+
+    let filtered = allExpenseTransactions;
+
+    // Filter by category if drilling down
+    if (expenseDrillDown.category) {
+      filtered = filtered.filter(t => t.category_primary === expenseDrillDown.category);
+    }
+
+    // Filter by merchant if drilling down to that level
+    if (expenseDrillDown.merchant) {
+      filtered = filtered.filter(t => t.merchant_name === expenseDrillDown.merchant);
+    }
+
+    return filtered;
+  }, [allExpenseTransactions, expenseDrillDown]);
+
+  // Create transaction breakdown for pie chart
+  const incomeTransactionBreakdown = useMemo(() => {
+    if (!incomeTransactions) return [];
+
+    const total = incomeTransactions.reduce((sum, t) => sum + t.amount, 0);
+
+    return incomeTransactions.map(t => ({
+      category: `${t.merchant_name} - ${formatDate(t.date)}`,
+      amount: t.amount,
+      count: 1,
+      percentage: (t.amount / total) * 100,
+      transaction: t,
+    }));
+  }, [incomeTransactions]);
+
+  const expenseTransactionBreakdown = useMemo(() => {
+    if (!expenseTransactions) return [];
+
+    const total = expenseTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    return expenseTransactions.map(t => ({
+      category: `${t.merchant_name} - ${formatDate(t.date)}`,
+      amount: Math.abs(t.amount),
+      count: 1,
+      percentage: (Math.abs(t.amount) / total) * 100,
+      transaction: t,
+    }));
+  }, [expenseTransactions]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -206,14 +273,26 @@ export const IncomeExpensesPage = () => {
     }
   };
 
+  const handleMerchantClick = (merchant: string, type: 'income' | 'expense') => {
+    if (type === 'income') {
+      setIncomeDrillDown(prev => ({ ...prev, level: 'transactions', merchant }));
+    } else {
+      setExpenseDrillDown(prev => ({ ...prev, level: 'transactions', merchant }));
+    }
+  };
+
   const handleBreadcrumbClick = (type: 'income' | 'expense', level: DrillDownLevel) => {
     if (type === 'income') {
       if (level === 'categories') {
         setIncomeDrillDown({ level: 'categories' });
+      } else if (level === 'merchants') {
+        setIncomeDrillDown(prev => ({ level: 'merchants', category: prev.category }));
       }
     } else {
       if (level === 'categories') {
         setExpenseDrillDown({ level: 'categories' });
+      } else if (level === 'merchants') {
+        setExpenseDrillDown(prev => ({ level: 'merchants', category: prev.category }));
       }
     }
   };
@@ -276,11 +355,6 @@ export const IncomeExpensesPage = () => {
     });
   };
 
-  const COLORS = [
-    '#48BB78', '#4299E1', '#9F7AEA', '#ED8936', '#F56565',
-    '#38B2AC', '#DD6B20', '#805AD5', '#D69E2E', '#E53E3E',
-  ];
-
   if (summaryLoading || trendLoading) {
     return (
       <Center h="100vh">
@@ -292,9 +366,10 @@ export const IncomeExpensesPage = () => {
   const net = summary?.net || 0;
 
   const renderChart = (
-    data: CategoryBreakdown[],
+    data: CategoryBreakdown[] | any[],
     type: 'income' | 'expense',
-    chartType: ChartType
+    chartType: ChartType,
+    drillDown: DrillDownState
   ) => {
     if (chartType === 'pie') {
       return (
@@ -308,15 +383,47 @@ export const IncomeExpensesPage = () => {
               cy="50%"
               outerRadius={100}
               label={(entry) => `${entry.percentage.toFixed(1)}%`}
-              onClick={(entry) => handleCategoryClick(entry.category, type)}
+              onClick={(entry) => {
+                if (drillDown.level === 'categories') {
+                  handleCategoryClick(entry.category, type);
+                } else if (drillDown.level === 'merchants') {
+                  handleMerchantClick(entry.category, type);
+                } else if (drillDown.level === 'transactions' && entry.transaction) {
+                  handleTransactionClick(entry.transaction);
+                }
+              }}
               style={{ cursor: 'pointer' }}
             >
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
-            <Tooltip formatter={(value: number) => formatCurrency(value)} />
-            <Legend />
+            <Tooltip
+              formatter={(value: number) => formatCurrency(value)}
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  const data = payload[0].payload;
+                  return (
+                    <Box bg="white" p={3} borderWidth={1} borderRadius="md" boxShadow="md">
+                      <Text fontWeight="bold">{data.category}</Text>
+                      <Text color={type === 'income' ? 'green.600' : 'red.600'}>
+                        {formatCurrency(data.amount)}
+                      </Text>
+                      <Text fontSize="sm" color="gray.600">
+                        {data.percentage.toFixed(1)}%
+                      </Text>
+                    </Box>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Legend
+              formatter={(value, entry: any) => {
+                const data = entry.payload;
+                return `${value} (${data.percentage.toFixed(1)}%)`;
+              }}
+            />
           </PieChart>
         </ResponsiveContainer>
       );
@@ -330,10 +437,21 @@ export const IncomeExpensesPage = () => {
             <Tooltip formatter={(value: number) => formatCurrency(value)} />
             <Bar
               dataKey="amount"
-              fill={type === 'income' ? '#48BB78' : '#F56565'}
-              onClick={(entry) => handleCategoryClick(entry.category, type)}
+              onClick={(entry) => {
+                if (drillDown.level === 'categories') {
+                  handleCategoryClick(entry.category, type);
+                } else if (drillDown.level === 'merchants') {
+                  handleMerchantClick(entry.category, type);
+                } else if (drillDown.level === 'transactions' && entry.transaction) {
+                  handleTransactionClick(entry.transaction);
+                }
+              }}
               style={{ cursor: 'pointer' }}
-            />
+            >
+              {data.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       );
@@ -461,7 +579,7 @@ export const IncomeExpensesPage = () => {
         {/* Header with Date Range Picker */}
         <HStack justify="space-between" align="start">
           <Box>
-            <Heading size="lg">Income vs Expenses</Heading>
+            <Heading size="lg">Cash Flow</Heading>
             <Text color="gray.600" mt={2}>
               Analyze your income sources and spending patterns
             </Text>
@@ -574,20 +692,36 @@ export const IncomeExpensesPage = () => {
                                 All Categories
                               </BreadcrumbLink>
                             </BreadcrumbItem>
-                            {incomeDrillDown.level === 'merchants' && (
+                            {incomeDrillDown.category && (
+                              <BreadcrumbItem>
+                                <BreadcrumbLink
+                                  onClick={() => handleBreadcrumbClick('income', 'merchants')}
+                                  color={incomeDrillDown.level === 'merchants' ? 'brand.600' : 'gray.600'}
+                                  fontWeight={incomeDrillDown.level === 'merchants' ? 'bold' : 'normal'}
+                                >
+                                  {incomeDrillDown.category}
+                                </BreadcrumbLink>
+                              </BreadcrumbItem>
+                            )}
+                            {incomeDrillDown.merchant && (
                               <BreadcrumbItem isCurrentPage>
                                 <BreadcrumbLink color="brand.600" fontWeight="bold">
-                                  {incomeDrillDown.category}
+                                  {incomeDrillDown.merchant}
                                 </BreadcrumbLink>
                               </BreadcrumbItem>
                             )}
                           </Breadcrumb>
                           {incomeDrillDown.level === 'categories'
-                            ? renderChart(summary.income_categories, 'income', incomeChartType)
-                            : incomeMerchants && renderChart(incomeMerchants, 'income', incomeChartType)
+                            ? renderChart(summary.income_categories, 'income', incomeChartType, incomeDrillDown)
+                            : incomeDrillDown.level === 'merchants' && incomeMerchants
+                            ? renderChart(incomeMerchants, 'income', incomeChartType, incomeDrillDown)
+                            : renderChart(incomeTransactionBreakdown, 'income', incomeChartType, incomeDrillDown)
                           }
                           <Box>
-                            <Heading size="xs" mb={3} color="gray.600">Transactions</Heading>
+                            <Heading size="xs" mb={3} color="gray.600">
+                              Transactions {incomeDrillDown.category && `in ${incomeDrillDown.category}`}
+                              {incomeDrillDown.merchant && ` at ${incomeDrillDown.merchant}`}
+                            </Heading>
                             {renderTransactionTable(incomeTransactions, 'income', incomeSortField, incomeSortDirection)}
                           </Box>
                         </VStack>
@@ -616,20 +750,36 @@ export const IncomeExpensesPage = () => {
                                 All Categories
                               </BreadcrumbLink>
                             </BreadcrumbItem>
-                            {expenseDrillDown.level === 'merchants' && (
+                            {expenseDrillDown.category && (
+                              <BreadcrumbItem>
+                                <BreadcrumbLink
+                                  onClick={() => handleBreadcrumbClick('expense', 'merchants')}
+                                  color={expenseDrillDown.level === 'merchants' ? 'brand.600' : 'gray.600'}
+                                  fontWeight={expenseDrillDown.level === 'merchants' ? 'bold' : 'normal'}
+                                >
+                                  {expenseDrillDown.category}
+                                </BreadcrumbLink>
+                              </BreadcrumbItem>
+                            )}
+                            {expenseDrillDown.merchant && (
                               <BreadcrumbItem isCurrentPage>
                                 <BreadcrumbLink color="brand.600" fontWeight="bold">
-                                  {expenseDrillDown.category}
+                                  {expenseDrillDown.merchant}
                                 </BreadcrumbLink>
                               </BreadcrumbItem>
                             )}
                           </Breadcrumb>
                           {expenseDrillDown.level === 'categories'
-                            ? renderChart(summary.expense_categories, 'expense', expenseChartType)
-                            : expenseMerchants && renderChart(expenseMerchants, 'expense', expenseChartType)
+                            ? renderChart(summary.expense_categories, 'expense', expenseChartType, expenseDrillDown)
+                            : expenseDrillDown.level === 'merchants' && expenseMerchants
+                            ? renderChart(expenseMerchants, 'expense', expenseChartType, expenseDrillDown)
+                            : renderChart(expenseTransactionBreakdown, 'expense', expenseChartType, expenseDrillDown)
                           }
                           <Box>
-                            <Heading size="xs" mb={3} color="gray.600">Transactions</Heading>
+                            <Heading size="xs" mb={3} color="gray.600">
+                              Transactions {expenseDrillDown.category && `in ${expenseDrillDown.category}`}
+                              {expenseDrillDown.merchant && ` at ${expenseDrillDown.merchant}`}
+                            </Heading>
                             {renderTransactionTable(expenseTransactions, 'expense', expenseSortField, expenseSortDirection)}
                           </Box>
                         </VStack>
@@ -663,22 +813,38 @@ export const IncomeExpensesPage = () => {
                               All Categories
                             </BreadcrumbLink>
                           </BreadcrumbItem>
-                          {incomeDrillDown.level === 'merchants' && (
+                          {incomeDrillDown.category && (
+                            <BreadcrumbItem>
+                              <BreadcrumbLink
+                                onClick={() => handleBreadcrumbClick('income', 'merchants')}
+                                color={incomeDrillDown.level === 'merchants' ? 'brand.600' : 'gray.600'}
+                                fontWeight={incomeDrillDown.level === 'merchants' ? 'bold' : 'normal'}
+                              >
+                                {incomeDrillDown.category}
+                              </BreadcrumbLink>
+                            </BreadcrumbItem>
+                          )}
+                          {incomeDrillDown.merchant && (
                             <BreadcrumbItem isCurrentPage>
                               <BreadcrumbLink color="brand.600" fontWeight="bold">
-                                {incomeDrillDown.category}
+                                {incomeDrillDown.merchant}
                               </BreadcrumbLink>
                             </BreadcrumbItem>
                           )}
                         </Breadcrumb>
                         <Box>
                           {incomeDrillDown.level === 'categories'
-                            ? renderChart(summary.income_categories, 'income', incomeChartType)
-                            : incomeMerchants && renderChart(incomeMerchants, 'income', incomeChartType)
+                            ? renderChart(summary.income_categories, 'income', incomeChartType, incomeDrillDown)
+                            : incomeDrillDown.level === 'merchants' && incomeMerchants
+                            ? renderChart(incomeMerchants, 'income', incomeChartType, incomeDrillDown)
+                            : renderChart(incomeTransactionBreakdown, 'income', incomeChartType, incomeDrillDown)
                           }
                         </Box>
                         <Box>
-                          <Heading size="sm" mb={4}>Transactions</Heading>
+                          <Heading size="sm" mb={4}>
+                            Transactions {incomeDrillDown.category && `in ${incomeDrillDown.category}`}
+                            {incomeDrillDown.merchant && ` at ${incomeDrillDown.merchant}`}
+                          </Heading>
                           {renderTransactionTable(incomeTransactions, 'income', incomeSortField, incomeSortDirection)}
                         </Box>
                       </>
@@ -713,22 +879,38 @@ export const IncomeExpensesPage = () => {
                               All Categories
                             </BreadcrumbLink>
                           </BreadcrumbItem>
-                          {expenseDrillDown.level === 'merchants' && (
+                          {expenseDrillDown.category && (
+                            <BreadcrumbItem>
+                              <BreadcrumbLink
+                                onClick={() => handleBreadcrumbClick('expense', 'merchants')}
+                                color={expenseDrillDown.level === 'merchants' ? 'brand.600' : 'gray.600'}
+                                fontWeight={expenseDrillDown.level === 'merchants' ? 'bold' : 'normal'}
+                              >
+                                {expenseDrillDown.category}
+                              </BreadcrumbLink>
+                            </BreadcrumbItem>
+                          )}
+                          {expenseDrillDown.merchant && (
                             <BreadcrumbItem isCurrentPage>
                               <BreadcrumbLink color="brand.600" fontWeight="bold">
-                                {expenseDrillDown.category}
+                                {expenseDrillDown.merchant}
                               </BreadcrumbLink>
                             </BreadcrumbItem>
                           )}
                         </Breadcrumb>
                         <Box>
                           {expenseDrillDown.level === 'categories'
-                            ? renderChart(summary.expense_categories, 'expense', expenseChartType)
-                            : expenseMerchants && renderChart(expenseMerchants, 'expense', expenseChartType)
+                            ? renderChart(summary.expense_categories, 'expense', expenseChartType, expenseDrillDown)
+                            : expenseDrillDown.level === 'merchants' && expenseMerchants
+                            ? renderChart(expenseMerchants, 'expense', expenseChartType, expenseDrillDown)
+                            : renderChart(expenseTransactionBreakdown, 'expense', expenseChartType, expenseDrillDown)
                           }
                         </Box>
                         <Box>
-                          <Heading size="sm" mb={4}>Transactions</Heading>
+                          <Heading size="sm" mb={4}>
+                            Transactions {expenseDrillDown.category && `in ${expenseDrillDown.category}`}
+                            {expenseDrillDown.merchant && ` at ${expenseDrillDown.merchant}`}
+                          </Heading>
                           {renderTransactionTable(expenseTransactions, 'expense', expenseSortField, expenseSortDirection)}
                         </Box>
                       </>

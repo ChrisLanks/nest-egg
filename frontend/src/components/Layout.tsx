@@ -65,7 +65,7 @@ export const Layout = () => {
     { icon: ViewIcon, label: 'Dashboard', path: '/dashboard' },
     { icon: RepeatIcon, label: 'Transactions', path: '/transactions' },
     { icon: SettingsIcon, label: 'Rules', path: '/rules' },
-    { icon: ArrowUpDownIcon, label: 'Income vs Expenses', path: '/income-expenses' },
+    { icon: ArrowUpDownIcon, label: 'Cash Flow', path: '/income-expenses' },
     { icon: StarIcon, label: 'Categories', path: '/categories' },
   ];
 
