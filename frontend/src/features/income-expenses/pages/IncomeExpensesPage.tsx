@@ -237,6 +237,142 @@ export const IncomeExpensesPage = () => {
     return filtered;
   }, [allExpenseTransactions, expenseDrillDown]);
 
+  // Calculate statistics for both income and expenses
+  const incomeStats = useMemo(() => {
+    if (!incomeTransactions || incomeTransactions.length === 0) {
+      return null;
+    }
+
+    const amounts = incomeTransactions.map(t => t.amount);
+    const total = amounts.reduce((sum, amt) => sum + amt, 0);
+    const avg = total / amounts.length;
+    const min = Math.min(...amounts);
+    const max = Math.max(...amounts);
+
+    // Top and lowest payees by total amount
+    const merchantTotals = new Map<string, { total: number; count: number }>();
+    incomeTransactions.forEach(t => {
+      const merchant = t.merchant_name || 'Unknown';
+      const existing = merchantTotals.get(merchant) || { total: 0, count: 0 };
+      merchantTotals.set(merchant, {
+        total: existing.total + t.amount,
+        count: existing.count + 1,
+      });
+    });
+
+    const merchantArray = Array.from(merchantTotals.entries()).map(([name, data]) => ({
+      name,
+      ...data,
+    }));
+    merchantArray.sort((a, b) => b.total - a.total);
+
+    const topPayee = merchantArray[0];
+    const lowestPayee = merchantArray[merchantArray.length - 1];
+    const mostTransactions = merchantArray.sort((a, b) => b.count - a.count)[0];
+
+    return {
+      totalTransactions: incomeTransactions.length,
+      totalAmount: total,
+      avgAmount: avg,
+      minAmount: min,
+      maxAmount: max,
+      topPayee,
+      lowestPayee,
+      mostTransactions,
+    };
+  }, [incomeTransactions]);
+
+  const expenseStats = useMemo(() => {
+    if (!expenseTransactions || expenseTransactions.length === 0) {
+      return null;
+    }
+
+    const amounts = expenseTransactions.map(t => Math.abs(t.amount));
+    const total = amounts.reduce((sum, amt) => sum + amt, 0);
+    const avg = total / amounts.length;
+    const min = Math.min(...amounts);
+    const max = Math.max(...amounts);
+
+    // Top and lowest merchants by total amount
+    const merchantTotals = new Map<string, { total: number; count: number }>();
+    expenseTransactions.forEach(t => {
+      const merchant = t.merchant_name || 'Unknown';
+      const existing = merchantTotals.get(merchant) || { total: 0, count: 0 };
+      merchantTotals.set(merchant, {
+        total: existing.total + Math.abs(t.amount),
+        count: existing.count + 1,
+      });
+    });
+
+    const merchantArray = Array.from(merchantTotals.entries()).map(([name, data]) => ({
+      name,
+      ...data,
+    }));
+    merchantArray.sort((a, b) => b.total - a.total);
+
+    const topMerchant = merchantArray[0];
+    const lowestMerchant = merchantArray[merchantArray.length - 1];
+    const mostTransactions = merchantArray.sort((a, b) => b.count - a.count)[0];
+
+    return {
+      totalTransactions: expenseTransactions.length,
+      totalAmount: total,
+      avgAmount: avg,
+      minAmount: min,
+      maxAmount: max,
+      topMerchant,
+      lowestMerchant,
+      mostTransactions,
+    };
+  }, [expenseTransactions]);
+
+  const combinedStats = useMemo(() => {
+    const allTransactions = [
+      ...(allIncomeTransactions || []),
+      ...(allExpenseTransactions || []),
+    ];
+
+    if (allTransactions.length === 0) {
+      return null;
+    }
+
+    const totalIncome = (allIncomeTransactions || []).reduce((sum, t) => sum + t.amount, 0);
+    const totalExpense = (allExpenseTransactions || []).reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    // Combine merchant data
+    const merchantTotals = new Map<string, { total: number; count: number }>();
+    allTransactions.forEach(t => {
+      const merchant = t.merchant_name || 'Unknown';
+      const existing = merchantTotals.get(merchant) || { total: 0, count: 0 };
+      merchantTotals.set(merchant, {
+        total: existing.total + Math.abs(t.amount),
+        count: existing.count + 1,
+      });
+    });
+
+    const merchantArray = Array.from(merchantTotals.entries()).map(([name, data]) => ({
+      name,
+      ...data,
+    }));
+
+    const topPayee = merchantArray.sort((a, b) => b.total - a.total)[0];
+    const mostTransactions = merchantArray.sort((a, b) => b.count - a.count)[0];
+
+    return {
+      totalTransactions: allTransactions.length,
+      totalSpent: totalExpense,
+      avgSpent: totalExpense / (allExpenseTransactions?.length || 1),
+      minSpent: allExpenseTransactions && allExpenseTransactions.length > 0
+        ? Math.min(...allExpenseTransactions.map(t => Math.abs(t.amount)))
+        : 0,
+      maxSpent: allExpenseTransactions && allExpenseTransactions.length > 0
+        ? Math.max(...allExpenseTransactions.map(t => Math.abs(t.amount)))
+        : 0,
+      topPayee,
+      mostTransactions,
+    };
+  }, [allIncomeTransactions, allExpenseTransactions]);
+
   // Create transaction breakdown for pie chart
   const incomeTransactionBreakdown = useMemo(() => {
     if (!incomeTransactions) return [];
@@ -383,7 +519,7 @@ export const IncomeExpensesPage = () => {
               cx="50%"
               cy="50%"
               outerRadius={100}
-              label={(entry) => `${entry.percentage.toFixed(1)}%`}
+              label={(entry) => formatCurrency(entry.amount)}
               onClick={(entry) => {
                 if (drillDown.level === 'categories') {
                   handleCategoryClick(entry.category, type);
@@ -420,9 +556,45 @@ export const IncomeExpensesPage = () => {
               }}
             />
             <Legend
-              formatter={(value, entry: any) => {
-                const data = entry.payload;
-                return `${value} (${data.percentage.toFixed(1)}%)`;
+              content={(props: any) => {
+                const { payload } = props;
+                if (!payload || !payload.length) return null;
+
+                return (
+                  <Box mt={4}>
+                    <Wrap spacing={2} justify="center">
+                      {payload.map((entry: any, index: number) => {
+                        const data = entry.payload;
+                        return (
+                          <WrapItem key={`legend-${index}`}>
+                            <HStack
+                              spacing={2}
+                              cursor="pointer"
+                              px={2}
+                              py={1}
+                              borderRadius="md"
+                              _hover={{ bg: 'gray.100' }}
+                              onClick={() => {
+                                if (drillDown.level === 'categories') {
+                                  handleCategoryClick(data.category, type);
+                                } else if (drillDown.level === 'merchants') {
+                                  handleMerchantClick(data.category, type);
+                                } else if (drillDown.level === 'transactions' && data.transaction) {
+                                  handleTransactionClick(data.transaction);
+                                }
+                              }}
+                            >
+                              <Box w={3} h={3} bg={entry.color} borderRadius="sm" />
+                              <Text fontSize="sm">
+                                {entry.value} ({data.percentage.toFixed(1)}%)
+                              </Text>
+                            </HStack>
+                          </WrapItem>
+                        );
+                      })}
+                    </Wrap>
+                  </Box>
+                );
               }}
             />
           </PieChart>
@@ -644,6 +816,96 @@ export const IncomeExpensesPage = () => {
                 {/* Both Tab */}
                 <TabPanel>
                   <VStack spacing={6}>
+                    {/* Statistics Cards */}
+                    {combinedStats && (
+                      <SimpleGrid columns={{ base: 2, md: 4, lg: 8 }} spacing={4} w="full">
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Total Transactions</StatLabel>
+                              <StatNumber fontSize="lg">{combinedStats.totalTransactions}</StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Total Spent</StatLabel>
+                              <StatNumber fontSize="lg" color="red.600">
+                                {formatCurrency(combinedStats.totalSpent)}
+                              </StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Avg Spent</StatLabel>
+                              <StatNumber fontSize="lg">
+                                {formatCurrency(combinedStats.avgSpent)}
+                              </StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Min Spent</StatLabel>
+                              <StatNumber fontSize="lg">
+                                {formatCurrency(combinedStats.minSpent)}
+                              </StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Max Spent</StatLabel>
+                              <StatNumber fontSize="lg">
+                                {formatCurrency(combinedStats.maxSpent)}
+                              </StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Top Payee</StatLabel>
+                              <StatNumber fontSize="sm" noOfLines={1}>
+                                {combinedStats.topPayee?.name || 'N/A'}
+                              </StatNumber>
+                              <StatHelpText fontSize="xs">
+                                {combinedStats.topPayee && formatCurrency(combinedStats.topPayee.total)}
+                              </StatHelpText>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Most Transactions</StatLabel>
+                              <StatNumber fontSize="sm" noOfLines={1}>
+                                {combinedStats.mostTransactions?.name || 'N/A'}
+                              </StatNumber>
+                              <StatHelpText fontSize="xs">
+                                {combinedStats.mostTransactions?.count || 0} txns
+                              </StatHelpText>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Net Cashflow</StatLabel>
+                              <StatNumber fontSize="lg" color={net >= 0 ? 'green.600' : 'red.600'}>
+                                {net >= 0 ? '+' : ''}{formatCurrency(net)}
+                              </StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                      </SimpleGrid>
+                    )}
+
                     {/* Monthly Trend Chart */}
                     {trend && trend.length > 0 && (
                       <Box w="full">
@@ -792,6 +1054,86 @@ export const IncomeExpensesPage = () => {
                 {/* Income Tab */}
                 <TabPanel>
                   <VStack spacing={6} align="stretch">
+                    {/* Income Statistics Cards */}
+                    {incomeStats && (
+                      <SimpleGrid columns={{ base: 2, md: 4, lg: 7 }} spacing={4} w="full">
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Total Transactions</StatLabel>
+                              <StatNumber fontSize="lg">{incomeStats.totalTransactions}</StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Total Received</StatLabel>
+                              <StatNumber fontSize="lg" color="green.600">
+                                {formatCurrency(incomeStats.totalAmount)}
+                              </StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Avg Received</StatLabel>
+                              <StatNumber fontSize="lg">
+                                {formatCurrency(incomeStats.avgAmount)}
+                              </StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Min Received</StatLabel>
+                              <StatNumber fontSize="lg">
+                                {formatCurrency(incomeStats.minAmount)}
+                              </StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Max Received</StatLabel>
+                              <StatNumber fontSize="lg">
+                                {formatCurrency(incomeStats.maxAmount)}
+                              </StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Top Source</StatLabel>
+                              <StatNumber fontSize="sm" noOfLines={1}>
+                                {incomeStats.topPayee?.name || 'N/A'}
+                              </StatNumber>
+                              <StatHelpText fontSize="xs">
+                                {incomeStats.topPayee && formatCurrency(incomeStats.topPayee.total)}
+                              </StatHelpText>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Most Transactions</StatLabel>
+                              <StatNumber fontSize="sm" noOfLines={1}>
+                                {incomeStats.mostTransactions?.name || 'N/A'}
+                              </StatNumber>
+                              <StatHelpText fontSize="xs">
+                                {incomeStats.mostTransactions?.count || 0} txns
+                              </StatHelpText>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                      </SimpleGrid>
+                    )}
+
                     {summary && summary.income_categories.length > 0 ? (
                       <>
                         <HStack justify="space-between">
@@ -858,6 +1200,86 @@ export const IncomeExpensesPage = () => {
                 {/* Expenses Tab */}
                 <TabPanel>
                   <VStack spacing={6} align="stretch">
+                    {/* Expense Statistics Cards */}
+                    {expenseStats && (
+                      <SimpleGrid columns={{ base: 2, md: 4, lg: 7 }} spacing={4} w="full">
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Total Transactions</StatLabel>
+                              <StatNumber fontSize="lg">{expenseStats.totalTransactions}</StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Total Spent</StatLabel>
+                              <StatNumber fontSize="lg" color="red.600">
+                                {formatCurrency(expenseStats.totalAmount)}
+                              </StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Avg Spent</StatLabel>
+                              <StatNumber fontSize="lg">
+                                {formatCurrency(expenseStats.avgAmount)}
+                              </StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Min Spent</StatLabel>
+                              <StatNumber fontSize="lg">
+                                {formatCurrency(expenseStats.minAmount)}
+                              </StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Max Spent</StatLabel>
+                              <StatNumber fontSize="lg">
+                                {formatCurrency(expenseStats.maxAmount)}
+                              </StatNumber>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Most Spent</StatLabel>
+                              <StatNumber fontSize="sm" noOfLines={1}>
+                                {expenseStats.topMerchant?.name || 'N/A'}
+                              </StatNumber>
+                              <StatHelpText fontSize="xs">
+                                {expenseStats.topMerchant && formatCurrency(expenseStats.topMerchant.total)}
+                              </StatHelpText>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card size="sm">
+                          <CardBody>
+                            <Stat size="sm">
+                              <StatLabel fontSize="xs">Most Transactions</StatLabel>
+                              <StatNumber fontSize="sm" noOfLines={1}>
+                                {expenseStats.mostTransactions?.name || 'N/A'}
+                              </StatNumber>
+                              <StatHelpText fontSize="xs">
+                                {expenseStats.mostTransactions?.count || 0} txns
+                              </StatHelpText>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                      </SimpleGrid>
+                    )}
+
                     {summary && summary.expense_categories.length > 0 ? (
                       <>
                         <HStack justify="space-between">
