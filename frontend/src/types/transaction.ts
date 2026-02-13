@@ -2,6 +2,13 @@
  * Transaction types
  */
 
+export interface Label {
+  id: string;
+  name: string;
+  color?: string;
+  is_income: boolean;
+}
+
 export interface Transaction {
   id: string;
   account_id: string;
@@ -14,6 +21,7 @@ export interface Transaction {
   is_pending: boolean;
   account_name: string | null;
   account_mask: string | null;
+  labels?: Label[];
 }
 
 export interface TransactionListResponse {

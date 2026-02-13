@@ -35,6 +35,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add exception handler for validation errors
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    print(f"❌ Validation error: {exc}")
+    print(f"❌ Error details: {exc.errors()}")
+    print(f"❌ Request URL: {request.url}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()},
+    )
+
 
 @app.get("/")
 async def root():
@@ -53,9 +67,13 @@ async def health_check():
 
 
 # Import and include routers
-from app.api.v1 import auth, accounts, transactions, labels
+from app.api.v1 import auth, accounts, transactions, labels, rules, categories, dev, dashboard
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(accounts.router, prefix="/api/v1/accounts", tags=["Accounts"])
 app.include_router(transactions.router, prefix="/api/v1/transactions", tags=["Transactions"])
 app.include_router(labels.router, prefix="/api/v1/labels", tags=["Labels"])
+app.include_router(rules.router, prefix="/api/v1/rules", tags=["Rules"])
+app.include_router(categories.router, prefix="/api/v1/categories", tags=["Categories"])
+app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
+app.include_router(dev.router, prefix="/api/v1/dev", tags=["Development"])

@@ -10,8 +10,11 @@ import { queryClient } from './services/queryClient';
 import { LoginPage } from './features/auth/pages/LoginPage';
 import { RegisterPage } from './features/auth/pages/RegisterPage';
 import { ProtectedRoute } from './features/auth/components/ProtectedRoute';
+import { Layout } from './components/Layout';
 import { DashboardPage } from './pages/DashboardPage';
 import { TransactionsPage } from './pages/TransactionsPage';
+import { RulesPage } from './pages/RulesPage';
+import { CategoriesPage } from './pages/CategoriesPage';
 
 function App() {
   return (
@@ -23,10 +26,14 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
 
-            {/* Protected routes */}
+            {/* Protected routes with layout */}
             <Route element={<ProtectedRoute />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/transactions" element={<TransactionsPage />} />
+              <Route element={<Layout />}>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/transactions" element={<TransactionsPage />} />
+                <Route path="/rules" element={<RulesPage />} />
+                <Route path="/categories" element={<CategoriesPage />} />
+              </Route>
             </Route>
 
             {/* Redirect root to dashboard or login */}

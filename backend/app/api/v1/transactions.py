@@ -22,19 +22,36 @@ router = APIRouter()
 @router.get("/", response_model=TransactionListResponse)
 async def list_transactions(
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
+    page_size: int = Query(50, ge=1, le=10000),  # Increased limit for displaying all transactions
     account_id: Optional[UUID] = None,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     search: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List transactions with filtering and pagination."""
+    # Parse date strings if provided
+    start_date_obj = None
+    end_date_obj = None
+
+    if start_date:
+        try:
+            start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
+
+    if end_date:
+        try:
+            end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
+
     # Build base query
     query = (
         select(Transaction)
         .options(joinedload(Transaction.account))
+        .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
         .where(Transaction.organization_id == current_user.organization_id)
     )
 
@@ -42,11 +59,11 @@ async def list_transactions(
     if account_id:
         query = query.where(Transaction.account_id == account_id)
 
-    if start_date:
-        query = query.where(Transaction.date >= start_date)
+    if start_date_obj:
+        query = query.where(Transaction.date >= start_date_obj)
 
-    if end_date:
-        query = query.where(Transaction.date <= end_date)
+    if end_date_obj:
+        query = query.where(Transaction.date <= end_date_obj)
 
     if search:
         search_pattern = f"%{search}%"
@@ -71,6 +88,9 @@ async def list_transactions(
     # Transform to response format
     transaction_details = []
     for txn in transactions:
+        # Extract labels from the many-to-many relationship
+        transaction_labels = [tl.label for tl in txn.labels if tl.label]
+
         detail = TransactionDetail(
             id=txn.id,
             organization_id=txn.organization_id,
@@ -87,7 +107,7 @@ async def list_transactions(
             updated_at=txn.updated_at,
             account_name=txn.account.name if txn.account else None,
             account_mask=txn.account.mask if txn.account else None,
-            labels=[],  # TODO: Add labels when we implement them
+            labels=transaction_labels,
         )
         transaction_details.append(detail)
 
@@ -112,6 +132,7 @@ async def get_transaction(
     result = await db.execute(
         select(Transaction)
         .options(joinedload(Transaction.account))
+        .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
         .where(
             Transaction.id == transaction_id,
             Transaction.organization_id == current_user.organization_id,
@@ -121,6 +142,9 @@ async def get_transaction(
 
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
+
+    # Extract labels from the many-to-many relationship
+    transaction_labels = [tl.label for tl in txn.labels if tl.label]
 
     return TransactionDetail(
         id=txn.id,
@@ -138,7 +162,7 @@ async def get_transaction(
         updated_at=txn.updated_at,
         account_name=txn.account.name if txn.account else None,
         account_mask=txn.account.mask if txn.account else None,
-        labels=[],
+        labels=transaction_labels,
     )
 
 
