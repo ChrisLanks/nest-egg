@@ -108,6 +108,7 @@ export const InvestmentsPage = () => {
     'retirement',
     'taxable',
     'vehicles',
+    'crypto',
   ]);
 
   // Date filter state
@@ -246,6 +247,7 @@ export const InvestmentsPage = () => {
                       <Stack spacing={2}>
                         <Checkbox value="retirement">Retirement</Checkbox>
                         <Checkbox value="taxable">Taxable</Checkbox>
+                        <Checkbox value="crypto">Crypto</Checkbox>
                         <Checkbox value="property">Property</Checkbox>
                         <Checkbox value="vehicles">Vehicles</Checkbox>
                       </Stack>

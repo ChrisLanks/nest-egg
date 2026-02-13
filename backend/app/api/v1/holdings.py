@@ -59,6 +59,7 @@ async def get_portfolio_summary(
                 AccountType.RETIREMENT_IRA,
                 AccountType.RETIREMENT_ROTH,
                 AccountType.HSA,
+                AccountType.CRYPTO,  # Include crypto accounts
             ])
         )
         .options(selectinload(Holding.account))
@@ -439,6 +440,38 @@ async def get_portfolio_summary(
             color="#38B2AC"
         ))
         total_value = total_with_vehicles
+
+    # Add Crypto accounts with holdings
+    crypto_value = Decimal('0')
+    crypto_holdings_list = []
+
+    # First pass: calculate total crypto value
+    for account in accounts:
+        if account.account_type == AccountType.CRYPTO and account.id in holdings_by_account:
+            for holding in holdings_by_account[account.id]:
+                if holding.current_total_value:
+                    crypto_value += holding.current_total_value
+                    crypto_holdings_list.append(holding)
+
+    # Second pass: create nodes with correct percentages
+    crypto_children = []
+    if crypto_value > 0:
+        for holding in crypto_holdings_list:
+            crypto_children.append(TreemapNode(
+                name=holding.ticker,
+                value=holding.current_total_value,
+                percent=(holding.current_total_value / crypto_value * 100),
+            ))
+
+        total_with_crypto = total_value + crypto_value
+        treemap_children.append(TreemapNode(
+            name="Crypto",
+            value=crypto_value,
+            percent=(crypto_value / total_with_crypto * 100),
+            children=crypto_children,
+            color="#9F7AEA"
+        ))
+        total_value = total_with_crypto
 
     # Recalculate percentages for all top-level nodes
     for child in treemap_children:
