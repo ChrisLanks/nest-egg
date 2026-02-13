@@ -45,6 +45,27 @@ import { FiChevronDown, FiChevronUp, FiCalendar } from 'react-icons/fi';
 import api from '../services/api';
 import { AssetAllocationTreemap } from '../features/investments/components/AssetAllocationTreemap';
 
+interface Holding {
+  id: string;
+  ticker: string;
+  name: string | null;
+  shares: number;
+  cost_basis_per_share: number | null;
+  total_cost_basis: number | null;
+  current_price_per_share: number | null;
+  current_total_value: number | null;
+  price_as_of: string | null;
+  asset_type: string | null;
+}
+
+interface AccountHoldings {
+  account_id: string;
+  account_name: string;
+  account_type: string;
+  account_value: number;
+  holdings: Holding[];
+}
+
 interface HoldingSummary {
   ticker: string;
   name: string | null;
@@ -91,6 +112,7 @@ interface PortfolioSummary {
   total_gain_loss: number | null;
   total_gain_loss_percent: number | null;
   holdings_by_ticker: HoldingSummary[];
+  holdings_by_account: AccountHoldings[];
   stocks_value: number;
   bonds_value: number;
   etf_value: number;
@@ -120,11 +142,34 @@ export const InvestmentsPage = () => {
   // Expanded sections state
   const [expandedSections, setExpandedSections] = useState<string[]>(['summary', 'breakdown', 'treemap', 'holdings']);
 
+  // Expanded accounts state (default: all expanded)
+  const [expandedAccounts, setExpandedAccounts] = useState<string[]>([]);
+
+  // Helper to convert string numbers to actual numbers in treemap data
+  const convertTreemapNode = (node: any): TreemapNode => {
+    return {
+      name: node.name,
+      value: Number(node.value),
+      percent: Number(node.percent),
+      children: node.children?.map(convertTreemapNode),
+      color: node.color,
+    };
+  };
+
   // Fetch portfolio summary
   const { data: portfolio, isLoading } = useQuery<PortfolioSummary>({
     queryKey: ['portfolio'],
     queryFn: async () => {
       const response = await api.get('/holdings/portfolio');
+      console.log('📊 Portfolio Data:', response.data);
+      console.log('🗺️ Treemap Data (raw):', response.data.treemap_data);
+
+      // Convert treemap data to use numbers instead of strings
+      if (response.data.treemap_data) {
+        response.data.treemap_data = convertTreemapNode(response.data.treemap_data);
+        console.log('🗺️ Treemap Data (converted):', response.data.treemap_data);
+      }
+
       return response.data;
     },
   });
@@ -221,7 +266,16 @@ export const InvestmentsPage = () => {
                 size="sm"
                 variant="outline"
               >
-                {dateFilter === 'all' ? 'All Time' : dateFilter === 'today' ? 'Today' : dateFilter === 'week' ? 'This Week' : dateFilter === 'month' ? 'This Month' : dateFilter === 'year' ? 'This Year' : 'Custom'}
+                {(() => {
+                  switch (dateFilter) {
+                    case 'today': return 'Today';
+                    case 'week': return 'This Week';
+                    case 'month': return 'This Month';
+                    case 'year': return 'This Year';
+                    case 'all': return 'All Time';
+                    default: return 'All Time';
+                  }
+                })()}
               </MenuButton>
               <MenuList>
                 <MenuItem onClick={() => handleDateFilterChange('today')}>Today</MenuItem>
@@ -516,12 +570,12 @@ export const InvestmentsPage = () => {
           </Card>
         )}
 
-        {/* Holdings Table */}
+        {/* Holdings by Account */}
         <Card>
           <CardBody>
             <HStack justify="space-between" mb={4}>
               <VStack align="flex-start" spacing={1}>
-                <Heading size="md">Holdings</Heading>
+                <Heading size="md">Holdings by Account</Heading>
                 {selectedNode && (
                   <Text fontSize="sm" color="gray.600">
                     Filtered by: {selectedNode.name}
@@ -548,105 +602,98 @@ export const InvestmentsPage = () => {
               </HStack>
             </HStack>
             <Collapse in={expandedSections.includes('holdings')}>
-              <Box overflowX="auto">
-                <Table variant="simple" size="sm">
-                  <Thead>
-                    <Tr>
-                      <Th>Ticker</Th>
-                      <Th>Name</Th>
-                      <Th isNumeric>Shares</Th>
-                      <Th isNumeric>Price</Th>
-                      <Th isNumeric>Current Value</Th>
-                      <Th isNumeric>Cost Basis</Th>
-                      <Th isNumeric>Gain/Loss</Th>
-                      <Th>Type</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {portfolio.holdings_by_ticker
-                      .filter((holding) => {
-                        // Filter based on selected treemap node
-                        if (!selectedNode) return true;
+              <VStack spacing={4} align="stretch">
+                {portfolio.holdings_by_account.map((account) => {
+                  const isExpanded = expandedAccounts.includes(account.account_id);
 
-                        // If selected node is a specific ticker, match it
-                        if (!selectedNode.children) {
-                          return holding.ticker === selectedNode.name;
-                        }
+                  return (
+                    <Card key={account.account_id} variant="outline">
+                      <CardBody>
+                        <HStack
+                          justify="space-between"
+                          cursor="pointer"
+                          onClick={() => {
+                            setExpandedAccounts((prev) =>
+                              prev.includes(account.account_id)
+                                ? prev.filter((id) => id !== account.account_id)
+                                : [...prev, account.account_id]
+                            );
+                          }}
+                        >
+                          <VStack align="flex-start" spacing={0}>
+                            <HStack>
+                              <Heading size="sm">{account.account_name}</Heading>
+                              <Badge colorScheme="purple" size="sm">
+                                {account.account_type}
+                              </Badge>
+                            </HStack>
+                            <Text fontSize="lg" fontWeight="bold" color="brand.600">
+                              {formatCurrency(account.account_value)}
+                            </Text>
+                          </VStack>
+                          <IconButton
+                            aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                            icon={isExpanded ? <FiChevronUp /> : <FiChevronDown />}
+                            size="sm"
+                            variant="ghost"
+                          />
+                        </HStack>
 
-                        // If selected node is an asset type (Stocks, ETFs, etc.), match by asset type
-                        if (selectedNode.name === 'Stocks') {
-                          return holding.asset_type === 'stock';
-                        }
-                        if (selectedNode.name === 'ETFs') {
-                          return holding.asset_type === 'etf';
-                        }
-                        if (selectedNode.name === 'Mutual Funds') {
-                          return holding.asset_type === 'mutual_fund';
-                        }
-
-                        // Otherwise show all (for top-level categories like Retirement, Taxable)
-                        return true;
-                      })
-                      .map((holding) => {
-                    const gainIsPositive = holding.gain_loss !== null && holding.gain_loss >= 0;
-
-                    return (
-                      <Tr key={holding.ticker}>
-                        <Td>
-                          <Text fontWeight="bold">{holding.ticker}</Text>
-                        </Td>
-                        <Td>
-                          <Text fontSize="sm" color="gray.600">
-                            {holding.name || '-'}
-                          </Text>
-                        </Td>
-                        <Td isNumeric>{formatShares(holding.total_shares)}</Td>
-                        <Td isNumeric>
-                          {holding.current_price_per_share
-                            ? formatCurrency(holding.current_price_per_share)
-                            : 'N/A'}
-                        </Td>
-                        <Td isNumeric>
-                          <Text fontWeight="semibold">
-                            {formatCurrency(holding.current_total_value)}
-                          </Text>
-                        </Td>
-                        <Td isNumeric>{formatCurrency(holding.total_cost_basis)}</Td>
-                        <Td isNumeric>
-                          {holding.gain_loss !== null ? (
-                            <VStack spacing={0} align="flex-end">
-                              <Text
-                                fontWeight="semibold"
-                                color={gainIsPositive ? 'green.600' : 'red.600'}
-                              >
-                                {formatCurrency(holding.gain_loss)}
-                              </Text>
-                              {holding.gain_loss_percent !== null && (
-                                <Text
-                                  fontSize="xs"
-                                  color={gainIsPositive ? 'green.600' : 'red.600'}
-                                >
-                                  {formatPercent(holding.gain_loss_percent)}
-                                </Text>
-                              )}
-                            </VStack>
-                          ) : (
-                            'N/A'
-                          )}
-                        </Td>
-                        <Td>
-                          {holding.asset_type && (
-                            <Badge colorScheme="blue" size="sm">
-                              {holding.asset_type}
-                            </Badge>
-                          )}
-                        </Td>
-                      </Tr>
-                    );
-                      })}
-                  </Tbody>
-                </Table>
-              </Box>
+                        <Collapse in={isExpanded}>
+                          <Box mt={4} overflowX="auto">
+                            <Table variant="simple" size="sm">
+                              <Thead>
+                                <Tr>
+                                  <Th>Ticker</Th>
+                                  <Th>Name</Th>
+                                  <Th isNumeric>Shares</Th>
+                                  <Th isNumeric>Price</Th>
+                                  <Th isNumeric>Value</Th>
+                                  <Th isNumeric>Cost Basis</Th>
+                                  <Th>Type</Th>
+                                </Tr>
+                              </Thead>
+                              <Tbody>
+                                {account.holdings.map((holding) => (
+                                  <Tr key={holding.id}>
+                                    <Td>
+                                      <Text fontWeight="bold">{holding.ticker}</Text>
+                                    </Td>
+                                    <Td>
+                                      <Text fontSize="sm" color="gray.600">
+                                        {holding.name || '-'}
+                                      </Text>
+                                    </Td>
+                                    <Td isNumeric>{formatShares(holding.shares)}</Td>
+                                    <Td isNumeric>
+                                      {holding.current_price_per_share
+                                        ? formatCurrency(holding.current_price_per_share)
+                                        : 'N/A'}
+                                    </Td>
+                                    <Td isNumeric>
+                                      <Text fontWeight="semibold">
+                                        {formatCurrency(holding.current_total_value)}
+                                      </Text>
+                                    </Td>
+                                    <Td isNumeric>{formatCurrency(holding.total_cost_basis)}</Td>
+                                    <Td>
+                                      {holding.asset_type && (
+                                        <Badge colorScheme="blue" size="sm">
+                                          {holding.asset_type}
+                                        </Badge>
+                                      )}
+                                    </Td>
+                                  </Tr>
+                                ))}
+                              </Tbody>
+                            </Table>
+                          </Box>
+                        </Collapse>
+                      </CardBody>
+                    </Card>
+                  );
+                })}
+              </VStack>
             </Collapse>
           </CardBody>
         </Card>

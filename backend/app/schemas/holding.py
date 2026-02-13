@@ -99,6 +99,16 @@ class TreemapNode(BaseModel):
     color: Optional[str] = None
 
 
+class AccountHoldings(BaseModel):
+    """Holdings for a single account."""
+
+    account_id: UUID
+    account_name: str
+    account_type: str
+    account_value: Decimal
+    holdings: list[Holding]
+
+
 class PortfolioSummary(BaseModel):
     """Portfolio summary across all investment accounts."""
 
@@ -107,6 +117,7 @@ class PortfolioSummary(BaseModel):
     total_gain_loss: Optional[Decimal] = None
     total_gain_loss_percent: Optional[Decimal] = None
     holdings_by_ticker: list[HoldingSummary]
+    holdings_by_account: list[AccountHoldings]  # NEW: Holdings grouped by account
 
     # Asset allocation
     stocks_value: Decimal = Decimal('0')

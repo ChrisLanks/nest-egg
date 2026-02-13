@@ -45,10 +45,13 @@ api.interceptors.response.use(
 
         if (!refreshToken) {
           // No refresh token, redirect to login
+          console.log('[Auth] No refresh token found, redirecting to login');
           localStorage.clear();
           window.location.href = '/login';
           return Promise.reject(error);
         }
+
+        console.log('[Auth] Access token expired, attempting to refresh...');
 
         // Try to refresh access token
         const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
@@ -60,14 +63,19 @@ api.interceptors.response.use(
         // Save new access token
         localStorage.setItem('access_token', access_token);
 
+        console.log('[Auth] Token refreshed successfully, retrying original request');
+
         // Retry original request with new token
         if (originalRequest.headers) {
           originalRequest.headers.Authorization = `Bearer ${access_token}`;
         }
 
         return api(originalRequest);
-      } catch (refreshError) {
+      } catch (refreshError: any) {
         // Refresh failed, clear tokens and redirect to login
+        const errorMessage = refreshError.response?.data?.detail || refreshError.message;
+        console.error('[Auth] Token refresh failed:', errorMessage);
+        console.log('[Auth] Clearing tokens and redirecting to login');
         localStorage.clear();
         window.location.href = '/login';
         return Promise.reject(refreshError);

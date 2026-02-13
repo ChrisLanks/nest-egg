@@ -37,11 +37,36 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
   const [breadcrumbs, setBreadcrumbs] = useState<TreemapNode[]>([]);
   const [currentNode, setCurrentNode] = useState<TreemapNode>(data);
 
-  const handleClick = (node: any) => {
-    if (node.children && node.children.length > 0) {
+  console.log('🎨 AssetAllocationTreemap render');
+  console.log('   Root data:', data);
+  console.log('   Root children count:', data.children?.length || 0);
+  console.log('   Current node:', currentNode.name);
+  console.log('   Current children count:', currentNode.children?.length || 0);
+
+  // Log each child node details
+  if (currentNode.children) {
+    console.log('   Children details:');
+    currentNode.children.forEach((child, i) => {
+      console.log(`     [${i}] ${child.name}: $${child.value} (${child.percent}%) - children: ${child.children?.length || 0}`);
+    });
+  }
+
+  const handleRectClick = (clickedName: string) => {
+    console.log('🖱️ Rectangle clicked:', clickedName);
+
+    // Find the child node with this name from our actual data
+    const childNode = currentNode.children?.find(child => child.name === clickedName);
+
+    console.log('   Found node:', childNode);
+    console.log('   Has children:', childNode?.children?.length || 0);
+
+    if (childNode?.children && childNode.children.length > 0) {
+      console.log('   ✅ Drilling down to:', childNode.name);
       setBreadcrumbs([...breadcrumbs, currentNode]);
-      setCurrentNode(node);
-      onDrillDown?.(node);
+      setCurrentNode(childNode);
+      onDrillDown?.(childNode);
+    } else {
+      console.log('   ⚠️ No children to drill down to');
     }
   };
 
@@ -70,7 +95,23 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
   };
 
   const CustomizedContent = (props: any) => {
-    const { x, y, width, height, name, value, percent, fill, children, color } = props;
+    const { x, y, width, height, name, value, percent, fill, color } = props;
+
+    // Skip empty container nodes that Recharts creates
+    if (!name) {
+      return null;
+    }
+
+    // Find the actual node data from our currentNode.children array to check for children
+    const nodeData = currentNode.children?.find(child => child.name === name);
+    const hasChildren = nodeData?.children && nodeData.children.length > 0;
+
+    console.log('📦 CustomizedContent render:', {
+      name,
+      value,
+      hasChildren,
+      lookupChildren: nodeData?.children?.length || 0,
+    });
 
     // Only show label if box is large enough
     const showLabel = width > 60 && height > 40;
@@ -79,8 +120,19 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
     // Calculate percent if not provided (shouldn't happen, but safety check)
     const displayPercent = percent || 0;
 
+    const handleClick = (e: React.MouseEvent) => {
+      console.log('🎯 CLICK EVENT FIRED on:', name);
+      e.stopPropagation();
+      if (hasChildren) {
+        handleRectClick(name);
+      } else {
+        console.log('   ⚠️ No children, ignoring click');
+      }
+    };
+
     return (
       <g>
+        <title>{`${name}\n${formatCurrency(value)} (${Number(percent).toFixed(1)}%)`}</title>
         <rect
           x={x}
           y={y}
@@ -90,12 +142,12 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
             fill: color || fill,
             stroke: '#fff',
             strokeWidth: 2,
-            cursor: children ? 'pointer' : 'default',
+            cursor: hasChildren ? 'pointer' : 'default',
           }}
-          onClick={() => children && handleClick(props)}
+          onClick={handleClick}
         />
         {showLabel && name && (
-          <g>
+          <g pointerEvents="none">
             <text
               x={x + width / 2}
               y={y + height / 2 - (showPercent ? 8 : 0)}
@@ -176,7 +228,13 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
       <ResponsiveContainer width="100%" height={400}>
         {currentNode.children && currentNode.children.length > 0 ? (
           <Treemap
-            data={currentNode.children}
+            data={currentNode.children.map(child => ({
+              name: child.name,
+              value: child.value,
+              percent: child.percent,
+              color: child.color,
+              // Strip children to show only one level at a time
+            }))}
             dataKey="value"
             stroke="#fff"
             fill="#8884d8"

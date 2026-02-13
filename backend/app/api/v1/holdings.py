@@ -24,6 +24,7 @@ from app.schemas.holding import (
     CategoryBreakdown,
     GeographicBreakdown,
     TreemapNode,
+    AccountHoldings,
 )
 
 router = APIRouter()
@@ -232,258 +233,247 @@ async def get_portfolio_summary(
     )
 
     # Generate treemap data with hierarchical structure
-    # Top level: Account Categories (Retirement, Taxable, Property, Vehicles)
+    # Top level: Asset Classes (Domestic, International, Property, Bonds/Cash, Crypto, etc.)
     treemap_children = []
 
-    # Add Retirement category
-    if retirement_value > 0:
-        retirement_children = []
+    # Collect all holdings across ALL accounts (retirement + taxable + crypto)
+    all_investment_holdings = []
+    for account in accounts:
+        if account.id in holdings_by_account:
+            for holding in holdings_by_account[account.id]:
+                if holding.current_total_value:
+                    all_investment_holdings.append(holding)
 
-        # Group retirement holdings by asset type
-        ret_stocks = Decimal('0')
-        ret_etfs = Decimal('0')
-        ret_mutual_funds = Decimal('0')
-        ret_other = Decimal('0')
+    # Separate into asset classes
+    domestic_stocks_dict = {}
+    international_stocks_dict = {}
+    bonds_dict = {}
+    cash_dict = {}
+    other_dict = {}
 
-        ret_stocks_holdings = []
-        ret_etfs_holdings = []
-        ret_mutual_funds_holdings = []
-        ret_other_holdings = []
+    # Bond and cash identifiers
+    bond_tickers = {'AGG', 'BND', 'BNDX', 'TLT', 'VBTLX', 'FBNDX'}
+    cash_tickers = {'VMFXX', 'SPAXX', 'FDRXX', 'SWVXX'}
 
-        for account in accounts:
-            if account.account_type in retirement_types and account.id in holdings_by_account:
-                for holding in holdings_by_account[account.id]:
-                    if holding.current_total_value:
-                        holding_node = TreemapNode(
-                            name=holding.ticker,
-                            value=holding.current_total_value,
-                            percent=(holding.current_total_value / retirement_value * 100),
-                        )
+    domestic_stocks_value = Decimal('0')
+    international_value_from_holdings = Decimal('0')
+    bonds_value = Decimal('0')
+    cash_from_holdings = Decimal('0')
+    other_investments = Decimal('0')
 
-                        if holding.asset_type == 'stock':
-                            ret_stocks += holding.current_total_value
-                            ret_stocks_holdings.append(holding_node)
-                        elif holding.asset_type == 'etf':
-                            ret_etfs += holding.current_total_value
-                            ret_etfs_holdings.append(holding_node)
-                        elif holding.asset_type == 'mutual_fund':
-                            ret_mutual_funds += holding.current_total_value
-                            ret_mutual_funds_holdings.append(holding_node)
-                        else:
-                            ret_other += holding.current_total_value
-                            ret_other_holdings.append(holding_node)
+    for holding in all_investment_holdings:
+        ticker = holding.ticker.upper()
+        value = holding.current_total_value
 
-        if ret_stocks > 0:
-            retirement_children.append(TreemapNode(
-                name="Stocks",
-                value=ret_stocks,
-                percent=(ret_stocks / retirement_value * 100),
-                children=ret_stocks_holdings,
-                color="#4299E1"
-            ))
-        if ret_etfs > 0:
-            retirement_children.append(TreemapNode(
-                name="ETFs",
-                value=ret_etfs,
-                percent=(ret_etfs / retirement_value * 100),
-                children=ret_etfs_holdings,
-                color="#319795"
-            ))
-        if ret_mutual_funds > 0:
-            retirement_children.append(TreemapNode(
-                name="Mutual Funds",
-                value=ret_mutual_funds,
-                percent=(ret_mutual_funds / retirement_value * 100),
-                children=ret_mutual_funds_holdings,
-                color="#D69E2E"
-            ))
-        if ret_other > 0:
-            retirement_children.append(TreemapNode(
-                name="Other",
-                value=ret_other,
-                percent=(ret_other / retirement_value * 100),
-                children=ret_other_holdings,
-                color="#A0AEC0"
-            ))
+        if ticker in cash_tickers or (holding.asset_type == 'mutual_fund' and 'MONEY' in (holding.name or '').upper()):
+            # Cash/Money Market
+            cash_from_holdings += value
+            if ticker in cash_dict:
+                cash_dict[ticker] += value
+            else:
+                cash_dict[ticker] = value
+        elif ticker in bond_tickers or 'BOND' in ticker or 'BND' in ticker:
+            # Bonds
+            bonds_value += value
+            if ticker in bonds_dict:
+                bonds_dict[ticker] += value
+            else:
+                bonds_dict[ticker] = value
+        elif ticker in international_tickers:
+            # International
+            international_value_from_holdings += value
+            if ticker in international_stocks_dict:
+                international_stocks_dict[ticker] += value
+            else:
+                international_stocks_dict[ticker] = value
+        elif holding.asset_type in ['stock', 'etf', 'mutual_fund']:
+            # Domestic stocks/equities
+            domestic_stocks_value += value
+            if ticker in domestic_stocks_dict:
+                domestic_stocks_dict[ticker] += value
+            else:
+                domestic_stocks_dict[ticker] = value
+        else:
+            # Other
+            other_investments += value
+            if ticker in other_dict:
+                other_dict[ticker] += value
+            else:
+                other_dict[ticker] = value
 
-        treemap_children.append(TreemapNode(
-            name="Retirement",
-            value=retirement_value,
-            percent=(retirement_value / total_value * 100) if total_value > 0 else Decimal('0'),
-            children=retirement_children,
-            color="#805AD5"
-        ))
-
-    # Add Taxable category
-    if taxable_value > 0:
-        taxable_children = []
-
-        # Group taxable holdings by asset type
-        tax_stocks = Decimal('0')
-        tax_etfs = Decimal('0')
-        tax_mutual_funds = Decimal('0')
-        tax_other = Decimal('0')
-
-        tax_stocks_holdings = []
-        tax_etfs_holdings = []
-        tax_mutual_funds_holdings = []
-        tax_other_holdings = []
-
-        for account in accounts:
-            if account.account_type == AccountType.BROKERAGE and account.id in holdings_by_account:
-                for holding in holdings_by_account[account.id]:
-                    if holding.current_total_value:
-                        holding_node = TreemapNode(
-                            name=holding.ticker,
-                            value=holding.current_total_value,
-                            percent=(holding.current_total_value / taxable_value * 100),
-                        )
-
-                        if holding.asset_type == 'stock':
-                            tax_stocks += holding.current_total_value
-                            tax_stocks_holdings.append(holding_node)
-                        elif holding.asset_type == 'etf':
-                            tax_etfs += holding.current_total_value
-                            tax_etfs_holdings.append(holding_node)
-                        elif holding.asset_type == 'mutual_fund':
-                            tax_mutual_funds += holding.current_total_value
-                            tax_mutual_funds_holdings.append(holding_node)
-                        else:
-                            tax_other += holding.current_total_value
-                            tax_other_holdings.append(holding_node)
-
-        if tax_stocks > 0:
-            taxable_children.append(TreemapNode(
-                name="Stocks",
-                value=tax_stocks,
-                percent=(tax_stocks / taxable_value * 100),
-                children=tax_stocks_holdings,
-                color="#4299E1"
-            ))
-        if tax_etfs > 0:
-            taxable_children.append(TreemapNode(
-                name="ETFs",
-                value=tax_etfs,
-                percent=(tax_etfs / taxable_value * 100),
-                children=tax_etfs_holdings,
-                color="#319795"
-            ))
-        if tax_mutual_funds > 0:
-            taxable_children.append(TreemapNode(
-                name="Mutual Funds",
-                value=tax_mutual_funds,
-                percent=(tax_mutual_funds / taxable_value * 100),
-                children=tax_mutual_funds_holdings,
-                color="#D69E2E"
-            ))
-        if tax_other > 0:
-            taxable_children.append(TreemapNode(
-                name="Other",
-                value=tax_other,
-                percent=(tax_other / taxable_value * 100),
-                children=tax_other_holdings,
-                color="#A0AEC0"
-            ))
-
-        treemap_children.append(TreemapNode(
-            name="Taxable",
-            value=taxable_value,
-            percent=(taxable_value / total_value * 100) if total_value > 0 else Decimal('0'),
-            children=taxable_children,
-            color="#3182CE"
-        ))
-
-    # Add Property accounts
+    # Calculate property, vehicle, and crypto values
     property_value = Decimal('0')
-    property_children = []
     for account in accounts:
         if account.account_type == AccountType.PROPERTY and account.current_balance:
             property_value += account.current_balance
-            property_children.append(TreemapNode(
-                name=account.name,
-                value=account.current_balance,
-                percent=(account.current_balance / property_value * 100) if property_value > 0 else Decimal('0'),
-            ))
 
-    if property_value > 0:
-        # Update total to include property
-        total_with_property = total_value + property_value
-        treemap_children.append(TreemapNode(
-            name="Property",
-            value=property_value,
-            percent=(property_value / total_with_property * 100),
-            children=property_children if property_children else None,
-            color="#ED8936"
-        ))
-        # Update total_value for percentage calculations
-        total_value = total_with_property
-
-    # Add Vehicle accounts
     vehicle_value = Decimal('0')
-    vehicle_children = []
     for account in accounts:
         if account.account_type == AccountType.VEHICLE and account.current_balance:
             vehicle_value += account.current_balance
-            vehicle_children.append(TreemapNode(
-                name=account.name,
-                value=account.current_balance,
-                percent=(account.current_balance / vehicle_value * 100) if vehicle_value > 0 else Decimal('0'),
-            ))
 
-    if vehicle_value > 0:
-        total_with_vehicles = total_value + vehicle_value
-        treemap_children.append(TreemapNode(
-            name="Vehicles",
-            value=vehicle_value,
-            percent=(vehicle_value / total_with_vehicles * 100),
-            children=vehicle_children if vehicle_children else None,
-            color="#38B2AC"
-        ))
-        total_value = total_with_vehicles
-
-    # Add Crypto accounts with holdings
     crypto_value = Decimal('0')
-    crypto_holdings_list = []
-
-    # First pass: calculate total crypto value
+    crypto_holdings_dict_prelim = {}
     for account in accounts:
         if account.account_type == AccountType.CRYPTO and account.id in holdings_by_account:
             for holding in holdings_by_account[account.id]:
                 if holding.current_total_value:
                     crypto_value += holding.current_total_value
-                    crypto_holdings_list.append(holding)
+                    ticker = holding.ticker
+                    if ticker in crypto_holdings_dict_prelim:
+                        crypto_holdings_dict_prelim[ticker] += holding.current_total_value
+                    else:
+                        crypto_holdings_dict_prelim[ticker] = holding.current_total_value
 
-    # Second pass: create nodes with correct percentages
-    crypto_children = []
+    # Create treemap nodes for each asset class
+    portfolio_total = domestic_stocks_value + international_value_from_holdings + bonds_value + cash_from_holdings + other_investments + property_value + vehicle_value + crypto_value
+
+    # Add Domestic Stocks
+    if domestic_stocks_value > 0:
+        domestic_holdings = [
+            TreemapNode(name=ticker, value=value, percent=(value / domestic_stocks_value * 100))
+            for ticker, value in domestic_stocks_dict.items()
+        ]
+        treemap_children.append(TreemapNode(
+            name="Domestic Stocks",
+            value=domestic_stocks_value,
+            percent=(domestic_stocks_value / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
+            children=domestic_holdings,
+            color="#4299E1"  # blue
+        ))
+
+    # Add International
+    if international_value_from_holdings > 0:
+        international_holdings = [
+            TreemapNode(name=ticker, value=value, percent=(value / international_value_from_holdings * 100))
+            for ticker, value in international_stocks_dict.items()
+        ]
+        treemap_children.append(TreemapNode(
+            name="International",
+            value=international_value_from_holdings,
+            percent=(international_value_from_holdings / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
+            children=international_holdings,
+            color="#805AD5"  # purple
+        ))
+
+    # Add Bonds
+    if bonds_value > 0:
+        bond_holdings = [
+            TreemapNode(name=ticker, value=value, percent=(value / bonds_value * 100))
+            for ticker, value in bonds_dict.items()
+        ]
+        treemap_children.append(TreemapNode(
+            name="Bonds",
+            value=bonds_value,
+            percent=(bonds_value / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
+            children=bond_holdings,
+            color="#48BB78"  # green
+        ))
+
+    # Add Cash
+    if cash_from_holdings > 0:
+        cash_holdings = [
+            TreemapNode(name=ticker, value=value, percent=(value / cash_from_holdings * 100))
+            for ticker, value in cash_dict.items()
+        ]
+        treemap_children.append(TreemapNode(
+            name="Cash",
+            value=cash_from_holdings,
+            percent=(cash_from_holdings / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
+            children=cash_holdings,
+            color="#38B2AC"  # teal
+        ))
+
+    # Add Property
+    if property_value > 0:
+        property_children = []
+        for account in accounts:
+            if account.account_type == AccountType.PROPERTY and account.current_balance:
+                property_children.append(TreemapNode(
+                    name=account.name,
+                    value=account.current_balance,
+                    percent=(account.current_balance / property_value * 100) if property_value > 0 else Decimal('0'),
+                ))
+        treemap_children.append(TreemapNode(
+            name="Property",
+            value=property_value,
+            percent=(property_value / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
+            children=property_children if property_children else None,
+            color="#ED8936"  # orange
+        ))
+
+    # Add Vehicles
+    if vehicle_value > 0:
+        vehicle_children = []
+        for account in accounts:
+            if account.account_type == AccountType.VEHICLE and account.current_balance:
+                vehicle_children.append(TreemapNode(
+                    name=account.name,
+                    value=account.current_balance,
+                    percent=(account.current_balance / vehicle_value * 100) if vehicle_value > 0 else Decimal('0'),
+                ))
+        treemap_children.append(TreemapNode(
+            name="Vehicles",
+            value=vehicle_value,
+            percent=(vehicle_value / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
+            children=vehicle_children if vehicle_children else None,
+            color="#38B2AC"  # teal (same as cash - will use different if needed)
+        ))
+
+    # Add Crypto
     if crypto_value > 0:
-        for holding in crypto_holdings_list:
-            crypto_children.append(TreemapNode(
-                name=holding.ticker,
-                value=holding.current_total_value,
-                percent=(holding.current_total_value / crypto_value * 100),
-            ))
-
-        total_with_crypto = total_value + crypto_value
+        crypto_holdings = [
+            TreemapNode(name=ticker, value=value, percent=(value / crypto_value * 100))
+            for ticker, value in crypto_holdings_dict_prelim.items()
+        ]
         treemap_children.append(TreemapNode(
             name="Crypto",
             value=crypto_value,
-            percent=(crypto_value / total_with_crypto * 100),
-            children=crypto_children,
-            color="#9F7AEA"
+            percent=(crypto_value / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
+            children=crypto_holdings,
+            color="#9F7AEA"  # purple (different shade than international)
         ))
-        total_value = total_with_crypto
 
-    # Recalculate percentages for all top-level nodes
-    for child in treemap_children:
-        child.percent = (child.value / total_value * 100) if total_value > 0 else Decimal('0')
+    # Add Other
+    if other_investments > 0:
+        other_holdings = [
+            TreemapNode(name=ticker, value=value, percent=(value / other_investments * 100))
+            for ticker, value in other_dict.items()
+        ]
+        treemap_children.append(TreemapNode(
+            name="Other",
+            value=other_investments,
+            percent=(other_investments / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
+            children=other_holdings,
+            color="#A0AEC0"  # gray
+        ))
 
     # Create root treemap node
     treemap_data = TreemapNode(
         name="Portfolio",
-        value=total_value,
+        value=portfolio_total,
         percent=Decimal('100'),
         children=treemap_children,
     ) if treemap_children else None
+
+    # Update total_value to portfolio_total for summary stats
+    total_value = portfolio_total
+
+    # Group holdings by account for detailed view
+    holdings_by_account_list = []
+    for account in accounts:
+        if account.id in holdings_by_account and holdings_by_account[account.id]:
+            account_total = sum(
+                (h.current_total_value or Decimal('0')) for h in holdings_by_account[account.id]
+            )
+            if account_total > 0:
+                holdings_by_account_list.append(AccountHoldings(
+                    account_id=account.id,
+                    account_name=account.name,
+                    account_type=account.account_type.value,
+                    account_value=account_total,
+                    holdings=[HoldingSchema.model_validate(h) for h in holdings_by_account[account.id]]
+                ))
 
     return PortfolioSummary(
         total_value=total_value,
@@ -491,6 +481,7 @@ async def get_portfolio_summary(
         total_gain_loss=total_gain_loss,
         total_gain_loss_percent=total_gain_loss_percent,
         holdings_by_ticker=holdings_summaries,
+        holdings_by_account=holdings_by_account_list,
         stocks_value=stocks_value,
         bonds_value=bonds_value,
         etf_value=etf_value,
