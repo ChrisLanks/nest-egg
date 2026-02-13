@@ -384,40 +384,35 @@ async def get_portfolio_summary(
             color="#38B2AC"  # teal
         ))
 
-    # Add Property
-    if property_value > 0:
-        property_children = []
+    # Add Property & Vehicles (combined)
+    property_and_vehicles_value = property_value + vehicle_value
+    if property_and_vehicles_value > 0:
+        property_and_vehicle_children = []
+
+        # Add all property accounts
         for account in accounts:
             if account.account_type == AccountType.PROPERTY and account.current_balance:
-                property_children.append(TreemapNode(
+                property_and_vehicle_children.append(TreemapNode(
                     name=account.name,
                     value=account.current_balance,
-                    percent=(account.current_balance / property_value * 100) if property_value > 0 else Decimal('0'),
+                    percent=(account.current_balance / property_and_vehicles_value * 100) if property_and_vehicles_value > 0 else Decimal('0'),
                 ))
-        treemap_children.append(TreemapNode(
-            name="Property",
-            value=property_value,
-            percent=(property_value / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
-            children=property_children if property_children else None,
-            color="#ED8936"  # orange
-        ))
 
-    # Add Vehicles
-    if vehicle_value > 0:
-        vehicle_children = []
+        # Add all vehicle accounts
         for account in accounts:
             if account.account_type == AccountType.VEHICLE and account.current_balance:
-                vehicle_children.append(TreemapNode(
+                property_and_vehicle_children.append(TreemapNode(
                     name=account.name,
                     value=account.current_balance,
-                    percent=(account.current_balance / vehicle_value * 100) if vehicle_value > 0 else Decimal('0'),
+                    percent=(account.current_balance / property_and_vehicles_value * 100) if property_and_vehicles_value > 0 else Decimal('0'),
                 ))
+
         treemap_children.append(TreemapNode(
-            name="Vehicles",
-            value=vehicle_value,
-            percent=(vehicle_value / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
-            children=vehicle_children if vehicle_children else None,
-            color="#38B2AC"  # teal (same as cash - will use different if needed)
+            name="Property & Vehicles",
+            value=property_and_vehicles_value,
+            percent=(property_and_vehicles_value / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
+            children=property_and_vehicle_children if property_and_vehicle_children else None,
+            color="#ED8936"  # orange
         ))
 
     # Add Crypto

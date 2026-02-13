@@ -143,6 +143,13 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
             stroke: '#fff',
             strokeWidth: 2,
             cursor: hasChildren ? 'pointer' : 'default',
+            transition: 'opacity 0.2s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.opacity = '0.8';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.opacity = '1';
           }}
           onClick={handleClick}
         />
@@ -239,6 +246,8 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
             stroke="#fff"
             fill="#8884d8"
             content={<CustomizedContent />}
+            isAnimationActive={true}
+            animationDuration={200}
           />
         ) : (
           <Text fontSize="sm" color="gray.600" textAlign="center" py={8}>
@@ -246,6 +255,30 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
           </Text>
         )}
       </ResponsiveContainer>
+
+      {/* Legend */}
+      {currentNode.children && currentNode.children.length > 0 && (
+        <Box mt={4}>
+          <Text fontSize="sm" fontWeight="semibold" mb={2} color="gray.700">
+            Categories:
+          </Text>
+          <HStack spacing={3} flexWrap="wrap">
+            {currentNode.children.map((child) => (
+              <HStack key={child.name} spacing={1}>
+                <Box
+                  w="12px"
+                  h="12px"
+                  bg={child.color}
+                  borderRadius="2px"
+                />
+                <Text fontSize="sm" color="gray.700">
+                  {child.name}: {child.percent.toFixed(1)}%
+                </Text>
+              </HStack>
+            ))}
+          </HStack>
+        </Box>
+      )}
 
       {/* Help Text */}
       {currentNode.children && currentNode.children.length > 0 && (
