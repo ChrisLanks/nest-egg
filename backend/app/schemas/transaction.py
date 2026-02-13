@@ -46,6 +46,18 @@ class LabelSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CategorySummary(BaseModel):
+    """Category summary for transaction display."""
+
+    id: UUID
+    name: str
+    color: Optional[str] = None
+    parent_id: Optional[UUID] = None
+    parent_name: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
 class Transaction(TransactionBase):
     """Transaction response schema."""
 
@@ -65,6 +77,7 @@ class TransactionDetail(Transaction):
 
     account_name: Optional[str] = None
     account_mask: Optional[str] = None
+    category: Optional[CategorySummary] = None
     labels: List[LabelSummary] = []
 
     model_config = {"from_attributes": True}

@@ -12,9 +12,9 @@ from sqlalchemy.orm import joinedload
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.models.transaction import Transaction, Label, TransactionLabel
+from app.models.transaction import Transaction, Label, TransactionLabel, Category
 from app.models.account import Account
-from app.schemas.transaction import TransactionDetail, TransactionListResponse, TransactionUpdate
+from app.schemas.transaction import TransactionDetail, TransactionListResponse, TransactionUpdate, CategorySummary
 
 router = APIRouter()
 
@@ -51,6 +51,7 @@ async def list_transactions(
     query = (
         select(Transaction)
         .options(joinedload(Transaction.account))
+        .options(joinedload(Transaction.category).joinedload(Category.parent))
         .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
         .where(Transaction.organization_id == current_user.organization_id)
     )
@@ -91,6 +92,17 @@ async def list_transactions(
         # Extract labels from the many-to-many relationship
         transaction_labels = [tl.label for tl in txn.labels if tl.label]
 
+        # Extract category information
+        category_summary = None
+        if txn.category:
+            category_summary = CategorySummary(
+                id=txn.category.id,
+                name=txn.category.name,
+                color=txn.category.color,
+                parent_id=txn.category.parent_category_id,
+                parent_name=txn.category.parent.name if txn.category.parent else None,
+            )
+
         detail = TransactionDetail(
             id=txn.id,
             organization_id=txn.organization_id,
@@ -107,6 +119,7 @@ async def list_transactions(
             updated_at=txn.updated_at,
             account_name=txn.account.name if txn.account else None,
             account_mask=txn.account.mask if txn.account else None,
+            category=category_summary,
             labels=transaction_labels,
         )
         transaction_details.append(detail)
@@ -132,6 +145,7 @@ async def get_transaction(
     result = await db.execute(
         select(Transaction)
         .options(joinedload(Transaction.account))
+        .options(joinedload(Transaction.category).joinedload(Category.parent))
         .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
         .where(
             Transaction.id == transaction_id,
@@ -145,6 +159,17 @@ async def get_transaction(
 
     # Extract labels from the many-to-many relationship
     transaction_labels = [tl.label for tl in txn.labels if tl.label]
+
+    # Extract category information
+    category_summary = None
+    if txn.category:
+        category_summary = CategorySummary(
+            id=txn.category.id,
+            name=txn.category.name,
+            color=txn.category.color,
+            parent_id=txn.category.parent_category_id,
+            parent_name=txn.category.parent.name if txn.category.parent else None,
+        )
 
     return TransactionDetail(
         id=txn.id,
@@ -162,6 +187,7 @@ async def get_transaction(
         updated_at=txn.updated_at,
         account_name=txn.account.name if txn.account else None,
         account_mask=txn.account.mask if txn.account else None,
+        category=category_summary,
         labels=transaction_labels,
     )
 

@@ -12,6 +12,7 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.account import Account, PlaidItem, AccountType, AccountSource
 from app.models.transaction import Transaction
+from app.services.category_service import get_category_id_for_plaid_category
 
 router = APIRouter()
 
@@ -141,6 +142,12 @@ async def seed_mock_data_internal(db: AsyncSession, user: User) -> dict:
             checking_account.id, txn_date, amount, txn_data["merchant"]
         )
 
+        # Auto-map to custom category if one exists for this Plaid category
+        plaid_category = txn_data.get("category")
+        category_id = await get_category_id_for_plaid_category(
+            db, user.organization_id, plaid_category
+        )
+
         transaction = Transaction(
             id=uuid.uuid4(),
             organization_id=user.organization_id,
@@ -148,7 +155,8 @@ async def seed_mock_data_internal(db: AsyncSession, user: User) -> dict:
             date=txn_date,
             amount=amount,
             merchant_name=txn_data["merchant"],
-            category_primary=txn_data.get("category"),
+            category_primary=plaid_category,
+            category_id=category_id,  # Auto-mapped custom category
             is_pending=False,
             deduplication_hash=dedup_hash,
         )
