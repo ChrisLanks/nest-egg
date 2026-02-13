@@ -138,10 +138,10 @@ const accountTypeConfig: Record<string, { label: string; order: number }> = {
   loan: { label: 'Loans', order: 5 },
   mortgage: { label: 'Loans', order: 5 },
   property: { label: 'Property', order: 6 },
-  vehicle: { label: 'Vehicles', order: 7 },
-  crypto: { label: 'Crypto', order: 8 },
-  manual: { label: 'Other', order: 9 },
-  other: { label: 'Other', order: 9 },
+  vehicle: { label: 'Property', order: 6 },
+  crypto: { label: 'Crypto', order: 7 },
+  manual: { label: 'Other', order: 8 },
+  other: { label: 'Other', order: 8 },
 };
 
 export const Layout = () => {
