@@ -40,7 +40,7 @@ import {
   Button,
   ButtonGroup,
 } from '@chakra-ui/react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRightIcon, ChevronUpIcon, ChevronDownIcon } from '@chakra-ui/icons';
 import { IoBarChart, IoPieChart } from 'react-icons/io5';
@@ -140,6 +140,12 @@ export const IncomeExpensesPage = () => {
 
   const [groupBy, setGroupBy] = useState<'category' | 'label'>('category');
 
+  // Reset drill-down states when groupBy changes
+  useEffect(() => {
+    setIncomeDrillDown({ level: 'categories' });
+    setExpenseDrillDown({ level: 'categories' });
+  }, [groupBy]);
+
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['income-expenses-summary', dateRange.start, dateRange.end, groupBy],
     queryFn: async () => {
@@ -215,9 +221,21 @@ export const IncomeExpensesPage = () => {
 
     let filtered = allIncomeTransactions;
 
-    // Filter by category if drilling down
+    // Filter by category/label if drilling down
     if (incomeDrillDown.category) {
-      filtered = filtered.filter(t => t.category_primary === incomeDrillDown.category);
+      if (groupBy === 'label') {
+        // Filter by label - check if transaction has the label
+        if (incomeDrillDown.category === 'Unlabeled') {
+          filtered = filtered.filter(t => !t.labels || t.labels.length === 0);
+        } else {
+          filtered = filtered.filter(t =>
+            t.labels?.some(label => label.name === incomeDrillDown.category)
+          );
+        }
+      } else {
+        // Filter by category
+        filtered = filtered.filter(t => t.category_primary === incomeDrillDown.category);
+      }
     }
 
     // Filter by merchant if drilling down to that level
@@ -226,16 +244,28 @@ export const IncomeExpensesPage = () => {
     }
 
     return filtered;
-  }, [allIncomeTransactions, incomeDrillDown]);
+  }, [allIncomeTransactions, incomeDrillDown, groupBy]);
 
   const expenseTransactions = useMemo(() => {
     if (!allExpenseTransactions) return [];
 
     let filtered = allExpenseTransactions;
 
-    // Filter by category if drilling down
+    // Filter by category/label if drilling down
     if (expenseDrillDown.category) {
-      filtered = filtered.filter(t => t.category_primary === expenseDrillDown.category);
+      if (groupBy === 'label') {
+        // Filter by label - check if transaction has the label
+        if (expenseDrillDown.category === 'Unlabeled') {
+          filtered = filtered.filter(t => !t.labels || t.labels.length === 0);
+        } else {
+          filtered = filtered.filter(t =>
+            t.labels?.some(label => label.name === expenseDrillDown.category)
+          );
+        }
+      } else {
+        // Filter by category
+        filtered = filtered.filter(t => t.category_primary === expenseDrillDown.category);
+      }
     }
 
     // Filter by merchant if drilling down to that level
@@ -244,7 +274,7 @@ export const IncomeExpensesPage = () => {
     }
 
     return filtered;
-  }, [allExpenseTransactions, expenseDrillDown]);
+  }, [allExpenseTransactions, expenseDrillDown, groupBy]);
 
   // Calculate statistics for both income and expenses
   const incomeStats = useMemo(() => {
@@ -252,15 +282,15 @@ export const IncomeExpensesPage = () => {
       return null;
     }
 
-    const total = incomeTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+    const total = incomeTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0);
     const avg = total / incomeTransactions.length;
 
     // Find min and max transactions
     const minTransaction = incomeTransactions.reduce((min, t) =>
-      (t.amount || 0) < (min.amount || 0) ? t : min
+      Number(t.amount || 0) < Number(min.amount || 0) ? t : min
     );
     const maxTransaction = incomeTransactions.reduce((max, t) =>
-      (t.amount || 0) > (max.amount || 0) ? t : max
+      Number(t.amount || 0) > Number(max.amount || 0) ? t : max
     );
 
     // Top and lowest payees by total amount with transaction references
@@ -269,7 +299,7 @@ export const IncomeExpensesPage = () => {
       const merchant = t.merchant_name || 'Unknown';
       const existing = merchantMap.get(merchant) || { total: 0, count: 0, transactions: [] };
       merchantMap.set(merchant, {
-        total: existing.total + (t.amount || 0),
+        total: existing.total + Number(t.amount || 0),
         count: existing.count + 1,
         transactions: [...existing.transactions, t],
       });
@@ -287,8 +317,8 @@ export const IncomeExpensesPage = () => {
       totalTransactions: incomeTransactions.length,
       totalAmount: total,
       avgAmount: avg,
-      minAmount: minTransaction.amount || 0,
-      maxAmount: maxTransaction.amount || 0,
+      minAmount: Number(minTransaction.amount || 0),
+      maxAmount: Number(maxTransaction.amount || 0),
       minTransaction,
       maxTransaction,
       topPayee,

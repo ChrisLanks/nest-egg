@@ -5,7 +5,7 @@ from typing import Optional, List
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -149,10 +149,10 @@ async def get_income_expense_trend(
         select(
             func.date_trunc('month', Transaction.date).label('month'),
             func.sum(
-                func.case((Transaction.amount > 0, Transaction.amount), else_=0)
+                case((Transaction.amount > 0, Transaction.amount), else_=0)
             ).label('income'),
             func.sum(
-                func.case((Transaction.amount < 0, Transaction.amount), else_=0)
+                case((Transaction.amount < 0, Transaction.amount), else_=0)
             ).label('expenses')
         ).where(
             Transaction.organization_id == current_user.organization_id,
@@ -243,8 +243,7 @@ async def get_label_summary(
     db: AsyncSession = Depends(get_db),
 ):
     """Get income vs expense summary grouped by labels."""
-    from app.models.transaction import transaction_labels
-    from app.models.label import Label
+    from app.models.transaction import transaction_labels, Label
     
     # Get total income
     income_result = await db.execute(
@@ -395,8 +394,7 @@ async def get_label_merchant_breakdown(
     db: AsyncSession = Depends(get_db),
 ):
     """Get merchant breakdown for a label."""
-    from app.models.transaction import transaction_labels
-    from app.models.label import Label
+    from app.models.transaction import transaction_labels, Label
     
     # Build base conditions
     conditions = [

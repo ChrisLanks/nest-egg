@@ -1,29 +1,50 @@
 """Category API endpoints."""
 
-from typing import List, Dict
+from typing import List, Optional
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, update, func
+from sqlalchemy import select, func, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.models.transaction import Transaction
+from app.models.transaction import Category, Transaction
+from app.schemas.transaction import CategoryCreate, CategoryUpdate, CategoryResponse
 
 router = APIRouter()
 
 
-class CategoryResponse(BaseModel):
-    """Category with usage count."""
-    name: str
-    count: int
+async def validate_parent_category(
+    parent_category_id: Optional[UUID],
+    organization_id: UUID,
+    db: AsyncSession,
+) -> Optional[Category]:
+    """Validate parent category exists and is at correct depth (max 1 level deep)."""
+    if not parent_category_id:
+        return None
 
+    # Check parent exists and belongs to organization
+    result = await db.execute(
+        select(Category).where(
+            Category.id == parent_category_id,
+            Category.organization_id == organization_id,
+        )
+    )
+    parent = result.scalar_one_or_none()
 
-class CategoryRename(BaseModel):
-    """Rename category request."""
-    old_name: str
-    new_name: str
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent category not found")
+
+    # Check parent depth (parent cannot have a parent - max 2 levels)
+    if parent.parent_category_id is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot create category: parent already has a parent. Maximum 2 levels allowed (parent and child)."
+        )
+
+    return parent
 
 
 @router.get("/", response_model=List[CategoryResponse])
@@ -31,78 +52,185 @@ async def list_categories(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all unique categories with usage counts."""
-    result = await db.execute(
+    """List all categories for the current user's organization.
+
+    Returns both custom categories (from categories table) and Plaid categories
+    (from transactions.category_primary). Plaid categories have is_custom=False.
+    """
+    # Get custom categories from categories table
+    custom_result = await db.execute(
+        select(
+            Category,
+            func.count(Transaction.id).label('transaction_count')
+        )
+        .outerjoin(Transaction, Transaction.category_id == Category.id)
+        .where(Category.organization_id == current_user.organization_id)
+        .group_by(Category.id)
+        .order_by(Category.name)
+    )
+    custom_categories = custom_result.all()
+
+    # Get Plaid categories from transactions
+    plaid_result = await db.execute(
         select(
             Transaction.category_primary,
-            func.count(Transaction.id).label('count')
+            func.count(Transaction.id).label('transaction_count')
         )
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Transaction.category_primary.isnot(None)
+            Transaction.category_primary.isnot(None),
+            Transaction.category_primary != ''
         )
         .group_by(Transaction.category_primary)
         .order_by(Transaction.category_primary)
     )
+    plaid_categories = plaid_result.all()
 
-    categories = []
-    for row in result:
-        categories.append(CategoryResponse(name=row[0], count=row[1]))
+    # Build response combining both types
+    response = []
 
-    return categories
+    # Add custom categories
+    for category, tx_count in custom_categories:
+        response.append(CategoryResponse(
+            id=category.id,
+            organization_id=category.organization_id,
+            name=category.name,
+            color=category.color,
+            parent_category_id=category.parent_category_id,
+            plaid_category_name=category.plaid_category_name,
+            is_custom=True,
+            transaction_count=tx_count,
+            created_at=category.created_at,
+            updated_at=category.updated_at,
+        ))
+
+    # Add Plaid categories that aren't already custom categories
+    custom_category_names = {cat.name.lower() for cat, _ in custom_categories}
+    for plaid_name, tx_count in plaid_categories:
+        if plaid_name.lower() not in custom_category_names:
+            response.append(CategoryResponse(
+                id=None,
+                organization_id=current_user.organization_id,
+                name=plaid_name,
+                color=None,
+                parent_category_id=None,
+                is_custom=False,
+                transaction_count=tx_count,
+                created_at=None,
+                updated_at=None,
+            ))
+
+    # Sort by name
+    response.sort(key=lambda x: x.name.lower())
+
+    return response
 
 
-@router.post("/rename")
-async def rename_category(
-    rename_data: CategoryRename,
+@router.post("/", response_model=CategoryResponse, status_code=201)
+async def create_category(
+    category_data: CategoryCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Rename a category across all transactions."""
-    if not rename_data.old_name or not rename_data.new_name:
-        raise HTTPException(status_code=400, detail="Both old_name and new_name are required")
-
-    # Update all transactions with the old category name
-    result = await db.execute(
-        update(Transaction)
-        .where(
-            Transaction.organization_id == current_user.organization_id,
-            Transaction.category_primary == rename_data.old_name
-        )
-        .values(category_primary=rename_data.new_name)
+    """Create a new category."""
+    # Validate parent if provided
+    await validate_parent_category(
+        category_data.parent_category_id,
+        current_user.organization_id,
+        db
     )
 
+    category = Category(
+        organization_id=current_user.organization_id,
+        name=category_data.name,
+        color=category_data.color,
+        parent_category_id=category_data.parent_category_id,
+        plaid_category_name=category_data.plaid_category_name,
+    )
+    db.add(category)
     await db.commit()
-
-    return {
-        "message": f"Renamed '{rename_data.old_name}' to '{rename_data.new_name}'",
-        "updated_count": result.rowcount
-    }
+    await db.refresh(category)
+    return category
 
 
-@router.delete("/{category_name}")
+@router.patch("/{category_id}", response_model=CategoryResponse)
+async def update_category(
+    category_id: UUID,
+    category_data: CategoryUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a category."""
+    result = await db.execute(
+        select(Category).where(
+            Category.id == category_id,
+            Category.organization_id == current_user.organization_id,
+        )
+    )
+    category = result.scalar_one_or_none()
+
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    # Validate parent if changing it
+    if category_data.parent_category_id is not None:
+        # Prevent setting self as parent
+        if category_data.parent_category_id == category_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot set category as its own parent"
+            )
+
+        # Check if this category has children - if so, can't make it a child
+        children_result = await db.execute(
+            select(Category.id).where(Category.parent_category_id == category_id).limit(1)
+        )
+        has_children = children_result.scalar_one_or_none() is not None
+
+        if has_children and category_data.parent_category_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot assign a parent to this category because it already has children. Maximum 2 levels allowed."
+            )
+
+        # Validate the new parent
+        await validate_parent_category(
+            category_data.parent_category_id,
+            current_user.organization_id,
+            db
+        )
+
+    if category_data.name is not None:
+        category.name = category_data.name
+    if category_data.color is not None:
+        category.color = category_data.color
+    if category_data.parent_category_id is not None:
+        category.parent_category_id = category_data.parent_category_id
+    if category_data.plaid_category_name is not None:
+        category.plaid_category_name = category_data.plaid_category_name
+
+    await db.commit()
+    await db.refresh(category)
+    return category
+
+
+@router.delete("/{category_id}", status_code=204)
 async def delete_category(
-    category_name: str,
+    category_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a category (sets it to null on all transactions)."""
-    if not category_name:
-        raise HTTPException(status_code=400, detail="Category name is required")
-
-    # Set category to null for all transactions using this category
+    """Delete a category."""
     result = await db.execute(
-        update(Transaction)
-        .where(
-            Transaction.organization_id == current_user.organization_id,
-            Transaction.category_primary == category_name
+        select(Category).where(
+            Category.id == category_id,
+            Category.organization_id == current_user.organization_id,
         )
-        .values(category_primary=None)
     )
+    category = result.scalar_one_or_none()
 
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    await db.delete(category)
     await db.commit()
-
-    return {
-        "message": f"Deleted category '{category_name}'",
-        "updated_count": result.rowcount
-    }

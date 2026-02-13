@@ -80,6 +80,41 @@ class TransactionListResponse(BaseModel):
     has_more: bool
 
 
+class CategoryCreate(BaseModel):
+    """Category creation schema."""
+
+    name: str
+    color: Optional[str] = None
+    parent_category_id: Optional[UUID] = None
+    plaid_category_name: Optional[str] = None  # Link to Plaid category for auto-mapping
+
+
+class CategoryUpdate(BaseModel):
+    """Category update schema."""
+
+    name: Optional[str] = None
+    color: Optional[str] = None
+    parent_category_id: Optional[UUID] = None
+    plaid_category_name: Optional[str] = None
+
+
+class CategoryResponse(BaseModel):
+    """Category response schema."""
+
+    id: Optional[UUID] = None  # None for Plaid categories not yet in DB
+    organization_id: UUID
+    name: str
+    color: Optional[str] = None
+    parent_category_id: Optional[UUID] = None
+    plaid_category_name: Optional[str] = None  # Linked Plaid category
+    is_custom: bool = True  # False for Plaid categories from transactions
+    transaction_count: int = 0
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
 class LabelCreate(BaseModel):
     """Label creation schema."""
 

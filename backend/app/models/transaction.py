@@ -30,6 +30,7 @@ class Transaction(Base):
     description = Column(Text, nullable=True)
 
     # Categorization
+    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id", ondelete="SET NULL"), nullable=True, index=True)  # Custom category
     category_primary = Column(String(100), nullable=True)  # From Plaid
     category_detailed = Column(String(100), nullable=True)  # From Plaid
 
@@ -45,6 +46,7 @@ class Transaction(Base):
 
     # Relationships
     account = relationship("Account", back_populates="transactions")
+    category = relationship("Category", back_populates="transactions")
     labels = relationship("TransactionLabel", back_populates="transaction", cascade="all, delete-orphan")
 
     # Indexes for performance
@@ -55,8 +57,37 @@ class Transaction(Base):
     )
 
 
+class Category(Base):
+    """Custom transaction categories with hierarchy support."""
+
+    __tablename__ = "categories"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Category details
+    name = Column(String(100), nullable=False)
+    color = Column(String(7), nullable=True)  # Hex color code
+    parent_category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id", ondelete="CASCADE"), nullable=True)
+
+    # Link to Plaid category for automatic mapping
+    plaid_category_name = Column(String(100), nullable=True, index=True)  # Original Plaid category_primary
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    parent = relationship("Category", remote_side=[id], backref="children")
+    transactions = relationship("Transaction", back_populates="category")
+
+    __table_args__ = (
+        Index('ix_categories_org_name', 'organization_id', 'name', unique=True),
+    )
+
+
 class Label(Base):
-    """Custom transaction labels/categories."""
+    """Custom transaction labels (tags)."""
 
     __tablename__ = "labels"
 
@@ -66,7 +97,6 @@ class Label(Base):
     # Label details
     name = Column(String(100), nullable=False)
     color = Column(String(7), nullable=True)  # Hex color code
-    parent_label_id = Column(UUID(as_uuid=True), ForeignKey("labels.id", ondelete="CASCADE"), nullable=True)
 
     # Type flags
     is_income = Column(Boolean, default=False, nullable=False)
@@ -78,7 +108,6 @@ class Label(Base):
 
     # Relationships
     transactions = relationship("TransactionLabel", back_populates="label", cascade="all, delete-orphan")
-    parent = relationship("Label", remote_side=[id], backref="children")
 
     __table_args__ = (
         Index('ix_labels_org_name', 'organization_id', 'name', unique=True),
@@ -107,3 +136,7 @@ class TransactionLabel(Base):
     __table_args__ = (
         Index('ix_transaction_labels_unique', 'transaction_id', 'label_id', unique=True),
     )
+
+
+# Export the table for use in queries (many-to-many joins)
+transaction_labels = TransactionLabel.__table__
