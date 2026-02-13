@@ -42,6 +42,8 @@ class AccountUpdate(BaseModel):
 
     name: Optional[str] = None
     is_active: Optional[bool] = None
+    current_balance: Optional[Decimal] = None
+    mask: Optional[str] = None
 
 
 class Account(AccountBase):

@@ -34,6 +34,9 @@ import {
   Th,
   Td,
   Badge,
+  Input,
+  NumberInput,
+  NumberInputField,
 } from '@chakra-ui/react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -65,6 +68,7 @@ const accountTypeLabels: Record<string, string> = {
   loan: 'Loan',
   mortgage: 'Mortgage',
   property: 'Property',
+  vehicle: 'Vehicle',
   crypto: 'Crypto',
   manual: 'Manual',
   other: 'Other',
@@ -78,6 +82,8 @@ export const AccountDetailPage = () => {
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const [transactionsCursor, setTransactionsCursor] = useState<string | null>(null);
+  const [vehicleMileage, setVehicleMileage] = useState('');
+  const [vehicleValue, setVehicleValue] = useState('');
 
   // Fetch account details
   const { data: account, isLoading } = useQuery<Account>({
@@ -154,6 +160,41 @@ export const AccountDetailPage = () => {
     },
   });
 
+  // Update vehicle details mutation
+  const updateVehicleMutation = useMutation({
+    mutationFn: async (data: { mileage?: number; balance?: number }) => {
+      const payload: any = {};
+      if (data.mileage !== undefined) {
+        // Store mileage in mask field for now
+        payload.mask = data.mileage.toString();
+      }
+      if (data.balance !== undefined) {
+        payload.current_balance = data.balance;
+      }
+      const response = await api.patch(`/accounts/${accountId}`, payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['account', accountId] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      toast({
+        title: 'Vehicle details updated',
+        status: 'success',
+        duration: 3000,
+      });
+      setVehicleMileage('');
+      setVehicleValue('');
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to update vehicle',
+        description: error.response?.data?.detail || 'An error occurred',
+        status: 'error',
+        duration: 5000,
+      });
+    },
+  });
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -188,6 +229,28 @@ export const AccountDetailPage = () => {
   const handleDelete = () => {
     deleteAccountMutation.mutate();
     onDeleteClose();
+  };
+
+  const handleUpdateVehicle = () => {
+    const updates: { mileage?: number; balance?: number } = {};
+
+    if (vehicleMileage) {
+      const mileage = parseInt(vehicleMileage);
+      if (!isNaN(mileage) && mileage >= 0) {
+        updates.mileage = mileage;
+      }
+    }
+
+    if (vehicleValue) {
+      const value = parseFloat(vehicleValue);
+      if (!isNaN(value) && value >= 0) {
+        updates.balance = value;
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      updateVehicleMutation.mutate(updates);
+    }
   };
 
   if (isLoading) {
@@ -313,6 +376,76 @@ export const AccountDetailPage = () => {
             </VStack>
           </CardBody>
         </Card>
+
+        {/* Vehicle Details Section - Only for vehicle accounts */}
+        {account.account_type === 'vehicle' && (
+          <Card>
+            <CardBody>
+              <Heading size="md" mb={4}>
+                Vehicle Details
+              </Heading>
+              <VStack spacing={4} align="stretch">
+                {/* Current Mileage Display */}
+                <Box>
+                  <Text fontSize="sm" fontWeight="medium" color="gray.600">
+                    Current Mileage
+                  </Text>
+                  <Text fontSize="lg" fontWeight="semibold">
+                    {account.mask ? `${parseInt(account.mask).toLocaleString()} miles` : 'Not set'}
+                  </Text>
+                </Box>
+
+                <Divider />
+
+                {/* Update Mileage */}
+                <FormControl>
+                  <FormLabel fontSize="sm">Update Mileage</FormLabel>
+                  <HStack>
+                    <NumberInput
+                      value={vehicleMileage}
+                      onChange={setVehicleMileage}
+                      min={0}
+                      size="sm"
+                    >
+                      <NumberInputField placeholder="Enter new mileage" />
+                    </NumberInput>
+                    <Text fontSize="sm" color="gray.600">
+                      miles
+                    </Text>
+                  </HStack>
+                </FormControl>
+
+                {/* Update Value */}
+                <FormControl>
+                  <FormLabel fontSize="sm">Update Vehicle Value</FormLabel>
+                  <HStack>
+                    <Text fontSize="sm">$</Text>
+                    <NumberInput
+                      value={vehicleValue}
+                      onChange={setVehicleValue}
+                      min={0}
+                      precision={2}
+                      size="sm"
+                    >
+                      <NumberInputField placeholder="Enter new value" />
+                    </NumberInput>
+                  </HStack>
+                </FormControl>
+
+                {/* Save Button */}
+                <Button
+                  colorScheme="brand"
+                  size="sm"
+                  onClick={handleUpdateVehicle}
+                  isLoading={updateVehicleMutation.isPending}
+                  isDisabled={!vehicleMileage && !vehicleValue}
+                >
+                  Save Updates
+                </Button>
+              </VStack>
+            </CardBody>
+          </Card>
+        )}
 
         {/* Transactions Section */}
         <Card>

@@ -11,7 +11,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.account import Account
-from app.schemas.account import Account as AccountSchema, AccountSummary, ManualAccountCreate
+from app.schemas.account import Account as AccountSchema, AccountSummary, ManualAccountCreate, AccountUpdate
 
 router = APIRouter()
 
@@ -77,6 +77,42 @@ async def create_manual_account(
     )
 
     db.add(account)
+    await db.commit()
+    await db.refresh(account)
+
+    return account
+
+
+@router.patch("/{account_id}", response_model=AccountSchema)
+async def update_account(
+    account_id: UUID,
+    account_data: AccountUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update account details."""
+    # Get the account
+    result = await db.execute(
+        select(Account).where(
+            Account.id == account_id,
+            Account.organization_id == current_user.organization_id,
+        )
+    )
+    account = result.scalar_one_or_none()
+
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # Update fields
+    if account_data.name is not None:
+        account.name = account_data.name
+    if account_data.is_active is not None:
+        account.is_active = account_data.is_active
+    if account_data.current_balance is not None:
+        account.current_balance = account_data.current_balance
+    if account_data.mask is not None:
+        account.mask = account_data.mask
+
     await db.commit()
     await db.refresh(account)
 
