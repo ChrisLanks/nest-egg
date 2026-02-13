@@ -37,6 +37,8 @@ import {
   BreadcrumbLink,
   Wrap,
   WrapItem,
+  Button,
+  ButtonGroup,
 } from '@chakra-ui/react';
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -135,6 +137,8 @@ export const IncomeExpensesPage = () => {
   const [incomeSortDirection, setIncomeSortDirection] = useState<SortDirection>('desc');
   const [expenseSortField, setExpenseSortField] = useState<SortField>('date');
   const [expenseSortDirection, setExpenseSortDirection] = useState<SortDirection>('desc');
+
+  const [groupBy, setGroupBy] = useState<'category' | 'label'>('category');
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['income-expenses-summary', dateRange.start, dateRange.end],
@@ -243,42 +247,47 @@ export const IncomeExpensesPage = () => {
       return null;
     }
 
-    const amounts = incomeTransactions.map(t => t.amount);
-    const total = amounts.reduce((sum, amt) => sum + amt, 0);
-    const avg = total / amounts.length;
-    const min = Math.min(...amounts);
-    const max = Math.max(...amounts);
+    const total = incomeTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+    const avg = total / incomeTransactions.length;
 
-    // Top and lowest payees by total amount
-    const merchantTotals = new Map<string, { total: number; count: number }>();
+    // Find min and max transactions
+    const minTransaction = incomeTransactions.reduce((min, t) =>
+      (t.amount || 0) < (min.amount || 0) ? t : min
+    );
+    const maxTransaction = incomeTransactions.reduce((max, t) =>
+      (t.amount || 0) > (max.amount || 0) ? t : max
+    );
+
+    // Top and lowest payees by total amount with transaction references
+    const merchantMap = new Map<string, { total: number; count: number; transactions: Transaction[] }>();
     incomeTransactions.forEach(t => {
       const merchant = t.merchant_name || 'Unknown';
-      const existing = merchantTotals.get(merchant) || { total: 0, count: 0 };
-      merchantTotals.set(merchant, {
-        total: existing.total + t.amount,
+      const existing = merchantMap.get(merchant) || { total: 0, count: 0, transactions: [] };
+      merchantMap.set(merchant, {
+        total: existing.total + (t.amount || 0),
         count: existing.count + 1,
+        transactions: [...existing.transactions, t],
       });
     });
 
-    const merchantArray = Array.from(merchantTotals.entries()).map(([name, data]) => ({
+    const merchantArray = Array.from(merchantMap.entries()).map(([name, data]) => ({
       name,
       ...data,
     }));
-    merchantArray.sort((a, b) => b.total - a.total);
 
-    const topPayee = merchantArray[0];
-    const lowestPayee = merchantArray[merchantArray.length - 1];
-    const mostTransactions = merchantArray.sort((a, b) => b.count - a.count)[0];
+    const topPayee = merchantArray.sort((a, b) => b.total - a.total)[0];
+    const mostTransactionsMerchant = merchantArray.sort((a, b) => b.count - a.count)[0];
 
     return {
       totalTransactions: incomeTransactions.length,
       totalAmount: total,
       avgAmount: avg,
-      minAmount: min,
-      maxAmount: max,
+      minAmount: minTransaction.amount || 0,
+      maxAmount: maxTransaction.amount || 0,
+      minTransaction,
+      maxTransaction,
       topPayee,
-      lowestPayee,
-      mostTransactions,
+      mostTransactions: mostTransactionsMerchant,
     };
   }, [incomeTransactions]);
 
@@ -287,42 +296,47 @@ export const IncomeExpensesPage = () => {
       return null;
     }
 
-    const amounts = expenseTransactions.map(t => Math.abs(t.amount));
-    const total = amounts.reduce((sum, amt) => sum + amt, 0);
-    const avg = total / amounts.length;
-    const min = Math.min(...amounts);
-    const max = Math.max(...amounts);
+    const total = expenseTransactions.reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+    const avg = total / expenseTransactions.length;
 
-    // Top and lowest merchants by total amount
-    const merchantTotals = new Map<string, { total: number; count: number }>();
+    // Find min and max transactions
+    const minTransaction = expenseTransactions.reduce((min, t) =>
+      Math.abs(t.amount || 0) < Math.abs(min.amount || 0) ? t : min
+    );
+    const maxTransaction = expenseTransactions.reduce((max, t) =>
+      Math.abs(t.amount || 0) > Math.abs(max.amount || 0) ? t : max
+    );
+
+    // Top and lowest merchants by total amount with transaction references
+    const merchantMap = new Map<string, { total: number; count: number; transactions: Transaction[] }>();
     expenseTransactions.forEach(t => {
       const merchant = t.merchant_name || 'Unknown';
-      const existing = merchantTotals.get(merchant) || { total: 0, count: 0 };
-      merchantTotals.set(merchant, {
-        total: existing.total + Math.abs(t.amount),
+      const existing = merchantMap.get(merchant) || { total: 0, count: 0, transactions: [] };
+      merchantMap.set(merchant, {
+        total: existing.total + Math.abs(t.amount || 0),
         count: existing.count + 1,
+        transactions: [...existing.transactions, t],
       });
     });
 
-    const merchantArray = Array.from(merchantTotals.entries()).map(([name, data]) => ({
+    const merchantArray = Array.from(merchantMap.entries()).map(([name, data]) => ({
       name,
       ...data,
     }));
-    merchantArray.sort((a, b) => b.total - a.total);
 
-    const topMerchant = merchantArray[0];
-    const lowestMerchant = merchantArray[merchantArray.length - 1];
-    const mostTransactions = merchantArray.sort((a, b) => b.count - a.count)[0];
+    const topMerchant = merchantArray.sort((a, b) => b.total - a.total)[0];
+    const mostTransactionsMerchant = merchantArray.sort((a, b) => b.count - a.count)[0];
 
     return {
       totalTransactions: expenseTransactions.length,
       totalAmount: total,
       avgAmount: avg,
-      minAmount: min,
-      maxAmount: max,
+      minAmount: Math.abs(minTransaction.amount || 0),
+      maxAmount: Math.abs(maxTransaction.amount || 0),
+      minTransaction,
+      maxTransaction,
       topMerchant,
-      lowestMerchant,
-      mostTransactions,
+      mostTransactions: mostTransactionsMerchant,
     };
   }, [expenseTransactions]);
 
@@ -336,40 +350,48 @@ export const IncomeExpensesPage = () => {
       return null;
     }
 
-    const totalIncome = (allIncomeTransactions || []).reduce((sum, t) => sum + t.amount, 0);
-    const totalExpense = (allExpenseTransactions || []).reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    const expenses = allExpenseTransactions || [];
+    const totalExpense = expenses.reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+    const avgSpent = expenses.length > 0 ? totalExpense / expenses.length : 0;
 
-    // Combine merchant data
-    const merchantTotals = new Map<string, { total: number; count: number }>();
+    // Find min and max spent transactions
+    const minSpentTransaction = expenses.length > 0
+      ? expenses.reduce((min, t) => Math.abs(t.amount || 0) < Math.abs(min.amount || 0) ? t : min)
+      : null;
+    const maxSpentTransaction = expenses.length > 0
+      ? expenses.reduce((max, t) => Math.abs(t.amount || 0) > Math.abs(max.amount || 0) ? t : max)
+      : null;
+
+    // Combine merchant data with transaction references
+    const merchantMap = new Map<string, { total: number; count: number; transactions: Transaction[] }>();
     allTransactions.forEach(t => {
       const merchant = t.merchant_name || 'Unknown';
-      const existing = merchantTotals.get(merchant) || { total: 0, count: 0 };
-      merchantTotals.set(merchant, {
-        total: existing.total + Math.abs(t.amount),
+      const existing = merchantMap.get(merchant) || { total: 0, count: 0, transactions: [] };
+      merchantMap.set(merchant, {
+        total: existing.total + Math.abs(t.amount || 0),
         count: existing.count + 1,
+        transactions: [...existing.transactions, t],
       });
     });
 
-    const merchantArray = Array.from(merchantTotals.entries()).map(([name, data]) => ({
+    const merchantArray = Array.from(merchantMap.entries()).map(([name, data]) => ({
       name,
       ...data,
     }));
 
     const topPayee = merchantArray.sort((a, b) => b.total - a.total)[0];
-    const mostTransactions = merchantArray.sort((a, b) => b.count - a.count)[0];
+    const mostTransactionsMerchant = merchantArray.sort((a, b) => b.count - a.count)[0];
 
     return {
       totalTransactions: allTransactions.length,
       totalSpent: totalExpense,
-      avgSpent: totalExpense / (allExpenseTransactions?.length || 1),
-      minSpent: allExpenseTransactions && allExpenseTransactions.length > 0
-        ? Math.min(...allExpenseTransactions.map(t => Math.abs(t.amount)))
-        : 0,
-      maxSpent: allExpenseTransactions && allExpenseTransactions.length > 0
-        ? Math.max(...allExpenseTransactions.map(t => Math.abs(t.amount)))
-        : 0,
+      avgSpent,
+      minSpent: minSpentTransaction ? Math.abs(minSpentTransaction.amount || 0) : 0,
+      maxSpent: maxSpentTransaction ? Math.abs(maxSpentTransaction.amount || 0) : 0,
+      minSpentTransaction,
+      maxSpentTransaction,
       topPayee,
-      mostTransactions,
+      mostTransactions: mostTransactionsMerchant,
     };
   }, [allIncomeTransactions, allExpenseTransactions]);
 
@@ -760,6 +782,29 @@ export const IncomeExpensesPage = () => {
           <DateRangePicker value={dateRange} onChange={setDateRange} />
         </HStack>
 
+        {/* Group By Toggle */}
+        <HStack>
+          <Text fontSize="sm" fontWeight="medium" color="gray.600">
+            Group by:
+          </Text>
+          <ButtonGroup size="sm" isAttached variant="outline">
+            <Button
+              colorScheme={groupBy === 'category' ? 'brand' : 'gray'}
+              onClick={() => setGroupBy('category')}
+              bg={groupBy === 'category' ? 'brand.50' : 'white'}
+            >
+              Category
+            </Button>
+            <Button
+              colorScheme={groupBy === 'label' ? 'brand' : 'gray'}
+              onClick={() => setGroupBy('label')}
+              bg={groupBy === 'label' ? 'brand.50' : 'white'}
+            >
+              Labels
+            </Button>
+          </ButtonGroup>
+        </HStack>
+
         {/* Summary Cards */}
         <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
           <Card>
@@ -847,27 +892,48 @@ export const IncomeExpensesPage = () => {
                             </Stat>
                           </CardBody>
                         </Card>
-                        <Card size="sm">
+                        <Card
+                          size="sm"
+                          cursor="pointer"
+                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          onClick={() => combinedStats.minSpentTransaction && handleTransactionClick(combinedStats.minSpentTransaction)}
+                        >
                           <CardBody>
                             <Stat size="sm">
                               <StatLabel fontSize="xs">Min Spent</StatLabel>
                               <StatNumber fontSize="lg">
                                 {formatCurrency(combinedStats.minSpent)}
                               </StatNumber>
+                              <StatHelpText fontSize="xs" color="gray.500">
+                                Click to view
+                              </StatHelpText>
                             </Stat>
                           </CardBody>
                         </Card>
-                        <Card size="sm">
+                        <Card
+                          size="sm"
+                          cursor="pointer"
+                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          onClick={() => combinedStats.maxSpentTransaction && handleTransactionClick(combinedStats.maxSpentTransaction)}
+                        >
                           <CardBody>
                             <Stat size="sm">
                               <StatLabel fontSize="xs">Max Spent</StatLabel>
                               <StatNumber fontSize="lg">
                                 {formatCurrency(combinedStats.maxSpent)}
                               </StatNumber>
+                              <StatHelpText fontSize="xs" color="gray.500">
+                                Click to view
+                              </StatHelpText>
                             </Stat>
                           </CardBody>
                         </Card>
-                        <Card size="sm">
+                        <Card
+                          size="sm"
+                          cursor="pointer"
+                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          onClick={() => combinedStats.topPayee?.transactions?.[0] && handleTransactionClick(combinedStats.topPayee.transactions[0])}
+                        >
                           <CardBody>
                             <Stat size="sm">
                               <StatLabel fontSize="xs">Top Payee</StatLabel>
@@ -880,7 +946,12 @@ export const IncomeExpensesPage = () => {
                             </Stat>
                           </CardBody>
                         </Card>
-                        <Card size="sm">
+                        <Card
+                          size="sm"
+                          cursor="pointer"
+                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          onClick={() => combinedStats.mostTransactions?.transactions?.[0] && handleTransactionClick(combinedStats.mostTransactions.transactions[0])}
+                        >
                           <CardBody>
                             <Stat size="sm">
                               <StatLabel fontSize="xs">Most Transactions</StatLabel>
@@ -1085,27 +1156,48 @@ export const IncomeExpensesPage = () => {
                             </Stat>
                           </CardBody>
                         </Card>
-                        <Card size="sm">
+                        <Card
+                          size="sm"
+                          cursor="pointer"
+                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          onClick={() => incomeStats.minTransaction && handleTransactionClick(incomeStats.minTransaction)}
+                        >
                           <CardBody>
                             <Stat size="sm">
                               <StatLabel fontSize="xs">Min Received</StatLabel>
                               <StatNumber fontSize="lg">
                                 {formatCurrency(incomeStats.minAmount)}
                               </StatNumber>
+                              <StatHelpText fontSize="xs" color="gray.500">
+                                Click to view
+                              </StatHelpText>
                             </Stat>
                           </CardBody>
                         </Card>
-                        <Card size="sm">
+                        <Card
+                          size="sm"
+                          cursor="pointer"
+                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          onClick={() => incomeStats.maxTransaction && handleTransactionClick(incomeStats.maxTransaction)}
+                        >
                           <CardBody>
                             <Stat size="sm">
                               <StatLabel fontSize="xs">Max Received</StatLabel>
                               <StatNumber fontSize="lg">
                                 {formatCurrency(incomeStats.maxAmount)}
                               </StatNumber>
+                              <StatHelpText fontSize="xs" color="gray.500">
+                                Click to view
+                              </StatHelpText>
                             </Stat>
                           </CardBody>
                         </Card>
-                        <Card size="sm">
+                        <Card
+                          size="sm"
+                          cursor="pointer"
+                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          onClick={() => incomeStats.topPayee?.transactions?.[0] && handleTransactionClick(incomeStats.topPayee.transactions[0])}
+                        >
                           <CardBody>
                             <Stat size="sm">
                               <StatLabel fontSize="xs">Top Source</StatLabel>
@@ -1118,7 +1210,12 @@ export const IncomeExpensesPage = () => {
                             </Stat>
                           </CardBody>
                         </Card>
-                        <Card size="sm">
+                        <Card
+                          size="sm"
+                          cursor="pointer"
+                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          onClick={() => incomeStats.mostTransactions?.transactions?.[0] && handleTransactionClick(incomeStats.mostTransactions.transactions[0])}
+                        >
                           <CardBody>
                             <Stat size="sm">
                               <StatLabel fontSize="xs">Most Transactions</StatLabel>
@@ -1231,27 +1328,48 @@ export const IncomeExpensesPage = () => {
                             </Stat>
                           </CardBody>
                         </Card>
-                        <Card size="sm">
+                        <Card
+                          size="sm"
+                          cursor="pointer"
+                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          onClick={() => expenseStats.minTransaction && handleTransactionClick(expenseStats.minTransaction)}
+                        >
                           <CardBody>
                             <Stat size="sm">
                               <StatLabel fontSize="xs">Min Spent</StatLabel>
                               <StatNumber fontSize="lg">
                                 {formatCurrency(expenseStats.minAmount)}
                               </StatNumber>
+                              <StatHelpText fontSize="xs" color="gray.500">
+                                Click to view
+                              </StatHelpText>
                             </Stat>
                           </CardBody>
                         </Card>
-                        <Card size="sm">
+                        <Card
+                          size="sm"
+                          cursor="pointer"
+                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          onClick={() => expenseStats.maxTransaction && handleTransactionClick(expenseStats.maxTransaction)}
+                        >
                           <CardBody>
                             <Stat size="sm">
                               <StatLabel fontSize="xs">Max Spent</StatLabel>
                               <StatNumber fontSize="lg">
                                 {formatCurrency(expenseStats.maxAmount)}
                               </StatNumber>
+                              <StatHelpText fontSize="xs" color="gray.500">
+                                Click to view
+                              </StatHelpText>
                             </Stat>
                           </CardBody>
                         </Card>
-                        <Card size="sm">
+                        <Card
+                          size="sm"
+                          cursor="pointer"
+                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          onClick={() => expenseStats.topMerchant?.transactions?.[0] && handleTransactionClick(expenseStats.topMerchant.transactions[0])}
+                        >
                           <CardBody>
                             <Stat size="sm">
                               <StatLabel fontSize="xs">Most Spent</StatLabel>
@@ -1264,7 +1382,12 @@ export const IncomeExpensesPage = () => {
                             </Stat>
                           </CardBody>
                         </Card>
-                        <Card size="sm">
+                        <Card
+                          size="sm"
+                          cursor="pointer"
+                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          onClick={() => expenseStats.mostTransactions?.transactions?.[0] && handleTransactionClick(expenseStats.mostTransactions.transactions[0])}
+                        >
                           <CardBody>
                             <Stat size="sm">
                               <StatLabel fontSize="xs">Most Transactions</StatLabel>
