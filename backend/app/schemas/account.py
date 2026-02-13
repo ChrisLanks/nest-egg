@@ -26,6 +26,17 @@ class AccountCreate(AccountBase):
     pass
 
 
+class ManualAccountCreate(BaseModel):
+    """Manual account creation schema."""
+
+    name: str
+    account_type: AccountType
+    account_source: AccountSource
+    institution: Optional[str] = None
+    balance: Decimal
+    account_number_last4: Optional[str] = None
+
+
 class AccountUpdate(BaseModel):
     """Account update schema."""
 

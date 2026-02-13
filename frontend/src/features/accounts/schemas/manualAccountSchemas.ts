@@ -1,0 +1,101 @@
+/**
+ * Zod validation schemas for manual account creation
+ */
+
+import { z } from 'zod';
+
+// Account types
+export const ACCOUNT_TYPES = {
+  // Basic accounts
+  CHECKING: 'checking',
+  SAVINGS: 'savings',
+  CREDIT_CARD: 'credit_card',
+  LOAN: 'loan',
+  MORTGAGE: 'mortgage',
+
+  // Investment accounts
+  BROKERAGE: 'brokerage',
+  RETIREMENT_401K: '401k',
+  RETIREMENT_IRA: 'ira',
+  RETIREMENT_ROTH: 'roth_ira',
+  HSA: 'hsa',
+
+  // Property
+  PROPERTY: 'property',
+  VEHICLE: 'vehicle',
+
+  // Other
+  MANUAL: 'manual',
+  OTHER: 'other',
+} as const;
+
+export type AccountType = typeof ACCOUNT_TYPES[keyof typeof ACCOUNT_TYPES];
+
+// Basic manual account schema (checking, savings, loans, etc.)
+export const basicManualAccountSchema = z.object({
+  name: z.string().min(1, 'Account name is required'),
+  institution: z.string().optional(),
+  account_type: z.enum([
+    ACCOUNT_TYPES.CHECKING,
+    ACCOUNT_TYPES.SAVINGS,
+    ACCOUNT_TYPES.CREDIT_CARD,
+    ACCOUNT_TYPES.LOAN,
+    ACCOUNT_TYPES.MORTGAGE,
+    ACCOUNT_TYPES.MANUAL,
+    ACCOUNT_TYPES.OTHER,
+  ]),
+  balance: z.number().or(z.string().transform((val) => parseFloat(val))),
+  account_number_last4: z.string().max(4).optional(),
+});
+
+export type BasicManualAccountFormData = z.infer<typeof basicManualAccountSchema>;
+
+// Investment holding schema
+export const holdingSchema = z.object({
+  ticker: z.string().min(1, 'Ticker symbol is required').toUpperCase(),
+  shares: z.number().or(z.string().transform((val) => parseFloat(val))).refine((val) => val > 0, 'Shares must be greater than 0'),
+  price_per_share: z.number().or(z.string().transform((val) => parseFloat(val))).refine((val) => val > 0, 'Price must be greater than 0'),
+});
+
+export type HoldingFormData = z.infer<typeof holdingSchema>;
+
+// Investment account schema
+export const investmentAccountSchema = z.object({
+  name: z.string().min(1, 'Account name is required'),
+  institution: z.string().optional(),
+  account_type: z.enum([
+    ACCOUNT_TYPES.BROKERAGE,
+    ACCOUNT_TYPES.RETIREMENT_401K,
+    ACCOUNT_TYPES.RETIREMENT_IRA,
+    ACCOUNT_TYPES.RETIREMENT_ROTH,
+    ACCOUNT_TYPES.HSA,
+  ]),
+  holdings: z.array(holdingSchema).min(1, 'At least one holding is required'),
+  account_number_last4: z.string().max(4).optional(),
+});
+
+export type InvestmentAccountFormData = z.infer<typeof investmentAccountSchema>;
+
+// Property account schema (homes)
+export const propertyAccountSchema = z.object({
+  name: z.string().min(1, 'Property name is required'),
+  address: z.string().min(1, 'Address is required'),
+  property_type: z.enum(['single_family', 'condo', 'townhouse', 'multi_family', 'other']).default('single_family'),
+  value: z.number().or(z.string().transform((val) => parseFloat(val))).refine((val) => val > 0, 'Value must be greater than 0'),
+  mortgage_balance: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
+});
+
+export type PropertyAccountFormData = z.infer<typeof propertyAccountSchema>;
+
+// Vehicle account schema
+export const vehicleAccountSchema = z.object({
+  name: z.string().min(1, 'Vehicle name is required'),
+  make: z.string().min(1, 'Make is required'),
+  model: z.string().min(1, 'Model is required'),
+  year: z.number().or(z.string().transform((val) => parseInt(val, 10))).refine((val) => val >= 1900 && val <= new Date().getFullYear() + 1, 'Invalid year'),
+  mileage: z.number().or(z.string().transform((val) => parseInt(val, 10))).optional(),
+  value: z.number().or(z.string().transform((val) => parseFloat(val))).refine((val) => val > 0, 'Value must be greater than 0'),
+  loan_balance: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
+});
+
+export type VehicleAccountFormData = z.infer<typeof vehicleAccountSchema>;

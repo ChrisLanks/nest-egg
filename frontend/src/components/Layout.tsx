@@ -12,6 +12,7 @@ import {
   Divider,
   Spinner,
   Center,
+  useDisclosure,
 } from '@chakra-ui/react';
 import {
   ViewIcon,
@@ -19,6 +20,7 @@ import {
   SettingsIcon,
   StarIcon,
   ArrowUpDownIcon,
+  AddIcon,
 } from '@chakra-ui/icons';
 import { FiSettings } from 'react-icons/fi';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -26,6 +28,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../features/auth/stores/authStore';
 import { useLogout } from '../features/auth/hooks/useAuth';
 import api from '../services/api';
+import { AddAccountModal } from '../features/accounts/components/AddAccountModal';
 
 interface Account {
   id: string;
@@ -145,6 +148,7 @@ export const Layout = () => {
   const location = useLocation();
   const { user } = useAuthStore();
   const logoutMutation = useLogout();
+  const { isOpen: isAddAccountOpen, onOpen: onAddAccountOpen, onClose: onAddAccountClose } = useDisclosure();
 
   const navItems = [
     { icon: ViewIcon, label: 'Dashboard', path: '/dashboard' },
@@ -326,6 +330,17 @@ export const Layout = () => {
                   No accounts yet. Connect an account to get started.
                 </Text>
               )}
+
+              <Button
+                leftIcon={<AddIcon />}
+                colorScheme="brand"
+                size="sm"
+                onClick={onAddAccountOpen}
+                mt={4}
+                w="full"
+              >
+                Add Account
+              </Button>
             </VStack>
           )}
         </Box>
@@ -335,6 +350,9 @@ export const Layout = () => {
           <Outlet />
         </Box>
       </Flex>
+
+      {/* Add Account Modal */}
+      <AddAccountModal isOpen={isAddAccountOpen} onClose={onAddAccountClose} />
     </Flex>
   );
 };

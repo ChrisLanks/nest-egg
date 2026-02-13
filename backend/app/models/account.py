@@ -25,6 +25,7 @@ class AccountType(str, enum.Enum):
     LOAN = "loan"
     MORTGAGE = "mortgage"
     PROPERTY = "property"
+    VEHICLE = "vehicle"
     CRYPTO = "crypto"
     MANUAL = "manual"
     OTHER = "other"
