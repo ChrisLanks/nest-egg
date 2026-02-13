@@ -30,7 +30,8 @@ import {
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../../services/api';
-import { DateRangePicker, DateRange } from '../../../components/DateRangePicker';
+import { DateRangePicker } from '../../../components/DateRangePicker';
+import type { DateRange } from '../../../components/DateRangePicker';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 interface CategoryBreakdown {
