@@ -18,6 +18,7 @@ import { CategoriesPage } from './pages/CategoriesPage';
 import SettingsPage from './pages/SettingsPage';
 import { IncomeExpensesPage } from './features/income-expenses/pages/IncomeExpensesPage';
 import { AccountDetailPage } from './pages/AccountDetailPage';
+import { InvestmentsPage } from './pages/InvestmentsPage';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
               <Route element={<Layout />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/transactions" element={<TransactionsPage />} />
+                <Route path="/investments" element={<InvestmentsPage />} />
                 <Route path="/rules" element={<RulesPage />} />
                 <Route path="/income-expenses" element={<IncomeExpensesPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />

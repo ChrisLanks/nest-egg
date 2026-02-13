@@ -23,7 +23,8 @@
       "Bash(npm run dev:*)",
       "Bash(pip install:*)",
       "Bash(docker-compose restart:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(docker-compose up:*)"
     ]
   }
 }

@@ -22,7 +22,7 @@ import {
   ArrowUpDownIcon,
   AddIcon,
 } from '@chakra-ui/icons';
-import { FiSettings } from 'react-icons/fi';
+import { FiSettings, FiTrendingUp } from 'react-icons/fi';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../features/auth/stores/authStore';
@@ -154,6 +154,7 @@ export const Layout = () => {
   const navItems = [
     { icon: ViewIcon, label: 'Dashboard', path: '/dashboard' },
     { icon: ArrowUpDownIcon, label: 'Cash Flow', path: '/income-expenses' },
+    { icon: FiTrendingUp, label: 'Investments', path: '/investments' },
     { icon: RepeatIcon, label: 'Transactions', path: '/transactions' },
     { icon: SettingsIcon, label: 'Rules', path: '/rules' },
     { icon: StarIcon, label: 'Categories', path: '/categories' },

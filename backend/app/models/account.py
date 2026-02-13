@@ -116,3 +116,4 @@ class Account(Base):
     # Relationships
     plaid_item = relationship("PlaidItem", back_populates="accounts")
     transactions = relationship("Transaction", back_populates="account", cascade="all, delete-orphan")
+    holdings = relationship("Holding", back_populates="account", cascade="all, delete-orphan")

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -26,6 +26,14 @@ class AccountCreate(AccountBase):
     pass
 
 
+class HoldingData(BaseModel):
+    """Holding data for account creation."""
+
+    ticker: str
+    shares: Decimal
+    price_per_share: Decimal
+
+
 class ManualAccountCreate(BaseModel):
     """Manual account creation schema."""
 
@@ -35,6 +43,7 @@ class ManualAccountCreate(BaseModel):
     institution: Optional[str] = None
     balance: Decimal
     account_number_last4: Optional[str] = None
+    holdings: Optional[List[HoldingData]] = None  # For investment accounts
 
 
 class AccountUpdate(BaseModel):

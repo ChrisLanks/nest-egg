@@ -1,0 +1,46 @@
+"""Holdings model for investment accounts."""
+
+import uuid
+from datetime import datetime
+
+from sqlalchemy import Column, String, DateTime, ForeignKey, Numeric, Integer
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+
+from app.core.database import Base
+
+
+class Holding(Base):
+    """Investment holding (stock, bond, ETF, etc.)."""
+
+    __tablename__ = "holdings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id = Column(UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Holding identification
+    ticker = Column(String(20), nullable=False)  # Stock symbol (e.g., "AAPL", "VTSAX")
+    name = Column(String(255), nullable=True)  # Full name (e.g., "Apple Inc.")
+
+    # Quantity
+    shares = Column(Numeric(15, 6), nullable=False)  # Support fractional shares
+
+    # Cost basis
+    cost_basis_per_share = Column(Numeric(15, 2), nullable=True)  # What you paid per share
+    total_cost_basis = Column(Numeric(15, 2), nullable=True)  # Total amount paid
+
+    # Current value (cached, refreshed periodically)
+    current_price_per_share = Column(Numeric(15, 2), nullable=True)
+    current_total_value = Column(Numeric(15, 2), nullable=True)
+    price_as_of = Column(DateTime, nullable=True)  # When the price was last fetched
+
+    # Asset classification
+    asset_type = Column(String(50), nullable=True)  # 'stock', 'bond', 'etf', 'mutual_fund', 'cash', 'other'
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    account = relationship("Account", back_populates="holdings")

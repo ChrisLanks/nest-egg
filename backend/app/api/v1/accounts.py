@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.account import Account
+from app.models.holding import Holding
 from app.schemas.account import Account as AccountSchema, AccountSummary, ManualAccountCreate, AccountUpdate
 
 router = APIRouter()
@@ -79,6 +80,27 @@ async def create_manual_account(
     db.add(account)
     await db.commit()
     await db.refresh(account)
+
+    # Create holdings if provided (for investment accounts)
+    if account_data.holdings:
+        for holding_data in account_data.holdings:
+            # Calculate cost basis (use current price as cost basis)
+            cost_basis_per_share = holding_data.price_per_share
+            total_cost_basis = holding_data.shares * cost_basis_per_share
+
+            holding = Holding(
+                account_id=account.id,
+                organization_id=current_user.organization_id,
+                ticker=holding_data.ticker.upper(),
+                shares=holding_data.shares,
+                cost_basis_per_share=cost_basis_per_share,
+                total_cost_basis=total_cost_basis,
+                current_price_per_share=holding_data.price_per_share,
+                current_total_value=holding_data.shares * holding_data.price_per_share,
+            )
+            db.add(holding)
+
+        await db.commit()
 
     return account
 

@@ -117,6 +117,17 @@ class PlaidService:
                 "available_balance": None,
                 "limit": 10000.00,
             },
+            {
+                "account_id": f"acc_{uuid.uuid4().hex[:16]}",
+                "name": f"{institution_name} Brokerage",
+                "mask": "3456",
+                "official_name": f"{institution_name} Investment Account",
+                "type": "investment",
+                "subtype": "brokerage",
+                "current_balance": 45680.25,  # Total portfolio value
+                "available_balance": None,
+                "limit": None,
+            },
         ]
 
     async def get_accounts(self, user: User, access_token: str) -> List[dict]:
@@ -137,3 +148,116 @@ class PlaidService:
         # return response['accounts']
 
         raise NotImplementedError("Real Plaid integration not yet implemented")
+
+    async def get_investment_holdings(self, user: User, access_token: str) -> Tuple[List[dict], List[dict]]:
+        """
+        Fetch investment holdings from Plaid.
+
+        Returns:
+            Tuple of (holdings_list, securities_list)
+        """
+        if self.is_test_user(user):
+            # Return dummy holdings for test user
+            return self._create_dummy_holdings()
+
+        # TODO: For real users, call Plaid API
+        # from plaid import Client
+        # client = Client(client_id=..., secret=..., environment='sandbox')
+        # response = client.InvestmentsHoldings.get(access_token)
+        # holdings = response['holdings']
+        # securities = response['securities']
+        # return holdings, securities
+
+        raise NotImplementedError("Real Plaid holdings integration not yet implemented")
+
+    def _create_dummy_holdings(self) -> Tuple[List[dict], List[dict]]:
+        """Create dummy investment holdings for testing."""
+        # Securities are the actual stocks/funds
+        securities = [
+            {
+                "security_id": "sec_aapl",
+                "ticker_symbol": "AAPL",
+                "name": "Apple Inc.",
+                "type": "equity",  # equity, derivative, etf, mutual fund, etc.
+                "close_price": 185.24,
+                "close_price_as_of": datetime.utcnow().isoformat(),
+            },
+            {
+                "security_id": "sec_googl",
+                "ticker_symbol": "GOOGL",
+                "name": "Alphabet Inc.",
+                "type": "equity",
+                "close_price": 142.65,
+                "close_price_as_of": datetime.utcnow().isoformat(),
+            },
+            {
+                "security_id": "sec_vtsax",
+                "ticker_symbol": "VTSAX",
+                "name": "Vanguard Total Stock Market Index Fund",
+                "type": "mutual fund",
+                "close_price": 118.32,
+                "close_price_as_of": datetime.utcnow().isoformat(),
+            },
+            {
+                "security_id": "sec_vti",
+                "ticker_symbol": "VTI",
+                "name": "Vanguard Total Stock Market ETF",
+                "type": "etf",
+                "close_price": 245.18,
+                "close_price_as_of": datetime.utcnow().isoformat(),
+            },
+            {
+                "security_id": "sec_msft",
+                "ticker_symbol": "MSFT",
+                "name": "Microsoft Corporation",
+                "type": "equity",
+                "close_price": 378.91,
+                "close_price_as_of": datetime.utcnow().isoformat(),
+            },
+        ]
+
+        # Holdings link securities to accounts
+        holdings = [
+            {
+                "account_id": "brokerage_acc_id",  # Would match the account_id from exchange
+                "security_id": "sec_aapl",
+                "quantity": 50.5,
+                "cost_basis": 7337.65,  # Total cost
+                "institution_price": 185.24,
+                "institution_value": 9354.62,
+            },
+            {
+                "account_id": "brokerage_acc_id",
+                "security_id": "sec_googl",
+                "quantity": 25.0,
+                "cost_basis": 3012.50,
+                "institution_price": 142.65,
+                "institution_value": 3566.25,
+            },
+            {
+                "account_id": "brokerage_acc_id",
+                "security_id": "sec_vtsax",
+                "quantity": 100.25,
+                "cost_basis": 9603.95,
+                "institution_price": 118.32,
+                "institution_value": 11861.58,
+            },
+            {
+                "account_id": "brokerage_acc_id",
+                "security_id": "sec_vti",
+                "quantity": 75.0,
+                "cost_basis": 15783.75,
+                "institution_price": 245.18,
+                "institution_value": 18388.50,
+            },
+            {
+                "account_id": "brokerage_acc_id",
+                "security_id": "sec_msft",
+                "quantity": 30.0,
+                "cost_basis": 9456.00,
+                "institution_price": 378.91,
+                "institution_value": 11367.30,
+            },
+        ]
+
+        return holdings, securities
