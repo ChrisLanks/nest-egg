@@ -1,5 +1,5 @@
 /**
- * Income vs Expenses analysis page with drill-down capabilities
+ * Income vs Expenses analysis page with drill-down capabilities and transaction tables
  */
 
 import {
@@ -25,31 +25,30 @@ import {
   Th,
   Td,
   Badge,
-  Progress,
   Tabs,
   TabList,
   TabPanels,
   Tab,
   TabPanel,
-  Button,
-  ButtonGroup,
   IconButton,
   useDisclosure,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalCloseButton,
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  Wrap,
+  WrapItem,
 } from '@chakra-ui/react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ViewIcon, ViewOffIcon } from '@chakra-ui/icons';
+import { ChevronRightIcon, ChevronUpIcon, ChevronDownIcon } from '@chakra-ui/icons';
+import { IoBarChart, IoPieChart } from 'react-icons/io5';
 import api from '../../../services/api';
 import { DateRangePicker } from '../../../components/DateRangePicker';
 import type { DateRange } from '../../../components/DateRangePicker';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import type { Transaction } from '../../../types/transaction';
+import { TransactionDetailModal } from '../../../components/TransactionDetailModal';
+import { RuleBuilderModal } from '../../../components/RuleBuilderModal';
 
 interface CategoryBreakdown {
   category: string;
@@ -74,22 +73,42 @@ interface MonthlyTrend {
 }
 
 type ChartType = 'pie' | 'bar';
+type DrillDownLevel = 'categories' | 'merchants';
+
+interface DrillDownState {
+  level: DrillDownLevel;
+  category?: string;
+}
+
+type SortField = 'date' | 'merchant_name' | 'amount';
+type SortDirection = 'asc' | 'desc';
 
 export const IncomeExpensesPage = () => {
   // Default to current month
   const now = new Date();
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  
+
   const [dateRange, setDateRange] = useState<DateRange>({
     start: firstDay.toISOString().split('T')[0],
     end: lastDay.toISOString().split('T')[0],
     label: 'This Month',
   });
 
-  const [chartType, setChartType] = useState<ChartType>('pie');
-  const [selectedCategory, setSelectedCategory] = useState<{ category: string; type: 'income' | 'expense' } | null>(null);
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [incomeChartType, setIncomeChartType] = useState<ChartType>('pie');
+  const [expenseChartType, setExpenseChartType] = useState<ChartType>('pie');
+  const [incomeDrillDown, setIncomeDrillDown] = useState<DrillDownState>({ level: 'categories' });
+  const [expenseDrillDown, setExpenseDrillDown] = useState<DrillDownState>({ level: 'categories' });
+
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [ruleTransaction, setRuleTransaction] = useState<Transaction | null>(null);
+  const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
+  const { isOpen: isRuleOpen, onOpen: onRuleOpen, onClose: onRuleClose } = useDisclosure();
+
+  const [incomeSortField, setIncomeSortField] = useState<SortField>('date');
+  const [incomeSortDirection, setIncomeSortDirection] = useState<SortDirection>('desc');
+  const [expenseSortField, setExpenseSortField] = useState<SortField>('date');
+  const [expenseSortDirection, setExpenseSortDirection] = useState<SortDirection>('desc');
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['income-expenses-summary', dateRange.start, dateRange.end],
@@ -111,17 +130,54 @@ export const IncomeExpensesPage = () => {
     },
   });
 
-  // Fetch transactions for selected category
-  const { data: categoryTransactions } = useQuery({
-    queryKey: ['category-transactions', selectedCategory?.category, dateRange.start, dateRange.end],
+  // Fetch merchant breakdown when drilling down
+  const { data: incomeMerchants } = useQuery({
+    queryKey: ['income-merchants', dateRange.start, dateRange.end, incomeDrillDown.category],
     queryFn: async () => {
-      if (!selectedCategory) return null;
-      const response = await api.get<{ transactions: Transaction[] }>(
-        `/transactions/?start_date=${dateRange.start}&end_date=${dateRange.end}&category=${selectedCategory.category}&page=1&page_size=1000`
+      const response = await api.get<CategoryBreakdown[]>(
+        `/income-expenses/merchants?start_date=${dateRange.start}&end_date=${dateRange.end}&transaction_type=income&category=${incomeDrillDown.category || ''}`
       );
-      return response.data.transactions;
+      return response.data;
     },
-    enabled: !!selectedCategory,
+    enabled: incomeDrillDown.level === 'merchants',
+  });
+
+  const { data: expenseMerchants } = useQuery({
+    queryKey: ['expense-merchants', dateRange.start, dateRange.end, expenseDrillDown.category],
+    queryFn: async () => {
+      const response = await api.get<CategoryBreakdown[]>(
+        `/income-expenses/merchants?start_date=${dateRange.start}&end_date=${dateRange.end}&transaction_type=expense&category=${expenseDrillDown.category || ''}`
+      );
+      return response.data;
+    },
+    enabled: expenseDrillDown.level === 'merchants',
+  });
+
+  // Fetch transactions for the current drill-down level
+  const { data: incomeTransactions } = useQuery({
+    queryKey: ['income-transactions', dateRange.start, dateRange.end, incomeDrillDown.category],
+    queryFn: async () => {
+      let url = `/transactions/?start_date=${dateRange.start}&end_date=${dateRange.end}&page=1&page_size=1000`;
+      if (incomeDrillDown.category) {
+        url += `&category=${incomeDrillDown.category}`;
+      }
+      const response = await api.get<{ transactions: Transaction[] }>(url);
+      // Filter for income only
+      return response.data.transactions.filter(t => t.amount > 0);
+    },
+  });
+
+  const { data: expenseTransactions } = useQuery({
+    queryKey: ['expense-transactions', dateRange.start, dateRange.end, expenseDrillDown.category],
+    queryFn: async () => {
+      let url = `/transactions/?start_date=${dateRange.start}&end_date=${dateRange.end}&page=1&page_size=1000`;
+      if (expenseDrillDown.category) {
+        url += `&category=${expenseDrillDown.category}`;
+      }
+      const response = await api.get<{ transactions: Transaction[] }>(url);
+      // Filter for expenses only
+      return response.data.transactions.filter(t => t.amount < 0);
+    },
   });
 
   const formatCurrency = (amount: number) => {
@@ -143,8 +199,81 @@ export const IncomeExpensesPage = () => {
   };
 
   const handleCategoryClick = (category: string, type: 'income' | 'expense') => {
-    setSelectedCategory({ category, type });
-    onOpen();
+    if (type === 'income') {
+      setIncomeDrillDown({ level: 'merchants', category });
+    } else {
+      setExpenseDrillDown({ level: 'merchants', category });
+    }
+  };
+
+  const handleBreadcrumbClick = (type: 'income' | 'expense', level: DrillDownLevel) => {
+    if (type === 'income') {
+      if (level === 'categories') {
+        setIncomeDrillDown({ level: 'categories' });
+      }
+    } else {
+      if (level === 'categories') {
+        setExpenseDrillDown({ level: 'categories' });
+      }
+    }
+  };
+
+  const handleTransactionClick = (txn: Transaction) => {
+    setSelectedTransaction(txn);
+    onDetailOpen();
+  };
+
+  const handleCreateRule = (transaction: Transaction) => {
+    setRuleTransaction(transaction);
+    onRuleOpen();
+  };
+
+  const handleSort = (field: SortField, type: 'income' | 'expense') => {
+    if (type === 'income') {
+      if (incomeSortField === field) {
+        setIncomeSortDirection(incomeSortDirection === 'asc' ? 'desc' : 'asc');
+      } else {
+        setIncomeSortField(field);
+        setIncomeSortDirection(field === 'date' || field === 'amount' ? 'desc' : 'asc');
+      }
+    } else {
+      if (expenseSortField === field) {
+        setExpenseSortDirection(expenseSortDirection === 'asc' ? 'desc' : 'asc');
+      } else {
+        setExpenseSortField(field);
+        setExpenseSortDirection(field === 'date' || field === 'amount' ? 'desc' : 'asc');
+      }
+    }
+  };
+
+  const sortTransactions = (transactions: Transaction[] | undefined, sortField: SortField, sortDirection: SortDirection) => {
+    if (!transactions) return [];
+
+    return [...transactions].sort((a, b) => {
+      let aVal: any;
+      let bVal: any;
+
+      switch (sortField) {
+        case 'date':
+          aVal = new Date(a.date).getTime();
+          bVal = new Date(b.date).getTime();
+          break;
+        case 'merchant_name':
+          aVal = a.merchant_name?.toLowerCase() || '';
+          bVal = b.merchant_name?.toLowerCase() || '';
+          break;
+        case 'amount':
+          aVal = Math.abs(Number(a.amount));
+          bVal = Math.abs(Number(b.amount));
+          break;
+        default:
+          return 0;
+      }
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
   };
 
   const COLORS = [
@@ -162,23 +291,27 @@ export const IncomeExpensesPage = () => {
 
   const net = summary?.net || 0;
 
-  const renderCategoryChart = (categories: CategoryBreakdown[], type: 'income' | 'expense') => {
+  const renderChart = (
+    data: CategoryBreakdown[],
+    type: 'income' | 'expense',
+    chartType: ChartType
+  ) => {
     if (chartType === 'pie') {
       return (
         <ResponsiveContainer width="100%" height={300}>
           <PieChart>
             <Pie
-              data={categories}
+              data={data}
               dataKey="amount"
               nameKey="category"
               cx="50%"
               cy="50%"
               outerRadius={100}
               label={(entry) => `${entry.percentage.toFixed(1)}%`}
-              onClick={(data) => handleCategoryClick(data.category, type)}
+              onClick={(entry) => handleCategoryClick(entry.category, type)}
               style={{ cursor: 'pointer' }}
             >
-              {categories.map((entry, index) => (
+              {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
@@ -190,7 +323,7 @@ export const IncomeExpensesPage = () => {
     } else {
       return (
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={categories} layout="vertical">
+          <BarChart data={data} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis type="number" />
             <YAxis dataKey="category" type="category" width={150} />
@@ -198,13 +331,128 @@ export const IncomeExpensesPage = () => {
             <Bar
               dataKey="amount"
               fill={type === 'income' ? '#48BB78' : '#F56565'}
-              onClick={(data) => handleCategoryClick(data.category, type)}
+              onClick={(entry) => handleCategoryClick(entry.category, type)}
               style={{ cursor: 'pointer' }}
             />
           </BarChart>
         </ResponsiveContainer>
       );
     }
+  };
+
+  const SortIcon = ({ field, currentField, direction }: { field: SortField; currentField: SortField; direction: SortDirection }) => {
+    if (currentField !== field) return null;
+    return direction === 'asc' ? <ChevronUpIcon /> : <ChevronDownIcon />;
+  };
+
+  const renderTransactionTable = (
+    transactions: Transaction[] | undefined,
+    type: 'income' | 'expense',
+    sortField: SortField,
+    sortDirection: SortDirection
+  ) => {
+    const sorted = sortTransactions(transactions, sortField, sortDirection);
+
+    if (!sorted || sorted.length === 0) {
+      return (
+        <Text color="gray.500" textAlign="center" py={8}>
+          No transactions found
+        </Text>
+      );
+    }
+
+    return (
+      <Box overflowX="auto">
+        <Table variant="simple" size="sm">
+          <Thead bg="gray.50">
+            <Tr>
+              <Th
+                cursor="pointer"
+                onClick={() => handleSort('date', type)}
+                _hover={{ bg: 'gray.100' }}
+              >
+                <HStack spacing={1}>
+                  <Text>Date</Text>
+                  <SortIcon field="date" currentField={sortField} direction={sortDirection} />
+                </HStack>
+              </Th>
+              <Th
+                cursor="pointer"
+                onClick={() => handleSort('merchant_name', type)}
+                _hover={{ bg: 'gray.100' }}
+              >
+                <HStack spacing={1}>
+                  <Text>Merchant</Text>
+                  <SortIcon field="merchant_name" currentField={sortField} direction={sortDirection} />
+                </HStack>
+              </Th>
+              <Th>Category</Th>
+              <Th>Labels</Th>
+              <Th
+                isNumeric
+                cursor="pointer"
+                onClick={() => handleSort('amount', type)}
+                _hover={{ bg: 'gray.100' }}
+              >
+                <HStack spacing={1} justify="flex-end">
+                  <Text>Amount</Text>
+                  <SortIcon field="amount" currentField={sortField} direction={sortDirection} />
+                </HStack>
+              </Th>
+            </Tr>
+          </Thead>
+          <Tbody>
+            {sorted.map((txn) => (
+              <Tr
+                key={txn.id}
+                onClick={() => handleTransactionClick(txn)}
+                cursor="pointer"
+                _hover={{ bg: 'gray.50' }}
+              >
+                <Td>{formatDate(txn.date)}</Td>
+                <Td>
+                  <Text fontWeight="medium">{txn.merchant_name}</Text>
+                  {txn.description && (
+                    <Text fontSize="xs" color="gray.600">
+                      {txn.description}
+                    </Text>
+                  )}
+                </Td>
+                <Td>
+                  {txn.category_primary && (
+                    <Badge colorScheme="blue" fontSize="xs">
+                      {txn.category_primary}
+                    </Badge>
+                  )}
+                </Td>
+                <Td>
+                  <Wrap spacing={1}>
+                    {txn.labels?.map((label) => (
+                      <WrapItem key={label.id}>
+                        <Badge
+                          colorScheme={label.is_income ? 'green' : 'purple'}
+                          fontSize="xs"
+                        >
+                          {label.name}
+                        </Badge>
+                      </WrapItem>
+                    ))}
+                  </Wrap>
+                </Td>
+                <Td isNumeric>
+                  <Text
+                    fontWeight="semibold"
+                    color={txn.amount >= 0 ? 'green.600' : 'red.600'}
+                  >
+                    {formatCurrency(Math.abs(txn.amount))}
+                  </Text>
+                </Td>
+              </Tr>
+            ))}
+          </Tbody>
+        </Table>
+      </Box>
+    );
   };
 
   return (
@@ -218,23 +466,7 @@ export const IncomeExpensesPage = () => {
               Analyze your income sources and spending patterns
             </Text>
           </Box>
-          <HStack>
-            <ButtonGroup size="sm" isAttached variant="outline">
-              <IconButton
-                aria-label="Pie chart"
-                icon={<ViewIcon />}
-                onClick={() => setChartType('pie')}
-                colorScheme={chartType === 'pie' ? 'brand' : 'gray'}
-              />
-              <IconButton
-                aria-label="Bar chart"
-                icon={<ViewOffIcon />}
-                onClick={() => setChartType('bar')}
-                colorScheme={chartType === 'bar' ? 'brand' : 'gray'}
-              />
-            </ButtonGroup>
-            <DateRangePicker value={dateRange} onChange={setDateRange} />
-          </HStack>
+          <DateRangePicker value={dateRange} onChange={setDateRange} />
         </HStack>
 
         {/* Summary Cards */}
@@ -319,24 +551,88 @@ export const IncomeExpensesPage = () => {
 
                     {/* Side by side categories */}
                     <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6} w="full">
-                      {/* Income Categories */}
+                      {/* Income Section */}
                       {summary && summary.income_categories.length > 0 && (
-                        <Box>
-                          <Heading size="sm" mb={4}>
-                            Income by Category
-                          </Heading>
-                          {renderCategoryChart(summary.income_categories, 'income')}
-                        </Box>
+                        <VStack align="stretch" spacing={4}>
+                          <HStack justify="space-between">
+                            <Heading size="sm">Income by Category</Heading>
+                            <IconButton
+                              aria-label={incomeChartType === 'pie' ? 'Switch to bar chart' : 'Switch to pie chart'}
+                              icon={incomeChartType === 'pie' ? <IoBarChart /> : <IoPieChart />}
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setIncomeChartType(incomeChartType === 'pie' ? 'bar' : 'pie')}
+                            />
+                          </HStack>
+                          <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="gray.500" />}>
+                            <BreadcrumbItem>
+                              <BreadcrumbLink
+                                onClick={() => handleBreadcrumbClick('income', 'categories')}
+                                color={incomeDrillDown.level === 'categories' ? 'brand.600' : 'gray.600'}
+                                fontWeight={incomeDrillDown.level === 'categories' ? 'bold' : 'normal'}
+                              >
+                                All Categories
+                              </BreadcrumbLink>
+                            </BreadcrumbItem>
+                            {incomeDrillDown.level === 'merchants' && (
+                              <BreadcrumbItem isCurrentPage>
+                                <BreadcrumbLink color="brand.600" fontWeight="bold">
+                                  {incomeDrillDown.category}
+                                </BreadcrumbLink>
+                              </BreadcrumbItem>
+                            )}
+                          </Breadcrumb>
+                          {incomeDrillDown.level === 'categories'
+                            ? renderChart(summary.income_categories, 'income', incomeChartType)
+                            : incomeMerchants && renderChart(incomeMerchants, 'income', incomeChartType)
+                          }
+                          <Box>
+                            <Heading size="xs" mb={3} color="gray.600">Transactions</Heading>
+                            {renderTransactionTable(incomeTransactions, 'income', incomeSortField, incomeSortDirection)}
+                          </Box>
+                        </VStack>
                       )}
 
-                      {/* Expense Categories */}
+                      {/* Expense Section */}
                       {summary && summary.expense_categories.length > 0 && (
-                        <Box>
-                          <Heading size="sm" mb={4}>
-                            Expenses by Category
-                          </Heading>
-                          {renderCategoryChart(summary.expense_categories, 'expense')}
-                        </Box>
+                        <VStack align="stretch" spacing={4}>
+                          <HStack justify="space-between">
+                            <Heading size="sm">Expenses by Category</Heading>
+                            <IconButton
+                              aria-label={expenseChartType === 'pie' ? 'Switch to bar chart' : 'Switch to pie chart'}
+                              icon={expenseChartType === 'pie' ? <IoBarChart /> : <IoPieChart />}
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setExpenseChartType(expenseChartType === 'pie' ? 'bar' : 'pie')}
+                            />
+                          </HStack>
+                          <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="gray.500" />}>
+                            <BreadcrumbItem>
+                              <BreadcrumbLink
+                                onClick={() => handleBreadcrumbClick('expense', 'categories')}
+                                color={expenseDrillDown.level === 'categories' ? 'brand.600' : 'gray.600'}
+                                fontWeight={expenseDrillDown.level === 'categories' ? 'bold' : 'normal'}
+                              >
+                                All Categories
+                              </BreadcrumbLink>
+                            </BreadcrumbItem>
+                            {expenseDrillDown.level === 'merchants' && (
+                              <BreadcrumbItem isCurrentPage>
+                                <BreadcrumbLink color="brand.600" fontWeight="bold">
+                                  {expenseDrillDown.category}
+                                </BreadcrumbLink>
+                              </BreadcrumbItem>
+                            )}
+                          </Breadcrumb>
+                          {expenseDrillDown.level === 'categories'
+                            ? renderChart(summary.expense_categories, 'expense', expenseChartType)
+                            : expenseMerchants && renderChart(expenseMerchants, 'expense', expenseChartType)
+                          }
+                          <Box>
+                            <Heading size="xs" mb={3} color="gray.600">Transactions</Heading>
+                            {renderTransactionTable(expenseTransactions, 'expense', expenseSortField, expenseSortDirection)}
+                          </Box>
+                        </VStack>
                       )}
                     </SimpleGrid>
                   </VStack>
@@ -344,51 +640,47 @@ export const IncomeExpensesPage = () => {
 
                 {/* Income Tab */}
                 <TabPanel>
-                  <VStack spacing={6}>
+                  <VStack spacing={6} align="stretch">
                     {summary && summary.income_categories.length > 0 ? (
                       <>
-                        <Box w="full">
-                          <Heading size="md" mb={4}>
-                            Income by Category
-                          </Heading>
-                          {renderCategoryChart(summary.income_categories, 'income')}
+                        <HStack justify="space-between">
+                          <Heading size="md">Income by Category</Heading>
+                          <IconButton
+                            aria-label={incomeChartType === 'pie' ? 'Switch to bar chart' : 'Switch to pie chart'}
+                            icon={incomeChartType === 'pie' ? <IoBarChart /> : <IoPieChart />}
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setIncomeChartType(incomeChartType === 'pie' ? 'bar' : 'pie')}
+                          />
+                        </HStack>
+                        <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="gray.500" />}>
+                          <BreadcrumbItem>
+                            <BreadcrumbLink
+                              onClick={() => handleBreadcrumbClick('income', 'categories')}
+                              color={incomeDrillDown.level === 'categories' ? 'brand.600' : 'gray.600'}
+                              fontWeight={incomeDrillDown.level === 'categories' ? 'bold' : 'normal'}
+                            >
+                              All Categories
+                            </BreadcrumbLink>
+                          </BreadcrumbItem>
+                          {incomeDrillDown.level === 'merchants' && (
+                            <BreadcrumbItem isCurrentPage>
+                              <BreadcrumbLink color="brand.600" fontWeight="bold">
+                                {incomeDrillDown.category}
+                              </BreadcrumbLink>
+                            </BreadcrumbItem>
+                          )}
+                        </Breadcrumb>
+                        <Box>
+                          {incomeDrillDown.level === 'categories'
+                            ? renderChart(summary.income_categories, 'income', incomeChartType)
+                            : incomeMerchants && renderChart(incomeMerchants, 'income', incomeChartType)
+                          }
                         </Box>
-
-                        {/* Category List */}
-                        <Table variant="simple" size="sm">
-                          <Thead>
-                            <Tr>
-                              <Th>Category</Th>
-                              <Th isNumeric>Amount</Th>
-                              <Th isNumeric>Count</Th>
-                              <Th isNumeric>%</Th>
-                            </Tr>
-                          </Thead>
-                          <Tbody>
-                            {summary.income_categories.map((cat, index) => (
-                              <Tr
-                                key={cat.category}
-                                onClick={() => handleCategoryClick(cat.category, 'income')}
-                                cursor="pointer"
-                                _hover={{ bg: 'gray.50' }}
-                              >
-                                <Td>
-                                  <HStack spacing={2}>
-                                    <Box w={3} h={3} bg={COLORS[index % COLORS.length]} borderRadius="sm" />
-                                    <Text>{cat.category}</Text>
-                                  </HStack>
-                                </Td>
-                                <Td isNumeric fontWeight="medium">{formatCurrency(cat.amount)}</Td>
-                                <Td isNumeric>{cat.count}</Td>
-                                <Td isNumeric>
-                                  <Text fontSize="sm" color="gray.600">
-                                    {cat.percentage.toFixed(1)}%
-                                  </Text>
-                                </Td>
-                              </Tr>
-                            ))}
-                          </Tbody>
-                        </Table>
+                        <Box>
+                          <Heading size="sm" mb={4}>Transactions</Heading>
+                          {renderTransactionTable(incomeTransactions, 'income', incomeSortField, incomeSortDirection)}
+                        </Box>
                       </>
                     ) : (
                       <Text color="gray.500">No income transactions found</Text>
@@ -398,49 +690,47 @@ export const IncomeExpensesPage = () => {
 
                 {/* Expenses Tab */}
                 <TabPanel>
-                  <VStack spacing={6}>
+                  <VStack spacing={6} align="stretch">
                     {summary && summary.expense_categories.length > 0 ? (
                       <>
-                        <Box w="full">
-                          <Heading size="md" mb={4}>
-                            Expenses by Category
-                          </Heading>
-                          {renderCategoryChart(summary.expense_categories, 'expense')}
-                        </Box>
-
-                        {/* Category List with Progress Bars */}
-                        <VStack align="stretch" spacing={3} w="full">
-                          {summary.expense_categories.map((cat, index) => (
-                            <Box
-                              key={cat.category}
-                              p={3}
-                              borderWidth={1}
-                              borderRadius="md"
-                              cursor="pointer"
-                              _hover={{ bg: 'gray.50' }}
-                              onClick={() => handleCategoryClick(cat.category, 'expense')}
+                        <HStack justify="space-between">
+                          <Heading size="md">Expenses by Category</Heading>
+                          <IconButton
+                            aria-label={expenseChartType === 'pie' ? 'Switch to bar chart' : 'Switch to pie chart'}
+                            icon={expenseChartType === 'pie' ? <IoBarChart /> : <IoPieChart />}
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setExpenseChartType(expenseChartType === 'pie' ? 'bar' : 'pie')}
+                          />
+                        </HStack>
+                        <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="gray.500" />}>
+                          <BreadcrumbItem>
+                            <BreadcrumbLink
+                              onClick={() => handleBreadcrumbClick('expense', 'categories')}
+                              color={expenseDrillDown.level === 'categories' ? 'brand.600' : 'gray.600'}
+                              fontWeight={expenseDrillDown.level === 'categories' ? 'bold' : 'normal'}
                             >
-                              <HStack justify="space-between" mb={2}>
-                                <HStack spacing={2}>
-                                  <Box w={3} h={3} bg={COLORS[index % COLORS.length]} borderRadius="sm" />
-                                  <Text fontSize="sm" fontWeight="medium">{cat.category}</Text>
-                                </HStack>
-                                <Text fontSize="sm" fontWeight="bold">
-                                  {formatCurrency(cat.amount)}
-                                </Text>
-                              </HStack>
-                              <Progress
-                                value={cat.percentage}
-                                size="sm"
-                                colorScheme="red"
-                                borderRadius="full"
-                              />
-                              <Text fontSize="xs" color="gray.600" mt={1}>
-                                {cat.count} transaction{cat.count !== 1 ? 's' : ''} • {cat.percentage.toFixed(1)}%
-                              </Text>
-                            </Box>
-                          ))}
-                        </VStack>
+                              All Categories
+                            </BreadcrumbLink>
+                          </BreadcrumbItem>
+                          {expenseDrillDown.level === 'merchants' && (
+                            <BreadcrumbItem isCurrentPage>
+                              <BreadcrumbLink color="brand.600" fontWeight="bold">
+                                {expenseDrillDown.category}
+                              </BreadcrumbLink>
+                            </BreadcrumbItem>
+                          )}
+                        </Breadcrumb>
+                        <Box>
+                          {expenseDrillDown.level === 'categories'
+                            ? renderChart(summary.expense_categories, 'expense', expenseChartType)
+                            : expenseMerchants && renderChart(expenseMerchants, 'expense', expenseChartType)
+                          }
+                        </Box>
+                        <Box>
+                          <Heading size="sm" mb={4}>Transactions</Heading>
+                          {renderTransactionTable(expenseTransactions, 'expense', expenseSortField, expenseSortDirection)}
+                        </Box>
                       </>
                     ) : (
                       <Text color="gray.500">No expense transactions found</Text>
@@ -467,53 +757,20 @@ export const IncomeExpensesPage = () => {
         )}
       </VStack>
 
-      {/* Category Drill-down Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="xl">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
-            {selectedCategory?.category} Transactions
-            <Badge ml={2} colorScheme={selectedCategory?.type === 'income' ? 'green' : 'red'}>
-              {selectedCategory?.type}
-            </Badge>
-          </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody pb={6}>
-            {categoryTransactions && categoryTransactions.length > 0 ? (
-              <VStack align="stretch" spacing={3}>
-                {categoryTransactions.map((txn) => (
-                  <Box key={txn.id} p={3} borderWidth={1} borderRadius="md">
-                    <HStack justify="space-between" mb={1}>
-                      <VStack align="start" spacing={0}>
-                        <Text fontWeight="medium">{txn.merchant_name || 'Unknown'}</Text>
-                        <Text fontSize="sm" color="gray.600">
-                          {formatDate(txn.date)}
-                        </Text>
-                      </VStack>
-                      <Text
-                        fontWeight="bold"
-                        color={txn.amount >= 0 ? 'green.600' : 'red.600'}
-                      >
-                        {txn.amount >= 0 ? '+' : ''}
-                        {formatCurrency(txn.amount)}
-                      </Text>
-                    </HStack>
-                    {txn.description && (
-                      <Text fontSize="xs" color="gray.500" mt={1}>
-                        {txn.description}
-                      </Text>
-                    )}
-                  </Box>
-                ))}
-              </VStack>
-            ) : (
-              <Text color="gray.500" textAlign="center" py={8}>
-                No transactions found
-              </Text>
-            )}
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+      {/* Transaction Detail Modal */}
+      <TransactionDetailModal
+        transaction={selectedTransaction}
+        isOpen={isDetailOpen}
+        onClose={onDetailClose}
+        onCreateRule={handleCreateRule}
+      />
+
+      {/* Rule Builder Modal */}
+      <RuleBuilderModal
+        isOpen={isRuleOpen}
+        onClose={onRuleClose}
+        prefilledTransaction={ruleTransaction || undefined}
+      />
     </Container>
   );
 };

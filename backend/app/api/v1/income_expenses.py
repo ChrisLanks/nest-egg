@@ -144,7 +144,7 @@ async def get_income_expense_trend(
     db: AsyncSession = Depends(get_db),
 ):
     """Get monthly income vs expense trend."""
-    
+
     result = await db.execute(
         select(
             func.date_trunc('month', Transaction.date).label('month'),
@@ -161,7 +161,7 @@ async def get_income_expense_trend(
         ).group_by(func.date_trunc('month', Transaction.date))
         .order_by(func.date_trunc('month', Transaction.date))
     )
-    
+
     trend = []
     for row in result:
         income = float(row.income or 0)
@@ -172,5 +172,65 @@ async def get_income_expense_trend(
             expenses=expenses,
             net=income - expenses
         ))
-    
+
     return trend
+
+
+@router.get("/merchants", response_model=List[CategoryBreakdown])
+async def get_merchant_breakdown(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    category: Optional[str] = Query(None),
+    transaction_type: str = Query(..., description="income or expense"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get merchant breakdown for a category."""
+
+    # Build base conditions
+    conditions = [
+        Transaction.organization_id == current_user.organization_id,
+        Transaction.date >= start_date,
+        Transaction.date <= end_date,
+        Transaction.merchant_name.isnot(None),
+    ]
+
+    # Add transaction type filter
+    if transaction_type == 'income':
+        conditions.append(Transaction.amount > 0)
+    else:
+        conditions.append(Transaction.amount < 0)
+
+    # Add category filter if provided
+    if category:
+        conditions.append(Transaction.category_primary == category)
+
+    # Get merchant breakdown
+    result = await db.execute(
+        select(
+            Transaction.merchant_name,
+            func.sum(Transaction.amount).label('total'),
+            func.count(Transaction.id).label('count')
+        ).where(and_(*conditions))
+        .group_by(Transaction.merchant_name)
+        .order_by(func.sum(Transaction.amount).desc() if transaction_type == 'income' else func.sum(Transaction.amount).asc())
+    )
+
+    # Calculate total for percentage
+    total_result = await db.execute(
+        select(func.sum(Transaction.amount)).where(and_(*conditions))
+    )
+    total = abs(float(total_result.scalar() or 0))
+
+    merchants = []
+    for row in result:
+        amount = abs(float(row.total))
+        percentage = (amount / total * 100) if total > 0 else 0
+        merchants.append(CategoryBreakdown(
+            category=row.merchant_name,  # Using category field to store merchant name
+            amount=amount,
+            count=row.count,
+            percentage=percentage
+        ))
+
+    return merchants
