@@ -18,7 +18,9 @@ import {
   SettingsIcon,
   StarIcon,
   ArrowUpDownIcon,
+  Icon as ChakraIcon,
 } from '@chakra-ui/icons';
+import { FiSettings } from 'react-icons/fi';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../features/auth/stores/authStore';
 import { useLogout } from '../features/auth/hooks/useAuth';
@@ -67,6 +69,7 @@ export const Layout = () => {
     { icon: SettingsIcon, label: 'Rules', path: '/rules' },
     { icon: ArrowUpDownIcon, label: 'Cash Flow', path: '/income-expenses' },
     { icon: StarIcon, label: 'Categories', path: '/categories' },
+    { icon: FiSettings, label: 'Settings', path: '/settings' },
   ];
 
   const handleLogout = () => {

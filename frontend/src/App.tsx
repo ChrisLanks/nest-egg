@@ -15,6 +15,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 import { RulesPage } from './pages/RulesPage';
 import { CategoriesPage } from './pages/CategoriesPage';
+import SettingsPage from './pages/SettingsPage';
 import { IncomeExpensesPage } from './features/income-expenses/pages/IncomeExpensesPage';
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
                 <Route path="/rules" element={<RulesPage />} />
                 <Route path="/income-expenses" element={<IncomeExpensesPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
               </Route>
             </Route>
 
