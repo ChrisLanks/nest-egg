@@ -1,0 +1,452 @@
+/**
+ * Account detail page with settings and transactions
+ */
+
+import {
+  Box,
+  Container,
+  Heading,
+  Text,
+  VStack,
+  HStack,
+  Button,
+  Card,
+  CardBody,
+  Select,
+  Switch,
+  FormControl,
+  FormLabel,
+  Divider,
+  Spinner,
+  Center,
+  useToast,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  useDisclosure,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  Badge,
+} from '@chakra-ui/react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
+import api from '../services/api';
+import type { Transaction } from '../types/transaction';
+
+interface Account {
+  id: string;
+  name: string;
+  account_type: string;
+  account_source: string;
+  current_balance: number;
+  balance_as_of: string | null;
+  institution_name: string | null;
+  mask: string | null;
+  is_active: boolean;
+}
+
+const accountTypeLabels: Record<string, string> = {
+  checking: 'Checking',
+  savings: 'Savings',
+  credit_card: 'Credit Card',
+  brokerage: 'Brokerage',
+  retirement_401k: '401(k)',
+  retirement_ira: 'IRA',
+  retirement_roth: 'Roth IRA',
+  hsa: 'HSA',
+  loan: 'Loan',
+  mortgage: 'Mortgage',
+  property: 'Property',
+  crypto: 'Crypto',
+  manual: 'Manual',
+  other: 'Other',
+};
+
+export const AccountDetailPage = () => {
+  const { accountId } = useParams<{ accountId: string }>();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const [transactionsCursor, setTransactionsCursor] = useState<string | null>(null);
+
+  // Fetch account details
+  const { data: account, isLoading } = useQuery<Account>({
+    queryKey: ['account', accountId],
+    queryFn: async () => {
+      const response = await api.get(`/accounts/${accountId}`);
+      return response.data;
+    },
+  });
+
+  // Fetch transactions for this account
+  const { data: transactionsData, isLoading: transactionsLoading } = useQuery({
+    queryKey: ['transactions', accountId, transactionsCursor],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        account_id: accountId!,
+        page_size: '50',
+      });
+      if (transactionsCursor) {
+        params.append('cursor', transactionsCursor);
+      }
+      const response = await api.get(`/transactions/?${params.toString()}`);
+      return response.data;
+    },
+    enabled: !!accountId,
+  });
+
+  // Update account type mutation
+  const updateAccountMutation = useMutation({
+    mutationFn: async (data: { account_type?: string; is_active?: boolean }) => {
+      const response = await api.patch(`/accounts/${accountId}`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['account', accountId] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      toast({
+        title: 'Account updated',
+        status: 'success',
+        duration: 3000,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to update account',
+        description: error.response?.data?.detail || 'An error occurred',
+        status: 'error',
+        duration: 5000,
+      });
+    },
+  });
+
+  // Delete account mutation
+  const deleteAccountMutation = useMutation({
+    mutationFn: async () => {
+      await api.delete(`/accounts/${accountId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      toast({
+        title: 'Account deleted',
+        status: 'success',
+        duration: 3000,
+      });
+      navigate('/dashboard');
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to delete account',
+        description: error.response?.data?.detail || 'An error occurred',
+        status: 'error',
+        duration: 5000,
+      });
+    },
+  });
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return 'Never';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+    });
+  };
+
+  const handleReclassify = (newType: string) => {
+    updateAccountMutation.mutate({ account_type: newType });
+  };
+
+  const handleToggleActive = () => {
+    if (account) {
+      updateAccountMutation.mutate({ is_active: !account.is_active });
+    }
+  };
+
+  const handleDelete = () => {
+    deleteAccountMutation.mutate();
+    onDeleteClose();
+  };
+
+  if (isLoading) {
+    return (
+      <Center h="100vh">
+        <Spinner size="xl" color="brand.500" />
+      </Center>
+    );
+  }
+
+  if (!account) {
+    return (
+      <Container maxW="container.lg" py={8}>
+        <Text>Account not found</Text>
+      </Container>
+    );
+  }
+
+  const balance = Number(account.current_balance);
+  const isNegative = balance < 0;
+
+  return (
+    <Container maxW="container.lg" py={8}>
+      <VStack spacing={6} align="stretch">
+        {/* Header */}
+        <HStack justify="space-between">
+          <Box>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/dashboard')}
+              mb={2}
+            >
+              ← Back to Dashboard
+            </Button>
+            <Heading size="lg">{account.name}</Heading>
+            <Text color="gray.600" mt={1}>
+              {accountTypeLabels[account.account_type] || account.account_type}
+              {account.mask && ` ••${account.mask}`}
+            </Text>
+          </Box>
+          <Box textAlign="right">
+            <Text fontSize="sm" color="gray.600">
+              Current Balance
+            </Text>
+            <Text
+              fontSize="3xl"
+              fontWeight="bold"
+              color={isNegative ? 'red.600' : 'brand.600'}
+            >
+              {formatCurrency(balance)}
+            </Text>
+            <Text fontSize="xs" color="gray.500">
+              Updated: {formatDate(account.balance_as_of)}
+            </Text>
+          </Box>
+        </HStack>
+
+        <Divider />
+
+        {/* Account Settings */}
+        <Card>
+          <CardBody>
+            <Heading size="md" mb={4}>
+              Account Settings
+            </Heading>
+            <VStack spacing={4} align="stretch">
+              {/* Reclassify Account */}
+              <FormControl>
+                <FormLabel fontSize="sm">Account Type</FormLabel>
+                <Select
+                  value={account.account_type}
+                  onChange={(e) => handleReclassify(e.target.value)}
+                  size="sm"
+                >
+                  {Object.entries(accountTypeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {/* Hide from Reports */}
+              <FormControl display="flex" alignItems="center">
+                <FormLabel fontSize="sm" mb={0} flex={1}>
+                  Hide from cash flow & reports
+                </FormLabel>
+                <Switch
+                  isChecked={!account.is_active}
+                  onChange={handleToggleActive}
+                  colorScheme="brand"
+                />
+              </FormControl>
+
+              {/* Account Info */}
+              <Box>
+                <Text fontSize="sm" fontWeight="medium" color="gray.600">
+                  Account Source
+                </Text>
+                <Text fontSize="sm">
+                  {account.account_source.toUpperCase()}
+                  {account.institution_name && ` - ${account.institution_name}`}
+                </Text>
+              </Box>
+
+              <Divider />
+
+              {/* Delete Account */}
+              <Box>
+                <Button
+                  colorScheme="red"
+                  variant="outline"
+                  size="sm"
+                  onClick={onDeleteOpen}
+                >
+                  Close Account
+                </Button>
+                <Text fontSize="xs" color="gray.500" mt={1}>
+                  This will permanently delete this account and all associated transactions.
+                </Text>
+              </Box>
+            </VStack>
+          </CardBody>
+        </Card>
+
+        {/* Transactions Section */}
+        <Card>
+          <CardBody>
+            <HStack justify="space-between" mb={4}>
+              <Heading size="md">Transactions</Heading>
+              {transactionsData && transactionsData.total > 0 && (
+                <Text fontSize="sm" color="gray.600">
+                  Showing {transactionsData.transactions?.length || 0} of {transactionsData.total}
+                </Text>
+              )}
+            </HStack>
+
+            {transactionsLoading ? (
+              <Center py={8}>
+                <Spinner size="md" color="brand.500" />
+              </Center>
+            ) : transactionsData?.transactions && transactionsData.transactions.length > 0 ? (
+              <>
+                <Table variant="simple" size="sm">
+                  <Thead>
+                    <Tr>
+                      <Th>Date</Th>
+                      <Th>Merchant</Th>
+                      <Th>Category</Th>
+                      <Th isNumeric>Amount</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {transactionsData.transactions.map((txn: Transaction) => {
+                      const amount = Number(txn.amount);
+                      const isNegative = amount < 0;
+
+                      return (
+                        <Tr key={txn.id}>
+                          <Td>
+                            <Text fontSize="sm">
+                              {new Date(txn.date).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              })}
+                            </Text>
+                          </Td>
+                          <Td>
+                            <VStack align="start" spacing={0}>
+                              <Text fontSize="sm" fontWeight="medium">
+                                {txn.merchant_name || 'Unknown'}
+                              </Text>
+                              {txn.is_pending && (
+                                <Badge colorScheme="orange" size="sm">
+                                  Pending
+                                </Badge>
+                              )}
+                            </VStack>
+                          </Td>
+                          <Td>
+                            {txn.category_primary && (
+                              <Badge colorScheme="blue" size="sm">
+                                {txn.category_primary}
+                              </Badge>
+                            )}
+                          </Td>
+                          <Td isNumeric>
+                            <Text
+                              fontSize="sm"
+                              fontWeight="semibold"
+                              color={isNegative ? 'red.600' : 'green.600'}
+                            >
+                              {isNegative ? '-' : '+'}
+                              {formatCurrency(Math.abs(amount))}
+                            </Text>
+                          </Td>
+                        </Tr>
+                      );
+                    })}
+                  </Tbody>
+                </Table>
+
+                {transactionsData.has_more && transactionsData.next_cursor && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    mt={4}
+                    onClick={() => setTransactionsCursor(transactionsData.next_cursor)}
+                    width="full"
+                  >
+                    Load More
+                  </Button>
+                )}
+              </>
+            ) : (
+              <Text color="gray.500" fontSize="sm" textAlign="center" py={8}>
+                No transactions found for this account.
+              </Text>
+            )}
+          </CardBody>
+        </Card>
+      </VStack>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isDeleteOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onDeleteClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Close Account
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to close "{account.name}"? This will permanently
+              delete the account and all associated transactions. This action cannot be
+              undone.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onDeleteClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={handleDelete}
+                ml={3}
+                isLoading={deleteAccountMutation.isPending}
+              >
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+    </Container>
+  );
+};

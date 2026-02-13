@@ -157,6 +157,40 @@ export const IncomeExpensesPage = () => {
 
   const customMonthStartDay = orgSettings?.monthly_start_day || 1;
 
+  // Update date range when custom month boundary loads
+  useEffect(() => {
+    if (!orgSettings) return; // Wait for settings to load
+
+    const now = new Date();
+    const start = new Date();
+    const end = new Date();
+
+    if (customMonthStartDay === 1) {
+      // Standard calendar month - from 1st to today
+      start.setDate(1);
+      end.setHours(23, 59, 59, 999);
+    } else {
+      // Custom month boundary - from custom start day to today
+      const currentDay = now.getDate();
+      if (currentDay >= customMonthStartDay) {
+        // We're past the boundary in current month
+        start.setDate(customMonthStartDay);
+      } else {
+        // We haven't reached the boundary yet, use previous month's boundary
+        start.setMonth(start.getMonth() - 1);
+        start.setDate(customMonthStartDay);
+      }
+      // End is always today for "This Month"
+      end.setHours(23, 59, 59, 999);
+    }
+
+    setDateRange({
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0],
+      label: 'This Month',
+    });
+  }, [orgSettings, customMonthStartDay]);
+
   // Reset drill-down states when groupBy changes
   useEffect(() => {
     setIncomeDrillDown({ level: 'categories' });
@@ -212,26 +246,45 @@ export const IncomeExpensesPage = () => {
     enabled: expenseDrillDown.level === 'merchants' || expenseDrillDown.level === 'transactions',
   });
 
-  // Fetch ALL transactions for the date range
-  const { data: allIncomeTransactions } = useQuery({
-    queryKey: ['all-income-transactions', dateRange.start, dateRange.end],
+  // Fetch ALL transactions for the date range (with infinite loading)
+  const { data: allTransactionsData, isLoading: transactionsLoading } = useQuery({
+    queryKey: ['all-transactions-infinite', dateRange.start, dateRange.end],
     queryFn: async () => {
-      const response = await api.get<{ transactions: Transaction[] }>(
-        `/transactions/?start_date=${dateRange.start}&end_date=${dateRange.end}&page=1&page_size=10000`
-      );
-      return response.data.transactions.filter(t => t.amount > 0);
+      let allTransactions: Transaction[] = [];
+      let cursor: string | null = null;
+      let hasMore = true;
+
+      // Keep fetching until we have all transactions
+      while (hasMore) {
+        const params = new URLSearchParams({
+          start_date: dateRange.start,
+          end_date: dateRange.end,
+          page_size: '500', // Fetch in batches of 500
+        });
+        if (cursor) {
+          params.append('cursor', cursor);
+        }
+
+        const response = await api.get<any>(`/transactions/?${params.toString()}`);
+        allTransactions = [...allTransactions, ...response.data.transactions];
+        hasMore = response.data.has_more;
+        cursor = response.data.next_cursor;
+      }
+
+      return allTransactions;
     },
   });
 
-  const { data: allExpenseTransactions } = useQuery({
-    queryKey: ['all-expense-transactions', dateRange.start, dateRange.end],
-    queryFn: async () => {
-      const response = await api.get<{ transactions: Transaction[] }>(
-        `/transactions/?start_date=${dateRange.start}&end_date=${dateRange.end}&page=1&page_size=10000`
-      );
-      return response.data.transactions.filter(t => t.amount < 0);
-    },
-  });
+  // Split into income and expense transactions
+  const allIncomeTransactions = useMemo(
+    () => allTransactionsData?.filter(t => t.amount > 0) || [],
+    [allTransactionsData]
+  );
+
+  const allExpenseTransactions = useMemo(
+    () => allTransactionsData?.filter(t => t.amount < 0) || [],
+    [allTransactionsData]
+  );
 
   // Filter summary data to exclude hidden items
   const filteredSummary = useMemo(() => {
@@ -691,7 +744,7 @@ export const IncomeExpensesPage = () => {
 
   const net = filteredTotals.net;
 
-  if (summaryLoading || trendLoading) {
+  if (summaryLoading || trendLoading || transactionsLoading) {
     return (
       <Center h="100vh">
         <Spinner size="xl" color="brand.500" />

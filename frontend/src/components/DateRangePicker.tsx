@@ -49,29 +49,49 @@ export const DateRangePicker = ({ value, onChange, customMonthStartDay = 1 }: Da
   const getCustomMonthDates = (monthOffset: number = 0) => {
     const now = new Date();
     const currentDay = now.getDate();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
 
-    // Determine if we're in the current custom month or the next one
-    const start = new Date(now);
-    const end = new Date(now);
+    let startMonth = currentMonth;
+    let startYear = currentYear;
 
+    // Determine which custom month period we're in
     if (currentDay >= customMonthStartDay) {
-      // We're in the current custom month period
-      // Start: customMonthStartDay of current month
-      // End: (customMonthStartDay - 1) of next month
-      start.setDate(customMonthStartDay);
-      start.setMonth(start.getMonth() + monthOffset);
-      end.setMonth(start.getMonth() + 1);
-      end.setDate(customMonthStartDay - 1);
+      // We're past the boundary in current calendar month
+      // Current custom month: customMonthStartDay of this month to customMonthStartDay of next month
+      // Do nothing, use current month
     } else {
-      // We're in the previous custom month period
-      // Start: customMonthStartDay of previous month
-      // End: (customMonthStartDay - 1) of current month
-      start.setMonth(start.getMonth() - 1);
-      start.setDate(customMonthStartDay);
-      start.setMonth(start.getMonth() + monthOffset);
-      end.setMonth(start.getMonth() + 1);
-      end.setDate(customMonthStartDay - 1);
+      // We haven't reached the boundary yet
+      // Current custom month: customMonthStartDay of last month to customMonthStartDay of this month
+      startMonth = currentMonth - 1;
+      if (startMonth < 0) {
+        startMonth = 11;
+        startYear = currentYear - 1;
+      }
     }
+
+    // Apply the month offset
+    startMonth = startMonth + monthOffset;
+    while (startMonth < 0) {
+      startMonth += 12;
+      startYear--;
+    }
+    while (startMonth > 11) {
+      startMonth -= 12;
+      startYear++;
+    }
+
+    // Create start date
+    const start = new Date(startYear, startMonth, customMonthStartDay);
+
+    // End date is one month later
+    let endMonth = startMonth + 1;
+    let endYear = startYear;
+    if (endMonth > 11) {
+      endMonth = 0;
+      endYear++;
+    }
+    const end = new Date(endYear, endMonth, customMonthStartDay);
 
     return { start, end };
   };
@@ -84,19 +104,24 @@ export const DateRangePicker = ({ value, onChange, customMonthStartDay = 1 }: Da
     switch (preset) {
       case 'this_month':
         if (customMonthStartDay === 1) {
-          // Standard calendar month
+          // Standard calendar month - from 1st to today
           start.setDate(1);
           start.setHours(0, 0, 0, 0);
-          end.setMonth(end.getMonth() + 1, 0);
+          // End is today, not end of month
           end.setHours(23, 59, 59, 999);
         } else {
-          // Custom month boundary
-          const { start: customStart, end: customEnd } = getCustomMonthDates(0);
-          return {
-            start: customStart.toISOString().split('T')[0],
-            end: customEnd.toISOString().split('T')[0],
-            label: 'This Month',
-          };
+          // Custom month boundary - from custom start day to today
+          const currentDay = now.getDate();
+          if (currentDay >= customMonthStartDay) {
+            // We're past the boundary in current month
+            start.setDate(customMonthStartDay);
+          } else {
+            // We haven't reached the boundary yet, use previous month's boundary
+            start.setMonth(start.getMonth() - 1);
+            start.setDate(customMonthStartDay);
+          }
+          // End is always today for "This Month"
+          end.setHours(23, 59, 59, 999);
         }
         return {
           start: start.toISOString().split('T')[0],
@@ -186,7 +211,7 @@ export const DateRangePicker = ({ value, onChange, customMonthStartDay = 1 }: Da
   };
 
   return (
-    <Box>
+    <Box position="relative">
       <Menu>
         <MenuButton
           as={Button}
@@ -221,6 +246,7 @@ export const DateRangePicker = ({ value, onChange, customMonthStartDay = 1 }: Da
         <Box
           ref={customRef}
           position="absolute"
+          right={0}
           mt={2}
           p={4}
           bg="white"

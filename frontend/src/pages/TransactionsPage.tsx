@@ -29,13 +29,13 @@ import {
   WrapItem,
 } from '@chakra-ui/react';
 import { SearchIcon, ChevronUpIcon, ChevronDownIcon } from '@chakra-ui/icons';
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { transactionApi } from '../services/transactionApi';
 import { TransactionDetailModal } from '../components/TransactionDetailModal';
 import { RuleBuilderModal } from '../components/RuleBuilderModal';
 import { DateRangePicker, type DateRange } from '../components/DateRangePicker';
+import { InfiniteScrollSentinel } from '../components/InfiniteScrollSentinel';
+import { useInfiniteTransactions } from '../hooks/useInfiniteTransactions';
 import type { Transaction } from '../types/transaction';
 
 // Helper to get default date range (all time)
@@ -64,81 +64,23 @@ export const TransactionsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [allTransactions, setAllTransactions] = useState<any[]>([]);
-  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const toast = useToast();
   const navigate = useNavigate();
 
-  // Reset state when date range changes
-  useEffect(() => {
-    setAllTransactions([]);
-    setCurrentCursor(null);
-    setNextCursor(null);
-    setHasMore(false);
-  }, [dateRange.start, dateRange.end]);
-
-  const { data: transactions, isLoading } = useQuery({
-    queryKey: ['transactions', dateRange.start, dateRange.end, currentCursor],
-    queryFn: async () => {
-      const result = await transactionApi.listTransactions({
-        page_size: 100, // Load in batches of 100
-        start_date: dateRange.start,
-        end_date: dateRange.end,
-        cursor: currentCursor || undefined,
-      });
-
-      if (currentCursor) {
-        // Append to existing transactions
-        setAllTransactions((prev) => [...prev, ...result.transactions]);
-      } else {
-        // Replace transactions (new date range)
-        setAllTransactions(result.transactions);
-      }
-      setNextCursor(result.next_cursor || null);
-      setHasMore(result.has_more);
-
-      return result;
-    },
+  // Use infinite transactions hook
+  const {
+    transactions: allTransactions,
+    isLoading,
+    isLoadingMore,
+    hasMore,
+    total,
+    loadMore,
+  } = useInfiniteTransactions({
+    startDate: dateRange.start,
+    endDate: dateRange.end,
+    pageSize: 100,
   });
-
-  const handleLoadMore = () => {
-    if (nextCursor && !isLoadingMore && !isLoading) {
-      setIsLoadingMore(true);
-      setCurrentCursor(nextCursor);
-    }
-  };
-
-  // Intersection observer for infinite scroll
-  useEffect(() => {
-    if (!loadMoreRef.current || !hasMore || isLoading || isLoadingMore) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && nextCursor) {
-          handleLoadMore();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    observer.observe(loadMoreRef.current);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [hasMore, nextCursor, isLoading, isLoadingMore]);
-
-  // Reset isLoadingMore when query completes
-  useEffect(() => {
-    if (!isLoading) {
-      setIsLoadingMore(false);
-    }
-  }, [isLoading]);
 
   // Client-side filtering and sorting (no pagination)
   const processedTransactions = useMemo(() => {
@@ -363,7 +305,7 @@ export const TransactionsPage = () => {
             <Heading size="lg">Transactions</Heading>
             <Text color="gray.600" mt={2}>
               Showing {processedTransactions.length} transactions
-              {transactions?.total > 0 && ` (${transactions.total} total)`}
+              {total > 0 && ` (${total} total)`}
               {bulkSelectMode && `. ${selectedTransactions.size} selected`}
               {hasMore && '. Scroll down to load more'}
               {!bulkSelectMode && !hasMore && '.'}
@@ -631,31 +573,14 @@ export const TransactionsPage = () => {
         </Box>
 
         {/* Infinite Scroll Sentinel */}
-        {hasMore && (
-          <Box ref={loadMoreRef} py={8}>
-            <Center>
-              {(isLoading || isLoadingMore) && (
-                <VStack spacing={2}>
-                  <Spinner size="lg" color="brand.500" />
-                  <Text fontSize="sm" color="gray.600">
-                    Loading more transactions...
-                  </Text>
-                </VStack>
-              )}
-            </Center>
-          </Box>
-        )}
-
-        {/* End of results indicator */}
-        {!hasMore && allTransactions.length > 0 && (
-          <Box py={4}>
-            <Center>
-              <Text fontSize="sm" color="gray.500">
-                No more transactions to load
-              </Text>
-            </Center>
-          </Box>
-        )}
+        <InfiniteScrollSentinel
+          hasMore={hasMore}
+          isLoading={isLoading || isLoadingMore}
+          onLoadMore={loadMore}
+          loadingText="Loading more transactions..."
+          endText="No more transactions to load"
+          showEndIndicator={allTransactions.length > 0}
+        />
 
         <TransactionDetailModal
           transaction={selectedTransaction}
