@@ -222,42 +222,60 @@ export const InvestmentsPage = () => {
       const visibleAccountIds = new Set(allVisibleAccounts.map((a: any) => a.id));
       const visibleAccountNames = new Set(allVisibleAccounts.map((a: any) => a.name));
 
-      // Filter treemap children to only include data from visible accounts
-      const filteredChildren = rawPortfolio.treemap_data.children.map((category) => {
-        if (!category.children) return category;
+      // Helper to recursively filter treemap nodes
+      const filterTreemapNode = (node: any, categoryName: string): any => {
+        if (!node.children) return node;
 
-        let filteredHoldings;
+        // Filter children recursively
+        const filteredChildren = node.children
+          .map((child: any) => {
+            // Base case: leaf node (individual account or ticker)
+            if (!child.children) {
+              // For account-based leaves (Property, Vehicles), check if visible by name
+              if (categoryName === 'Property & Vehicles') {
+                return visibleAccountNames.has(child.name) ? child : null;
+              }
+              // For Crypto, check if ticker is in visible crypto accounts
+              if (categoryName === 'Crypto') {
+                const hasTicker = visibleAccounts.some((account) =>
+                  account.holdings.some((h: any) => h.ticker === child.name)
+                );
+                return hasTicker ? child : null;
+              }
+              // For holdings-based leaves (tickers), check if in visible accounts
+              return visibleAccounts.some((account) =>
+                account.holdings.some((h: any) => h.ticker === child.name)
+              ) ? child : null;
+            }
 
-        // Handle different category types
-        if (category.name === 'Property & Vehicles') {
-          // For Property & Vehicles, filter by account names
-          filteredHoldings = category.children.filter((item) =>
-            visibleAccountNames.has(item.name)
-          );
-        } else if (category.name === 'Crypto') {
-          // For Crypto, check if any crypto accounts are visible
-          const hasCryptoAccounts = allVisibleAccounts.some(
-            (acc: any) => acc.account_type === 'crypto'
-          );
-          filteredHoldings = hasCryptoAccounts ? category.children : [];
-        } else {
-          // For stock/bond/cash categories, filter by ticker in visible account holdings
-          filteredHoldings = category.children.filter((holding) => {
-            return visibleAccounts.some((account) =>
-              account.holdings.some((h) => h.ticker === holding.name)
-            );
-          });
-        }
+            // Recursive case: intermediate node (cap sizes, asset types, etc.)
+            const filtered = filterTreemapNode(child, categoryName);
+            return filtered.value > 0 ? filtered : null;
+          })
+          .filter((c: any) => c !== null);
 
-        // Recalculate category value and percent
-        const newValue = filteredHoldings.reduce((sum, h) => sum + h.value, 0);
+        // Recalculate value and percent for this node
+        const newValue = filteredChildren.reduce((sum: number, c: any) => sum + c.value, 0);
+
         return {
-          ...category,
+          ...node,
           value: newValue,
-          percent: newTotalValue > 0 ? (newValue / newTotalValue) * 100 : 0,
-          children: filteredHoldings.length > 0 ? filteredHoldings : undefined,
+          percent: node.percent, // Will be recalculated at parent level
+          children: filteredChildren.length > 0 ? filteredChildren : undefined,
         };
-      }).filter(cat => cat.value > 0); // Remove categories with 0 value
+      };
+
+      // Filter each top-level category
+      const filteredChildren = rawPortfolio.treemap_data.children
+        .map((category) => {
+          const filtered = filterTreemapNode(category, category.name);
+          // Recalculate percent relative to new total
+          return {
+            ...filtered,
+            percent: newTotalValue > 0 ? (filtered.value / newTotalValue) * 100 : 0,
+          };
+        })
+        .filter(cat => cat.value > 0); // Remove categories with 0 value
 
       newTreemapData = {
         ...rawPortfolio.treemap_data,
