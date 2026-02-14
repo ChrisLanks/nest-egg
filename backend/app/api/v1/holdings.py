@@ -23,6 +23,7 @@ from app.schemas.holding import (
     HoldingSummary,
     CategoryBreakdown,
     GeographicBreakdown,
+    SectorBreakdown,
     TreemapNode,
     AccountHoldings,
 )
@@ -119,6 +120,8 @@ async def get_portfolio_summary(
                 'current_price_per_share': holding.current_price_per_share,
                 'price_as_of': holding.price_as_of,
                 'asset_type': holding.asset_type,
+                'sector': holding.sector,
+                'industry': holding.industry,
             }
 
         holdings_by_ticker[holding.ticker]['total_shares'] += holding.shares
@@ -164,6 +167,8 @@ async def get_portfolio_summary(
             current_total_value=current_total_value,
             price_as_of=ticker_data['price_as_of'],
             asset_type=ticker_data['asset_type'],
+            sector=ticker_data.get('sector'),
+            industry=ticker_data.get('industry'),
             gain_loss=gain_loss,
             gain_loss_percent=gain_loss_percent,
         )
@@ -192,6 +197,32 @@ async def get_portfolio_summary(
 
     total_gain_loss = total_value - total_cost_basis if total_cost_basis else None
     total_gain_loss_percent = ((total_gain_loss / total_cost_basis) * 100) if (total_gain_loss and total_cost_basis and total_cost_basis != 0) else None
+
+    # Aggregate sector breakdown from holdings
+    sector_dict: dict[str, dict] = {}
+    for holding in holdings:
+        if holding.current_total_value and holding.sector:
+            sector = holding.sector
+            if sector not in sector_dict:
+                sector_dict[sector] = {'value': Decimal('0'), 'count': 0}
+            sector_dict[sector]['value'] += holding.current_total_value
+            sector_dict[sector]['count'] += 1
+
+    # Convert to SectorBreakdown objects and calculate percentages
+    sector_breakdown = []
+    if sector_dict and total_value > 0:
+        for sector, data in sector_dict.items():
+            percentage = (data['value'] / total_value * 100)
+            sector_breakdown.append(SectorBreakdown(
+                sector=sector,
+                value=data['value'],
+                count=data['count'],
+                percentage=percentage,
+            ))
+        # Sort by value descending
+        sector_breakdown.sort(key=lambda x: x.value, reverse=True)
+    else:
+        sector_breakdown = None
 
     # Calculate category breakdown (Retirement vs Taxable)
     retirement_types = [
@@ -757,6 +788,7 @@ async def get_portfolio_summary(
         category_breakdown=category_breakdown,
         geographic_breakdown=geographic_breakdown,
         treemap_data=treemap_data,
+        sector_breakdown=sector_breakdown,
     )
 
 

@@ -39,6 +39,8 @@ class Holding(Base):
     asset_type = Column(String(50), nullable=True)  # 'stock', 'bond', 'etf', 'mutual_fund', 'cash', 'other'
     asset_class = Column(String(50), nullable=True)  # 'domestic', 'international', 'bond', 'cash', 'other'
     market_cap = Column(String(20), nullable=True)  # 'large', 'mid', 'small', null for non-equity
+    sector = Column(String(100), nullable=True)  # Financial sector (e.g., 'Technology', 'Healthcare', 'Financials')
+    industry = Column(String(100), nullable=True)  # Industry within sector (e.g., 'Software', 'Biotechnology')
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

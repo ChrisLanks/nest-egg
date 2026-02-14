@@ -39,7 +39,8 @@
       "Bash(python -c:*)",
       "Bash(docker stop:*)",
       "Bash(git restore:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(./backend/venv/bin/python:*)"
     ]
   }
 }

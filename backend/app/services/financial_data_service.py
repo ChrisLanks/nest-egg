@@ -221,8 +221,10 @@ class FinancialDataService:
         try:
             holding.market_cap = metadata["market_cap"]
             holding.asset_class = metadata["asset_class"]
+            holding.sector = metadata.get("sector")  # NEW: Persist sector data
+            holding.industry = metadata.get("industry")  # NEW: Persist industry data
             await db.commit()
-            logger.info(f"Enriched {holding.ticker} with {metadata['market_cap']} {metadata['asset_class']}")
+            logger.info(f"Enriched {holding.ticker} with {metadata['market_cap']} {metadata['asset_class']} - {metadata.get('sector', 'unknown sector')}")
             return True
         except Exception as e:
             logger.error(f"Failed to update holding {holding.ticker}: {e}")

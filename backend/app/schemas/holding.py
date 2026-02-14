@@ -16,6 +16,8 @@ class HoldingBase(BaseModel):
     shares: Decimal
     cost_basis_per_share: Optional[Decimal] = None
     asset_type: Optional[str] = None  # 'stock', 'bond', 'etf', 'mutual_fund', 'cash', 'other'
+    sector: Optional[str] = None  # Financial sector (e.g., 'Technology', 'Healthcare')
+    industry: Optional[str] = None  # Industry within sector (e.g., 'Software', 'Biotechnology')
 
 
 class HoldingCreate(HoldingBase):
@@ -62,6 +64,8 @@ class HoldingSummary(BaseModel):
     current_total_value: Optional[Decimal] = None
     price_as_of: Optional[datetime] = None
     asset_type: Optional[str] = None
+    sector: Optional[str] = None  # Financial sector (Phase 2+)
+    industry: Optional[str] = None  # Industry within sector (Phase 2+)
     # Calculated fields
     gain_loss: Optional[Decimal] = None
     gain_loss_percent: Optional[Decimal] = None
@@ -87,6 +91,15 @@ class GeographicBreakdown(BaseModel):
     international_percent: Optional[Decimal] = None
     unknown_value: Decimal = Decimal('0')
     unknown_percent: Optional[Decimal] = None
+
+
+class SectorBreakdown(BaseModel):
+    """Breakdown by financial sector."""
+
+    sector: str
+    value: Decimal
+    count: int
+    percentage: Decimal
 
 
 class TreemapNode(BaseModel):
@@ -133,3 +146,6 @@ class PortfolioSummary(BaseModel):
 
     # Treemap data
     treemap_data: Optional[TreemapNode] = None
+
+    # Sector breakdown (Phase 2+)
+    sector_breakdown: Optional[list[SectorBreakdown]] = None
