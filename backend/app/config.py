@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     PLAID_ENV: str = "sandbox"  # sandbox, development, production
     PLAID_WEBHOOK_SECRET: str = ""
 
+    # Financial Data APIs (free tiers for market cap/metadata)
+    ALPHA_VANTAGE_API_KEY: Optional[str] = None  # Free: 25 calls/day, 5/min
+    FINNHUB_API_KEY: Optional[str] = None  # Free: 60 calls/min
+
     # Celery
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
