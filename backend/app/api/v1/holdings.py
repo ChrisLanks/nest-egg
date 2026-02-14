@@ -236,10 +236,11 @@ async def get_portfolio_summary(
     # Top level: Asset Classes (Domestic, International, Property, Bonds/Cash, Crypto, etc.)
     treemap_children = []
 
-    # Collect all holdings across ALL accounts (retirement + taxable + crypto)
+    # Collect all holdings across investment accounts (retirement + taxable)
+    # Exclude crypto accounts to avoid double counting
     all_investment_holdings = []
     for account in accounts:
-        if account.id in holdings_by_account:
+        if account.account_type != AccountType.CRYPTO and account.id in holdings_by_account:
             for holding in holdings_by_account[account.id]:
                 if holding.current_total_value:
                     all_investment_holdings.append(holding)

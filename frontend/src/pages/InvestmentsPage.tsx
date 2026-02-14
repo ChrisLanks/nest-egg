@@ -29,7 +29,6 @@ import {
   Button,
   useDisclosure,
   Checkbox,
-  CheckboxGroup,
   Stack,
   Divider,
   Collapse,
@@ -40,8 +39,8 @@ import {
   MenuItem,
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { FiChevronDown, FiChevronUp, FiCalendar } from 'react-icons/fi';
+import { useState, useEffect, useMemo } from 'react';
+import { FiChevronDown, FiChevronUp, FiCalendar, FiFilter } from 'react-icons/fi';
 import api from '../services/api';
 import { AssetAllocationTreemap } from '../features/investments/components/AssetAllocationTreemap';
 
@@ -125,14 +124,6 @@ interface PortfolioSummary {
 }
 
 export const InvestmentsPage = () => {
-  // Category visibility state (default: hide property)
-  const [visibleCategories, setVisibleCategories] = useState<string[]>([
-    'retirement',
-    'taxable',
-    'vehicles',
-    'crypto',
-  ]);
-
   // Date filter state
   const [dateFilter, setDateFilter] = useState<string>('all');
 
@@ -145,6 +136,17 @@ export const InvestmentsPage = () => {
   // Expanded accounts state (default: all expanded)
   const [expandedAccounts, setExpandedAccounts] = useState<string[]>([]);
 
+  // Hidden accounts state (persisted to localStorage)
+  const [hiddenAccountIds, setHiddenAccountIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('hiddenAccounts');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Save hidden accounts to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('hiddenAccounts', JSON.stringify(hiddenAccountIds));
+  }, [hiddenAccountIds]);
+
   // Helper to convert string numbers to actual numbers in treemap data
   const convertTreemapNode = (node: any): TreemapNode => {
     return {
@@ -156,8 +158,17 @@ export const InvestmentsPage = () => {
     };
   };
 
+  // Fetch all accounts for filtering
+  const { data: allAccounts } = useQuery({
+    queryKey: ['accounts'],
+    queryFn: async () => {
+      const response = await api.get('/accounts');
+      return response.data;
+    },
+  });
+
   // Fetch portfolio summary
-  const { data: portfolio, isLoading } = useQuery<PortfolioSummary>({
+  const { data: rawPortfolio, isLoading } = useQuery<PortfolioSummary>({
     queryKey: ['portfolio'],
     queryFn: async () => {
       const response = await api.get('/holdings/portfolio');
@@ -173,6 +184,97 @@ export const InvestmentsPage = () => {
       return response.data;
     },
   });
+
+  // Filter portfolio based on visible accounts
+  const portfolio = useMemo(() => {
+    if (!rawPortfolio || !allAccounts) return rawPortfolio;
+
+    // If no accounts are hidden, return original data
+    if (hiddenAccountIds.length === 0) {
+      return rawPortfolio;
+    }
+
+    // Filter accounts
+    const visibleAccounts = rawPortfolio.holdings_by_account.filter(
+      (account) => !hiddenAccountIds.includes(account.account_id)
+    );
+
+    // Filter holdings by ticker to only include visible accounts
+    const visibleHoldingsByTicker = rawPortfolio.holdings_by_ticker.filter((holding) => {
+      return visibleAccounts.some((account) =>
+        account.holdings.some((h) => h.ticker === holding.ticker)
+      );
+    });
+
+    // Recalculate total value from ALL visible accounts (including non-investment)
+    const allVisibleAccounts = allAccounts.filter(
+      (account: any) => !hiddenAccountIds.includes(account.id)
+    );
+    const newTotalValue = allVisibleAccounts.reduce(
+      (sum: number, account: any) => sum + (Number(account.current_balance) || 0),
+      0
+    );
+
+    // Recalculate treemap data based on visible accounts
+    let newTreemapData = rawPortfolio.treemap_data;
+    if (rawPortfolio.treemap_data && rawPortfolio.treemap_data.children) {
+      // Get visible account IDs and names for filtering
+      const visibleAccountIds = new Set(allVisibleAccounts.map((a: any) => a.id));
+      const visibleAccountNames = new Set(allVisibleAccounts.map((a: any) => a.name));
+
+      // Filter treemap children to only include data from visible accounts
+      const filteredChildren = rawPortfolio.treemap_data.children.map((category) => {
+        if (!category.children) return category;
+
+        let filteredHoldings;
+
+        // Handle different category types
+        if (category.name === 'Property & Vehicles') {
+          // For Property & Vehicles, filter by account names
+          filteredHoldings = category.children.filter((item) =>
+            visibleAccountNames.has(item.name)
+          );
+        } else if (category.name === 'Crypto') {
+          // For Crypto, check if any crypto accounts are visible
+          const hasCryptoAccounts = allVisibleAccounts.some(
+            (acc: any) => acc.account_type === 'crypto'
+          );
+          filteredHoldings = hasCryptoAccounts ? category.children : [];
+        } else {
+          // For stock/bond/cash categories, filter by ticker in visible account holdings
+          filteredHoldings = category.children.filter((holding) => {
+            return visibleAccounts.some((account) =>
+              account.holdings.some((h) => h.ticker === holding.name)
+            );
+          });
+        }
+
+        // Recalculate category value and percent
+        const newValue = filteredHoldings.reduce((sum, h) => sum + h.value, 0);
+        return {
+          ...category,
+          value: newValue,
+          percent: newTotalValue > 0 ? (newValue / newTotalValue) * 100 : 0,
+          children: filteredHoldings.length > 0 ? filteredHoldings : undefined,
+        };
+      }).filter(cat => cat.value > 0); // Remove categories with 0 value
+
+      newTreemapData = {
+        ...rawPortfolio.treemap_data,
+        value: newTotalValue,
+        children: filteredChildren,
+      };
+    }
+
+    // Return filtered portfolio data
+    return {
+      ...rawPortfolio,
+      holdings_by_account: visibleAccounts,
+      holdings_by_ticker: visibleHoldingsByTicker,
+      total_value: newTotalValue,
+      treemap_data: newTreemapData,
+    };
+  }, [rawPortfolio, allAccounts, hiddenAccountIds]);
 
   const formatCurrency = (amount: number | null) => {
     if (amount === null || amount === undefined) return 'N/A';
@@ -217,9 +319,40 @@ export const InvestmentsPage = () => {
     // TODO: Calculate date range and refetch with date parameters
   };
 
-  const handleCategoryToggle = (categories: string[]) => {
-    setVisibleCategories(categories);
-  };
+  // Group accounts by type for organized display
+  const groupedAccounts = useMemo(() => {
+    if (!allAccounts) return {};
+
+    const groups: Record<string, any[]> = {};
+
+    // Group all accounts dynamically by their type
+    allAccounts.forEach((account: any) => {
+      const type = account.account_type?.toLowerCase() || 'other';
+      if (!groups[type]) {
+        groups[type] = [];
+      }
+      groups[type].push(account);
+    });
+
+    // Sort groups by preferred order
+    const typeOrder = ['retirement', 'taxable', 'crypto', 'property', 'vehicle'];
+    const sortedGroups: Record<string, any[]> = {};
+
+    typeOrder.forEach(type => {
+      if (groups[type]) {
+        sortedGroups[type] = groups[type];
+      }
+    });
+
+    // Add any remaining types not in the order
+    Object.keys(groups).forEach(type => {
+      if (!typeOrder.includes(type)) {
+        sortedGroups[type] = groups[type];
+      }
+    });
+
+    return sortedGroups;
+  }, [allAccounts]);
 
   if (isLoading) {
     return (
@@ -286,30 +419,85 @@ export const InvestmentsPage = () => {
               </MenuList>
             </Menu>
 
-            {/* Category Visibility Toggles */}
-            <Box>
+            {/* Account Filter */}
+            {allAccounts && allAccounts.length > 0 && (
               <Menu closeOnSelect={false}>
-                <MenuButton as={Button} size="sm" variant="outline">
-                  Show/Hide Categories
+                <MenuButton as={Button} size="sm" variant="outline" leftIcon={<FiFilter />}>
+                  Filter Accounts
+                  {hiddenAccountIds.length > 0 && (
+                    <Badge ml={2} colorScheme="red" fontSize="xs">
+                      {hiddenAccountIds.length} hidden
+                    </Badge>
+                  )}
                 </MenuButton>
-                <MenuList minWidth="200px">
+                <MenuList minWidth="280px" maxHeight="400px" overflowY="auto">
                   <Box px={3} py={2}>
-                    <CheckboxGroup
-                      value={visibleCategories}
-                      onChange={(values) => handleCategoryToggle(values as string[])}
-                    >
-                      <Stack spacing={2}>
-                        <Checkbox value="retirement">Retirement</Checkbox>
-                        <Checkbox value="taxable">Taxable</Checkbox>
-                        <Checkbox value="crypto">Crypto</Checkbox>
-                        <Checkbox value="property">Property</Checkbox>
-                        <Checkbox value="vehicles">Vehicles</Checkbox>
-                      </Stack>
-                    </CheckboxGroup>
+                    <Text fontSize="sm" fontWeight="semibold" mb={3} color="gray.700">
+                      Select accounts to display:
+                    </Text>
+                    <VStack align="stretch" spacing={3}>
+                      {Object.entries(groupedAccounts).map(([type, accounts]: [string, any]) => (
+                        <Box key={type}>
+                          <Text
+                            fontSize="xs"
+                            fontWeight="bold"
+                            textTransform="uppercase"
+                            color="gray.500"
+                            mb={2}
+                            letterSpacing="wide"
+                          >
+                            {type === 'retirement' ? 'Retirement' :
+                             type === 'taxable' ? 'Taxable' :
+                             type === 'crypto' ? 'Crypto' :
+                             type === 'property' ? 'Property' :
+                             type === 'vehicle' ? 'Vehicles' :
+                             type.charAt(0).toUpperCase() + type.slice(1)}
+                          </Text>
+                          <Stack spacing={2} ml={2}>
+                            {accounts.map((account: any) => (
+                              <Checkbox
+                                key={account.id}
+                                isChecked={!hiddenAccountIds.includes(account.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setHiddenAccountIds((prev) =>
+                                      prev.filter((id) => id !== account.id)
+                                    );
+                                  } else {
+                                    setHiddenAccountIds((prev) => [...prev, account.id]);
+                                  }
+                                }}
+                              >
+                                <VStack align="flex-start" spacing={0}>
+                                  <Text fontSize="sm" fontWeight="medium">
+                                    {account.name}
+                                  </Text>
+                                  <Text fontSize="xs" color="gray.600">
+                                    {formatCurrency(Number(account.current_balance) || 0)}
+                                  </Text>
+                                </VStack>
+                              </Checkbox>
+                            ))}
+                          </Stack>
+                        </Box>
+                      ))}
+                    </VStack>
+                    {hiddenAccountIds.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        colorScheme="blue"
+                        mt={3}
+                        width="100%"
+                        onClick={() => setHiddenAccountIds([])}
+                      >
+                        Show All Accounts
+                      </Button>
+                    )}
                   </Box>
                 </MenuList>
               </Menu>
-            </Box>
+            )}
           </HStack>
         </HStack>
 
@@ -417,7 +605,7 @@ export const InvestmentsPage = () => {
               <Collapse in={expandedSections.includes('breakdown')}>
                 <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={4}>
                   {/* Retirement */}
-                  {visibleCategories.includes('retirement') && portfolio.category_breakdown.retirement_value > 0 && (
+                  {portfolio.category_breakdown.retirement_value > 0 && (
                     <Card variant="outline">
                       <CardBody>
                         <Stat>
@@ -436,7 +624,7 @@ export const InvestmentsPage = () => {
                   )}
 
                   {/* Taxable */}
-                  {visibleCategories.includes('taxable') && portfolio.category_breakdown.taxable_value > 0 && (
+                  {portfolio.category_breakdown.taxable_value > 0 && (
                     <Card variant="outline">
                       <CardBody>
                         <Stat>
@@ -562,6 +750,7 @@ export const InvestmentsPage = () => {
               </HStack>
               <Collapse in={expandedSections.includes('treemap')}>
                 <AssetAllocationTreemap
+                  key={`treemap-${hiddenAccountIds.join('-')}`}
                   data={portfolio.treemap_data}
                   onDrillDown={handleTreemapDrillDown}
                 />
