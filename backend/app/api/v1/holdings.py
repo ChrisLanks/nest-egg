@@ -252,45 +252,62 @@ async def get_portfolio_summary(
     cash_dict = {}
     other_dict = {}
 
-    # Bond and cash identifiers
-    bond_tickers = {'AGG', 'BND', 'BNDX', 'TLT', 'VBTLX', 'FBNDX'}
-    cash_tickers = {'VMFXX', 'SPAXX', 'FDRXX', 'SWVXX'}
+    # TODO: Replace with external financial data API (Alpha Vantage, Polygon.io, etc.)
+    # and store classifications in holding.market_cap and holding.asset_class columns
 
-    # Market cap classification helpers
-    large_cap_tickers = {
-        'SPY', 'VOO', 'IVV', 'QQQ', 'VV', 'VUG', 'VTV', 'IWF', 'IWD',
-        'SCHX', 'IVW', 'SPLG', 'SCHG', 'VONG', 'MGK', 'IWB'
-    }
-    mid_cap_tickers = {
-        'MDY', 'IJH', 'VO', 'SCHM', 'IWR', 'VXF', 'IVOO', 'VOE', 'VOT'
-    }
-    small_cap_tickers = {
-        'IWM', 'IJR', 'VB', 'SCHA', 'VTWO', 'VBR', 'VBK', 'IJS', 'IJJ', 'VIOO'
+    # Common ticker patterns (used as fallback, not exhaustive)
+    # Primary classification uses fund name parsing
+    COMMON_PATTERNS = {
+        'cash': {'VMFXX', 'SPAXX', 'FDRXX', 'SWVXX', 'VMMXX'},
+        'bonds': {'AGG', 'BND', 'BNDX', 'TLT', 'VBTLX', 'FBNDX'},
+        'large_cap': {'SPY', 'VOO', 'IVV', 'QQQ', 'VV', 'SCHX'},
+        'mid_cap': {'MDY', 'IJH', 'VO', 'SCHM', 'IVOO'},
+        'small_cap': {'IWM', 'IJR', 'VB', 'SCHA', 'VTWO'},
     }
 
-    def classify_market_cap(ticker: str, name: str = None) -> str:
-        """Classify a stock/ETF by market cap based on ticker and name."""
-        ticker_upper = ticker.upper()
+    def classify_market_cap(ticker: str, name: str = None, asset_type: str = None) -> str:
+        """
+        Classify market cap using intelligent name parsing.
+
+        Strategy:
+        1. Parse fund name for explicit cap size (e.g., "Vanguard Large Cap Index")
+        2. Check against common ETF patterns as fallback
+        3. Use asset_type to make educated defaults
+
+        Returns: 'Large Cap', 'Mid Cap', or 'Small Cap'
+        """
+        import re
+
         name_upper = (name or '').upper()
+        ticker_upper = ticker.upper()
 
-        # Check known ETF tickers
-        if ticker_upper in large_cap_tickers:
-            return 'Large Cap'
-        if ticker_upper in mid_cap_tickers:
-            return 'Mid Cap'
-        if ticker_upper in small_cap_tickers:
-            return 'Small Cap'
-
-        # Check fund name for cap size keywords
+        # Strategy 1: Intelligent name parsing (most reliable for mutual funds/ETFs)
         if name_upper:
-            if 'LARGE' in name_upper or 'LARGE-CAP' in name_upper:
+            # Look for explicit cap size mentions with word boundaries
+            if re.search(r'\b(LARGE[\s-]?CAP|MEGA[\s-]?CAP|LARGECAP)\b', name_upper):
                 return 'Large Cap'
-            if 'MID' in name_upper or 'MID-CAP' in name_upper:
+            if re.search(r'\b(MID[\s-]?CAP|MIDCAP)\b', name_upper):
                 return 'Mid Cap'
-            if 'SMALL' in name_upper or 'SMALL-CAP' in name_upper:
+            if re.search(r'\b(SMALL[\s-]?CAP|MICRO[\s-]?CAP|SMALLCAP)\b', name_upper):
                 return 'Small Cap'
 
-        # Default to large cap if unable to classify
+            # Check for standalone 'LARGE', 'MID', 'SMALL' keywords
+            if re.search(r'\bLARGE\b', name_upper):
+                return 'Large Cap'
+            if re.search(r'\bMID\b', name_upper):
+                return 'Mid Cap'
+            if re.search(r'\bSMALL\b', name_upper):
+                return 'Small Cap'
+
+        # Strategy 2: Common ETF ticker fallback
+        if ticker_upper in COMMON_PATTERNS['large_cap']:
+            return 'Large Cap'
+        if ticker_upper in COMMON_PATTERNS['mid_cap']:
+            return 'Mid Cap'
+        if ticker_upper in COMMON_PATTERNS['small_cap']:
+            return 'Small Cap'
+
+        # Strategy 3: Default based on asset type (most holdings are large cap)
         return 'Large Cap'
 
     domestic_stocks_value = Decimal('0')
@@ -303,18 +320,62 @@ async def get_portfolio_summary(
     domestic_stocks_with_cap = []  # List of (ticker, value, cap_size, name)
     international_stocks_with_cap = []  # List of (ticker, value, cap_size, name)
 
+    def is_cash_holding(ticker: str, name: str, asset_type: str) -> bool:
+        """Identify cash/money market holdings."""
+        ticker_upper = ticker.upper()
+        name_upper = (name or '').upper()
+
+        # Check common patterns first
+        if ticker_upper in COMMON_PATTERNS['cash']:
+            return True
+
+        # Parse name for money market keywords
+        if any(keyword in name_upper for keyword in ['MONEY MARKET', 'CASH', 'SWEEP', 'SETTLEMENT']):
+            return True
+
+        # Check asset type if available
+        if asset_type == 'cash':
+            return True
+
+        return False
+
+    def is_bond_holding(ticker: str, name: str, asset_type: str) -> bool:
+        """Identify bond holdings."""
+        ticker_upper = ticker.upper()
+        name_upper = (name or '').upper()
+
+        # Check common patterns first
+        if ticker_upper in COMMON_PATTERNS['bonds']:
+            return True
+
+        # Parse name for bond keywords
+        if any(keyword in name_upper for keyword in ['BOND', 'TREASURY', 'GOVT', 'FIXED INCOME', 'CORPORATE DEBT']):
+            return True
+
+        # Check ticker patterns
+        if any(pattern in ticker_upper for pattern in ['BND', 'BOND', 'TLT', 'AGG']):
+            return True
+
+        # Check asset type
+        if asset_type == 'bond':
+            return True
+
+        return False
+
     for holding in all_investment_holdings:
         ticker = holding.ticker.upper()
         value = holding.current_total_value
+        name = holding.name or ''
+        asset_type = holding.asset_type or ''
 
-        if ticker in cash_tickers or (holding.asset_type == 'mutual_fund' and 'MONEY' in (holding.name or '').upper()):
+        if is_cash_holding(ticker, name, asset_type):
             # Cash/Money Market
             cash_from_holdings += value
             if ticker in cash_dict:
                 cash_dict[ticker] += value
             else:
                 cash_dict[ticker] = value
-        elif ticker in bond_tickers or 'BOND' in ticker or 'BND' in ticker:
+        elif is_bond_holding(ticker, name, asset_type):
             # Bonds
             bonds_value += value
             if ticker in bonds_dict:
@@ -324,17 +385,17 @@ async def get_portfolio_summary(
         elif ticker in international_tickers:
             # International
             international_value_from_holdings += value
-            cap_size = classify_market_cap(ticker, holding.name)
-            international_stocks_with_cap.append((ticker, value, cap_size, holding.name))
+            cap_size = classify_market_cap(ticker, name, asset_type)
+            international_stocks_with_cap.append((ticker, value, cap_size, name))
             if ticker in international_stocks_dict:
                 international_stocks_dict[ticker] += value
             else:
                 international_stocks_dict[ticker] = value
-        elif holding.asset_type in ['stock', 'etf', 'mutual_fund']:
+        elif asset_type in ['stock', 'etf', 'mutual_fund']:
             # Domestic stocks/equities
             domestic_stocks_value += value
-            cap_size = classify_market_cap(ticker, holding.name)
-            domestic_stocks_with_cap.append((ticker, value, cap_size, holding.name))
+            cap_size = classify_market_cap(ticker, name, asset_type)
+            domestic_stocks_with_cap.append((ticker, value, cap_size, name))
             if ticker in domestic_stocks_dict:
                 domestic_stocks_dict[ticker] += value
             else:

@@ -25,7 +25,17 @@
       "Bash(docker-compose restart:*)",
       "Bash(lsof:*)",
       "Bash(docker-compose up:*)",
-      "WebFetch(domain:plaid.com)"
+      "WebFetch(domain:plaid.com)",
+      "Bash(python scripts/create_comprehensive_test_data.py:*)",
+      "Bash(PYTHONPATH=/Users/chris/github/ChrisLanks27/nest-egg/backend python:*)",
+      "Bash(psql:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(tail:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(kill:*)",
+      "Bash(./venv/bin/python:*)",
+      "Bash(ls:*)",
+      "Bash(alembic upgrade:*)"
     ]
   }
 }
