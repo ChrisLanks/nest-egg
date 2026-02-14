@@ -36,6 +36,10 @@ async def get_portfolio_summary(
     db: AsyncSession = Depends(get_db),
 ):
     """Get portfolio summary across all investment accounts."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"Portfolio request from user {current_user.id}")
 
     # Fetch all accounts for treemap (including property/vehicles)
     accounts_result = await db.execute(
@@ -68,12 +72,40 @@ async def get_portfolio_summary(
     holdings = result.scalars().all()
 
     if not holdings:
+        # Create empty treemap for no holdings
+        from app.schemas.holding import TreemapNode, CategoryBreakdown, GeographicBreakdown
+        empty_treemap = TreemapNode(
+            name="Portfolio",
+            value=Decimal('0'),
+            percent=Decimal('100'),
+            children=[],
+        )
         return PortfolioSummary(
             total_value=Decimal('0'),
             total_cost_basis=Decimal('0'),
             total_gain_loss=Decimal('0'),
             total_gain_loss_percent=Decimal('0'),
             holdings_by_ticker=[],
+            holdings_by_account=[],
+            stocks_value=Decimal('0'),
+            bonds_value=Decimal('0'),
+            etf_value=Decimal('0'),
+            mutual_funds_value=Decimal('0'),
+            cash_value=Decimal('0'),
+            other_value=Decimal('0'),
+            category_breakdown=CategoryBreakdown(
+                retirement_value=Decimal('0'),
+                retirement_percent=None,
+                taxable_value=Decimal('0'),
+                taxable_percent=None,
+            ),
+            geographic_breakdown=GeographicBreakdown(
+                domestic_value=Decimal('0'),
+                domestic_percent=None,
+                international_value=Decimal('0'),
+                international_percent=None,
+            ),
+            treemap_data=empty_treemap,
         )
 
     # Aggregate holdings by ticker
@@ -682,6 +714,7 @@ async def get_portfolio_summary(
         ))
 
     # Create root treemap node
+    logger.info(f"Creating treemap with {len(treemap_children)} top-level children")
     treemap_data = TreemapNode(
         name="Portfolio",
         value=portfolio_total,
@@ -708,6 +741,7 @@ async def get_portfolio_summary(
                     holdings=[HoldingSchema.model_validate(h) for h in holdings_by_account[account.id]]
                 ))
 
+    logger.info(f"Returning portfolio summary with total value: {total_value}")
     return PortfolioSummary(
         total_value=total_value,
         total_cost_basis=total_cost_basis if total_cost_basis else None,
