@@ -250,7 +250,7 @@ export const InvestmentsPage = () => {
 
             // Recursive case: intermediate node (cap sizes, asset types, etc.)
             const filtered = filterTreemapNode(child, categoryName);
-            return filtered.value > 0 ? filtered : null;
+            return filtered && filtered.value > 0 ? filtered : null;
           })
           .filter((c: any) => c !== null);
 
