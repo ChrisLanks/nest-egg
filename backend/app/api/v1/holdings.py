@@ -245,7 +245,7 @@ async def get_portfolio_summary(
                 if holding.current_total_value:
                     all_investment_holdings.append(holding)
 
-    # Separate into asset classes
+    # Separate into asset classes with market cap classification
     domestic_stocks_dict = {}
     international_stocks_dict = {}
     bonds_dict = {}
@@ -256,11 +256,52 @@ async def get_portfolio_summary(
     bond_tickers = {'AGG', 'BND', 'BNDX', 'TLT', 'VBTLX', 'FBNDX'}
     cash_tickers = {'VMFXX', 'SPAXX', 'FDRXX', 'SWVXX'}
 
+    # Market cap classification helpers
+    large_cap_tickers = {
+        'SPY', 'VOO', 'IVV', 'QQQ', 'VV', 'VUG', 'VTV', 'IWF', 'IWD',
+        'SCHX', 'IVW', 'SPLG', 'SCHG', 'VONG', 'MGK', 'IWB'
+    }
+    mid_cap_tickers = {
+        'MDY', 'IJH', 'VO', 'SCHM', 'IWR', 'VXF', 'IVOO', 'VOE', 'VOT'
+    }
+    small_cap_tickers = {
+        'IWM', 'IJR', 'VB', 'SCHA', 'VTWO', 'VBR', 'VBK', 'IJS', 'IJJ', 'VIOO'
+    }
+
+    def classify_market_cap(ticker: str, name: str = None) -> str:
+        """Classify a stock/ETF by market cap based on ticker and name."""
+        ticker_upper = ticker.upper()
+        name_upper = (name or '').upper()
+
+        # Check known ETF tickers
+        if ticker_upper in large_cap_tickers:
+            return 'Large Cap'
+        if ticker_upper in mid_cap_tickers:
+            return 'Mid Cap'
+        if ticker_upper in small_cap_tickers:
+            return 'Small Cap'
+
+        # Check fund name for cap size keywords
+        if name_upper:
+            if 'LARGE' in name_upper or 'LARGE-CAP' in name_upper:
+                return 'Large Cap'
+            if 'MID' in name_upper or 'MID-CAP' in name_upper:
+                return 'Mid Cap'
+            if 'SMALL' in name_upper or 'SMALL-CAP' in name_upper:
+                return 'Small Cap'
+
+        # Default to large cap if unable to classify
+        return 'Large Cap'
+
     domestic_stocks_value = Decimal('0')
     international_value_from_holdings = Decimal('0')
     bonds_value = Decimal('0')
     cash_from_holdings = Decimal('0')
     other_investments = Decimal('0')
+
+    # Store holdings with metadata for cap classification
+    domestic_stocks_with_cap = []  # List of (ticker, value, cap_size, name)
+    international_stocks_with_cap = []  # List of (ticker, value, cap_size, name)
 
     for holding in all_investment_holdings:
         ticker = holding.ticker.upper()
@@ -283,6 +324,8 @@ async def get_portfolio_summary(
         elif ticker in international_tickers:
             # International
             international_value_from_holdings += value
+            cap_size = classify_market_cap(ticker, holding.name)
+            international_stocks_with_cap.append((ticker, value, cap_size, holding.name))
             if ticker in international_stocks_dict:
                 international_stocks_dict[ticker] += value
             else:
@@ -290,6 +333,8 @@ async def get_portfolio_summary(
         elif holding.asset_type in ['stock', 'etf', 'mutual_fund']:
             # Domestic stocks/equities
             domestic_stocks_value += value
+            cap_size = classify_market_cap(ticker, holding.name)
+            domestic_stocks_with_cap.append((ticker, value, cap_size, holding.name))
             if ticker in domestic_stocks_dict:
                 domestic_stocks_dict[ticker] += value
             else:
@@ -302,7 +347,7 @@ async def get_portfolio_summary(
             else:
                 other_dict[ticker] = value
 
-    # Calculate property, vehicle, and crypto values
+    # Calculate property, vehicle, crypto, and bank account values
     property_value = Decimal('0')
     for account in accounts:
         if account.account_type == AccountType.PROPERTY and account.current_balance:
@@ -312,6 +357,20 @@ async def get_portfolio_summary(
     for account in accounts:
         if account.account_type == AccountType.VEHICLE and account.current_balance:
             vehicle_value += account.current_balance
+
+    # Collect checking and savings accounts for cash category
+    checking_accounts = []
+    savings_accounts = []
+    checking_value = Decimal('0')
+    savings_value = Decimal('0')
+
+    for account in accounts:
+        if account.account_type == AccountType.CHECKING and account.current_balance:
+            checking_value += account.current_balance
+            checking_accounts.append(account)
+        elif account.account_type == AccountType.SAVINGS and account.current_balance:
+            savings_value += account.current_balance
+            savings_accounts.append(account)
 
     crypto_value = Decimal('0')
     crypto_holdings_dict_prelim = {}
@@ -327,33 +386,84 @@ async def get_portfolio_summary(
                         crypto_holdings_dict_prelim[ticker] = holding.current_total_value
 
     # Create treemap nodes for each asset class
-    portfolio_total = domestic_stocks_value + international_value_from_holdings + bonds_value + cash_from_holdings + other_investments + property_value + vehicle_value + crypto_value
+    total_cash = cash_from_holdings + checking_value + savings_value
+    portfolio_total = domestic_stocks_value + international_value_from_holdings + bonds_value + total_cash + other_investments + property_value + vehicle_value + crypto_value
 
-    # Add Domestic Stocks
+    # Add Domestic Stocks with market cap layers
     if domestic_stocks_value > 0:
-        domestic_holdings = [
-            TreemapNode(name=ticker, value=value, percent=(value / domestic_stocks_value * 100))
-            for ticker, value in domestic_stocks_dict.items()
-        ]
+        # Group by market cap
+        cap_groups = {}  # {cap_size: [(ticker, value), ...]}
+        for ticker, value, cap_size, name in domestic_stocks_with_cap:
+            if cap_size not in cap_groups:
+                cap_groups[cap_size] = []
+            cap_groups[cap_size].append((ticker, value))
+
+        # Create cap size nodes
+        cap_children = []
+        cap_colors = {
+            'Large Cap': '#2B6CB0',  # darker blue
+            'Mid Cap': '#4299E1',    # medium blue
+            'Small Cap': '#63B3ED',  # lighter blue
+        }
+        for cap_size in ['Large Cap', 'Mid Cap', 'Small Cap']:
+            if cap_size in cap_groups:
+                cap_value = sum(value for _, value in cap_groups[cap_size])
+                ticker_nodes = [
+                    TreemapNode(name=ticker, value=value, percent=(value / cap_value * 100))
+                    for ticker, value in cap_groups[cap_size]
+                ]
+                cap_children.append(TreemapNode(
+                    name=cap_size,
+                    value=cap_value,
+                    percent=(cap_value / domestic_stocks_value * 100),
+                    children=ticker_nodes,
+                    color=cap_colors.get(cap_size, '#4299E1')
+                ))
+
         treemap_children.append(TreemapNode(
             name="Domestic Stocks",
             value=domestic_stocks_value,
             percent=(domestic_stocks_value / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
-            children=domestic_holdings,
+            children=cap_children,
             color="#4299E1"  # blue
         ))
 
-    # Add International
+    # Add International with market cap layers
     if international_value_from_holdings > 0:
-        international_holdings = [
-            TreemapNode(name=ticker, value=value, percent=(value / international_value_from_holdings * 100))
-            for ticker, value in international_stocks_dict.items()
-        ]
+        # Group by market cap
+        intl_cap_groups = {}  # {cap_size: [(ticker, value), ...]}
+        for ticker, value, cap_size, name in international_stocks_with_cap:
+            if cap_size not in intl_cap_groups:
+                intl_cap_groups[cap_size] = []
+            intl_cap_groups[cap_size].append((ticker, value))
+
+        # Create cap size nodes
+        intl_cap_children = []
+        intl_cap_colors = {
+            'Large Cap': '#6B46C1',  # darker purple
+            'Mid Cap': '#805AD5',    # medium purple
+            'Small Cap': '#9F7AEA',  # lighter purple
+        }
+        for cap_size in ['Large Cap', 'Mid Cap', 'Small Cap']:
+            if cap_size in intl_cap_groups:
+                cap_value = sum(value for _, value in intl_cap_groups[cap_size])
+                ticker_nodes = [
+                    TreemapNode(name=ticker, value=value, percent=(value / cap_value * 100))
+                    for ticker, value in intl_cap_groups[cap_size]
+                ]
+                intl_cap_children.append(TreemapNode(
+                    name=cap_size,
+                    value=cap_value,
+                    percent=(cap_value / international_value_from_holdings * 100),
+                    children=ticker_nodes,
+                    color=intl_cap_colors.get(cap_size, '#805AD5')
+                ))
+
         treemap_children.append(TreemapNode(
             name="International",
             value=international_value_from_holdings,
             percent=(international_value_from_holdings / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
-            children=international_holdings,
+            children=intl_cap_children,
             color="#805AD5"  # purple
         ))
 
@@ -371,48 +481,114 @@ async def get_portfolio_summary(
             color="#48BB78"  # green
         ))
 
-    # Add Cash
-    if cash_from_holdings > 0:
-        cash_holdings = [
-            TreemapNode(name=ticker, value=value, percent=(value / cash_from_holdings * 100))
-            for ticker, value in cash_dict.items()
-        ]
+    # Add Cash with subcategories (Money Market, Savings, Checking)
+    if total_cash > 0:
+        cash_subcategories = []
+
+        # Money Market (from holdings)
+        if cash_from_holdings > 0:
+            money_market_holdings = [
+                TreemapNode(name=ticker, value=value, percent=(value / cash_from_holdings * 100))
+                for ticker, value in cash_dict.items()
+            ]
+            cash_subcategories.append(TreemapNode(
+                name="Money Market",
+                value=cash_from_holdings,
+                percent=(cash_from_holdings / total_cash * 100),
+                children=money_market_holdings,
+                color="#2C7A7B"  # darker teal
+            ))
+
+        # Savings Accounts
+        if savings_value > 0:
+            savings_nodes = [
+                TreemapNode(
+                    name=account.name,
+                    value=account.current_balance,
+                    percent=(account.current_balance / savings_value * 100)
+                )
+                for account in savings_accounts
+            ]
+            cash_subcategories.append(TreemapNode(
+                name="Savings",
+                value=savings_value,
+                percent=(savings_value / total_cash * 100),
+                children=savings_nodes,
+                color="#38B2AC"  # medium teal
+            ))
+
+        # Checking Accounts
+        if checking_value > 0:
+            checking_nodes = [
+                TreemapNode(
+                    name=account.name,
+                    value=account.current_balance,
+                    percent=(account.current_balance / checking_value * 100)
+                )
+                for account in checking_accounts
+            ]
+            cash_subcategories.append(TreemapNode(
+                name="Checking",
+                value=checking_value,
+                percent=(checking_value / total_cash * 100),
+                children=checking_nodes,
+                color="#4FD1C5"  # lighter teal
+            ))
+
         treemap_children.append(TreemapNode(
             name="Cash",
-            value=cash_from_holdings,
-            percent=(cash_from_holdings / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
-            children=cash_holdings,
+            value=total_cash,
+            percent=(total_cash / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
+            children=cash_subcategories,
             color="#38B2AC"  # teal
         ))
 
-    # Add Property & Vehicles (combined)
+    # Add Property & Vehicles (with subcategories)
     property_and_vehicles_value = property_value + vehicle_value
     if property_and_vehicles_value > 0:
-        property_and_vehicle_children = []
+        property_and_vehicle_subcategories = []
 
-        # Add all property accounts
-        for account in accounts:
-            if account.account_type == AccountType.PROPERTY and account.current_balance:
-                property_and_vehicle_children.append(TreemapNode(
-                    name=account.name,
-                    value=account.current_balance,
-                    percent=(account.current_balance / property_and_vehicles_value * 100) if property_and_vehicles_value > 0 else Decimal('0'),
-                ))
+        # Real Estate subcategory
+        if property_value > 0:
+            property_accounts = []
+            for account in accounts:
+                if account.account_type == AccountType.PROPERTY and account.current_balance:
+                    property_accounts.append(TreemapNode(
+                        name=account.name,
+                        value=account.current_balance,
+                        percent=(account.current_balance / property_value * 100),
+                    ))
+            property_and_vehicle_subcategories.append(TreemapNode(
+                name="Real Estate",
+                value=property_value,
+                percent=(property_value / property_and_vehicles_value * 100),
+                children=property_accounts,
+                color="#DD6B20"  # darker orange
+            ))
 
-        # Add all vehicle accounts
-        for account in accounts:
-            if account.account_type == AccountType.VEHICLE and account.current_balance:
-                property_and_vehicle_children.append(TreemapNode(
-                    name=account.name,
-                    value=account.current_balance,
-                    percent=(account.current_balance / property_and_vehicles_value * 100) if property_and_vehicles_value > 0 else Decimal('0'),
-                ))
+        # Vehicles subcategory
+        if vehicle_value > 0:
+            vehicle_accounts = []
+            for account in accounts:
+                if account.account_type == AccountType.VEHICLE and account.current_balance:
+                    vehicle_accounts.append(TreemapNode(
+                        name=account.name,
+                        value=account.current_balance,
+                        percent=(account.current_balance / vehicle_value * 100),
+                    ))
+            property_and_vehicle_subcategories.append(TreemapNode(
+                name="Vehicles",
+                value=vehicle_value,
+                percent=(vehicle_value / property_and_vehicles_value * 100),
+                children=vehicle_accounts,
+                color="#ED8936"  # lighter orange
+            ))
 
         treemap_children.append(TreemapNode(
             name="Property & Vehicles",
             value=property_and_vehicles_value,
             percent=(property_and_vehicles_value / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
-            children=property_and_vehicle_children if property_and_vehicle_children else None,
+            children=property_and_vehicle_subcategories if property_and_vehicle_subcategories else None,
             color="#ED8936"  # orange
         ))
 
