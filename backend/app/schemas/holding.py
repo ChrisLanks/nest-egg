@@ -149,3 +149,17 @@ class PortfolioSummary(BaseModel):
 
     # Sector breakdown (Phase 2+)
     sector_breakdown: Optional[list[SectorBreakdown]] = None
+
+
+class SnapshotResponse(BaseModel):
+    """Response for portfolio snapshot."""
+
+    id: UUID
+    organization_id: UUID
+    snapshot_date: datetime
+    total_value: Decimal
+    total_cost_basis: Optional[Decimal] = None
+    total_gain_loss: Optional[Decimal] = None
+    total_gain_loss_percent: Optional[Decimal] = None
+
+    model_config = {"from_attributes": True}

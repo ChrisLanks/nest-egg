@@ -40,7 +40,9 @@
       "Bash(docker stop:*)",
       "Bash(git restore:*)",
       "Bash(python:*)",
-      "Bash(./backend/venv/bin/python:*)"
+      "Bash(./backend/venv/bin/python:*)",
+      "Bash(backend/venv/bin/python:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }

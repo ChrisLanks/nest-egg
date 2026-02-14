@@ -1,11 +1,11 @@
 """Holdings API endpoints."""
 
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
@@ -15,6 +15,7 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.holding import Holding
 from app.models.account import Account, AccountType
+from app.services.snapshot_service import snapshot_service
 from app.schemas.holding import (
     Holding as HoldingSchema,
     HoldingCreate,
@@ -26,6 +27,7 @@ from app.schemas.holding import (
     SectorBreakdown,
     TreemapNode,
     AccountHoldings,
+    SnapshotResponse,
 )
 
 router = APIRouter()
@@ -65,7 +67,9 @@ async def get_portfolio_summary(
                 AccountType.RETIREMENT_IRA,
                 AccountType.RETIREMENT_ROTH,
                 AccountType.HSA,
-                AccountType.CRYPTO,  # Include crypto accounts
+                AccountType.CRYPTO,
+                AccountType.MANUAL,  # Private stocks, private investments
+                AccountType.OTHER,   # 529 plans, other investment types
             ])
         )
         .options(selectinload(Holding.account))
@@ -756,20 +760,46 @@ async def get_portfolio_summary(
     total_value = portfolio_total
 
     # Group holdings by account for detailed view
+    # Include investment and investment-like accounts (exclude checking, credit cards, loans)
+    investment_account_types = [
+        AccountType.BROKERAGE,
+        AccountType.RETIREMENT_401K,
+        AccountType.RETIREMENT_IRA,
+        AccountType.RETIREMENT_ROTH,
+        AccountType.HSA,
+        AccountType.CRYPTO,
+        AccountType.MANUAL,  # Private stocks, private investments
+        AccountType.OTHER,   # 529 plans, other investment types
+    ]
+
     holdings_by_account_list = []
     for account in accounts:
-        if account.id in holdings_by_account and holdings_by_account[account.id]:
+        # Skip non-investment accounts
+        if account.account_type not in investment_account_types:
+            continue
+
+        # Get holdings for this account (empty list if none)
+        account_holdings = holdings_by_account.get(account.id, [])
+
+        # Use account's current_balance as the authoritative value
+        # Fall back to summing holdings if current_balance is not set
+        if account.current_balance:
+            account_total = account.current_balance
+        else:
             account_total = sum(
-                (h.current_total_value or Decimal('0')) for h in holdings_by_account[account.id]
+                (h.current_total_value or Decimal('0')) for h in account_holdings
             )
-            if account_total > 0:
-                holdings_by_account_list.append(AccountHoldings(
-                    account_id=account.id,
-                    account_name=account.name,
-                    account_type=account.account_type.value,
-                    account_value=account_total,
-                    holdings=[HoldingSchema.model_validate(h) for h in holdings_by_account[account.id]]
-                ))
+
+        holdings_by_account_list.append(AccountHoldings(
+            account_id=account.id,
+            account_name=account.name,
+            account_type=account.account_type.value,
+            account_value=account_total,
+            holdings=[HoldingSchema.model_validate(h) for h in account_holdings]
+        ))
+
+    # Sort by account value (largest first)
+    holdings_by_account_list.sort(key=lambda x: x.account_value, reverse=True)
 
     logger.info(f"Returning portfolio summary with total value: {total_value}")
     return PortfolioSummary(
@@ -942,3 +972,61 @@ async def delete_holding(
     await db.commit()
 
     return None
+
+
+@router.post("/capture-snapshot", response_model=SnapshotResponse)
+async def capture_portfolio_snapshot(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Capture a portfolio snapshot for today.
+
+    Creates or updates a snapshot of the current portfolio state.
+    Used for historical performance tracking.
+    """
+    # Get current portfolio summary
+    portfolio = await get_portfolio_summary(current_user=current_user, db=db)
+
+    # Capture snapshot
+    snapshot = await snapshot_service.capture_snapshot(
+        db=db,
+        organization_id=current_user.organization_id,
+        portfolio=portfolio,
+    )
+
+    return snapshot
+
+
+@router.get("/historical", response_model=List[SnapshotResponse])
+async def get_historical_snapshots(
+    start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
+    limit: Optional[int] = Query(None, description="Maximum number of snapshots"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get historical portfolio snapshots.
+
+    Returns snapshots ordered by date ascending for charting.
+
+    Query parameters:
+    - start_date: Start date (defaults to 1 year ago)
+    - end_date: End date (defaults to today)
+    - limit: Maximum number of snapshots to return
+    """
+    # Default to last year if no start date provided
+    if start_date is None:
+        from datetime import timedelta
+        start_date = date.today() - timedelta(days=365)
+
+    snapshots = await snapshot_service.get_snapshots(
+        db=db,
+        organization_id=current_user.organization_id,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+    )
+
+    return snapshots
