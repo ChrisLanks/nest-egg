@@ -35,7 +35,11 @@
       "Bash(kill:*)",
       "Bash(./venv/bin/python:*)",
       "Bash(ls:*)",
-      "Bash(alembic upgrade:*)"
+      "Bash(alembic upgrade:*)",
+      "Bash(python -c:*)",
+      "Bash(docker stop:*)",
+      "Bash(git restore:*)",
+      "Bash(python:*)"
     ]
   }
 }

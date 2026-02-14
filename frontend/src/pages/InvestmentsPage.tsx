@@ -37,12 +37,20 @@ import {
   MenuButton,
   MenuList,
   MenuItem,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useEffect, useMemo } from 'react';
 import { FiChevronDown, FiChevronUp, FiCalendar, FiFilter } from 'react-icons/fi';
 import api from '../services/api';
 import { AssetAllocationTreemap } from '../features/investments/components/AssetAllocationTreemap';
+import { HoldingsDetailTable } from '../features/investments/components/HoldingsDetailTable';
+import { GrowthProjectionsChart } from '../features/investments/components/GrowthProjectionsChart';
+import { SectorBreakdownChart } from '../features/investments/components/SectorBreakdownChart';
 
 interface Holding {
   id: string;
@@ -752,30 +760,85 @@ export const InvestmentsPage = () => {
           </Card>
         )}
 
-        {/* Asset Allocation Treemap */}
-        {portfolio.treemap_data && (
-          <Card>
-            <CardBody>
-              <HStack justify="space-between" mb={4}>
-                <Heading size="md">Asset Allocation</Heading>
-                <IconButton
-                  aria-label="Toggle treemap"
-                  icon={expandedSections.includes('treemap') ? <FiChevronUp /> : <FiChevronDown />}
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => toggleSection('treemap')}
-                />
-              </HStack>
-              <Collapse in={expandedSections.includes('treemap')}>
-                <AssetAllocationTreemap
-                  key={`treemap-${hiddenAccountIds.join('-')}`}
-                  data={portfolio.treemap_data}
-                  onDrillDown={handleTreemapDrillDown}
-                />
-              </Collapse>
-            </CardBody>
-          </Card>
-        )}
+        {/* Investment Analysis Tabs */}
+        <Card>
+          <CardBody>
+            <Tabs variant="enclosed" colorScheme="brand">
+              <TabList>
+                <Tab>Asset Allocation</Tab>
+                <Tab>Sector Breakdown</Tab>
+                <Tab>Future Growth</Tab>
+                <Tab>Performance Trends</Tab>
+                <Tab>Risk Analysis</Tab>
+                <Tab>Holdings Detail</Tab>
+              </TabList>
+
+              <TabPanels>
+                {/* Tab 1: Asset Allocation */}
+                <TabPanel>
+                  {portfolio.treemap_data && (
+                    <AssetAllocationTreemap
+                      key={`treemap-${hiddenAccountIds.join('-')}`}
+                      data={portfolio.treemap_data}
+                      onDrillDown={handleTreemapDrillDown}
+                    />
+                  )}
+                </TabPanel>
+
+                {/* Tab 2: Sector Breakdown */}
+                <TabPanel>
+                  <SectorBreakdownChart
+                    holdings={portfolio.holdings_by_ticker}
+                  />
+                </TabPanel>
+
+                {/* Tab 3: Future Growth Projections */}
+                <TabPanel>
+                  <GrowthProjectionsChart
+                    currentValue={portfolio.total_value}
+                  />
+                </TabPanel>
+
+                {/* Tab 4: Performance Trends (Phase 3) */}
+                <TabPanel>
+                  <Box textAlign="center" py={10} color="gray.500">
+                    <Text fontSize="lg" fontWeight="semibold" mb={2}>
+                      Performance Trends
+                    </Text>
+                    <Text>
+                      Coming in Phase 3: Historical portfolio value, YoY growth, and CAGR calculations.
+                    </Text>
+                    <Text fontSize="sm" mt={2}>
+                      Requires historical snapshot tracking infrastructure.
+                    </Text>
+                  </Box>
+                </TabPanel>
+
+                {/* Tab 5: Risk Analysis (Phase 3) */}
+                <TabPanel>
+                  <Box textAlign="center" py={10} color="gray.500">
+                    <Text fontSize="lg" fontWeight="semibold" mb={2}>
+                      Risk Analysis
+                    </Text>
+                    <Text>
+                      Coming in Phase 3: Portfolio volatility, diversification score, and risk metrics.
+                    </Text>
+                    <Text fontSize="sm" mt={2}>
+                      Requires historical data to calculate volatility and correlation.
+                    </Text>
+                  </Box>
+                </TabPanel>
+
+                {/* Tab 6: Holdings Detail */}
+                <TabPanel>
+                  <HoldingsDetailTable
+                    holdings={portfolio.holdings_by_ticker}
+                  />
+                </TabPanel>
+              </TabPanels>
+            </Tabs>
+          </CardBody>
+        </Card>
 
         {/* Holdings by Account */}
         <Card>
