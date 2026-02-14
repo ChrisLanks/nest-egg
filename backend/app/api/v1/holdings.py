@@ -73,7 +73,6 @@ async def get_portfolio_summary(
 
     if not holdings:
         # Create empty treemap for no holdings
-        from app.schemas.holding import TreemapNode, CategoryBreakdown, GeographicBreakdown
         empty_treemap = TreemapNode(
             name="Portfolio",
             value=Decimal('0'),
