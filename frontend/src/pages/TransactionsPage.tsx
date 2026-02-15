@@ -64,7 +64,7 @@ import {
 } from '@chakra-ui/react';
 import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon, DownloadIcon } from '@chakra-ui/icons';
 import { FiLock } from 'react-icons/fi';
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TransactionDetailModal } from '../components/TransactionDetailModal';
@@ -75,6 +75,8 @@ import { useInfiniteTransactions } from '../hooks/useInfiniteTransactions';
 import { useUserView } from '../contexts/UserViewContext';
 import type { Transaction } from '../types/transaction';
 import api from '../services/api';
+
+const STORAGE_KEY = 'transactions-date-range';
 
 // Helper to get default date range (this month)
 const getDefaultDateRange = (): DateRange => {
@@ -87,6 +89,19 @@ const getDefaultDateRange = (): DateRange => {
   };
 };
 
+// Helper to load date range from localStorage
+const loadDateRange = (): DateRange => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (error) {
+    console.error('Failed to load date range from localStorage:', error);
+  }
+  return getDefaultDateRange();
+};
+
 type SortField = 'date' | 'merchant_name' | 'amount' | 'category_primary' | 'account_name' | 'labels' | 'status';
 type SortDirection = 'asc' | 'desc';
 
@@ -96,7 +111,7 @@ export const TransactionsPage = () => {
   const [isRuleBuilderOpen, setIsRuleBuilderOpen] = useState(false);
   const [ruleTransaction, setRuleTransaction] = useState<Transaction | null>(null);
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
-  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
+  const [dateRange, setDateRange] = useState<DateRange>(loadDateRange());
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -128,6 +143,15 @@ export const TransactionsPage = () => {
   });
 
   const monthlyStartDay = orgPrefs?.monthly_start_day || 1;
+
+  // Persist date range to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(dateRange));
+    } catch (error) {
+      console.error('Failed to save date range to localStorage:', error);
+    }
+  }, [dateRange]);
 
   // Fetch available labels
   const { data: availableLabels = [] } = useQuery({
@@ -727,7 +751,11 @@ export const TransactionsPage = () => {
           </InputGroup>
 
           <HStack spacing={2}>
-            <DateRangePicker value={dateRange} onChange={setDateRange} />
+            <DateRangePicker
+              value={dateRange}
+              onChange={setDateRange}
+              customMonthStartDay={monthlyStartDay}
+            />
 
             {/* Columns Menu */}
             <Menu closeOnSelect={false}>
