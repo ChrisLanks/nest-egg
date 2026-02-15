@@ -113,6 +113,7 @@ export const TransactionsPage = () => {
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [dateRange, setDateRange] = useState<DateRange>(loadDateRange());
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [showStatusColumn, setShowStatusColumn] = useState(false);
@@ -152,6 +153,15 @@ export const TransactionsPage = () => {
       console.error('Failed to save date range to localStorage:', error);
     }
   }, [dateRange]);
+
+  // Debounce search query (300ms delay)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Fetch available labels
   const { data: availableLabels = [] } = useQuery({
@@ -376,13 +386,13 @@ export const TransactionsPage = () => {
 
     let filtered = [...allTransactions];
 
-    // Filter by search query with intelligent parsing
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    // Filter by search query with intelligent parsing (debounced)
+    if (debouncedSearchQuery) {
+      const query = debouncedSearchQuery.toLowerCase();
 
       // Parse special search syntax: labels:<x,y>, category:<x,y>, account:<x,y>
-      // Support both quoted strings (with spaces) and unquoted strings (no spaces)
-      const labelsMatch = query.match(/labels?:((?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*)/i);
+      // Support both quoted strings (with spaces), unquoted strings (no spaces), and empty quotes
+      const labelsMatch = query.match(/labels?:((?:"[^"]*"|[^\s,]+)(?:,(?:"[^"]*"|[^\s,]+))*)/i);
       const categoryMatch = query.match(/categor(?:y|ies):((?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*)/i);
       const accountMatch = query.match(/accounts?:((?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*)/i);
 
@@ -409,10 +419,20 @@ export const TransactionsPage = () => {
         // Check labels filter
         if (labelsMatch) {
           const labelNames = parseValues(labelsMatch[1]);
-          const hasMatchingLabel = txn.labels?.some((label) =>
-            labelNames.some(ln => label.name.toLowerCase().includes(ln))
-          );
-          if (!hasMatchingLabel) return false;
+
+          // Check if searching for empty labels (labels:"")
+          const searchingForEmpty = labelNames.includes('');
+
+          if (searchingForEmpty) {
+            // Empty label search: transaction must have no labels
+            if (txn.labels && txn.labels.length > 0) return false;
+          } else {
+            // Normal label search: transaction must have at least one matching label
+            const hasMatchingLabel = txn.labels?.some((label) =>
+              labelNames.some(ln => label.name.toLowerCase().includes(ln))
+            );
+            if (!hasMatchingLabel) return false;
+          }
         }
 
         // Check category filter
@@ -499,7 +519,7 @@ export const TransactionsPage = () => {
     });
 
     return filtered;
-  }, [allTransactions, searchQuery, sortField, sortDirection]);
+  }, [allTransactions, debouncedSearchQuery, sortField, sortDirection]);
 
   // Group transactions by custom month periods based on monthly_start_day
   const transactionsByMonth = useMemo(() => {
