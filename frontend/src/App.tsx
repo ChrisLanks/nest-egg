@@ -25,13 +25,15 @@ import SavingsGoalsPage from './pages/SavingsGoalsPage';
 import RecurringTransactionsPage from './pages/RecurringTransactionsPage';
 import { HouseholdSettingsPage } from './pages/HouseholdSettingsPage';
 import { AcceptInvitationPage } from './pages/AcceptInvitationPage';
+import { UserViewProvider } from './contexts/UserViewContext';
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ChakraProvider theme={theme}>
         <BrowserRouter>
-          <Routes>
+          <UserViewProvider>
+            <Routes>
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
@@ -62,6 +64,7 @@ function App() {
             {/* Catch all - redirect to dashboard */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
+          </UserViewProvider>
         </BrowserRouter>
       </ChakraProvider>
     </QueryClientProvider>

@@ -35,6 +35,8 @@ import { useLogout } from '../features/auth/hooks/useAuth';
 import api from '../services/api';
 import { AddAccountModal } from '../features/accounts/components/AddAccountModal';
 import NotificationBell from '../features/notifications/components/NotificationBell';
+import { UserViewToggle } from './UserViewToggle';
+import { useUserView } from '../contexts/UserViewContext';
 
 interface Account {
   id: string;
@@ -42,6 +44,7 @@ interface Account {
   account_type: string;
   current_balance: number;
   balance_as_of: string | null;
+  user_id: string;
 }
 
 interface NavItemProps {
@@ -68,9 +71,11 @@ const TopNavItem = ({ label, isActive, onClick }: Omit<NavItemProps, 'icon' | 'p
 interface AccountItemProps {
   account: Account;
   onAccountClick: (accountId: string) => void;
+  userColor?: string;
+  currentUserId?: string;
 }
 
-const AccountItem = ({ account, onAccountClick }: AccountItemProps) => {
+const AccountItem = ({ account, onAccountClick, userColor, currentUserId }: AccountItemProps) => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -98,17 +103,21 @@ const AccountItem = ({ account, onAccountClick }: AccountItemProps) => {
 
   const balance = Number(account.current_balance);
   const isNegative = balance < 0;
+  const isOwnedByCurrentUser = account.user_id === currentUserId;
 
   return (
     <Box
       px={3}
       py={1}
       ml={5}
-      _hover={{ bg: 'gray.50' }}
+      bg={userColor}
+      _hover={{ bg: userColor ? userColor : 'gray.50', opacity: 0.8 }}
       cursor="pointer"
       borderRadius="md"
       transition="all 0.2s"
       onClick={() => onAccountClick(account.id)}
+      borderLeftWidth={isOwnedByCurrentUser ? 3 : 0}
+      borderLeftColor="brand.500"
     >
       <HStack justify="space-between" align="center" spacing={2}>
         <VStack align="start" spacing={0} flex={1} minW={0}>
@@ -156,6 +165,7 @@ export const Layout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuthStore();
+  const { selectedUserId, isCombinedView } = useUserView();
   const logoutMutation = useLogout();
   const { isOpen: isAddAccountOpen, onOpen: onAddAccountOpen, onClose: onAddAccountClose } = useDisclosure();
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -179,23 +189,42 @@ export const Layout = () => {
     { label: 'Recurring', path: '/recurring' },
   ];
 
-  // Fetch accounts
+  // Fetch accounts with user filtering
   const { data: accounts, isLoading: accountsLoading } = useQuery<Account[]>({
-    queryKey: ['accounts'],
+    queryKey: ['accounts', selectedUserId],
     queryFn: async () => {
-      const response = await api.get('/accounts');
+      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const response = await api.get('/accounts', { params });
       return response.data;
     },
   });
 
-  // Fetch dashboard summary for net worth (all accounts)
+  // Fetch dashboard summary for net worth (filtered by user)
   const { data: dashboardSummary } = useQuery({
-    queryKey: ['dashboard-summary'],
+    queryKey: ['dashboard-summary', selectedUserId],
     queryFn: async () => {
-      const response = await api.get('/dashboard/summary');
+      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const response = await api.get('/dashboard/summary', { params });
       return response.data;
     },
   });
+
+  // Fetch household members for color coding
+  const { data: members } = useQuery({
+    queryKey: ['household-members'],
+    queryFn: async () => {
+      const response = await api.get('/household/members');
+      return response.data;
+    },
+  });
+
+  // Assign colors to users for visual distinction in combined view
+  const userColors = ['blue.50', 'green.50', 'purple.50', 'orange.50', 'pink.50'];
+  const getUserColor = (userId: string): string | undefined => {
+    if (!isCombinedView || !members) return undefined;
+    const memberIndex = members.findIndex((m: any) => m.id === userId);
+    return memberIndex >= 0 ? userColors[memberIndex % userColors.length] : undefined;
+  };
 
   // Group accounts by type
   const groupedAccounts = accounts?.reduce((acc, account) => {
@@ -329,8 +358,9 @@ export const Layout = () => {
             </HStack>
           </HStack>
 
-          {/* Right: Notification Bell and User Menu */}
-          <HStack spacing={2}>
+          {/* Right: User View Toggle, Notification Bell and User Menu */}
+          <HStack spacing={4}>
+            <UserViewToggle />
             <NotificationBell />
 
             <Menu>
@@ -453,6 +483,8 @@ export const Layout = () => {
                             key={account.id}
                             account={account}
                             onAccountClick={handleAccountClick}
+                            userColor={getUserColor(account.user_id)}
+                            currentUserId={user?.id}
                           />
                         ))}
                       </VStack>

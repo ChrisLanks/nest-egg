@@ -31,12 +31,11 @@ import {
   ButtonGroup,
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../features/auth/stores/authStore';
+import { useUserView } from '../contexts/UserViewContext';
 import api from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { useState, useMemo } from 'react';
-import { UserViewSelector } from '../components/UserViewSelector';
 
 interface DashboardData {
   summary: {
@@ -85,18 +84,7 @@ interface HistoricalSnapshot {
 
 export const DashboardPage = () => {
   const { user } = useAuthStore();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const selectedUserId = searchParams.get('user') || null;
-
-  const handleUserChange = (userId: string | null) => {
-    if (userId) {
-      searchParams.set('user', userId);
-    } else {
-      searchParams.delete('user');
-    }
-    setSearchParams(searchParams);
-  };
-
+  const { selectedUserId } = useUserView();
   const [timeRange, setTimeRange] = useState<'1M' | '3M' | '6M' | '1Y' | 'ALL'>('1Y');
 
   const { data: dashboardData, isLoading } = useQuery({
@@ -182,19 +170,10 @@ export const DashboardPage = () => {
       <VStack spacing={8} align="stretch">
         {/* Header */}
         <Box>
-          <HStack justify="space-between" align="start">
-            <Box>
-              <Heading size="lg">Welcome back, {user?.first_name || 'User'}!</Heading>
-              <Text color="gray.600" mt={2}>
-                Here's your financial overview
-              </Text>
-            </Box>
-            <UserViewSelector
-              currentUserId={selectedUserId}
-              onUserChange={handleUserChange}
-              size="sm"
-            />
-          </HStack>
+          <Heading size="lg">Welcome back, {user?.first_name || 'User'}!</Heading>
+          <Text color="gray.600" mt={2}>
+            Here's your financial overview
+          </Text>
         </Box>
 
         {/* Summary Cards */}

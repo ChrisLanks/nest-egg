@@ -47,17 +47,16 @@ import {
 } from '@chakra-ui/react';
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
 import { ChevronRightIcon, ChevronUpIcon, ChevronDownIcon } from '@chakra-ui/icons';
 import { IoBarChart, IoPieChart } from 'react-icons/io5';
 import api from '../../../services/api';
+import { useUserView } from '../../../contexts/UserViewContext';
 import { DateRangePicker } from '../../../components/DateRangePicker';
 import type { DateRange } from '../../../components/DateRangePicker';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import type { Transaction } from '../../../types/transaction';
 import { TransactionDetailModal } from '../../../components/TransactionDetailModal';
 import { RuleBuilderModal } from '../../../components/RuleBuilderModal';
-import { UserViewSelector } from '../../../components/UserViewSelector';
 
 interface CategoryBreakdown {
   category: string;
@@ -100,18 +99,8 @@ const COLORS = [
 ];
 
 export const IncomeExpensesPage = () => {
-  // URL state management for user filter
-  const [searchParams, setSearchParams] = useSearchParams();
-  const selectedUserId = searchParams.get('user') || null;
-
-  const handleUserChange = (userId: string | null) => {
-    if (userId) {
-      searchParams.set('user', userId);
-    } else {
-      searchParams.delete('user');
-    }
-    setSearchParams(searchParams);
-  };
+  // Use global user view context
+  const { selectedUserId } = useUserView();
 
   // Utility functions defined first to avoid hoisting issues
   const formatCurrency = (amount: number) => {
@@ -1088,14 +1077,7 @@ export const IncomeExpensesPage = () => {
         {/* Header with Date Range Picker */}
         <HStack justify="space-between" align="start">
           <Box>
-            <HStack spacing={4} mb={2}>
-              <Heading size="lg">Cash Flow</Heading>
-              <UserViewSelector
-                currentUserId={selectedUserId}
-                onUserChange={handleUserChange}
-                size="sm"
-              />
-            </HStack>
+            <Heading size="lg" mb={2}>Cash Flow</Heading>
             <Text color="gray.600">
               Analyze your income sources and spending patterns
             </Text>

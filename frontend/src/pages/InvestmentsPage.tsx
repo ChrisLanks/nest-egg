@@ -45,9 +45,9 @@ import {
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { FiChevronDown, FiChevronUp, FiFilter } from 'react-icons/fi';
 import api from '../services/api';
+import { useUserView } from '../contexts/UserViewContext';
 import { AssetAllocationTreemap } from '../features/investments/components/AssetAllocationTreemap';
 import { HoldingsDetailTable } from '../features/investments/components/HoldingsDetailTable';
 import { GrowthProjectionsChart } from '../features/investments/components/GrowthProjectionsChart';
@@ -56,7 +56,6 @@ import PerformanceTrendsChart from '../features/investments/components/Performan
 import RiskAnalysisPanel from '../features/investments/components/RiskAnalysisPanel';
 import StyleBoxModal from '../features/investments/components/StyleBoxModal';
 import { RMDAlert } from '../features/investments/components/RMDAlert';
-import { UserViewSelector } from '../components/UserViewSelector';
 
 interface Holding {
   id: string;
@@ -141,18 +140,8 @@ interface PortfolioSummary {
 }
 
 export const InvestmentsPage = () => {
-  // URL state management for user filter
-  const [searchParams, setSearchParams] = useSearchParams();
-  const selectedUserId = searchParams.get('user') || null;
-
-  const handleUserChange = (userId: string | null) => {
-    if (userId) {
-      searchParams.set('user', userId);
-    } else {
-      searchParams.delete('user');
-    }
-    setSearchParams(searchParams);
-  };
+  // Use global user view context
+  const { selectedUserId } = useUserView();
 
   // Drilled-down treemap node
   const [selectedNode, setSelectedNode] = useState<TreemapNode | null>(null);
@@ -412,16 +401,7 @@ export const InvestmentsPage = () => {
     return (
       <Container maxW="container.lg" py={8}>
         <VStack spacing={6} align="stretch">
-          <HStack justify="space-between">
-            <HStack spacing={4}>
-              <Heading size="lg">Investments</Heading>
-              <UserViewSelector
-                currentUserId={selectedUserId}
-                onUserChange={handleUserChange}
-                size="sm"
-              />
-            </HStack>
-          </HStack>
+          <Heading size="lg">Investments</Heading>
           <Card>
             <CardBody>
               <VStack spacing={4}>
@@ -444,14 +424,7 @@ export const InvestmentsPage = () => {
       <VStack spacing={6} align="stretch">
         {/* Header with Date Filter and Category Toggles */}
         <HStack justify="space-between" align="flex-start">
-          <HStack spacing={4}>
-            <Heading size="lg">Investments</Heading>
-            <UserViewSelector
-              currentUserId={selectedUserId}
-              onUserChange={handleUserChange}
-              size="sm"
-            />
-          </HStack>
+          <Heading size="lg">Investments</Heading>
           <HStack spacing={4}>
             {/* Account Filter */}
             {allAccounts && allAccounts.length > 0 && (
