@@ -1,11 +1,11 @@
 /**
  * User View Toggle Component
  *
- * Button group to switch between Combined, Self, and other household members.
- * Replaces the dropdown selector with a more prominent toggle UI.
+ * Dropdown to switch between Combined, Self, and other household members.
+ * Provides a scalable UI for households with multiple users.
  */
 
-import { ButtonGroup, Button, HStack, Text, Spinner } from '@chakra-ui/react';
+import { Select, HStack, Text, Spinner } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../features/auth/stores/authStore';
 import { useUserView } from '../contexts/UserViewContext';
@@ -23,7 +23,7 @@ interface HouseholdMember {
 
 export const UserViewToggle = () => {
   const { user } = useAuthStore();
-  const { selectedUserId, setSelectedUserId, isCombinedView, isSelfView } = useUserView();
+  const { selectedUserId, setSelectedUserId } = useUserView();
 
   // Fetch household members
   const { data: members, isLoading } = useQuery<HouseholdMember[]>({
@@ -45,12 +45,6 @@ export const UserViewToggle = () => {
 
   // Format display name for a member
   const getDisplayName = (member: HouseholdMember): string => {
-    // For current user, always show "Self"
-    if (member.id === user?.id) {
-      return 'Self';
-    }
-
-    // For others, use their name
     if (member.display_name) return member.display_name;
     if (member.first_name && member.last_name) {
       return `${member.first_name} ${member.last_name}`;
@@ -59,51 +53,43 @@ export const UserViewToggle = () => {
     return member.email.split('@')[0];
   };
 
-  // Find other members (not current user)
-  const otherMembers = members?.filter(m => m.id !== user?.id) || [];
+  // Determine current selection value for the dropdown
+  const getCurrentValue = (): string => {
+    if (!selectedUserId) return 'combined';
+    if (selectedUserId === user?.id) return 'self';
+    return selectedUserId;
+  };
+
+  const handleChange = (value: string) => {
+    if (value === 'combined') {
+      setSelectedUserId(null);
+    } else if (value === 'self') {
+      setSelectedUserId(user?.id || null);
+    } else {
+      setSelectedUserId(value);
+    }
+  };
 
   return (
-    <HStack spacing={3} align="center">
+    <HStack spacing={2} align="center">
       <Text fontSize="sm" fontWeight="medium" color="gray.600">
         View:
       </Text>
-      <ButtonGroup size="sm" isAttached variant="outline">
-        {/* Combined Button */}
-        <Button
-          onClick={() => setSelectedUserId(null)}
-          colorScheme={isCombinedView ? 'brand' : 'gray'}
-          variant={isCombinedView ? 'solid' : 'outline'}
-          fontWeight={isCombinedView ? 'semibold' : 'normal'}
-        >
-          Combined
-        </Button>
-
-        {/* Self Button */}
-        <Button
-          onClick={() => setSelectedUserId(user?.id || null)}
-          colorScheme={isSelfView ? 'brand' : 'gray'}
-          variant={isSelfView ? 'solid' : 'outline'}
-          fontWeight={isSelfView ? 'semibold' : 'normal'}
-        >
-          Self
-        </Button>
-
-        {/* Other Members Buttons */}
-        {otherMembers.map((member) => {
-          const isSelected = selectedUserId === member.id;
-          return (
-            <Button
-              key={member.id}
-              onClick={() => setSelectedUserId(member.id)}
-              colorScheme={isSelected ? 'brand' : 'gray'}
-              variant={isSelected ? 'solid' : 'outline'}
-              fontWeight={isSelected ? 'semibold' : 'normal'}
-            >
-              {getDisplayName(member)}
-            </Button>
-          );
-        })}
-      </ButtonGroup>
+      <Select
+        value={getCurrentValue()}
+        onChange={(e) => handleChange(e.target.value)}
+        size="sm"
+        width="200px"
+        bg="white"
+      >
+        <option value="combined">Combined Household</option>
+        <option value="self">Self</option>
+        {members?.filter(m => m.id !== user?.id).map((member) => (
+          <option key={member.id} value={member.id}>
+            {getDisplayName(member)}
+          </option>
+        ))}
+      </Select>
     </HStack>
   );
 };

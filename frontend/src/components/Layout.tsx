@@ -27,7 +27,7 @@ import {
   ChevronRightIcon,
 } from '@chakra-ui/icons';
 import { FiSettings, FiLogOut, FiUsers } from 'react-icons/fi';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useAuthStore } from '../features/auth/stores/authStore';
@@ -164,11 +164,22 @@ const accountTypeConfig: Record<string, { label: string; order: number }> = {
 export const Layout = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
   const { selectedUserId, isCombinedView } = useUserView();
   const logoutMutation = useLogout();
   const { isOpen: isAddAccountOpen, onOpen: onAddAccountOpen, onClose: onAddAccountClose } = useDisclosure();
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  // Navigation helper that preserves query params
+  const navigateWithParams = (path: string) => {
+    const currentUser = searchParams.get('user');
+    if (currentUser) {
+      navigate(`${path}?user=${currentUser}`);
+    } else {
+      navigate(path);
+    }
+  };
 
   const navItems = [
     { label: 'Overview', path: '/dashboard' },
@@ -256,7 +267,7 @@ export const Layout = () => {
   };
 
   const handleAccountClick = (accountId: string) => {
-    navigate(`/accounts/${accountId}`);
+    navigateWithParams(`/accounts/${accountId}`);
   };
 
   const toggleSection = (sectionName: string) => {
@@ -300,7 +311,7 @@ export const Layout = () => {
                   key={item.path}
                   label={item.label}
                   isActive={location.pathname === item.path}
-                  onClick={() => navigate(item.path)}
+                  onClick={() => navigateWithParams(item.path)}
                 />
               ))}
 
@@ -320,7 +331,7 @@ export const Layout = () => {
                   {cashFlowMenuItems.map((item) => (
                     <MenuItem
                       key={item.path}
-                      onClick={() => navigate(item.path)}
+                      onClick={() => navigateWithParams(item.path)}
                       fontWeight={location.pathname === item.path ? 'semibold' : 'normal'}
                       bg={location.pathname === item.path ? 'brand.50' : 'transparent'}
                     >
@@ -346,7 +357,7 @@ export const Layout = () => {
                   {transactionsMenuItems.map((item) => (
                     <MenuItem
                       key={item.path}
-                      onClick={() => navigate(item.path)}
+                      onClick={() => navigateWithParams(item.path)}
                       fontWeight={location.pathname === item.path ? 'semibold' : 'normal'}
                       bg={location.pathname === item.path ? 'brand.50' : 'transparent'}
                     >
@@ -387,10 +398,10 @@ export const Layout = () => {
               </HStack>
             </MenuButton>
             <MenuList>
-              <MenuItem icon={<FiUsers />} onClick={() => navigate('/household')}>
+              <MenuItem icon={<FiUsers />} onClick={() => navigateWithParams('/household')}>
                 Household Settings
               </MenuItem>
-              <MenuItem icon={<FiSettings />} onClick={() => navigate('/preferences')}>
+              <MenuItem icon={<FiSettings />} onClick={() => navigateWithParams('/preferences')}>
                 Preferences
               </MenuItem>
               <MenuItem icon={<FiLogOut />} onClick={handleLogout} color="red.600">
