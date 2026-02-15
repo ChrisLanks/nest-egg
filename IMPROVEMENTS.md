@@ -66,8 +66,8 @@ async def get_verified_account(
 ### Files Updated
 - ✅ `backend/app/dependencies.py` - Added `get_verified_account`
 - ✅ `backend/app/api/v1/contributions.py` - Updated 2 endpoints
-- ⏳ `backend/app/api/v1/accounts.py` - Pending (2 endpoints)
-- ⏳ `backend/app/api/v1/holdings.py` - Pending (1 endpoint)
+- ✅ `backend/app/api/v1/accounts.py` - Updated 2 endpoints
+- ✅ `backend/app/api/v1/holdings.py` - Updated 1 endpoint
 
 ---
 
@@ -105,7 +105,7 @@ utc_now_lambda = lambda: datetime.now(timezone.utc)
 ### Files Updated
 - ✅ `backend/app/utils/datetime_utils.py` - Created utility module
 - ✅ `backend/app/models/contribution.py` - Updated timestamps
-- ⏳ **18 more files** need updating (see appendix)
+- ✅ **All model files** updated (8 files total)
 
 ---
 
