@@ -40,7 +40,7 @@ import {
   AlertDialogOverlay,
   AlertDialogCloseButton,
 } from '@chakra-ui/react';
-import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon } from '@chakra-ui/icons';
+import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon, DownloadIcon } from '@chakra-ui/icons';
 import { FiLock } from 'react-icons/fi';
 import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -402,6 +402,43 @@ export const TransactionsPage = () => {
     setBulkActionType(null);
   };
 
+  const handleExportCSV = async () => {
+    try {
+      const params = new URLSearchParams({
+        start_date: dateRange.start,
+        end_date: dateRange.end,
+      });
+
+      const response = await api.get(`/transactions/export/csv?${params.toString()}`, {
+        responseType: 'blob',
+      });
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `transactions_${dateRange.start}_to_${dateRange.end}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: 'Export successful',
+        description: `${processedTransactions.length} transactions exported`,
+        status: 'success',
+        duration: 3000,
+      });
+    } catch (error) {
+      toast({
+        title: 'Export failed',
+        description: 'Failed to export transactions',
+        status: 'error',
+        duration: 5000,
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <Center h="100vh">
@@ -457,6 +494,15 @@ export const TransactionsPage = () => {
           </Box>
           <HStack spacing={2}>
             <DateRangePicker value={dateRange} onChange={setDateRange} />
+            <Button
+              leftIcon={<DownloadIcon />}
+              variant="outline"
+              onClick={handleExportCSV}
+              size="sm"
+              colorScheme="green"
+            >
+              Export CSV
+            </Button>
             <Button
               variant="ghost"
               onClick={() => navigate('/categories')}

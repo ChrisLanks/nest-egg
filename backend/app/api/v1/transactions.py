@@ -5,8 +5,11 @@ from uuid import UUID
 from datetime import date, datetime
 import base64
 import json
+import csv
+from io import StringIO
 
 from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select, func, and_, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -408,3 +411,101 @@ async def remove_label_from_transaction(
     if txn_label:
         await db.delete(txn_label)
         await db.commit()
+
+
+@router.get("/export/csv")
+async def export_transactions_csv(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    account_id: Optional[UUID] = Query(None, description="Filter by account"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Export transactions as CSV file.
+
+    Returns all transactions matching the filters in CSV format suitable for
+    spreadsheet applications, tax software, or archival purposes.
+    """
+    # Build query
+    query = select(Transaction).options(
+        joinedload(Transaction.account),
+        joinedload(Transaction.category),
+        joinedload(Transaction.labels).joinedload(TransactionLabel.label),
+    ).where(
+        Transaction.organization_id == current_user.organization_id
+    ).order_by(Transaction.date.desc(), Transaction.created_at.desc())
+
+    # Apply filters
+    if start_date:
+        query = query.where(Transaction.date >= datetime.fromisoformat(start_date).date())
+    if end_date:
+        query = query.where(Transaction.date <= datetime.fromisoformat(end_date).date())
+    if account_id:
+        query = query.where(Transaction.account_id == account_id)
+
+    # Execute query
+    result = await db.execute(query)
+    transactions = result.unique().scalars().all()
+
+    # Create CSV in memory
+    output = StringIO()
+    writer = csv.writer(output)
+
+    # Write header
+    writer.writerow([
+        'Date',
+        'Merchant',
+        'Description',
+        'Category',
+        'Labels',
+        'Amount',
+        'Account',
+        'Account Number',
+        'Is Pending',
+        'Is Transfer',
+        'Transaction ID',
+    ])
+
+    # Write data rows
+    for txn in transactions:
+        # Format labels as comma-separated list
+        labels_str = ', '.join([label.label.name for label in txn.labels]) if txn.labels else ''
+
+        # Format category (use custom category if available, otherwise Plaid category)
+        category_str = txn.category.name if txn.category else (txn.category_primary or '')
+
+        writer.writerow([
+            txn.date.isoformat(),
+            txn.merchant_name or '',
+            txn.description or '',
+            category_str,
+            labels_str,
+            float(txn.amount),
+            txn.account.name if txn.account else '',
+            f"****{txn.account.mask}" if txn.account and txn.account.mask else '',
+            'Yes' if txn.is_pending else 'No',
+            'Yes' if txn.is_transfer else 'No',
+            str(txn.id),
+        ])
+
+    # Prepare response
+    output.seek(0)
+
+    # Generate filename with date range
+    filename = 'transactions'
+    if start_date and end_date:
+        filename = f'transactions_{start_date}_to_{end_date}'
+    elif start_date:
+        filename = f'transactions_from_{start_date}'
+    elif end_date:
+        filename = f'transactions_until_{end_date}'
+    filename += '.csv'
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type='text/csv',
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"'
+        }
+    )
