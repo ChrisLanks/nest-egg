@@ -14,18 +14,22 @@ import {
   Spinner,
   Center,
   Badge,
+  Tooltip,
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
+import { FiLock } from 'react-icons/fi';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { budgetsApi } from '../api/budgets';
 import type { Budget } from '../types/budget';
 import BudgetCard from '../features/budgets/components/BudgetCard';
 import BudgetForm from '../features/budgets/components/BudgetForm';
+import { useUserView } from '../contexts/UserViewContext';
 
 export default function BudgetsPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
+  const { canEdit, isOtherUserView } = useUserView();
 
   // Get all budgets
   const { data: budgets = [], isLoading } = useQuery({
@@ -62,9 +66,20 @@ export default function BudgetsPage() {
               Track spending and stay within your budget goals
             </Text>
           </VStack>
-          <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={handleCreate}>
-            New Budget
-          </Button>
+          <Tooltip
+            label={!canEdit ? "Read-only: You can only create budgets for your own data" : ""}
+            placement="top"
+            isDisabled={canEdit}
+          >
+            <Button
+              leftIcon={canEdit ? <AddIcon /> : <FiLock />}
+              colorScheme="blue"
+              onClick={handleCreate}
+              isDisabled={!canEdit}
+            >
+              New Budget
+            </Button>
+          </Tooltip>
         </HStack>
 
         {/* Loading state */}
@@ -79,11 +94,15 @@ export default function BudgetsPage() {
           <Center py={12}>
             <VStack spacing={4}>
               <Text fontSize="lg" color="gray.500">
-                No budgets yet
+                {isOtherUserView
+                  ? "This user has no budgets yet"
+                  : "No budgets yet"}
               </Text>
-              <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={handleCreate}>
-                Create Your First Budget
-              </Button>
+              {!isOtherUserView && (
+                <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={handleCreate}>
+                  Create Your First Budget
+                </Button>
+              )}
             </VStack>
           </Center>
         )}

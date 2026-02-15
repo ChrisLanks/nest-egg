@@ -1420,12 +1420,9 @@ async def get_rmd_summary(
         )
         target_user = result.scalar_one()
 
-        # Check if user has birthdate
+        # Check if user has birthdate - if not, return null (RMD should not be displayed)
         if not target_user.birthdate:
-            raise HTTPException(
-                status_code=400,
-                detail="Birthdate not set. Please update your profile to use RMD calculations."
-            )
+            return None
 
         # Calculate user's current age
         user_age = calculate_age(target_user.birthdate)
@@ -1501,11 +1498,9 @@ async def get_rmd_summary(
         )
         household_members = result.scalars().all()
 
+        # If no household members have birthdates, return null (RMD should not be displayed)
         if not household_members:
-            raise HTTPException(
-                status_code=400,
-                detail="No household members with birthdates set. Please update profiles to use RMD calculations."
-            )
+            return None
 
         # Calculate combined RMD across all members
         total_required = Decimal('0')

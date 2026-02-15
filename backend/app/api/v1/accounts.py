@@ -40,8 +40,9 @@ async def list_accounts(
         await verify_household_member(db, user_id, current_user.organization_id)
         accounts = await get_user_accounts(db, user_id, current_user.organization_id)
     else:
+        # Combined view: Return ALL accounts without deduplication
+        # Frontend will handle deduplication and marking shared accounts
         accounts = await get_all_household_accounts(db, current_user.organization_id)
-        accounts = deduplication_service.deduplicate_accounts(accounts)
 
     # Filter hidden accounts if requested
     if not include_hidden:
@@ -68,6 +69,14 @@ async def create_manual_account(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a manual account."""
+    # Generate hash for deduplication across household members
+    plaid_item_hash = deduplication_service.calculate_manual_account_hash(
+        account_type=account_data.account_type,
+        institution_name=account_data.institution,
+        mask=account_data.account_number_last4,
+        name=account_data.name
+    )
+
     # Create the account
     account = Account(
         organization_id=current_user.organization_id,
@@ -78,6 +87,7 @@ async def create_manual_account(
         institution_name=account_data.institution,
         mask=account_data.account_number_last4,
         current_balance=account_data.balance,
+        plaid_item_hash=plaid_item_hash,
         is_manual=True,
         is_active=True,
     )

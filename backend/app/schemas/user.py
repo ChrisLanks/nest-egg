@@ -29,6 +29,7 @@ class UserUpdate(BaseModel):
     last_name: Optional[str] = None
     display_name: Optional[str] = None
     email: Optional[EmailStr] = None
+    birth_year: Optional[int] = None
 
 
 class UserInDB(UserBase):

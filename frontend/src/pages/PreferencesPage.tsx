@@ -29,6 +29,7 @@ interface UserProfile {
   first_name: string | null;
   last_name: string | null;
   display_name: string | null;
+  birth_year: number | null;
   is_org_admin: boolean;
 }
 
@@ -45,6 +46,7 @@ interface UpdateProfileData {
   last_name?: string;
   display_name?: string;
   email?: string;
+  birth_year?: number | null;
 }
 
 interface UpdateOrgData {
@@ -70,6 +72,7 @@ export default function PreferencesPage() {
   const [lastName, setLastName] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
+  const [birthYear, setBirthYear] = useState<number | null>(null);
 
   // Password state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -89,6 +92,7 @@ export default function PreferencesPage() {
       setLastName(data.last_name || '');
       setDisplayName(data.display_name || '');
       setEmail(data.email || '');
+      setBirthYear(data.birth_year || null);
       return data;
     },
   });
@@ -184,6 +188,7 @@ export default function PreferencesPage() {
       last_name: lastName,
       display_name: displayName,
       email: email,
+      birth_year: birthYear,
     });
   };
 
@@ -276,6 +281,25 @@ export default function PreferencesPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
               />
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>Birth Year</FormLabel>
+              <NumberInput
+                value={birthYear || ''}
+                onChange={(_, value) => setBirthYear(isNaN(value) ? null : value)}
+                min={1900}
+                max={new Date().getFullYear()}
+              >
+                <NumberInputField placeholder="e.g., 1980" />
+                <NumberInputStepper>
+                  <NumberIncrementStepper />
+                  <NumberDecrementStepper />
+                </NumberInputStepper>
+              </NumberInput>
+              <FormHelperText>
+                Used for RMD (Required Minimum Distribution) calculations. Leave blank to hide RMD.
+              </FormHelperText>
             </FormControl>
 
             <Button

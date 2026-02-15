@@ -21,8 +21,10 @@ from app.schemas.plaid import (
 )
 from app.services.plaid_service import PlaidService
 from app.services.notification_service import notification_service
+from app.services.deduplication_service import DeduplicationService
 
 router = APIRouter()
+deduplication_service = DeduplicationService()
 
 
 @router.post("/link-token", response_model=LinkTokenCreateResponse)
@@ -97,6 +99,12 @@ async def exchange_public_token(
                 plaid_account.get("subtype"),
             )
 
+            # Generate hash for deduplication across household members
+            plaid_item_hash = deduplication_service.calculate_plaid_hash(
+                plaid_item.item_id,
+                plaid_account["account_id"]
+            )
+
             account = Account(
                 organization_id=current_user.organization_id,
                 user_id=current_user.id,
@@ -107,7 +115,7 @@ async def exchange_public_token(
                 account_source="plaid",
                 institution_name=request.institution_name or "Unknown Institution",
                 mask=plaid_account.get("mask"),
-                official_name=plaid_account.get("official_name"),
+                plaid_item_hash=plaid_item_hash,
                 current_balance=plaid_account.get("current_balance"),
                 available_balance=plaid_account.get("available_balance"),
                 limit=plaid_account.get("limit"),

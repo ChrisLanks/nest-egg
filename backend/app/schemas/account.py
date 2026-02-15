@@ -82,6 +82,7 @@ class AccountSummary(BaseModel):
     """Account summary for lists."""
 
     id: UUID
+    user_id: UUID
     name: str
     account_type: AccountType
     property_type: Optional[PropertyType] = None  # For PROPERTY accounts only
@@ -89,5 +90,6 @@ class AccountSummary(BaseModel):
     mask: Optional[str] = None
     current_balance: Optional[Decimal] = None
     is_active: bool
+    plaid_item_hash: Optional[str] = None  # For duplicate detection
 
     model_config = {"from_attributes": True}

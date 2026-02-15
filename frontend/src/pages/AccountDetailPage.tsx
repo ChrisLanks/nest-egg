@@ -41,7 +41,7 @@ import {
   Tooltip,
 } from '@chakra-ui/react';
 import { FiEdit2, FiCheck, FiX, FiLock } from 'react-icons/fi';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import api from '../services/api';
@@ -52,6 +52,7 @@ import { ContributionsManager } from '../features/accounts/components/Contributi
 
 interface Account {
   id: string;
+  user_id: string;
   name: string;
   account_type: string;
   account_source: string;
@@ -60,7 +61,7 @@ interface Account {
   institution_name: string | null;
   mask: string | null;
   is_active: boolean;
-  user_id: string;
+  plaid_item_hash: string | null;
 }
 
 const accountTypeLabels: Record<string, string> = {
@@ -88,6 +89,9 @@ export const AccountDetailPage = () => {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const { isOtherUserView, canEdit } = useUserView();
+  const [searchParams] = useSearchParams();
+  const selectedUserId = searchParams.get('user');
+  const isCombinedView = !selectedUserId;
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const [transactionsCursor, setTransactionsCursor] = useState<string | null>(null);
@@ -103,6 +107,16 @@ export const AccountDetailPage = () => {
       const response = await api.get(`/accounts/${accountId}`);
       return response.data;
     },
+  });
+
+  // Fetch all accounts to check if this account is shared (only in combined view)
+  const { data: allAccounts } = useQuery<Account[]>({
+    queryKey: ['accounts-check-shared', accountId],
+    queryFn: async () => {
+      const response = await api.get('/accounts');
+      return response.data;
+    },
+    enabled: isCombinedView && !!account?.plaid_item_hash,
   });
 
   // Fetch transactions for this account
@@ -312,9 +326,22 @@ export const AccountDetailPage = () => {
   const balance = Number(account.current_balance);
   const isNegative = balance < 0;
 
+  // Check if this account is shared (multiple household members have linked it)
+  const isSharedAccount = isCombinedView && account.plaid_item_hash && allAccounts
+    ? allAccounts.filter(acc =>
+        acc.plaid_item_hash === account.plaid_item_hash &&
+        acc.plaid_item_hash !== null
+      ).length > 1
+    : false;
+
   // Check if current user owns this account
   const isOwner = account.user_id === user?.id;
-  const canEditAccount = canEdit && isOwner;
+
+  // Disable editing if:
+  // 1. User doesn't have edit permission, OR
+  // 2. User doesn't own the account, OR
+  // 3. Account is shared AND in combined view (multi accounts can only be edited in individual views)
+  const canEditAccount = canEdit && isOwner && !isSharedAccount;
 
   return (
     <Container maxW="container.lg" py={8}>
@@ -368,7 +395,14 @@ export const AccountDetailPage = () => {
               <HStack spacing={2}>
                 <Heading size="lg">{account.name}</Heading>
                 {!canEditAccount ? (
-                  <Tooltip label="Read-only: This account belongs to another household member" placement="top">
+                  <Tooltip
+                    label={
+                      isSharedAccount
+                        ? "Read-only: Shared accounts can only be edited in individual user views"
+                        : "Read-only: This account belongs to another household member"
+                    }
+                    placement="top"
+                  >
                     <Badge colorScheme="gray" display="flex" alignItems="center" gap={1}>
                       <FiLock size={12} /> Read-only
                     </Badge>

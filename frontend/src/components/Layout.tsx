@@ -10,7 +10,6 @@ import {
   Text,
   Button,
   Badge,
-  Divider,
   Spinner,
   Center,
   useDisclosure,
@@ -152,11 +151,6 @@ const AccountItem = ({
             <Text fontSize="xs" fontWeight="medium" color="gray.700" noOfLines={1} flex={1}>
               {account.name}
             </Text>
-            {account.is_shared && (
-              <Badge colorScheme="purple" fontSize="2xs" px={1}>
-                Shared
-              </Badge>
-            )}
           </HStack>
           <Text
             fontSize="xs"
@@ -308,16 +302,11 @@ export const Layout = () => {
 
   const getUserName = (userId: string): string => {
     if (!members || !userId) {
-      console.log('[getUserName] No members or userId:', { members: !!members, userId });
       return '';
     }
 
     const member = members.find((m: any) => m.id === userId);
     if (!member) {
-      console.log('[getUserName] Member not found:', {
-        userId,
-        availableMemberIds: members.map((m: any) => m.id)
-      });
       return '';
     }
 
@@ -339,7 +328,6 @@ export const Layout = () => {
       return member.email.split('@')[0];
     }
 
-    console.log('[getUserName] No name fields found for member:', member);
     return '';
   };
 

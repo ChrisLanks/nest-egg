@@ -1,21 +1,21 @@
 """Account deduplication service for multi-user households."""
 
 import hashlib
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account
+from app.models.account import Account, AccountType, AccountSource
 
 
 class DeduplicationService:
     """Service for detecting and handling duplicate accounts across household members."""
 
     @staticmethod
-    def calculate_account_hash(plaid_item_id: str, external_account_id: str) -> str:
-        """Generate deterministic hash for account identification.
+    def calculate_plaid_hash(plaid_item_id: str, external_account_id: str) -> str:
+        """Generate deterministic hash for Plaid account identification.
 
         Args:
             plaid_item_id: Plaid item identifier
@@ -24,8 +24,84 @@ class DeduplicationService:
         Returns:
             SHA256 hash as hex string
         """
-        content = f"{plaid_item_id}:{external_account_id}"
+        content = f"plaid:{plaid_item_id}:{external_account_id}"
         return hashlib.sha256(content.encode()).hexdigest()
+
+    @staticmethod
+    def calculate_manual_account_hash(
+        account_type: AccountType,
+        institution_name: Optional[str],
+        mask: Optional[str],
+        name: str
+    ) -> str:
+        """Generate deterministic hash for manual account identification.
+
+        Manual accounts are matched by:
+        - Account type (e.g., checking, mortgage, property)
+        - Institution name (normalized)
+        - Mask (last 4 digits) if available
+        - Account name (for properties, mortgages, etc.)
+
+        Args:
+            account_type: Type of account
+            institution_name: Financial institution name
+            mask: Last 4 digits of account
+            name: Account name
+
+        Returns:
+            SHA256 hash as hex string
+        """
+        # Normalize strings for matching
+        institution = (institution_name or "").lower().strip()
+        account_mask = (mask or "").strip()
+        account_name = name.lower().strip()
+
+        # For accounts with mask (bank accounts, credit cards), use institution + type + mask
+        if account_mask and institution:
+            content = f"manual:{account_type.value}:{institution}:{account_mask}"
+        # For properties and other unique assets, use type + name
+        elif account_type in [AccountType.PROPERTY, AccountType.VEHICLE]:
+            content = f"manual:{account_type.value}:{account_name}"
+        # For loans/mortgages, use institution + type + name
+        elif account_type in [AccountType.MORTGAGE, AccountType.LOAN, AccountType.STUDENT_LOAN]:
+            content = f"manual:{account_type.value}:{institution}:{account_name}"
+        else:
+            # For other accounts, use type + institution + name
+            content = f"manual:{account_type.value}:{institution}:{account_name}"
+
+        return hashlib.sha256(content.encode()).hexdigest()
+
+    @staticmethod
+    def calculate_account_hash_from_account(account: Account) -> Optional[str]:
+        """Calculate appropriate hash for any account type.
+
+        Args:
+            account: Account object
+
+        Returns:
+            SHA256 hash or None if account cannot be hashed
+        """
+        # Plaid accounts
+        if account.account_source == AccountSource.PLAID and account.external_account_id:
+            # Use plaid_item.item_id if available, otherwise use plaid_item_id
+            if account.plaid_item and hasattr(account.plaid_item, 'item_id'):
+                return DeduplicationService.calculate_plaid_hash(
+                    account.plaid_item.item_id,
+                    account.external_account_id
+                )
+            # Fallback: use existing plaid_item_hash if set
+            return account.plaid_item_hash
+
+        # Manual accounts
+        elif account.is_manual:
+            return DeduplicationService.calculate_manual_account_hash(
+                account.account_type,
+                account.institution_name,
+                account.mask,
+                account.name
+            )
+
+        return None
 
     async def find_duplicate_accounts(
         self,

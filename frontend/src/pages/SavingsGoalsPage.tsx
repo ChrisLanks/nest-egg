@@ -19,18 +19,22 @@ import {
   Tab,
   TabPanels,
   TabPanel,
+  Tooltip,
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
+import { FiLock } from 'react-icons/fi';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { savingsGoalsApi } from '../api/savings-goals';
 import type { SavingsGoal } from '../types/savings-goal';
 import GoalCard from '../features/goals/components/GoalCard';
 import GoalForm from '../features/goals/components/GoalForm';
+import { useUserView } from '../contexts/UserViewContext';
 
 export default function SavingsGoalsPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedGoal, setSelectedGoal] = useState<SavingsGoal | null>(null);
+  const { canEdit, isOtherUserView } = useUserView();
 
   // Get all goals
   const { data: goals = [], isLoading } = useQuery({
@@ -67,9 +71,20 @@ export default function SavingsGoalsPage() {
               Track progress toward your financial goals
             </Text>
           </VStack>
-          <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={handleCreate}>
-            New Goal
-          </Button>
+          <Tooltip
+            label={!canEdit ? "Read-only: You can only create goals for your own data" : ""}
+            placement="top"
+            isDisabled={canEdit}
+          >
+            <Button
+              leftIcon={canEdit ? <AddIcon /> : <FiLock />}
+              colorScheme="blue"
+              onClick={handleCreate}
+              isDisabled={!canEdit}
+            >
+              New Goal
+            </Button>
+          </Tooltip>
         </HStack>
 
         {/* Loading state */}
@@ -84,11 +99,15 @@ export default function SavingsGoalsPage() {
           <Center py={12}>
             <VStack spacing={4}>
               <Text fontSize="lg" color="gray.500">
-                No savings goals yet
+                {isOtherUserView
+                  ? "This user has no savings goals yet"
+                  : "No savings goals yet"}
               </Text>
-              <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={handleCreate}>
-                Create Your First Goal
-              </Button>
+              {!isOtherUserView && (
+                <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={handleCreate}>
+                  Create Your First Goal
+                </Button>
+              )}
             </VStack>
           </Center>
         )}

@@ -2,6 +2,7 @@
 
 from typing import Optional
 from uuid import UUID
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
@@ -24,6 +25,7 @@ class UserProfileResponse(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     display_name: Optional[str] = None
+    birth_year: Optional[int] = None
     is_org_admin: bool
 
     model_config = {"from_attributes": True}
@@ -57,6 +59,7 @@ async def get_user_profile(
         first_name=current_user.first_name,
         last_name=current_user.last_name,
         display_name=current_user.display_name,
+        birth_year=current_user.birthdate.year if current_user.birthdate else None,
         is_org_admin=current_user.is_org_admin,
     )
 
@@ -75,6 +78,12 @@ async def update_user_profile(
         current_user.last_name = update_data.last_name
     if update_data.display_name is not None:
         current_user.display_name = update_data.display_name
+
+    # Update birth year (convert to birthdate using January 1st)
+    if update_data.birth_year is not None:
+        if update_data.birth_year < 1900 or update_data.birth_year > 2100:
+            raise HTTPException(status_code=400, detail="Invalid birth year")
+        current_user.birthdate = date(update_data.birth_year, 1, 1)
 
     # Email update requires additional verification (not implemented here)
     if update_data.email is not None and update_data.email != current_user.email:
@@ -97,6 +106,7 @@ async def update_user_profile(
         first_name=current_user.first_name,
         last_name=current_user.last_name,
         display_name=current_user.display_name,
+        birth_year=current_user.birthdate.year if current_user.birthdate else None,
         is_org_admin=current_user.is_org_admin,
     )
 
