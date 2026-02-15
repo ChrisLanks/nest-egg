@@ -32,10 +32,17 @@ import {
   MenuList,
   MenuItem,
   Tooltip,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  AlertDialogCloseButton,
 } from '@chakra-ui/react';
 import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon } from '@chakra-ui/icons';
 import { FiLock } from 'react-icons/fi';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TransactionDetailModal } from '../components/TransactionDetailModal';
@@ -74,6 +81,9 @@ export const TransactionsPage = () => {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [showStatusColumn, setShowStatusColumn] = useState(false);
+  const [bulkActionType, setBulkActionType] = useState<'mark' | 'unmark' | null>(null);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   const toast = useToast();
   const navigate = useNavigate();
@@ -377,10 +387,19 @@ export const TransactionsPage = () => {
       return;
     }
 
-    bulkMarkTransferMutation.mutate({
-      transactionIds: Array.from(selectedTransactions),
-      isTransfer,
-    });
+    setBulkActionType(isTransfer ? 'mark' : 'unmark');
+    setIsConfirmDialogOpen(true);
+  };
+
+  const confirmBulkAction = () => {
+    if (bulkActionType !== null) {
+      bulkMarkTransferMutation.mutate({
+        transactionIds: Array.from(selectedTransactions),
+        isTransfer: bulkActionType === 'mark',
+      });
+    }
+    setIsConfirmDialogOpen(false);
+    setBulkActionType(null);
   };
 
   if (isLoading) {
@@ -792,6 +811,68 @@ export const TransactionsPage = () => {
           onClose={handleCloseRuleBuilder}
           prefilledTransaction={ruleTransaction || undefined}
         />
+
+        {/* Bulk Action Confirmation Dialog */}
+        <AlertDialog
+          isOpen={isConfirmDialogOpen}
+          leastDestructiveRef={cancelRef}
+          onClose={() => {
+            setIsConfirmDialogOpen(false);
+            setBulkActionType(null);
+          }}
+        >
+          <AlertDialogOverlay>
+            <AlertDialogContent>
+              <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                Confirm Bulk Action
+              </AlertDialogHeader>
+              <AlertDialogCloseButton />
+
+              <AlertDialogBody>
+                {bulkActionType === 'mark' ? (
+                  <>
+                    <Text>
+                      Are you sure you want to mark <strong>{selectedTransactions.size} transaction(s)</strong> as transfers?
+                    </Text>
+                    <Text mt={2} color="orange.600" fontSize="sm">
+                      Transfers are excluded from cash flow calculations and budgets.
+                      This action affects how your financial reports are calculated.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text>
+                      Are you sure you want to unmark <strong>{selectedTransactions.size} transaction(s)</strong> as transfers?
+                    </Text>
+                    <Text mt={2} color="blue.600" fontSize="sm">
+                      These transactions will be included in cash flow calculations and budgets again.
+                    </Text>
+                  </>
+                )}
+              </AlertDialogBody>
+
+              <AlertDialogFooter>
+                <Button
+                  ref={cancelRef}
+                  onClick={() => {
+                    setIsConfirmDialogOpen(false);
+                    setBulkActionType(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  colorScheme={bulkActionType === 'mark' ? 'purple' : 'blue'}
+                  onClick={confirmBulkAction}
+                  ml={3}
+                  isLoading={bulkMarkTransferMutation.isPending}
+                >
+                  {bulkActionType === 'mark' ? 'Mark as Transfer' : 'Unmark Transfer'}
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialogOverlay>
+        </AlertDialog>
       </VStack>
     </Container>
   );

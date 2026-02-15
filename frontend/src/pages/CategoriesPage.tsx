@@ -32,8 +32,15 @@ import {
   FormLabel,
   useDisclosure,
   Select,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  AlertDialogCloseButton,
 } from '@chakra-ui/react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DeleteIcon, EditIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
@@ -56,6 +63,7 @@ interface CategoryWithChildren extends Category {
 
 export const CategoriesPage = () => {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     color: '#3B82F6',
@@ -65,11 +73,17 @@ export const CategoriesPage = () => {
   const toast = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const {
     isOpen: isCreateOpen,
     onOpen: onCreateOpen,
     onClose: onCreateClose,
+  } = useDisclosure();
+  const {
+    isOpen: isDeleteAlertOpen,
+    onOpen: onDeleteAlertOpen,
+    onClose: onDeleteAlertClose,
   } = useDisclosure();
 
   const { data: categories, isLoading } = useQuery({
@@ -282,9 +296,16 @@ export const CategoriesPage = () => {
       return;
     }
 
-    if (window.confirm(`Are you sure you want to delete "${category.name}"? This will remove it from all transactions.`)) {
-      deleteMutation.mutate(category.id);
+    setCategoryToDelete(category);
+    onDeleteAlertOpen();
+  };
+
+  const confirmDelete = () => {
+    if (categoryToDelete?.id) {
+      deleteMutation.mutate(categoryToDelete.id);
     }
+    onDeleteAlertClose();
+    setCategoryToDelete(null);
   };
 
   const renderCategoryRow = (category: CategoryWithChildren, isChild: boolean = false) => {
@@ -571,6 +592,46 @@ export const CategoriesPage = () => {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isDeleteAlertOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onDeleteAlertClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Category
+            </AlertDialogHeader>
+            <AlertDialogCloseButton />
+
+            <AlertDialogBody>
+              Are you sure you want to delete <strong>"{categoryToDelete?.name}"</strong>?
+              {categoryToDelete && categoryToDelete.transaction_count > 0 && (
+                <Text mt={2} color="orange.600">
+                  This category is used by {categoryToDelete.transaction_count} transaction(s).
+                  It will be removed from all of them.
+                </Text>
+              )}
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onDeleteAlertClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={confirmDelete}
+                ml={3}
+                isLoading={deleteMutation.isPending}
+              >
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Container>
   );
 };
