@@ -1,6 +1,5 @@
 """CRUD operations for users."""
 
-from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
@@ -9,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
 from app.models.user import Organization, RefreshToken, User
+from app.utils.datetime_utils import utc_now
 
 
 class UserCRUD:
@@ -56,7 +56,7 @@ class UserCRUD:
         result = await db.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
         if user:
-            user.last_login_at = datetime.utcnow()
+            user.last_login_at = utc_now()
             await db.commit()
 
 
@@ -125,7 +125,7 @@ class RefreshTokenCRUD:
         )
         token = result.scalar_one_or_none()
         if token:
-            token.revoked_at = datetime.utcnow()
+            token.revoked_at = utc_now()
             await db.commit()
 
 

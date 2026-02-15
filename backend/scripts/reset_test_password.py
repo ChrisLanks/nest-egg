@@ -28,8 +28,8 @@ async def reset_test_password():
             print("❌ test@test.com user not found")
             return
 
-        # Reset password to 'password'
-        new_password = "password"
+        # Reset password to 'test1234'
+        new_password = "test1234"
         user.password_hash = hash_password(new_password)
         await db.commit()
 
