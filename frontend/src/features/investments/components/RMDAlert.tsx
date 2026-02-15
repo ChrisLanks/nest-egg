@@ -61,13 +61,19 @@ interface RMDSummary {
   penalty_if_missed: number | null;
 }
 
-export const RMDAlert = () => {
+interface RMDAlertProps {
+  /** Optional user ID filter (null = combined household view) */
+  userId?: string | null;
+}
+
+export const RMDAlert: React.FC<RMDAlertProps> = ({ userId = null }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   const { data: rmdData, isLoading, error } = useQuery<RMDSummary>({
-    queryKey: ['rmd-summary'],
+    queryKey: ['rmd-summary', userId],
     queryFn: async () => {
-      const response = await api.get('/holdings/rmd-summary');
+      const params = userId ? { user_id: userId } : {};
+      const response = await api.get('/holdings/rmd-summary', { params });
       return response.data;
     },
     retry: false,

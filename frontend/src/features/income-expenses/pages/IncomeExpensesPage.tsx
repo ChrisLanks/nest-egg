@@ -47,6 +47,7 @@ import {
 } from '@chakra-ui/react';
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { ChevronRightIcon, ChevronUpIcon, ChevronDownIcon } from '@chakra-ui/icons';
 import { IoBarChart, IoPieChart } from 'react-icons/io5';
 import api from '../../../services/api';
@@ -56,6 +57,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Ba
 import type { Transaction } from '../../../types/transaction';
 import { TransactionDetailModal } from '../../../components/TransactionDetailModal';
 import { RuleBuilderModal } from '../../../components/RuleBuilderModal';
+import { UserViewSelector } from '../../../components/UserViewSelector';
 
 interface CategoryBreakdown {
   category: string;
@@ -98,6 +100,19 @@ const COLORS = [
 ];
 
 export const IncomeExpensesPage = () => {
+  // URL state management for user filter
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedUserId = searchParams.get('user') || null;
+
+  const handleUserChange = (userId: string | null) => {
+    if (userId) {
+      searchParams.set('user', userId);
+    } else {
+      searchParams.delete('user');
+    }
+    setSearchParams(searchParams);
+  };
+
   // Utility functions defined first to avoid hoisting issues
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -202,33 +217,45 @@ export const IncomeExpensesPage = () => {
   }, [groupBy]);
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
-    queryKey: ['income-expenses-summary', dateRange.start, dateRange.end, groupBy],
+    queryKey: ['income-expenses-summary', dateRange.start, dateRange.end, groupBy, selectedUserId],
     queryFn: async () => {
       let endpoint = '/income-expenses/summary';
       if (groupBy === 'label') endpoint = '/income-expenses/label-summary';
       else if (groupBy === 'merchant') endpoint = '/income-expenses/merchant-summary';
       else if (groupBy === 'account') endpoint = '/income-expenses/account-summary';
 
-      const response = await api.get<IncomeExpenseSummary>(
-        `${endpoint}?start_date=${dateRange.start}&end_date=${dateRange.end}`
-      );
+      const params = new URLSearchParams({
+        start_date: dateRange.start,
+        end_date: dateRange.end,
+      });
+      if (selectedUserId) {
+        params.append('user_id', selectedUserId);
+      }
+
+      const response = await api.get<IncomeExpenseSummary>(`${endpoint}?${params.toString()}`);
       return response.data;
     },
   });
 
   const { data: trend, isLoading: trendLoading } = useQuery({
-    queryKey: ['income-expenses-trend', dateRange.start, dateRange.end],
+    queryKey: ['income-expenses-trend', dateRange.start, dateRange.end, selectedUserId],
     queryFn: async () => {
-      const response = await api.get<MonthlyTrend[]>(
-        `/income-expenses/trend?start_date=${dateRange.start}&end_date=${dateRange.end}`
-      );
+      const params = new URLSearchParams({
+        start_date: dateRange.start,
+        end_date: dateRange.end,
+      });
+      if (selectedUserId) {
+        params.append('user_id', selectedUserId);
+      }
+
+      const response = await api.get<MonthlyTrend[]>(`/income-expenses/trend?${params.toString()}`);
       return response.data;
     },
   });
 
   // Fetch merchant breakdown when drilling down
   const { data: incomeMerchants } = useQuery({
-    queryKey: ['income-merchants', dateRange.start, dateRange.end, incomeDrillDown.category, groupBy],
+    queryKey: ['income-merchants', dateRange.start, dateRange.end, incomeDrillDown.category, groupBy, selectedUserId],
     queryFn: async () => {
       let endpoint = '/income-expenses/merchants';
       let paramName = 'category';
@@ -241,16 +268,24 @@ export const IncomeExpensesPage = () => {
         paramName = 'account_id';
       }
 
-      const response = await api.get<CategoryBreakdown[]>(
-        `${endpoint}?start_date=${dateRange.start}&end_date=${dateRange.end}&transaction_type=income&${paramName}=${incomeDrillDown.category || ''}`
-      );
+      const params = new URLSearchParams({
+        start_date: dateRange.start,
+        end_date: dateRange.end,
+        transaction_type: 'income',
+        [paramName]: incomeDrillDown.category || '',
+      });
+      if (selectedUserId) {
+        params.append('user_id', selectedUserId);
+      }
+
+      const response = await api.get<CategoryBreakdown[]>(`${endpoint}?${params.toString()}`);
       return response.data;
     },
     enabled: incomeDrillDown.level === 'merchants' || incomeDrillDown.level === 'transactions',
   });
 
   const { data: expenseMerchants } = useQuery({
-    queryKey: ['expense-merchants', dateRange.start, dateRange.end, expenseDrillDown.category, groupBy],
+    queryKey: ['expense-merchants', dateRange.start, dateRange.end, expenseDrillDown.category, groupBy, selectedUserId],
     queryFn: async () => {
       let endpoint = '/income-expenses/merchants';
       let paramName = 'category';
@@ -262,9 +297,18 @@ export const IncomeExpensesPage = () => {
         endpoint = '/income-expenses/account-merchants';
         paramName = 'account_id';
       }
-      const response = await api.get<CategoryBreakdown[]>(
-        `${endpoint}?start_date=${dateRange.start}&end_date=${dateRange.end}&transaction_type=expense&${paramName}=${expenseDrillDown.category || ''}`
-      );
+
+      const params = new URLSearchParams({
+        start_date: dateRange.start,
+        end_date: dateRange.end,
+        transaction_type: 'expense',
+        [paramName]: expenseDrillDown.category || '',
+      });
+      if (selectedUserId) {
+        params.append('user_id', selectedUserId);
+      }
+
+      const response = await api.get<CategoryBreakdown[]>(`${endpoint}?${params.toString()}`);
       return response.data;
     },
     enabled: expenseDrillDown.level === 'merchants' || expenseDrillDown.level === 'transactions',
@@ -1044,8 +1088,15 @@ export const IncomeExpensesPage = () => {
         {/* Header with Date Range Picker */}
         <HStack justify="space-between" align="start">
           <Box>
-            <Heading size="lg">Cash Flow</Heading>
-            <Text color="gray.600" mt={2}>
+            <HStack spacing={4} mb={2}>
+              <Heading size="lg">Cash Flow</Heading>
+              <UserViewSelector
+                currentUserId={selectedUserId}
+                onUserChange={handleUserChange}
+                size="sm"
+              />
+            </HStack>
+            <Text color="gray.600">
               Analyze your income sources and spending patterns
             </Text>
           </Box>
