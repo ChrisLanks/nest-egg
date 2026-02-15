@@ -10,12 +10,12 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 const isDev = import.meta.env.DEV;
 const devLog = (...args: any[]) => {
   if (isDev) {
-    devLog(...args);
+    console.log(...args);
   }
 };
 const devError = (...args: any[]) => {
   if (isDev) {
-    devError(...args);
+    console.error(...args);
   }
 };
 
