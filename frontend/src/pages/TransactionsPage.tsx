@@ -60,6 +60,7 @@ import {
   Select,
   FormControl,
   FormLabel,
+  CloseButton,
 } from '@chakra-ui/react';
 import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon, DownloadIcon } from '@chakra-ui/icons';
 import { FiLock } from 'react-icons/fi';
@@ -108,6 +109,10 @@ export const TransactionsPage = () => {
 
   // Bulk edit modal
   const { isOpen: isBulkEditOpen, onOpen: onBulkEditOpen, onClose: onBulkEditClose } = useDisclosure();
+  const [pendingLabelsToAdd, setPendingLabelsToAdd] = useState<string[]>([]);
+  const [pendingLabelsToRemove, setPendingLabelsToRemove] = useState<string[]>([]);
+  const [selectedLabelToAdd, setSelectedLabelToAdd] = useState<string>('');
+  const [selectedLabelToRemove, setSelectedLabelToRemove] = useState<string>('');
 
   const toast = useToast();
   const navigate = useNavigate();
@@ -269,6 +274,79 @@ export const TransactionsPage = () => {
       });
     },
   });
+
+  // Bulk edit handlers
+  const handleAddLabelToPending = () => {
+    if (selectedLabelToAdd && !pendingLabelsToAdd.includes(selectedLabelToAdd)) {
+      setPendingLabelsToAdd([...pendingLabelsToAdd, selectedLabelToAdd]);
+      setSelectedLabelToAdd('');
+    }
+  };
+
+  const handleRemoveLabelFromAddPending = (labelId: string) => {
+    setPendingLabelsToAdd(pendingLabelsToAdd.filter(id => id !== labelId));
+  };
+
+  const handleAddLabelToRemovePending = () => {
+    if (selectedLabelToRemove && !pendingLabelsToRemove.includes(selectedLabelToRemove)) {
+      setPendingLabelsToRemove([...pendingLabelsToRemove, selectedLabelToRemove]);
+      setSelectedLabelToRemove('');
+    }
+  };
+
+  const handleRemoveLabelFromRemovePending = (labelId: string) => {
+    setPendingLabelsToRemove(pendingLabelsToRemove.filter(id => id !== labelId));
+  };
+
+  const handleApplyBulkLabelChanges = async () => {
+    const transactionIds = Array.from(selectedTransactions);
+
+    // Filter out labels that are in both add and remove lists
+    const labelsToAdd = pendingLabelsToAdd.filter(id => !pendingLabelsToRemove.includes(id));
+    const labelsToRemove = pendingLabelsToRemove.filter(id => !pendingLabelsToAdd.includes(id));
+
+    try {
+      // Apply additions
+      for (const labelId of labelsToAdd) {
+        await bulkAddLabelMutation.mutateAsync({ transactionIds, labelId });
+      }
+
+      // Apply removals
+      for (const labelId of labelsToRemove) {
+        await bulkRemoveLabelMutation.mutateAsync({ transactionIds, labelId });
+      }
+
+      // Success message
+      const totalChanges = labelsToAdd.length + labelsToRemove.length;
+      if (totalChanges > 0) {
+        toast({
+          title: `Applied ${totalChanges} label change(s) to ${transactionIds.length} transaction(s)`,
+          status: 'success',
+          duration: 3000,
+        });
+      }
+
+      // Reset and close
+      setPendingLabelsToAdd([]);
+      setPendingLabelsToRemove([]);
+      onBulkEditClose();
+    } catch (error) {
+      toast({
+        title: 'Failed to apply some label changes',
+        status: 'error',
+        duration: 5000,
+      });
+    }
+  };
+
+  const handleBulkEditClose = () => {
+    // Reset pending labels when modal closes
+    setPendingLabelsToAdd([]);
+    setPendingLabelsToRemove([]);
+    setSelectedLabelToAdd('');
+    setSelectedLabelToRemove('');
+    onBulkEditClose();
+  };
 
   // Client-side filtering and sorting (no pagination)
   const processedTransactions = useMemo(() => {
@@ -1203,7 +1281,7 @@ export const TransactionsPage = () => {
         </AlertDialog>
 
         {/* Bulk Edit Modal */}
-        <Modal isOpen={isBulkEditOpen} onClose={onBulkEditClose} size="xl">
+        <Modal isOpen={isBulkEditOpen} onClose={handleBulkEditClose} size="xl">
           <ModalOverlay />
           <ModalContent>
             <ModalHeader>Bulk Edit {selectedTransactions.size} Transaction(s)</ModalHeader>
@@ -1223,50 +1301,109 @@ export const TransactionsPage = () => {
                         💡 <strong>Tip:</strong> To mark transactions as transfers, add/remove the "Transfer" label.
                       </Text>
 
+                      {/* Add Labels Section */}
                       <FormControl>
-                        <FormLabel>Add Label</FormLabel>
-                        <Select
-                          placeholder="Select label to add..."
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              bulkAddLabelMutation.mutate({
-                                transactionIds: Array.from(selectedTransactions),
-                                labelId: e.target.value,
-                              });
-                              e.target.value = ''; // Reset selection
-                            }
-                          }}
-                          isDisabled={bulkAddLabelMutation.isPending}
-                        >
-                          {availableLabels.map((label: any) => (
-                            <option key={label.id} value={label.id}>
-                              {label.name}
-                            </option>
-                          ))}
-                        </Select>
+                        <FormLabel>Add Labels</FormLabel>
+                        <HStack>
+                          <Select
+                            placeholder="Select label to add..."
+                            value={selectedLabelToAdd}
+                            onChange={(e) => setSelectedLabelToAdd(e.target.value)}
+                          >
+                            {availableLabels
+                              .filter((label: any) => !pendingLabelsToAdd.includes(label.id))
+                              .map((label: any) => (
+                                <option key={label.id} value={label.id}>
+                                  {label.name}
+                                </option>
+                              ))}
+                          </Select>
+                          <Button
+                            onClick={handleAddLabelToPending}
+                            isDisabled={!selectedLabelToAdd}
+                            colorScheme="brand"
+                          >
+                            Add
+                          </Button>
+                        </HStack>
+                        {pendingLabelsToAdd.length > 0 && (
+                          <Wrap mt={2}>
+                            {pendingLabelsToAdd.map((labelId) => {
+                              const label = availableLabels.find((l: any) => l.id === labelId);
+                              return (
+                                <WrapItem key={labelId}>
+                                  <Badge
+                                    colorScheme="green"
+                                    px={2}
+                                    py={1}
+                                    display="flex"
+                                    alignItems="center"
+                                    gap={1}
+                                  >
+                                    {label?.name}
+                                    <CloseButton
+                                      size="sm"
+                                      onClick={() => handleRemoveLabelFromAddPending(labelId)}
+                                    />
+                                  </Badge>
+                                </WrapItem>
+                              );
+                            })}
+                          </Wrap>
+                        )}
                       </FormControl>
 
+                      {/* Remove Labels Section */}
                       <FormControl>
-                        <FormLabel>Remove Label</FormLabel>
-                        <Select
-                          placeholder="Select label to remove..."
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              bulkRemoveLabelMutation.mutate({
-                                transactionIds: Array.from(selectedTransactions),
-                                labelId: e.target.value,
-                              });
-                              e.target.value = ''; // Reset selection
-                            }
-                          }}
-                          isDisabled={bulkRemoveLabelMutation.isPending}
-                        >
-                          {availableLabels.map((label: any) => (
-                            <option key={label.id} value={label.id}>
-                              {label.name}
-                            </option>
-                          ))}
-                        </Select>
+                        <FormLabel>Remove Labels</FormLabel>
+                        <HStack>
+                          <Select
+                            placeholder="Select label to remove..."
+                            value={selectedLabelToRemove}
+                            onChange={(e) => setSelectedLabelToRemove(e.target.value)}
+                          >
+                            {availableLabels
+                              .filter((label: any) => !pendingLabelsToRemove.includes(label.id))
+                              .map((label: any) => (
+                                <option key={label.id} value={label.id}>
+                                  {label.name}
+                                </option>
+                              ))}
+                          </Select>
+                          <Button
+                            onClick={handleAddLabelToRemovePending}
+                            isDisabled={!selectedLabelToRemove}
+                            colorScheme="red"
+                            variant="outline"
+                          >
+                            Add
+                          </Button>
+                        </HStack>
+                        {pendingLabelsToRemove.length > 0 && (
+                          <Wrap mt={2}>
+                            {pendingLabelsToRemove.map((labelId) => {
+                              const label = availableLabels.find((l: any) => l.id === labelId);
+                              return (
+                                <WrapItem key={labelId}>
+                                  <Badge
+                                    colorScheme="red"
+                                    px={2}
+                                    py={1}
+                                    display="flex"
+                                    alignItems="center"
+                                    gap={1}
+                                  >
+                                    {label?.name}
+                                    <CloseButton
+                                      size="sm"
+                                      onClick={() => handleRemoveLabelFromRemovePending(labelId)}
+                                    />
+                                  </Badge>
+                                </WrapItem>
+                              );
+                            })}
+                          </Wrap>
+                        )}
                       </FormControl>
 
                       {availableLabels.length === 0 && (
@@ -1316,7 +1453,22 @@ export const TransactionsPage = () => {
             </ModalBody>
 
             <ModalFooter>
-              <Button onClick={onBulkEditClose}>Done</Button>
+              {(pendingLabelsToAdd.length > 0 || pendingLabelsToRemove.length > 0) ? (
+                <>
+                  <Button
+                    colorScheme="brand"
+                    onClick={handleApplyBulkLabelChanges}
+                    isLoading={bulkAddLabelMutation.isPending || bulkRemoveLabelMutation.isPending}
+                  >
+                    Apply Label Changes
+                  </Button>
+                  <Button ml={3} onClick={handleBulkEditClose}>
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={handleBulkEditClose}>Close</Button>
+              )}
             </ModalFooter>
           </ModalContent>
         </Modal>
