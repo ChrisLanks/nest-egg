@@ -381,21 +381,34 @@ export const TransactionsPage = () => {
       const query = searchQuery.toLowerCase();
 
       // Parse special search syntax: labels:<x,y>, category:<x,y>, institution:<x,y>
-      const labelsMatch = query.match(/labels?:([^\s]+)/i);
-      const categoryMatch = query.match(/categor(?:y|ies):([^\s]+)/i);
-      const institutionMatch = query.match(/institution:([^\s]+)/i);
+      // Support both quoted strings (with spaces) and unquoted strings (no spaces)
+      const labelsMatch = query.match(/labels?:((?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*)/i);
+      const categoryMatch = query.match(/categor(?:y|ies):((?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*)/i);
+      const institutionMatch = query.match(/institution:((?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*)/i);
 
       // Remove special syntax from query to get plain text search
       const plainQuery = query
-        .replace(/labels?:[^\s]+/gi, '')
-        .replace(/categor(?:y|ies):[^\s]+/gi, '')
-        .replace(/institution:[^\s]+/gi, '')
+        .replace(/labels?:(?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*/gi, '')
+        .replace(/categor(?:y|ies):(?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*/gi, '')
+        .replace(/institution:(?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*/gi, '')
         .trim();
 
       filtered = filtered.filter((txn) => {
+        // Helper to parse comma-separated values and remove quotes
+        const parseValues = (str: string): string[] => {
+          return str.split(',').map(s => {
+            const trimmed = s.trim();
+            // Remove quotes if present
+            if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+              return trimmed.slice(1, -1).toLowerCase();
+            }
+            return trimmed.toLowerCase();
+          });
+        };
+
         // Check labels filter
         if (labelsMatch) {
-          const labelNames = labelsMatch[1].split(',').map(l => l.trim().toLowerCase());
+          const labelNames = parseValues(labelsMatch[1]);
           const hasMatchingLabel = txn.labels?.some((label) =>
             labelNames.some(ln => label.name.toLowerCase().includes(ln))
           );
@@ -404,7 +417,7 @@ export const TransactionsPage = () => {
 
         // Check category filter
         if (categoryMatch) {
-          const categoryNames = categoryMatch[1].split(',').map(c => c.trim().toLowerCase());
+          const categoryNames = parseValues(categoryMatch[1]);
           const categoryName = (txn.category?.name || txn.category_primary || '').toLowerCase();
           const parentName = (txn.category?.parent_name || '').toLowerCase();
           const hasMatchingCategory = categoryNames.some(cn =>
@@ -415,7 +428,7 @@ export const TransactionsPage = () => {
 
         // Check institution filter
         if (institutionMatch) {
-          const institutionNames = institutionMatch[1].split(',').map(i => i.trim().toLowerCase());
+          const institutionNames = parseValues(institutionMatch[1]);
           const accountName = (txn.account_name || '').toLowerCase();
           const hasMatchingInstitution = institutionNames.some(inst =>
             accountName.includes(inst)
@@ -593,12 +606,16 @@ export const TransactionsPage = () => {
 
   const handleCategoryClick = (category: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
-    setSearchQuery(`category:${category}`);
+    // Add quotes if category contains spaces
+    const formattedCategory = category.includes(' ') ? `"${category}"` : category;
+    setSearchQuery(`category:${formattedCategory}`);
   };
 
   const handleLabelClick = (labelName: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
-    setSearchQuery(`labels:${labelName}`);
+    // Add quotes if label contains spaces
+    const formattedLabel = labelName.includes(' ') ? `"${labelName}"` : labelName;
+    setSearchQuery(`labels:${formattedLabel}`);
   };
 
   const handleAccountClick = (accountName: string, e: React.MouseEvent) => {
