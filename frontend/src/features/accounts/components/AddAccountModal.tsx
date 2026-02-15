@@ -49,7 +49,7 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
   const [currentStep, setCurrentStep] = useState<WizardStep>('source_selection');
   const [_selectedSource, setSelectedSource] = useState<AccountSource | null>(null);
   const [selectedAccountType, setSelectedAccountType] = useState<AccountType | null>(null);
-  const [_selectedCategory, setSelectedCategory] = useState<'basic' | 'investment' | 'property' | null>(null);
+  const [_selectedCategory, setSelectedCategory] = useState<'basic' | 'investment' | 'alternative' | 'insurance' | 'securities' | 'business' | 'property' | null>(null);
 
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -77,13 +77,14 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
   };
 
   // Handle manual account type selection
-  const handleSelectAccountType = (type: AccountType, category: 'basic' | 'investment' | 'property') => {
+  const handleSelectAccountType = (type: AccountType, category: 'basic' | 'investment' | 'alternative' | 'insurance' | 'securities' | 'business' | 'property') => {
     setSelectedAccountType(type);
     setSelectedCategory(category);
 
     if (category === 'basic') {
       setCurrentStep('manual_form_basic');
-    } else if (category === 'investment') {
+    } else if (category === 'investment' || category === 'alternative' || category === 'securities' || category === 'insurance' || category === 'business') {
+      // All investment-related categories use the investment form
       setCurrentStep('manual_form_investment');
     } else if (category === 'property') {
       if (type === 'property') {
