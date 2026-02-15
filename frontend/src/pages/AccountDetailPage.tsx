@@ -45,6 +45,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import api from '../services/api';
 import type { Transaction } from '../types/transaction';
+import { ContributionsManager } from '../features/accounts/components/ContributionsManager';
 
 interface Account {
   id: string;
@@ -521,6 +522,15 @@ export const AccountDetailPage = () => {
                   Save Updates
                 </Button>
               </VStack>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Recurring Contributions Section - Only for manual accounts */}
+        {account.account_source === 'manual' && (
+          <Card>
+            <CardBody>
+              <ContributionsManager accountId={account.id} accountName={account.name} />
             </CardBody>
           </Card>
         )}
