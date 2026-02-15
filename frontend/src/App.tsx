@@ -43,7 +43,7 @@ function App() {
             {/* Protected routes with layout */}
             <Route element={<ProtectedRoute />}>
               <Route element={<Layout />}>
-                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/overview" element={<DashboardPage />} />
                 <Route path="/transactions" element={<TransactionsPage />} />
                 <Route path="/investments" element={<InvestmentsPage />} />
                 <Route path="/rules" element={<RulesPage />} />
@@ -60,11 +60,11 @@ function App() {
               </Route>
             </Route>
 
-            {/* Redirect root to dashboard or login */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            {/* Redirect root to overview */}
+            <Route path="/" element={<Navigate to="/overview" replace />} />
 
-            {/* Catch all - redirect to dashboard */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            {/* Catch all - redirect to overview */}
+            <Route path="*" element={<Navigate to="/overview" replace />} />
           </Routes>
           </UserViewProvider>
         </BrowserRouter>

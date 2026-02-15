@@ -203,6 +203,7 @@ class DashboardService:
         account_ids: Optional[List[UUID]] = None
     ) -> List[Transaction]:
         """Get recent transactions."""
+        from app.models.transaction import Category
         conditions = [Transaction.organization_id == organization_id]
         if account_ids is not None:
             conditions.append(Transaction.account_id.in_(account_ids))
@@ -211,7 +212,8 @@ class DashboardService:
             select(Transaction)
             .options(
                 joinedload(Transaction.labels).joinedload(TransactionLabel.label),
-                joinedload(Transaction.account)
+                joinedload(Transaction.account),
+                joinedload(Transaction.category).joinedload(Category.parent)
             )
             .where(and_(*conditions))
             .order_by(Transaction.date.desc(), Transaction.created_at.desc())

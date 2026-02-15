@@ -6,6 +6,19 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
+// Development mode logger - only logs in development
+const isDev = import.meta.env.DEV;
+const devLog = (...args: any[]) => {
+  if (isDev) {
+    devLog(...args);
+  }
+};
+const devError = (...args: any[]) => {
+  if (isDev) {
+    devError(...args);
+  }
+};
+
 // Create axios instance
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -30,7 +43,7 @@ const decodeToken = (token: string): { exp: number } | null => {
     );
     return JSON.parse(jsonPayload);
   } catch (error) {
-    console.error('[Auth] Failed to decode token:', error);
+    devError('[Auth] Failed to decode token:', error);
     return null;
   }
 };
@@ -60,7 +73,7 @@ export const scheduleTokenRefresh = () => {
   // Decode token to get expiration time
   const decoded = decodeToken(accessToken);
   if (!decoded || !decoded.exp) {
-    console.error('[Auth] Could not decode token expiration');
+    devError('[Auth] Could not decode token expiration');
     return;
   }
 
@@ -74,13 +87,13 @@ export const scheduleTokenRefresh = () => {
 
   if (timeUntilRefresh <= 0) {
     // Token already expired or will expire very soon, refresh immediately
-    console.log('[Auth] Token expired or expiring soon, refreshing immediately...');
+    devLog('[Auth] Token expired or expiring soon, refreshing immediately...');
     refreshTokenNow();
     return;
   }
 
   const refreshInMinutes = Math.round(timeUntilRefresh / 60000);
-  console.log(`[Auth] Scheduling token refresh in ${refreshInMinutes} minutes`);
+  devLog(`[Auth] Scheduling token refresh in ${refreshInMinutes} minutes`);
 
   refreshTimer = setTimeout(async () => {
     refreshTokenNow();
@@ -92,23 +105,23 @@ const refreshTokenNow = async () => {
   try {
     const refreshToken = localStorage.getItem('refresh_token');
     if (!refreshToken) {
-      console.error('[Auth] No refresh token available');
+      devError('[Auth] No refresh token available');
       return;
     }
 
-    console.log('[Auth] Refreshing token...');
+    devLog('[Auth] Refreshing token...');
     const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
       refresh_token: refreshToken,
     });
 
     const { access_token } = response.data;
     localStorage.setItem('access_token', access_token);
-    console.log('[Auth] Token refreshed successfully');
+    devLog('[Auth] Token refreshed successfully');
 
     // Schedule next refresh
     scheduleTokenRefresh();
   } catch (error) {
-    console.error('[Auth] Token refresh failed:', error);
+    devError('[Auth] Token refresh failed:', error);
     // Don't clear localStorage here - let the response interceptor handle it
   }
 };
@@ -118,10 +131,10 @@ const initToken = localStorage.getItem('access_token');
 if (initToken) {
   // Check if token is still valid
   if (isTokenExpired(initToken, 5)) {
-    console.log('[Auth] Token expired on page load, attempting refresh...');
+    devLog('[Auth] Token expired on page load, attempting refresh...');
     refreshTokenNow();
   } else {
-    console.log('[Auth] Valid token found, scheduling refresh');
+    devLog('[Auth] Valid token found, scheduling refresh');
     scheduleTokenRefresh();
   }
 }
@@ -132,7 +145,7 @@ api.interceptors.request.use(
     const token = localStorage.getItem('access_token');
 
     // Log all API requests
-    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`, {
+    devLog(`[API] ${config.method?.toUpperCase()} ${config.url}`, {
       params: config.params,
       data: config.data,
     });
@@ -144,7 +157,7 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error('[API] Request error:', error);
+    devError('[API] Request error:', error);
     return Promise.reject(error);
   }
 );
@@ -152,14 +165,14 @@ api.interceptors.request.use(
 // Response interceptor for token refresh
 api.interceptors.response.use(
   (response) => {
-    console.log(`[API] ✅ ${response.config.method?.toUpperCase()} ${response.config.url}`, {
+    devLog(`[API] ✅ ${response.config.method?.toUpperCase()} ${response.config.url}`, {
       status: response.status,
       data: response.data,
     });
     return response;
   },
   async (error) => {
-    console.error(`[API] ❌ ${error.config?.method?.toUpperCase()} ${error.config?.url}`, {
+    devError(`[API] ❌ ${error.config?.method?.toUpperCase()} ${error.config?.url}`, {
       status: error.response?.status,
       statusText: error.response?.statusText,
       data: error.response?.data,
@@ -176,13 +189,13 @@ api.interceptors.response.use(
 
         if (!refreshToken) {
           // No refresh token, redirect to login
-          console.log('[Auth] No refresh token found, redirecting to login');
+          devLog('[Auth] No refresh token found, redirecting to login');
           localStorage.clear();
           window.location.href = '/login';
           return Promise.reject(error);
         }
 
-        console.log('[Auth] Access token expired, attempting to refresh...');
+        devLog('[Auth] Access token expired, attempting to refresh...');
 
         // Try to refresh access token
         const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
@@ -194,7 +207,7 @@ api.interceptors.response.use(
         // Save new access token
         localStorage.setItem('access_token', access_token);
 
-        console.log('[Auth] Token refreshed successfully, retrying original request');
+        devLog('[Auth] Token refreshed successfully, retrying original request');
 
         // Retry original request with new token
         if (originalRequest.headers) {
@@ -205,8 +218,8 @@ api.interceptors.response.use(
       } catch (refreshError: any) {
         // Refresh failed, clear tokens and redirect to login
         const errorMessage = refreshError.response?.data?.detail || refreshError.message;
-        console.error('[Auth] Token refresh failed:', errorMessage);
-        console.log('[Auth] Clearing tokens and redirecting to login');
+        devError('[Auth] Token refresh failed:', errorMessage);
+        devLog('[Auth] Clearing tokens and redirecting to login');
         localStorage.clear();
         window.location.href = '/login';
         return Promise.reject(refreshError);

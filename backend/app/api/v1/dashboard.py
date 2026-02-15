@@ -164,11 +164,23 @@ async def get_dashboard_data(
     for txn in recent_transactions:
         # Extract labels from the many-to-many relationship
         transaction_labels = [tl.label for tl in txn.labels if tl.label]
-        
+
         # Get account info
         account_name = txn.account.name if txn.account else None
         account_mask = txn.account.mask if txn.account else None
-        
+
+        # Extract category information
+        from app.schemas.transaction import CategorySummary
+        category_summary = None
+        if txn.category:
+            category_summary = CategorySummary(
+                id=txn.category.id,
+                name=txn.category.name,
+                color=txn.category.color,
+                parent_id=txn.category.parent_category_id,
+                parent_name=txn.category.parent.name if txn.category.parent else None,
+            )
+
         transaction_details.append(TransactionDetail(
             id=txn.id,
             organization_id=txn.organization_id,
@@ -185,6 +197,7 @@ async def get_dashboard_data(
             updated_at=txn.updated_at,
             account_name=account_name,
             account_mask=account_mask,
+            category=category_summary,
             labels=transaction_labels
         ))
 

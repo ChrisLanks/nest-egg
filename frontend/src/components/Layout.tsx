@@ -233,7 +233,7 @@ export const Layout = () => {
   };
 
   const navItems = [
-    { label: 'Overview', path: '/dashboard' },
+    { label: 'Overview', path: '/overview' },
     { label: 'Investments', path: '/investments' },
     { label: 'Accounts', path: '/accounts' },
   ];
