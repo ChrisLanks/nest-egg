@@ -287,16 +287,21 @@ export const Layout = () => {
   const userColors = ['blue.500', 'green.500', 'purple.500', 'orange.500', 'pink.500'];
   const userBgColors = ['blue.50', 'green.50', 'purple.50', 'orange.50', 'pink.50'];
 
-  const getUserColor = (userId: string): string | undefined => {
-    if (!isCombinedView || !members) return undefined;
+  const getUserColorIndex = (userId: string): number => {
+    if (!members) return 0;
     const memberIndex = members.findIndex((m: any) => m.id === userId);
-    return memberIndex >= 0 ? userColors[memberIndex % userColors.length] : undefined;
+    return memberIndex >= 0 ? memberIndex : 0;
+  };
+
+  const getUserColor = (userId: string): string => {
+    const index = getUserColorIndex(userId);
+    return userColors[index % userColors.length];
   };
 
   const getUserBgColor = (userId: string): string | undefined => {
-    if (!isCombinedView || !members) return undefined;
-    const memberIndex = members.findIndex((m: any) => m.id === userId);
-    return memberIndex >= 0 ? userBgColors[memberIndex % userBgColors.length] : undefined;
+    if (!isCombinedView) return undefined;
+    const index = getUserColorIndex(userId);
+    return userBgColors[index % userBgColors.length];
   };
 
   const getUserName = (userId: string): string => {
@@ -527,6 +532,39 @@ export const Layout = () => {
         </HStack>
       </Box>
 
+      {/* View Indicator Banner */}
+      {!isCombinedView && (
+        <Box
+          bg={isOtherUserView ? 'orange.50' : 'blue.50'}
+          borderBottomWidth={1}
+          borderColor={isOtherUserView ? 'orange.200' : 'blue.200'}
+          px={8}
+          py={2}
+        >
+          <HStack spacing={3}>
+            <Text fontSize="sm" fontWeight="semibold" color={isOtherUserView ? 'orange.800' : 'blue.800'}>
+              {isOtherUserView ? '👁️ Viewing:' : '📊 Your View:'}
+            </Text>
+            <Badge
+              size="sm"
+              fontSize="xs"
+              px={2}
+              py={1}
+              borderRadius="md"
+              bg={getUserColor(selectedUserId || user?.id || '')}
+              color="white"
+              fontWeight="bold"
+            >
+              {getUserInitials(selectedUserId || user?.id || '')}
+            </Badge>
+            <Text fontSize="sm" fontWeight="medium" color={isOtherUserView ? 'orange.700' : 'blue.700'}>
+              {getUserName(selectedUserId || user?.id || '')}
+              {isOtherUserView ? "'s Accounts (Read-only)" : "'s Accounts"}
+            </Text>
+          </HStack>
+        </Box>
+      )}
+
       <Flex flex={1} overflow="hidden">
         {/* Left Sidebar - Accounts */}
         <Box
@@ -537,20 +575,43 @@ export const Layout = () => {
           overflowY="auto"
           p={3}
         >
-          <HStack justify="space-between" mb={3}>
-            <Text fontSize="sm" fontWeight="bold" textTransform="uppercase" color="gray.700" letterSpacing="wide">
-              Accounts
-            </Text>
-            {dashboardSummary?.net_worth !== undefined && (
-              <Text
-                fontSize="md"
-                fontWeight="bold"
-                color={dashboardSummary.net_worth >= 0 ? 'green.600' : 'red.600'}
-              >
-                {formatCurrency(Number(dashboardSummary.net_worth))}
-              </Text>
-            )}
-          </HStack>
+          <VStack align="stretch" spacing={2} mb={3}>
+            <HStack justify="space-between">
+              <VStack align="start" spacing={0}>
+                <Text fontSize="sm" fontWeight="bold" textTransform="uppercase" color="gray.700" letterSpacing="wide">
+                  Accounts
+                </Text>
+                {!isCombinedView && (
+                  <HStack spacing={1} mt={1}>
+                    <Badge
+                      size="sm"
+                      fontSize="2xs"
+                      px={1.5}
+                      py={0.5}
+                      borderRadius="md"
+                      bg={getUserColor(selectedUserId || user?.id || '')}
+                      color="white"
+                      fontWeight="bold"
+                    >
+                      {getUserInitials(selectedUserId || user?.id || '')}
+                    </Badge>
+                    <Text fontSize="2xs" color="gray.600">
+                      {getUserName(selectedUserId || user?.id || '')}
+                    </Text>
+                  </HStack>
+                )}
+              </VStack>
+              {dashboardSummary?.net_worth !== undefined && (
+                <Text
+                  fontSize="md"
+                  fontWeight="bold"
+                  color={dashboardSummary.net_worth >= 0 ? 'green.600' : 'red.600'}
+                >
+                  {formatCurrency(Number(dashboardSummary.net_worth))}
+                </Text>
+              )}
+            </HStack>
+          </VStack>
 
           {/* User color legend in combined view */}
           {isCombinedView && members && members.length > 1 && (
