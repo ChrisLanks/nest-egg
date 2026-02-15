@@ -35,6 +35,7 @@ async def seed_investment_holdings():
         print(f"   Organization ID: {user.organization_id}\n")
 
         # Create investment accounts with holdings
+        # Holdings include Alpha Vantage-style metadata for accurate style box classification
         accounts_data = [
             {
                 "name": "Vanguard 401(k)",
@@ -43,9 +44,12 @@ async def seed_investment_holdings():
                 "mask": "3456",
                 "balance": Decimal("125000.00"),
                 "holdings": [
-                    {"ticker": "VTSAX", "name": "Vanguard Total Stock Market Index Fund", "shares": Decimal("500"), "price": Decimal("120.50"), "cost_basis": Decimal("50000")},
-                    {"ticker": "VTIAX", "name": "Vanguard Total International Stock Index Fund", "shares": Decimal("300"), "price": Decimal("95.00"), "cost_basis": Decimal("25000")},
-                    {"ticker": "VBTLX", "name": "Vanguard Total Bond Market Index Fund", "shares": Decimal("200"), "price": Decimal("105.00"), "cost_basis": Decimal("20000")},
+                    {"ticker": "VTSAX", "name": "Vanguard Total Stock Market Index Fund", "shares": Decimal("500"), "price": Decimal("120.50"), "cost_basis": Decimal("50000"),
+                     "asset_type": "mutual_fund", "asset_class": "domestic", "market_cap": "large", "sector": "Diversified", "industry": "Index Fund", "country": "USA"},
+                    {"ticker": "VTIAX", "name": "Vanguard Total International Stock Index Fund", "shares": Decimal("300"), "price": Decimal("95.00"), "cost_basis": Decimal("25000"),
+                     "asset_type": "mutual_fund", "asset_class": "international", "market_cap": "large", "sector": "Diversified", "industry": "Index Fund", "country": "Global"},
+                    {"ticker": "VBTLX", "name": "Vanguard Total Bond Market Index Fund", "shares": Decimal("200"), "price": Decimal("105.00"), "cost_basis": Decimal("20000"),
+                     "asset_type": "mutual_fund", "asset_class": "bond", "market_cap": None, "sector": "Fixed Income", "industry": "Bond Fund", "country": "USA"},
                 ],
             },
             {
@@ -55,10 +59,14 @@ async def seed_investment_holdings():
                 "mask": "7890",
                 "balance": Decimal("75000.00"),
                 "holdings": [
-                    {"ticker": "VTI", "name": "Vanguard Total Stock Market ETF", "shares": Decimal("200"), "price": Decimal("240.00"), "cost_basis": Decimal("40000")},
-                    {"ticker": "VXUS", "name": "Vanguard Total International Stock ETF", "shares": Decimal("150"), "price": Decimal("65.00"), "cost_basis": Decimal("8000")},
-                    {"ticker": "BND", "name": "Vanguard Total Bond Market ETF", "shares": Decimal("100"), "price": Decimal("78.00"), "cost_basis": Decimal("7000")},
-                    {"ticker": "VNQ", "name": "Vanguard Real Estate ETF", "shares": Decimal("50"), "price": Decimal("92.00"), "cost_basis": Decimal("4000")},
+                    {"ticker": "VTI", "name": "Vanguard Total Stock Market ETF", "shares": Decimal("200"), "price": Decimal("240.00"), "cost_basis": Decimal("40000"),
+                     "asset_type": "etf", "asset_class": "domestic", "market_cap": "large", "sector": "Diversified", "industry": "Index ETF", "country": "USA"},
+                    {"ticker": "VXUS", "name": "Vanguard Total International Stock ETF", "shares": Decimal("150"), "price": Decimal("65.00"), "cost_basis": Decimal("8000"),
+                     "asset_type": "etf", "asset_class": "international", "market_cap": "large", "sector": "Diversified", "industry": "Index ETF", "country": "Global"},
+                    {"ticker": "BND", "name": "Vanguard Total Bond Market ETF", "shares": Decimal("100"), "price": Decimal("78.00"), "cost_basis": Decimal("7000"),
+                     "asset_type": "etf", "asset_class": "bond", "market_cap": None, "sector": "Fixed Income", "industry": "Bond ETF", "country": "USA"},
+                    {"ticker": "VNQ", "name": "Vanguard Real Estate ETF", "shares": Decimal("50"), "price": Decimal("92.00"), "cost_basis": Decimal("4000"),
+                     "asset_type": "etf", "asset_class": "domestic", "market_cap": "large", "sector": "Real Estate", "industry": "REIT", "country": "USA"},
                 ],
             },
             {
@@ -66,16 +74,31 @@ async def seed_investment_holdings():
                 "type": AccountType.BROKERAGE,
                 "institution": "Charles Schwab",
                 "mask": "1122",
-                "balance": Decimal("250000.00"),
+                "balance": Decimal("260000.00"),  # Updated to account for international stocks
                 "holdings": [
-                    {"ticker": "AAPL", "name": "Apple Inc.", "shares": Decimal("100"), "price": Decimal("185.00"), "cost_basis": Decimal("15000")},
-                    {"ticker": "MSFT", "name": "Microsoft Corporation", "shares": Decimal("80"), "price": Decimal("380.00"), "cost_basis": Decimal("25000")},
-                    {"ticker": "GOOGL", "name": "Alphabet Inc. Class A", "shares": Decimal("50"), "price": Decimal("142.00"), "cost_basis": Decimal("6000")},
-                    {"ticker": "AMZN", "name": "Amazon.com Inc.", "shares": Decimal("60"), "price": Decimal("178.00"), "cost_basis": Decimal("9000")},
-                    {"ticker": "NVDA", "name": "NVIDIA Corporation", "shares": Decimal("40"), "price": Decimal("880.00"), "cost_basis": Decimal("20000")},
-                    {"ticker": "TSLA", "name": "Tesla Inc.", "shares": Decimal("30"), "price": Decimal("245.00"), "cost_basis": Decimal("6000")},
-                    {"ticker": "SPY", "name": "SPDR S&P 500 ETF Trust", "shares": Decimal("100"), "price": Decimal("500.00"), "cost_basis": Decimal("45000")},
-                    {"ticker": "QQQ", "name": "Invesco QQQ Trust", "shares": Decimal("50"), "price": Decimal("450.00"), "cost_basis": Decimal("20000")},
+                    {"ticker": "AAPL", "name": "Apple Inc.", "shares": Decimal("100"), "price": Decimal("185.00"), "cost_basis": Decimal("15000"),
+                     "asset_type": "stock", "asset_class": "domestic", "market_cap": "large", "sector": "Technology", "industry": "Consumer Electronics", "country": "USA"},
+                    {"ticker": "MSFT", "name": "Microsoft Corporation", "shares": Decimal("80"), "price": Decimal("380.00"), "cost_basis": Decimal("25000"),
+                     "asset_type": "stock", "asset_class": "domestic", "market_cap": "large", "sector": "Technology", "industry": "Software", "country": "USA"},
+                    {"ticker": "GOOGL", "name": "Alphabet Inc. Class A", "shares": Decimal("50"), "price": Decimal("142.00"), "cost_basis": Decimal("6000"),
+                     "asset_type": "stock", "asset_class": "domestic", "market_cap": "large", "sector": "Technology", "industry": "Internet Services", "country": "USA"},
+                    {"ticker": "AMZN", "name": "Amazon.com Inc.", "shares": Decimal("60"), "price": Decimal("178.00"), "cost_basis": Decimal("9000"),
+                     "asset_type": "stock", "asset_class": "domestic", "market_cap": "large", "sector": "Consumer Cyclical", "industry": "E-commerce", "country": "USA"},
+                    {"ticker": "NVDA", "name": "NVIDIA Corporation", "shares": Decimal("40"), "price": Decimal("880.00"), "cost_basis": Decimal("20000"),
+                     "asset_type": "stock", "asset_class": "domestic", "market_cap": "large", "sector": "Technology", "industry": "Semiconductors", "country": "USA"},
+                    {"ticker": "TSLA", "name": "Tesla Inc.", "shares": Decimal("30"), "price": Decimal("245.00"), "cost_basis": Decimal("6000"),
+                     "asset_type": "stock", "asset_class": "domestic", "market_cap": "large", "sector": "Consumer Cyclical", "industry": "Auto Manufacturers", "country": "USA"},
+                    {"ticker": "SPY", "name": "SPDR S&P 500 ETF Trust", "shares": Decimal("100"), "price": Decimal("500.00"), "cost_basis": Decimal("45000"),
+                     "asset_type": "etf", "asset_class": "domestic", "market_cap": "large", "sector": "Diversified", "industry": "Index ETF", "country": "USA"},
+                    {"ticker": "QQQ", "name": "Invesco QQQ Trust", "shares": Decimal("50"), "price": Decimal("450.00"), "cost_basis": Decimal("20000"),
+                     "asset_type": "etf", "asset_class": "domestic", "market_cap": "large", "sector": "Technology", "industry": "Tech-Heavy ETF", "country": "USA"},
+                    # International stocks for realistic breakdown
+                    {"ticker": "TSM", "name": "Taiwan Semiconductor Manufacturing", "shares": Decimal("25"), "price": Decimal("145.00"), "cost_basis": Decimal("3000"),
+                     "asset_type": "stock", "asset_class": "international", "market_cap": "large", "sector": "Technology", "industry": "Semiconductors", "country": "Taiwan"},
+                    {"ticker": "SAP", "name": "SAP SE ADR", "shares": Decimal("15"), "price": Decimal("180.00"), "cost_basis": Decimal("2500"),
+                     "asset_type": "stock", "asset_class": "international", "market_cap": "large", "sector": "Technology", "industry": "Software", "country": "Germany"},
+                    {"ticker": "BABA", "name": "Alibaba Group Holding Ltd ADR", "shares": Decimal("40"), "price": Decimal("85.00"), "cost_basis": Decimal("5000"),
+                     "asset_type": "stock", "asset_class": "international", "market_cap": "large", "sector": "Consumer Cyclical", "industry": "E-commerce", "country": "China"},
                 ],
             },
             {
@@ -85,7 +108,8 @@ async def seed_investment_holdings():
                 "mask": "5544",
                 "balance": Decimal("15000.00"),
                 "holdings": [
-                    {"ticker": "FXAIX", "name": "Fidelity 500 Index Fund", "shares": Decimal("100"), "price": Decimal("150.00"), "cost_basis": Decimal("12000")},
+                    {"ticker": "FXAIX", "name": "Fidelity 500 Index Fund", "shares": Decimal("100"), "price": Decimal("150.00"), "cost_basis": Decimal("12000"),
+                     "asset_type": "mutual_fund", "asset_class": "domestic", "market_cap": "large", "sector": "Diversified", "industry": "Index Fund", "country": "USA"},
                 ],
             },
             {
@@ -95,7 +119,8 @@ async def seed_investment_holdings():
                 "mask": "9988",
                 "balance": Decimal("50000.00"),
                 "holdings": [
-                    {"ticker": "VMFXX", "name": "Vanguard Federal Money Market Fund", "shares": Decimal("50000"), "price": Decimal("1.00"), "cost_basis": Decimal("50000")},
+                    {"ticker": "VMFXX", "name": "Vanguard Federal Money Market Fund", "shares": Decimal("50000"), "price": Decimal("1.00"), "cost_basis": Decimal("50000"),
+                     "asset_type": "mutual_fund", "asset_class": "cash", "market_cap": None, "sector": "Money Market", "industry": "Cash Equivalent", "country": "USA"},
                 ],
             },
         ]
@@ -124,7 +149,7 @@ async def seed_investment_holdings():
             total_accounts += 1
             print(f"✅ Created account: {account.name} (****{account.mask})")
 
-            # Create holdings
+            # Create holdings with Alpha Vantage-style metadata
             for holding_data in account_data["holdings"]:
                 holding = Holding(
                     id=uuid.uuid4(),
@@ -137,7 +162,14 @@ async def seed_investment_holdings():
                     current_total_value=holding_data["shares"] * holding_data["price"],
                     price_as_of=datetime.utcnow(),
                     total_cost_basis=holding_data["cost_basis"],
-                    asset_type="etf" if holding_data["ticker"] in ["VTI", "VXUS", "BND", "VNQ", "SPY", "QQQ"] else "mutual_fund" if holding_data["ticker"].endswith("X") else "stock",
+                    cost_basis_per_share=holding_data["cost_basis"] / holding_data["shares"] if holding_data["shares"] > 0 else Decimal("0"),
+                    # Alpha Vantage-style metadata for accurate classification
+                    asset_type=holding_data.get("asset_type"),
+                    asset_class=holding_data.get("asset_class"),
+                    market_cap=holding_data.get("market_cap"),
+                    sector=holding_data.get("sector"),
+                    industry=holding_data.get("industry"),
+                    country=holding_data.get("country"),
                 )
                 db.add(holding)
                 total_holdings += 1
