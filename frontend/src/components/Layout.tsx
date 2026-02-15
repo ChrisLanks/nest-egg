@@ -26,7 +26,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
 } from '@chakra-ui/icons';
-import { FiSettings, FiLogOut } from 'react-icons/fi';
+import { FiSettings, FiLogOut, FiUsers } from 'react-icons/fi';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -357,6 +357,9 @@ export const Layout = () => {
               </HStack>
             </MenuButton>
             <MenuList>
+              <MenuItem icon={<FiUsers />} onClick={() => navigate('/household')}>
+                Household Settings
+              </MenuItem>
               <MenuItem icon={<FiSettings />} onClick={() => navigate('/preferences')}>
                 Preferences
               </MenuItem>

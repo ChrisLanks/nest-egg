@@ -23,6 +23,7 @@ import { AccountsPage } from './pages/AccountsPage';
 import BudgetsPage from './pages/BudgetsPage';
 import SavingsGoalsPage from './pages/SavingsGoalsPage';
 import RecurringTransactionsPage from './pages/RecurringTransactionsPage';
+import { HouseholdSettingsPage } from './pages/HouseholdSettingsPage';
 
 function App() {
   return (
@@ -49,6 +50,7 @@ function App() {
                 <Route path="/goals" element={<SavingsGoalsPage />} />
                 <Route path="/recurring" element={<RecurringTransactionsPage />} />
                 <Route path="/preferences" element={<PreferencesPage />} />
+                <Route path="/household" element={<HouseholdSettingsPage />} />
               </Route>
             </Route>
 
