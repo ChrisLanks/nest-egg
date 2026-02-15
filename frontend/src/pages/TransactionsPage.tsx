@@ -27,8 +27,12 @@ import {
   IconButton,
   Wrap,
   WrapItem,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
 } from '@chakra-ui/react';
-import { SearchIcon, ChevronUpIcon, ChevronDownIcon } from '@chakra-ui/icons';
+import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon } from '@chakra-ui/icons';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TransactionDetailModal } from '../components/TransactionDetailModal';
@@ -64,6 +68,7 @@ export const TransactionsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [showStatusColumn, setShowStatusColumn] = useState(false);
 
   const toast = useToast();
   const navigate = useNavigate();
@@ -339,16 +344,35 @@ export const TransactionsPage = () => {
         </HStack>
 
         {/* Search Bar */}
-        <InputGroup maxW="400px">
-          <InputLeftElement pointerEvents="none">
-            <SearchIcon color="gray.400" />
-          </InputLeftElement>
-          <Input
-            placeholder="Search transactions..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </InputGroup>
+        <HStack spacing={3}>
+          <InputGroup maxW="400px">
+            <InputLeftElement pointerEvents="none">
+              <SearchIcon color="gray.400" />
+            </InputLeftElement>
+            <Input
+              placeholder="Search transactions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </InputGroup>
+
+          {/* Columns Menu */}
+          <Menu closeOnSelect={false}>
+            <MenuButton as={Button} size="md" leftIcon={<ViewIcon />} variant="outline">
+              Columns
+            </MenuButton>
+            <MenuList>
+              <MenuItem>
+                <Checkbox
+                  isChecked={showStatusColumn}
+                  onChange={(e) => setShowStatusColumn(e.target.checked)}
+                >
+                  Status
+                </Checkbox>
+              </MenuItem>
+            </MenuList>
+          </Menu>
+        </HStack>
 
         {bulkSelectMode && selectedTransactions.size > 0 && (
           <Box
@@ -374,7 +398,7 @@ export const TransactionsPage = () => {
         )}
 
         <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
-          <Table variant="simple">
+          <Table variant="simple" size="sm">
             <Thead bg="gray.50">
               <Tr>
                 {bulkSelectMode && (
@@ -392,6 +416,8 @@ export const TransactionsPage = () => {
                   cursor="pointer"
                   onClick={() => handleSort('date')}
                   _hover={{ bg: 'gray.100' }}
+                  minWidth="120px"
+                  maxWidth="140px"
                 >
                   <HStack spacing={1}>
                     <Text>Date</Text>
@@ -449,16 +475,18 @@ export const TransactionsPage = () => {
                     <SortIcon field="amount" />
                   </HStack>
                 </Th>
-                <Th
-                  cursor="pointer"
-                  onClick={() => handleSort('status')}
-                  _hover={{ bg: 'gray.100' }}
-                >
-                  <HStack spacing={1}>
-                    <Text>Status</Text>
-                    <SortIcon field="status" />
-                  </HStack>
-                </Th>
+                {showStatusColumn && (
+                  <Th
+                    cursor="pointer"
+                    onClick={() => handleSort('status')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <HStack spacing={1}>
+                      <Text>Status</Text>
+                      <SortIcon field="status" />
+                    </HStack>
+                  </Th>
+                )}
               </Tr>
             </Thead>
             <Tbody>
@@ -560,11 +588,13 @@ export const TransactionsPage = () => {
                         {formatted}
                       </Text>
                     </Td>
-                    <Td>
-                      {txn.is_pending && (
-                        <Badge colorScheme="orange">Pending</Badge>
-                      )}
-                    </Td>
+                    {showStatusColumn && (
+                      <Td>
+                        {txn.is_pending && (
+                          <Badge colorScheme="orange">Pending</Badge>
+                        )}
+                      </Td>
+                    )}
                   </Tr>
                 );
               })}
