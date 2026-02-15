@@ -70,11 +70,12 @@ async def health_check():
 
 
 # Import and include routers
-from app.api.v1 import auth, accounts, transactions, labels, rules, categories, dev, dashboard, income_expenses, plaid, holdings, enrichment
+from app.api.v1 import auth, accounts, contributions, transactions, labels, rules, categories, dev, dashboard, income_expenses, plaid, holdings, enrichment
 from app.api.v1 import settings as settings_router
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(accounts.router, prefix="/api/v1/accounts", tags=["Accounts"])
+app.include_router(contributions.router, prefix="/api/v1", tags=["Contributions"])
 app.include_router(holdings.router, prefix="/api/v1/holdings", tags=["Holdings"])
 app.include_router(enrichment.router, prefix="/api/v1/enrichment", tags=["Enrichment"])
 app.include_router(plaid.router, prefix="/api/v1/plaid", tags=["Plaid"])

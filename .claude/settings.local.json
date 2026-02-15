@@ -46,7 +46,8 @@
       "Bash(npm run:*)",
       "Bash(npx tsc:*)",
       "Bash(pkill:*)",
-      "Bash(alembic current:*)"
+      "Bash(alembic current:*)",
+      "Bash(timeout 5 ./venv/bin/uvicorn:*)"
     ]
   }
 }
