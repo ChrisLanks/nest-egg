@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,8 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.dependencies import get_current_user, get_current_admin_user
 from app.models.user import User, HouseholdInvitation, InvitationStatus
+from app.services.rate_limit_service import get_rate_limit_service
 
 router = APIRouter(prefix="/household", tags=["household"])
+rate_limit_service = get_rate_limit_service()
 
 MAX_HOUSEHOLD_MEMBERS = 5
 
@@ -263,9 +265,19 @@ async def cancel_invitation(
 @router.get("/invitation/{invitation_code}")
 async def get_invitation_details(
     invitation_code: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get invitation details by code (public endpoint for accepting invitations)."""
+    """
+    Get invitation details by code (public endpoint for accepting invitations).
+    Rate limited to prevent brute force guessing of invitation codes.
+    """
+    # Rate limit: 10 checks per minute per IP (lenient since user might mistype)
+    await rate_limit_service.check_rate_limit(
+        request=request,
+        max_requests=10,
+        window_seconds=60,
+    )
     result = await db.execute(
         select(HouseholdInvitation).where(
             HouseholdInvitation.invitation_code == invitation_code
@@ -296,9 +308,19 @@ async def get_invitation_details(
 @router.post("/accept/{invitation_code}", status_code=status.HTTP_200_OK)
 async def accept_invitation(
     invitation_code: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """Accept a household invitation (public endpoint)."""
+    """
+    Accept a household invitation (public endpoint).
+    Rate limited to prevent brute force attempts on invitation codes.
+    """
+    # Rate limit: 5 accept attempts per minute per IP
+    await rate_limit_service.check_rate_limit(
+        request=request,
+        max_requests=5,
+        window_seconds=60,
+    )
     # Get invitation
     result = await db.execute(
         select(HouseholdInvitation).where(

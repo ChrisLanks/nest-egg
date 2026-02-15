@@ -4,7 +4,7 @@ import hashlib
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -20,13 +20,16 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.schemas.user import User as UserSchema
+from app.services.rate_limit_service import get_rate_limit_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+rate_limit_service = get_rate_limit_service()
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(
+    request: Request,
     data: RegisterRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -34,7 +37,14 @@ async def register(
     Register a new user and organization.
 
     Creates both an organization and the first user (admin) in a single transaction.
+    Rate limited to 3 registrations per 10 minutes per IP to prevent abuse.
     """
+    # Rate limit: 3 registration attempts per 10 minutes per IP
+    await rate_limit_service.check_rate_limit(
+        request=request,
+        max_requests=3,
+        window_seconds=600,  # 10 minutes
+    )
     # Check if user already exists
     existing_user = await user_crud.get_by_email(db, data.email)
     if existing_user:
@@ -87,6 +97,7 @@ async def register(
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
+    request: Request,
     data: LoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -94,7 +105,15 @@ async def login(
     Login with email and password.
 
     Returns access and refresh tokens.
+    Rate limited to 5 attempts per minute per IP to prevent brute force attacks.
     """
+    # Rate limit: 5 login attempts per minute per IP
+    await rate_limit_service.check_rate_limit(
+        request=request,
+        max_requests=5,
+        window_seconds=60,
+    )
+
     logger.info(f"Login attempt for email: {data.email}")
 
     try:
