@@ -193,14 +193,15 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
             <Tooltip content={<CustomTooltip />} />
             <Legend />
 
-            {/* Percentile bands */}
+            {/* Percentile bands (background shading) */}
             <Area
               type="monotone"
               dataKey="percentile90"
               stroke="transparent"
               fill="#48BB78"
               fillOpacity={0.1}
-              name="90th Percentile"
+              name=""
+              legendType="none"
             />
             <Area
               type="monotone"
@@ -208,7 +209,8 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
               stroke="transparent"
               fill="#4299E1"
               fillOpacity={0.15}
-              name="75th Percentile"
+              name=""
+              legendType="none"
             />
             <Area
               type="monotone"
@@ -216,7 +218,8 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
               stroke="transparent"
               fill="#ED8936"
               fillOpacity={0.15}
-              name="25th Percentile"
+              name=""
+              legendType="none"
             />
             <Area
               type="monotone"
@@ -224,7 +227,19 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
               stroke="transparent"
               fill="#F56565"
               fillOpacity={0.1}
-              name="10th Percentile"
+              name=""
+              legendType="none"
+            />
+
+            {/* Best Case line (90th percentile) */}
+            <Line
+              type="monotone"
+              dataKey="percentile90"
+              stroke="#48BB78"
+              strokeWidth={2}
+              strokeDasharray="3 3"
+              name="Best Case (90th %ile)"
+              dot={false}
             />
 
             {/* Median line */}
@@ -237,17 +252,48 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
               dot={false}
             />
 
-            {/* Inflation-adjusted line */}
+            {/* Worst Case line (10th percentile) */}
+            <Line
+              type="monotone"
+              dataKey="percentile10"
+              stroke="#F56565"
+              strokeWidth={2}
+              strokeDasharray="3 3"
+              name="Worst Case (10th %ile)"
+              dot={false}
+            />
+
+            {/* Inflation-adjusted lines */}
             {showInflationAdjusted && (
-              <Line
-                type="monotone"
-                dataKey="medianInflationAdjusted"
-                stroke="#ED8936"
-                strokeWidth={2}
-                strokeDasharray="5 5"
-                name="Median (Real)"
-                dot={false}
-              />
+              <>
+                <Line
+                  type="monotone"
+                  dataKey="percentile90InflationAdjusted"
+                  stroke="#48BB78"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  name="Best Case (Real)"
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="medianInflationAdjusted"
+                  stroke="#ED8936"
+                  strokeWidth={3}
+                  strokeDasharray="5 5"
+                  name="Median (Real)"
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="percentile10InflationAdjusted"
+                  stroke="#F56565"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  name="Worst Case (Real)"
+                  dot={false}
+                />
+              </>
             )}
           </ComposedChart>
         </ResponsiveContainer>

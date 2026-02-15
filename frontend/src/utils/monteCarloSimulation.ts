@@ -22,6 +22,8 @@ export interface ProjectionResult {
   percentile75: number;
   percentile90: number; // Optimistic case (90th percentile)
   medianInflationAdjusted: number;
+  percentile10InflationAdjusted: number;
+  percentile90InflationAdjusted: number;
 }
 
 /**
@@ -102,6 +104,8 @@ export function runMonteCarloSimulation(params: SimulationParams): ProjectionRes
       percentile75: yearValues[p75Index],
       percentile90: yearValues[p90Index],
       medianInflationAdjusted: yearValues[p50Index] / inflationAdjustment,
+      percentile10InflationAdjusted: yearValues[p10Index] / inflationAdjustment,
+      percentile90InflationAdjusted: yearValues[p90Index] / inflationAdjustment,
     });
   }
 

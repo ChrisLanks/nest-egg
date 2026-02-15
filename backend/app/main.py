@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.core.database import close_db, init_db
+from app.services.snapshot_scheduler import snapshot_scheduler
 
 
 @asynccontextmanager
@@ -14,8 +15,10 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
     await init_db()
+    await snapshot_scheduler.start()
     yield
     # Shutdown
+    await snapshot_scheduler.stop()
     await close_db()
 
 
