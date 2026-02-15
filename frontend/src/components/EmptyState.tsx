@@ -4,11 +4,10 @@
 
 import { Box, VStack, Heading, Text, Button, Icon } from '@chakra-ui/react';
 import { ReactElement } from 'react';
-import { IconType } from 'react-icons';
 
 interface EmptyStateProps {
   /** Icon to display (from react-icons) */
-  icon?: IconType;
+  icon?: React.ElementType;
   /** Main title */
   title: string;
   /** Description text */
