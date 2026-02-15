@@ -2,6 +2,7 @@
 
 from datetime import date
 from typing import Optional, List
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -9,13 +10,22 @@ from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import (
+    get_current_user,
+    verify_household_member,
+    get_user_accounts,
+    get_all_household_accounts
+)
 from app.models.user import User
 from app.models.transaction import Transaction
 from app.models.account import Account
+from app.services.deduplication_service import DeduplicationService
 
 
 router = APIRouter()
+
+# Initialize deduplication service
+deduplication_service = DeduplicationService()
 
 
 class CategoryBreakdown(BaseModel):
@@ -47,11 +57,22 @@ class MonthlyTrend(BaseModel):
 async def get_income_expense_summary(
     start_date: date = Query(...),
     end_date: date = Query(...),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get income vs expense summary for date range."""
-    
+
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
     # Get total income - only from active accounts
     income_result = await db.execute(
         select(func.sum(Transaction.amount))
@@ -60,6 +81,7 @@ async def get_income_expense_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0
@@ -75,13 +97,14 @@ async def get_income_expense_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0
         )
     )
     total_expenses = abs(float(expense_result.scalar() or 0))
-    
+
     # Get income by category - only from active accounts
     income_categories_result = await db.execute(
         select(
@@ -94,6 +117,7 @@ async def get_income_expense_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0,
@@ -125,6 +149,7 @@ async def get_income_expense_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0,
@@ -157,10 +182,21 @@ async def get_income_expense_summary(
 async def get_income_expense_trend(
     start_date: date = Query(...),
     end_date: date = Query(...),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get monthly income vs expense trend."""
+
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
 
     # Create the date_trunc expression once to reuse
     month_expr = func.date_trunc('month', Transaction.date)
@@ -180,6 +216,7 @@ async def get_income_expense_trend(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date
         ).group_by(month_expr)
@@ -206,15 +243,27 @@ async def get_merchant_breakdown(
     end_date: date = Query(...),
     category: Optional[str] = Query(None),
     transaction_type: str = Query(..., description="income or expense"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get merchant breakdown for a category."""
 
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
     # Build base conditions - only include transactions from active accounts
     conditions = [
         Transaction.organization_id == current_user.organization_id,
         Account.is_active == True,
+        Transaction.account_id.in_(account_ids),
         Transaction.date >= start_date,
         Transaction.date <= end_date,
         Transaction.merchant_name.isnot(None),
@@ -270,12 +319,23 @@ async def get_merchant_breakdown(
 async def get_label_summary(
     start_date: date = Query(...),
     end_date: date = Query(...),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get income vs expense summary grouped by labels."""
     from app.models.transaction import transaction_labels, Label
-    
+
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
     # Get total income - only from active accounts
     income_result = await db.execute(
         select(func.sum(Transaction.amount))
@@ -284,6 +344,7 @@ async def get_label_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0
@@ -299,6 +360,7 @@ async def get_label_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0
@@ -317,6 +379,7 @@ async def get_label_summary(
         .join(Label, Label.id == transaction_labels.c.label_id)
         .where(
             Transaction.organization_id == current_user.organization_id,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0
@@ -343,6 +406,7 @@ async def get_label_summary(
         unlabeled_income_count_result = await db.execute(
             select(func.count(Transaction.id)).where(
                 Transaction.organization_id == current_user.organization_id,
+                Transaction.account_id.in_(account_ids),
                 Transaction.date >= start_date,
                 Transaction.date <= end_date,
                 Transaction.amount > 0,
@@ -359,7 +423,7 @@ async def get_label_summary(
             count=unlabeled_count,
             percentage=percentage
         ))
-    
+
     # Get expenses by label
     expense_labels_result = await db.execute(
         select(
@@ -371,6 +435,7 @@ async def get_label_summary(
         .join(Label, Label.id == transaction_labels.c.label_id)
         .where(
             Transaction.organization_id == current_user.organization_id,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0
@@ -397,6 +462,7 @@ async def get_label_summary(
         unlabeled_expense_count_result = await db.execute(
             select(func.count(Transaction.id)).where(
                 Transaction.organization_id == current_user.organization_id,
+                Transaction.account_id.in_(account_ids),
                 Transaction.date >= start_date,
                 Transaction.date <= end_date,
                 Transaction.amount < 0,
@@ -429,15 +495,27 @@ async def get_label_merchant_breakdown(
     end_date: date = Query(...),
     label: Optional[str] = Query(None),
     transaction_type: str = Query(..., description="income or expense"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get merchant breakdown for a label."""
     from app.models.transaction import transaction_labels, Label
-    
+
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
     # Build base conditions
     conditions = [
         Transaction.organization_id == current_user.organization_id,
+        Transaction.account_id.in_(account_ids),
         Transaction.date >= start_date,
         Transaction.date <= end_date,
         Transaction.merchant_name.isnot(None),
@@ -539,10 +617,21 @@ async def get_label_merchant_breakdown(
 async def get_merchant_summary(
     start_date: date = Query(...),
     end_date: date = Query(...),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get income vs expense summary grouped by merchant."""
+
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
 
     # Get total income - only from active accounts
     income_result = await db.execute(
@@ -552,6 +641,7 @@ async def get_merchant_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0
@@ -567,6 +657,7 @@ async def get_merchant_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0
@@ -586,6 +677,7 @@ async def get_merchant_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0,
@@ -617,6 +709,7 @@ async def get_merchant_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0,
@@ -649,10 +742,21 @@ async def get_merchant_summary(
 async def get_account_summary(
     start_date: date = Query(...),
     end_date: date = Query(...),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get income vs expense summary grouped by account."""
+
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
 
     # Get total income - only from active accounts
     income_result = await db.execute(
@@ -662,6 +766,7 @@ async def get_account_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0
@@ -677,6 +782,7 @@ async def get_account_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0
@@ -697,6 +803,7 @@ async def get_account_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0
@@ -728,6 +835,7 @@ async def get_account_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active == True,
+            Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0
@@ -761,15 +869,27 @@ async def get_account_merchant_breakdown(
     end_date: date = Query(...),
     account_id: Optional[str] = Query(None),
     transaction_type: str = Query(..., description="income or expense"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get merchant breakdown for a specific account."""
 
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
     # Build base conditions - only include transactions from active accounts
     conditions = [
         Transaction.organization_id == current_user.organization_id,
         Account.is_active == True,
+        Transaction.account_id.in_(account_ids),
         Transaction.date >= start_date,
         Transaction.date <= end_date,
         Transaction.merchant_name.isnot(None),

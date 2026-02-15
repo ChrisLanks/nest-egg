@@ -3,19 +3,29 @@
 from datetime import date, datetime
 from typing import Optional
 from decimal import Decimal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import (
+    get_current_user,
+    verify_household_member,
+    get_user_accounts,
+    get_all_household_accounts
+)
 from app.models.user import User
 from app.services.dashboard_service import DashboardService
+from app.services.deduplication_service import DeduplicationService
 from app.schemas.transaction import TransactionDetail
 
 
 router = APIRouter()
+
+# Initialize deduplication service
+deduplication_service = DeduplicationService()
 
 
 class DashboardSummary(BaseModel):
@@ -65,21 +75,32 @@ class DashboardData(BaseModel):
 async def get_dashboard_summary(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get dashboard summary metrics."""
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
     service = DashboardService(db)
 
     # Calculate metrics
-    net_worth = await service.get_net_worth(current_user.organization_id)
-    total_assets = await service.get_total_assets(current_user.organization_id)
-    total_debts = await service.get_total_debts(current_user.organization_id)
+    net_worth = await service.get_net_worth(current_user.organization_id, account_ids)
+    total_assets = await service.get_total_assets(current_user.organization_id, account_ids)
+    total_debts = await service.get_total_debts(current_user.organization_id, account_ids)
     monthly_spending = await service.get_monthly_spending(
-        current_user.organization_id, start_date, end_date
+        current_user.organization_id, start_date, end_date, account_ids
     )
     monthly_income = await service.get_monthly_income(
-        current_user.organization_id, start_date, end_date
+        current_user.organization_id, start_date, end_date, account_ids
     )
 
     return DashboardSummary(
@@ -96,35 +117,46 @@ async def get_dashboard_summary(
 async def get_dashboard_data(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get complete dashboard data."""
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
     service = DashboardService(db)
 
     # Get all dashboard data
-    net_worth = await service.get_net_worth(current_user.organization_id)
-    total_assets = await service.get_total_assets(current_user.organization_id)
-    total_debts = await service.get_total_debts(current_user.organization_id)
+    net_worth = await service.get_net_worth(current_user.organization_id, account_ids)
+    total_assets = await service.get_total_assets(current_user.organization_id, account_ids)
+    total_debts = await service.get_total_debts(current_user.organization_id, account_ids)
     monthly_spending = await service.get_monthly_spending(
-        current_user.organization_id, start_date, end_date
+        current_user.organization_id, start_date, end_date, account_ids
     )
     monthly_income = await service.get_monthly_income(
-        current_user.organization_id, start_date, end_date
+        current_user.organization_id, start_date, end_date, account_ids
     )
-    
+
     recent_transactions = await service.get_recent_transactions(
-        current_user.organization_id, limit=10
+        current_user.organization_id, limit=10, account_ids=account_ids
     )
-    
+
     top_expenses = await service.get_expense_by_category(
-        current_user.organization_id, start_date, end_date, limit=10
+        current_user.organization_id, start_date, end_date, limit=10, account_ids=account_ids
     )
-    
-    account_balances = await service.get_account_balances(current_user.organization_id)
-    
+
+    account_balances = await service.get_account_balances(current_user.organization_id, account_ids)
+
     cash_flow_trend = await service.get_cash_flow_trend(
-        current_user.organization_id, months=6
+        current_user.organization_id, months=6, account_ids=account_ids
     )
 
     # Convert transactions to TransactionDetail format

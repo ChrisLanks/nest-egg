@@ -1,6 +1,6 @@
 """Account API endpoints."""
 
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -8,34 +8,48 @@ from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user, get_verified_account
+from app.dependencies import (
+    get_current_user,
+    get_verified_account,
+    verify_household_member,
+    get_user_accounts,
+    get_all_household_accounts
+)
 from app.models.user import User
 from app.models.account import Account
 from app.models.holding import Holding
 from app.schemas.account import Account as AccountSchema, AccountSummary, ManualAccountCreate, AccountUpdate
+from app.services.deduplication_service import DeduplicationService
 
 router = APIRouter()
+
+# Initialize deduplication service
+deduplication_service = DeduplicationService()
 
 
 @router.get("/", response_model=List[AccountSummary])
 async def list_accounts(
     include_hidden: bool = Query(False, description="Include hidden accounts (admin view)"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List all accounts for the current user's organization."""
-    query = select(Account).where(
-        Account.organization_id == current_user.organization_id
-    )
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
 
-    # Only filter by is_active if not including hidden
+    # Filter hidden accounts if requested
     if not include_hidden:
-        query = query.where(Account.is_active)
+        accounts = [acc for acc in accounts if acc.is_active]
 
-    query = query.order_by(Account.name)
+    # Sort by name
+    accounts = sorted(accounts, key=lambda a: a.name)
 
-    result = await db.execute(query)
-    accounts = result.scalars().all()
     return accounts
 
 
