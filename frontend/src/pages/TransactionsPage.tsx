@@ -380,17 +380,17 @@ export const TransactionsPage = () => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
 
-      // Parse special search syntax: labels:<x,y>, category:<x,y>, institution:<x,y>
+      // Parse special search syntax: labels:<x,y>, category:<x,y>, account:<x,y>
       // Support both quoted strings (with spaces) and unquoted strings (no spaces)
       const labelsMatch = query.match(/labels?:((?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*)/i);
       const categoryMatch = query.match(/categor(?:y|ies):((?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*)/i);
-      const institutionMatch = query.match(/institution:((?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*)/i);
+      const accountMatch = query.match(/accounts?:((?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*)/i);
 
       // Remove special syntax from query to get plain text search
       const plainQuery = query
         .replace(/labels?:(?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*/gi, '')
         .replace(/categor(?:y|ies):(?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*/gi, '')
-        .replace(/institution:(?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*/gi, '')
+        .replace(/accounts?:(?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*/gi, '')
         .trim();
 
       filtered = filtered.filter((txn) => {
@@ -426,14 +426,14 @@ export const TransactionsPage = () => {
           if (!hasMatchingCategory) return false;
         }
 
-        // Check institution filter
-        if (institutionMatch) {
-          const institutionNames = parseValues(institutionMatch[1]);
+        // Check account filter
+        if (accountMatch) {
+          const accountNames = parseValues(accountMatch[1]);
           const accountName = (txn.account_name || '').toLowerCase();
-          const hasMatchingInstitution = institutionNames.some(inst =>
-            accountName.includes(inst)
+          const hasMatchingAccount = accountNames.some(acc =>
+            accountName.includes(acc)
           );
-          if (!hasMatchingInstitution) return false;
+          if (!hasMatchingAccount) return false;
         }
 
         // Check plain text search (merchant, account, category, description, labels)
@@ -620,9 +620,9 @@ export const TransactionsPage = () => {
 
   const handleAccountClick = (accountName: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
-    // For now, just search by account name
-    // TODO: Navigate to account detail page in the future
-    setSearchQuery(accountName);
+    // Add quotes if account name contains spaces
+    const formattedAccount = accountName.includes(' ') ? `"${accountName}"` : accountName;
+    setSearchQuery(`account:${formattedAccount}`);
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -820,7 +820,7 @@ export const TransactionsPage = () => {
               <SearchIcon color="gray.400" />
             </InputLeftElement>
             <Input
-              placeholder="Search or try: labels:Transfer category:Food"
+              placeholder="Search or try: labels:Transfer account:Chase"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
