@@ -28,28 +28,14 @@ class DashboardService:
         )
         accounts = result.scalars().all()
 
-        # Define account type categories
-        asset_types = [
-            AccountType.CHECKING, AccountType.SAVINGS, AccountType.BROKERAGE,
-            AccountType.RETIREMENT_401K, AccountType.RETIREMENT_IRA, AccountType.RETIREMENT_ROTH,
-            AccountType.RETIREMENT_529, AccountType.HSA, AccountType.PROPERTY,
-            AccountType.VEHICLE, AccountType.CRYPTO, AccountType.PRIVATE_EQUITY,
-            AccountType.MANUAL, AccountType.OTHER
-        ]
-
-        debt_types = [
-            AccountType.CREDIT_CARD, AccountType.LOAN, AccountType.MORTGAGE
-        ]
-
         total = Decimal(0)
         for account in accounts:
             balance = account.current_balance or Decimal(0)
 
-            # Asset accounts add to net worth
-            if account.account_type in asset_types:
+            # Use account type's category property to determine how to handle balance
+            if account.account_type.is_asset:
                 total += balance
-            # Debt accounts subtract from net worth
-            elif account.account_type in debt_types:
+            elif account.account_type.is_debt:
                 # Use abs() to handle both positive and negative balance representations
                 total -= abs(balance)
 
@@ -60,35 +46,32 @@ class DashboardService:
         result = await self.db.execute(
             select(Account).where(
                 Account.organization_id == organization_id,
-                Account.is_active == True,
-                Account.account_type.in_([
-                    AccountType.CHECKING, AccountType.SAVINGS, AccountType.BROKERAGE,
-                    AccountType.RETIREMENT_401K, AccountType.RETIREMENT_IRA, AccountType.RETIREMENT_ROTH,
-                    AccountType.RETIREMENT_529, AccountType.HSA, AccountType.PROPERTY,
-                    AccountType.VEHICLE, AccountType.CRYPTO, AccountType.PRIVATE_EQUITY,
-                    AccountType.MANUAL, AccountType.OTHER
-                ])
+                Account.is_active == True
             )
         )
         accounts = result.scalars().all()
 
-        return sum((account.current_balance or Decimal(0) for account in accounts), Decimal(0))
+        # Filter for asset accounts using category property
+        return sum(
+            (account.current_balance or Decimal(0) for account in accounts if account.account_type.is_asset),
+            Decimal(0)
+        )
 
     async def get_total_debts(self, organization_id: str) -> Decimal:
         """Calculate total debts."""
         result = await self.db.execute(
             select(Account).where(
                 Account.organization_id == organization_id,
-                Account.is_active == True,
-                Account.account_type.in_([
-                    AccountType.CREDIT_CARD, AccountType.LOAN, AccountType.MORTGAGE
-                ])
+                Account.is_active == True
             )
         )
         accounts = result.scalars().all()
 
-        # Sum up all debt balances (return absolute value for display)
-        return sum((abs(account.current_balance or Decimal(0)) for account in accounts), Decimal(0))
+        # Filter for debt accounts using category property and return absolute value for display
+        return sum(
+            (abs(account.current_balance or Decimal(0)) for account in accounts if account.account_type.is_debt),
+            Decimal(0)
+        )
 
     async def get_monthly_spending(
         self, 

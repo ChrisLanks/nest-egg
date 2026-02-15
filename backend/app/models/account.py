@@ -12,8 +12,14 @@ import enum
 from app.core.database import Base
 
 
+class AccountCategory(str, enum.Enum):
+    """Financial category classification for account types."""
+    ASSET = "asset"
+    DEBT = "debt"
+
+
 class AccountType(str, enum.Enum):
-    """Account types."""
+    """Account types with automatic asset/debt classification."""
     CHECKING = "checking"
     SAVINGS = "savings"
     CREDIT_CARD = "credit_card"
@@ -31,6 +37,26 @@ class AccountType(str, enum.Enum):
     PRIVATE_EQUITY = "private_equity"
     MANUAL = "manual"
     OTHER = "other"
+
+    @property
+    def category(self) -> AccountCategory:
+        """Get the financial category (asset or debt) for this account type."""
+        debt_types = {
+            AccountType.CREDIT_CARD,
+            AccountType.LOAN,
+            AccountType.MORTGAGE,
+        }
+        return AccountCategory.DEBT if self in debt_types else AccountCategory.ASSET
+
+    @property
+    def is_asset(self) -> bool:
+        """Check if this account type is an asset."""
+        return self.category == AccountCategory.ASSET
+
+    @property
+    def is_debt(self) -> bool:
+        """Check if this account type is a debt."""
+        return self.category == AccountCategory.DEBT
 
 
 class AccountSource(str, enum.Enum):
