@@ -22,9 +22,11 @@ from app.schemas.plaid import (
 from app.services.plaid_service import PlaidService
 from app.services.notification_service import notification_service
 from app.services.deduplication_service import DeduplicationService
+from app.services.encryption_service import get_encryption_service
 
 router = APIRouter()
 deduplication_service = DeduplicationService()
+encryption_service = get_encryption_service()
 
 
 @router.post("/link-token", response_model=LinkTokenCreateResponse)
@@ -78,11 +80,14 @@ async def exchange_public_token(
         )
 
         # Create PlaidItem record
+        # Encrypt the access token before storing
+        encrypted_access_token = encryption_service.encrypt_token(access_token)
+
         plaid_item = PlaidItem(
             organization_id=current_user.organization_id,
             user_id=current_user.id,
             item_id=f"item_{access_token[:16]}",  # Use part of access token as item_id for test
-            access_token=access_token.encode(),  # Store as bytes (would be encrypted in production)
+            access_token=encrypted_access_token,  # Store encrypted
             institution_id=request.institution_id,
             institution_name=request.institution_name or "Unknown Institution",
         )

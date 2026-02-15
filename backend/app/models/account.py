@@ -138,6 +138,30 @@ class PlaidItem(Base):
     # Relationships
     accounts = relationship("Account", back_populates="plaid_item", cascade="all, delete-orphan")
 
+    def get_decrypted_access_token(self) -> str:
+        """
+        Get the decrypted access token.
+
+        Returns:
+            Decrypted access token string
+        """
+        from app.services.encryption_service import get_encryption_service
+
+        encryption_service = get_encryption_service()
+        return encryption_service.decrypt_token(self.access_token)
+
+    def set_encrypted_access_token(self, plaintext_token: str) -> None:
+        """
+        Set the access token (will be encrypted).
+
+        Args:
+            plaintext_token: The plaintext token to encrypt and store
+        """
+        from app.services.encryption_service import get_encryption_service
+
+        encryption_service = get_encryption_service()
+        self.access_token = encryption_service.encrypt_token(plaintext_token)
+
 
 class Account(Base):
     """Financial account (bank, credit card, investment, etc.)."""
