@@ -18,23 +18,58 @@ class AccountCategory(str, enum.Enum):
     DEBT = "debt"
 
 
+class PropertyType(str, enum.Enum):
+    """Property classification for real estate accounts."""
+    PERSONAL_RESIDENCE = "personal_residence"
+    INVESTMENT = "investment"
+    VACATION_HOME = "vacation_home"
+
+
 class AccountType(str, enum.Enum):
     """Account types with automatic asset/debt classification."""
+    # Cash & Checking
     CHECKING = "checking"
     SAVINGS = "savings"
+    MONEY_MARKET = "money_market"
+    CD = "cd"
+
+    # Credit & Debt
     CREDIT_CARD = "credit_card"
+    LOAN = "loan"
+    STUDENT_LOAN = "student_loan"
+    MORTGAGE = "mortgage"
+
+    # Investment Accounts
     BROKERAGE = "brokerage"
     RETIREMENT_401K = "retirement_401k"
     RETIREMENT_IRA = "retirement_ira"
     RETIREMENT_ROTH = "retirement_roth"
     RETIREMENT_529 = "retirement_529"
     HSA = "hsa"
-    LOAN = "loan"
-    MORTGAGE = "mortgage"
-    PROPERTY = "property"
-    VEHICLE = "vehicle"
+    PENSION = "pension"
+
+    # Alternative Investments
     CRYPTO = "crypto"
     PRIVATE_EQUITY = "private_equity"
+    COLLECTIBLES = "collectibles"
+    PRECIOUS_METALS = "precious_metals"
+
+    # Real Estate & Vehicles
+    PROPERTY = "property"
+    VEHICLE = "vehicle"
+
+    # Insurance & Annuities
+    LIFE_INSURANCE_CASH_VALUE = "life_insurance_cash_value"
+    ANNUITY = "annuity"
+
+    # Securities
+    BOND = "bond"
+    STOCK_OPTIONS = "stock_options"
+
+    # Business
+    BUSINESS_EQUITY = "business_equity"
+
+    # Other
     MANUAL = "manual"
     OTHER = "other"
 
@@ -44,6 +79,7 @@ class AccountType(str, enum.Enum):
         debt_types = {
             AccountType.CREDIT_CARD,
             AccountType.LOAN,
+            AccountType.STUDENT_LOAN,
             AccountType.MORTGAGE,
         }
         return AccountCategory.DEBT if self in debt_types else AccountCategory.ASSET
@@ -116,6 +152,7 @@ class Account(Base):
     # Account identification
     name = Column(String(255), nullable=False)
     account_type = Column(SQLEnum(AccountType), nullable=False, index=True)
+    property_type = Column(SQLEnum(PropertyType), nullable=True)  # Only for PROPERTY accounts
     account_source = Column(SQLEnum(AccountSource), default=AccountSource.PLAID, nullable=False)
 
     # External identifiers
