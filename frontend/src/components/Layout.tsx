@@ -305,22 +305,50 @@ export const Layout = () => {
   };
 
   const getUserName = (userId: string): string => {
-    if (!members) return '';
+    if (!members || !userId) return '';
     const member = members.find((m: any) => m.id === userId);
     if (!member) return '';
-    if (member.display_name) return member.display_name;
-    if (member.first_name) return member.first_name;
-    return member.email.split('@')[0];
+
+    // Try display_name first
+    if (member.display_name && member.display_name.trim()) {
+      return member.display_name.trim();
+    }
+
+    // Try first_name + last_name
+    if (member.first_name && member.first_name.trim()) {
+      if (member.last_name && member.last_name.trim()) {
+        return `${member.first_name.trim()} ${member.last_name.trim()}`;
+      }
+      return member.first_name.trim();
+    }
+
+    // Fallback to email username
+    if (member.email && member.email.includes('@')) {
+      return member.email.split('@')[0];
+    }
+
+    return '';
   };
 
   const getUserInitials = (userId: string): string => {
     const name = getUserName(userId);
-    if (!name) return '?';
-    const parts = name.split(' ');
+    if (!name || name.length === 0) return '?';
+
+    // Split by space to get first and last name
+    const parts = name.split(' ').filter(p => p.length > 0);
+
     if (parts.length >= 2) {
+      // Use first letter of first word and first letter of last word
       return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     }
-    return name.substring(0, 2).toUpperCase();
+
+    // Single word name - use first two characters
+    if (name.length >= 2) {
+      return name.substring(0, 2).toUpperCase();
+    }
+
+    // Very short name - use first character twice
+    return (name[0] + name[0]).toUpperCase();
   };
 
   // Deduplicate accounts in combined view
@@ -533,7 +561,7 @@ export const Layout = () => {
       </Box>
 
       {/* View Indicator Banner */}
-      {!isCombinedView && (
+      {!isCombinedView && members && (
         <Box
           bg={isOtherUserView ? 'orange.50' : 'blue.50'}
           borderBottomWidth={1}
@@ -581,7 +609,7 @@ export const Layout = () => {
                 <Text fontSize="sm" fontWeight="bold" textTransform="uppercase" color="gray.700" letterSpacing="wide">
                   Accounts
                 </Text>
-                {!isCombinedView && (
+                {!isCombinedView && members && (
                   <HStack spacing={1} mt={1}>
                     <Badge
                       size="sm"
