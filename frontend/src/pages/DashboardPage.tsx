@@ -33,7 +33,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../features/auth/stores/authStore';
 import api from '../services/api';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { useState, useMemo } from 'react';
 
 interface DashboardData {
@@ -287,7 +287,7 @@ export const DashboardPage = () => {
                 </ButtonGroup>
               </HStack>
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart
+                <AreaChart
                   data={historicalData.map((snapshot) => ({
                     date: new Date(snapshot.snapshot_date).toLocaleDateString('en-US', {
                       month: 'short',
@@ -304,15 +304,21 @@ export const DashboardPage = () => {
                     contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc' }}
                   />
                   <Legend />
-                  <Line
+                  <defs>
+                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3182CE" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#3182CE" stopOpacity={0.1}/>
+                    </linearGradient>
+                  </defs>
+                  <Area
                     type="monotone"
                     dataKey="value"
                     stroke="#3182CE"
                     strokeWidth={2}
+                    fill="url(#colorValue)"
                     name="Net Worth"
-                    dot={{ r: 3 }}
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             </CardBody>
           </Card>
