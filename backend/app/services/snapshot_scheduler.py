@@ -15,9 +15,9 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
-from app.database import async_session_maker
+from app.core.database import AsyncSessionLocal
 from app.models.portfolio_snapshot import PortfolioSnapshot
-from app.models.organization import Organization
+from app.models.user import Organization
 from app.services.snapshot_service import snapshot_service
 from app.api.v1 import holdings as holdings_api
 
@@ -194,7 +194,7 @@ class SnapshotScheduler:
         This is called periodically (every hour) to check if any organization
         needs a snapshot based on their offset schedule.
         """
-        async with async_session_maker() as db:
+        async with AsyncSessionLocal() as db:
             try:
                 # Get all active organizations
                 result = await db.execute(select(Organization))

@@ -47,17 +47,17 @@ class SnapshotService:
         if snapshot_date is None:
             snapshot_date = date.today()
 
-        # Convert PortfolioSummary to snapshot data
+        # Convert PortfolioSummary to snapshot data (JSON-serializable)
         snapshot_data = {
             "total_value": float(portfolio.total_value),
             "total_cost_basis": float(portfolio.total_cost_basis) if portfolio.total_cost_basis else None,
             "total_gain_loss": float(portfolio.total_gain_loss) if portfolio.total_gain_loss else None,
             "total_gain_loss_percent": float(portfolio.total_gain_loss_percent) if portfolio.total_gain_loss_percent else None,
-            "holdings_by_ticker": [h.dict() for h in portfolio.holdings_by_ticker],
-            "holdings_by_account": [h.dict() for h in portfolio.holdings_by_account],
-            "category_breakdown": portfolio.category_breakdown.dict() if portfolio.category_breakdown else None,
-            "geographic_breakdown": portfolio.geographic_breakdown.dict() if portfolio.geographic_breakdown else None,
-            "sector_breakdown": [s.dict() for s in portfolio.sector_breakdown] if portfolio.sector_breakdown else None,
+            "holdings_by_ticker": [h.model_dump(mode='json') for h in portfolio.holdings_by_ticker],
+            "holdings_by_account": [h.model_dump(mode='json') for h in portfolio.holdings_by_account],
+            "category_breakdown": portfolio.category_breakdown.model_dump(mode='json') if portfolio.category_breakdown else None,
+            "geographic_breakdown": portfolio.geographic_breakdown.model_dump(mode='json') if portfolio.geographic_breakdown else None,
+            "sector_breakdown": [s.model_dump(mode='json') for s in portfolio.sector_breakdown] if portfolio.sector_breakdown else None,
         }
 
         # Prepare snapshot values
