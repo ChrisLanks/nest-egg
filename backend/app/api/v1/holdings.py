@@ -1145,11 +1145,16 @@ async def get_style_box_breakdown(
         if value == 0:
             continue
 
-        # Check if international based on country field (from Alpha Vantage)
+        # Check if international based on country field and asset_class
         country = holding.country or ""
-        is_usa = country in ['USA', 'US', 'United States'] or holding.asset_class == "domestic"
 
-        if not is_usa and (holding.country or holding.asset_class == "international"):
+        # Determine if this is an international holding
+        is_international = (
+            holding.asset_class == "international" or
+            (country and country not in ['USA', 'US', 'United States', ''])
+        )
+
+        if is_international:
             # Categorize as Developed or Emerging market based on country
             if country in DEVELOPED_MARKETS:
                 style_class = "International - Developed"
