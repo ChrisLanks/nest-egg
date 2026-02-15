@@ -58,7 +58,7 @@ class OrganizationBase(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=255)
     custom_month_end_day: int = Field(default=30, ge=1, le=31)
-    monthly_start_day: int = Field(default=1, ge=1, le=31)
+    monthly_start_day: int = Field(default=1, ge=1, le=28, description="Day of month to start monthly tracking (1-28)")
     timezone: str = Field(default="UTC")
 
 
@@ -73,7 +73,7 @@ class OrganizationUpdate(BaseModel):
 
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     custom_month_end_day: Optional[int] = Field(None, ge=1, le=31)
-    monthly_start_day: Optional[int] = Field(None, ge=1, le=31)
+    monthly_start_day: Optional[int] = Field(None, ge=1, le=28, description="Day of month to start monthly tracking (1-28)")
     timezone: Optional[str] = None
 
 
