@@ -158,6 +158,7 @@ class Account(Base):
     # External identifiers
     external_account_id = Column(String(255), nullable=True, index=True)  # Plaid account_id
     mask = Column(String(10), nullable=True)  # Last 4 digits
+    plaid_item_hash = Column(String(64), nullable=True, index=True)  # SHA256 hash for duplicate detection
 
     # Institution
     institution_name = Column(String(255), nullable=True)

@@ -1,13 +1,28 @@
 """User and Organization models."""
 
 import uuid
+import enum
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, Date, DateTime, Enum as SQLEnum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 from app.utils.datetime_utils import utc_now_lambda
+
+
+class InvitationStatus(str, enum.Enum):
+    """Invitation status enum."""
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    EXPIRED = "expired"
+
+
+class SharePermission(str, enum.Enum):
+    """Account share permission enum."""
+    VIEW = "view"
+    EDIT = "edit"
 
 
 class Organization(Base):
@@ -50,6 +65,7 @@ class User(Base):
 
     is_active = Column(Boolean, default=True, nullable=False)
     is_org_admin = Column(Boolean, default=False, nullable=False)
+    is_primary_household_member = Column(Boolean, default=False, nullable=False)  # First user who created org
     email_verified = Column(Boolean, default=False, nullable=False)
     last_login_at = Column(DateTime)
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
@@ -90,3 +106,60 @@ class RefreshToken(Base):
     def is_revoked(self) -> bool:
         """Check if token is revoked."""
         return self.revoked_at is not None
+
+
+class HouseholdInvitation(Base):
+    """Household invitation model for inviting users to join an organization."""
+
+    __tablename__ = "household_invitations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    email = Column(String(255), nullable=False)
+    invited_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    invitation_code = Column(String(64), nullable=False, unique=True, index=True)
+    status = Column(SQLEnum(InvitationStatus, name='invitation_status'), nullable=False, default=InvitationStatus.PENDING)
+    expires_at = Column(DateTime, nullable=False)
+    accepted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+
+    # Relationships
+    organization = relationship("Organization")
+    invited_by = relationship("User", foreign_keys=[invited_by_user_id])
+
+    def __repr__(self):
+        return f"<HouseholdInvitation {self.email} to org {self.organization_id}>"
+
+    @property
+    def is_expired(self) -> bool:
+        """Check if invitation is expired."""
+        from datetime import datetime
+        return datetime.utcnow() > self.expires_at
+
+    @property
+    def is_valid(self) -> bool:
+        """Check if invitation is still valid (pending and not expired)."""
+        return self.status == InvitationStatus.PENDING and not self.is_expired
+
+
+class AccountShare(Base):
+    """Account share model for sharing accounts between household members."""
+
+    __tablename__ = "account_shares"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id = Column(UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+    shared_with_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    permission = Column(SQLEnum(SharePermission, name='share_permission'), nullable=False, default=SharePermission.VIEW)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+
+    # Add unique constraint
+    __table_args__ = (
+        UniqueConstraint('account_id', 'shared_with_user_id', name='uq_account_user_share'),
+    )
+
+    # Relationships
+    shared_with = relationship("User", foreign_keys=[shared_with_user_id])
+
+    def __repr__(self):
+        return f"<AccountShare account={self.account_id} shared_with={self.shared_with_user_id} permission={self.permission}>"
