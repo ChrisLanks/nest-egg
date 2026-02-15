@@ -282,7 +282,11 @@ async def get_portfolio_summary(
 
     for summary in holdings_summaries:
         if summary.current_total_value:
-            if summary.ticker.upper() in international_tickers:
+            asset_class = (summary.asset_class or '').lower() if hasattr(summary, 'asset_class') else ''
+            country = (summary.country or '') if hasattr(summary, 'country') else ''
+
+            # Check asset_class first, then fallback to hardcoded list or country
+            if asset_class == 'international' or summary.ticker.upper() in international_tickers or (country and country not in ['USA', 'US', 'United States', '']):
                 international_value += summary.current_total_value
             elif summary.asset_type in ['stock', 'etf', 'mutual_fund']:
                 # Assume domestic for US stocks/ETFs not in international list
@@ -434,6 +438,8 @@ async def get_portfolio_summary(
         value = holding.current_total_value
         name = holding.name or ''
         asset_type = holding.asset_type or ''
+        asset_class = (holding.asset_class or '').lower()
+        country = holding.country or ''
 
         if is_cash_holding(ticker, name, asset_type):
             # Cash/Money Market
@@ -449,8 +455,8 @@ async def get_portfolio_summary(
                 bonds_dict[ticker] += value
             else:
                 bonds_dict[ticker] = value
-        elif ticker in international_tickers:
-            # International
+        elif asset_class == 'international' or (ticker in international_tickers) or (country and country not in ['USA', 'US', 'United States', '']):
+            # International - check asset_class first, then fallback to hardcoded list or country
             international_value_from_holdings += value
             cap_size = classify_market_cap(ticker, name, asset_type)
             international_stocks_with_cap.append((ticker, value, cap_size, name))
