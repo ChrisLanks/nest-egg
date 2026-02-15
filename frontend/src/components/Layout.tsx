@@ -232,12 +232,6 @@ export const Layout = () => {
     }
   };
 
-  const navItems = [
-    { label: 'Overview', path: '/overview' },
-    { label: 'Investments', path: '/investments' },
-    { label: 'Accounts', path: '/accounts' },
-  ];
-
   const cashFlowMenuItems = [
     { label: 'Cash Flow', path: '/income-expenses' },
     { label: 'Budgets', path: '/budgets' },
@@ -456,14 +450,12 @@ export const Layout = () => {
               Nest Egg
             </Text>
             <HStack spacing={1}>
-              {navItems.map((item) => (
-                <TopNavItem
-                  key={item.path}
-                  label={item.label}
-                  isActive={location.pathname === item.path}
-                  onClick={() => navigateWithParams(item.path)}
-                />
-              ))}
+              {/* Overview */}
+              <TopNavItem
+                label="Overview"
+                isActive={location.pathname === '/overview'}
+                onClick={() => navigateWithParams('/overview')}
+              />
 
               {/* Cash Flow Dropdown */}
               <Menu>
@@ -516,6 +508,20 @@ export const Layout = () => {
                   ))}
                 </MenuList>
               </Menu>
+
+              {/* Investments */}
+              <TopNavItem
+                label="Investments"
+                isActive={location.pathname === '/investments'}
+                onClick={() => navigateWithParams('/investments')}
+              />
+
+              {/* Accounts */}
+              <TopNavItem
+                label="Accounts"
+                isActive={location.pathname === '/accounts'}
+                onClick={() => navigateWithParams('/accounts')}
+              />
             </HStack>
           </HStack>
 
