@@ -241,13 +241,11 @@ export const Layout = () => {
   ];
 
   const cashFlowMenuItems = [
-    { label: 'Cash Flow', path: '/income-expenses' },
     { label: 'Budgets', path: '/budgets' },
     { label: 'Goals', path: '/goals' },
   ];
 
   const transactionsMenuItems = [
-    { label: 'Transactions', path: '/transactions' },
     { label: 'Categories', path: '/categories' },
     { label: 'Rules', path: '/rules' },
     { label: 'Recurring', path: '/recurring' },
