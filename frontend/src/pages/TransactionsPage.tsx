@@ -76,15 +76,14 @@ import { useUserView } from '../contexts/UserViewContext';
 import type { Transaction } from '../types/transaction';
 import api from '../services/api';
 
-// Helper to get default date range (all time)
+// Helper to get default date range (this month)
 const getDefaultDateRange = (): DateRange => {
   const now = new Date();
-  const start = new Date();
-  start.setFullYear(start.getFullYear() - 10); // 10 years back
+  const start = new Date(now.getFullYear(), now.getMonth(), 1); // First day of current month
   return {
     start: start.toISOString().split('T')[0],
     end: now.toISOString().split('T')[0],
-    label: 'All Time',
+    label: 'This Month',
   };
 };
 
@@ -96,7 +95,6 @@ export const TransactionsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRuleBuilderOpen, setIsRuleBuilderOpen] = useState(false);
   const [ruleTransaction, setRuleTransaction] = useState<Transaction | null>(null);
-  const [bulkSelectMode, setBulkSelectMode] = useState(false);
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
   const [searchQuery, setSearchQuery] = useState('');
@@ -484,11 +482,6 @@ export const TransactionsPage = () => {
     setRuleTransaction(null);
   };
 
-  const toggleBulkSelectMode = () => {
-    setBulkSelectMode(!bulkSelectMode);
-    setSelectedTransactions(new Set());
-  };
-
   const toggleTransactionSelection = (txnId: string) => {
     const newSelected = new Set(selectedTransactions);
     if (newSelected.has(txnId)) {
@@ -688,13 +681,12 @@ export const TransactionsPage = () => {
             <Text color="gray.600" mt={2}>
               Showing {processedTransactions.length} transactions
               {total > 0 && ` (${total} total)`}
-              {bulkSelectMode && `. ${selectedTransactions.size} selected`}
+              {selectedTransactions.size > 0 && `. ${selectedTransactions.size} selected`}
               {hasMore && '. Scroll down to load more'}
-              {!bulkSelectMode && !hasMore && '.'}
+              {selectedTransactions.size === 0 && !hasMore && '.'}
             </Text>
           </Box>
           <HStack spacing={2}>
-            <DateRangePicker value={dateRange} onChange={setDateRange} />
             <Button
               leftIcon={<DownloadIcon />}
               variant="outline"
@@ -718,27 +710,11 @@ export const TransactionsPage = () => {
             >
               Rules
             </Button>
-            <Tooltip
-              label={!canEdit ? "Read-only: Cannot bulk select when viewing another household member" : ""}
-              placement="top"
-              isDisabled={canEdit}
-            >
-              <Button
-                colorScheme={bulkSelectMode ? 'red' : 'blue'}
-                variant={bulkSelectMode ? 'solid' : 'outline'}
-                onClick={toggleBulkSelectMode}
-                size="sm"
-                isDisabled={!canEdit}
-                leftIcon={!canEdit ? <FiLock /> : undefined}
-              >
-                {bulkSelectMode ? 'Cancel Selection' : 'Select Multiple'}
-              </Button>
-            </Tooltip>
           </HStack>
         </HStack>
 
-        {/* Search Bar */}
-        <HStack spacing={3}>
+        {/* Search Bar and Controls */}
+        <HStack spacing={3} justify="space-between">
           <InputGroup maxW="400px">
             <InputLeftElement pointerEvents="none">
               <SearchIcon color="gray.400" />
@@ -750,25 +726,29 @@ export const TransactionsPage = () => {
             />
           </InputGroup>
 
-          {/* Columns Menu */}
-          <Menu closeOnSelect={false}>
-            <MenuButton as={Button} size="md" leftIcon={<ViewIcon />} variant="outline">
-              Columns
-            </MenuButton>
-            <MenuList>
-              <MenuItem>
-                <Checkbox
-                  isChecked={showStatusColumn}
-                  onChange={(e) => setShowStatusColumn(e.target.checked)}
-                >
-                  Status
-                </Checkbox>
-              </MenuItem>
-            </MenuList>
-          </Menu>
+          <HStack spacing={2}>
+            <DateRangePicker value={dateRange} onChange={setDateRange} />
+
+            {/* Columns Menu */}
+            <Menu closeOnSelect={false}>
+              <MenuButton as={Button} size="md" leftIcon={<ViewIcon />} variant="outline">
+                Columns
+              </MenuButton>
+              <MenuList>
+                <MenuItem>
+                  <Checkbox
+                    isChecked={showStatusColumn}
+                    onChange={(e) => setShowStatusColumn(e.target.checked)}
+                  >
+                    Status
+                  </Checkbox>
+                </MenuItem>
+              </MenuList>
+            </Menu>
+          </HStack>
         </HStack>
 
-        {bulkSelectMode && selectedTransactions.size > 0 && (
+        {selectedTransactions.size > 0 && (
           <Box
             p={4}
             bg="blue.50"
@@ -807,17 +787,15 @@ export const TransactionsPage = () => {
             <Table variant="simple" size="sm">
             <Thead bg="gray.50">
               <Tr>
-                {bulkSelectMode && (
-                  <Th width="40px">
-                    <Checkbox
-                      isChecked={
-                        processedTransactions.length > 0 &&
-                        selectedTransactions.size === processedTransactions.length
-                      }
-                      onChange={toggleSelectAll}
-                    />
-                  </Th>
-                )}
+                <Th width="40px">
+                  <Checkbox
+                    isChecked={
+                      processedTransactions.length > 0 &&
+                      selectedTransactions.size === processedTransactions.length
+                    }
+                    onChange={toggleSelectAll}
+                  />
+                </Th>
                 <Th
                   cursor="pointer"
                   onClick={() => handleSort('date')}
@@ -901,7 +879,7 @@ export const TransactionsPage = () => {
                   {/* Month Period Header */}
                   <Tr bg="gray.100">
                     <Td
-                      colSpan={bulkSelectMode ? (showStatusColumn ? 8 : 7) : (showStatusColumn ? 7 : 6)}
+                      colSpan={showStatusColumn ? 8 : 7}
                       py={2}
                     >
                       <Text fontWeight="bold" fontSize="sm" color="gray.700">
@@ -922,14 +900,12 @@ export const TransactionsPage = () => {
                         _hover={{ bg: 'gray.50' }}
                         bg={isSelected ? 'blue.50' : undefined}
                       >
-                        {bulkSelectMode && (
-                          <Td width="40px" onClick={(e) => e.stopPropagation()}>
-                            <Checkbox
-                              isChecked={isSelected}
-                              onChange={() => toggleTransactionSelection(txn.id)}
-                            />
-                          </Td>
-                        )}
+                        <Td width="40px" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            isChecked={isSelected}
+                            onChange={() => toggleTransactionSelection(txn.id)}
+                          />
+                        </Td>
                         <Td>{formatDate(txn.date)}</Td>
                         <Td>
                           <Text fontWeight="medium">{txn.merchant_name}</Text>
@@ -1064,16 +1040,14 @@ export const TransactionsPage = () => {
                             {/* Header Row: Merchant + Amount */}
                             <HStack justify="space-between" align="start">
                               <Box flex={1}>
-                                {bulkSelectMode && (
-                                  <Checkbox
-                                    isChecked={isSelected}
-                                    onChange={(e) => {
-                                      e.stopPropagation();
-                                      toggleTransactionSelection(txn.id);
-                                    }}
-                                    mb={2}
-                                  />
-                                )}
+                                <Checkbox
+                                  isChecked={isSelected}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    toggleTransactionSelection(txn.id);
+                                  }}
+                                  mb={2}
+                                />
                                 <Text fontWeight="bold" fontSize="md">
                                   {txn.merchant_name}
                                 </Text>
