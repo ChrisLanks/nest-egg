@@ -389,7 +389,7 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
                   value={years}
                   onChange={(val) => setYears(val)}
                   min={1}
-                  max={30}
+                  max={100}
                   step={1}
                 >
                   <SliderTrack>
