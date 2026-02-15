@@ -191,7 +191,7 @@ class SnapshotScheduler:
         """
         Check all organizations and capture snapshots as needed.
 
-        This is called periodically (every hour) to check if any organization
+        This is called periodically (every 12 hours) to check if any organization
         needs a snapshot based on their offset schedule.
         """
         async with AsyncSessionLocal() as db:
@@ -224,18 +224,19 @@ class SnapshotScheduler:
         """
         Main scheduler loop that runs continuously.
 
-        Checks every hour if any organizations need snapshots captured.
+        Checks every 12 hours if any organizations need snapshots captured.
+        Since we only capture one snapshot per day, checking 2x daily is sufficient.
         """
-        logger.info("Portfolio snapshot scheduler started")
+        logger.info("Portfolio snapshot scheduler started (checks every 12 hours)")
 
         # Run initial check on startup
         await self.check_and_capture_all()
 
-        # Then run every hour
+        # Then run every 12 hours
         while self.running:
             try:
-                # Wait 1 hour
-                await asyncio.sleep(3600)  # 1 hour in seconds
+                # Wait 12 hours
+                await asyncio.sleep(43200)  # 12 hours in seconds
 
                 # Check and capture
                 await self.check_and_capture_all()

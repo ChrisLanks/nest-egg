@@ -238,7 +238,7 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
               stroke="#48BB78"
               strokeWidth={2}
               strokeDasharray="3 3"
-              name="Best Case (90th %ile)"
+              name="Optimistic Scenario"
               dot={false}
             />
 
@@ -248,7 +248,7 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
               dataKey="median"
               stroke="#4299E1"
               strokeWidth={3}
-              name="Median (Nominal)"
+              name="Most Likely"
               dot={false}
             />
 
@@ -259,7 +259,7 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
               stroke="#F56565"
               strokeWidth={2}
               strokeDasharray="3 3"
-              name="Worst Case (10th %ile)"
+              name="Pessimistic Scenario"
               dot={false}
             />
 
@@ -272,7 +272,7 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
                   stroke="#48BB78"
                   strokeWidth={2}
                   strokeDasharray="5 5"
-                  name="Best Case (Real)"
+                  name="Optimistic (After Inflation)"
                   dot={false}
                 />
                 <Line
@@ -281,7 +281,7 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
                   stroke="#ED8936"
                   strokeWidth={3}
                   strokeDasharray="5 5"
-                  name="Median (Real)"
+                  name="Most Likely (After Inflation)"
                   dot={false}
                 />
                 <Line
@@ -290,7 +290,7 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
                   stroke="#F56565"
                   strokeWidth={2}
                   strokeDasharray="5 5"
-                  name="Worst Case (Real)"
+                  name="Pessimistic (After Inflation)"
                   dot={false}
                 />
               </>
