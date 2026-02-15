@@ -3,7 +3,7 @@
  */
 
 import { Box, VStack, Heading, Text, Button, Icon } from '@chakra-ui/react';
-import { ReactElement } from 'react';
+import React from 'react';
 
 interface EmptyStateProps {
   /** Icon to display (from react-icons) */
