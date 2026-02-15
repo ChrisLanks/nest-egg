@@ -94,6 +94,7 @@ export const TransactionsPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canEdit, isOtherUserView } = useUserView();
+  const isMobile = useBreakpointValue({ base: true, md: false });
 
   // Fetch organization preferences for monthly_start_day
   const { data: orgPrefs } = useQuery({
@@ -470,9 +471,6 @@ export const TransactionsPage = () => {
       year: 'numeric',
     });
   };
-
-  // Show table on desktop, cards on mobile
-  const isMobile = useBreakpointValue({ base: true, md: false });
 
   return (
     <Container maxW="container.xl" py={8}>
