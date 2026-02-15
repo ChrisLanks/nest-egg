@@ -47,7 +47,7 @@ import {
 } from '@chakra-ui/react';
 import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon, DownloadIcon } from '@chakra-ui/icons';
 import { FiLock } from 'react-icons/fi';
-import { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TransactionDetailModal } from '../components/TransactionDetailModal';
@@ -710,9 +710,9 @@ export const TransactionsPage = () => {
             </Thead>
             <Tbody>
               {transactionsByMonth.map((monthGroup) => (
-                <>
+                <React.Fragment key={monthGroup.period}>
                   {/* Month Period Header */}
-                  <Tr key={`header-${monthGroup.period}`} bg="gray.100">
+                  <Tr bg="gray.100">
                     <Td
                       colSpan={bulkSelectMode ? (showStatusColumn ? 8 : 7) : (showStatusColumn ? 7 : 6)}
                       py={2}
@@ -837,7 +837,7 @@ export const TransactionsPage = () => {
                       </Tr>
                     );
                   })}
-                </>
+                </React.Fragment>
               ))}
             </Tbody>
           </Table>
