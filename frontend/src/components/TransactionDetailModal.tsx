@@ -155,6 +155,30 @@ export const TransactionDetailModal = ({
     },
   });
 
+  // Separate mutation for transfer toggle that doesn't close the modal
+  const toggleTransferMutation = useMutation({
+    mutationFn: async (isTransfer: boolean) => {
+      const response = await api.patch(`/transactions/${transaction?.id}`, { is_transfer: isTransfer });
+      return response.data;
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Transfer status updated',
+        status: 'success',
+        duration: 2000,
+      });
+      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['transaction', transaction?.id] });
+    },
+    onError: () => {
+      toast({
+        title: 'Failed to update transfer status',
+        status: 'error',
+        duration: 3000,
+      });
+    },
+  });
+
 
   const createLabelMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -232,9 +256,7 @@ export const TransactionDetailModal = ({
   };
 
   const handleToggleTransfer = () => {
-    updateMutation.mutate({
-      is_transfer: !currentTransaction.is_transfer,
-    });
+    toggleTransferMutation.mutate(!currentTransaction.is_transfer);
   };
 
   if (!currentTransaction) return null;
@@ -332,7 +354,7 @@ export const TransactionDetailModal = ({
                     variant={currentTransaction.is_transfer ? "solid" : "outline"}
                     onClick={handleToggleTransfer}
                     isDisabled={!canEdit}
-                    isLoading={updateMutation.isPending}
+                    isLoading={toggleTransferMutation.isPending}
                   >
                     {currentTransaction.is_transfer ? "✓ Is Transfer" : "Mark as Transfer"}
                   </Button>
