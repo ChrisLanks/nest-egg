@@ -19,11 +19,23 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create PropertyType enum
-    op.execute("CREATE TYPE propertytype AS ENUM ('personal_residence', 'investment', 'vacation_home')")
+    # Create PropertyType enum (only if it doesn't exist)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE propertytype AS ENUM ('personal_residence', 'investment', 'vacation_home');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
 
-    # Add property_type column to accounts table
-    op.add_column('accounts', sa.Column('property_type', sa.Enum('personal_residence', 'investment', 'vacation_home', name='propertytype'), nullable=True))
+    # Add property_type column to accounts table (only if it doesn't exist)
+    op.execute("""
+        DO $$ BEGIN
+            ALTER TABLE accounts ADD COLUMN property_type propertytype;
+        EXCEPTION
+            WHEN duplicate_column THEN null;
+        END $$;
+    """)
 
     # Add new account type values to accounttype enum
     # Cash & Checking (money_market and cd are new)
