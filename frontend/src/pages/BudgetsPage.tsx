@@ -17,7 +17,7 @@ import {
   Tooltip,
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
-import { FiLock } from 'react-icons/fi';
+import { FiLock, FiDollarSign } from 'react-icons/fi';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { budgetsApi } from '../api/budgets';
@@ -25,6 +25,7 @@ import type { Budget } from '../types/budget';
 import BudgetCard from '../features/budgets/components/BudgetCard';
 import BudgetForm from '../features/budgets/components/BudgetForm';
 import { useUserView } from '../contexts/UserViewContext';
+import { EmptyState } from '../components/EmptyState';
 
 export default function BudgetsPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -91,20 +92,14 @@ export default function BudgetsPage() {
 
         {/* Empty state */}
         {!isLoading && budgets.length === 0 && (
-          <Center py={12}>
-            <VStack spacing={4}>
-              <Text fontSize="lg" color="gray.500">
-                {isOtherUserView
-                  ? "This user has no budgets yet"
-                  : "No budgets yet"}
-              </Text>
-              {!isOtherUserView && (
-                <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={handleCreate}>
-                  Create Your First Budget
-                </Button>
-              )}
-            </VStack>
-          </Center>
+          <EmptyState
+            icon={FiDollarSign}
+            title={isOtherUserView ? "This user has no budgets yet" : "No budgets yet"}
+            description="Create budgets to track spending by category and stay on top of your financial goals."
+            actionLabel="Create Your First Budget"
+            onAction={handleCreate}
+            showAction={!isOtherUserView}
+          />
         )}
 
         {/* Active budgets */}

@@ -22,7 +22,7 @@ import {
   Tooltip,
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
-import { FiLock } from 'react-icons/fi';
+import { FiLock, FiTarget } from 'react-icons/fi';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { savingsGoalsApi } from '../api/savings-goals';
@@ -30,6 +30,7 @@ import type { SavingsGoal } from '../types/savings-goal';
 import GoalCard from '../features/goals/components/GoalCard';
 import GoalForm from '../features/goals/components/GoalForm';
 import { useUserView } from '../contexts/UserViewContext';
+import { EmptyState } from '../components/EmptyState';
 
 export default function SavingsGoalsPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -96,20 +97,14 @@ export default function SavingsGoalsPage() {
 
         {/* Empty state */}
         {!isLoading && goals.length === 0 && (
-          <Center py={12}>
-            <VStack spacing={4}>
-              <Text fontSize="lg" color="gray.500">
-                {isOtherUserView
-                  ? "This user has no savings goals yet"
-                  : "No savings goals yet"}
-              </Text>
-              {!isOtherUserView && (
-                <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={handleCreate}>
-                  Create Your First Goal
-                </Button>
-              )}
-            </VStack>
-          </Center>
+          <EmptyState
+            icon={FiTarget}
+            title={isOtherUserView ? "This user has no savings goals yet" : "No savings goals yet"}
+            description="Set savings goals to track progress toward vacations, emergency funds, down payments, and more."
+            actionLabel="Create Your First Goal"
+            onAction={handleCreate}
+            showAction={!isOtherUserView}
+          />
         )}
 
         {/* Goals tabs */}

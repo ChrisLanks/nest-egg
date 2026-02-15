@@ -41,8 +41,10 @@ import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ViewIcon, ViewOffIcon, EditIcon, DeleteIcon, ChevronDownIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
+import { FiCreditCard } from 'react-icons/fi';
 import api from '../services/api';
 import { formatAssetType } from '../utils/formatAssetType';
+import { EmptyState } from '../components/EmptyState';
 
 interface Account {
   id: string;
@@ -406,11 +408,14 @@ export const AccountsPage = () => {
         ))}
 
         {(!accounts || accounts.length === 0) && (
-          <Center py={12}>
-            <Text color="gray.500">
-              No accounts found. Connect or add an account to get started.
-            </Text>
-          </Center>
+          <EmptyState
+            icon={FiCreditCard}
+            title="No accounts yet"
+            description="Connect your bank accounts or add manual accounts to start tracking your finances."
+            actionLabel="Add Account"
+            onAction={() => {/* TODO: Open add account modal */}}
+            showAction={false}
+          />
         )}
       </VStack>
 

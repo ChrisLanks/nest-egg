@@ -25,11 +25,12 @@ import {
   Tooltip,
 } from '@chakra-ui/react';
 import { RepeatIcon, DeleteIcon } from '@chakra-ui/icons';
-import { FiLock } from 'react-icons/fi';
+import { FiLock, FiRepeat } from 'react-icons/fi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { recurringTransactionsApi } from '../api/recurring-transactions';
 import { RecurringFrequency } from '../types/recurring-transaction';
 import { useUserView } from '../contexts/UserViewContext';
+import { EmptyState } from '../components/EmptyState';
 
 export default function RecurringTransactionsPage() {
   const toast = useToast();
@@ -146,25 +147,16 @@ export default function RecurringTransactionsPage() {
 
         {/* Empty state */}
         {!isLoading && patterns.length === 0 && (
-          <Center py={12}>
-            <VStack spacing={4}>
-              <Text fontSize="lg" color="gray.500">
-                {isOtherUserView
-                  ? "This user has no recurring patterns detected yet"
-                  : "No recurring patterns detected yet"}
-              </Text>
-              {!isOtherUserView && (
-                <Button
-                  leftIcon={<RepeatIcon />}
-                  colorScheme="blue"
-                  onClick={() => detectMutation.mutate()}
-                  isLoading={detectMutation.isPending}
-                >
-                  Detect Patterns Now
-                </Button>
-              )}
-            </VStack>
-          </Center>
+          <EmptyState
+            icon={FiRepeat}
+            title={isOtherUserView
+              ? "This user has no recurring patterns detected yet"
+              : "No recurring patterns detected yet"}
+            description="Automatically detect subscription payments, bills, and other recurring transactions in your history."
+            actionLabel="Detect Patterns Now"
+            onAction={() => detectMutation.mutate()}
+            showAction={!isOtherUserView}
+          />
         )}
 
         {/* Patterns table */}
