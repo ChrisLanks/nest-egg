@@ -138,7 +138,7 @@ export const TransactionsPage = () => {
         duration: 3000,
       });
       // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['income-expenses'] });
       // Clear selection
       setSelectedTransactions(new Set());
