@@ -28,6 +28,7 @@ import {
 } from '@chakra-ui/react';
 import { useState, useMemo } from 'react';
 import { FiDownload, FiSearch, FiChevronUp, FiChevronDown } from 'react-icons/fi';
+import { formatAssetType } from '../../../utils/formatAssetType';
 
 interface Holding {
   ticker: string;
@@ -402,7 +403,7 @@ export const HoldingsDetailTable = ({ holdings }: HoldingsDetailTableProps) => {
                   <Td>
                     {holding.asset_type && (
                       <Badge colorScheme="blue" size="sm">
-                        {holding.asset_type}
+                        {formatAssetType(holding.asset_type)}
                       </Badge>
                     )}
                   </Td>

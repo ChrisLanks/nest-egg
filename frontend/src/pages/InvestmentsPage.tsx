@@ -45,7 +45,7 @@ import {
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useEffect, useMemo } from 'react';
-import { FiChevronDown, FiChevronUp, FiCalendar, FiFilter } from 'react-icons/fi';
+import { FiChevronDown, FiChevronUp, FiFilter } from 'react-icons/fi';
 import api from '../services/api';
 import { AssetAllocationTreemap } from '../features/investments/components/AssetAllocationTreemap';
 import { HoldingsDetailTable } from '../features/investments/components/HoldingsDetailTable';
@@ -134,9 +134,6 @@ interface PortfolioSummary {
 }
 
 export const InvestmentsPage = () => {
-  // Date filter state
-  const [dateFilter, setDateFilter] = useState<string>('all');
-
   // Drilled-down treemap node
   const [selectedNode, setSelectedNode] = useState<TreemapNode | null>(null);
 
@@ -342,10 +339,6 @@ export const InvestmentsPage = () => {
     setSelectedNode(node);
   };
 
-  const handleDateFilterChange = (filter: string) => {
-    setDateFilter(filter);
-    // TODO: Calculate date range and refetch with date parameters
-  };
 
   // Group accounts by type for organized display
   const groupedAccounts = useMemo(() => {
@@ -419,34 +412,6 @@ export const InvestmentsPage = () => {
         <HStack justify="space-between" align="flex-start">
           <Heading size="lg">Investments</Heading>
           <HStack spacing={4}>
-            {/* Date Filter Menu */}
-            <Menu>
-              <MenuButton
-                as={Button}
-                rightIcon={<FiCalendar />}
-                size="sm"
-                variant="outline"
-              >
-                {(() => {
-                  switch (dateFilter) {
-                    case 'today': return 'Today';
-                    case 'week': return 'This Week';
-                    case 'month': return 'This Month';
-                    case 'year': return 'This Year';
-                    case 'all': return 'All Time';
-                    default: return 'All Time';
-                  }
-                })()}
-              </MenuButton>
-              <MenuList>
-                <MenuItem onClick={() => handleDateFilterChange('today')}>Today</MenuItem>
-                <MenuItem onClick={() => handleDateFilterChange('week')}>This Week</MenuItem>
-                <MenuItem onClick={() => handleDateFilterChange('month')}>This Month</MenuItem>
-                <MenuItem onClick={() => handleDateFilterChange('year')}>This Year</MenuItem>
-                <MenuItem onClick={() => handleDateFilterChange('all')}>All Time</MenuItem>
-              </MenuList>
-            </Menu>
-
             {/* Account Filter */}
             {allAccounts && allAccounts.length > 0 && (
               <Menu closeOnSelect={false}>
