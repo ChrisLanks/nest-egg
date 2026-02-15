@@ -108,19 +108,19 @@ export default function StyleBoxModal({ isOpen, onClose }: StyleBoxModalProps) {
                           )}
                           <Tr key={item.style_class}>
                             <Td fontWeight="medium">{item.style_class}</Td>
-                            <Td isNumeric>{item.percentage.toFixed(2)}%</Td>
+                            <Td isNumeric>{Number(item.percentage).toFixed(2)}%</Td>
                             <Td
                               isNumeric
                               color={
-                                item.one_day_change === null || item.one_day_change === 0
+                                item.one_day_change === null || Number(item.one_day_change) === 0
                                   ? 'gray.500'
-                                  : item.one_day_change >= 0
+                                  : Number(item.one_day_change) >= 0
                                   ? 'green.600'
                                   : 'red.600'
                               }
                             >
-                              {item.one_day_change !== null && item.one_day_change !== 0
-                                ? formatPercent(item.one_day_change)
+                              {item.one_day_change !== null && Number(item.one_day_change) !== 0
+                                ? formatPercent(Number(item.one_day_change))
                                 : '—'}
                             </Td>
                             <Td isNumeric>{formatCurrency(item.value)}</Td>

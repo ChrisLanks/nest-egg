@@ -754,15 +754,6 @@ export const InvestmentsPage = () => {
                         data={portfolio.treemap_data}
                         onDrillDown={handleTreemapDrillDown}
                       />
-                      <Box mt={4} textAlign="center">
-                        <Button
-                          size="sm"
-                          colorScheme="brand"
-                          onClick={onStyleBoxOpen}
-                        >
-                          View Detailed Breakdown
-                        </Button>
-                      </Box>
                     </>
                   )}
                 </TabPanel>
