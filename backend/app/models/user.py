@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -43,6 +43,11 @@ class User(Base):
     first_name = Column(String(100))
     last_name = Column(String(100))
     display_name = Column(String(255))  # Optional display name
+
+    # Retirement planning fields
+    birthdate = Column(Date, nullable=True)  # For RMD and age-based calculations
+    target_retirement_date = Column(Date, nullable=True)  # Planned retirement date
+
     is_active = Column(Boolean, default=True, nullable=False)
     is_org_admin = Column(Boolean, default=False, nullable=False)
     email_verified = Column(Boolean, default=False, nullable=False)

@@ -1366,3 +1366,103 @@ async def get_style_box_breakdown(
         ))
 
     return breakdown
+
+
+@router.get("/rmd-summary", response_model=None)
+async def get_rmd_summary(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get Required Minimum Distribution summary for retirement accounts.
+
+    Only applicable if user has birthdate set and is age 73+.
+    """
+    from app.utils.rmd_calculator import calculate_age, requires_rmd, calculate_rmd, get_rmd_deadline, calculate_rmd_penalty
+    from app.schemas.rmd import RMDSummary, AccountRMD
+    from datetime import date
+
+    # Check if user has birthdate
+    if not current_user.birthdate:
+        raise HTTPException(
+            status_code=400,
+            detail="Birthdate not set. Please update your profile to use RMD calculations."
+        )
+
+    # Calculate user's current age
+    user_age = calculate_age(current_user.birthdate)
+
+    # Check if RMD is required
+    if not requires_rmd(user_age):
+        return RMDSummary(
+            user_age=user_age,
+            requires_rmd=False,
+            rmd_deadline=None,
+            total_required_distribution=Decimal('0'),
+            total_distribution_taken=Decimal('0'),
+            total_remaining_required=Decimal('0'),
+            accounts=[],
+            penalty_if_missed=None,
+        )
+
+    # Get RMD-applicable retirement accounts (Traditional IRA, 401k, SEP, SIMPLE)
+    # Roth accounts do NOT require RMDs during owner's lifetime
+    rmd_account_types = [
+        AccountType.RETIREMENT_401K,
+        AccountType.RETIREMENT_IRA,  # Traditional IRA
+        AccountType.PENSION,
+    ]
+
+    result = await db.execute(
+        select(Account)
+        .where(
+            Account.organization_id == current_user.organization_id,
+            Account.account_type.in_(rmd_account_types),
+            Account.is_active == True
+        )
+    )
+    accounts = result.scalars().all()
+
+    total_required = Decimal('0')
+    total_taken = Decimal('0')  # TODO: Track withdrawals throughout the year
+    account_rmds = []
+
+    for account in accounts:
+        if not account.current_balance or account.current_balance <= 0:
+            continue
+
+        # Calculate RMD for this account
+        rmd_amount = calculate_rmd(account.current_balance, user_age)
+
+        if rmd_amount:
+            total_required += rmd_amount
+
+            # TODO: Query actual distributions taken from this account in current year
+            # For now, assume nothing taken yet
+            distribution_taken = Decimal('0')
+            remaining = rmd_amount - distribution_taken
+
+            account_rmds.append(AccountRMD(
+                account_id=account.id,
+                account_name=account.name,
+                account_type=account.account_type.value,
+                account_balance=account.current_balance,
+                required_distribution=rmd_amount,
+                distribution_taken=distribution_taken,
+                remaining_required=remaining,
+            ))
+
+    total_remaining = total_required - total_taken
+
+    # Calculate penalty if RMD is missed
+    penalty = calculate_rmd_penalty(total_remaining) if total_remaining > 0 else None
+
+    return RMDSummary(
+        user_age=user_age,
+        requires_rmd=True,
+        rmd_deadline=get_rmd_deadline(date.today().year),
+        total_required_distribution=total_required,
+        total_distribution_taken=total_taken,
+        total_remaining_required=total_remaining,
+        accounts=account_rmds,
+        penalty_if_missed=penalty,
+    )
