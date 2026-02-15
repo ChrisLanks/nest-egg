@@ -41,6 +41,9 @@ class Transaction(Base):
     # Deduplication
     deduplication_hash = Column(String(64), nullable=False, index=True)
 
+    # Splitting
+    is_split = Column(Boolean, default=False, nullable=False)
+
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
@@ -49,6 +52,7 @@ class Transaction(Base):
     account = relationship("Account", back_populates="transactions")
     category = relationship("Category", back_populates="transactions")
     labels = relationship("TransactionLabel", back_populates="transaction", cascade="all, delete-orphan")
+    splits = relationship("TransactionSplit", back_populates="parent_transaction", cascade="all, delete-orphan")
 
     # Indexes for performance
     __table_args__ = (
@@ -81,6 +85,7 @@ class Category(Base):
     # Relationships
     parent = relationship("Category", remote_side=[id], backref="children")
     transactions = relationship("Transaction", back_populates="category")
+    budgets = relationship("Budget", back_populates="category")
 
     __table_args__ = (
         Index('ix_categories_org_name', 'organization_id', 'name', unique=True),
@@ -137,6 +142,29 @@ class TransactionLabel(Base):
     __table_args__ = (
         Index('ix_transaction_labels_unique', 'transaction_id', 'label_id', unique=True),
     )
+
+
+class TransactionSplit(Base):
+    """Transaction splits for dividing a transaction into multiple categories."""
+
+    __tablename__ = "transaction_splits"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parent_transaction_id = Column(UUID(as_uuid=True), ForeignKey("transactions.id", ondelete="CASCADE"), nullable=False, index=True)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Split details
+    amount = Column(Numeric(15, 2), nullable=False)  # Portion of parent amount
+    description = Column(Text, nullable=True)
+    category_id = Column(UUID(as_uuid=True), ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
+
+    # Relationships
+    parent_transaction = relationship("Transaction", back_populates="splits")
+    category = relationship("Category")
 
 
 # Export the table for use in queries (many-to-many joins)

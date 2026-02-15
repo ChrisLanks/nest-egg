@@ -34,6 +34,7 @@ import { useAuthStore } from '../features/auth/stores/authStore';
 import { useLogout } from '../features/auth/hooks/useAuth';
 import api from '../services/api';
 import { AddAccountModal } from '../features/accounts/components/AddAccountModal';
+import NotificationBell from '../features/notifications/components/NotificationBell';
 
 interface Account {
   id: string;
@@ -161,15 +162,21 @@ export const Layout = () => {
 
   const navItems = [
     { label: 'Overview', path: '/dashboard' },
-    { label: 'Cash Flow', path: '/income-expenses' },
     { label: 'Investments', path: '/investments' },
     { label: 'Accounts', path: '/accounts' },
+  ];
+
+  const cashFlowMenuItems = [
+    { label: 'Cash Flow', path: '/income-expenses' },
+    { label: 'Budgets', path: '/budgets' },
+    { label: 'Goals', path: '/goals' },
   ];
 
   const transactionsMenuItems = [
     { label: 'Transactions', path: '/transactions' },
     { label: 'Categories', path: '/categories' },
     { label: 'Rules', path: '/rules' },
+    { label: 'Recurring', path: '/recurring' },
   ];
 
   // Fetch accounts
@@ -254,7 +261,7 @@ export const Layout = () => {
       >
         <HStack justify="space-between">
           {/* Left: Logo + Navigation */}
-          <HStack spacing={6}>
+          <HStack spacing={48}>
             <Text fontSize="xl" fontWeight="bold" color="brand.600">
               Nest Egg
             </Text>
@@ -267,6 +274,32 @@ export const Layout = () => {
                   onClick={() => navigate(item.path)}
                 />
               ))}
+
+              {/* Cash Flow Dropdown */}
+              <Menu>
+                <MenuButton
+                  as={Button}
+                  rightIcon={<ChevronDownIcon />}
+                  variant={cashFlowMenuItems.some(item => location.pathname === item.path) ? 'solid' : 'ghost'}
+                  colorScheme={cashFlowMenuItems.some(item => location.pathname === item.path) ? 'brand' : 'gray'}
+                  size="sm"
+                  fontWeight={cashFlowMenuItems.some(item => location.pathname === item.path) ? 'semibold' : 'medium'}
+                >
+                  Cash Flow
+                </MenuButton>
+                <MenuList>
+                  {cashFlowMenuItems.map((item) => (
+                    <MenuItem
+                      key={item.path}
+                      onClick={() => navigate(item.path)}
+                      fontWeight={location.pathname === item.path ? 'semibold' : 'normal'}
+                      bg={location.pathname === item.path ? 'brand.50' : 'transparent'}
+                    >
+                      {item.label}
+                    </MenuItem>
+                  ))}
+                </MenuList>
+              </Menu>
 
               {/* Transactions Dropdown */}
               <Menu>
@@ -296,8 +329,11 @@ export const Layout = () => {
             </HStack>
           </HStack>
 
-          {/* Right: User Menu Dropdown */}
-          <Menu>
+          {/* Right: Notification Bell and User Menu */}
+          <HStack spacing={2}>
+            <NotificationBell />
+
+            <Menu>
             <MenuButton
               as={Button}
               rightIcon={<ChevronDownIcon />}
@@ -329,6 +365,7 @@ export const Layout = () => {
               </MenuItem>
             </MenuList>
           </Menu>
+          </HStack>
         </HStack>
       </Box>
 
@@ -442,7 +479,7 @@ export const Layout = () => {
         </Box>
 
         {/* Main content area */}
-        <Box flex={1} overflowY="auto" bg="gray.50">
+        <Box flex={1} overflowY="auto" bg="gray.50" pl={8}>
           <Outlet />
         </Box>
       </Flex>

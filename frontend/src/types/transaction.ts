@@ -10,11 +10,18 @@ export interface Label {
 }
 
 export interface Category {
-  id: string;
+  id: string | null; // null for Plaid categories not yet in database
   name: string;
-  color?: string;
+  color?: string | null;
   parent_id?: string;
   parent_name?: string;
+  parent_category_id?: string | null;
+  plaid_category_name?: string | null;
+  is_custom?: boolean;
+  transaction_count?: number;
+  organization_id?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface Transaction {

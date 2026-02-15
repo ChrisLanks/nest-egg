@@ -20,6 +20,9 @@ import { IncomeExpensesPage } from './features/income-expenses/pages/IncomeExpen
 import { AccountDetailPage } from './pages/AccountDetailPage';
 import { InvestmentsPage } from './pages/InvestmentsPage';
 import { AccountsPage } from './pages/AccountsPage';
+import BudgetsPage from './pages/BudgetsPage';
+import SavingsGoalsPage from './pages/SavingsGoalsPage';
+import RecurringTransactionsPage from './pages/RecurringTransactionsPage';
 
 function App() {
   return (
@@ -42,6 +45,9 @@ function App() {
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
+                <Route path="/budgets" element={<BudgetsPage />} />
+                <Route path="/goals" element={<SavingsGoalsPage />} />
+                <Route path="/recurring" element={<RecurringTransactionsPage />} />
                 <Route path="/preferences" element={<PreferencesPage />} />
               </Route>
             </Route>
