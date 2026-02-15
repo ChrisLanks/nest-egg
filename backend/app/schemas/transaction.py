@@ -33,6 +33,7 @@ class TransactionUpdate(BaseModel):
     merchant_name: Optional[str] = None
     description: Optional[str] = None
     category_primary: Optional[str] = None
+    is_transfer: Optional[bool] = None
 
 
 class LabelSummary(BaseModel):
@@ -66,6 +67,7 @@ class Transaction(TransactionBase):
     account_id: UUID
     external_transaction_id: Optional[str] = None
     is_pending: bool
+    is_transfer: bool
     created_at: datetime
     updated_at: datetime
 

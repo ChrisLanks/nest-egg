@@ -299,6 +299,8 @@ async def update_transaction(
         txn.description = update_data.description
     if update_data.category_primary is not None:
         txn.category_primary = update_data.category_primary
+    if update_data.is_transfer is not None:
+        txn.is_transfer = update_data.is_transfer
 
     txn.updated_at = datetime.utcnow()
 

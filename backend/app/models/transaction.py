@@ -37,6 +37,7 @@ class Transaction(Base):
 
     # Status
     is_pending = Column(Boolean, default=False, nullable=False, index=True)
+    is_transfer = Column(Boolean, default=False, nullable=False, index=True)  # Exclude from cash flow to prevent double-counting
 
     # Deduplication
     deduplication_hash = Column(String(64), nullable=False, index=True)
