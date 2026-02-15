@@ -89,6 +89,25 @@ export const useInfiniteTransactions = ({
     }
   }, [isLoading]);
 
+  // Sync query data with local state when data changes
+  // This handles cases where React Query returns cached data
+  useEffect(() => {
+    if (data) {
+      if (currentCursor) {
+        // Append to existing data (pagination)
+        setAllTransactions((prev) => [...prev, ...data.transactions]);
+      } else {
+        // Replace data (new query or refetch)
+        setAllTransactions(data.transactions);
+      }
+      setNextCursor(data.next_cursor || null);
+      setHasMore(data.has_more);
+      if (data.total > 0) {
+        setTotal(data.total);
+      }
+    }
+  }, [data, currentCursor]);
+
   const loadMore = useCallback(() => {
     if (nextCursor && !isLoadingMore && !isLoading) {
       setIsLoadingMore(true);
