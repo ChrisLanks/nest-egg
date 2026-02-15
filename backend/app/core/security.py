@@ -8,6 +8,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.config import settings
+from app.utils.datetime_utils import utc_now
 
 # Password hashing context using Argon2
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -54,9 +55,9 @@ def create_access_token(data: dict[str, Any], expires_delta: Optional[timedelta]
     to_encode = data.copy()
 
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = utc_now() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = utc_now() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     to_encode.update({"exp": expire, "type": "access"})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -75,7 +76,7 @@ def create_refresh_token(user_id: str) -> tuple[str, str, datetime]:
         Tuple of (token, jti, expiration)
     """
     jti = secrets.token_urlsafe(32)  # Unique token ID
-    expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = utc_now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
     data = {
         "sub": user_id,

@@ -315,10 +315,10 @@ export const AccountDetailPage = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate(-1)}
               mb={2}
             >
-              ← Back to Dashboard
+              ← Back
             </Button>
             {isEditingName ? (
               <HStack spacing={2} mb={1}>

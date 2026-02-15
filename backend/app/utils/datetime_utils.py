@@ -10,21 +10,21 @@ from datetime import datetime, timezone
 
 def utc_now() -> datetime:
     """
-    Get current UTC datetime with timezone awareness.
+    Get current UTC datetime without timezone info (offset-naive).
 
     Replaces deprecated datetime.utcnow() with datetime.now(timezone.utc).
-    This function returns a timezone-aware datetime object.
+    Returns offset-naive datetime compatible with PostgreSQL TIMESTAMP WITHOUT TIME ZONE columns.
 
     Returns:
-        Current UTC datetime with timezone info
+        Current UTC datetime without timezone info
 
     Example:
         >>> now = utc_now()
         >>> print(now.tzinfo)
-        UTC
+        None
     """
-    return datetime.now(timezone.utc)
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 # Lambda version for SQLAlchemy default/onupdate parameters
-utc_now_lambda = lambda: datetime.now(timezone.utc)
+utc_now_lambda = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
