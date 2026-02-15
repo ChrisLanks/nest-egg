@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from app.models.account import AccountType, AccountSource
+from app.models.account import AccountType, AccountSource, PropertyType
 
 
 class AccountBase(BaseModel):
@@ -15,6 +15,7 @@ class AccountBase(BaseModel):
 
     name: str
     account_type: AccountType
+    property_type: Optional[PropertyType] = None  # For PROPERTY accounts only
     account_source: AccountSource
     institution_name: Optional[str] = None
     mask: Optional[str] = None
@@ -39,6 +40,7 @@ class ManualAccountCreate(BaseModel):
 
     name: str
     account_type: AccountType
+    property_type: Optional[PropertyType] = None  # For PROPERTY accounts only
     account_source: AccountSource
     institution: Optional[str] = None
     balance: Decimal
@@ -61,6 +63,7 @@ class Account(AccountBase):
     id: UUID
     organization_id: UUID
     user_id: UUID
+    property_type: Optional[PropertyType] = None  # For PROPERTY accounts only
     external_account_id: Optional[str] = None
     current_balance: Optional[Decimal] = None
     available_balance: Optional[Decimal] = None
@@ -80,6 +83,7 @@ class AccountSummary(BaseModel):
     id: UUID
     name: str
     account_type: AccountType
+    property_type: Optional[PropertyType] = None  # For PROPERTY accounts only
     institution_name: Optional[str] = None
     mask: Optional[str] = None
     current_balance: Optional[Decimal] = None

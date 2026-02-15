@@ -45,6 +45,7 @@ export const PropertyAccountForm = ({
   } = useForm<PropertyAccountFormData>({
     resolver: zodResolver(propertyAccountSchema),
     defaultValues: {
+      property_classification: 'personal_residence',
       property_type: 'single_family',
     },
   });
@@ -87,6 +88,19 @@ export const PropertyAccountForm = ({
             placeholder="e.g., 123 Main St, San Francisco, CA 94102"
           />
           <FormErrorMessage>{errors.address?.message}</FormErrorMessage>
+        </FormControl>
+
+        <FormControl isInvalid={!!errors.property_classification}>
+          <FormLabel>Property Classification</FormLabel>
+          <Select {...register('property_classification')}>
+            <option value="personal_residence">Personal Residence</option>
+            <option value="investment">Investment Property</option>
+            <option value="vacation_home">Vacation Home</option>
+          </Select>
+          <FormErrorMessage>{errors.property_classification?.message}</FormErrorMessage>
+          <Text fontSize="xs" color="gray.600" mt={1}>
+            This classification affects tax implications and rental income tracking
+          </Text>
         </FormControl>
 
         <FormControl isInvalid={!!errors.property_type}>

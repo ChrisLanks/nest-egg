@@ -118,6 +118,7 @@ export type InvestmentAccountFormData = z.infer<typeof investmentAccountSchema>;
 export const propertyAccountSchema = z.object({
   name: z.string().min(1, 'Property name is required'),
   address: z.string().min(1, 'Address is required'),
+  property_classification: z.enum(['personal_residence', 'investment', 'vacation_home']).default('personal_residence'),
   property_type: z.enum(['single_family', 'condo', 'townhouse', 'multi_family', 'other']).default('single_family'),
   value: z.number().or(z.string().transform((val) => parseFloat(val))).refine((val) => val > 0, 'Value must be greater than 0'),
   mortgage_balance: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),

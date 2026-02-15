@@ -175,6 +175,7 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
     createManualAccountMutation.mutate({
       name: data.name,
       account_type: 'property' as any,
+      property_type: data.property_classification as any,  // Map classification to backend property_type
       balance: data.value,
       institution: data.address,
     } as any);
