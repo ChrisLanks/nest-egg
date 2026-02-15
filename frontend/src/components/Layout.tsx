@@ -234,6 +234,8 @@ export const Layout = () => {
 
   const navItems = [
     { label: 'Overview', path: '/overview' },
+    { label: 'Cash Flow', path: '/income-expenses' },
+    { label: 'Transactions', path: '/transactions' },
     { label: 'Investments', path: '/investments' },
     { label: 'Accounts', path: '/accounts' },
   ];
