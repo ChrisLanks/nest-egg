@@ -193,6 +193,7 @@ async def get_dashboard_data(
             category_primary=txn.category_primary,
             category_detailed=txn.category_detailed,
             is_pending=txn.is_pending,
+            is_transfer=txn.is_transfer,
             created_at=txn.created_at,
             updated_at=txn.updated_at,
             account_name=account_name,
