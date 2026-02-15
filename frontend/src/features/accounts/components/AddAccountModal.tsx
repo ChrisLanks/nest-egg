@@ -191,6 +191,41 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
     } as any);
   };
 
+  // Get friendly name for account type
+  const getAccountTypeName = (type: AccountType): string => {
+    const typeMap: Record<string, string> = {
+      checking: 'Checking Account',
+      savings: 'Savings Account',
+      money_market: 'Money Market Account',
+      cd: 'CD Account',
+      credit_card: 'Credit Card',
+      loan: 'Loan',
+      student_loan: 'Student Loan',
+      mortgage: 'Mortgage',
+      brokerage: 'Brokerage Account',
+      retirement_401k: '401(k) Account',
+      retirement_ira: 'IRA Account',
+      retirement_roth: 'Roth IRA Account',
+      retirement_529: '529 Plan',
+      hsa: 'HSA Account',
+      pension: 'Pension Account',
+      crypto: 'Crypto Account',
+      private_equity: 'Private Equity',
+      collectibles: 'Collectibles',
+      precious_metals: 'Precious Metals',
+      life_insurance_cash_value: 'Life Insurance',
+      annuity: 'Annuity',
+      bond: 'Bond Account',
+      stock_options: 'Stock Options',
+      business_equity: 'Business Equity',
+      property: 'Property',
+      vehicle: 'Vehicle',
+      manual: 'Manual Account',
+      other: 'Other Account',
+    };
+    return typeMap[type] || 'Account';
+  };
+
   // Get modal title based on current step
   const getModalTitle = () => {
     switch (currentStep) {
@@ -202,7 +237,7 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
       case 'manual_form_investment':
       case 'manual_form_property':
       case 'manual_form_vehicle':
-        return 'Account Details';
+        return selectedAccountType ? `Add ${getAccountTypeName(selectedAccountType)}` : 'Account Details';
       case 'plaid_link':
         return 'Connect Bank Account';
       case 'mx_link':
