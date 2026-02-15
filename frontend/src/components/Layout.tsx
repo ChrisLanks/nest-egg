@@ -80,11 +80,12 @@ interface AccountItemProps {
   account: DedupedAccount;
   onAccountClick: (accountId: string) => void;
   currentUserId?: string;
-  getUserColor: (userId: string) => string | undefined;
+  getUserColor: (userId: string) => string;
   getUserBgColor: (userId: string) => string | undefined;
   getUserInitials: (userId: string) => string;
   getUserName: (userId: string) => string;
   isCombinedView: boolean;
+  membersLoaded: boolean;
 }
 
 const AccountItem = ({
@@ -96,6 +97,7 @@ const AccountItem = ({
   getUserInitials,
   getUserName,
   isCombinedView,
+  membersLoaded,
 }: AccountItemProps) => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -169,7 +171,7 @@ const AccountItem = ({
           <Text fontSize="2xs" color="gray.500">
             {formatLastUpdated(account.balance_as_of)}
           </Text>
-          {isCombinedView && (
+          {isCombinedView && membersLoaded && (
             <HStack spacing={1}>
               {account.owner_ids.map((ownerId) => (
                 <Tooltip key={ownerId} label={getUserName(ownerId)} placement="top">
@@ -305,9 +307,19 @@ export const Layout = () => {
   };
 
   const getUserName = (userId: string): string => {
-    if (!members || !userId) return '';
+    if (!members || !userId) {
+      console.log('[getUserName] No members or userId:', { members: !!members, userId });
+      return '';
+    }
+
     const member = members.find((m: any) => m.id === userId);
-    if (!member) return '';
+    if (!member) {
+      console.log('[getUserName] Member not found:', {
+        userId,
+        availableMemberIds: members.map((m: any) => m.id)
+      });
+      return '';
+    }
 
     // Try display_name first
     if (member.display_name && member.display_name.trim()) {
@@ -327,6 +339,7 @@ export const Layout = () => {
       return member.email.split('@')[0];
     }
 
+    console.log('[getUserName] No name fields found for member:', member);
     return '';
   };
 
@@ -733,6 +746,7 @@ export const Layout = () => {
                             getUserInitials={getUserInitials}
                             getUserName={getUserName}
                             isCombinedView={isCombinedView}
+                            membersLoaded={!!members}
                           />
                         ))}
                       </VStack>
