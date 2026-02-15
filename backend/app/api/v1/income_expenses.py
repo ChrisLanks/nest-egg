@@ -531,5 +531,292 @@ async def get_label_merchant_breakdown(
             count=row.count,
             percentage=percentage
         ))
-    
+
+    return merchants
+
+
+@router.get("/merchant-summary", response_model=IncomeExpenseSummary)
+async def get_merchant_summary(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get income vs expense summary grouped by merchant."""
+
+    # Get total income - only from active accounts
+    income_result = await db.execute(
+        select(func.sum(Transaction.amount))
+        .select_from(Transaction)
+        .join(Account)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount > 0
+        )
+    )
+    total_income = float(income_result.scalar() or 0)
+
+    # Get total expenses - only from active accounts
+    expense_result = await db.execute(
+        select(func.sum(Transaction.amount))
+        .select_from(Transaction)
+        .join(Account)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount < 0
+        )
+    )
+    total_expenses = abs(float(expense_result.scalar() or 0))
+
+    # Get income by merchant - only from active accounts
+    income_merchants_result = await db.execute(
+        select(
+            Transaction.merchant_name,
+            func.sum(Transaction.amount).label('total'),
+            func.count(Transaction.id).label('count')
+        )
+        .select_from(Transaction)
+        .join(Account)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount > 0,
+            Transaction.merchant_name.isnot(None)
+        ).group_by(Transaction.merchant_name)
+        .order_by(func.sum(Transaction.amount).desc())
+    )
+
+    income_categories = []
+    for row in income_merchants_result:
+        amount = float(row.total)
+        percentage = (amount / total_income * 100) if total_income > 0 else 0
+        income_categories.append(CategoryBreakdown(
+            category=row.merchant_name or 'Unknown',
+            amount=amount,
+            count=row.count,
+            percentage=percentage
+        ))
+
+    # Get expenses by merchant - only from active accounts
+    expense_merchants_result = await db.execute(
+        select(
+            Transaction.merchant_name,
+            func.sum(Transaction.amount).label('total'),
+            func.count(Transaction.id).label('count')
+        )
+        .select_from(Transaction)
+        .join(Account)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount < 0,
+            Transaction.merchant_name.isnot(None)
+        ).group_by(Transaction.merchant_name)
+        .order_by(func.sum(Transaction.amount).asc())  # Most negative first
+    )
+
+    expense_categories = []
+    for row in expense_merchants_result:
+        amount = abs(float(row.total))
+        percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
+        expense_categories.append(CategoryBreakdown(
+            category=row.merchant_name or 'Unknown',
+            amount=amount,
+            count=row.count,
+            percentage=percentage
+        ))
+
+    return IncomeExpenseSummary(
+        total_income=total_income,
+        total_expenses=total_expenses,
+        net=total_income - total_expenses,
+        income_categories=income_categories,
+        expense_categories=expense_categories
+    )
+
+
+@router.get("/account-summary", response_model=IncomeExpenseSummary)
+async def get_account_summary(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get income vs expense summary grouped by account."""
+
+    # Get total income - only from active accounts
+    income_result = await db.execute(
+        select(func.sum(Transaction.amount))
+        .select_from(Transaction)
+        .join(Account)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount > 0
+        )
+    )
+    total_income = float(income_result.scalar() or 0)
+
+    # Get total expenses - only from active accounts
+    expense_result = await db.execute(
+        select(func.sum(Transaction.amount))
+        .select_from(Transaction)
+        .join(Account)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount < 0
+        )
+    )
+    total_expenses = abs(float(expense_result.scalar() or 0))
+
+    # Get income by account - only from active accounts
+    income_accounts_result = await db.execute(
+        select(
+            Account.id,
+            Account.name,
+            func.sum(Transaction.amount).label('total'),
+            func.count(Transaction.id).label('count')
+        )
+        .select_from(Transaction)
+        .join(Account)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount > 0
+        ).group_by(Account.id, Account.name)
+        .order_by(func.sum(Transaction.amount).desc())
+    )
+
+    income_categories = []
+    for row in income_accounts_result:
+        amount = float(row.total)
+        percentage = (amount / total_income * 100) if total_income > 0 else 0
+        income_categories.append(CategoryBreakdown(
+            category=row.name,
+            amount=amount,
+            count=row.count,
+            percentage=percentage
+        ))
+
+    # Get expenses by account - only from active accounts
+    expense_accounts_result = await db.execute(
+        select(
+            Account.id,
+            Account.name,
+            func.sum(Transaction.amount).label('total'),
+            func.count(Transaction.id).label('count')
+        )
+        .select_from(Transaction)
+        .join(Account)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount < 0
+        ).group_by(Account.id, Account.name)
+        .order_by(func.sum(Transaction.amount).asc())  # Most negative first
+    )
+
+    expense_categories = []
+    for row in expense_accounts_result:
+        amount = abs(float(row.total))
+        percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
+        expense_categories.append(CategoryBreakdown(
+            category=row.name,
+            amount=amount,
+            count=row.count,
+            percentage=percentage
+        ))
+
+    return IncomeExpenseSummary(
+        total_income=total_income,
+        total_expenses=total_expenses,
+        net=total_income - total_expenses,
+        income_categories=income_categories,
+        expense_categories=expense_categories
+    )
+
+
+@router.get("/account-merchants", response_model=List[CategoryBreakdown])
+async def get_account_merchant_breakdown(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    account_id: Optional[str] = Query(None),
+    transaction_type: str = Query(..., description="income or expense"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get merchant breakdown for a specific account."""
+
+    # Build base conditions - only include transactions from active accounts
+    conditions = [
+        Transaction.organization_id == current_user.organization_id,
+        Account.is_active == True,
+        Transaction.date >= start_date,
+        Transaction.date <= end_date,
+        Transaction.merchant_name.isnot(None),
+    ]
+
+    # Add transaction type filter
+    if transaction_type == 'income':
+        conditions.append(Transaction.amount > 0)
+    else:
+        conditions.append(Transaction.amount < 0)
+
+    # Add account filter if provided
+    if account_id:
+        conditions.append(Transaction.account_id == account_id)
+
+    # Get merchant breakdown
+    result = await db.execute(
+        select(
+            Transaction.merchant_name,
+            func.sum(Transaction.amount).label('total'),
+            func.count(Transaction.id).label('count')
+        )
+        .select_from(Transaction)
+        .join(Account)
+        .where(and_(*conditions))
+        .group_by(Transaction.merchant_name)
+        .order_by(func.sum(Transaction.amount).desc() if transaction_type == 'income' else func.sum(Transaction.amount).asc())
+    )
+
+    # Calculate total for percentage
+    total_result = await db.execute(
+        select(func.sum(Transaction.amount))
+        .select_from(Transaction)
+        .join(Account)
+        .where(and_(*conditions))
+    )
+    total = abs(float(total_result.scalar() or 0))
+
+    merchants = []
+    for row in result:
+        amount = abs(float(row.total))
+        percentage = (amount / total * 100) if total > 0 else 0
+        merchants.append(CategoryBreakdown(
+            category=row.merchant_name,
+            amount=amount,
+            count=row.count,
+            percentage=percentage
+        ))
+
     return merchants
