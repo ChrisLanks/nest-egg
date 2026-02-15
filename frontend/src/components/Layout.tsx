@@ -18,19 +18,18 @@ import {
   MenuList,
   MenuItem,
   Avatar,
+  Collapse,
+  IconButton,
 } from '@chakra-ui/react';
 import {
-  ViewIcon,
-  RepeatIcon,
-  SettingsIcon,
-  StarIcon,
-  ArrowUpDownIcon,
   AddIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
 } from '@chakra-ui/icons';
-import { FiSettings, FiTrendingUp, FiLogOut, FiFolder } from 'react-icons/fi';
+import { FiSettings, FiLogOut } from 'react-icons/fi';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useAuthStore } from '../features/auth/stores/authStore';
 import { useLogout } from '../features/auth/hooks/useAuth';
 import api from '../services/api';
@@ -45,17 +44,15 @@ interface Account {
 }
 
 interface NavItemProps {
-  icon: any;
   label: string;
   path: string;
   isActive: boolean;
   onClick: () => void;
 }
 
-const TopNavItem = ({ icon: Icon, label, isActive, onClick }: NavItemProps) => {
+const TopNavItem = ({ label, isActive, onClick }: Omit<NavItemProps, 'icon' | 'path'>) => {
   return (
     <Button
-      leftIcon={<Icon />}
       variant={isActive ? 'solid' : 'ghost'}
       colorScheme={isActive ? 'brand' : 'gray'}
       size="sm"
@@ -104,26 +101,28 @@ const AccountItem = ({ account, onAccountClick }: AccountItemProps) => {
   return (
     <Box
       px={3}
-      py={2}
+      py={1}
+      ml={5}
       _hover={{ bg: 'gray.50' }}
       cursor="pointer"
       borderRadius="md"
       transition="all 0.2s"
       onClick={() => onAccountClick(account.id)}
     >
-      <HStack justify="space-between" align="start">
-        <VStack align="start" spacing={0} flex={1}>
-          <Text fontSize="sm" fontWeight="medium" color="gray.800">
+      <HStack justify="space-between" align="center" spacing={2}>
+        <VStack align="start" spacing={0} flex={1} minW={0}>
+          <Text fontSize="xs" fontWeight="medium" color="gray.700" noOfLines={1}>
             {account.name}
           </Text>
-          <Text fontSize="xs" color="gray.500">
+          <Text fontSize="2xs" color="gray.500">
             {formatLastUpdated(account.balance_as_of)}
           </Text>
         </VStack>
         <Text
-          fontSize="sm"
+          fontSize="xs"
           fontWeight="semibold"
           color={isNegative ? 'red.600' : 'brand.600'}
+          flexShrink={0}
         >
           {formatCurrency(balance)}
         </Text>
@@ -158,15 +157,16 @@ export const Layout = () => {
   const { user } = useAuthStore();
   const logoutMutation = useLogout();
   const { isOpen: isAddAccountOpen, onOpen: onAddAccountOpen, onClose: onAddAccountClose } = useDisclosure();
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   const navItems = [
-    { icon: ViewIcon, label: 'Dashboard', path: '/dashboard' },
-    { icon: ArrowUpDownIcon, label: 'Cash Flow', path: '/income-expenses' },
-    { icon: FiTrendingUp, label: 'Investments', path: '/investments' },
-    { icon: RepeatIcon, label: 'Transactions', path: '/transactions' },
-    { icon: SettingsIcon, label: 'Rules', path: '/rules' },
-    { icon: StarIcon, label: 'Categories', path: '/categories' },
-    { icon: FiFolder, label: 'Accounts', path: '/accounts' },
+    { label: 'Dashboard', path: '/dashboard' },
+    { label: 'Cash Flow', path: '/income-expenses' },
+    { label: 'Investments', path: '/investments' },
+    { label: 'Transactions', path: '/transactions' },
+    { label: 'Rules', path: '/rules' },
+    { label: 'Categories', path: '/categories' },
+    { label: 'Accounts', path: '/accounts' },
   ];
 
   // Fetch accounts
@@ -220,6 +220,13 @@ export const Layout = () => {
     navigate(`/accounts/${accountId}`);
   };
 
+  const toggleSection = (sectionName: string) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
+    }));
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -252,9 +259,7 @@ export const Layout = () => {
               {navItems.map((item) => (
                 <TopNavItem
                   key={item.path}
-                  icon={item.icon}
                   label={item.label}
-                  path={item.path}
                   isActive={location.pathname === item.path}
                   onClick={() => navigate(item.path)}
                 />
@@ -306,10 +311,10 @@ export const Layout = () => {
           borderRightWidth={1}
           borderColor="gray.200"
           overflowY="auto"
-          p={4}
+          p={3}
         >
-          <HStack justify="space-between" mb={4}>
-            <Text fontSize="md" fontWeight="bold" textTransform="uppercase" color="gray.700">
+          <HStack justify="space-between" mb={3}>
+            <Text fontSize="sm" fontWeight="bold" textTransform="uppercase" color="gray.700" letterSpacing="wide">
               Accounts
             </Text>
             {dashboardSummary?.net_worth !== undefined && (
@@ -328,43 +333,61 @@ export const Layout = () => {
               <Spinner size="sm" color="brand.500" />
             </Center>
           ) : (
-            <VStack spacing={4} align="stretch">
+            <VStack spacing={2} align="stretch">
               {sortedGroups.map(([groupName, groupAccounts]) => {
                 const groupTotal = groupAccounts.reduce(
                   (sum, account) => sum + Number(account.current_balance),
                   0
                 );
+                const isCollapsed = collapsedSections[groupName];
 
                 return (
                   <Box key={groupName}>
-                    <HStack justify="space-between" mb={2}>
+                    <HStack
+                      justify="space-between"
+                      mb={1}
+                      px={2}
+                      py={1.5}
+                      cursor="pointer"
+                      _hover={{ bg: 'gray.50' }}
+                      borderRadius="md"
+                      onClick={() => toggleSection(groupName)}
+                    >
+                      <HStack spacing={2}>
+                        {isCollapsed ? (
+                          <ChevronRightIcon boxSize={3.5} color="gray.600" />
+                        ) : (
+                          <ChevronDownIcon boxSize={3.5} color="gray.600" />
+                        )}
+                        <Text
+                          fontSize="sm"
+                          fontWeight="bold"
+                          color="gray.700"
+                          textTransform="uppercase"
+                          letterSpacing="wide"
+                        >
+                          {groupName}
+                        </Text>
+                      </HStack>
                       <Text
-                        fontSize="xs"
-                        fontWeight="semibold"
-                        color="gray.600"
-                        textTransform="uppercase"
-                        letterSpacing="wide"
-                      >
-                        {groupName}
-                      </Text>
-                      <Text
-                        fontSize="xs"
+                        fontSize="sm"
                         fontWeight="bold"
-                        color={groupTotal < 0 ? 'red.600' : 'gray.700'}
+                        color={groupTotal < 0 ? 'red.600' : 'gray.800'}
                       >
                         {formatCurrency(groupTotal)}
                       </Text>
                     </HStack>
-                    <VStack spacing={1} align="stretch">
-                      {groupAccounts.map((account) => (
-                        <AccountItem
-                          key={account.id}
-                          account={account}
-                          onAccountClick={handleAccountClick}
-                        />
-                      ))}
-                    </VStack>
-                    <Divider mt={3} />
+                    <Collapse in={!isCollapsed} animateOpacity>
+                      <VStack spacing={0.5} align="stretch" mb={2}>
+                        {groupAccounts.map((account) => (
+                          <AccountItem
+                            key={account.id}
+                            account={account}
+                            onAccountClick={handleAccountClick}
+                          />
+                        ))}
+                      </VStack>
+                    </Collapse>
                   </Box>
                 );
               })}
@@ -380,7 +403,7 @@ export const Layout = () => {
                 colorScheme="brand"
                 size="sm"
                 onClick={onAddAccountOpen}
-                mt={4}
+                mt={2}
                 w="full"
               >
                 Add Account
