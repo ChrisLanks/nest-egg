@@ -35,12 +35,14 @@ import {
 import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon } from '@chakra-ui/icons';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { TransactionDetailModal } from '../components/TransactionDetailModal';
 import { RuleBuilderModal } from '../components/RuleBuilderModal';
 import { DateRangePicker, type DateRange } from '../components/DateRangePicker';
 import { InfiniteScrollSentinel } from '../components/InfiniteScrollSentinel';
 import { useInfiniteTransactions } from '../hooks/useInfiniteTransactions';
 import type { Transaction } from '../types/transaction';
+import api from '../services/api';
 
 // Helper to get default date range (all time)
 const getDefaultDateRange = (): DateRange => {
