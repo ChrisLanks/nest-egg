@@ -124,6 +124,9 @@ export const AccountDetailPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['account', accountId] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['portfolio-summary'] });
       toast({
         title: 'Account updated',
         status: 'success',
@@ -224,9 +227,11 @@ export const AccountDetailPage = () => {
     updateAccountMutation.mutate({ account_type: newType });
   };
 
-  const handleToggleActive = () => {
+  const handleToggleActive = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (account) {
-      updateAccountMutation.mutate({ is_active: !account.is_active });
+      // Switch is "Hide from reports", so when checked (true), we want is_active=false
+      const hideFromReports = e.target.checked;
+      updateAccountMutation.mutate({ is_active: !hideFromReports });
     }
   };
 

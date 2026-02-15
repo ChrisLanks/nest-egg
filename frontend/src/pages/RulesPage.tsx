@@ -202,13 +202,13 @@ export const RulesPage = () => {
             </Button>
           </Box>
         ) : (
-          <VStack spacing={4} align="stretch">
+          <VStack spacing={3} align="stretch">
             {rules?.map((rule) => {
               const isExpanded = expandedRule === rule.id;
               return (
                 <Card key={rule.id}>
-                  <CardBody>
-                    <VStack spacing={4} align="stretch">
+                  <CardBody py={3} px={4}>
+                    <VStack spacing={3} align="stretch">
                       {/* Rule Header */}
                       <HStack justify="space-between">
                         <HStack spacing={3} flex={1}>

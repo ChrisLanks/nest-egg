@@ -401,7 +401,7 @@ export const CategoriesPage = () => {
           </Box>
         ) : (
           <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
-            <Table variant="simple">
+            <Table variant="simple" size="sm">
               <Thead bg="gray.50">
                 <Tr>
                   <Th>Category Name</Th>
