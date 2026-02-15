@@ -40,6 +40,8 @@ interface Holding {
   gain_loss: number | null;
   gain_loss_percent: number | null;
   asset_type: string | null;
+  expense_ratio: number | null;
+  annual_fee: number | null;
 }
 
 interface HoldingsDetailTableProps {
@@ -55,7 +57,9 @@ type SortField =
   | 'total_cost_basis'
   | 'gain_loss'
   | 'gain_loss_percent'
-  | 'asset_type';
+  | 'asset_type'
+  | 'expense_ratio'
+  | 'annual_fee';
 
 type SortDirection = 'asc' | 'desc';
 
@@ -198,6 +202,8 @@ export const HoldingsDetailTable = ({ holdings }: HoldingsDetailTableProps) => {
       'Gain/Loss',
       'Gain/Loss %',
       'Type',
+      'Expense Ratio',
+      'Annual Fee',
     ];
 
     const rows = processedHoldings.map((h) => [
@@ -210,6 +216,8 @@ export const HoldingsDetailTable = ({ holdings }: HoldingsDetailTableProps) => {
       h.gain_loss || 0,
       h.gain_loss_percent || 0,
       h.asset_type || 'other',
+      h.expense_ratio !== null ? (Number(h.expense_ratio) * 100).toFixed(2) + '%' : 'N/A',
+      h.annual_fee || 0,
     ]);
 
     const csv = [
@@ -338,12 +346,18 @@ export const HoldingsDetailTable = ({ holdings }: HoldingsDetailTableProps) => {
                 Gain/Loss %
               </SortableTh>
               <SortableTh field="asset_type">Type</SortableTh>
+              <SortableTh field="expense_ratio" isNumeric>
+                Expense Ratio
+              </SortableTh>
+              <SortableTh field="annual_fee" isNumeric>
+                Annual Fee
+              </SortableTh>
             </Tr>
           </Thead>
           <Tbody>
             {processedHoldings.length === 0 ? (
               <Tr>
-                <Td colSpan={9} textAlign="center" py={8} color="gray.500">
+                <Td colSpan={11} textAlign="center" py={8} color="gray.500">
                   No holdings match your filters
                 </Td>
               </Tr>
@@ -406,6 +420,16 @@ export const HoldingsDetailTable = ({ holdings }: HoldingsDetailTableProps) => {
                         {formatAssetType(holding.asset_type)}
                       </Badge>
                     )}
+                  </Td>
+                  <Td isNumeric>
+                    {holding.expense_ratio !== null && holding.expense_ratio !== undefined
+                      ? `${(Number(holding.expense_ratio) * 100).toFixed(2)}%`
+                      : '-'}
+                  </Td>
+                  <Td isNumeric>
+                    <Text fontSize="sm" color="gray.600">
+                      {formatCurrency(holding.annual_fee)}
+                    </Text>
                   </Td>
                 </Tr>
               ))

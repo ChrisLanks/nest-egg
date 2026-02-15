@@ -43,6 +43,9 @@ class Holding(Base):
     industry = Column(String(100), nullable=True)  # Industry within sector (e.g., 'Software', 'Biotechnology')
     country = Column(String(100), nullable=True)  # Country of domicile (e.g., 'USA', 'Germany', 'China')
 
+    # Fees
+    expense_ratio = Column(Numeric(5, 4), nullable=True)  # Annual expense ratio as decimal (e.g., 0.0003 = 0.03%)
+
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)

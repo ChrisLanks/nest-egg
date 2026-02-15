@@ -19,6 +19,7 @@ class HoldingBase(BaseModel):
     sector: Optional[str] = None  # Financial sector (e.g., 'Technology', 'Healthcare')
     industry: Optional[str] = None  # Industry within sector (e.g., 'Software', 'Biotechnology')
     country: Optional[str] = None  # Country of domicile (e.g., 'USA', 'Germany', 'China')
+    expense_ratio: Optional[Decimal] = None  # Annual expense ratio as decimal (e.g., 0.0003 = 0.03%)
 
 
 class HoldingCreate(HoldingBase):
@@ -68,9 +69,11 @@ class HoldingSummary(BaseModel):
     sector: Optional[str] = None  # Financial sector (Phase 2+)
     industry: Optional[str] = None  # Industry within sector (Phase 2+)
     country: Optional[str] = None  # Country of domicile (for international categorization)
+    expense_ratio: Optional[Decimal] = None  # Annual expense ratio
     # Calculated fields
     gain_loss: Optional[Decimal] = None
     gain_loss_percent: Optional[Decimal] = None
+    annual_fee: Optional[Decimal] = None  # Calculated: current_total_value * expense_ratio
 
 
 class CategoryBreakdown(BaseModel):
@@ -151,6 +154,9 @@ class PortfolioSummary(BaseModel):
 
     # Sector breakdown (Phase 2+)
     sector_breakdown: Optional[list[SectorBreakdown]] = None
+
+    # Fees
+    total_annual_fees: Optional[Decimal] = None  # Sum of all annual fees across holdings
 
 
 class StyleBoxItem(BaseModel):

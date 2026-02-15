@@ -111,6 +111,7 @@ async def get_portfolio_summary(
                 international_percent=None,
             ),
             treemap_data=empty_treemap,
+            total_annual_fees=None,
         )
 
     # Aggregate holdings by ticker
@@ -127,6 +128,7 @@ async def get_portfolio_summary(
                 'asset_type': holding.asset_type,
                 'sector': holding.sector,
                 'industry': holding.industry,
+                'expense_ratio': holding.expense_ratio,
             }
 
         holdings_by_ticker[holding.ticker]['total_shares'] += holding.shares
@@ -140,11 +142,13 @@ async def get_portfolio_summary(
         ):
             holdings_by_ticker[holding.ticker]['current_price_per_share'] = holding.current_price_per_share
             holdings_by_ticker[holding.ticker]['price_as_of'] = holding.price_as_of
+            holdings_by_ticker[holding.ticker]['expense_ratio'] = holding.expense_ratio
 
     # Calculate totals and summaries
     holdings_summaries = []
     total_value = Decimal('0')
     total_cost_basis = Decimal('0')
+    total_annual_fees = Decimal('0')
 
     # Asset allocation buckets
     stocks_value = Decimal('0')
@@ -163,6 +167,10 @@ async def get_portfolio_summary(
         gain_loss = (current_total_value - cost_basis) if (current_total_value and cost_basis) else None
         gain_loss_percent = ((gain_loss / cost_basis) * 100) if (gain_loss and cost_basis and cost_basis != 0) else None
 
+        # Calculate annual fee if expense ratio exists
+        expense_ratio = ticker_data.get('expense_ratio')
+        annual_fee = (current_total_value * expense_ratio) if (current_total_value and expense_ratio) else None
+
         summary = HoldingSummary(
             ticker=ticker_data['ticker'],
             name=ticker_data['name'],
@@ -174,13 +182,19 @@ async def get_portfolio_summary(
             asset_type=ticker_data['asset_type'],
             sector=ticker_data.get('sector'),
             industry=ticker_data.get('industry'),
+            expense_ratio=expense_ratio,
             gain_loss=gain_loss,
             gain_loss_percent=gain_loss_percent,
+            annual_fee=annual_fee,
         )
         holdings_summaries.append(summary)
 
         if current_total_value:
             total_value += current_total_value
+
+            # Accumulate annual fees
+            if annual_fee:
+                total_annual_fees += annual_fee
 
             # Accumulate by asset type
             asset_type = ticker_data.get('asset_type')
@@ -891,6 +905,7 @@ async def get_portfolio_summary(
         geographic_breakdown=geographic_breakdown,
         treemap_data=treemap_data,
         sector_breakdown=sector_breakdown,
+        total_annual_fees=total_annual_fees if total_annual_fees > 0 else None,
     )
 
 

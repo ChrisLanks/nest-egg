@@ -85,8 +85,10 @@ interface HoldingSummary {
   current_total_value: number | null;
   price_as_of: string | null;
   asset_type: string | null;
+  expense_ratio: number | null;
   gain_loss: number | null;
   gain_loss_percent: number | null;
+  annual_fee: number | null;
 }
 
 interface CategoryBreakdown {
@@ -132,6 +134,7 @@ interface PortfolioSummary {
   category_breakdown: CategoryBreakdown | null;
   geographic_breakdown: GeographicBreakdown | null;
   treemap_data: TreemapNode | null;
+  total_annual_fees: number | null;
 }
 
 export const InvestmentsPage = () => {
@@ -546,6 +549,23 @@ export const InvestmentsPage = () => {
                       {formatPercent(portfolio.total_gain_loss_percent)}
                     </StatHelpText>
                   )}
+                </Stat>
+              </CardBody>
+            </Card>
+          )}
+
+          {/* Annual Fees */}
+          {portfolio.total_annual_fees !== null && portfolio.total_annual_fees > 0 && (
+            <Card>
+              <CardBody>
+                <Stat>
+                  <StatLabel>Annual Fees</StatLabel>
+                  <StatNumber fontSize="2xl" color="orange.600">
+                    {formatCurrency(portfolio.total_annual_fees)}
+                  </StatNumber>
+                  <StatHelpText>
+                    {((portfolio.total_annual_fees / portfolio.total_value) * 100).toFixed(3)}% of portfolio
+                  </StatHelpText>
                 </Stat>
               </CardBody>
             </Card>
