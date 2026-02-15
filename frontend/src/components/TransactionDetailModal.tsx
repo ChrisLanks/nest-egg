@@ -139,7 +139,7 @@ export const TransactionDetailModal = ({
         status: 'success',
         duration: 3000,
       });
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['transaction', transaction?.id] });
       setPendingLabelsToAdd([]);
       setPendingLabelsToRemove([]);
