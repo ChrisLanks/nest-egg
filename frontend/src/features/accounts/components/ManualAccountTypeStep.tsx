@@ -104,6 +104,20 @@ const accountTypeOptions: AccountTypeOption[] = [
     icon: FiTrendingUp,
     category: 'investment',
   },
+  {
+    type: ACCOUNT_TYPES.RETIREMENT_529,
+    label: '529 Plan',
+    description: 'College savings plan',
+    icon: FiTrendingUp,
+    category: 'investment',
+  },
+  {
+    type: ACCOUNT_TYPES.PRIVATE_EQUITY,
+    label: 'Private Equity',
+    description: 'Private equity investment',
+    icon: FiTrendingUp,
+    category: 'investment',
+  },
 
   // Property
   {

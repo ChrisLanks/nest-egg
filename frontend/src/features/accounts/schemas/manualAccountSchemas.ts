@@ -18,7 +18,9 @@ export const ACCOUNT_TYPES = {
   RETIREMENT_401K: '401k',
   RETIREMENT_IRA: 'ira',
   RETIREMENT_ROTH: 'roth_ira',
+  RETIREMENT_529: 'retirement_529',
   HSA: 'hsa',
+  PRIVATE_EQUITY: 'private_equity',
 
   // Property
   PROPERTY: 'property',
@@ -68,7 +70,9 @@ export const investmentAccountSchema = z.object({
     ACCOUNT_TYPES.RETIREMENT_401K,
     ACCOUNT_TYPES.RETIREMENT_IRA,
     ACCOUNT_TYPES.RETIREMENT_ROTH,
+    ACCOUNT_TYPES.RETIREMENT_529,
     ACCOUNT_TYPES.HSA,
+    ACCOUNT_TYPES.PRIVATE_EQUITY,
   ]),
   holdings: z.array(holdingSchema).min(1, 'At least one holding is required'),
   account_number_last4: z.string().max(4).optional(),
