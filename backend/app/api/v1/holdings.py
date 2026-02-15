@@ -1141,7 +1141,7 @@ async def get_style_box_breakdown(
     style_groups: dict[str, dict] = {}
 
     for holding in investment_holdings:
-        value = (holding.quantity or Decimal('0')) * (holding.current_price or Decimal('0'))
+        value = (holding.shares or Decimal('0')) * (holding.current_price_per_share or Decimal('0'))
         if value == 0:
             continue
 
@@ -1226,7 +1226,7 @@ async def get_style_box_breakdown(
 
     for holding in investment_holdings:
         if holding.ticker.upper() in real_estate_funds:
-            value = (holding.quantity or Decimal('0')) * (holding.current_price or Decimal('0'))
+            value = (holding.shares or Decimal('0')) * (holding.current_price_per_share or Decimal('0'))
             real_estate_value += value
             real_estate_count += 1
 
@@ -1235,7 +1235,7 @@ async def get_style_box_breakdown(
     sp500_funds = ['FXAIX', 'VOO', 'IVV', 'SPY']
     for holding in investment_holdings:
         if holding.ticker.upper() in sp500_funds:
-            value = (holding.quantity or Decimal('0')) * (holding.current_price or Decimal('0'))
+            value = (holding.shares or Decimal('0')) * (holding.current_price_per_share or Decimal('0'))
             real_estate_value += value * Decimal('0.03')  # 3% allocation
 
     if real_estate_value > 0:
