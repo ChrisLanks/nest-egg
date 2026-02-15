@@ -27,11 +27,14 @@ import {
   Center,
   SimpleGrid,
   Divider,
+  Button,
+  ButtonGroup,
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../features/auth/stores/authStore';
 import api from '../services/api';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { useState, useMemo } from 'react';
 
 interface DashboardData {
   summary: {
@@ -70,8 +73,17 @@ interface DashboardData {
   }>;
 }
 
+interface HistoricalSnapshot {
+  id: string;
+  snapshot_date: string;
+  total_value: number;
+  total_cost_basis: number | null;
+  total_gain_loss: number | null;
+}
+
 export const DashboardPage = () => {
   const { user } = useAuthStore();
+  const [timeRange, setTimeRange] = useState<'1M' | '3M' | '6M' | '1Y' | 'ALL'>('1Y');
 
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['dashboard'],
@@ -80,6 +92,46 @@ export const DashboardPage = () => {
       return response.data;
     },
   });
+
+  // Fetch historical net worth data
+  const { data: historicalData } = useQuery({
+    queryKey: ['historical-net-worth', timeRange],
+    queryFn: async () => {
+      const now = new Date();
+      let startDate: Date;
+
+      switch (timeRange) {
+        case '1M':
+          startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+          break;
+        case '3M':
+          startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+          break;
+        case '6M':
+          startDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+          break;
+        case '1Y':
+          startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+          break;
+        case 'ALL':
+          startDate = new Date(now.getFullYear() - 10, 0, 1); // 10 years ago
+          break;
+      }
+
+      const response = await api.get<HistoricalSnapshot[]>('/holdings/historical', {
+        params: {
+          start_date: startDate.toISOString().split('T')[0],
+        },
+      });
+      return response.data;
+    },
+  });
+
+  // Sort account balances by balance (descending)
+  const sortedAccountBalances = useMemo(() => {
+    if (!dashboardData?.account_balances) return [];
+    return [...dashboardData.account_balances].sort((a, b) => b.balance - a.balance);
+  }, [dashboardData?.account_balances]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -180,7 +232,7 @@ export const DashboardPage = () => {
                   {formatCurrency(summary?.monthly_spending || 0)}
                 </StatNumber>
                 <StatHelpText>
-                  Net: 
+                  Net:
                   <Text
                     as="span"
                     ml={2}
@@ -194,6 +246,77 @@ export const DashboardPage = () => {
             </CardBody>
           </Card>
         </SimpleGrid>
+
+        {/* Net Worth Over Time Chart */}
+        {historicalData && historicalData.length > 0 && (
+          <Card>
+            <CardBody>
+              <HStack justify="space-between" mb={4}>
+                <Heading size="md">Net Worth Over Time</Heading>
+                <ButtonGroup size="sm" isAttached variant="outline">
+                  <Button
+                    onClick={() => setTimeRange('1M')}
+                    colorScheme={timeRange === '1M' ? 'brand' : 'gray'}
+                  >
+                    1M
+                  </Button>
+                  <Button
+                    onClick={() => setTimeRange('3M')}
+                    colorScheme={timeRange === '3M' ? 'brand' : 'gray'}
+                  >
+                    3M
+                  </Button>
+                  <Button
+                    onClick={() => setTimeRange('6M')}
+                    colorScheme={timeRange === '6M' ? 'brand' : 'gray'}
+                  >
+                    6M
+                  </Button>
+                  <Button
+                    onClick={() => setTimeRange('1Y')}
+                    colorScheme={timeRange === '1Y' ? 'brand' : 'gray'}
+                  >
+                    1Y
+                  </Button>
+                  <Button
+                    onClick={() => setTimeRange('ALL')}
+                    colorScheme={timeRange === 'ALL' ? 'brand' : 'gray'}
+                  >
+                    ALL
+                  </Button>
+                </ButtonGroup>
+              </HStack>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart
+                  data={historicalData.map((snapshot) => ({
+                    date: new Date(snapshot.snapshot_date).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                    }),
+                    value: Number(snapshot.total_value),
+                  }))}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc' }}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#3182CE"
+                    strokeWidth={2}
+                    name="Net Worth"
+                    dot={{ r: 3 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardBody>
+          </Card>
+        )}
 
         {/* Cash Flow Trend Chart */}
         {dashboardData?.cash_flow_trend && dashboardData.cash_flow_trend.length > 0 && (
@@ -295,7 +418,7 @@ export const DashboardPage = () => {
         </SimpleGrid>
 
         {/* Account Balances */}
-        {dashboardData?.account_balances && dashboardData.account_balances.length > 0 && (
+        {sortedAccountBalances.length > 0 && (
           <Card>
             <CardBody>
               <Heading size="md" mb={4}>
@@ -311,7 +434,7 @@ export const DashboardPage = () => {
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {dashboardData.account_balances.map((account) => (
+                  {sortedAccountBalances.map((account) => (
                     <Tr key={account.id}>
                       <Td fontWeight="medium">{account.name}</Td>
                       <Td>
