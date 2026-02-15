@@ -608,21 +608,27 @@ export const TransactionsPage = () => {
     e.stopPropagation(); // Prevent opening transaction modal
     // Add quotes if category contains spaces
     const formattedCategory = category.includes(' ') ? `"${category}"` : category;
-    setSearchQuery(`category:${formattedCategory}`);
+    const newFilter = `category:${formattedCategory}`;
+    // Append to existing search if present
+    setSearchQuery(searchQuery ? `${searchQuery} ${newFilter}` : newFilter);
   };
 
   const handleLabelClick = (labelName: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
     // Add quotes if label contains spaces
     const formattedLabel = labelName.includes(' ') ? `"${labelName}"` : labelName;
-    setSearchQuery(`labels:${formattedLabel}`);
+    const newFilter = `labels:${formattedLabel}`;
+    // Append to existing search if present
+    setSearchQuery(searchQuery ? `${searchQuery} ${newFilter}` : newFilter);
   };
 
   const handleAccountClick = (accountName: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
     // Add quotes if account name contains spaces
     const formattedAccount = accountName.includes(' ') ? `"${accountName}"` : accountName;
-    setSearchQuery(`account:${formattedAccount}`);
+    const newFilter = `account:${formattedAccount}`;
+    // Append to existing search if present
+    setSearchQuery(searchQuery ? `${searchQuery} ${newFilter}` : newFilter);
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
