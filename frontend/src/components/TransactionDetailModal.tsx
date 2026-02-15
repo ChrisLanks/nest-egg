@@ -119,7 +119,7 @@ export const TransactionDetailModal = ({
   }, [transaction?.id, isOpen]);
 
   const updateMutation = useMutation({
-    mutationFn: async (data: { merchant_name?: string; category_primary?: string }) => {
+    mutationFn: async (data: { merchant_name?: string; category_primary?: string; is_transfer?: boolean }) => {
       // First update the transaction fields
       const response = await api.patch(`/transactions/${transaction?.id}`, data);
 
@@ -231,6 +231,12 @@ export const TransactionDetailModal = ({
     createLabelMutation.mutate(newLabelName.trim());
   };
 
+  const handleToggleTransfer = () => {
+    updateMutation.mutate({
+      is_transfer: !currentTransaction.is_transfer,
+    });
+  };
+
   if (!currentTransaction) return null;
 
   // Calculate current labels accounting for pending changes
@@ -292,12 +298,49 @@ export const TransactionDetailModal = ({
                 {isNegative ? '-' : '+'}
                 {formatted}
               </Text>
-              {currentTransaction.is_pending && (
-                <Badge colorScheme="orange" fontSize="md">
-                  Pending
-                </Badge>
-              )}
+              <HStack spacing={2}>
+                {currentTransaction.is_pending && (
+                  <Badge colorScheme="orange" fontSize="md">
+                    Pending
+                  </Badge>
+                )}
+                {currentTransaction.is_transfer && (
+                  <Tooltip label="Excluded from cash flow">
+                    <Badge colorScheme="purple" fontSize="md">
+                      Transfer
+                    </Badge>
+                  </Tooltip>
+                )}
+              </HStack>
             </HStack>
+
+            {/* Transfer Toggle */}
+            <Box>
+              <HStack justify="space-between" align="center">
+                <Box>
+                  <Text fontSize="sm" fontWeight="medium" color="gray.700">
+                    Transfer Transaction
+                  </Text>
+                  <Text fontSize="xs" color="gray.500">
+                    Transfers are excluded from cash flow and budgets
+                  </Text>
+                </Box>
+                <Tooltip label={!canEdit ? "You can only edit your own transactions" : ""}>
+                  <Button
+                    size="sm"
+                    colorScheme={currentTransaction.is_transfer ? "purple" : "gray"}
+                    variant={currentTransaction.is_transfer ? "solid" : "outline"}
+                    onClick={handleToggleTransfer}
+                    isDisabled={!canEdit}
+                    isLoading={updateMutation.isPending}
+                  >
+                    {currentTransaction.is_transfer ? "✓ Is Transfer" : "Mark as Transfer"}
+                  </Button>
+                </Tooltip>
+              </HStack>
+            </Box>
+
+            <Divider />
 
             {/* Date */}
             <Box>

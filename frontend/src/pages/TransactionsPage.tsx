@@ -324,6 +324,7 @@ export const TransactionsPage = () => {
       account_name: selected[0]?.account_name || '',
       organization_id: selected[0]?.organization_id || '',
       is_pending: false,
+      is_transfer: false,
       deduplication_hash: '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -683,9 +684,14 @@ export const TransactionsPage = () => {
                         </Td>
                         {showStatusColumn && (
                           <Td>
-                            {txn.is_pending && (
-                              <Badge colorScheme="orange">Pending</Badge>
-                            )}
+                            <HStack spacing={2}>
+                              {txn.is_pending && (
+                                <Badge colorScheme="orange">Pending</Badge>
+                              )}
+                              {txn.is_transfer && (
+                                <Badge colorScheme="purple">Transfer</Badge>
+                              )}
+                            </HStack>
                           </Td>
                         )}
                       </Tr>

@@ -35,6 +35,7 @@ export interface Transaction {
   category_primary: string | null;
   category_detailed: string | null;
   is_pending: boolean;
+  is_transfer: boolean;
   account_name: string | null;
   account_mask: string | null;
   category?: Category;
