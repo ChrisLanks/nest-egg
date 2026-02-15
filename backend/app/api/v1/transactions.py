@@ -24,6 +24,33 @@ from app.schemas.transaction import TransactionDetail, TransactionListResponse, 
 router = APIRouter()
 
 
+async def get_or_create_transfer_label(db: AsyncSession, organization_id: UUID) -> Label:
+    """Get or create the system Transfer label for an organization."""
+    # Check if Transfer label already exists
+    result = await db.execute(
+        select(Label).where(
+            Label.organization_id == organization_id,
+            Label.name == "Transfer",
+            Label.is_system == True
+        )
+    )
+    label = result.scalar_one_or_none()
+
+    if not label:
+        # Create the Transfer label
+        label = Label(
+            organization_id=organization_id,
+            name="Transfer",
+            color="#718096",  # Gray color
+            is_income=False,
+            is_system=True,
+        )
+        db.add(label)
+        await db.flush()  # Ensure ID is generated
+
+    return label
+
+
 def encode_cursor(txn_date: date, created_at: datetime, txn_id: UUID) -> str:
     """Encode transaction cursor for pagination."""
     cursor_data = {
@@ -287,6 +314,7 @@ async def update_transaction(
     result = await db.execute(
         select(Transaction)
         .options(joinedload(Transaction.account))
+        .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
         .where(
             Transaction.id == transaction_id,
             Transaction.organization_id == current_user.organization_id,
@@ -305,12 +333,44 @@ async def update_transaction(
     if update_data.category_primary is not None:
         txn.category_primary = update_data.category_primary
     if update_data.is_transfer is not None:
+        # Handle Transfer label
+        transfer_label = await get_or_create_transfer_label(db, current_user.organization_id)
+
+        if update_data.is_transfer:
+            # Add Transfer label if not already present
+            existing_label = await db.execute(
+                select(TransactionLabel).where(
+                    TransactionLabel.transaction_id == transaction_id,
+                    TransactionLabel.label_id == transfer_label.id,
+                )
+            )
+            if not existing_label.scalar_one_or_none():
+                txn_label = TransactionLabel(
+                    transaction_id=transaction_id,
+                    label_id=transfer_label.id,
+                )
+                db.add(txn_label)
+        else:
+            # Remove Transfer label if present
+            existing_label = await db.execute(
+                select(TransactionLabel).where(
+                    TransactionLabel.transaction_id == transaction_id,
+                    TransactionLabel.label_id == transfer_label.id,
+                )
+            )
+            label_to_remove = existing_label.scalar_one_or_none()
+            if label_to_remove:
+                await db.delete(label_to_remove)
+
         txn.is_transfer = update_data.is_transfer
 
     txn.updated_at = datetime.utcnow()
 
     await db.commit()
-    await db.refresh(txn)
+    await db.refresh(txn, ['labels'])
+
+    # Extract labels from the many-to-many relationship
+    transaction_labels = [tl.label for tl in txn.labels if tl.label]
 
     return TransactionDetail(
         id=txn.id,
@@ -329,7 +389,7 @@ async def update_transaction(
         updated_at=txn.updated_at,
         account_name=txn.account.name if txn.account else None,
         account_mask=txn.account.mask if txn.account else None,
-        labels=[],
+        labels=transaction_labels,
     )
 
 
