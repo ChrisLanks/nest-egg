@@ -2,7 +2,7 @@
  * Contributions API client
  */
 
-import { apiClient } from './client';
+import api from '../services/api';
 import type { Contribution, ContributionCreate, ContributionUpdate } from '../types/contribution';
 
 export const contributionsApi = {
@@ -10,7 +10,7 @@ export const contributionsApi = {
    * Create a new contribution for an account
    */
   createContribution: async (accountId: string, data: ContributionCreate): Promise<Contribution> => {
-    const response = await apiClient.post(`/accounts/${accountId}/contributions`, data);
+    const response = await api.post(`/accounts/${accountId}/contributions`, data);
     return response.data;
   },
 
@@ -18,7 +18,7 @@ export const contributionsApi = {
    * List all contributions for an account
    */
   listContributions: async (accountId: string, includeInactive = false): Promise<Contribution[]> => {
-    const response = await apiClient.get(`/accounts/${accountId}/contributions`, {
+    const response = await api.get(`/accounts/${accountId}/contributions`, {
       params: { include_inactive: includeInactive },
     });
     return response.data;
@@ -28,7 +28,7 @@ export const contributionsApi = {
    * Get a specific contribution
    */
   getContribution: async (contributionId: string): Promise<Contribution> => {
-    const response = await apiClient.get(`/contributions/${contributionId}`);
+    const response = await api.get(`/contributions/${contributionId}`);
     return response.data;
   },
 
@@ -36,7 +36,7 @@ export const contributionsApi = {
    * Update a contribution
    */
   updateContribution: async (contributionId: string, data: ContributionUpdate): Promise<Contribution> => {
-    const response = await apiClient.patch(`/contributions/${contributionId}`, data);
+    const response = await api.patch(`/contributions/${contributionId}`, data);
     return response.data;
   },
 
@@ -44,6 +44,6 @@ export const contributionsApi = {
    * Delete a contribution
    */
   deleteContribution: async (contributionId: string): Promise<void> => {
-    await apiClient.delete(`/contributions/${contributionId}`);
+    await api.delete(`/contributions/${contributionId}`);
   },
 };
