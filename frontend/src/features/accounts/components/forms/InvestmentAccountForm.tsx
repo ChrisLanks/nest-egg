@@ -80,7 +80,18 @@ export const InvestmentAccountForm = ({
     [ACCOUNT_TYPES.RETIREMENT_401K]: '401(k)',
     [ACCOUNT_TYPES.RETIREMENT_IRA]: 'IRA',
     [ACCOUNT_TYPES.RETIREMENT_ROTH]: 'Roth IRA',
+    [ACCOUNT_TYPES.RETIREMENT_529]: '529 Plan',
     [ACCOUNT_TYPES.HSA]: 'HSA',
+    [ACCOUNT_TYPES.PENSION]: 'Pension',
+    [ACCOUNT_TYPES.CRYPTO]: 'Crypto',
+    [ACCOUNT_TYPES.PRIVATE_EQUITY]: 'Private Equity',
+    [ACCOUNT_TYPES.COLLECTIBLES]: 'Collectibles',
+    [ACCOUNT_TYPES.PRECIOUS_METALS]: 'Precious Metals',
+    [ACCOUNT_TYPES.LIFE_INSURANCE_CASH_VALUE]: 'Life Insurance',
+    [ACCOUNT_TYPES.ANNUITY]: 'Annuity',
+    [ACCOUNT_TYPES.BOND]: 'Bond',
+    [ACCOUNT_TYPES.STOCK_OPTIONS]: 'Stock Options',
+    [ACCOUNT_TYPES.BUSINESS_EQUITY]: 'Business Equity',
   };
 
   const handleFormSubmit = (data: InvestmentAccountFormData) => {

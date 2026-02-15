@@ -54,8 +54,11 @@ export const BasicManualAccountForm = ({
   const accountTypeLabels: Record<string, string> = {
     [ACCOUNT_TYPES.CHECKING]: 'Checking',
     [ACCOUNT_TYPES.SAVINGS]: 'Savings',
+    [ACCOUNT_TYPES.MONEY_MARKET]: 'Money Market',
+    [ACCOUNT_TYPES.CD]: 'CD',
     [ACCOUNT_TYPES.CREDIT_CARD]: 'Credit Card',
     [ACCOUNT_TYPES.LOAN]: 'Loan',
+    [ACCOUNT_TYPES.STUDENT_LOAN]: 'Student Loan',
     [ACCOUNT_TYPES.MORTGAGE]: 'Mortgage',
     [ACCOUNT_TYPES.MANUAL]: 'Other',
     [ACCOUNT_TYPES.OTHER]: 'Other',
