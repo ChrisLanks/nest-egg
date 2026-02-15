@@ -50,8 +50,8 @@ class DashboardService:
                 total += balance
             # Debt accounts subtract from net worth
             elif account.account_type in debt_types:
-                # Debt balances should be subtracted from net worth
-                total -= balance
+                # Use abs() to handle both positive and negative balance representations
+                total -= abs(balance)
 
         return total
 
