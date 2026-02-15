@@ -54,6 +54,7 @@ import { SectorBreakdownChart } from '../features/investments/components/SectorB
 import PerformanceTrendsChart from '../features/investments/components/PerformanceTrendsChart';
 import RiskAnalysisPanel from '../features/investments/components/RiskAnalysisPanel';
 import StyleBoxModal from '../features/investments/components/StyleBoxModal';
+import { RMDAlert } from '../features/investments/components/RMDAlert';
 
 interface Holding {
   id: string;
@@ -500,6 +501,9 @@ export const InvestmentsPage = () => {
             )}
           </HStack>
         </HStack>
+
+        {/* RMD Alert (if applicable) */}
+        <RMDAlert />
 
         {/* Portfolio Summary Cards */}
         <Card>
