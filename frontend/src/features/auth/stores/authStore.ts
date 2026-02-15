@@ -5,6 +5,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '../../../types/user';
+import { scheduleTokenRefresh } from '../../../services/api';
 
 interface AuthState {
   user: User | null;
@@ -22,7 +23,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       accessToken: null,
       refreshToken: null,
@@ -33,6 +34,9 @@ export const useAuthStore = create<AuthState>()(
         // Also store in localStorage for API interceptor
         localStorage.setItem('access_token', accessToken);
         localStorage.setItem('refresh_token', refreshToken);
+
+        // Schedule proactive token refresh
+        scheduleTokenRefresh();
 
         set({
           accessToken,
@@ -71,6 +75,26 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => {
+        return (state) => {
+          // After Zustand restores persisted state, validate tokens
+          if (state && state.isAuthenticated) {
+            const accessToken = localStorage.getItem('access_token');
+            const refreshToken = localStorage.getItem('refresh_token');
+
+            // If tokens exist in localStorage, user should stay logged in
+            // The api.ts will handle token refresh if needed
+            if (accessToken && refreshToken) {
+              console.log('[Auth] Session restored from storage');
+              scheduleTokenRefresh();
+            } else {
+              // Tokens missing, log out
+              console.log('[Auth] Tokens missing, clearing auth state');
+              state.logout();
+            }
+          }
+        };
+      },
     }
   )
 );
