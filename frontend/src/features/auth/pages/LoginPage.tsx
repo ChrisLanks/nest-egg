@@ -1,5 +1,5 @@
 /**
- * Login page
+ * Login page with autocomplete and remember me support
  */
 
 import {
@@ -16,16 +16,20 @@ import {
   Link as ChakraLink,
   useToast,
   VStack,
+  Checkbox,
+  HStack,
 } from '@chakra-ui/react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { useLogin } from '../hooks/useAuth';
+import { useState, useEffect } from 'react';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),
+  rememberMe: z.boolean().optional(),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -33,17 +37,38 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export const LoginPage = () => {
   const toast = useToast();
   const loginMutation = useLogin();
+  const [rememberMe, setRememberMe] = useState(false);
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      rememberMe: false,
+    },
   });
+
+  // Load saved email on mount
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('rememberedEmail');
+    if (savedEmail) {
+      setValue('email', savedEmail);
+      setRememberMe(true);
+    }
+  }, [setValue]);
 
   const onSubmit = async (data: LoginFormData) => {
     try {
+      // Save or clear email based on remember me checkbox
+      if (rememberMe) {
+        localStorage.setItem('rememberedEmail', data.email);
+      } else {
+        localStorage.removeItem('rememberedEmail');
+      }
+
       await loginMutation.mutateAsync(data);
       toast({
         title: 'Login successful',
@@ -51,9 +76,11 @@ export const LoginPage = () => {
         duration: 3000,
       });
     } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || 'Invalid credentials';
+      console.error('Login error:', errorMessage);
       toast({
         title: 'Login failed',
-        description: error.response?.data?.detail || 'Invalid credentials',
+        description: errorMessage,
         status: 'error',
         duration: 5000,
       });
@@ -78,13 +105,15 @@ export const LoginPage = () => {
           <VStack spacing={6}>
             <Heading size="lg">Login</Heading>
 
-            <form onSubmit={handleSubmit(onSubmit)} style={{ width: '100%' }}>
+            <form onSubmit={handleSubmit(onSubmit)} style={{ width: '100%' }} autoComplete="on">
               <Stack spacing={4}>
                 <FormControl isInvalid={!!errors.email}>
                   <FormLabel>Email</FormLabel>
                   <Input
                     type="email"
                     placeholder="you@example.com"
+                    autoComplete="email"
+                    autoFocus
                     {...register('email')}
                   />
                   <FormErrorMessage>{errors.email?.message}</FormErrorMessage>
@@ -95,10 +124,21 @@ export const LoginPage = () => {
                   <Input
                     type="password"
                     placeholder="Enter your password"
+                    autoComplete="current-password"
                     {...register('password')}
                   />
                   <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
                 </FormControl>
+
+                <HStack justify="space-between">
+                  <Checkbox
+                    isChecked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  >
+                    Remember me
+                  </Checkbox>
+                  {/* Future: Add forgot password link */}
+                </HStack>
 
                 <Button
                   type="submit"
@@ -117,6 +157,11 @@ export const LoginPage = () => {
               <ChakraLink as={Link} to="/register" color="brand.500" fontWeight="semibold">
                 Register
               </ChakraLink>
+            </Text>
+
+            {/* Debug info for development */}
+            <Text fontSize="xs" color="gray.400" mt={4}>
+              Tip: Use test@test.com or chris@example.com
             </Text>
           </VStack>
         </Box>

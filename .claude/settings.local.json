@@ -48,7 +48,9 @@
       "Bash(pkill:*)",
       "Bash(alembic current:*)",
       "Bash(timeout 5 ./venv/bin/uvicorn:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(/usr/bin/python3:*)",
+      "Bash(poetry run python:*)"
     ]
   }
 }
