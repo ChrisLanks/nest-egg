@@ -6,13 +6,20 @@ A comprehensive multi-tenant personal finance SaaS application for tracking tran
 
 - 📊 **Transaction Tracking**: Automatically sync transactions from banks via Plaid
 - 🏷️ **Smart Labeling**: Custom labels with rule-based automation
-- 💰 **Investment Tracking**: Asset allocation, performance analysis, and projections
+- 💰 **Investment Analysis Dashboard**: Comprehensive 6-tab portfolio analysis
+  - **Asset Allocation**: Interactive treemap visualization
+  - **Sector Breakdown**: Holdings by financial sector (Tech, Healthcare, etc.)
+  - **Future Growth**: Monte Carlo simulation with best/worst case scenarios
+  - **Performance Trends**: Historical tracking with CAGR and YoY growth
+  - **Risk Analysis**: Volatility, diversification scores, and concentration warnings
+  - **Holdings Detail**: Sortable table with CSV export
 - 📈 **Income vs Expenses**: Detailed analysis with customizable time periods
 - 📅 **Custom Month Boundaries**: Define your own month-end dates
 - 👥 **Multi-User Support**: Track finances individually or combined
 - 📑 **Custom Reports**: Flexible aggregation logic for personalized insights
 - 🔮 **Future Projections**: Calculate retirement and investment goals
 - 🏠 **Manual Assets**: Track homes, treasuries, mortgages, and more
+- 🤖 **Smart Snapshot Scheduler**: Automatic daily portfolio snapshots with load distribution
 
 ## Technology Stack
 
@@ -225,6 +232,98 @@ Celery tasks automatically sync data:
 - **Webhook**: Real-time updates from Plaid
 - **Manual**: On-demand sync button
 
+### Investment Analysis
+
+The application provides comprehensive portfolio analysis through six specialized tabs:
+
+#### 1. Asset Allocation
+- Interactive treemap visualization showing portfolio breakdown
+- Drill-down capability to explore account and holding details
+- Visual representation of asset distribution
+
+#### 2. Sector Breakdown
+- Horizontal bar chart showing holdings by financial sector
+- Integrates with Alpha Vantage API for sector classification
+- Displays Technology, Healthcare, Financials, Consumer sectors, etc.
+- Shows holding count and percentage for each sector
+
+#### 3. Future Growth Projections
+- Monte Carlo simulation with 1000+ runs for realistic forecasting
+- Adjustable parameters:
+  - Annual Return (expected growth rate)
+  - Volatility (risk/uncertainty)
+  - Inflation Rate (purchasing power adjustment)
+  - Time Horizon (1-30 years)
+- Displays 6 projection lines:
+  - Best Case (90th percentile)
+  - Median (expected value)
+  - Worst Case (10th percentile)
+  - All available in both nominal and inflation-adjusted views
+
+#### 4. Performance Trends
+- Historical portfolio value tracking over time
+- Time range selector: 1M, 3M, 6M, 1Y, ALL
+- Performance metrics:
+  - **Total Return**: Absolute and percentage gain/loss
+  - **CAGR**: Compound Annual Growth Rate
+  - **YoY Growth**: Year-over-year comparison
+- Line chart with cost basis comparison
+- Automatically uses mock data until real snapshots accumulate
+
+#### 5. Risk Analysis
+- **Overall Risk Score** (0-100): Composite metric with color-coded badge
+  - Green (<40): Low Risk
+  - Yellow (40-70): Moderate Risk
+  - Red (>70): High Risk
+- **Volatility**: Annualized standard deviation from 6-month data
+- **Diversification Score**: Based on Herfindahl-Hirschman Index
+- **Asset Class Allocation**: Bar chart of stocks, ETFs, bonds, cash, etc.
+- **Top Concentrations**: Warnings for holdings >20% of portfolio
+
+#### 6. Holdings Detail
+- Sortable table with all holdings
+- Columns: Ticker, Name, Shares, Price, Value, Cost Basis, Gain/Loss
+- Filter by asset type
+- Search by ticker or name
+- CSV export functionality
+
+### Portfolio Snapshot Scheduler
+
+The application includes an intelligent background scheduler for daily portfolio snapshots:
+
+#### How It Works
+- **Offset-Based Distribution**: Each organization gets a unique time slot (0-24 hours)
+  - Deterministic: Same org always runs at same time
+  - Calculated from organization UUID hash
+  - Spreads load evenly across 24 hours
+- **Hourly Checks**: Scheduler wakes up every hour to check which orgs need snapshots
+- **Smart Execution**: Only captures if:
+  1. No snapshot exists for today
+  2. Organization's scheduled time has passed
+- **Startup Recovery**: On app restart, checks for missed snapshots and captures them
+- **No Cron Required**: Runs as integrated FastAPI background task
+
+#### Benefits
+- Prevents all organizations from updating simultaneously
+- Distributes database load across the day
+- Resilient to server restarts
+- Automatic with no external configuration
+- Provides historical data for Performance Trends and Risk Analysis tabs
+
+#### Example Timeline
+```
+Org A (UUID ending ...1234) → 3:45am UTC daily
+Org B (UUID ending ...5678) → 3:12pm UTC daily
+Org C (UUID ending ...9abc) → 9:30pm UTC daily
+```
+
+#### Manual Override
+To manually trigger a snapshot (ignores schedule):
+```bash
+curl -X POST http://localhost:8000/api/v1/holdings/capture-snapshot \
+  -H "Authorization: Bearer <your-token>"
+```
+
 ## Plaid Integration Setup
 
 1. Sign up for Plaid at https://dashboard.plaid.com/signup
@@ -355,15 +454,22 @@ For questions or issues:
 
 ## Roadmap
 
-- [ ] Phase 1: Authentication and project foundation ✅
-- [ ] Phase 2: Plaid integration and account management
-- [ ] Phase 3: Transaction management and labeling
-- [ ] Phase 4: Rule engine for automated categorization
-- [ ] Phase 5: Investment tracking and asset allocation
-- [ ] Phase 6: Dashboard and income vs expenses
+- [x] Phase 1: Authentication and project foundation ✅
+- [x] Phase 2: Plaid integration and account management ✅
+- [x] Phase 3: Transaction management and labeling ✅
+- [x] Phase 4: Rule engine for automated categorization ✅
+- [x] Phase 5: Investment tracking and asset allocation ✅
+  - [x] Asset Allocation treemap visualization
+  - [x] Sector breakdown with Alpha Vantage integration
+  - [x] Future growth Monte Carlo projections
+  - [x] Performance trends with historical tracking
+  - [x] Risk analysis (volatility & diversification)
+  - [x] Holdings detail table with export
+  - [x] Smart snapshot scheduler with offset distribution
+- [x] Phase 6: Dashboard and income vs expenses ✅
 - [ ] Phase 7: Prediction calculator
 - [ ] Phase 8: Custom reporting engine
-- [ ] Phase 9: Manual accounts and additional assets
+- [ ] Phase 9: Manual accounts and additional assets (partial)
 - [ ] Phase 10: Webhooks and polish
 
 ---
