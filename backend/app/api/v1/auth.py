@@ -65,7 +65,7 @@ async def register(
 
     # Generate tokens
     access_token = create_access_token(
-        data={"sub": str(user.id), "org_id": str(organization.id), "email": user.email}
+        data={"sub": str(user.id), "email": user.email}
     )
     refresh_token_str, jti, expires_at = create_refresh_token(str(user.id))
 
@@ -138,7 +138,6 @@ async def login(
         access_token = create_access_token(
             data={
                 "sub": str(user.id),
-                "org_id": str(user.organization_id),
                 "email": user.email,
             }
         )
@@ -233,7 +232,6 @@ async def refresh_access_token(
         access_token = create_access_token(
             data={
                 "sub": str(user.id),
-                "org_id": str(user.organization_id),
                 "email": user.email,
             }
         )
