@@ -1075,7 +1075,7 @@ async def get_style_box_breakdown(
 
     # Calculate total portfolio value (investments + cash)
     investment_value = sum(
-        (h.quantity or Decimal('0')) * (h.current_price or Decimal('0'))
+        (h.shares or Decimal('0')) * (h.current_price_per_share or Decimal('0'))
         for h in investment_holdings
     )
     cash_value = sum(
@@ -1113,6 +1113,7 @@ async def get_style_box_breakdown(
 
     EMERGING_MARKETS = {
         'China', 'CN', 'CHN',
+        'Taiwan', 'TW', 'TWN',
         'India', 'IN', 'IND',
         'Brazil', 'BR', 'BRA',
         'Russia', 'RU', 'RUS',
@@ -1169,13 +1170,18 @@ async def get_style_box_breakdown(
                 style_class = "International - Developed"
         else:
             # Domestic stocks - categorize by market cap and style
-            market_cap = holding.market_cap or Decimal('0')
-            if market_cap >= 10_000_000_000:  # $10B+
+            market_cap_str = (holding.market_cap or "").lower()
+
+            # Map market cap string to display name
+            if market_cap_str == "large":
                 size = "Large Cap"
-            elif market_cap >= 2_000_000_000:  # $2B - $10B
+            elif market_cap_str == "mid":
                 size = "Mid Cap"
-            else:  # < $2B
+            elif market_cap_str == "small":
                 size = "Small Cap"
+            else:
+                # Default to Large Cap if not specified
+                size = "Large Cap"
 
             # Infer style from asset class or default to Core
             asset_class_lower = (holding.asset_class or "").lower()
