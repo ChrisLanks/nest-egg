@@ -24,6 +24,7 @@ import {
   ACCOUNT_TYPES,
   type AccountType,
 } from '../../schemas/manualAccountSchemas';
+import { formatAccountType } from '../../../../utils/formatAccountType';
 
 interface BasicManualAccountFormProps {
   defaultAccountType: AccountType;
@@ -50,20 +51,6 @@ export const BasicManualAccountForm = ({
     },
   });
 
-  // Map account type to display name
-  const accountTypeLabels: Record<string, string> = {
-    [ACCOUNT_TYPES.CHECKING]: 'Checking',
-    [ACCOUNT_TYPES.SAVINGS]: 'Savings',
-    [ACCOUNT_TYPES.MONEY_MARKET]: 'Money Market',
-    [ACCOUNT_TYPES.CD]: 'CD',
-    [ACCOUNT_TYPES.CREDIT_CARD]: 'Credit Card',
-    [ACCOUNT_TYPES.LOAN]: 'Loan',
-    [ACCOUNT_TYPES.STUDENT_LOAN]: 'Student Loan',
-    [ACCOUNT_TYPES.MORTGAGE]: 'Mortgage',
-    [ACCOUNT_TYPES.MANUAL]: 'Other',
-    [ACCOUNT_TYPES.OTHER]: 'Other',
-  };
-
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
       <VStack spacing={6} align="stretch">
@@ -79,7 +66,7 @@ export const BasicManualAccountForm = ({
         </HStack>
 
         <Text fontSize="lg" fontWeight="bold">
-          Add {accountTypeLabels[defaultAccountType] || 'Manual'} Account
+          Add {formatAccountType(defaultAccountType)} Account
         </Text>
 
         <FormControl isInvalid={!!errors.name}>
