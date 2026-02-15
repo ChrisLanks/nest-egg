@@ -58,7 +58,7 @@ interface ChangePasswordData {
   new_password: string;
 }
 
-export default function SettingsPage() {
+export default function PreferencesPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
 

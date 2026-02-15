@@ -15,7 +15,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 import { RulesPage } from './pages/RulesPage';
 import { CategoriesPage } from './pages/CategoriesPage';
-import SettingsPage from './pages/SettingsPage';
+import PreferencesPage from './pages/PreferencesPage';
 import { IncomeExpensesPage } from './features/income-expenses/pages/IncomeExpensesPage';
 import { AccountDetailPage } from './pages/AccountDetailPage';
 import { InvestmentsPage } from './pages/InvestmentsPage';
@@ -40,7 +40,7 @@ function App() {
                 <Route path="/income-expenses" element={<IncomeExpensesPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/preferences" element={<PreferencesPage />} />
               </Route>
             </Route>
 

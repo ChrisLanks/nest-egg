@@ -13,6 +13,11 @@ import {
   Spinner,
   Center,
   useDisclosure,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  Avatar,
 } from '@chakra-ui/react';
 import {
   ViewIcon,
@@ -21,8 +26,9 @@ import {
   StarIcon,
   ArrowUpDownIcon,
   AddIcon,
+  ChevronDownIcon,
 } from '@chakra-ui/icons';
-import { FiSettings, FiTrendingUp } from 'react-icons/fi';
+import { FiSettings, FiTrendingUp, FiLogOut } from 'react-icons/fi';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../features/auth/stores/authStore';
@@ -46,10 +52,10 @@ interface NavItemProps {
   onClick: () => void;
 }
 
-const TopNavItem = ({ icon, label, path, isActive, onClick }: NavItemProps) => {
+const TopNavItem = ({ icon: Icon, label, isActive, onClick }: NavItemProps) => {
   return (
     <Button
-      leftIcon={<icon />}
+      leftIcon={<Icon />}
       variant={isActive ? 'solid' : 'ghost'}
       colorScheme={isActive ? 'brand' : 'gray'}
       size="sm"
@@ -158,7 +164,6 @@ export const Layout = () => {
     { icon: RepeatIcon, label: 'Transactions', path: '/transactions' },
     { icon: SettingsIcon, label: 'Rules', path: '/rules' },
     { icon: StarIcon, label: 'Categories', path: '/categories' },
-    { icon: FiSettings, label: 'Settings', path: '/settings' },
   ];
 
   // Fetch accounts
@@ -166,6 +171,15 @@ export const Layout = () => {
     queryKey: ['accounts'],
     queryFn: async () => {
       const response = await api.get('/accounts');
+      return response.data;
+    },
+  });
+
+  // Fetch portfolio summary for net worth
+  const { data: portfolio } = useQuery({
+    queryKey: ['portfolio-summary'],
+    queryFn: async () => {
+      const response = await api.get('/holdings/portfolio');
       return response.data;
     },
   });
@@ -245,25 +259,39 @@ export const Layout = () => {
             </HStack>
           </HStack>
 
-          {/* Right: User Info + Logout */}
-          <HStack spacing={4}>
-            <VStack align="end" spacing={0}>
-              <Text fontSize="sm" fontWeight="medium">
-                {user?.first_name} {user?.last_name}
-              </Text>
-              <Text fontSize="xs" color="gray.600">
-                {user?.email}
-              </Text>
-            </VStack>
-            <Button
+          {/* Right: User Menu Dropdown */}
+          <Menu>
+            <MenuButton
+              as={Button}
+              rightIcon={<ChevronDownIcon />}
+              variant="ghost"
               size="sm"
-              variant="outline"
-              colorScheme="red"
-              onClick={handleLogout}
             >
-              Logout
-            </Button>
-          </HStack>
+              <HStack spacing={2}>
+                <Avatar
+                  size="sm"
+                  name={`${user?.first_name} ${user?.last_name}`}
+                  bg="brand.500"
+                />
+                <VStack align="start" spacing={0}>
+                  <Text fontSize="sm" fontWeight="medium">
+                    {user?.first_name} {user?.last_name}
+                  </Text>
+                  <Text fontSize="xs" color="gray.600">
+                    {user?.email}
+                  </Text>
+                </VStack>
+              </HStack>
+            </MenuButton>
+            <MenuList>
+              <MenuItem icon={<FiSettings />} onClick={() => navigate('/preferences')}>
+                Preferences
+              </MenuItem>
+              <MenuItem icon={<FiLogOut />} onClick={handleLogout} color="red.600">
+                Logout
+              </MenuItem>
+            </MenuList>
+          </Menu>
         </HStack>
       </Box>
 
@@ -277,9 +305,20 @@ export const Layout = () => {
           overflowY="auto"
           p={4}
         >
-          <Text fontSize="xs" fontWeight="bold" color="gray.500" mb={3} textTransform="uppercase">
-            Accounts
-          </Text>
+          <HStack justify="space-between" mb={4}>
+            <Text fontSize="md" fontWeight="bold" textTransform="uppercase" color="gray.700">
+              Accounts
+            </Text>
+            {portfolio?.total_value !== undefined && (
+              <Text
+                fontSize="md"
+                fontWeight="bold"
+                color={portfolio.total_value >= 0 ? 'green.600' : 'red.600'}
+              >
+                {formatCurrency(Number(portfolio.total_value))}
+              </Text>
+            )}
+          </HStack>
 
           {accountsLoading ? (
             <Center py={8}>
