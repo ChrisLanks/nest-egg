@@ -74,13 +74,17 @@ async def list_transactions(
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
 
-    # Build base query
+    # Build base query - only include transactions from active accounts
     query = (
         select(Transaction)
+        .join(Account)
         .options(joinedload(Transaction.account))
         .options(joinedload(Transaction.category).joinedload(Category.parent))
         .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
-        .where(Transaction.organization_id == current_user.organization_id)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True
+        )
     )
 
     # Apply filters
@@ -136,9 +140,15 @@ async def list_transactions(
     # Get total count (only when no cursor, for first page)
     total = 0
     if not cursor:
-        # Build count query with same filters
-        count_query = select(func.count()).where(
-            Transaction.organization_id == current_user.organization_id
+        # Build count query with same filters - only count transactions from active accounts
+        count_query = (
+            select(func.count())
+            .select_from(Transaction)
+            .join(Account)
+            .where(
+                Transaction.organization_id == current_user.organization_id,
+                Account.is_active == True
+            )
         )
         if account_id:
             count_query = count_query.where(Transaction.account_id == account_id)

@@ -19,10 +19,11 @@ class DashboardService:
 
     async def get_net_worth(self, organization_id: str) -> Decimal:
         """Calculate net worth (assets - debts)."""
-        # Get all accounts
+        # Get all active accounts
         result = await self.db.execute(
             select(Account).where(
-                Account.organization_id == organization_id
+                Account.organization_id == organization_id,
+                Account.is_active == True
             )
         )
         accounts = result.scalars().all()
@@ -47,6 +48,7 @@ class DashboardService:
         result = await self.db.execute(
             select(Account).where(
                 Account.organization_id == organization_id,
+                Account.is_active == True,
                 Account.account_type.in_([
                     AccountType.CHECKING, AccountType.SAVINGS, AccountType.BROKERAGE,
                     AccountType.RETIREMENT_401K, AccountType.RETIREMENT_IRA,
@@ -63,6 +65,7 @@ class DashboardService:
         result = await self.db.execute(
             select(Account).where(
                 Account.organization_id == organization_id,
+                Account.is_active == True,
                 Account.account_type == AccountType.CREDIT_CARD
             )
         )
@@ -226,10 +229,11 @@ class DashboardService:
         return trend
 
     async def get_account_balances(self, organization_id: str) -> List[Dict]:
-        """Get all account balances."""
+        """Get all active account balances."""
         result = await self.db.execute(
             select(Account).where(
-                Account.organization_id == organization_id
+                Account.organization_id == organization_id,
+                Account.is_active == True
             ).order_by(Account.account_type, Account.name)
         )
         accounts = result.scalars().all()

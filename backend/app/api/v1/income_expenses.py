@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.transaction import Transaction
+from app.models.account import Account
 
 
 router = APIRouter()
@@ -51,21 +52,29 @@ async def get_income_expense_summary(
 ):
     """Get income vs expense summary for date range."""
     
-    # Get total income
+    # Get total income - only from active accounts
     income_result = await db.execute(
-        select(func.sum(Transaction.amount)).where(
+        select(func.sum(Transaction.amount))
+        .select_from(Transaction)
+        .join(Account)
+        .where(
             Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0
         )
     )
     total_income = float(income_result.scalar() or 0)
-    
-    # Get total expenses
+
+    # Get total expenses - only from active accounts
     expense_result = await db.execute(
-        select(func.sum(Transaction.amount)).where(
+        select(func.sum(Transaction.amount))
+        .select_from(Transaction)
+        .join(Account)
+        .where(
             Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0
@@ -73,14 +82,18 @@ async def get_income_expense_summary(
     )
     total_expenses = abs(float(expense_result.scalar() or 0))
     
-    # Get income by category
+    # Get income by category - only from active accounts
     income_categories_result = await db.execute(
         select(
             Transaction.category_primary,
             func.sum(Transaction.amount).label('total'),
             func.count(Transaction.id).label('count')
-        ).where(
+        )
+        .select_from(Transaction)
+        .join(Account)
+        .where(
             Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0,
@@ -100,14 +113,18 @@ async def get_income_expense_summary(
             percentage=percentage
         ))
     
-    # Get expenses by category
+    # Get expenses by category - only from active accounts
     expense_categories_result = await db.execute(
         select(
             Transaction.category_primary,
             func.sum(Transaction.amount).label('total'),
             func.count(Transaction.id).label('count')
-        ).where(
+        )
+        .select_from(Transaction)
+        .join(Account)
+        .where(
             Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0,
@@ -157,8 +174,12 @@ async def get_income_expense_trend(
             func.sum(
                 case((Transaction.amount < 0, Transaction.amount), else_=0)
             ).label('expenses')
-        ).where(
+        )
+        .select_from(Transaction)
+        .join(Account)
+        .where(
             Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
             Transaction.date >= start_date,
             Transaction.date <= end_date
         ).group_by(month_expr)
@@ -190,9 +211,10 @@ async def get_merchant_breakdown(
 ):
     """Get merchant breakdown for a category."""
 
-    # Build base conditions
+    # Build base conditions - only include transactions from active accounts
     conditions = [
         Transaction.organization_id == current_user.organization_id,
+        Account.is_active == True,
         Transaction.date >= start_date,
         Transaction.date <= end_date,
         Transaction.merchant_name.isnot(None),
@@ -214,14 +236,20 @@ async def get_merchant_breakdown(
             Transaction.merchant_name,
             func.sum(Transaction.amount).label('total'),
             func.count(Transaction.id).label('count')
-        ).where(and_(*conditions))
+        )
+        .select_from(Transaction)
+        .join(Account)
+        .where(and_(*conditions))
         .group_by(Transaction.merchant_name)
         .order_by(func.sum(Transaction.amount).desc() if transaction_type == 'income' else func.sum(Transaction.amount).asc())
     )
 
     # Calculate total for percentage
     total_result = await db.execute(
-        select(func.sum(Transaction.amount)).where(and_(*conditions))
+        select(func.sum(Transaction.amount))
+        .select_from(Transaction)
+        .join(Account)
+        .where(and_(*conditions))
     )
     total = abs(float(total_result.scalar() or 0))
 
@@ -248,21 +276,29 @@ async def get_label_summary(
     """Get income vs expense summary grouped by labels."""
     from app.models.transaction import transaction_labels, Label
     
-    # Get total income
+    # Get total income - only from active accounts
     income_result = await db.execute(
-        select(func.sum(Transaction.amount)).where(
+        select(func.sum(Transaction.amount))
+        .select_from(Transaction)
+        .join(Account)
+        .where(
             Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0
         )
     )
     total_income = float(income_result.scalar() or 0)
-    
-    # Get total expenses
+
+    # Get total expenses - only from active accounts
     expense_result = await db.execute(
-        select(func.sum(Transaction.amount)).where(
+        select(func.sum(Transaction.amount))
+        .select_from(Transaction)
+        .join(Account)
+        .where(
             Transaction.organization_id == current_user.organization_id,
+            Account.is_active == True,
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0
