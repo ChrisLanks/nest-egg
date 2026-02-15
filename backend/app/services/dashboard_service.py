@@ -28,18 +28,30 @@ class DashboardService:
         )
         accounts = result.scalars().all()
 
+        # Define account type categories
+        asset_types = [
+            AccountType.CHECKING, AccountType.SAVINGS, AccountType.BROKERAGE,
+            AccountType.RETIREMENT_401K, AccountType.RETIREMENT_IRA, AccountType.RETIREMENT_ROTH,
+            AccountType.RETIREMENT_529, AccountType.HSA, AccountType.PROPERTY,
+            AccountType.VEHICLE, AccountType.CRYPTO, AccountType.PRIVATE_EQUITY,
+            AccountType.MANUAL, AccountType.OTHER
+        ]
+
+        debt_types = [
+            AccountType.CREDIT_CARD, AccountType.LOAN, AccountType.MORTGAGE
+        ]
+
         total = Decimal(0)
         for account in accounts:
             balance = account.current_balance or Decimal(0)
 
             # Asset accounts add to net worth
-            if account.account_type in [AccountType.CHECKING, AccountType.SAVINGS, AccountType.BROKERAGE,
-                                       AccountType.RETIREMENT_401K, AccountType.RETIREMENT_IRA,
-                                       AccountType.HSA, AccountType.MANUAL]:
+            if account.account_type in asset_types:
                 total += balance
-            # Debt accounts subtract from net worth (credit cards)
-            elif account.account_type == AccountType.CREDIT_CARD:
-                total -= abs(balance)
+            # Debt accounts subtract from net worth
+            elif account.account_type in debt_types:
+                # Debt balances should be subtracted from net worth
+                total -= balance
 
         return total
 
@@ -51,8 +63,10 @@ class DashboardService:
                 Account.is_active == True,
                 Account.account_type.in_([
                     AccountType.CHECKING, AccountType.SAVINGS, AccountType.BROKERAGE,
-                    AccountType.RETIREMENT_401K, AccountType.RETIREMENT_IRA,
-                    AccountType.HSA, AccountType.MANUAL
+                    AccountType.RETIREMENT_401K, AccountType.RETIREMENT_IRA, AccountType.RETIREMENT_ROTH,
+                    AccountType.RETIREMENT_529, AccountType.HSA, AccountType.PROPERTY,
+                    AccountType.VEHICLE, AccountType.CRYPTO, AccountType.PRIVATE_EQUITY,
+                    AccountType.MANUAL, AccountType.OTHER
                 ])
             )
         )
@@ -61,17 +75,19 @@ class DashboardService:
         return sum((account.current_balance or Decimal(0) for account in accounts), Decimal(0))
 
     async def get_total_debts(self, organization_id: str) -> Decimal:
-        """Calculate total debts (accounts with negative balances)."""
+        """Calculate total debts."""
         result = await self.db.execute(
             select(Account).where(
                 Account.organization_id == organization_id,
                 Account.is_active == True,
-                Account.account_type == AccountType.CREDIT_CARD
+                Account.account_type.in_([
+                    AccountType.CREDIT_CARD, AccountType.LOAN, AccountType.MORTGAGE
+                ])
             )
         )
         accounts = result.scalars().all()
 
-        # For credit cards, return absolute value of negative balances
+        # Sum up all debt balances (return absolute value for display)
         return sum((abs(account.current_balance or Decimal(0)) for account in accounts), Decimal(0))
 
     async def get_monthly_spending(
