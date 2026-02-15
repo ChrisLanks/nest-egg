@@ -115,6 +115,7 @@ export const TransactionsPage = () => {
     hasMore,
     total,
     loadMore,
+    refetch,
   } = useInfiniteTransactions({
     startDate: dateRange.start,
     endDate: dateRange.end,
@@ -137,8 +138,9 @@ export const TransactionsPage = () => {
         status: 'success',
         duration: 3000,
       });
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
+      // Refetch transactions to get updated labels
+      refetch();
+      // Invalidate income-expenses queries
       queryClient.invalidateQueries({ queryKey: ['income-expenses'] });
       // Clear selection
       setSelectedTransactions(new Set());
