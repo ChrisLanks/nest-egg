@@ -389,7 +389,7 @@ async def get_portfolio_summary(
 
     # Store holdings with metadata for cap classification
     domestic_stocks_with_cap = []  # List of (ticker, value, cap_size, name)
-    international_stocks_with_cap = []  # List of (ticker, value, cap_size, name)
+    international_stocks_with_cap = []  # List of (ticker, value, cap_size, name, country)
 
     def is_cash_holding(ticker: str, name: str, asset_type: str) -> bool:
         """Identify cash/money market holdings."""
@@ -459,7 +459,7 @@ async def get_portfolio_summary(
             # International - check asset_class first, then fallback to hardcoded list or country
             international_value_from_holdings += value
             cap_size = classify_market_cap(ticker, name, asset_type)
-            international_stocks_with_cap.append((ticker, value, cap_size, name))
+            international_stocks_with_cap.append((ticker, value, cap_size, name, country))
             if ticker in international_stocks_dict:
                 international_stocks_dict[ticker] += value
             else:
@@ -562,42 +562,107 @@ async def get_portfolio_summary(
             color="#4299E1"  # blue
         ))
 
-    # Add International with market cap layers
+    # Add International with Developed/Emerging market layers
     if international_value_from_holdings > 0:
-        # Group by market cap
-        intl_cap_groups = {}  # {cap_size: [(ticker, value), ...]}
-        for ticker, value, cap_size, name in international_stocks_with_cap:
-            if cap_size not in intl_cap_groups:
-                intl_cap_groups[cap_size] = []
-            intl_cap_groups[cap_size].append((ticker, value))
-
-        # Create cap size nodes
-        intl_cap_children = []
-        intl_cap_colors = {
-            'Large Cap': '#6B46C1',  # darker purple
-            'Mid Cap': '#805AD5',    # medium purple
-            'Small Cap': '#9F7AEA',  # lighter purple
+        # Define developed and emerging markets
+        DEVELOPED_MARKETS = {
+            'USA', 'US', 'United States',
+            'UK', 'United Kingdom', 'GB', 'GBR', 'Great Britain',
+            'Germany', 'DE', 'DEU',
+            'Japan', 'JP', 'JPN',
+            'Canada', 'CA', 'CAN',
+            'France', 'FR', 'FRA',
+            'Switzerland', 'CH', 'CHE',
+            'Australia', 'AU', 'AUS',
+            'Netherlands', 'NL', 'NLD',
+            'Sweden', 'SE', 'SWE',
+            'Denmark', 'DK', 'DNK',
+            'Norway', 'NO', 'NOR',
+            'Finland', 'FI', 'FIN',
+            'Spain', 'ES', 'ESP',
+            'Italy', 'IT', 'ITA',
+            'Belgium', 'BE', 'BEL',
+            'Austria', 'AT', 'AUT',
+            'Singapore', 'SG', 'SGP',
+            'Hong Kong', 'HK', 'HKG',
+            'New Zealand', 'NZ', 'NZL',
+            'Global',  # For international funds
         }
-        for cap_size in ['Large Cap', 'Mid Cap', 'Small Cap']:
-            if cap_size in intl_cap_groups:
-                cap_value = sum(value for _, value in intl_cap_groups[cap_size])
-                ticker_nodes = [
-                    TreemapNode(name=ticker, value=value, percent=(value / cap_value * 100))
-                    for ticker, value in intl_cap_groups[cap_size]
-                ]
-                intl_cap_children.append(TreemapNode(
-                    name=cap_size,
-                    value=cap_value,
-                    percent=(cap_value / international_value_from_holdings * 100),
-                    children=ticker_nodes,
-                    color=intl_cap_colors.get(cap_size, '#805AD5')
-                ))
+
+        EMERGING_MARKETS = {
+            'China', 'CN', 'CHN',
+            'Taiwan', 'TW', 'TWN',
+            'India', 'IN', 'IND',
+            'Brazil', 'BR', 'BRA',
+            'Russia', 'RU', 'RUS',
+            'South Africa', 'ZA', 'ZAF',
+            'Mexico', 'MX', 'MEX',
+            'Indonesia', 'ID', 'IDN',
+            'Turkey', 'TR', 'TUR',
+            'Saudi Arabia', 'SA', 'SAU',
+            'Poland', 'PL', 'POL',
+            'Thailand', 'TH', 'THA',
+            'Malaysia', 'MY', 'MYS',
+            'Philippines', 'PH', 'PHL',
+            'Colombia', 'CO', 'COL',
+            'Chile', 'CL', 'CHL',
+            'Peru', 'PE', 'PER',
+            'Egypt', 'EG', 'EGY',
+            'UAE', 'AE', 'ARE',
+            'Qatar', 'QA', 'QAT',
+            'Argentina', 'AR', 'ARG',
+            'Pakistan', 'PK', 'PAK',
+            'Vietnam', 'VN', 'VNM',
+            'Bangladesh', 'BD', 'BGD',
+        }
+
+        # Group by developed vs emerging markets
+        developed_holdings = []  # List of (ticker, value)
+        emerging_holdings = []   # List of (ticker, value)
+
+        for ticker, value, cap_size, name, country in international_stocks_with_cap:
+            if country in EMERGING_MARKETS:
+                emerging_holdings.append((ticker, value))
+            else:
+                # Default to developed (includes Global funds and unrecognized countries)
+                developed_holdings.append((ticker, value))
+
+        # Create region nodes
+        intl_region_children = []
+
+        if developed_holdings:
+            developed_value = sum(value for _, value in developed_holdings)
+            developed_ticker_nodes = [
+                TreemapNode(name=ticker, value=value, percent=(value / developed_value * 100))
+                for ticker, value in developed_holdings
+            ]
+            intl_region_children.append(TreemapNode(
+                name="International - Developed",
+                value=developed_value,
+                percent=(developed_value / international_value_from_holdings * 100),
+                children=developed_ticker_nodes,
+                color="#6B46C1"  # darker purple
+            ))
+
+        if emerging_holdings:
+            emerging_value = sum(value for _, value in emerging_holdings)
+            emerging_ticker_nodes = [
+                TreemapNode(name=ticker, value=value, percent=(value / emerging_value * 100))
+                for ticker, value in emerging_holdings
+            ]
+            intl_region_children.append(TreemapNode(
+                name="International - Emerging",
+                value=emerging_value,
+                percent=(emerging_value / international_value_from_holdings * 100),
+                children=emerging_ticker_nodes,
+                color="#9F7AEA"  # lighter purple
+            ))
 
         treemap_children.append(TreemapNode(
             name="International",
             value=international_value_from_holdings,
             percent=(international_value_from_holdings / portfolio_total * 100) if portfolio_total > 0 else Decimal('0'),
-            children=intl_cap_children,
+            children=intl_region_children,
             color="#805AD5"  # purple
         ))
 
