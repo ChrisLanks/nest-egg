@@ -448,15 +448,20 @@ export const TransactionsPage = () => {
       const [year, month, day] = dateStr.split('-').map(Number);
       const txnDate = new Date(year, month - 1, day);
 
-      // If the day is before the monthly_start_day, the period started in the previous month
-      if (day < monthlyStartDay) {
-        const periodStart = new Date(year, month - 2, monthlyStartDay);
-        const periodEnd = new Date(year, month - 1, monthlyStartDay - 1);
-        return `${periodStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric', day: 'numeric' })} - ${periodEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      // Period runs from (monthlyStartDay + 1) to monthlyStartDay of next month
+      // If the day is <= monthlyStartDay, the period started in the previous month
+      if (day <= monthlyStartDay) {
+        // Transaction belongs to period that started in previous month
+        const periodStart = new Date(year, month - 2, monthlyStartDay + 1);
+        const periodEnd = new Date(year, month - 1, monthlyStartDay);
+        // Display end date first (newest to oldest)
+        return `${periodEnd.toLocaleDateString('en-US', { month: 'short', year: 'numeric', day: 'numeric' })} - ${periodStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
       } else {
-        const periodStart = new Date(year, month - 1, monthlyStartDay);
-        const periodEnd = new Date(year, month, monthlyStartDay - 1);
-        return `${periodStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric', day: 'numeric' })} - ${periodEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+        // Transaction belongs to period that started in current month
+        const periodStart = new Date(year, month - 1, monthlyStartDay + 1);
+        const periodEnd = new Date(year, month, monthlyStartDay);
+        // Display end date first (newest to oldest)
+        return `${periodEnd.toLocaleDateString('en-US', { month: 'short', year: 'numeric', day: 'numeric' })} - ${periodStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
       }
     };
 
