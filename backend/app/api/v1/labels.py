@@ -89,6 +89,13 @@ async def create_label(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new label."""
+    # Prevent creating "Transfer" label (reserved for system)
+    if label_data.name.lower() == "transfer":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot create label named 'Transfer' - this is a reserved system label"
+        )
+
     # Validate parent if provided
     await validate_parent_label(
         label_data.parent_label_id,
@@ -127,6 +134,13 @@ async def update_label(
 
     if not label:
         raise HTTPException(status_code=404, detail="Label not found")
+
+    # Prevent renaming to "Transfer" (reserved for system)
+    if label_data.name is not None and label_data.name.lower() == "transfer":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot rename label to 'Transfer' - this is a reserved system label"
+        )
 
     # Validate parent if changing it
     if label_data.parent_label_id is not None:
@@ -187,6 +201,13 @@ async def delete_label(
 
     if not label:
         raise HTTPException(status_code=404, detail="Label not found")
+
+    # Prevent deleting system labels
+    if label.is_system:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete system label"
+        )
 
     await db.delete(label)
     await db.commit()

@@ -196,11 +196,12 @@ export const TransactionDetailModal = ({
         duration: 3000,
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      const errorMessage = error?.response?.data?.detail || 'Failed to create label';
       toast({
-        title: 'Failed to create label',
+        title: errorMessage,
         status: 'error',
-        duration: 3000,
+        duration: 5000,
       });
     },
   });
@@ -252,6 +253,18 @@ export const TransactionDetailModal = ({
 
   const handleCreateAndAddLabel = () => {
     if (!newLabelName.trim()) return;
+
+    // Prevent creating "Transfer" label (reserved for system)
+    if (newLabelName.trim().toLowerCase() === 'transfer') {
+      toast({
+        title: 'Cannot create label named "Transfer"',
+        description: 'This is a reserved system label. Use the "Mark as Transfer" button instead.',
+        status: 'warning',
+        duration: 5000,
+      });
+      return;
+    }
+
     createLabelMutation.mutate(newLabelName.trim());
   };
 

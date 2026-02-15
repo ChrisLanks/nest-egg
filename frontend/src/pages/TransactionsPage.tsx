@@ -1213,13 +1213,16 @@ export const TransactionsPage = () => {
                 <TabList>
                   <Tab>Labels</Tab>
                   <Tab>Category</Tab>
-                  <Tab>Transfer</Tab>
                 </TabList>
 
                 <TabPanels>
                   {/* Labels Tab */}
                   <TabPanel>
                     <VStack align="stretch" spacing={4}>
+                      <Text fontSize="sm" color="gray.600" mb={2}>
+                        💡 <strong>Tip:</strong> To mark transactions as transfers, add/remove the "Transfer" label.
+                      </Text>
+
                       <FormControl>
                         <FormLabel>Add Label</FormLabel>
                         <Select
@@ -1306,45 +1309,6 @@ export const TransactionsPage = () => {
                           No custom categories available. Create categories from the Categories page.
                         </Text>
                       )}
-                    </VStack>
-                  </TabPanel>
-
-                  {/* Transfer Tab */}
-                  <TabPanel>
-                    <VStack align="stretch" spacing={4}>
-                      <Text fontSize="sm" color="gray.600">
-                        Transfers are excluded from cash flow and budget calculations to prevent double-counting.
-                      </Text>
-                      <HStack spacing={3}>
-                        <Button
-                          colorScheme="purple"
-                          flex={1}
-                          onClick={() => {
-                            bulkMarkTransferMutation.mutate({
-                              transactionIds: Array.from(selectedTransactions),
-                              isTransfer: true,
-                            });
-                            onBulkEditClose();
-                          }}
-                          isLoading={bulkMarkTransferMutation.isPending}
-                        >
-                          Mark as Transfer
-                        </Button>
-                        <Button
-                          colorScheme="gray"
-                          flex={1}
-                          onClick={() => {
-                            bulkMarkTransferMutation.mutate({
-                              transactionIds: Array.from(selectedTransactions),
-                              isTransfer: false,
-                            });
-                            onBulkEditClose();
-                          }}
-                          isLoading={bulkMarkTransferMutation.isPending}
-                        >
-                          Unmark Transfer
-                        </Button>
-                      </HStack>
                     </VStack>
                   </TabPanel>
                 </TabPanels>
