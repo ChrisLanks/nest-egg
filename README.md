@@ -232,6 +232,158 @@ Celery tasks automatically sync data:
 - **Webhook**: Real-time updates from Plaid
 - **Manual**: On-demand sync button
 
+### Multi-User Households
+
+The application supports **multi-user households** where up to 5 people can share financial data while maintaining individual account ownership.
+
+#### How It Works
+
+1. **Individual Logins**: Each person has their own login credentials
+2. **Household Invitation**: Primary user invites others via email
+3. **Account Ownership**: Each user owns specific accounts
+4. **View Modes**: Switch between individual and combined views
+5. **Duplicate Detection**: Same bank account added by multiple users only counted once
+
+#### Key Features
+
+- **User View Selector**: Dropdown on all major pages (Dashboard, Investments, Cash Flow)
+  - "Combined Household" - Shows all accounts (deduplicated)
+  - Individual users - Shows only that user's accounts (owned + shared)
+- **Household Limit**: Maximum 5 members per household
+- **Account Sharing**: Users can share specific accounts with view/edit permissions
+- **Deep Linking**: URL state persists user selection (`?user=<uuid>`)
+- **RMD Calculations**: Age-specific Required Minimum Distribution per member
+- **Deduplication**: SHA256 hash-based duplicate account detection
+
+#### Setting Up a Household
+
+**1. Send Invitation (Admin User)**
+```bash
+# Login as primary user
+http://localhost:5173/login
+
+# Navigate to Household Settings
+Click avatar → "Household Settings"
+
+# Send invitation
+Click "Invite Member"
+Enter: newmember@example.com
+```
+
+**2. Accept Invitation (New Member)**
+```bash
+# Register with invited email
+http://localhost:5173/register
+Email: newmember@example.com (must match invitation)
+Password: [secure password]
+
+# Accept invitation link
+http://localhost:5173/accept-invite?code=<invitation-code>
+Click "Accept Invitation"
+```
+
+**3. Use User View Selector**
+```bash
+# On any major page (Dashboard, Investments, Cash Flow)
+- Select "Combined Household" to see all accounts
+- Select individual user to see their accounts only
+- URL updates with ?user=<uuid> for bookmarking
+```
+
+#### Database Schema
+
+**New Tables:**
+- `household_invitations` - Tracks invitation lifecycle
+  - Status: pending, accepted, declined, expired
+  - 7-day expiration by default
+  - Unique invitation codes
+
+- `account_shares` - Account sharing permissions
+  - Share with specific users
+  - View or edit permissions
+  - Foreign keys with cascade delete
+
+**New Columns:**
+- `accounts.plaid_item_hash` - SHA256 hash for duplicate detection
+- `users.is_primary_household_member` - Marks household owner
+
+#### API Endpoints
+
+**Household Management:**
+```bash
+POST   /api/v1/household/invite              # Send invitation (admin only)
+GET    /api/v1/household/invitations         # List pending invitations
+GET    /api/v1/household/invitation/{code}   # Get invitation details (public)
+POST   /api/v1/household/accept/{code}       # Accept invitation (public)
+DELETE /api/v1/household/invitations/{id}    # Cancel invitation (admin only)
+GET    /api/v1/household/members             # List household members
+DELETE /api/v1/household/members/{id}        # Remove member (admin only)
+```
+
+**User Filtering:**
+All major endpoints accept optional `?user_id=<uuid>` parameter:
+- `/api/v1/dashboard/summary?user_id=<uuid>`
+- `/api/v1/holdings/portfolio?user_id=<uuid>`
+- `/api/v1/holdings/rmd-summary?user_id=<uuid>`
+- `/api/v1/income-expenses/summary?user_id=<uuid>`
+- `/api/v1/accounts?user_id=<uuid>`
+
+#### Testing Multi-User Features
+
+**Scenario: Two users with shared account**
+
+```bash
+# 1. Create test accounts
+User A: test@test.com (primary)
+User B: test2@test.com
+
+# 2. User A links Chase Checking
+Login as test@test.com
+Link Chase account via Plaid
+
+# 3. User B links same Chase Checking
+Login as test2@test.com
+Link same Chase account (Plaid detects via plaid_item_hash)
+
+# 4. Test view modes
+- User A individual view: Shows Chase once
+- User B individual view: Shows Chase once
+- Combined view: Shows Chase once (deduplicated)
+- Balance/transactions not double-counted
+```
+
+#### Backfill Script
+
+For existing installations, populate hashes and primary members:
+
+```bash
+cd backend
+./venv/bin/python app/scripts/backfill_account_hashes.py
+```
+
+This script:
+- Calculates `plaid_item_hash` for existing accounts
+- Sets `is_primary_household_member` for oldest user in each org
+- Required after database migration
+
+#### Security & Permissions
+
+**Access Control:**
+- Users can view **own accounts** + **explicitly shared accounts**
+- Users **cannot** view other members' non-shared accounts
+- Combined view shows all household accounts (respects organization_id)
+
+**Admin Functions:**
+Only `is_org_admin` users can:
+- Send invitations
+- Remove members (except self and primary member)
+- Cancel pending invitations
+
+**Row-Level Security:**
+- All queries filter by `organization_id`
+- Additional `account_ids` filter for user views
+- Duplicate detection only within same household
+
 ### Investment Analysis
 
 The application provides comprehensive portfolio analysis through six specialized tabs:
