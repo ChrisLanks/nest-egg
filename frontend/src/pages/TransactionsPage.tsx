@@ -593,12 +593,12 @@ export const TransactionsPage = () => {
 
   const handleCategoryClick = (category: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
-    setSearchQuery(category);
+    setSearchQuery(`category:${category}`);
   };
 
   const handleLabelClick = (labelName: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
-    setSearchQuery(labelName);
+    setSearchQuery(`labels:${labelName}`);
   };
 
   const handleAccountClick = (accountName: string, e: React.MouseEvent) => {
