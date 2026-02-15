@@ -37,7 +37,7 @@ import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon } from '@chakra-ui
 import { FiLock } from 'react-icons/fi';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TransactionDetailModal } from '../components/TransactionDetailModal';
 import { RuleBuilderModal } from '../components/RuleBuilderModal';
 import { DateRangePicker, type DateRange } from '../components/DateRangePicker';
@@ -77,6 +77,7 @@ export const TransactionsPage = () => {
 
   const toast = useToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { canEdit, isOtherUserView } = useUserView();
 
   // Fetch organization preferences for monthly_start_day
@@ -102,6 +103,38 @@ export const TransactionsPage = () => {
     startDate: dateRange.start,
     endDate: dateRange.end,
     pageSize: 100,
+  });
+
+  // Mutation for bulk marking transactions as transfers
+  const bulkMarkTransferMutation = useMutation({
+    mutationFn: async ({ transactionIds, isTransfer }: { transactionIds: string[]; isTransfer: boolean }) => {
+      // Update each transaction
+      const promises = transactionIds.map((id) =>
+        api.patch(`/transactions/${id}`, { is_transfer: isTransfer })
+      );
+      await Promise.all(promises);
+    },
+    onSuccess: (_, variables) => {
+      const action = variables.isTransfer ? 'marked as transfers' : 'unmarked as transfers';
+      toast({
+        title: `${variables.transactionIds.length} transaction(s) ${action}`,
+        status: 'success',
+        duration: 3000,
+      });
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['income-expenses'] });
+      // Clear selection
+      setSelectedTransactions(new Set());
+      setBulkSelectMode(false);
+    },
+    onError: () => {
+      toast({
+        title: 'Failed to update transactions',
+        status: 'error',
+        duration: 5000,
+      });
+    },
   });
 
   // Client-side filtering and sorting (no pagination)
@@ -334,6 +367,22 @@ export const TransactionsPage = () => {
     setIsRuleBuilderOpen(true);
   };
 
+  const handleBulkMarkTransfer = (isTransfer: boolean) => {
+    if (selectedTransactions.size === 0) {
+      toast({
+        title: 'No transactions selected',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
+    bulkMarkTransferMutation.mutate({
+      transactionIds: Array.from(selectedTransactions),
+      isTransfer,
+    });
+  };
+
   if (isLoading) {
     return (
       <Center h="100vh">
@@ -465,13 +514,31 @@ export const TransactionsPage = () => {
               <Text fontWeight="medium">
                 {selectedTransactions.size} transaction(s) selected
               </Text>
-              <Button
-                colorScheme="brand"
-                size="sm"
-                onClick={handleBulkCreateRule}
-              >
-                Create Rule from Selected
-              </Button>
+              <HStack spacing={2}>
+                <Button
+                  colorScheme="purple"
+                  size="sm"
+                  onClick={() => handleBulkMarkTransfer(true)}
+                  isLoading={bulkMarkTransferMutation.isPending}
+                >
+                  Mark as Transfer
+                </Button>
+                <Button
+                  colorScheme="gray"
+                  size="sm"
+                  onClick={() => handleBulkMarkTransfer(false)}
+                  isLoading={bulkMarkTransferMutation.isPending}
+                >
+                  Unmark Transfer
+                </Button>
+                <Button
+                  colorScheme="brand"
+                  size="sm"
+                  onClick={handleBulkCreateRule}
+                >
+                  Create Rule
+                </Button>
+              </HStack>
             </HStack>
           </Box>
         )}
