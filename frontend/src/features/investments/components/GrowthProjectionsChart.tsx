@@ -231,39 +231,39 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
               legendType="none"
             />
 
-            {/* Best Case line (90th percentile) */}
-            <Line
-              type="monotone"
-              dataKey="percentile90"
-              stroke="#48BB78"
-              strokeWidth={2}
-              strokeDasharray="3 3"
-              name="Optimistic (90th percentile)"
-              dot={false}
-            />
+            {/* Non-inflation-adjusted lines - only show when inflation adjustment is off */}
+            {!showInflationAdjusted && (
+              <>
+                <Line
+                  type="monotone"
+                  dataKey="percentile90"
+                  stroke="#48BB78"
+                  strokeWidth={2}
+                  strokeDasharray="3 3"
+                  name="Optimistic (90th percentile)"
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="median"
+                  stroke="#4299E1"
+                  strokeWidth={3}
+                  name="Average (50th percentile)"
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="percentile10"
+                  stroke="#F56565"
+                  strokeWidth={2}
+                  strokeDasharray="3 3"
+                  name="Conservative (10th percentile)"
+                  dot={false}
+                />
+              </>
+            )}
 
-            {/* Median line */}
-            <Line
-              type="monotone"
-              dataKey="median"
-              stroke="#4299E1"
-              strokeWidth={3}
-              name="Average (50th percentile)"
-              dot={false}
-            />
-
-            {/* Worst Case line (10th percentile) */}
-            <Line
-              type="monotone"
-              dataKey="percentile10"
-              stroke="#F56565"
-              strokeWidth={2}
-              strokeDasharray="3 3"
-              name="Conservative (10th percentile)"
-              dot={false}
-            />
-
-            {/* Inflation-adjusted lines */}
+            {/* Inflation-adjusted lines - only show when inflation adjustment is on */}
             {showInflationAdjusted && (
               <>
                 <Line
