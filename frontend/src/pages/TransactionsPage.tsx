@@ -731,7 +731,7 @@ export const TransactionsPage = () => {
 
             {/* Columns Menu */}
             <Menu closeOnSelect={false}>
-              <MenuButton as={Button} size="md" leftIcon={<ViewIcon />} variant="outline">
+              <MenuButton as={Button} size="sm" leftIcon={<ViewIcon />} variant="outline">
                 Columns
               </MenuButton>
               <MenuList>
