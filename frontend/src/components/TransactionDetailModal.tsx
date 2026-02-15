@@ -25,12 +25,14 @@ import {
   WrapItem,
   IconButton,
   useDisclosure,
+  Tooltip,
 } from '@chakra-ui/react';
 import { CloseIcon } from '@chakra-ui/icons';
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import type { Transaction } from '../types/transaction';
 import api from '../services/api';
+import { useAuthStore } from '../features/auth/stores/authStore';
 import { CategorySelect } from './CategorySelect';
 import { MerchantSelect } from './MerchantSelect';
 import { RuleBuilder } from '../features/rules/components/RuleBuilder';
@@ -61,9 +63,24 @@ export const TransactionDetailModal = ({
   const [pendingLabelsToRemove, setPendingLabelsToRemove] = useState<string[]>([]);
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
 
   // Rule builder modal
   const { isOpen: isRuleBuilderOpen, onOpen: onRuleBuilderOpen, onClose: onRuleBuilderClose } = useDisclosure();
+
+  // Fetch account to check ownership
+  const { data: account } = useQuery({
+    queryKey: ['account', transaction?.account_id],
+    queryFn: async () => {
+      if (!transaction?.account_id) return null;
+      const response = await api.get(`/accounts/${transaction.account_id}`);
+      return response.data;
+    },
+    enabled: !!transaction?.account_id && isOpen,
+  });
+
+  // Check if current user owns the transaction's account
+  const canEdit = account && account.user_id === user?.id;
 
   // Fetch available labels
   const { data: availableLabels } = useQuery({
@@ -479,9 +496,20 @@ export const TransactionDetailModal = ({
               </ButtonGroup>
             ) : (
               <VStack spacing={2}>
-                <Button w="full" colorScheme="brand" onClick={handleEdit}>
-                  Edit Transaction
-                </Button>
+                <Tooltip
+                  label={!canEdit ? "You can only edit transactions from your own accounts" : ""}
+                  placement="top"
+                  isDisabled={canEdit}
+                >
+                  <Button
+                    w="full"
+                    colorScheme="brand"
+                    onClick={handleEdit}
+                    isDisabled={!canEdit}
+                  >
+                    Edit Transaction
+                  </Button>
+                </Tooltip>
                 <Button
                   w="full"
                   colorScheme="blue"
@@ -490,6 +518,11 @@ export const TransactionDetailModal = ({
                 >
                   Create Rule for "{currentTransaction.merchant_name}"
                 </Button>
+                {!canEdit && (
+                  <Text fontSize="xs" color="gray.500" textAlign="center">
+                    Read-only: This transaction belongs to another household member
+                  </Text>
+                )}
               </VStack>
             )}
           </VStack>

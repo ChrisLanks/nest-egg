@@ -38,12 +38,15 @@ import {
   NumberInput,
   NumberInputField,
   IconButton,
+  Tooltip,
 } from '@chakra-ui/react';
-import { FiEdit2, FiCheck, FiX } from 'react-icons/fi';
+import { FiEdit2, FiCheck, FiX, FiLock } from 'react-icons/fi';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import api from '../services/api';
+import { useAuthStore } from '../features/auth/stores/authStore';
+import { useUserView } from '../contexts/UserViewContext';
 import type { Transaction } from '../types/transaction';
 import { ContributionsManager } from '../features/accounts/components/ContributionsManager';
 
@@ -57,6 +60,7 @@ interface Account {
   institution_name: string | null;
   mask: string | null;
   is_active: boolean;
+  user_id: string;
 }
 
 const accountTypeLabels: Record<string, string> = {
@@ -82,6 +86,8 @@ export const AccountDetailPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const { isOtherUserView, canEdit } = useUserView();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const [transactionsCursor, setTransactionsCursor] = useState<string | null>(null);
@@ -306,6 +312,10 @@ export const AccountDetailPage = () => {
   const balance = Number(account.current_balance);
   const isNegative = balance < 0;
 
+  // Check if current user owns this account
+  const isOwner = account.user_id === user?.id;
+  const canEditAccount = canEdit && isOwner;
+
   return (
     <Container maxW="container.lg" py={8}>
       <VStack spacing={6} align="stretch">
@@ -357,13 +367,23 @@ export const AccountDetailPage = () => {
             ) : (
               <HStack spacing={2}>
                 <Heading size="lg">{account.name}</Heading>
-                <IconButton
-                  aria-label="Edit account name"
-                  icon={<FiEdit2 />}
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleStartEditName}
-                />
+                {!canEditAccount ? (
+                  <Tooltip label="Read-only: This account belongs to another household member" placement="top">
+                    <Badge colorScheme="gray" display="flex" alignItems="center" gap={1}>
+                      <FiLock size={12} /> Read-only
+                    </Badge>
+                  </Tooltip>
+                ) : (
+                  <Tooltip label="Edit account name" placement="top">
+                    <IconButton
+                      aria-label="Edit account name"
+                      icon={<FiEdit2 />}
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleStartEditName}
+                    />
+                  </Tooltip>
+                )}
               </HStack>
             )}
             <Text color="gray.600" mt={1}>
@@ -400,17 +420,24 @@ export const AccountDetailPage = () => {
               {/* Reclassify Account */}
               <FormControl>
                 <FormLabel fontSize="sm">Account Type</FormLabel>
-                <Select
-                  value={account.account_type}
-                  onChange={(e) => handleReclassify(e.target.value)}
-                  size="sm"
+                <Tooltip
+                  label={!canEditAccount ? "You can only edit your own accounts" : ""}
+                  placement="top"
+                  isDisabled={canEditAccount}
                 >
-                  {Object.entries(accountTypeLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </Select>
+                  <Select
+                    value={account.account_type}
+                    onChange={(e) => handleReclassify(e.target.value)}
+                    size="sm"
+                    isDisabled={!canEditAccount}
+                  >
+                    {Object.entries(accountTypeLabels).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </Select>
+                </Tooltip>
               </FormControl>
 
               {/* Hide from Reports */}
@@ -418,11 +445,18 @@ export const AccountDetailPage = () => {
                 <FormLabel fontSize="sm" mb={0} flex={1}>
                   Hide from cash flow & reports
                 </FormLabel>
-                <Switch
-                  isChecked={!account.is_active}
-                  onChange={handleToggleActive}
-                  colorScheme="brand"
-                />
+                <Tooltip
+                  label={!canEditAccount ? "You can only edit your own accounts" : ""}
+                  placement="top"
+                  isDisabled={canEditAccount}
+                >
+                  <Switch
+                    isChecked={!account.is_active}
+                    onChange={handleToggleActive}
+                    colorScheme="brand"
+                    isDisabled={!canEditAccount}
+                  />
+                </Tooltip>
               </FormControl>
 
               {/* Account Info */}
@@ -440,14 +474,21 @@ export const AccountDetailPage = () => {
 
               {/* Delete Account */}
               <Box>
-                <Button
-                  colorScheme="red"
-                  variant="outline"
-                  size="sm"
-                  onClick={onDeleteOpen}
+                <Tooltip
+                  label={!canEditAccount ? "You can only delete your own accounts" : ""}
+                  placement="top"
+                  isDisabled={canEditAccount}
                 >
-                  Close Account
-                </Button>
+                  <Button
+                    colorScheme="red"
+                    variant="outline"
+                    size="sm"
+                    onClick={onDeleteOpen}
+                    isDisabled={!canEditAccount}
+                  >
+                    Close Account
+                  </Button>
+                </Tooltip>
                 <Text fontSize="xs" color="gray.500" mt={1}>
                   This will permanently delete this account and all associated transactions.
                 </Text>
@@ -476,51 +517,59 @@ export const AccountDetailPage = () => {
 
                 <Divider />
 
-                {/* Update Mileage */}
-                <FormControl>
-                  <FormLabel fontSize="sm">Update Mileage</FormLabel>
-                  <HStack>
-                    <NumberInput
-                      value={vehicleMileage}
-                      onChange={setVehicleMileage}
-                      min={0}
-                      size="sm"
-                    >
-                      <NumberInputField placeholder="Enter new mileage" />
-                    </NumberInput>
-                    <Text fontSize="sm" color="gray.600">
-                      miles
-                    </Text>
-                  </HStack>
-                </FormControl>
+                {!canEditAccount ? (
+                  <Text fontSize="sm" color="gray.600">
+                    Vehicle details can only be updated by the account owner.
+                  </Text>
+                ) : (
+                  <>
+                    {/* Update Mileage */}
+                    <FormControl>
+                      <FormLabel fontSize="sm">Update Mileage</FormLabel>
+                      <HStack>
+                        <NumberInput
+                          value={vehicleMileage}
+                          onChange={setVehicleMileage}
+                          min={0}
+                          size="sm"
+                        >
+                          <NumberInputField placeholder="Enter new mileage" />
+                        </NumberInput>
+                        <Text fontSize="sm" color="gray.600">
+                          miles
+                        </Text>
+                      </HStack>
+                    </FormControl>
 
-                {/* Update Value */}
-                <FormControl>
-                  <FormLabel fontSize="sm">Update Vehicle Value</FormLabel>
-                  <HStack>
-                    <Text fontSize="sm">$</Text>
-                    <NumberInput
-                      value={vehicleValue}
-                      onChange={setVehicleValue}
-                      min={0}
-                      precision={2}
-                      size="sm"
-                    >
-                      <NumberInputField placeholder="Enter new value" />
-                    </NumberInput>
-                  </HStack>
-                </FormControl>
+                    {/* Update Value */}
+                    <FormControl>
+                      <FormLabel fontSize="sm">Update Vehicle Value</FormLabel>
+                      <HStack>
+                        <Text fontSize="sm">$</Text>
+                        <NumberInput
+                          value={vehicleValue}
+                          onChange={setVehicleValue}
+                          min={0}
+                          precision={2}
+                          size="sm"
+                        >
+                          <NumberInputField placeholder="Enter new value" />
+                        </NumberInput>
+                      </HStack>
+                    </FormControl>
 
-                {/* Save Button */}
-                <Button
-                  colorScheme="brand"
-                  size="sm"
-                  onClick={handleUpdateVehicle}
-                  isLoading={updateVehicleMutation.isPending}
-                  isDisabled={!vehicleMileage && !vehicleValue}
-                >
-                  Save Updates
-                </Button>
+                    {/* Save Button */}
+                    <Button
+                      colorScheme="brand"
+                      size="sm"
+                      onClick={handleUpdateVehicle}
+                      isLoading={updateVehicleMutation.isPending}
+                      isDisabled={!vehicleMileage && !vehicleValue}
+                    >
+                      Save Updates
+                    </Button>
+                  </>
+                )}
               </VStack>
             </CardBody>
           </Card>
@@ -530,7 +579,16 @@ export const AccountDetailPage = () => {
         {account.account_source === 'manual' && (
           <Card>
             <CardBody>
-              <ContributionsManager accountId={account.id} accountName={account.name} />
+              {canEditAccount ? (
+                <ContributionsManager accountId={account.id} accountName={account.name} />
+              ) : (
+                <Box>
+                  <Heading size="md" mb={2}>Recurring Contributions</Heading>
+                  <Text fontSize="sm" color="gray.600">
+                    Contributions can only be managed by the account owner.
+                  </Text>
+                </Box>
+              )}
             </CardBody>
           </Card>
         )}
