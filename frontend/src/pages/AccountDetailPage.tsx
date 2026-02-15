@@ -61,6 +61,7 @@ interface Account {
   institution_name: string | null;
   mask: string | null;
   is_active: boolean;
+  exclude_from_cash_flow: boolean;
   plaid_item_hash: string | null;
 }
 
@@ -138,7 +139,7 @@ export const AccountDetailPage = () => {
 
   // Update account mutation
   const updateAccountMutation = useMutation({
-    mutationFn: async (data: { name?: string; account_type?: string; is_active?: boolean }) => {
+    mutationFn: async (data: { name?: string; account_type?: string; is_active?: boolean; exclude_from_cash_flow?: boolean }) => {
       const response = await api.patch(`/accounts/${accountId}`, data);
       return response.data;
     },
@@ -258,6 +259,12 @@ export const AccountDetailPage = () => {
       // Switch is "Hide from reports", so when checked (true), we want is_active=false
       const hideFromReports = e.target.checked;
       updateAccountMutation.mutate({ is_active: !hideFromReports });
+    }
+  };
+
+  const handleToggleExcludeFromCashFlow = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (account) {
+      updateAccountMutation.mutate({ exclude_from_cash_flow: e.target.checked });
     }
   };
 
@@ -477,7 +484,7 @@ export const AccountDetailPage = () => {
               {/* Hide from Reports */}
               <FormControl display="flex" alignItems="center">
                 <FormLabel fontSize="sm" mb={0} flex={1}>
-                  Hide from cash flow & reports
+                  Hide from all reports
                 </FormLabel>
                 <Tooltip
                   label={!canEditAccount ? "You can only edit your own accounts" : ""}
@@ -487,6 +494,30 @@ export const AccountDetailPage = () => {
                   <Switch
                     isChecked={!account.is_active}
                     onChange={handleToggleActive}
+                    colorScheme="brand"
+                    isDisabled={!canEditAccount}
+                  />
+                </Tooltip>
+              </FormControl>
+
+              {/* Exclude from Cash Flow */}
+              <FormControl display="flex" alignItems="center">
+                <Box flex={1}>
+                  <FormLabel fontSize="sm" mb={0}>
+                    Exclude from cash flow
+                  </FormLabel>
+                  <Text fontSize="xs" color="gray.500" mt={0.5}>
+                    Prevents double-counting (e.g., mortgage payments already tracked in checking account)
+                  </Text>
+                </Box>
+                <Tooltip
+                  label={!canEditAccount ? "You can only edit your own accounts" : ""}
+                  placement="top"
+                  isDisabled={canEditAccount}
+                >
+                  <Switch
+                    isChecked={account.exclude_from_cash_flow}
+                    onChange={handleToggleExcludeFromCashFlow}
                     colorScheme="brand"
                     isDisabled={!canEditAccount}
                   />

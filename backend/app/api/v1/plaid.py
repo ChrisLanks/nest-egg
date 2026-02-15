@@ -105,6 +105,15 @@ async def exchange_public_token(
                 plaid_account["account_id"]
             )
 
+            # Determine if account should be excluded from cash flow by default
+            # Loans and mortgages are excluded to prevent double-counting
+            exclude_from_cash_flow = account_type in [
+                AccountType.MORTGAGE,
+                AccountType.LOAN,
+                AccountType.STUDENT_LOAN,
+                AccountType.CREDIT_CARD,
+            ]
+
             account = Account(
                 organization_id=current_user.organization_id,
                 user_id=current_user.id,
@@ -121,6 +130,7 @@ async def exchange_public_token(
                 limit=plaid_account.get("limit"),
                 is_manual=False,
                 is_active=True,
+                exclude_from_cash_flow=exclude_from_cash_flow,
             )
             db.add(account)
 

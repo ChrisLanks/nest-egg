@@ -174,6 +174,7 @@ class Account(Base):
     # Status
     is_active = Column(Boolean, default=True, nullable=False, index=True)
     is_manual = Column(Boolean, default=False, nullable=False)
+    exclude_from_cash_flow = Column(Boolean, default=False, nullable=False)  # Exclude transactions from budgets/trends to prevent double-counting
 
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)

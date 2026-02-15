@@ -55,6 +55,7 @@ class AccountUpdate(BaseModel):
     is_active: Optional[bool] = None
     current_balance: Optional[Decimal] = None
     mask: Optional[str] = None
+    exclude_from_cash_flow: Optional[bool] = None
 
 
 class Account(AccountBase):
@@ -72,6 +73,7 @@ class Account(AccountBase):
     balance_as_of: Optional[datetime] = None
     is_active: bool
     is_manual: bool
+    exclude_from_cash_flow: bool
     created_at: datetime
     updated_at: datetime
 
@@ -90,6 +92,7 @@ class AccountSummary(BaseModel):
     mask: Optional[str] = None
     current_balance: Optional[Decimal] = None
     is_active: bool
+    exclude_from_cash_flow: bool
     plaid_item_hash: Optional[str] = None  # For duplicate detection
 
     model_config = {"from_attributes": True}

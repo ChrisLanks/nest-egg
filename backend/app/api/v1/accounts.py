@@ -16,7 +16,7 @@ from app.dependencies import (
     get_all_household_accounts
 )
 from app.models.user import User
-from app.models.account import Account
+from app.models.account import Account, AccountType
 from app.models.holding import Holding
 from app.schemas.account import Account as AccountSchema, AccountSummary, ManualAccountCreate, AccountUpdate
 from app.services.deduplication_service import DeduplicationService
@@ -77,6 +77,15 @@ async def create_manual_account(
         name=account_data.name
     )
 
+    # Determine if account should be excluded from cash flow by default
+    # Loans and mortgages are excluded to prevent double-counting (payment from checking + loan balance decrease)
+    exclude_from_cash_flow = account_data.account_type in [
+        AccountType.MORTGAGE,
+        AccountType.LOAN,
+        AccountType.STUDENT_LOAN,
+        AccountType.CREDIT_CARD,
+    ]
+
     # Create the account
     account = Account(
         organization_id=current_user.organization_id,
@@ -90,6 +99,7 @@ async def create_manual_account(
         plaid_item_hash=plaid_item_hash,
         is_manual=True,
         is_active=True,
+        exclude_from_cash_flow=exclude_from_cash_flow,
     )
 
     db.add(account)
@@ -136,6 +146,8 @@ async def update_account(
         account.current_balance = account_data.current_balance
     if account_data.mask is not None:
         account.mask = account_data.mask
+    if account_data.exclude_from_cash_flow is not None:
+        account.exclude_from_cash_flow = account_data.exclude_from_cash_flow
 
     await db.commit()
     await db.refresh(account)

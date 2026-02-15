@@ -47,6 +47,7 @@ interface Account {
   balance_as_of: string | null;
   user_id: string;
   plaid_item_hash: string | null;
+  exclude_from_cash_flow: boolean;
 }
 
 interface DedupedAccount extends Account {
