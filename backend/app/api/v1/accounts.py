@@ -161,11 +161,13 @@ async def bulk_delete_accounts(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete multiple accounts at once."""
+    """Delete multiple accounts at once. Only deletes accounts owned by the current user."""
+    # Only allow deletion of accounts owned by the current user
     result = await db.execute(
         delete(Account).where(
             Account.id.in_(account_ids),
             Account.organization_id == current_user.organization_id,
+            Account.user_id == current_user.id,  # Must be account owner
         )
     )
     await db.commit()
@@ -179,12 +181,14 @@ async def bulk_update_visibility(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update visibility for multiple accounts."""
+    """Update visibility for multiple accounts. Only updates accounts owned by the current user."""
+    # Only allow updating accounts owned by the current user
     result = await db.execute(
         update(Account)
         .where(
             Account.id.in_(account_ids),
             Account.organization_id == current_user.organization_id,
+            Account.user_id == current_user.id,  # Must be account owner
         )
         .values(is_active=is_active)
     )

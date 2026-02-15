@@ -22,8 +22,9 @@ router = APIRouter()
 @router.post("/validate")
 async def validate_csv(
     file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
 ):
-    """Validate CSV file format."""
+    """Validate CSV file format. Requires authentication."""
     try:
         content = await file.read()
         csv_content = content.decode("utf-8")
@@ -42,9 +43,10 @@ async def validate_csv(
 async def preview_csv_import(
     file: UploadFile = File(...),
     column_mapping: Dict[str, str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """
-    Preview CSV file before import.
+    Preview CSV file before import. Requires authentication.
 
     Returns detected columns, sample rows, and row count.
     """
