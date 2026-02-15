@@ -56,13 +56,14 @@ export const DateRangePicker = ({ value, onChange, customMonthStartDay = 1 }: Da
     let startYear = currentYear;
 
     // Determine which custom month period we're in
-    if (currentDay >= customMonthStartDay) {
+    // Period runs from (boundary day + 1) of one month to (boundary day) of next month
+    if (currentDay > customMonthStartDay) {
       // We're past the boundary in current calendar month
-      // Current custom month: customMonthStartDay of this month to customMonthStartDay of next month
+      // Current custom month: (customMonthStartDay + 1) of this month to customMonthStartDay of next month
       // Do nothing, use current month
     } else {
-      // We haven't reached the boundary yet
-      // Current custom month: customMonthStartDay of last month to customMonthStartDay of this month
+      // We haven't reached the boundary yet or we're on the boundary day
+      // Current custom month: (customMonthStartDay + 1) of last month to customMonthStartDay of this month
       startMonth = currentMonth - 1;
       if (startMonth < 0) {
         startMonth = 11;
@@ -81,10 +82,10 @@ export const DateRangePicker = ({ value, onChange, customMonthStartDay = 1 }: Da
       startYear++;
     }
 
-    // Create start date
-    const start = new Date(startYear, startMonth, customMonthStartDay);
+    // Create start date (day after boundary)
+    const start = new Date(startYear, startMonth, customMonthStartDay + 1);
 
-    // End date is one month later
+    // End date is boundary day of next month
     let endMonth = startMonth + 1;
     let endYear = startYear;
     if (endMonth > 11) {
@@ -110,15 +111,17 @@ export const DateRangePicker = ({ value, onChange, customMonthStartDay = 1 }: Da
           // End is today, not end of month
           end.setHours(23, 59, 59, 999);
         } else {
-          // Custom month boundary - from custom start day to today
+          // Custom month boundary - from day after boundary to today
           const currentDay = now.getDate();
-          if (currentDay >= customMonthStartDay) {
+          if (currentDay > customMonthStartDay) {
             // We're past the boundary in current month
-            start.setDate(customMonthStartDay);
+            // Period started on (boundary + 1) of this month
+            start.setDate(customMonthStartDay + 1);
           } else {
-            // We haven't reached the boundary yet, use previous month's boundary
+            // We haven't reached the boundary yet or we're on the boundary day
+            // Period started on (boundary + 1) of last month
             start.setMonth(start.getMonth() - 1);
-            start.setDate(customMonthStartDay);
+            start.setDate(customMonthStartDay + 1);
           }
           // End is always today for "This Month"
           end.setHours(23, 59, 59, 999);
