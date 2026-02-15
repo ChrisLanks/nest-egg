@@ -42,7 +42,7 @@ import {
 import { AddIcon, BellIcon, CalendarIcon } from '@chakra-ui/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { recurringTransactionsApi } from '../api/recurring-transactions';
-import { RecurringTransaction, UpcomingBill } from '../types/recurring-transaction';
+import type { RecurringTransaction, UpcomingBill } from '../types/recurring-transaction';
 import api from '../services/api';
 
 interface Account {
