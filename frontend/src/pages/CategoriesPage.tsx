@@ -135,6 +135,7 @@ export const CategoriesPage = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
+      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
       toast({
         title: 'Category created',
         status: 'success',
@@ -165,6 +166,7 @@ export const CategoriesPage = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
+      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
       toast({
         title: 'Category updated',
         status: 'success',
@@ -190,6 +192,7 @@ export const CategoriesPage = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
+      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
       toast({
         title: 'Category deleted',
         status: 'success',

@@ -79,6 +79,7 @@ export const useInfiniteTransactions = ({
       return result;
     },
     enabled,
+    refetchOnMount: 'always', // Always refetch when component mounts
   });
 
   // Reset isLoadingMore when query completes

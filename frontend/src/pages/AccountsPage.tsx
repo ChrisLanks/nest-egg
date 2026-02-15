@@ -83,6 +83,7 @@ export const AccountsPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
       toast({
         title: 'Accounts deleted',
         status: 'success',
@@ -111,6 +112,7 @@ export const AccountsPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
       toast({
         title: 'Account visibility updated',
         status: 'success',
@@ -135,6 +137,7 @@ export const AccountsPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
       toast({
         title: 'Account updated',
         status: 'success',

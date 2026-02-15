@@ -178,11 +178,11 @@ export const Layout = () => {
     },
   });
 
-  // Fetch portfolio summary for net worth
-  const { data: portfolio } = useQuery({
-    queryKey: ['portfolio-summary'],
+  // Fetch dashboard summary for net worth (all accounts)
+  const { data: dashboardSummary } = useQuery({
+    queryKey: ['dashboard-summary'],
     queryFn: async () => {
-      const response = await api.get('/holdings/portfolio');
+      const response = await api.get('/dashboard/summary');
       return response.data;
     },
   });
@@ -312,13 +312,13 @@ export const Layout = () => {
             <Text fontSize="md" fontWeight="bold" textTransform="uppercase" color="gray.700">
               Accounts
             </Text>
-            {portfolio?.total_value !== undefined && (
+            {dashboardSummary?.net_worth !== undefined && (
               <Text
                 fontSize="md"
                 fontWeight="bold"
-                color={portfolio.total_value >= 0 ? 'green.600' : 'red.600'}
+                color={dashboardSummary.net_worth >= 0 ? 'green.600' : 'red.600'}
               >
-                {formatCurrency(Number(portfolio.total_value))}
+                {formatCurrency(Number(dashboardSummary.net_worth))}
               </Text>
             )}
           </HStack>
