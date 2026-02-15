@@ -342,22 +342,83 @@ async def accept_invitation(
         )
 
     # Check if user is already in a household
-    if existing_user.organization_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User is already a member of a household"
+    old_organization_id = existing_user.organization_id
+    if old_organization_id:
+        # Check if they're already in the target household
+        if old_organization_id == invitation.organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is already a member of this household"
+            )
+
+        # Check if user is the only member in their current household
+        result = await db.execute(
+            select(User).where(
+                User.organization_id == old_organization_id,
+                User.is_active == True
+            )
         )
+        household_members = result.scalars().all()
 
-    # Add user to the household
-    existing_user.organization_id = invitation.organization_id
+        if len(household_members) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot accept invitation. You are not the only member in your current household. "
+                       "Please have other members leave first, or create a new account."
+            )
 
-    # Mark invitation as accepted
-    invitation.status = InvitationStatus.ACCEPTED
-    invitation.accepted_at = datetime.utcnow()
+        # User is solo - migrate them and their accounts
+        # Update all accounts to new organization
+        from app.models.account import Account
+        result = await db.execute(
+            select(Account).where(
+                Account.organization_id == old_organization_id,
+                Account.user_id == existing_user.id
+            )
+        )
+        user_accounts = result.scalars().all()
 
-    await db.commit()
+        for account in user_accounts:
+            account.organization_id = invitation.organization_id
 
-    return {
-        "message": "Invitation accepted successfully",
-        "organization_id": str(invitation.organization_id)
-    }
+        # Update user's organization
+        existing_user.organization_id = invitation.organization_id
+        existing_user.is_primary_household_member = False  # Not primary in new household
+
+        # Mark invitation as accepted before migrating
+        invitation.status = InvitationStatus.ACCEPTED
+        invitation.accepted_at = datetime.utcnow()
+
+        # Commit the migration FIRST to persist user's new organization
+        await db.commit()
+
+        # Now safe to delete old organization (user is already moved)
+        from app.models.user import Organization
+        result = await db.execute(
+            select(Organization).where(Organization.id == old_organization_id)
+        )
+        old_org = result.scalar_one_or_none()
+        if old_org:
+            await db.delete(old_org)
+            await db.commit()
+
+        return {
+            "message": "Invitation accepted successfully",
+            "organization_id": str(invitation.organization_id),
+            "accounts_migrated": len(user_accounts)
+        }
+    else:
+        # User has no organization - simple case
+        existing_user.organization_id = invitation.organization_id
+
+        # Mark invitation as accepted
+        invitation.status = InvitationStatus.ACCEPTED
+        invitation.accepted_at = datetime.utcnow()
+
+        await db.commit()
+
+        return {
+            "message": "Invitation accepted successfully",
+            "organization_id": str(invitation.organization_id),
+            "accounts_migrated": 0
+        }

@@ -52,7 +52,8 @@
       "Bash(/usr/bin/python3:*)",
       "Bash(poetry run python:*)",
       "Bash(./venv/bin/python3:*)",
-      "Bash(./venv/bin/alembic revision:*)"
+      "Bash(./venv/bin/alembic revision:*)",
+      "Bash(PGPASSWORD=nestegg_dev_password psql:*)"
     ]
   }
 }
