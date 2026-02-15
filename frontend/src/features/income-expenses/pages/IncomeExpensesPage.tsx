@@ -145,6 +145,9 @@ export const IncomeExpensesPage = () => {
 
   const [groupBy, setGroupBy] = useState<'category' | 'label' | 'merchant' | 'account'>('category');
   const [hiddenItems, setHiddenItems] = useState<Set<string>>(new Set());
+  const [selectedTab, setSelectedTab] = useState(0); // 0 = Combined, 1 = Income, 2 = Expenses
+  const [incomeLegendExpanded, setIncomeLegendExpanded] = useState(false);
+  const [expenseLegendExpanded, setExpenseLegendExpanded] = useState(false);
 
   // Fetch organization settings for custom month boundaries
   const { data: orgSettings } = useQuery({
@@ -777,7 +780,9 @@ export const IncomeExpensesPage = () => {
     data: CategoryBreakdown[] | any[],
     type: 'income' | 'expense',
     chartType: ChartType,
-    drillDown: DrillDownState
+    drillDown: DrillDownState,
+    legendExpanded: boolean,
+    setLegendExpanded: (expanded: boolean) => void
   ) => {
     if (chartType === 'pie') {
       return (
@@ -831,10 +836,14 @@ export const IncomeExpensesPage = () => {
                 const { payload } = props;
                 if (!payload || !payload.length) return null;
 
+                const MAX_VISIBLE_ITEMS = 5;
+                const displayItems = legendExpanded ? payload : payload.slice(0, MAX_VISIBLE_ITEMS);
+                const hasMore = payload.length > MAX_VISIBLE_ITEMS;
+
                 return (
                   <Box mt={4}>
                     <Wrap spacing={2} justify="center">
-                      {payload.map((entry: any, index: number) => {
+                      {displayItems.map((entry: any, index: number) => {
                         const data = entry.payload;
                         return (
                           <WrapItem key={`legend-${index}`}>
@@ -863,6 +872,18 @@ export const IncomeExpensesPage = () => {
                           </WrapItem>
                         );
                       })}
+                      {hasMore && (
+                        <WrapItem>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setLegendExpanded(!legendExpanded)}
+                            rightIcon={legendExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
+                          >
+                            {legendExpanded ? 'Show Less' : `Show ${payload.length - MAX_VISIBLE_ITEMS} More`}
+                          </Button>
+                        </WrapItem>
+                      )}
                     </Wrap>
                   </Box>
                 );
@@ -1142,7 +1163,7 @@ export const IncomeExpensesPage = () => {
         {/* Tabs for Income, Expenses, Combined */}
         <Card>
           <CardBody>
-            <Tabs>
+            <Tabs index={selectedTab} onChange={setSelectedTab}>
               <TabList>
                 <Tab>Combined</Tab>
                 <Tab>Income</Tab>
@@ -1265,10 +1286,10 @@ export const IncomeExpensesPage = () => {
                             )}
                           </Breadcrumb>
                           {incomeDrillDown.level === 'categories'
-                            ? renderChart(filteredSummary.income_categories, 'income', incomeChartType, incomeDrillDown)
+                            ? renderChart(filteredSummary.income_categories, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
                             : incomeDrillDown.level === 'merchants' && incomeMerchants
-                            ? renderChart(incomeMerchants, 'income', incomeChartType, incomeDrillDown)
-                            : renderChart(incomeTransactionBreakdown, 'income', incomeChartType, incomeDrillDown)
+                            ? renderChart(incomeMerchants, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
+                            : renderChart(incomeTransactionBreakdown, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
                           }
                           <Box>
                             <Heading size="xs" mb={3} color="gray.600">
@@ -1325,10 +1346,10 @@ export const IncomeExpensesPage = () => {
                             )}
                           </Breadcrumb>
                           {expenseDrillDown.level === 'categories'
-                            ? renderChart(filteredSummary.expense_categories, 'expense', expenseChartType, expenseDrillDown)
+                            ? renderChart(filteredSummary.expense_categories, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
                             : expenseDrillDown.level === 'merchants' && expenseMerchants
-                            ? renderChart(expenseMerchants, 'expense', expenseChartType, expenseDrillDown)
-                            : renderChart(expenseTransactionBreakdown, 'expense', expenseChartType, expenseDrillDown)
+                            ? renderChart(expenseMerchants, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
+                            : renderChart(expenseTransactionBreakdown, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
                           }
                           <Box>
                             <Heading size="xs" mb={3} color="gray.600">
@@ -1497,10 +1518,10 @@ export const IncomeExpensesPage = () => {
                         </Breadcrumb>
                         <Box>
                           {incomeDrillDown.level === 'categories'
-                            ? renderChart(filteredSummary.income_categories, 'income', incomeChartType, incomeDrillDown)
+                            ? renderChart(filteredSummary.income_categories, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
                             : incomeDrillDown.level === 'merchants' && incomeMerchants
-                            ? renderChart(incomeMerchants, 'income', incomeChartType, incomeDrillDown)
-                            : renderChart(incomeTransactionBreakdown, 'income', incomeChartType, incomeDrillDown)
+                            ? renderChart(incomeMerchants, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
+                            : renderChart(incomeTransactionBreakdown, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
                           }
                         </Box>
                         <Box>
@@ -1671,10 +1692,10 @@ export const IncomeExpensesPage = () => {
                         </Breadcrumb>
                         <Box>
                           {expenseDrillDown.level === 'categories'
-                            ? renderChart(filteredSummary.expense_categories, 'expense', expenseChartType, expenseDrillDown)
+                            ? renderChart(filteredSummary.expense_categories, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
                             : expenseDrillDown.level === 'merchants' && expenseMerchants
-                            ? renderChart(expenseMerchants, 'expense', expenseChartType, expenseDrillDown)
-                            : renderChart(expenseTransactionBreakdown, 'expense', expenseChartType, expenseDrillDown)
+                            ? renderChart(expenseMerchants, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
+                            : renderChart(expenseTransactionBreakdown, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
                           }
                         </Box>
                         <Box>
