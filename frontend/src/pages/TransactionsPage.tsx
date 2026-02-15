@@ -376,18 +376,67 @@ export const TransactionsPage = () => {
 
     let filtered = [...allTransactions];
 
-    // Filter by search query (searches merchant, account, category, description, and labels)
+    // Filter by search query with intelligent parsing
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (txn) =>
-          txn.merchant_name?.toLowerCase().includes(query) ||
-          txn.account_name?.toLowerCase().includes(query) ||
-          txn.category?.name?.toLowerCase().includes(query) ||
-          txn.category?.parent_name?.toLowerCase().includes(query) ||
-          txn.description?.toLowerCase().includes(query) ||
-          txn.labels?.some((label) => label.name.toLowerCase().includes(query))
-      );
+
+      // Parse special search syntax: labels:<x,y>, category:<x,y>, institution:<x,y>
+      const labelsMatch = query.match(/labels?:([^\s]+)/i);
+      const categoryMatch = query.match(/categor(?:y|ies):([^\s]+)/i);
+      const institutionMatch = query.match(/institution:([^\s]+)/i);
+
+      // Remove special syntax from query to get plain text search
+      const plainQuery = query
+        .replace(/labels?:[^\s]+/gi, '')
+        .replace(/categor(?:y|ies):[^\s]+/gi, '')
+        .replace(/institution:[^\s]+/gi, '')
+        .trim();
+
+      filtered = filtered.filter((txn) => {
+        // Check labels filter
+        if (labelsMatch) {
+          const labelNames = labelsMatch[1].split(',').map(l => l.trim().toLowerCase());
+          const hasMatchingLabel = txn.labels?.some((label) =>
+            labelNames.some(ln => label.name.toLowerCase().includes(ln))
+          );
+          if (!hasMatchingLabel) return false;
+        }
+
+        // Check category filter
+        if (categoryMatch) {
+          const categoryNames = categoryMatch[1].split(',').map(c => c.trim().toLowerCase());
+          const categoryName = (txn.category?.name || txn.category_primary || '').toLowerCase();
+          const parentName = (txn.category?.parent_name || '').toLowerCase();
+          const hasMatchingCategory = categoryNames.some(cn =>
+            categoryName.includes(cn) || parentName.includes(cn)
+          );
+          if (!hasMatchingCategory) return false;
+        }
+
+        // Check institution filter
+        if (institutionMatch) {
+          const institutionNames = institutionMatch[1].split(',').map(i => i.trim().toLowerCase());
+          const accountName = (txn.account_name || '').toLowerCase();
+          const hasMatchingInstitution = institutionNames.some(inst =>
+            accountName.includes(inst)
+          );
+          if (!hasMatchingInstitution) return false;
+        }
+
+        // Check plain text search (merchant, account, category, description, labels)
+        if (plainQuery) {
+          return (
+            txn.merchant_name?.toLowerCase().includes(plainQuery) ||
+            txn.account_name?.toLowerCase().includes(plainQuery) ||
+            txn.category?.name?.toLowerCase().includes(plainQuery) ||
+            txn.category?.parent_name?.toLowerCase().includes(plainQuery) ||
+            txn.description?.toLowerCase().includes(plainQuery) ||
+            txn.labels?.some((label) => label.name.toLowerCase().includes(plainQuery))
+          );
+        }
+
+        return true;
+      });
     }
 
     // Sort
@@ -749,12 +798,12 @@ export const TransactionsPage = () => {
 
         {/* Search Bar and Controls */}
         <HStack spacing={3} justify="space-between">
-          <InputGroup maxW="400px">
+          <InputGroup maxW="500px">
             <InputLeftElement pointerEvents="none">
               <SearchIcon color="gray.400" />
             </InputLeftElement>
             <Input
-              placeholder="Search transactions..."
+              placeholder="Search or try: labels:Transfer category:Food"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
