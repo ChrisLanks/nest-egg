@@ -11,11 +11,15 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.dependencies import get_current_user, get_verified_account
+from app.dependencies import (
+    get_current_user, get_verified_account,
+    verify_household_member, get_user_accounts, get_all_household_accounts
+)
 from app.models.user import User
 from app.models.holding import Holding
 from app.models.account import Account, AccountType
 from app.services.snapshot_service import snapshot_service
+from app.services.deduplication_service import deduplication_service
 from app.schemas.holding import (
     Holding as HoldingSchema,
     HoldingCreate,
@@ -36,18 +40,36 @@ router = APIRouter()
 
 @router.get("/portfolio", response_model=PortfolioSummary)
 async def get_portfolio_summary(
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get portfolio summary across all investment accounts."""
+    """Get portfolio summary for a specific user or combined household.
+
+    If user_id is provided, shows only that user's accounts (owned + shared).
+    If user_id is None (default), shows all household accounts with deduplication.
+    """
     import logging
     logger = logging.getLogger(__name__)
 
-    logger.info(f"Portfolio request from user {current_user.id}")
+    logger.info(f"Portfolio request from user {current_user.id}, filter user_id={user_id}")
 
-    # Fetch all accounts for treemap (including property/vehicles)
-    accounts_result = await db.execute(
-        select(Account)
+    # Get accounts based on filter
+    if user_id:
+        # Verify user is in same household
+        await verify_household_member(db, user_id, current_user.organization_id)
+
+        # Get accounts for specific user (owned + shared)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        # Get all household accounts
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+
+        # Deduplicate accounts (remove duplicates where same real account added by multiple users)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    # Continue with existing logic using the filtered accounts list
+    # Note: The rest of the function will use 'accounts' variable instead of querying again
         .where(
             Account.organization_id == current_user.organization_id,
             Account.is_active == True,

@@ -158,3 +158,184 @@ async def get_verified_account(
         )
 
     return account
+
+
+# Household multi-user support functions
+
+async def verify_household_member(
+    db: AsyncSession,
+    user_id: UUID,
+    organization_id: UUID,
+) -> User:
+    """Verify that a user is a member of the specified household.
+
+    Args:
+        db: Database session
+        user_id: User ID to verify
+        organization_id: Organization ID (household) to check membership
+
+    Returns:
+        User object if verified
+
+    Raises:
+        HTTPException: If user not found or not in household
+    """
+    result = await db.execute(
+        select(User).where(
+            User.id == user_id,
+            User.organization_id == organization_id,
+            User.is_active == True
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found or not in household"
+        )
+
+    return user
+
+
+async def get_user_accounts(
+    db: AsyncSession,
+    user_id: UUID,
+    organization_id: UUID,
+) -> list[Account]:
+    """Get all accounts owned by or shared with a specific user.
+
+    Args:
+        db: Database session
+        user_id: User ID to get accounts for
+        organization_id: Organization ID to filter by
+
+    Returns:
+        List of accounts (owned + shared)
+    """
+    from app.models.user import AccountShare
+
+    # Get accounts owned by user
+    result = await db.execute(
+        select(Account).where(
+            Account.user_id == user_id,
+            Account.organization_id == organization_id,
+            Account.is_active == True
+        )
+    )
+    owned_accounts = result.scalars().all()
+
+    # Get accounts shared with user
+    result = await db.execute(
+        select(Account)
+        .join(AccountShare, AccountShare.account_id == Account.id)
+        .where(
+            AccountShare.shared_with_user_id == user_id,
+            Account.organization_id == organization_id,
+            Account.is_active == True
+        )
+    )
+    shared_accounts = result.scalars().all()
+
+    # Combine and deduplicate (in case an account is both owned and shared)
+    account_ids = set()
+    all_accounts = []
+
+    for account in owned_accounts + shared_accounts:
+        if account.id not in account_ids:
+            all_accounts.append(account)
+            account_ids.add(account.id)
+
+    return all_accounts
+
+
+async def get_all_household_accounts(
+    db: AsyncSession,
+    organization_id: UUID,
+) -> list[Account]:
+    """Get all active accounts in a household.
+
+    Args:
+        db: Database session
+        organization_id: Organization ID (household)
+
+    Returns:
+        List of all active accounts in household
+    """
+    result = await db.execute(
+        select(Account).where(
+            Account.organization_id == organization_id,
+            Account.is_active == True
+        )
+    )
+    return result.scalars().all()
+
+
+async def verify_account_access(
+    account_id: UUID,
+    current_user: User,
+    db: AsyncSession,
+    require_edit: bool = False
+) -> Account:
+    """Verify user has access to account (owned or shared).
+
+    Args:
+        account_id: Account ID to check
+        current_user: Current authenticated user
+        db: Database session
+        require_edit: If True, require edit permission (not just view)
+
+    Returns:
+        Account if user has access
+
+    Raises:
+        HTTPException: If user doesn't have access
+    """
+    from app.models.user import AccountShare, SharePermission
+
+    # Get account
+    result = await db.execute(
+        select(Account).where(Account.id == account_id)
+    )
+    account = result.scalar_one_or_none()
+
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Account not found"
+        )
+
+    # Check household membership
+    if account.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+
+    # Owner has full access
+    if account.user_id == current_user.id:
+        return account
+
+    # Check shared access
+    result = await db.execute(
+        select(AccountShare).where(
+            AccountShare.account_id == account_id,
+            AccountShare.shared_with_user_id == current_user.id
+        )
+    )
+    share = result.scalar_one_or_none()
+
+    if not share:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this account"
+        )
+
+    # If edit permission required, check it
+    if require_edit and share.permission != SharePermission.EDIT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have edit permission for this account"
+        )
+
+    return account

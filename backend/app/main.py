@@ -73,11 +73,12 @@ async def health_check():
 from app.api.v1 import (
     auth, accounts, contributions, transactions, labels, rules, categories, dev, dashboard,
     income_expenses, plaid, holdings, enrichment, notifications, budgets, savings_goals,
-    recurring_transactions, transaction_splits, transaction_merges, csv_import
+    recurring_transactions, transaction_splits, transaction_merges, csv_import, household
 )
 from app.api.v1 import settings as settings_router
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+app.include_router(household.router, prefix="/api/v1", tags=["Household"])
 app.include_router(accounts.router, prefix="/api/v1/accounts", tags=["Accounts"])
 app.include_router(contributions.router, prefix="/api/v1", tags=["Contributions"])
 app.include_router(holdings.router, prefix="/api/v1/holdings", tags=["Holdings"])
