@@ -19,6 +19,7 @@ import PreferencesPage from './pages/PreferencesPage';
 import { IncomeExpensesPage } from './features/income-expenses/pages/IncomeExpensesPage';
 import { AccountDetailPage } from './pages/AccountDetailPage';
 import { InvestmentsPage } from './pages/InvestmentsPage';
+import { AccountsPage } from './pages/AccountsPage';
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
                 <Route path="/rules" element={<RulesPage />} />
                 <Route path="/income-expenses" element={<IncomeExpensesPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
+                <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
                 <Route path="/preferences" element={<PreferencesPage />} />
               </Route>

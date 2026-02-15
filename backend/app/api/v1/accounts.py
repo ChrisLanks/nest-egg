@@ -3,8 +3,8 @@
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -19,18 +19,22 @@ router = APIRouter()
 
 @router.get("/", response_model=List[AccountSummary])
 async def list_accounts(
+    include_hidden: bool = Query(False, description="Include hidden accounts (admin view)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List all accounts for the current user's organization."""
-    result = await db.execute(
-        select(Account)
-        .where(
-            Account.organization_id == current_user.organization_id,
-            Account.is_active == True,
-        )
-        .order_by(Account.name)
+    query = select(Account).where(
+        Account.organization_id == current_user.organization_id
     )
+
+    # Only filter by is_active if not including hidden
+    if not include_hidden:
+        query = query.where(Account.is_active == True)
+
+    query = query.order_by(Account.name)
+
+    result = await db.execute(query)
     accounts = result.scalars().all()
     return accounts
 
@@ -139,3 +143,40 @@ async def update_account(
     await db.refresh(account)
 
     return account
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_accounts(
+    account_ids: List[UUID],
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete multiple accounts at once."""
+    result = await db.execute(
+        delete(Account).where(
+            Account.id.in_(account_ids),
+            Account.organization_id == current_user.organization_id,
+        )
+    )
+    await db.commit()
+    return {"deleted_count": result.rowcount}
+
+
+@router.patch("/bulk-visibility")
+async def bulk_update_visibility(
+    account_ids: List[UUID],
+    is_active: bool,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update visibility for multiple accounts."""
+    result = await db.execute(
+        update(Account)
+        .where(
+            Account.id.in_(account_ids),
+            Account.organization_id == current_user.organization_id,
+        )
+        .values(is_active=is_active)
+    )
+    await db.commit()
+    return {"updated_count": result.rowcount}

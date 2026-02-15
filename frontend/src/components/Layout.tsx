@@ -28,7 +28,7 @@ import {
   AddIcon,
   ChevronDownIcon,
 } from '@chakra-ui/icons';
-import { FiSettings, FiTrendingUp, FiLogOut } from 'react-icons/fi';
+import { FiSettings, FiTrendingUp, FiLogOut, FiFolder } from 'react-icons/fi';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../features/auth/stores/authStore';
@@ -166,6 +166,7 @@ export const Layout = () => {
     { icon: RepeatIcon, label: 'Transactions', path: '/transactions' },
     { icon: SettingsIcon, label: 'Rules', path: '/rules' },
     { icon: StarIcon, label: 'Categories', path: '/categories' },
+    { icon: FiFolder, label: 'Accounts', path: '/accounts' },
   ];
 
   // Fetch accounts
