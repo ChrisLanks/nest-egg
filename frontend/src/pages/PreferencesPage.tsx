@@ -62,6 +62,9 @@ export default function PreferencesPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
 
+  // Note: Preferences are always for the current logged-in user,
+  // not the selected user view. This page shows YOUR settings.
+
   // Profile state
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');

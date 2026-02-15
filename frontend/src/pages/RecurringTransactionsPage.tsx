@@ -22,15 +22,19 @@ import {
   useToast,
   Card,
   CardBody,
+  Tooltip,
 } from '@chakra-ui/react';
 import { RepeatIcon, DeleteIcon } from '@chakra-ui/icons';
+import { FiLock } from 'react-icons/fi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { recurringTransactionsApi } from '../api/recurring-transactions';
 import { RecurringFrequency } from '../types/recurring-transaction';
+import { useUserView } from '../contexts/UserViewContext';
 
 export default function RecurringTransactionsPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { canEdit, isOtherUserView } = useUserView();
 
   // Get all recurring patterns
   const { data: patterns = [], isLoading } = useQuery({
@@ -96,6 +100,18 @@ export default function RecurringTransactionsPage() {
   return (
     <Box p={8}>
       <VStack align="stretch" spacing={6}>
+        {/* Read-only banner */}
+        {isOtherUserView && (
+          <Box p={4} bg="orange.50" borderRadius="md" borderWidth={1} borderColor="orange.200">
+            <HStack>
+              <FiLock size={16} color="orange.600" />
+              <Text fontSize="sm" color="orange.800" fontWeight="medium">
+                Read-only view: You can view patterns but cannot detect new ones or delete existing patterns for another household member.
+              </Text>
+            </HStack>
+          </Box>
+        )}
+
         {/* Header */}
         <HStack justify="space-between">
           <VStack align="start" spacing={1}>
@@ -104,14 +120,21 @@ export default function RecurringTransactionsPage() {
               Auto-detected patterns in your transaction history
             </Text>
           </VStack>
-          <Button
-            leftIcon={<RepeatIcon />}
-            colorScheme="blue"
-            onClick={() => detectMutation.mutate()}
-            isLoading={detectMutation.isPending}
+          <Tooltip
+            label={!canEdit ? "Read-only: You can only detect patterns for your own data" : ""}
+            placement="top"
+            isDisabled={canEdit}
           >
-            Detect Patterns
-          </Button>
+            <Button
+              leftIcon={canEdit ? <RepeatIcon /> : <FiLock />}
+              colorScheme="blue"
+              onClick={() => detectMutation.mutate()}
+              isLoading={detectMutation.isPending}
+              isDisabled={!canEdit}
+            >
+              Detect Patterns
+            </Button>
+          </Tooltip>
         </HStack>
 
         {/* Loading state */}
@@ -126,16 +149,20 @@ export default function RecurringTransactionsPage() {
           <Center py={12}>
             <VStack spacing={4}>
               <Text fontSize="lg" color="gray.500">
-                No recurring patterns detected yet
+                {isOtherUserView
+                  ? "This user has no recurring patterns detected yet"
+                  : "No recurring patterns detected yet"}
               </Text>
-              <Button
-                leftIcon={<RepeatIcon />}
-                colorScheme="blue"
-                onClick={() => detectMutation.mutate()}
-                isLoading={detectMutation.isPending}
-              >
-                Detect Patterns Now
-              </Button>
+              {!isOtherUserView && (
+                <Button
+                  leftIcon={<RepeatIcon />}
+                  colorScheme="blue"
+                  onClick={() => detectMutation.mutate()}
+                  isLoading={detectMutation.isPending}
+                >
+                  Detect Patterns Now
+                </Button>
+              )}
             </VStack>
           </Center>
         )}
@@ -195,15 +222,22 @@ export default function RecurringTransactionsPage() {
                           </Badge>
                         </Td>
                         <Td>
-                          <IconButton
-                            aria-label="Delete"
-                            icon={<DeleteIcon />}
-                            size="sm"
-                            variant="ghost"
-                            colorScheme="red"
-                            onClick={() => deleteMutation.mutate(pattern.id)}
-                            isLoading={deleteMutation.isPending}
-                          />
+                          <Tooltip
+                            label={!canEdit ? "Read-only: You can only delete your own patterns" : ""}
+                            placement="top"
+                            isDisabled={canEdit}
+                          >
+                            <IconButton
+                              aria-label="Delete"
+                              icon={!canEdit ? <FiLock /> : <DeleteIcon />}
+                              size="sm"
+                              variant="ghost"
+                              colorScheme={!canEdit ? "gray" : "red"}
+                              onClick={() => deleteMutation.mutate(pattern.id)}
+                              isLoading={deleteMutation.isPending}
+                              isDisabled={!canEdit}
+                            />
+                          </Tooltip>
                         </Td>
                       </Tr>
                     ))}

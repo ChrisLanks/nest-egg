@@ -31,8 +31,10 @@ import {
   MenuButton,
   MenuList,
   MenuItem,
+  Tooltip,
 } from '@chakra-ui/react';
 import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon } from '@chakra-ui/icons';
+import { FiLock } from 'react-icons/fi';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -41,6 +43,7 @@ import { RuleBuilderModal } from '../components/RuleBuilderModal';
 import { DateRangePicker, type DateRange } from '../components/DateRangePicker';
 import { InfiniteScrollSentinel } from '../components/InfiniteScrollSentinel';
 import { useInfiniteTransactions } from '../hooks/useInfiniteTransactions';
+import { useUserView } from '../contexts/UserViewContext';
 import type { Transaction } from '../types/transaction';
 import api from '../services/api';
 
@@ -74,6 +77,7 @@ export const TransactionsPage = () => {
 
   const toast = useToast();
   const navigate = useNavigate();
+  const { canEdit, isOtherUserView } = useUserView();
 
   // Fetch organization preferences for monthly_start_day
   const { data: orgPrefs } = useQuery({
@@ -359,6 +363,18 @@ export const TransactionsPage = () => {
   return (
     <Container maxW="container.xl" py={8}>
       <VStack spacing={6} align="stretch">
+        {/* Read-only banner */}
+        {isOtherUserView && (
+          <Box p={4} bg="orange.50" borderRadius="md" borderWidth={1} borderColor="orange.200">
+            <HStack>
+              <FiLock size={16} color="orange.600" />
+              <Text fontSize="sm" color="orange.800" fontWeight="medium">
+                Read-only view: You can view transactions but cannot bulk select or create rules for another household member.
+              </Text>
+            </HStack>
+          </Box>
+        )}
+
         <HStack justify="space-between" align="start">
           <Box flex={1}>
             <Heading size="lg">Transactions</Heading>
@@ -386,14 +402,22 @@ export const TransactionsPage = () => {
             >
               Rules
             </Button>
-            <Button
-              colorScheme={bulkSelectMode ? 'red' : 'blue'}
-              variant={bulkSelectMode ? 'solid' : 'outline'}
-              onClick={toggleBulkSelectMode}
-              size="sm"
+            <Tooltip
+              label={!canEdit ? "Read-only: Cannot bulk select when viewing another household member" : ""}
+              placement="top"
+              isDisabled={canEdit}
             >
-              {bulkSelectMode ? 'Cancel Selection' : 'Select Multiple'}
-            </Button>
+              <Button
+                colorScheme={bulkSelectMode ? 'red' : 'blue'}
+                variant={bulkSelectMode ? 'solid' : 'outline'}
+                onClick={toggleBulkSelectMode}
+                size="sm"
+                isDisabled={!canEdit}
+                leftIcon={!canEdit ? <FiLock /> : undefined}
+              >
+                {bulkSelectMode ? 'Cancel Selection' : 'Select Multiple'}
+              </Button>
+            </Tooltip>
           </HStack>
         </HStack>
 
