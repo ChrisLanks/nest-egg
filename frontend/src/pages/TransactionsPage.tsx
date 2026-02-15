@@ -547,6 +547,11 @@ export const TransactionsPage = () => {
     setSearchQuery(category);
   };
 
+  const handleLabelClick = (labelName: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent opening transaction modal
+    setSearchQuery(labelName);
+  };
+
   const handleAccountClick = (accountName: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
     // For now, just search by account name
@@ -1002,6 +1007,10 @@ export const TransactionsPage = () => {
                                   bg={label.color || undefined}
                                   color={label.color ? 'white' : undefined}
                                   fontSize="xs"
+                                  cursor="pointer"
+                                  _hover={{ transform: 'scale(1.05)' }}
+                                  transition="transform 0.2s"
+                                  onClick={(e) => handleLabelClick(label.name, e)}
                                 >
                                   {label.name}
                                 </Badge>
@@ -1170,6 +1179,13 @@ export const TransactionsPage = () => {
                                           bg={label.color || undefined}
                                           color={label.color ? 'white' : undefined}
                                           fontSize="xs"
+                                          cursor="pointer"
+                                          _hover={{ transform: 'scale(1.05)' }}
+                                          transition="transform 0.2s"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleLabelClick(label.name, e);
+                                          }}
                                         >
                                           {label.name}
                                         </Badge>
