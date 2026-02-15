@@ -44,6 +44,22 @@ import {
   useBreakpointValue,
   Divider,
   Stack,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  ModalCloseButton,
+  useDisclosure,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
+  Select,
+  FormControl,
+  FormLabel,
 } from '@chakra-ui/react';
 import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon, DownloadIcon } from '@chakra-ui/icons';
 import { FiLock } from 'react-icons/fi';
@@ -90,6 +106,9 @@ export const TransactionsPage = () => {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
+  // Bulk edit modal
+  const { isOpen: isBulkEditOpen, onOpen: onBulkEditOpen, onClose: onBulkEditClose } = useDisclosure();
+
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -106,6 +125,24 @@ export const TransactionsPage = () => {
   });
 
   const monthlyStartDay = orgPrefs?.monthly_start_day || 1;
+
+  // Fetch available labels
+  const { data: availableLabels = [] } = useQuery({
+    queryKey: ['labels'],
+    queryFn: async () => {
+      const response = await api.get('/labels/');
+      return response.data;
+    },
+  });
+
+  // Fetch available categories
+  const { data: availableCategories = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const response = await api.get('/categories/');
+      return response.data;
+    },
+  });
 
   // Use infinite transactions hook
   const {
@@ -149,6 +186,84 @@ export const TransactionsPage = () => {
     onError: () => {
       toast({
         title: 'Failed to update transactions',
+        status: 'error',
+        duration: 5000,
+      });
+    },
+  });
+
+  // Mutation for bulk adding labels
+  const bulkAddLabelMutation = useMutation({
+    mutationFn: async ({ transactionIds, labelId }: { transactionIds: string[]; labelId: string }) => {
+      const promises = transactionIds.map((id) =>
+        api.post(`/transactions/${id}/labels/${labelId}`)
+      );
+      await Promise.all(promises);
+    },
+    onSuccess: (_, variables) => {
+      toast({
+        title: `Label added to ${variables.transactionIds.length} transaction(s)`,
+        status: 'success',
+        duration: 3000,
+      });
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['income-expenses'] });
+    },
+    onError: () => {
+      toast({
+        title: 'Failed to add labels',
+        status: 'error',
+        duration: 5000,
+      });
+    },
+  });
+
+  // Mutation for bulk removing labels
+  const bulkRemoveLabelMutation = useMutation({
+    mutationFn: async ({ transactionIds, labelId }: { transactionIds: string[]; labelId: string }) => {
+      const promises = transactionIds.map((id) =>
+        api.delete(`/transactions/${id}/labels/${labelId}`)
+      );
+      await Promise.all(promises);
+    },
+    onSuccess: (_, variables) => {
+      toast({
+        title: `Label removed from ${variables.transactionIds.length} transaction(s)`,
+        status: 'success',
+        duration: 3000,
+      });
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['income-expenses'] });
+    },
+    onError: () => {
+      toast({
+        title: 'Failed to remove labels',
+        status: 'error',
+        duration: 5000,
+      });
+    },
+  });
+
+  // Mutation for bulk category change
+  const bulkChangeCategoryMutation = useMutation({
+    mutationFn: async ({ transactionIds, category }: { transactionIds: string[]; category: string }) => {
+      const promises = transactionIds.map((id) =>
+        api.patch(`/transactions/${id}`, { category_primary: category })
+      );
+      await Promise.all(promises);
+    },
+    onSuccess: (_, variables) => {
+      toast({
+        title: `Category updated for ${variables.transactionIds.length} transaction(s)`,
+        status: 'success',
+        duration: 3000,
+      });
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['income-expenses'] });
+    },
+    onError: () => {
+      toast({
+        title: 'Failed to update categories',
         status: 'error',
         duration: 5000,
       });
@@ -589,24 +704,16 @@ export const TransactionsPage = () => {
               </Text>
               <HStack spacing={2}>
                 <Button
-                  colorScheme="purple"
-                  size="sm"
-                  onClick={() => handleBulkMarkTransfer(true)}
-                  isLoading={bulkMarkTransferMutation.isPending}
-                >
-                  Mark as Transfer
-                </Button>
-                <Button
-                  colorScheme="gray"
-                  size="sm"
-                  onClick={() => handleBulkMarkTransfer(false)}
-                  isLoading={bulkMarkTransferMutation.isPending}
-                >
-                  Unmark Transfer
-                </Button>
-                <Button
                   colorScheme="brand"
                   size="sm"
+                  onClick={onBulkEditOpen}
+                >
+                  Bulk Edit
+                </Button>
+                <Button
+                  colorScheme="blue"
+                  size="sm"
+                  variant="outline"
                   onClick={handleBulkCreateRule}
                 >
                   Create Rule
@@ -1094,6 +1201,161 @@ export const TransactionsPage = () => {
             </AlertDialogContent>
           </AlertDialogOverlay>
         </AlertDialog>
+
+        {/* Bulk Edit Modal */}
+        <Modal isOpen={isBulkEditOpen} onClose={onBulkEditClose} size="xl">
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>Bulk Edit {selectedTransactions.size} Transaction(s)</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <Tabs>
+                <TabList>
+                  <Tab>Labels</Tab>
+                  <Tab>Category</Tab>
+                  <Tab>Transfer</Tab>
+                </TabList>
+
+                <TabPanels>
+                  {/* Labels Tab */}
+                  <TabPanel>
+                    <VStack align="stretch" spacing={4}>
+                      <FormControl>
+                        <FormLabel>Add Label</FormLabel>
+                        <Select
+                          placeholder="Select label to add..."
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              bulkAddLabelMutation.mutate({
+                                transactionIds: Array.from(selectedTransactions),
+                                labelId: e.target.value,
+                              });
+                              e.target.value = ''; // Reset selection
+                            }
+                          }}
+                          isDisabled={bulkAddLabelMutation.isPending}
+                        >
+                          {availableLabels.map((label: any) => (
+                            <option key={label.id} value={label.id}>
+                              {label.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </FormControl>
+
+                      <FormControl>
+                        <FormLabel>Remove Label</FormLabel>
+                        <Select
+                          placeholder="Select label to remove..."
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              bulkRemoveLabelMutation.mutate({
+                                transactionIds: Array.from(selectedTransactions),
+                                labelId: e.target.value,
+                              });
+                              e.target.value = ''; // Reset selection
+                            }
+                          }}
+                          isDisabled={bulkRemoveLabelMutation.isPending}
+                        >
+                          {availableLabels.map((label: any) => (
+                            <option key={label.id} value={label.id}>
+                              {label.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </FormControl>
+
+                      {availableLabels.length === 0 && (
+                        <Text color="gray.500" fontSize="sm">
+                          No labels available. Create labels from the Labels page.
+                        </Text>
+                      )}
+                    </VStack>
+                  </TabPanel>
+
+                  {/* Category Tab */}
+                  <TabPanel>
+                    <VStack align="stretch" spacing={4}>
+                      <FormControl>
+                        <FormLabel>Change Category</FormLabel>
+                        <Select
+                          placeholder="Select category..."
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              bulkChangeCategoryMutation.mutate({
+                                transactionIds: Array.from(selectedTransactions),
+                                category: e.target.value,
+                              });
+                            }
+                          }}
+                          isDisabled={bulkChangeCategoryMutation.isPending}
+                        >
+                          {availableCategories.map((category: any) => (
+                            <option key={category.id} value={category.name}>
+                              {category.parent_name
+                                ? `${category.parent_name} > ${category.name}`
+                                : category.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </FormControl>
+
+                      {availableCategories.length === 0 && (
+                        <Text color="gray.500" fontSize="sm">
+                          No custom categories available. Create categories from the Categories page.
+                        </Text>
+                      )}
+                    </VStack>
+                  </TabPanel>
+
+                  {/* Transfer Tab */}
+                  <TabPanel>
+                    <VStack align="stretch" spacing={4}>
+                      <Text fontSize="sm" color="gray.600">
+                        Transfers are excluded from cash flow and budget calculations to prevent double-counting.
+                      </Text>
+                      <HStack spacing={3}>
+                        <Button
+                          colorScheme="purple"
+                          flex={1}
+                          onClick={() => {
+                            bulkMarkTransferMutation.mutate({
+                              transactionIds: Array.from(selectedTransactions),
+                              isTransfer: true,
+                            });
+                            onBulkEditClose();
+                          }}
+                          isLoading={bulkMarkTransferMutation.isPending}
+                        >
+                          Mark as Transfer
+                        </Button>
+                        <Button
+                          colorScheme="gray"
+                          flex={1}
+                          onClick={() => {
+                            bulkMarkTransferMutation.mutate({
+                              transactionIds: Array.from(selectedTransactions),
+                              isTransfer: false,
+                            });
+                            onBulkEditClose();
+                          }}
+                          isLoading={bulkMarkTransferMutation.isPending}
+                        >
+                          Unmark Transfer
+                        </Button>
+                      </HStack>
+                    </VStack>
+                  </TabPanel>
+                </TabPanels>
+              </Tabs>
+            </ModalBody>
+
+            <ModalFooter>
+              <Button onClick={onBulkEditClose}>Done</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </VStack>
     </Container>
   );
