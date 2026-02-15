@@ -65,6 +65,7 @@ class Account(AccountBase):
     user_id: UUID
     property_type: Optional[PropertyType] = None  # For PROPERTY accounts only
     external_account_id: Optional[str] = None
+    plaid_item_hash: Optional[str] = None  # For duplicate detection across users
     current_balance: Optional[Decimal] = None
     available_balance: Optional[Decimal] = None
     limit: Optional[Decimal] = None
