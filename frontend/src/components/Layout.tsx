@@ -453,11 +453,11 @@ export const Layout = () => {
       >
         <HStack justify="space-between">
           {/* Left: Logo + Navigation */}
-          <HStack spacing={48}>
-            <Text fontSize="xl" fontWeight="bold" color="brand.600">
+          <HStack spacing={8}>
+            <Text fontSize="xl" fontWeight="bold" color="brand.600" whiteSpace="nowrap">
               Nest Egg
             </Text>
-            <HStack spacing={2}>
+            <HStack spacing={1}>
               {navItems.map((item) => (
                 <TopNavItem
                   key={item.path}
