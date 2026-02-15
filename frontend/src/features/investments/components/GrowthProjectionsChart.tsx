@@ -238,7 +238,7 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
               stroke="#48BB78"
               strokeWidth={2}
               strokeDasharray="3 3"
-              name="Optimistic Scenario"
+              name="Optimistic (90th percentile)"
               dot={false}
             />
 
@@ -248,7 +248,7 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
               dataKey="median"
               stroke="#4299E1"
               strokeWidth={3}
-              name="Most Likely"
+              name="Average (50th percentile)"
               dot={false}
             />
 
@@ -259,7 +259,7 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
               stroke="#F56565"
               strokeWidth={2}
               strokeDasharray="3 3"
-              name="Pessimistic Scenario"
+              name="Conservative (10th percentile)"
               dot={false}
             />
 
@@ -272,7 +272,7 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
                   stroke="#48BB78"
                   strokeWidth={2}
                   strokeDasharray="5 5"
-                  name="Optimistic (After Inflation)"
+                  name="Optimistic (90th, Inflation Adjusted)"
                   dot={false}
                 />
                 <Line
@@ -281,7 +281,7 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
                   stroke="#ED8936"
                   strokeWidth={3}
                   strokeDasharray="5 5"
-                  name="Most Likely (After Inflation)"
+                  name="Average (50th, Inflation Adjusted)"
                   dot={false}
                 />
                 <Line
@@ -290,7 +290,7 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
                   stroke="#F56565"
                   strokeWidth={2}
                   strokeDasharray="5 5"
-                  name="Pessimistic (After Inflation)"
+                  name="Conservative (10th, Inflation Adjusted)"
                   dot={false}
                 />
               </>
