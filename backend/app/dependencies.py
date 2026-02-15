@@ -3,15 +3,17 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Path, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import decode_token
 from app.crud.user import user_crud
 from app.models.user import User
+from app.models.account import Account
 
 # HTTP Bearer token scheme
 security = HTTPBearer()
@@ -117,3 +119,42 @@ async def get_current_admin_user(
             detail="User must be an organization admin",
         )
     return current_user
+
+
+async def get_verified_account(
+    account_id: UUID = Path(..., description="Account ID"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Account:
+    """
+    Get and verify account belongs to user's organization.
+
+    This dependency eliminates code duplication for account verification
+    across multiple endpoints.
+
+    Args:
+        account_id: Account UUID from path parameter
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Verified account
+
+    Raises:
+        HTTPException: If account not found or doesn't belong to user's organization
+    """
+    result = await db.execute(
+        select(Account).where(
+            Account.id == account_id,
+            Account.organization_id == current_user.organization_id,
+        )
+    )
+    account = result.scalar_one_or_none()
+
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Account not found"
+        )
+
+    return account

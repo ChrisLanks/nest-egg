@@ -1,7 +1,7 @@
 """Account contribution model for recurring contributions and payments."""
 
 import uuid
-from datetime import datetime, date
+from datetime import date
 from decimal import Decimal
 import enum
 
@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.utils.datetime_utils import utc_now_lambda
 
 
 class ContributionType(str, enum.Enum):
@@ -53,8 +54,8 @@ class AccountContribution(Base):
     notes = Column(String(500), nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
 
     # Relationships
     account = relationship("Account", backref="contributions")
