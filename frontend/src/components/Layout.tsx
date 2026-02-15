@@ -9,6 +9,7 @@ import {
   HStack,
   Text,
   Button,
+  Badge,
   Divider,
   Spinner,
   Center,
@@ -46,6 +47,12 @@ interface Account {
   current_balance: number;
   balance_as_of: string | null;
   user_id: string;
+  plaid_item_hash: string | null;
+}
+
+interface DedupedAccount extends Account {
+  owner_ids: string[];  // Array of user IDs who own this account
+  is_shared: boolean;   // True if owned by multiple users
 }
 
 interface NavItemProps {
@@ -70,13 +77,26 @@ const TopNavItem = ({ label, isActive, onClick }: Omit<NavItemProps, 'icon' | 'p
 };
 
 interface AccountItemProps {
-  account: Account;
+  account: DedupedAccount;
   onAccountClick: (accountId: string) => void;
-  userColor?: string;
   currentUserId?: string;
+  getUserColor: (userId: string) => string | undefined;
+  getUserBgColor: (userId: string) => string | undefined;
+  getUserInitials: (userId: string) => string;
+  getUserName: (userId: string) => string;
+  isCombinedView: boolean;
 }
 
-const AccountItem = ({ account, onAccountClick, userColor, currentUserId }: AccountItemProps) => {
+const AccountItem = ({
+  account,
+  onAccountClick,
+  currentUserId,
+  getUserColor,
+  getUserBgColor,
+  getUserInitials,
+  getUserName,
+  isCombinedView,
+}: AccountItemProps) => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -104,15 +124,19 @@ const AccountItem = ({ account, onAccountClick, userColor, currentUserId }: Acco
 
   const balance = Number(account.current_balance);
   const isNegative = balance < 0;
-  const isOwnedByCurrentUser = account.user_id === currentUserId;
+  const isOwnedByCurrentUser = account.owner_ids.includes(currentUserId || '');
+
+  // Get background color from primary owner (first in list)
+  const primaryOwnerId = account.owner_ids[0];
+  const bgColor = isCombinedView ? getUserBgColor(primaryOwnerId) : undefined;
 
   return (
     <Box
       px={3}
-      py={1}
+      py={1.5}
       ml={5}
-      bg={userColor}
-      _hover={{ bg: userColor ? userColor : 'gray.50', opacity: 0.8 }}
+      bg={bgColor}
+      _hover={{ bg: bgColor ? bgColor : 'gray.50', opacity: 0.8 }}
       cursor="pointer"
       borderRadius="md"
       transition="all 0.2s"
@@ -120,24 +144,53 @@ const AccountItem = ({ account, onAccountClick, userColor, currentUserId }: Acco
       borderLeftWidth={isOwnedByCurrentUser ? 3 : 0}
       borderLeftColor="brand.500"
     >
-      <HStack justify="space-between" align="center" spacing={2}>
-        <VStack align="start" spacing={0} flex={1} minW={0}>
-          <Text fontSize="xs" fontWeight="medium" color="gray.700" noOfLines={1}>
-            {account.name}
+      <VStack align="stretch" spacing={1}>
+        <HStack justify="space-between" align="center" spacing={2}>
+          <HStack flex={1} minW={0} spacing={2}>
+            <Text fontSize="xs" fontWeight="medium" color="gray.700" noOfLines={1} flex={1}>
+              {account.name}
+            </Text>
+            {account.is_shared && (
+              <Badge colorScheme="purple" fontSize="2xs" px={1}>
+                Shared
+              </Badge>
+            )}
+          </HStack>
+          <Text
+            fontSize="xs"
+            fontWeight="semibold"
+            color={isNegative ? 'red.600' : 'brand.600'}
+            flexShrink={0}
+          >
+            {formatCurrency(balance)}
           </Text>
+        </HStack>
+        <HStack justify="space-between" align="center">
           <Text fontSize="2xs" color="gray.500">
             {formatLastUpdated(account.balance_as_of)}
           </Text>
-        </VStack>
-        <Text
-          fontSize="xs"
-          fontWeight="semibold"
-          color={isNegative ? 'red.600' : 'brand.600'}
-          flexShrink={0}
-        >
-          {formatCurrency(balance)}
-        </Text>
-      </HStack>
+          {isCombinedView && (
+            <HStack spacing={1}>
+              {account.owner_ids.map((ownerId) => (
+                <Tooltip key={ownerId} label={getUserName(ownerId)} placement="top">
+                  <Badge
+                    size="sm"
+                    fontSize="2xs"
+                    px={1.5}
+                    py={0.5}
+                    borderRadius="md"
+                    bg={getUserColor(ownerId)}
+                    color="white"
+                    fontWeight="bold"
+                  >
+                    {getUserInitials(ownerId)}
+                  </Badge>
+                </Tooltip>
+              ))}
+            </HStack>
+          )}
+        </HStack>
+      </VStack>
     </Box>
   );
 };
@@ -231,15 +284,75 @@ export const Layout = () => {
   });
 
   // Assign colors to users for visual distinction in combined view
-  const userColors = ['blue.50', 'green.50', 'purple.50', 'orange.50', 'pink.50'];
+  const userColors = ['blue.500', 'green.500', 'purple.500', 'orange.500', 'pink.500'];
+  const userBgColors = ['blue.50', 'green.50', 'purple.50', 'orange.50', 'pink.50'];
+
   const getUserColor = (userId: string): string | undefined => {
     if (!isCombinedView || !members) return undefined;
     const memberIndex = members.findIndex((m: any) => m.id === userId);
     return memberIndex >= 0 ? userColors[memberIndex % userColors.length] : undefined;
   };
 
-  // Group accounts by type
-  const groupedAccounts = accounts?.reduce((acc, account) => {
+  const getUserBgColor = (userId: string): string | undefined => {
+    if (!isCombinedView || !members) return undefined;
+    const memberIndex = members.findIndex((m: any) => m.id === userId);
+    return memberIndex >= 0 ? userBgColors[memberIndex % userBgColors.length] : undefined;
+  };
+
+  const getUserName = (userId: string): string => {
+    if (!members) return '';
+    const member = members.find((m: any) => m.id === userId);
+    if (!member) return '';
+    if (member.display_name) return member.display_name;
+    if (member.first_name) return member.first_name;
+    return member.email.split('@')[0];
+  };
+
+  const getUserInitials = (userId: string): string => {
+    const name = getUserName(userId);
+    if (!name) return '?';
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  // Deduplicate accounts in combined view
+  const dedupedAccounts: DedupedAccount[] = isCombinedView && accounts
+    ? (() => {
+        const hashMap = new Map<string, DedupedAccount>();
+
+        accounts.forEach((account) => {
+          const hash = account.plaid_item_hash || account.id; // Use account ID if no hash
+
+          if (hashMap.has(hash)) {
+            // Account already exists, add this user as an owner
+            const existing = hashMap.get(hash)!;
+            if (!existing.owner_ids.includes(account.user_id)) {
+              existing.owner_ids.push(account.user_id);
+              existing.is_shared = true;
+            }
+          } else {
+            // First time seeing this account
+            hashMap.set(hash, {
+              ...account,
+              owner_ids: [account.user_id],
+              is_shared: false,
+            });
+          }
+        });
+
+        return Array.from(hashMap.values());
+      })()
+    : accounts?.map(account => ({
+        ...account,
+        owner_ids: [account.user_id],
+        is_shared: false,
+      })) || [];
+
+  // Group accounts by type (using deduplicated accounts)
+  const groupedAccounts = dedupedAccounts?.reduce((acc, account) => {
     const typeConfig = accountTypeConfig[account.account_type] || { label: 'Other', order: 7 };
     const label = typeConfig.label;
 
@@ -248,7 +361,7 @@ export const Layout = () => {
     }
     acc[label].push(account);
     return acc;
-  }, {} as Record<string, Account[]>);
+  }, {} as Record<string, DedupedAccount[]>);
 
   // Sort groups by order
   const sortedGroups = groupedAccounts
@@ -439,6 +552,36 @@ export const Layout = () => {
             )}
           </HStack>
 
+          {/* User color legend in combined view */}
+          {isCombinedView && members && members.length > 1 && (
+            <Box mb={3} p={2} bg="gray.50" borderRadius="md">
+              <Text fontSize="2xs" fontWeight="semibold" color="gray.600" mb={1.5}>
+                HOUSEHOLD MEMBERS
+              </Text>
+              <VStack spacing={1} align="stretch">
+                {members.map((member: any, index: number) => (
+                  <HStack key={member.id} spacing={2}>
+                    <Badge
+                      size="sm"
+                      fontSize="2xs"
+                      px={1.5}
+                      py={0.5}
+                      borderRadius="md"
+                      bg={userColors[index % userColors.length]}
+                      color="white"
+                      fontWeight="bold"
+                    >
+                      {getUserInitials(member.id)}
+                    </Badge>
+                    <Text fontSize="2xs" color="gray.700">
+                      {getUserName(member.id)}
+                    </Text>
+                  </HStack>
+                ))}
+              </VStack>
+            </Box>
+          )}
+
           {accountsLoading ? (
             <Center py={8}>
               <Spinner size="sm" color="brand.500" />
@@ -495,8 +638,12 @@ export const Layout = () => {
                             key={account.id}
                             account={account}
                             onAccountClick={handleAccountClick}
-                            userColor={getUserColor(account.user_id)}
                             currentUserId={user?.id}
+                            getUserColor={getUserColor}
+                            getUserBgColor={getUserBgColor}
+                            getUserInitials={getUserInitials}
+                            getUserName={getUserName}
+                            isCombinedView={isCombinedView}
                           />
                         ))}
                       </VStack>
