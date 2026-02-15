@@ -347,7 +347,7 @@ export default function PreferencesPage() {
                   value={monthlyStartDay}
                   onChange={(_, value) => setMonthlyStartDay(value)}
                   min={1}
-                  max={31}
+                  max={28}
                 >
                   <NumberInputField />
                   <NumberInputStepper>
@@ -356,9 +356,9 @@ export default function PreferencesPage() {
                   </NumberInputStepper>
                 </NumberInput>
                 <FormHelperText>
-                  Day of the month to start tracking (1-31). For example, set to 16 to
-                  track from the 16th of each month. Annual tracking remains calendar
-                  year.
+                  Day of the month to start tracking (1-28). For example, set to 16 to
+                  track from the 16th of each month. Transactions will be grouped
+                  monthly based on this day.
                 </FormHelperText>
               </FormControl>
 

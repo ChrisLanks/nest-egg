@@ -73,6 +73,17 @@ export const TransactionsPage = () => {
   const toast = useToast();
   const navigate = useNavigate();
 
+  // Fetch organization preferences for monthly_start_day
+  const { data: orgPrefs } = useQuery({
+    queryKey: ['orgPreferences'],
+    queryFn: async () => {
+      const response = await api.get('/settings/organization');
+      return response.data;
+    },
+  });
+
+  const monthlyStartDay = orgPrefs?.monthly_start_day || 1;
+
   // Use infinite transactions hook
   const {
     transactions: allTransactions,
@@ -155,6 +166,47 @@ export const TransactionsPage = () => {
 
     return filtered;
   }, [allTransactions, searchQuery, sortField, sortDirection]);
+
+  // Group transactions by custom month periods based on monthly_start_day
+  const transactionsByMonth = useMemo(() => {
+    if (!processedTransactions.length) return [];
+
+    // Function to get the month period key for a transaction date
+    const getMonthPeriodKey = (dateStr: string): string => {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const txnDate = new Date(year, month - 1, day);
+
+      // If the day is before the monthly_start_day, the period started in the previous month
+      if (day < monthlyStartDay) {
+        const periodStart = new Date(year, month - 2, monthlyStartDay);
+        const periodEnd = new Date(year, month - 1, monthlyStartDay - 1);
+        return `${periodStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric', day: 'numeric' })} - ${periodEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      } else {
+        const periodStart = new Date(year, month - 1, monthlyStartDay);
+        const periodEnd = new Date(year, month, monthlyStartDay - 1);
+        return `${periodStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric', day: 'numeric' })} - ${periodEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      }
+    };
+
+    // Group transactions by month period
+    const groups: { [key: string]: Transaction[] } = {};
+    const periodKeys: string[] = [];
+
+    processedTransactions.forEach(txn => {
+      const periodKey = getMonthPeriodKey(txn.date);
+      if (!groups[periodKey]) {
+        groups[periodKey] = [];
+        periodKeys.push(periodKey);
+      }
+      groups[periodKey].push(txn);
+    });
+
+    // Convert to array format for rendering
+    return periodKeys.map(key => ({
+      period: key,
+      transactions: groups[key],
+    }));
+  }, [processedTransactions, monthlyStartDay]);
 
   const handleTransactionClick = (txn: Transaction) => {
     if (bulkSelectMode) {
@@ -490,114 +542,131 @@ export const TransactionsPage = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {processedTransactions.map((txn) => {
-                const { formatted, isNegative } = formatCurrency(txn.amount);
-                const isSelected = selectedTransactions.has(txn.id);
-                return (
-                  <Tr
-                    key={txn.id}
-                    onClick={() => handleTransactionClick(txn)}
-                    cursor="pointer"
-                    _hover={{ bg: 'gray.50' }}
-                    bg={isSelected ? 'blue.50' : undefined}
-                  >
-                    {bulkSelectMode && (
-                      <Td width="40px" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          isChecked={isSelected}
-                          onChange={() => toggleTransactionSelection(txn.id)}
-                        />
-                      </Td>
-                    )}
-                    <Td>{formatDate(txn.date)}</Td>
-                    <Td>
-                      <Text fontWeight="medium">{txn.merchant_name}</Text>
-                      {txn.description && (
-                        <Text fontSize="sm" color="gray.600">
-                          {txn.description}
-                        </Text>
-                      )}
-                    </Td>
+              {transactionsByMonth.map((monthGroup) => (
+                <>
+                  {/* Month Period Header */}
+                  <Tr key={`header-${monthGroup.period}`} bg="gray.100">
                     <Td
-                      onClick={(e) =>
-                        txn.account_name && handleAccountClick(txn.account_name, e)
-                      }
+                      colSpan={bulkSelectMode ? (showStatusColumn ? 8 : 7) : (showStatusColumn ? 7 : 6)}
+                      py={2}
                     >
-                      <Text
-                        fontSize="sm"
-                        color="brand.600"
-                        cursor="pointer"
-                        _hover={{ textDecoration: 'underline' }}
-                      >
-                        {txn.account_name}
-                        {txn.account_mask && ` ****${txn.account_mask}`}
+                      <Text fontWeight="bold" fontSize="sm" color="gray.700">
+                        {monthGroup.period}
                       </Text>
                     </Td>
-                    <Td
-                      onClick={(e) => {
-                        const categoryName = txn.category?.name || txn.category_primary;
-                        if (categoryName) handleCategoryClick(categoryName, e);
-                      }}
-                    >
-                      {(txn.category || txn.category_primary) && (
-                        <Badge
-                          colorScheme={txn.category?.color ? undefined : 'blue'}
-                          bg={txn.category?.color || undefined}
-                          color={txn.category?.color ? 'white' : undefined}
-                          fontSize="xs"
-                          cursor="pointer"
-                          _hover={{ transform: 'scale(1.05)' }}
-                          transition="transform 0.2s"
-                        >
-                          {txn.category
-                            ? txn.category.parent_name
-                              ? `${txn.category.parent_name} (${txn.category.name})`
-                              : txn.category.name
-                            : txn.category_primary}
-                        </Badge>
-                      )}
-                    </Td>
-                    <Td>
-                      <Wrap spacing={1}>
-                        {txn.labels?.map((label) => (
-                          <WrapItem key={label.id}>
-                            <Badge
-                              colorScheme={
-                                label.color
-                                  ? undefined
-                                  : label.is_income
-                                  ? 'green'
-                                  : 'purple'
-                              }
-                              bg={label.color || undefined}
-                              color={label.color ? 'white' : undefined}
-                              fontSize="xs"
-                            >
-                              {label.name}
-                            </Badge>
-                          </WrapItem>
-                        ))}
-                      </Wrap>
-                    </Td>
-                    <Td isNumeric>
-                      <Text
-                        fontWeight="semibold"
-                        color={isNegative ? 'red.600' : 'green.600'}
-                      >
-                        {isNegative ? '-' : '+'}
-                        {formatted}
-                      </Text>
-                    </Td>
-                    {showStatusColumn && (
-                      <Td>
-                        {txn.is_pending && (
-                          <Badge colorScheme="orange">Pending</Badge>
-                        )}
-                      </Td>
-                    )}
                   </Tr>
-                );
-              })}
+
+                  {/* Transactions for this month */}
+                  {monthGroup.transactions.map((txn) => {
+                    const { formatted, isNegative } = formatCurrency(txn.amount);
+                    const isSelected = selectedTransactions.has(txn.id);
+                    return (
+                      <Tr
+                        key={txn.id}
+                        onClick={() => handleTransactionClick(txn)}
+                        cursor="pointer"
+                        _hover={{ bg: 'gray.50' }}
+                        bg={isSelected ? 'blue.50' : undefined}
+                      >
+                        {bulkSelectMode && (
+                          <Td width="40px" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              isChecked={isSelected}
+                              onChange={() => toggleTransactionSelection(txn.id)}
+                            />
+                          </Td>
+                        )}
+                        <Td>{formatDate(txn.date)}</Td>
+                        <Td>
+                          <Text fontWeight="medium">{txn.merchant_name}</Text>
+                          {txn.description && (
+                            <Text fontSize="sm" color="gray.600">
+                              {txn.description}
+                            </Text>
+                          )}
+                        </Td>
+                        <Td
+                          onClick={(e) =>
+                            txn.account_name && handleAccountClick(txn.account_name, e)
+                          }
+                        >
+                          <Text
+                            fontSize="sm"
+                            color="brand.600"
+                            cursor="pointer"
+                            _hover={{ textDecoration: 'underline' }}
+                          >
+                            {txn.account_name}
+                            {txn.account_mask && ` ****${txn.account_mask}`}
+                          </Text>
+                        </Td>
+                        <Td
+                          onClick={(e) => {
+                            const categoryName = txn.category?.name || txn.category_primary;
+                            if (categoryName) handleCategoryClick(categoryName, e);
+                          }}
+                        >
+                          {(txn.category || txn.category_primary) && (
+                            <Badge
+                              colorScheme={txn.category?.color ? undefined : 'blue'}
+                              bg={txn.category?.color || undefined}
+                              color={txn.category?.color ? 'white' : undefined}
+                              fontSize="xs"
+                              cursor="pointer"
+                              _hover={{ transform: 'scale(1.05)' }}
+                              transition="transform 0.2s"
+                            >
+                              {txn.category
+                                ? txn.category.parent_name
+                                  ? `${txn.category.parent_name} (${txn.category.name})`
+                                  : txn.category.name
+                                : txn.category_primary}
+                            </Badge>
+                          )}
+                        </Td>
+                        <Td>
+                          <Wrap spacing={1}>
+                            {txn.labels?.map((label) => (
+                              <WrapItem key={label.id}>
+                                <Badge
+                                  colorScheme={
+                                    label.color
+                                      ? undefined
+                                      : label.is_income
+                                      ? 'green'
+                                      : 'purple'
+                                  }
+                                  bg={label.color || undefined}
+                                  color={label.color ? 'white' : undefined}
+                                  fontSize="xs"
+                                >
+                                  {label.name}
+                                </Badge>
+                              </WrapItem>
+                            ))}
+                          </Wrap>
+                        </Td>
+                        <Td isNumeric>
+                          <Text
+                            fontWeight="semibold"
+                            color={isNegative ? 'red.600' : 'green.600'}
+                          >
+                            {isNegative ? '-' : '+'}
+                            {formatted}
+                          </Text>
+                        </Td>
+                        {showStatusColumn && (
+                          <Td>
+                            {txn.is_pending && (
+                              <Badge colorScheme="orange">Pending</Badge>
+                            )}
+                          </Td>
+                        )}
+                      </Tr>
+                    );
+                  })}
+                </>
+              ))}
             </Tbody>
           </Table>
         </Box>
