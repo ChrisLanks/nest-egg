@@ -51,6 +51,8 @@ import { AssetAllocationTreemap } from '../features/investments/components/Asset
 import { HoldingsDetailTable } from '../features/investments/components/HoldingsDetailTable';
 import { GrowthProjectionsChart } from '../features/investments/components/GrowthProjectionsChart';
 import { SectorBreakdownChart } from '../features/investments/components/SectorBreakdownChart';
+import PerformanceTrendsChart from '../features/investments/components/PerformanceTrendsChart';
+import RiskAnalysisPanel from '../features/investments/components/RiskAnalysisPanel';
 
 interface Holding {
   id: string;
@@ -799,34 +801,18 @@ export const InvestmentsPage = () => {
                   />
                 </TabPanel>
 
-                {/* Tab 4: Performance Trends (Phase 3) */}
+                {/* Tab 4: Performance Trends */}
                 <TabPanel>
-                  <Box textAlign="center" py={10} color="gray.500">
-                    <Text fontSize="lg" fontWeight="semibold" mb={2}>
-                      Performance Trends
-                    </Text>
-                    <Text>
-                      Coming in Phase 3: Historical portfolio value, YoY growth, and CAGR calculations.
-                    </Text>
-                    <Text fontSize="sm" mt={2}>
-                      Requires historical snapshot tracking infrastructure.
-                    </Text>
-                  </Box>
+                  <PerformanceTrendsChart
+                    currentValue={portfolio.total_value}
+                  />
                 </TabPanel>
 
-                {/* Tab 5: Risk Analysis (Phase 3) */}
+                {/* Tab 5: Risk Analysis */}
                 <TabPanel>
-                  <Box textAlign="center" py={10} color="gray.500">
-                    <Text fontSize="lg" fontWeight="semibold" mb={2}>
-                      Risk Analysis
-                    </Text>
-                    <Text>
-                      Coming in Phase 3: Portfolio volatility, diversification score, and risk metrics.
-                    </Text>
-                    <Text fontSize="sm" mt={2}>
-                      Requires historical data to calculate volatility and correlation.
-                    </Text>
-                  </Box>
+                  <RiskAnalysisPanel
+                    portfolio={portfolio}
+                  />
                 </TabPanel>
 
                 {/* Tab 6: Holdings Detail */}
