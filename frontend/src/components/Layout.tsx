@@ -20,6 +20,7 @@ import {
   Avatar,
   Collapse,
   IconButton,
+  Tooltip,
 } from '@chakra-ui/react';
 import {
   AddIcon,
@@ -166,7 +167,7 @@ export const Layout = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
-  const { selectedUserId, isCombinedView } = useUserView();
+  const { selectedUserId, isCombinedView, isOtherUserView, canEdit } = useUserView();
   const logoutMutation = useLogout();
   const { isOpen: isAddAccountOpen, onOpen: onAddAccountOpen, onClose: onAddAccountClose } = useDisclosure();
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -506,20 +507,31 @@ export const Layout = () => {
 
               {(!sortedGroups || sortedGroups.length === 0) && (
                 <Text fontSize="sm" color="gray.500" textAlign="center" py={8}>
-                  No accounts yet. Connect an account to get started.
+                  {isOtherUserView
+                    ? "This user has no accounts yet."
+                    : "No accounts yet. Connect an account to get started."}
                 </Text>
               )}
 
-              <Button
-                leftIcon={<AddIcon />}
-                colorScheme="brand"
-                size="sm"
-                onClick={onAddAccountOpen}
-                mt={2}
-                w="full"
-              >
-                Add Account
-              </Button>
+              {!isOtherUserView && (
+                <Tooltip
+                  label={!canEdit ? "You can only add accounts for yourself or in combined view" : ""}
+                  placement="top"
+                  isDisabled={canEdit}
+                >
+                  <Button
+                    leftIcon={<AddIcon />}
+                    colorScheme="brand"
+                    size="sm"
+                    onClick={onAddAccountOpen}
+                    mt={2}
+                    w="full"
+                    isDisabled={!canEdit}
+                  >
+                    Add Account
+                  </Button>
+                </Tooltip>
+              )}
             </VStack>
           )}
         </Box>
