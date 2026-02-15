@@ -19,8 +19,15 @@ export const authApi = {
   },
 
   login: async (data: LoginRequest): Promise<TokenResponse> => {
-    const response = await api.post<TokenResponse>('/auth/login', data);
-    return response.data;
+    console.log('📡 authApi.login called', { email: data.email });
+    try {
+      const response = await api.post<TokenResponse>('/auth/login', data);
+      console.log('📡 authApi.login response received', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('📡 authApi.login error', error);
+      throw error;
+    }
   },
 
   refresh: async (data: RefreshTokenRequest): Promise<AccessTokenResponse> => {

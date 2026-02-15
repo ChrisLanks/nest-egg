@@ -61,6 +61,8 @@ export const LoginPage = () => {
   }, [setValue]);
 
   const onSubmit = async (data: LoginFormData) => {
+    console.log('🔐 Login attempt started', { email: data.email });
+
     try {
       // Save or clear email based on remember me checkbox
       if (rememberMe) {
@@ -69,7 +71,10 @@ export const LoginPage = () => {
         localStorage.removeItem('rememberedEmail');
       }
 
-      await loginMutation.mutateAsync(data);
+      console.log('🔐 Calling login API...');
+      const result = await loginMutation.mutateAsync(data);
+      console.log('✅ Login successful', result);
+
       toast({
         title: 'Login successful',
         status: 'success',
@@ -77,7 +82,13 @@ export const LoginPage = () => {
       });
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || 'Invalid credentials';
-      console.error('Login error:', errorMessage);
+      console.error('❌ Login failed:', {
+        error,
+        message: errorMessage,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+
       toast({
         title: 'Login failed',
         description: errorMessage,
@@ -137,7 +148,6 @@ export const LoginPage = () => {
                   >
                     Remember me
                   </Checkbox>
-                  {/* Future: Add forgot password link */}
                 </HStack>
 
                 <Button
@@ -157,11 +167,6 @@ export const LoginPage = () => {
               <ChakraLink as={Link} to="/register" color="brand.500" fontWeight="semibold">
                 Register
               </ChakraLink>
-            </Text>
-
-            {/* Debug info for development */}
-            <Text fontSize="xs" color="gray.400" mt={4}>
-              Tip: Use test@test.com or chris@example.com
             </Text>
           </VStack>
         </Box>

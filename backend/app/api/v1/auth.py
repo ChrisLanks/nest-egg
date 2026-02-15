@@ -1,6 +1,7 @@
 """Authentication API endpoints."""
 
 import hashlib
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,6 +22,7 @@ from app.schemas.auth import (
 from app.schemas.user import User as UserSchema
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -93,55 +95,79 @@ async def login(
 
     Returns access and refresh tokens.
     """
-    # Get user by email
-    user = await user_crud.get_by_email(db, data.email)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+    logger.info(f"Login attempt for email: {data.email}")
+
+    try:
+        # Get user by email
+        user = await user_crud.get_by_email(db, data.email)
+        if not user:
+            logger.warning(f"Login failed: User not found - {data.email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+            )
+
+        logger.info(f"User found: {user.email}, verifying password...")
+
+        # Verify password
+        if not verify_password(data.password, user.password_hash):
+            logger.warning(f"Login failed: Incorrect password for {data.email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+            )
+
+        logger.info(f"Password verified for {user.email}")
+
+        # Check if user is active
+        if not user.is_active:
+            logger.warning(f"Login failed: Inactive account - {data.email}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is inactive",
+            )
+
+        logger.info(f"Updating last login for {user.email}")
+
+        # Update last login
+        await user_crud.update_last_login(db, user.id)
+
+        logger.info(f"Generating tokens for {user.email}")
+
+        # Generate tokens
+        access_token = create_access_token(
+            data={
+                "sub": str(user.id),
+                "org_id": str(user.organization_id),
+                "email": user.email,
+            }
+        )
+        refresh_token_str, jti, expires_at = create_refresh_token(str(user.id))
+
+        # Store refresh token hash
+        token_hash = hashlib.sha256(jti.encode()).hexdigest()
+        await refresh_token_crud.create(
+            db=db,
+            user_id=user.id,
+            token_hash=token_hash,
+            expires_at=expires_at,
         )
 
-    # Verify password
-    if not verify_password(data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+        logger.info(f"Login successful for {user.email}")
+
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token_str,
+            user=UserSchema.from_orm(user),
         )
-
-    # Check if user is active
-    if not user.is_active:
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error for {data.email}: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during login"
         )
-
-    # Update last login
-    await user_crud.update_last_login(db, user.id)
-
-    # Generate tokens
-    access_token = create_access_token(
-        data={
-            "sub": str(user.id),
-            "org_id": str(user.organization_id),
-            "email": user.email,
-        }
-    )
-    refresh_token_str, jti, expires_at = create_refresh_token(str(user.id))
-
-    # Store refresh token hash
-    token_hash = hashlib.sha256(jti.encode()).hexdigest()
-    await refresh_token_crud.create(
-        db=db,
-        user_id=user.id,
-        token_hash=token_hash,
-        expires_at=expires_at,
-    )
-
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token_str,
-        user=UserSchema.from_orm(user),
-    )
 
 
 @router.post("/refresh", response_model=AccessTokenResponse)
