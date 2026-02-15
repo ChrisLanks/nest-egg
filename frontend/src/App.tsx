@@ -24,6 +24,7 @@ import BudgetsPage from './pages/BudgetsPage';
 import SavingsGoalsPage from './pages/SavingsGoalsPage';
 import RecurringTransactionsPage from './pages/RecurringTransactionsPage';
 import { HouseholdSettingsPage } from './pages/HouseholdSettingsPage';
+import { AcceptInvitationPage } from './pages/AcceptInvitationPage';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/accept-invite" element={<AcceptInvitationPage />} />
 
             {/* Protected routes with layout */}
             <Route element={<ProtectedRoute />}>

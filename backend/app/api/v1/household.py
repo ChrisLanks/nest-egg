@@ -258,3 +258,106 @@ async def cancel_invitation(
     await db.commit()
 
     return None
+
+
+@router.get("/invitation/{invitation_code}")
+async def get_invitation_details(
+    invitation_code: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get invitation details by code (public endpoint for accepting invitations)."""
+    result = await db.execute(
+        select(HouseholdInvitation).where(
+            HouseholdInvitation.invitation_code == invitation_code
+        )
+    )
+    invitation = result.scalar_one_or_none()
+
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found"
+        )
+
+    # Get invited_by user email
+    result = await db.execute(
+        select(User).where(User.id == invitation.invited_by_user_id)
+    )
+    invited_by = result.scalar_one()
+
+    return {
+        "email": invitation.email,
+        "invited_by_email": invited_by.email,
+        "status": invitation.status,
+        "expires_at": invitation.expires_at,
+    }
+
+
+@router.post("/accept/{invitation_code}", status_code=status.HTTP_200_OK)
+async def accept_invitation(
+    invitation_code: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Accept a household invitation (public endpoint)."""
+    # Get invitation
+    result = await db.execute(
+        select(HouseholdInvitation).where(
+            HouseholdInvitation.invitation_code == invitation_code
+        )
+    )
+    invitation = result.scalar_one_or_none()
+
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found"
+        )
+
+    # Check if invitation is still pending
+    if invitation.status != InvitationStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invitation has already been {invitation.status}"
+        )
+
+    # Check if invitation is expired
+    if datetime.utcnow() > invitation.expires_at:
+        invitation.status = InvitationStatus.EXPIRED
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invitation has expired"
+        )
+
+    # Check if user already exists with this email
+    result = await db.execute(
+        select(User).where(User.email == invitation.email)
+    )
+    existing_user = result.scalar_one_or_none()
+
+    if not existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User account not found. Please register first with the invited email address."
+        )
+
+    # Check if user is already in a household
+    if existing_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is already a member of a household"
+        )
+
+    # Add user to the household
+    existing_user.organization_id = invitation.organization_id
+
+    # Mark invitation as accepted
+    invitation.status = InvitationStatus.ACCEPTED
+    invitation.accepted_at = datetime.utcnow()
+
+    await db.commit()
+
+    return {
+        "message": "Invitation accepted successfully",
+        "organization_id": str(invitation.organization_id)
+    }
