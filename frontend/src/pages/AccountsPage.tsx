@@ -25,7 +25,6 @@ import {
   CardBody,
   Checkbox,
   Badge,
-  Switch,
   Menu,
   MenuButton,
   MenuList,
@@ -60,7 +59,6 @@ interface Account {
 
 export const AccountsPage = () => {
   const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
-  const [showHidden, setShowHidden] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<'selected' | string | null>(null);
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -68,11 +66,11 @@ export const AccountsPage = () => {
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
 
-  // Fetch all accounts (including hidden if showHidden=true)
+  // Fetch all accounts (ALWAYS include hidden - this is the admin page)
   const { data: accounts, isLoading } = useQuery({
-    queryKey: ['accounts-admin', showHidden],
+    queryKey: ['accounts-admin'],
     queryFn: async () => {
-      const response = await api.get<Account[]>(`/accounts?include_hidden=${showHidden}`);
+      const response = await api.get<Account[]>('/accounts?include_hidden=true');
       return response.data;
     },
   });
@@ -257,37 +255,25 @@ export const AccountsPage = () => {
               Manage your accounts, visibility, and bulk operations
             </Text>
           </Box>
-          <HStack spacing={4}>
-            <HStack>
-              <Text fontSize="sm" color="gray.600">
-                Show Hidden
-              </Text>
-              <Switch
-                isChecked={showHidden}
-                onChange={(e) => setShowHidden(e.target.checked)}
+          {selectedAccounts.size > 0 && (
+            <Menu>
+              <MenuButton
+                as={Button}
+                rightIcon={<ChevronDownIcon />}
                 colorScheme="brand"
-              />
-            </HStack>
-            {selectedAccounts.size > 0 && (
-              <Menu>
-                <MenuButton
-                  as={Button}
-                  rightIcon={<ChevronDownIcon />}
-                  colorScheme="brand"
-                  size="sm"
-                >
-                  Bulk Actions ({selectedAccounts.size})
-                </MenuButton>
-                <MenuList>
-                  <MenuItem onClick={handleBulkHide}>Hide Selected</MenuItem>
-                  <MenuItem onClick={handleBulkShow}>Show Selected</MenuItem>
-                  <MenuItem color="red.600" onClick={() => handleDeleteClick('selected')}>
-                    Delete Selected
-                  </MenuItem>
-                </MenuList>
-              </Menu>
-            )}
-          </HStack>
+                size="sm"
+              >
+                Bulk Actions ({selectedAccounts.size})
+              </MenuButton>
+              <MenuList>
+                <MenuItem onClick={handleBulkHide}>Hide Selected</MenuItem>
+                <MenuItem onClick={handleBulkShow}>Show Selected</MenuItem>
+                <MenuItem color="red.600" onClick={() => handleDeleteClick('selected')}>
+                  Delete Selected
+                </MenuItem>
+              </MenuList>
+            </Menu>
+          )}
         </HStack>
 
         {/* Accounts by Institution */}
@@ -413,7 +399,7 @@ export const AccountsPage = () => {
         {(!accounts || accounts.length === 0) && (
           <Center py={12}>
             <Text color="gray.500">
-              No accounts found. {!showHidden && 'Try toggling "Show Hidden" to see all accounts.'}
+              No accounts found. Connect or add an account to get started.
             </Text>
           </Center>
         )}
