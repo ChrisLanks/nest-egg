@@ -1154,6 +1154,10 @@ async def get_style_box_breakdown(
             (country and country not in ['USA', 'US', 'United States', ''])
         )
 
+        # Skip bonds and cash equivalents from holdings (cash accounts handled separately)
+        if holding.asset_class in ['bond', 'cash']:
+            continue
+
         if is_international:
             # Categorize as Developed or Emerging market based on country
             if country in DEVELOPED_MARKETS:
