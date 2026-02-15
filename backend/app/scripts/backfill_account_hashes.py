@@ -17,8 +17,9 @@ sys.path.insert(0, str(backend_dir))
 
 from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
-from app.core.database import get_db_session
+from app.core.database import get_db
 from app.models.account import Account
 from app.models.user import User
 
@@ -44,14 +45,14 @@ async def backfill_account_hashes(db: AsyncSession):
     # Get all accounts with Plaid data but no hash
     result = await db.execute(
         select(Account)
-        .join(Account.plaid_item)
+        .options(joinedload(Account.plaid_item))
         .where(
             Account.plaid_item_id.isnot(None),
             Account.external_account_id.isnot(None),
             Account.plaid_item_hash.is_(None)
         )
     )
-    accounts = result.scalars().all()
+    accounts = result.unique().scalars().all()
 
     if not accounts:
         print("No accounts need hash backfill.")
@@ -76,7 +77,7 @@ async def backfill_account_hashes(db: AsyncSession):
         account.plaid_item_hash = hash_value
         updated_count += 1
 
-        print(f"✓ Updated account {account.name} ({account.id[:8]}...): {hash_value[:16]}...")
+        print(f"✓ Updated account {account.name} ({str(account.id)[:8]}...): {hash_value[:16]}...")
 
     await db.commit()
     print(f"\n✅ Successfully backfilled {updated_count} account hashes")
@@ -128,7 +129,7 @@ async def main():
     print("=" * 60)
     print()
 
-    async for db in get_db_session():
+    async for db in get_db():
         try:
             await backfill_account_hashes(db)
             await set_primary_household_members(db)
