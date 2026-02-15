@@ -11,7 +11,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_verified_account
 from app.models.user import User
 from app.models.holding import Holding
 from app.models.account import Account, AccountType
@@ -824,26 +824,13 @@ async def get_portfolio_summary(
 
 @router.get("/account/{account_id}", response_model=List[HoldingSchema])
 async def get_account_holdings(
-    account_id: UUID,
-    current_user: User = Depends(get_current_user),
+    account: Account = Depends(get_verified_account),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all holdings for a specific account."""
-
-    # Verify account belongs to user's organization
-    account_result = await db.execute(
-        select(Account).where(
-            Account.id == account_id,
-            Account.organization_id == current_user.organization_id,
-        )
-    )
-    account = account_result.scalar_one_or_none()
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
-
     # Fetch holdings
     result = await db.execute(
-        select(Holding).where(Holding.account_id == account_id).order_by(Holding.ticker)
+        select(Holding).where(Holding.account_id == account.id).order_by(Holding.ticker)
     )
     holdings = result.scalars().all()
 

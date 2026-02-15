@@ -1,13 +1,13 @@
 """Holdings model for investment accounts."""
 
 import uuid
-from datetime import datetime
 
 from sqlalchemy import Column, String, DateTime, ForeignKey, Numeric, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.utils.datetime_utils import utc_now_lambda
 
 
 class Holding(Base):
@@ -43,8 +43,8 @@ class Holding(Base):
     industry = Column(String(100), nullable=True)  # Industry within sector (e.g., 'Software', 'Biotechnology')
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
 
     # Relationships
     account = relationship("Account", back_populates="holdings")

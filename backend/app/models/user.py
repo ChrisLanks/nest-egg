@@ -1,13 +1,13 @@
 """User and Organization models."""
 
 import uuid
-from datetime import datetime
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.utils.datetime_utils import utc_now_lambda
 
 
 class Organization(Base):
@@ -21,8 +21,8 @@ class Organization(Base):
     monthly_start_day = Column(Integer, default=1, nullable=False)  # Day of month to start tracking (1-31)
     timezone = Column(String(50), default="UTC", nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
 
     # Relationships
     users = relationship("User", back_populates="organization", cascade="all, delete-orphan")
@@ -47,8 +47,8 @@ class User(Base):
     is_org_admin = Column(Boolean, default=False, nullable=False)
     email_verified = Column(Boolean, default=False, nullable=False)
     last_login_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
 
     # Relationships
     organization = relationship("Organization", back_populates="users")
@@ -68,7 +68,7 @@ class RefreshToken(Base):
     token_hash = Column(String(255), nullable=False, unique=True, index=True)
     expires_at = Column(DateTime, nullable=False)
     revoked_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
 
     # Relationships
     user = relationship("User", back_populates="refresh_tokens")

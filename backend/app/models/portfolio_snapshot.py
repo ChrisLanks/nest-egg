@@ -1,6 +1,6 @@
 """Portfolio snapshot model for historical tracking."""
 
-from datetime import datetime, date
+from datetime import date
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -8,6 +8,7 @@ from sqlalchemy import Column, String, DateTime, Date, Numeric, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
 from app.core.database import Base
+from app.utils.datetime_utils import utc_now_lambda
 
 
 class PortfolioSnapshot(Base):
@@ -50,7 +51,7 @@ class PortfolioSnapshot(Base):
     # Contains complete PortfolioSummary for historical drill-down
     snapshot_data = Column(JSON, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_lambda)
 
     # Unique constraint: one snapshot per organization per day
     __table_args__ = (

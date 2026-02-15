@@ -1,15 +1,15 @@
 """Account and Plaid item models."""
 
 import uuid
-from datetime import datetime
 from typing import Optional
+import enum
 
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Numeric, Text, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-import enum
 
 from app.core.database import Base
+from app.utils.datetime_utils import utc_now_lambda
 
 
 class AccountCategory(str, enum.Enum):
@@ -132,8 +132,8 @@ class PlaidItem(Base):
     last_error_message = Column(Text, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
 
     # Relationships
     accounts = relationship("Account", back_populates="plaid_item", cascade="all, delete-orphan")
@@ -175,8 +175,8 @@ class Account(Base):
     is_manual = Column(Boolean, default=False, nullable=False)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
 
     # Relationships
     plaid_item = relationship("PlaidItem", back_populates="accounts")

@@ -1,7 +1,6 @@
 """Rule models for automated transaction categorization."""
 
 import uuid
-from datetime import datetime
 from typing import Optional
 import enum
 
@@ -10,6 +9,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.utils.datetime_utils import utc_now_lambda
 
 
 class RuleMatchType(str, enum.Enum):
@@ -80,8 +80,8 @@ class Rule(Base):
     last_applied_at = Column(DateTime, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
 
     # Relationships
     conditions = relationship("RuleCondition", back_populates="rule", cascade="all, delete-orphan")
@@ -105,7 +105,7 @@ class RuleCondition(Base):
     value_max = Column(Text, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
 
     # Relationships
     rule = relationship("Rule", back_populates="conditions")
@@ -124,7 +124,7 @@ class RuleAction(Base):
     action_value = Column(Text, nullable=False)  # Label ID, category name, etc.
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
 
     # Relationships
     rule = relationship("Rule", back_populates="actions")

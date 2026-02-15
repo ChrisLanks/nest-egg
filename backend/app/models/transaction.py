@@ -1,7 +1,7 @@
 """Transaction models."""
 
 import uuid
-from datetime import datetime, date
+from datetime import date
 from typing import Optional
 
 from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, Numeric, Text, Index
@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.utils.datetime_utils import utc_now_lambda
 
 
 class Transaction(Base):
@@ -41,8 +42,8 @@ class Transaction(Base):
     deduplication_hash = Column(String(64), nullable=False, index=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
 
     # Relationships
     account = relationship("Account", back_populates="transactions")
@@ -74,8 +75,8 @@ class Category(Base):
     plaid_category_name = Column(String(100), nullable=True, index=True)  # Original Plaid category_primary
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
 
     # Relationships
     parent = relationship("Category", remote_side=[id], backref="children")
@@ -103,8 +104,8 @@ class Label(Base):
     is_system = Column(Boolean, default=False, nullable=False)  # System-created labels
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
 
     # Relationships
     transactions = relationship("TransactionLabel", back_populates="label", cascade="all, delete-orphan")
@@ -127,7 +128,7 @@ class TransactionLabel(Base):
     applied_by_rule_id = Column(UUID(as_uuid=True), nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
 
     # Relationships
     transaction = relationship("Transaction", back_populates="labels")

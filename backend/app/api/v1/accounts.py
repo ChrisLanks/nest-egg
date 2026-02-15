@@ -8,7 +8,7 @@ from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_verified_account
 from app.models.user import User
 from app.models.account import Account
 from app.models.holding import Holding
@@ -30,7 +30,7 @@ async def list_accounts(
 
     # Only filter by is_active if not including hidden
     if not include_hidden:
-        query = query.where(Account.is_active == True)
+        query = query.where(Account.is_active)
 
     query = query.order_by(Account.name)
 
@@ -41,22 +41,9 @@ async def list_accounts(
 
 @router.get("/{account_id}", response_model=AccountSchema)
 async def get_account(
-    account_id: UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    account: Account = Depends(get_verified_account),
 ):
     """Get a specific account."""
-    result = await db.execute(
-        select(Account).where(
-            Account.id == account_id,
-            Account.organization_id == current_user.organization_id,
-        )
-    )
-    account = result.scalar_one_or_none()
-
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
-
     return account
 
 
@@ -111,24 +98,11 @@ async def create_manual_account(
 
 @router.patch("/{account_id}", response_model=AccountSchema)
 async def update_account(
-    account_id: UUID,
     account_data: AccountUpdate,
-    current_user: User = Depends(get_current_user),
+    account: Account = Depends(get_verified_account),
     db: AsyncSession = Depends(get_db),
 ):
     """Update account details."""
-    # Get the account
-    result = await db.execute(
-        select(Account).where(
-            Account.id == account_id,
-            Account.organization_id == current_user.organization_id,
-        )
-    )
-    account = result.scalar_one_or_none()
-
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
-
     # Update fields
     if account_data.name is not None:
         account.name = account_data.name
