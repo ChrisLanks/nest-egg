@@ -143,7 +143,7 @@ export const IncomeExpensesPage = () => {
   const [expenseSortField, setExpenseSortField] = useState<SortField>('date');
   const [expenseSortDirection, setExpenseSortDirection] = useState<SortDirection>('desc');
 
-  const [groupBy, setGroupBy] = useState<'category' | 'label'>('category');
+  const [groupBy, setGroupBy] = useState<'category' | 'label' | 'merchant' | 'account'>('category');
   const [hiddenItems, setHiddenItems] = useState<Set<string>>(new Set());
 
   // Fetch organization settings for custom month boundaries
@@ -201,7 +201,11 @@ export const IncomeExpensesPage = () => {
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['income-expenses-summary', dateRange.start, dateRange.end, groupBy],
     queryFn: async () => {
-      const endpoint = groupBy === 'label' ? '/income-expenses/label-summary' : '/income-expenses/summary';
+      let endpoint = '/income-expenses/summary';
+      if (groupBy === 'label') endpoint = '/income-expenses/label-summary';
+      else if (groupBy === 'merchant') endpoint = '/income-expenses/merchant-summary';
+      else if (groupBy === 'account') endpoint = '/income-expenses/account-summary';
+
       const response = await api.get<IncomeExpenseSummary>(
         `${endpoint}?start_date=${dateRange.start}&end_date=${dateRange.end}`
       );
@@ -223,8 +227,17 @@ export const IncomeExpensesPage = () => {
   const { data: incomeMerchants } = useQuery({
     queryKey: ['income-merchants', dateRange.start, dateRange.end, incomeDrillDown.category, groupBy],
     queryFn: async () => {
-      const endpoint = groupBy === 'label' ? '/income-expenses/label-merchants' : '/income-expenses/merchants';
-      const paramName = groupBy === 'label' ? 'label' : 'category';
+      let endpoint = '/income-expenses/merchants';
+      let paramName = 'category';
+
+      if (groupBy === 'label') {
+        endpoint = '/income-expenses/label-merchants';
+        paramName = 'label';
+      } else if (groupBy === 'account') {
+        endpoint = '/income-expenses/account-merchants';
+        paramName = 'account_id';
+      }
+
       const response = await api.get<CategoryBreakdown[]>(
         `${endpoint}?start_date=${dateRange.start}&end_date=${dateRange.end}&transaction_type=income&${paramName}=${incomeDrillDown.category || ''}`
       );
@@ -236,8 +249,16 @@ export const IncomeExpensesPage = () => {
   const { data: expenseMerchants } = useQuery({
     queryKey: ['expense-merchants', dateRange.start, dateRange.end, expenseDrillDown.category, groupBy],
     queryFn: async () => {
-      const endpoint = groupBy === 'label' ? '/income-expenses/label-merchants' : '/income-expenses/merchants';
-      const paramName = groupBy === 'label' ? 'label' : 'category';
+      let endpoint = '/income-expenses/merchants';
+      let paramName = 'category';
+
+      if (groupBy === 'label') {
+        endpoint = '/income-expenses/label-merchants';
+        paramName = 'label';
+      } else if (groupBy === 'account') {
+        endpoint = '/income-expenses/account-merchants';
+        paramName = 'account_id';
+      }
       const response = await api.get<CategoryBreakdown[]>(
         `${endpoint}?start_date=${dateRange.start}&end_date=${dateRange.end}&transaction_type=expense&${paramName}=${expenseDrillDown.category || ''}`
       );
@@ -1030,13 +1051,27 @@ export const IncomeExpensesPage = () => {
             >
               Labels
             </Button>
+            <Button
+              colorScheme={groupBy === 'merchant' ? 'brand' : 'gray'}
+              onClick={() => setGroupBy('merchant')}
+              bg={groupBy === 'merchant' ? 'brand.50' : 'white'}
+            >
+              Merchant
+            </Button>
+            <Button
+              colorScheme={groupBy === 'account' ? 'brand' : 'gray'}
+              onClick={() => setGroupBy('account')}
+              bg={groupBy === 'account' ? 'brand.50' : 'white'}
+            >
+              Account
+            </Button>
           </ButtonGroup>
 
           {/* Filter Dropdown */}
           {uniqueItems.length > 0 && (
             <Menu closeOnSelect={false}>
               <MenuButton as={Button} size="sm" variant="outline" ml={4}>
-                Hide {groupBy === 'category' ? 'Categories' : 'Labels'} ({hiddenItems.size})
+                Hide {groupBy === 'category' ? 'Categories' : groupBy === 'label' ? 'Labels' : groupBy === 'merchant' ? 'Merchants' : 'Accounts'} ({hiddenItems.size})
               </MenuButton>
               <MenuList maxH="400px" overflowY="auto">
                 {uniqueItems.map((item) => (
@@ -1189,7 +1224,9 @@ export const IncomeExpensesPage = () => {
                       {summary && filteredSummary.income_categories.length > 0 && (
                         <VStack align="stretch" spacing={4}>
                           <HStack justify="space-between">
-                            <Heading size="sm">{groupBy === 'label' ? 'Income by Label' : 'Income by Category'}</Heading>
+                            <Heading size="sm">
+                              {groupBy === 'label' ? 'Income by Label' : groupBy === 'merchant' ? 'Income by Merchant' : groupBy === 'account' ? 'Income by Account' : 'Income by Category'}
+                            </Heading>
                             <IconButton
                               aria-label={incomeChartType === 'pie' ? 'Switch to bar chart' : 'Switch to pie chart'}
                               icon={incomeChartType === 'pie' ? <IoBarChart /> : <IoPieChart />}
@@ -1205,7 +1242,7 @@ export const IncomeExpensesPage = () => {
                                 color={incomeDrillDown.level === 'categories' ? 'brand.600' : 'gray.600'}
                                 fontWeight={incomeDrillDown.level === 'categories' ? 'bold' : 'normal'}
                               >
-                                {groupBy === 'label' ? 'All Labels' : 'All Categories'}
+                                {groupBy === 'label' ? 'All Labels' : groupBy === 'merchant' ? 'All Merchants' : groupBy === 'account' ? 'All Accounts' : 'All Categories'}
                               </BreadcrumbLink>
                             </BreadcrumbItem>
                             {incomeDrillDown.category && (
@@ -1247,7 +1284,9 @@ export const IncomeExpensesPage = () => {
                       {summary && filteredSummary.expense_categories.length > 0 && (
                         <VStack align="stretch" spacing={4}>
                           <HStack justify="space-between">
-                            <Heading size="sm">{groupBy === 'label' ? 'Expenses by Label' : 'Expenses by Category'}</Heading>
+                            <Heading size="sm">
+                              {groupBy === 'label' ? 'Expenses by Label' : groupBy === 'merchant' ? 'Expenses by Merchant' : groupBy === 'account' ? 'Expenses by Account' : 'Expenses by Category'}
+                            </Heading>
                             <IconButton
                               aria-label={expenseChartType === 'pie' ? 'Switch to bar chart' : 'Switch to pie chart'}
                               icon={expenseChartType === 'pie' ? <IoBarChart /> : <IoPieChart />}
@@ -1263,7 +1302,7 @@ export const IncomeExpensesPage = () => {
                                 color={expenseDrillDown.level === 'categories' ? 'brand.600' : 'gray.600'}
                                 fontWeight={expenseDrillDown.level === 'categories' ? 'bold' : 'normal'}
                               >
-                                {groupBy === 'label' ? 'All Labels' : 'All Categories'}
+                                {groupBy === 'label' ? 'All Labels' : groupBy === 'merchant' ? 'All Merchants' : groupBy === 'account' ? 'All Accounts' : 'All Categories'}
                               </BreadcrumbLink>
                             </BreadcrumbItem>
                             {expenseDrillDown.category && (
@@ -1416,7 +1455,9 @@ export const IncomeExpensesPage = () => {
                     {summary && filteredSummary.income_categories.length > 0 ? (
                       <>
                         <HStack justify="space-between">
-                          <Heading size="md">{groupBy === 'label' ? 'Income by Label' : 'Income by Category'}</Heading>
+                          <Heading size="md">
+                            {groupBy === 'label' ? 'Income by Label' : groupBy === 'merchant' ? 'Income by Merchant' : groupBy === 'account' ? 'Income by Account' : 'Income by Category'}
+                          </Heading>
                           <IconButton
                             aria-label={incomeChartType === 'pie' ? 'Switch to bar chart' : 'Switch to pie chart'}
                             icon={incomeChartType === 'pie' ? <IoBarChart /> : <IoPieChart />}
@@ -1588,7 +1629,9 @@ export const IncomeExpensesPage = () => {
                     {summary && filteredSummary.expense_categories.length > 0 ? (
                       <>
                         <HStack justify="space-between">
-                          <Heading size="md">{groupBy === 'label' ? 'Expenses by Label' : 'Expenses by Category'}</Heading>
+                          <Heading size="md">
+                            {groupBy === 'label' ? 'Expenses by Label' : groupBy === 'merchant' ? 'Expenses by Merchant' : groupBy === 'account' ? 'Expenses by Account' : 'Expenses by Category'}
+                          </Heading>
                           <IconButton
                             aria-label={expenseChartType === 'pie' ? 'Switch to bar chart' : 'Switch to pie chart'}
                             icon={expenseChartType === 'pie' ? <IoBarChart /> : <IoPieChart />}

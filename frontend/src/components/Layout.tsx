@@ -160,13 +160,16 @@ export const Layout = () => {
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   const navItems = [
-    { label: 'Dashboard', path: '/dashboard' },
+    { label: 'Overview', path: '/dashboard' },
     { label: 'Cash Flow', path: '/income-expenses' },
     { label: 'Investments', path: '/investments' },
-    { label: 'Transactions', path: '/transactions' },
-    { label: 'Rules', path: '/rules' },
-    { label: 'Categories', path: '/categories' },
     { label: 'Accounts', path: '/accounts' },
+  ];
+
+  const transactionsMenuItems = [
+    { label: 'Transactions', path: '/transactions' },
+    { label: 'Categories', path: '/categories' },
+    { label: 'Rules', path: '/rules' },
   ];
 
   // Fetch accounts
@@ -264,6 +267,32 @@ export const Layout = () => {
                   onClick={() => navigate(item.path)}
                 />
               ))}
+
+              {/* Transactions Dropdown */}
+              <Menu>
+                <MenuButton
+                  as={Button}
+                  rightIcon={<ChevronDownIcon />}
+                  variant={transactionsMenuItems.some(item => location.pathname === item.path) ? 'solid' : 'ghost'}
+                  colorScheme={transactionsMenuItems.some(item => location.pathname === item.path) ? 'brand' : 'gray'}
+                  size="sm"
+                  fontWeight={transactionsMenuItems.some(item => location.pathname === item.path) ? 'semibold' : 'medium'}
+                >
+                  Transactions
+                </MenuButton>
+                <MenuList>
+                  {transactionsMenuItems.map((item) => (
+                    <MenuItem
+                      key={item.path}
+                      onClick={() => navigate(item.path)}
+                      fontWeight={location.pathname === item.path ? 'semibold' : 'normal'}
+                      bg={location.pathname === item.path ? 'brand.50' : 'transparent'}
+                    >
+                      {item.label}
+                    </MenuItem>
+                  ))}
+                </MenuList>
+              </Menu>
             </HStack>
           </HStack>
 
