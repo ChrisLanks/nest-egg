@@ -12,6 +12,7 @@ from app.schemas.recurring_transaction import (
     RecurringTransactionCreate,
     RecurringTransactionUpdate,
     RecurringTransactionResponse,
+    UpcomingBillResponse,
 )
 from app.services.recurring_detection_service import recurring_detection_service
 
@@ -105,3 +106,18 @@ async def delete_recurring_transaction(
 
     if not success:
         raise HTTPException(status_code=404, detail="Recurring pattern not found")
+
+
+@router.get("/bills/upcoming", response_model=List[UpcomingBillResponse])
+async def get_upcoming_bills(
+    days_ahead: int = 30,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get upcoming bills within the specified time window."""
+    bills = await recurring_detection_service.get_upcoming_bills(
+        db=db,
+        user=current_user,
+        days_ahead=days_ahead,
+    )
+    return bills

@@ -55,6 +55,10 @@ class RecurringTransaction(Base):
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
 
+    # Bill Reminder fields
+    is_bill = Column(Boolean, default=False, nullable=False)  # Mark as a bill requiring reminders
+    reminder_days_before = Column(Integer, default=3, nullable=False)  # Days before due date to remind
+
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)

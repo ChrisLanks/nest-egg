@@ -19,6 +19,8 @@ class RecurringTransactionBase(BaseModel):
     average_amount: Decimal = Field(gt=0)
     amount_variance: Decimal = Field(default=Decimal("5.00"), ge=0)
     category_id: Optional[UUID] = None
+    is_bill: bool = False
+    reminder_days_before: int = Field(default=3, ge=0, le=30)
 
 
 class RecurringTransactionCreate(RecurringTransactionBase):
@@ -36,6 +38,8 @@ class RecurringTransactionUpdate(BaseModel):
     amount_variance: Optional[Decimal] = Field(None, ge=0)
     category_id: Optional[UUID] = None
     is_active: Optional[bool] = None
+    is_bill: Optional[bool] = None
+    reminder_days_before: Optional[int] = Field(None, ge=0, le=30)
 
 
 class RecurringTransactionResponse(RecurringTransactionBase):
@@ -53,6 +57,22 @@ class RecurringTransactionResponse(RecurringTransactionBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UpcomingBillResponse(BaseModel):
+    """Schema for upcoming bill reminder."""
+
+    recurring_transaction_id: UUID
+    merchant_name: str
+    average_amount: Decimal
+    next_expected_date: date
+    days_until_due: int
+    is_overdue: bool
+    account_id: UUID
+    category_id: Optional[UUID] = None
 
     class Config:
         from_attributes = True

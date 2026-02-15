@@ -240,6 +240,8 @@ class RecurringDetectionService:
         average_amount: Decimal,
         category_id: Optional[UUID] = None,
         amount_variance: Decimal = Decimal("5.00"),
+        is_bill: bool = False,
+        reminder_days_before: int = 3,
     ) -> RecurringTransaction:
         """Create a manually defined recurring transaction."""
         pattern = RecurringTransaction(
@@ -254,6 +256,8 @@ class RecurringDetectionService:
             confidence_score=Decimal("1.00"),  # Manual patterns have perfect confidence
             first_occurrence=date.today(),
             occurrence_count=1,
+            is_bill=is_bill,
+            reminder_days_before=reminder_days_before,
         )
 
         db.add(pattern)
@@ -337,6 +341,62 @@ class RecurringDetectionService:
         await db.commit()
 
         return True
+
+    @staticmethod
+    async def get_upcoming_bills(
+        db: AsyncSession,
+        user: User,
+        days_ahead: int = 30,
+    ) -> List[Dict]:
+        """
+        Get upcoming bills that are due within the specified time window.
+
+        Args:
+            db: Database session
+            user: Current user
+            days_ahead: Days to look ahead for upcoming bills
+
+        Returns:
+            List of upcoming bills with due dates and details
+        """
+        today = date.today()
+        future_date = today + timedelta(days=days_ahead)
+
+        # Query for recurring transactions marked as bills
+        result = await db.execute(
+            select(RecurringTransaction).where(
+                and_(
+                    RecurringTransaction.organization_id == user.organization_id,
+                    RecurringTransaction.is_bill == True,
+                    RecurringTransaction.is_active == True,
+                    RecurringTransaction.next_expected_date.isnot(None),
+                    RecurringTransaction.next_expected_date <= future_date,
+                )
+            ).order_by(RecurringTransaction.next_expected_date)
+        )
+        bills = list(result.scalars().all())
+
+        # Format response
+        upcoming_bills = []
+        for bill in bills:
+            days_until_due = (bill.next_expected_date - today).days
+
+            # Check if we should send a reminder (based on reminder_days_before)
+            should_remind = days_until_due <= bill.reminder_days_before
+
+            if should_remind or days_until_due < 0:  # Include overdue bills
+                upcoming_bills.append({
+                    "recurring_transaction_id": bill.id,
+                    "merchant_name": bill.merchant_name,
+                    "average_amount": bill.average_amount,
+                    "next_expected_date": bill.next_expected_date,
+                    "days_until_due": days_until_due,
+                    "is_overdue": days_until_due < 0,
+                    "account_id": bill.account_id,
+                    "category_id": bill.category_id,
+                })
+
+        return upcoming_bills
 
 
 recurring_detection_service = RecurringDetectionService()

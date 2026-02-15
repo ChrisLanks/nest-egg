@@ -249,6 +249,7 @@ export const Layout = () => {
     { label: 'Categories', path: '/categories' },
     { label: 'Rules', path: '/rules' },
     { label: 'Recurring', path: '/recurring' },
+    { label: 'Bills', path: '/bills' },
   ];
 
   // Fetch accounts with user filtering

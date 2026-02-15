@@ -9,6 +9,7 @@ import type {
   RecurringTransactionUpdate,
   DetectRecurringRequest,
   DetectRecurringResponse,
+  UpcomingBill,
 } from '../types/recurring-transaction';
 
 export const recurringTransactionsApi = {
@@ -59,5 +60,15 @@ export const recurringTransactionsApi = {
    */
   delete: async (recurringId: string): Promise<void> => {
     await api.delete(`/recurring-transactions/${recurringId}`);
+  },
+
+  /**
+   * Get upcoming bills
+   */
+  getUpcomingBills: async (daysAhead: number = 30): Promise<UpcomingBill[]> => {
+    const { data } = await api.get<UpcomingBill[]>('/recurring-transactions/bills/upcoming', {
+      params: { days_ahead: daysAhead },
+    });
+    return data;
   },
 };
