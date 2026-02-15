@@ -18,6 +18,7 @@ class HoldingBase(BaseModel):
     asset_type: Optional[str] = None  # 'stock', 'bond', 'etf', 'mutual_fund', 'cash', 'other'
     sector: Optional[str] = None  # Financial sector (e.g., 'Technology', 'Healthcare')
     industry: Optional[str] = None  # Industry within sector (e.g., 'Software', 'Biotechnology')
+    country: Optional[str] = None  # Country of domicile (e.g., 'USA', 'Germany', 'China')
 
 
 class HoldingCreate(HoldingBase):
@@ -66,6 +67,7 @@ class HoldingSummary(BaseModel):
     asset_type: Optional[str] = None
     sector: Optional[str] = None  # Financial sector (Phase 2+)
     industry: Optional[str] = None  # Industry within sector (Phase 2+)
+    country: Optional[str] = None  # Country of domicile (for international categorization)
     # Calculated fields
     gain_loss: Optional[Decimal] = None
     gain_loss_percent: Optional[Decimal] = None
@@ -149,6 +151,16 @@ class PortfolioSummary(BaseModel):
 
     # Sector breakdown (Phase 2+)
     sector_breakdown: Optional[list[SectorBreakdown]] = None
+
+
+class StyleBoxItem(BaseModel):
+    """Market cap and style breakdown item."""
+
+    style_class: str  # e.g., "Large Cap Value", "Mid Cap Growth"
+    percentage: Decimal  # % of total portfolio
+    one_day_change: Optional[Decimal] = None  # 1-day % change (mocked for now)
+    value: Decimal  # Total value in this category
+    holding_count: int  # Number of holdings in this category
 
 
 class SnapshotResponse(BaseModel):

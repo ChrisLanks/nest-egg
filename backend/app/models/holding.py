@@ -41,6 +41,7 @@ class Holding(Base):
     market_cap = Column(String(20), nullable=True)  # 'large', 'mid', 'small', null for non-equity
     sector = Column(String(100), nullable=True)  # Financial sector (e.g., 'Technology', 'Healthcare', 'Financials')
     industry = Column(String(100), nullable=True)  # Industry within sector (e.g., 'Software', 'Biotechnology')
+    country = Column(String(100), nullable=True)  # Country of domicile (e.g., 'USA', 'Germany', 'China')
 
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)

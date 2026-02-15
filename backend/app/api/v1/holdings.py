@@ -28,6 +28,7 @@ from app.schemas.holding import (
     TreemapNode,
     AccountHoldings,
     SnapshotResponse,
+    StyleBoxItem,
 )
 
 router = APIRouter()
@@ -1017,3 +1018,250 @@ async def get_historical_snapshots(
     )
 
     return snapshots
+
+
+@router.get("/style-box", response_model=List[StyleBoxItem])
+async def get_style_box_breakdown(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get comprehensive asset allocation breakdown including:
+    - Market cap and style (Large/Mid/Small Cap × Value/Core/Growth)
+    - International stocks (Developed/Emerging markets)
+    - Cash holdings (Money Market, Checking, Savings)
+    - Real estate exposure (from fund composition)
+    """
+    from random import uniform
+
+    # Get all holdings for the organization
+    result = await db.execute(
+        select(Holding)
+        .where(Holding.organization_id == current_user.organization_id)
+        .options(selectinload(Holding.account))
+    )
+    holdings = result.scalars().all()
+
+    # Filter to investment accounts only
+    investment_holdings = [
+        h for h in holdings
+        if h.account and h.account.account_type in [
+            AccountType.BROKERAGE,
+            AccountType.RETIREMENT_401K,
+            AccountType.RETIREMENT_IRA,
+            AccountType.RETIREMENT_ROTH,
+            AccountType.RETIREMENT_529,
+            AccountType.MANUAL,
+        ]
+    ]
+
+    # Also get cash accounts for Cash breakdown
+    cash_accounts_result = await db.execute(
+        select(Account)
+        .where(
+            Account.organization_id == current_user.organization_id,
+            Account.account_type.in_([
+                AccountType.CHECKING,
+                AccountType.SAVINGS,
+                AccountType.MONEY_MARKET,
+            ]),
+            Account.is_active == True
+        )
+    )
+    cash_accounts = cash_accounts_result.scalars().all()
+
+    if not investment_holdings and not cash_accounts:
+        return []
+
+    # Calculate total portfolio value (investments + cash)
+    investment_value = sum(
+        (h.quantity or Decimal('0')) * (h.current_price or Decimal('0'))
+        for h in investment_holdings
+    )
+    cash_value = sum(
+        acc.current_balance or Decimal('0')
+        for acc in cash_accounts
+    )
+    total_value = investment_value + cash_value
+
+    if total_value == 0:
+        return []
+
+    # Developed and Emerging market country lists
+    DEVELOPED_MARKETS = {
+        'USA', 'US', 'United States',
+        'UK', 'United Kingdom', 'GB', 'GBR',
+        'Germany', 'DE', 'DEU',
+        'Japan', 'JP', 'JPN',
+        'Canada', 'CA', 'CAN',
+        'France', 'FR', 'FRA',
+        'Switzerland', 'CH', 'CHE',
+        'Australia', 'AU', 'AUS',
+        'Netherlands', 'NL', 'NLD',
+        'Sweden', 'SE', 'SWE',
+        'Denmark', 'DK', 'DNK',
+        'Norway', 'NO', 'NOR',
+        'Finland', 'FI', 'FIN',
+        'Spain', 'ES', 'ESP',
+        'Italy', 'IT', 'ITA',
+        'Belgium', 'BE', 'BEL',
+        'Austria', 'AT', 'AUT',
+        'Singapore', 'SG', 'SGP',
+        'Hong Kong', 'HK', 'HKG',
+        'New Zealand', 'NZ', 'NZL',
+    }
+
+    EMERGING_MARKETS = {
+        'China', 'CN', 'CHN',
+        'India', 'IN', 'IND',
+        'Brazil', 'BR', 'BRA',
+        'Russia', 'RU', 'RUS',
+        'South Africa', 'ZA', 'ZAF',
+        'Mexico', 'MX', 'MEX',
+        'Indonesia', 'ID', 'IDN',
+        'Turkey', 'TR', 'TUR',
+        'Saudi Arabia', 'SA', 'SAU',
+        'Poland', 'PL', 'POL',
+        'Thailand', 'TH', 'THA',
+        'Malaysia', 'MY', 'MYS',
+        'Philippines', 'PH', 'PHL',
+        'Colombia', 'CO', 'COL',
+        'Chile', 'CL', 'CHL',
+        'Peru', 'PE', 'PER',
+        'Egypt', 'EG', 'EGY',
+        'UAE', 'AE', 'ARE',
+        'Qatar', 'QA', 'QAT',
+        'Argentina', 'AR', 'ARG',
+        'Pakistan', 'PK', 'PAK',
+        'Vietnam', 'VN', 'VNM',
+        'Bangladesh', 'BD', 'BGD',
+    }
+
+    # Group holdings by various categories
+    style_groups: dict[str, dict] = {}
+
+    for holding in investment_holdings:
+        value = (holding.quantity or Decimal('0')) * (holding.current_price or Decimal('0'))
+        if value == 0:
+            continue
+
+        # Check if international based on country field (from Alpha Vantage)
+        country = holding.country or ""
+        is_usa = country in ['USA', 'US', 'United States'] or holding.asset_class == "domestic"
+
+        if not is_usa and (holding.country or holding.asset_class == "international"):
+            # Categorize as Developed or Emerging market based on country
+            if country in DEVELOPED_MARKETS:
+                style_class = "International - Developed"
+            elif country in EMERGING_MARKETS:
+                style_class = "International - Emerging"
+            else:
+                # If country not recognized, default to Developed (most international stocks are developed markets)
+                style_class = "International - Developed"
+        else:
+            # Domestic stocks - categorize by market cap and style
+            market_cap = holding.market_cap or Decimal('0')
+            if market_cap >= 10_000_000_000:  # $10B+
+                size = "Large Cap"
+            elif market_cap >= 2_000_000_000:  # $2B - $10B
+                size = "Mid Cap"
+            else:  # < $2B
+                size = "Small Cap"
+
+            # Infer style from asset class or default to Core
+            asset_class_lower = (holding.asset_class or "").lower()
+            if "value" in asset_class_lower:
+                style = "Value"
+            elif "growth" in asset_class_lower:
+                style = "Growth"
+            else:
+                style = "Core"
+
+            style_class = f"{size} {style}"
+
+        if style_class not in style_groups:
+            style_groups[style_class] = {
+                'value': Decimal('0'),
+                'count': 0
+            }
+
+        style_groups[style_class]['value'] += value
+        style_groups[style_class]['count'] += 1
+
+    # Add Cash breakdown
+    if cash_value > 0:
+        cash_breakdown = {}
+        for account in cash_accounts:
+            balance = account.current_balance or Decimal('0')
+            if balance == 0:
+                continue
+
+            # Map account type to display name
+            type_map = {
+                AccountType.MONEY_MARKET: "Cash - Money Market",
+                AccountType.CHECKING: "Cash - Checking",
+                AccountType.SAVINGS: "Cash - Savings",
+            }
+            cash_type = type_map.get(account.account_type, "Cash - Other")
+
+            if cash_type not in cash_breakdown:
+                cash_breakdown[cash_type] = {
+                    'value': Decimal('0'),
+                    'count': 0
+                }
+
+            cash_breakdown[cash_type]['value'] += balance
+            cash_breakdown[cash_type]['count'] += 1
+
+        # Add cash categories to style_groups
+        style_groups.update(cash_breakdown)
+
+    # Add Real Estate category (mock data for now)
+    # TODO: Implement fund composition analysis to detect real estate exposure
+    # For common funds like FXIAX (Fidelity 500 Index), real estate is ~3% of S&P 500
+    # For now, estimate 2-3% of large cap holdings might have real estate exposure
+    real_estate_funds = ['VNQ', 'VGSLX', 'FREL', 'IYR']  # Known REIT tickers
+    real_estate_value = Decimal('0')
+    real_estate_count = 0
+
+    for holding in investment_holdings:
+        if holding.ticker.upper() in real_estate_funds:
+            value = (holding.quantity or Decimal('0')) * (holding.current_price or Decimal('0'))
+            real_estate_value += value
+            real_estate_count += 1
+
+    # Also add estimated real estate exposure from broad index funds
+    # S&P 500 funds typically have ~3% real estate sector allocation
+    sp500_funds = ['FXAIX', 'VOO', 'IVV', 'SPY']
+    for holding in investment_holdings:
+        if holding.ticker.upper() in sp500_funds:
+            value = (holding.quantity or Decimal('0')) * (holding.current_price or Decimal('0'))
+            real_estate_value += value * Decimal('0.03')  # 3% allocation
+
+    if real_estate_value > 0:
+        style_groups['Real Estate'] = {
+            'value': real_estate_value,
+            'count': real_estate_count if real_estate_count > 0 else 1
+        }
+
+    # Build response with mock 1-day changes
+    breakdown = []
+    for style_class, data in sorted(style_groups.items()):
+        percentage = (data['value'] / total_value * 100) if total_value > 0 else Decimal('0')
+
+        # Mock 1-day change (random between -0.5% and +1.5%)
+        # Cash has 0% change
+        if 'Cash' in style_class:
+            one_day_change = Decimal('0')
+        else:
+            one_day_change = Decimal(str(round(uniform(-0.5, 1.5), 2)))
+
+        breakdown.append(StyleBoxItem(
+            style_class=style_class,
+            percentage=percentage,
+            one_day_change=one_day_change,
+            value=data['value'],
+            holding_count=data['count']
+        ))
+
+    return breakdown

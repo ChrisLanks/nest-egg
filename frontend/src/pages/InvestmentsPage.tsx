@@ -53,6 +53,7 @@ import { GrowthProjectionsChart } from '../features/investments/components/Growt
 import { SectorBreakdownChart } from '../features/investments/components/SectorBreakdownChart';
 import PerformanceTrendsChart from '../features/investments/components/PerformanceTrendsChart';
 import RiskAnalysisPanel from '../features/investments/components/RiskAnalysisPanel';
+import StyleBoxModal from '../features/investments/components/StyleBoxModal';
 
 interface Holding {
   id: string;
@@ -142,6 +143,9 @@ export const InvestmentsPage = () => {
 
   // Expanded accounts state (default: all expanded)
   const [expandedAccounts, setExpandedAccounts] = useState<string[]>([]);
+
+  // Style Box modal
+  const { isOpen: isStyleBoxOpen, onOpen: onStyleBoxOpen, onClose: onStyleBoxClose } = useDisclosure();
 
   // Hidden accounts state (persisted to localStorage)
   const [hiddenAccountIds, setHiddenAccountIds] = useState<string[]>(() => {
@@ -744,11 +748,22 @@ export const InvestmentsPage = () => {
                 {/* Tab 1: Asset Allocation */}
                 <TabPanel>
                   {portfolio.treemap_data && (
-                    <AssetAllocationTreemap
-                      key={`treemap-${hiddenAccountIds.join('-')}`}
-                      data={portfolio.treemap_data}
-                      onDrillDown={handleTreemapDrillDown}
-                    />
+                    <>
+                      <AssetAllocationTreemap
+                        key={`treemap-${hiddenAccountIds.join('-')}`}
+                        data={portfolio.treemap_data}
+                        onDrillDown={handleTreemapDrillDown}
+                      />
+                      <Box mt={4} textAlign="center">
+                        <Button
+                          size="sm"
+                          colorScheme="brand"
+                          onClick={onStyleBoxOpen}
+                        >
+                          View Detailed Breakdown
+                        </Button>
+                      </Box>
+                    </>
                   )}
                 </TabPanel>
 
@@ -919,6 +934,9 @@ export const InvestmentsPage = () => {
           </CardBody>
         </Card>
       </VStack>
+
+      {/* Style Box Modal */}
+      <StyleBoxModal isOpen={isStyleBoxOpen} onClose={onStyleBoxClose} />
     </Container>
   );
 };
