@@ -6,23 +6,45 @@ import { z } from 'zod';
 
 // Account types
 export const ACCOUNT_TYPES = {
-  // Basic accounts
+  // Cash & Checking
   CHECKING: 'checking',
   SAVINGS: 'savings',
+  MONEY_MARKET: 'money_market',
+  CD: 'cd',
+
+  // Credit & Debt
   CREDIT_CARD: 'credit_card',
   LOAN: 'loan',
+  STUDENT_LOAN: 'student_loan',
   MORTGAGE: 'mortgage',
 
   // Investment accounts
   BROKERAGE: 'brokerage',
-  RETIREMENT_401K: '401k',
-  RETIREMENT_IRA: 'ira',
-  RETIREMENT_ROTH: 'roth_ira',
+  RETIREMENT_401K: 'retirement_401k',
+  RETIREMENT_IRA: 'retirement_ira',
+  RETIREMENT_ROTH: 'retirement_roth',
   RETIREMENT_529: 'retirement_529',
   HSA: 'hsa',
-  PRIVATE_EQUITY: 'private_equity',
+  PENSION: 'pension',
 
-  // Property
+  // Alternative Investments
+  CRYPTO: 'crypto',
+  PRIVATE_EQUITY: 'private_equity',
+  COLLECTIBLES: 'collectibles',
+  PRECIOUS_METALS: 'precious_metals',
+
+  // Insurance & Annuities
+  LIFE_INSURANCE_CASH_VALUE: 'life_insurance_cash_value',
+  ANNUITY: 'annuity',
+
+  // Securities
+  BOND: 'bond',
+  STOCK_OPTIONS: 'stock_options',
+
+  // Business
+  BUSINESS_EQUITY: 'business_equity',
+
+  // Real Estate & Vehicles
   PROPERTY: 'property',
   VEHICLE: 'vehicle',
 
@@ -40,8 +62,11 @@ export const basicManualAccountSchema = z.object({
   account_type: z.enum([
     ACCOUNT_TYPES.CHECKING,
     ACCOUNT_TYPES.SAVINGS,
+    ACCOUNT_TYPES.MONEY_MARKET,
+    ACCOUNT_TYPES.CD,
     ACCOUNT_TYPES.CREDIT_CARD,
     ACCOUNT_TYPES.LOAN,
+    ACCOUNT_TYPES.STUDENT_LOAN,
     ACCOUNT_TYPES.MORTGAGE,
     ACCOUNT_TYPES.MANUAL,
     ACCOUNT_TYPES.OTHER,
@@ -72,7 +97,16 @@ export const investmentAccountSchema = z.object({
     ACCOUNT_TYPES.RETIREMENT_ROTH,
     ACCOUNT_TYPES.RETIREMENT_529,
     ACCOUNT_TYPES.HSA,
+    ACCOUNT_TYPES.PENSION,
+    ACCOUNT_TYPES.CRYPTO,
     ACCOUNT_TYPES.PRIVATE_EQUITY,
+    ACCOUNT_TYPES.COLLECTIBLES,
+    ACCOUNT_TYPES.PRECIOUS_METALS,
+    ACCOUNT_TYPES.LIFE_INSURANCE_CASH_VALUE,
+    ACCOUNT_TYPES.ANNUITY,
+    ACCOUNT_TYPES.BOND,
+    ACCOUNT_TYPES.STOCK_OPTIONS,
+    ACCOUNT_TYPES.BUSINESS_EQUITY,
   ]),
   holdings: z.array(holdingSchema).min(1, 'At least one holding is required'),
   account_number_last4: z.string().max(4).optional(),
