@@ -283,8 +283,8 @@ export const TransactionsPage = () => {
       refetch();
       // Invalidate income-expenses queries
       queryClient.invalidateQueries({ queryKey: ['income-expenses'] });
-      // Clear selection
-      setSelectedTransactions(new Set());
+      // Keep selection for additional operations
+      // User can manually deselect if needed
       setBulkSelectMode(false);
     },
     onError: (error: any) => {
