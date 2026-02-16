@@ -13,18 +13,46 @@ from app.core.database import close_db, init_db
 from app.services.snapshot_scheduler import snapshot_scheduler
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
+from app.services.secrets_validation_service import secrets_validation_service
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
+    print("🚀 Starting Nest Egg API...")
+
+    # Validate secrets and configuration (production only)
+    if not settings.DEBUG:
+        print("🔒 Validating production secrets...")
+        validation_result = secrets_validation_service.validate_production_secrets()
+
+        if validation_result["errors"]:
+            print("❌ CRITICAL: Production secrets validation failed:")
+            for error in validation_result["errors"]:
+                print(f"  - {error}")
+            raise RuntimeError("Application cannot start with invalid production configuration")
+
+        if validation_result["warnings"]:
+            print("⚠️  Production configuration warnings:")
+            for warning in validation_result["warnings"]:
+                print(f"  - {warning}")
+
+        print("✅ Production secrets validated successfully")
+    else:
+        print("⚠️  Running in DEBUG mode - secrets validation skipped")
+
     await init_db()
     await snapshot_scheduler.start()
+    print("✅ Nest Egg API started successfully")
+
     yield
+
     # Shutdown
+    print("🛑 Shutting down Nest Egg API...")
     await snapshot_scheduler.stop()
     await close_db()
+    print("✅ Nest Egg API shutdown complete")
 
 
 # Create FastAPI application
@@ -92,6 +120,34 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+@app.get("/security-status")
+async def security_status():
+    """
+    Security configuration status endpoint.
+
+    Returns checklist of security configurations.
+    Only shows status, never exposes actual secrets.
+    """
+    checklist = secrets_validation_service.generate_security_checklist()
+
+    # Calculate overall security score
+    total_checks = len(checklist)
+    passed_checks = sum(1 for passed in checklist.values() if passed)
+    security_score = (passed_checks / total_checks * 100) if total_checks > 0 else 0
+
+    return {
+        "security_score": round(security_score, 1),
+        "checks_passed": passed_checks,
+        "checks_total": total_checks,
+        "checklist": checklist,
+        "environment": "production" if not settings.DEBUG else "development",
+        "recommendation": (
+            "Production ready" if security_score >= 90 else
+            "Review failed checks before deploying to production"
+        )
+    }
 
 
 # Import and include routers
