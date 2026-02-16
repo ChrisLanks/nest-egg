@@ -24,6 +24,7 @@ import BudgetsPage from './pages/BudgetsPage';
 import SavingsGoalsPage from './pages/SavingsGoalsPage';
 import RecurringTransactionsPage from './pages/RecurringTransactionsPage';
 import BillsPage from './pages/BillsPage';
+import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import { HouseholdSettingsPage } from './pages/HouseholdSettingsPage';
 import { AcceptInvitationPage } from './pages/AcceptInvitationPage';
 import { UserViewProvider } from './contexts/UserViewContext';
@@ -55,6 +56,7 @@ function App() {
                 <Route path="/goals" element={<SavingsGoalsPage />} />
                 <Route path="/recurring" element={<RecurringTransactionsPage />} />
                 <Route path="/bills" element={<BillsPage />} />
+                <Route path="/subscriptions" element={<SubscriptionsPage />} />
                 <Route path="/preferences" element={<PreferencesPage />} />
                 <Route path="/household" element={<HouseholdSettingsPage />} />
               </Route>

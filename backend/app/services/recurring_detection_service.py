@@ -398,5 +398,82 @@ class RecurringDetectionService:
 
         return upcoming_bills
 
+    @staticmethod
+    async def get_subscriptions(
+        db: AsyncSession,
+        organization_id: UUID,
+        user_id: Optional[UUID] = None,
+        is_active: bool = True
+    ) -> List[RecurringTransaction]:
+        """
+        Get subscription-like recurring transactions.
+        Filters for monthly/yearly frequency with high confidence (>0.70).
+
+        Args:
+            db: Database session
+            organization_id: Organization ID
+            user_id: Optional user ID for filtering
+            is_active: Filter for active subscriptions only
+
+        Returns:
+            List of subscription-like recurring transactions
+        """
+        from app.models.account import Account
+
+        query = select(RecurringTransaction).where(
+            and_(
+                RecurringTransaction.organization_id == organization_id,
+                RecurringTransaction.frequency.in_([
+                    RecurringFrequency.MONTHLY,
+                    RecurringFrequency.YEARLY
+                ]),
+                RecurringTransaction.confidence_score >= Decimal("0.70"),
+                RecurringTransaction.is_active == is_active,
+            )
+        )
+
+        # Apply user filter if provided
+        if user_id:
+            query = query.join(Account).where(Account.user_id == user_id)
+
+        query = query.order_by(RecurringTransaction.average_amount.desc())
+
+        result = await db.execute(query)
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def get_subscription_summary(
+        db: AsyncSession,
+        organization_id: UUID,
+        user_id: Optional[UUID] = None
+    ) -> Dict:
+        """
+        Calculate total monthly cost of subscriptions.
+
+        Args:
+            db: Database session
+            organization_id: Organization ID
+            user_id: Optional user ID for filtering
+
+        Returns:
+            Dict with total_count, monthly_cost, yearly_cost
+        """
+        subscriptions = await RecurringDetectionService.get_subscriptions(
+            db, organization_id, user_id
+        )
+
+        monthly_total = Decimal(0)
+        for sub in subscriptions:
+            if sub.frequency == RecurringFrequency.MONTHLY:
+                monthly_total += abs(sub.average_amount)
+            elif sub.frequency == RecurringFrequency.YEARLY:
+                monthly_total += abs(sub.average_amount) / 12
+
+        return {
+            "total_count": len(subscriptions),
+            "monthly_cost": float(monthly_total),
+            "yearly_cost": float(monthly_total * 12),
+        }
+
 
 recurring_detection_service = RecurringDetectionService()

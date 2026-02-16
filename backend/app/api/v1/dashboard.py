@@ -20,6 +20,7 @@ from app.models.user import User
 from app.services.dashboard_service import DashboardService
 from app.services.deduplication_service import DeduplicationService
 from app.services.insights_service import InsightsService
+from app.services.forecast_service import ForecastService
 from app.schemas.transaction import TransactionDetail
 
 
@@ -73,6 +74,14 @@ class SpendingInsight(BaseModel):
     percentage_change: Optional[float] = None
     priority: str
     icon: str
+
+
+class ForecastDataPoint(BaseModel):
+    """Cash flow forecast data point."""
+    date: str
+    projected_balance: float
+    day_change: float
+    transaction_count: int
 
 
 class DashboardData(BaseModel):
@@ -275,3 +284,23 @@ async def get_spending_insights(
         )
         for insight in insights
     ]
+
+
+@router.get("/forecast", response_model=list[ForecastDataPoint])
+async def get_cash_flow_forecast(
+    days_ahead: int = Query(90, ge=30, le=365, description="Number of days to forecast"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get projected cash flow forecast based on recurring transactions."""
+    # Verify household member if user_id provided
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+
+    # Generate forecast
+    forecast = await ForecastService.generate_forecast(
+        db, current_user.organization_id, user_id, days_ahead
+    )
+
+    return [ForecastDataPoint(**day) for day in forecast]

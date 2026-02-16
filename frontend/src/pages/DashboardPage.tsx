@@ -37,6 +37,7 @@ import api from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { useState, useMemo } from 'react';
 import { InsightsCard } from '../components/InsightsCard';
+import { ForecastChart } from '../components/ForecastChart';
 
 interface DashboardData {
   summary: {
@@ -355,6 +356,9 @@ export const DashboardPage = () => {
             </CardBody>
           </Card>
         )}
+
+        {/* Cash Flow Forecast */}
+        <ForecastChart />
 
         {/* Top Expenses and Recent Transactions */}
         <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>

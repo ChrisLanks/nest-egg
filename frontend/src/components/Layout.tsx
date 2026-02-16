@@ -266,6 +266,7 @@ export const Layout = () => {
     { label: 'Rules', path: '/rules' },
     { label: 'Recurring', path: '/recurring' },
     { label: 'Bills', path: '/bills' },
+    { label: 'Subscriptions', path: '/subscriptions' },
   ];
 
   // Fetch accounts with user filtering

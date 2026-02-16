@@ -26,11 +26,21 @@ celery_app.conf.update(
 
 # Import tasks here as they're created
 from app.workers.tasks import budget_tasks  # noqa: F401
+from app.workers.tasks import recurring_tasks  # noqa: F401
+from app.workers.tasks import forecast_tasks  # noqa: F401
 
 # Beat schedule (periodic tasks)
 celery_app.conf.beat_schedule = {
     'check-budget-alerts-daily': {
         'task': 'check_budget_alerts',
         'schedule': crontab(hour=0, minute=0),  # Midnight daily
+    },
+    'detect-recurring-patterns': {
+        'task': 'detect_recurring_patterns',
+        'schedule': crontab(hour=2, minute=0, day_of_week=1),  # Monday 2am
+    },
+    'check-cash-flow-forecast': {
+        'task': 'check_cash_flow_forecast',
+        'schedule': crontab(hour=6, minute=30),  # 6:30am daily
     },
 }
