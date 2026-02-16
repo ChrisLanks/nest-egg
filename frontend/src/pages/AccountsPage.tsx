@@ -36,12 +36,14 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   useDisclosure,
+  Tooltip,
+  Icon,
 } from '@chakra-ui/react';
 import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ViewIcon, ViewOffIcon, EditIcon, DeleteIcon, ChevronDownIcon, RepeatIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
-import { FiCreditCard } from 'react-icons/fi';
+import { FiCreditCard, FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
 import api from '../services/api';
 import { formatAssetType } from '../utils/formatAssetType';
 import { EmptyState } from '../components/EmptyState';
@@ -154,6 +156,32 @@ export const AccountsPage = () => {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       toast({
         title: 'Account updated',
+        status: 'success',
+        duration: 3000,
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'Failed to update account',
+        status: 'error',
+        duration: 3000,
+      });
+    },
+  });
+
+  // Toggle exclude from cash flow
+  const toggleCashFlowMutation = useMutation({
+    mutationFn: async ({ accountId, excludeFromCashFlow }: { accountId: string; excludeFromCashFlow: boolean }) => {
+      await api.patch(`/accounts/${accountId}`, { exclude_from_cash_flow: excludeFromCashFlow });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toast({
+        title: 'Account cash flow setting updated',
         status: 'success',
         duration: 3000,
       });
@@ -473,33 +501,54 @@ export const AccountsPage = () => {
                       </Td>
                       <Td>
                         <HStack spacing={2}>
-                          <IconButton
-                            icon={account.is_active ? <ViewOffIcon /> : <ViewIcon />}
-                            size="sm"
-                            variant="ghost"
-                            aria-label={account.is_active ? 'Hide account' : 'Show account'}
-                            onClick={() =>
-                              toggleAccountMutation.mutate({
-                                accountId: account.id,
-                                isActive: !account.is_active,
-                              })
-                            }
-                          />
-                          <IconButton
-                            icon={<EditIcon />}
-                            size="sm"
-                            variant="ghost"
-                            aria-label="Edit account"
-                            onClick={() => navigate(`/accounts/${account.id}`)}
-                          />
-                          <IconButton
-                            icon={<DeleteIcon />}
-                            size="sm"
-                            variant="ghost"
-                            colorScheme="red"
-                            aria-label="Delete account"
-                            onClick={() => handleDeleteClick(account.id)}
-                          />
+                          <Tooltip label={account.is_active ? 'Hide account from everywhere' : 'Show account everywhere'}>
+                            <IconButton
+                              icon={account.is_active ? <ViewOffIcon /> : <ViewIcon />}
+                              size="sm"
+                              variant="ghost"
+                              aria-label={account.is_active ? 'Hide account' : 'Show account'}
+                              onClick={() =>
+                                toggleAccountMutation.mutate({
+                                  accountId: account.id,
+                                  isActive: !account.is_active,
+                                })
+                              }
+                            />
+                          </Tooltip>
+                          <Tooltip label={account.exclude_from_cash_flow ? 'Include in budgets & cash flow' : 'Exclude from budgets & cash flow'}>
+                            <IconButton
+                              icon={<Icon as={account.exclude_from_cash_flow ? FiTrendingDown : FiTrendingUp} />}
+                              size="sm"
+                              variant="ghost"
+                              colorScheme={account.exclude_from_cash_flow ? 'orange' : 'green'}
+                              aria-label={account.exclude_from_cash_flow ? 'Include in cash flow' : 'Exclude from cash flow'}
+                              onClick={() =>
+                                toggleCashFlowMutation.mutate({
+                                  accountId: account.id,
+                                  excludeFromCashFlow: !account.exclude_from_cash_flow,
+                                })
+                              }
+                            />
+                          </Tooltip>
+                          <Tooltip label="Edit account details">
+                            <IconButton
+                              icon={<EditIcon />}
+                              size="sm"
+                              variant="ghost"
+                              aria-label="Edit account"
+                              onClick={() => navigate(`/accounts/${account.id}`)}
+                            />
+                          </Tooltip>
+                          <Tooltip label="Delete account permanently">
+                            <IconButton
+                              icon={<DeleteIcon />}
+                              size="sm"
+                              variant="ghost"
+                              colorScheme="red"
+                              aria-label="Delete account"
+                              onClick={() => handleDeleteClick(account.id)}
+                            />
+                          </Tooltip>
                         </HStack>
                       </Td>
                     </Tr>
