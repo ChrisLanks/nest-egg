@@ -40,7 +40,7 @@ import {
 } from '@chakra-ui/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { DeleteIcon, DownloadIcon, PlayIcon } from '@chakra-ui/icons';
+import { DeleteIcon, DownloadIcon, ViewIcon } from '@chakra-ui/icons';
 import {
   BarChart,
   Bar,
@@ -284,7 +284,7 @@ export default function ReportsPage() {
                         <HStack spacing={2}>
                           <IconButton
                             aria-label="Execute report"
-                            icon={<PlayIcon />}
+                            icon={<ViewIcon />}
                             size="sm"
                             colorScheme="blue"
                             onClick={() => handleExecuteReport(template)}
