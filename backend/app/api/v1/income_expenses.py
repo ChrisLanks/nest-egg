@@ -20,6 +20,7 @@ from app.models.user import User
 from app.models.transaction import Transaction
 from app.models.account import Account
 from app.services.deduplication_service import DeduplicationService
+from app.services.trend_analysis_service import TrendAnalysisService
 
 
 router = APIRouter()
@@ -970,3 +971,156 @@ async def get_account_merchant_breakdown(
         ))
 
     return merchants
+
+
+# Trend Analysis Endpoints
+
+
+@router.get("/year-over-year")
+async def get_year_over_year_comparison(
+    years: List[int] = Query(..., description="Years to compare (e.g., [2024, 2023, 2022])"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get side-by-side monthly comparison across multiple years.
+
+    Returns monthly data with income/expenses/net for each year, enabling:
+    - Year-over-year trend visualization
+    - Seasonality analysis
+    - Multi-year performance comparison
+    """
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
+    comparison = await TrendAnalysisService.get_year_over_year_comparison(
+        db,
+        current_user.organization_id,
+        years,
+        user_id,
+        account_ids,
+    )
+
+    return comparison
+
+
+@router.get("/quarterly-summary")
+async def get_quarterly_summary(
+    years: List[int] = Query(..., description="Years to compare (e.g., [2024, 2023])"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get quarterly summary across multiple years.
+
+    Returns quarterly aggregations (Q1, Q2, Q3, Q4) for each year with:
+    - Total income per quarter
+    - Total expenses per quarter
+    - Net income per quarter
+    """
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
+    summary = await TrendAnalysisService.get_quarterly_summary(
+        db,
+        current_user.organization_id,
+        years,
+        user_id,
+        account_ids,
+    )
+
+    return summary
+
+
+@router.get("/category-trends")
+async def get_category_trends(
+    category: str = Query(..., description="Category name to analyze"),
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get time-series trend for a specific category.
+
+    Returns monthly data points showing:
+    - Total spending per month
+    - Transaction count per month
+
+    Useful for identifying spending patterns and anomalies within a category.
+    """
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
+    trends = await TrendAnalysisService.get_category_trends(
+        db,
+        current_user.organization_id,
+        category,
+        start_date,
+        end_date,
+        user_id,
+        account_ids,
+    )
+
+    return trends
+
+
+@router.get("/annual-summary")
+async def get_annual_summary(
+    year: int = Query(..., description="Year to summarize"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get comprehensive annual summary for a single year.
+
+    Returns:
+    - Total income and expenses
+    - Net income
+    - Average monthly values
+    - Peak expense month
+    """
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
+    summary = await TrendAnalysisService.get_annual_summary(
+        db,
+        current_user.organization_id,
+        year,
+        user_id,
+        account_ids,
+    )
+
+    return summary

@@ -268,6 +268,7 @@ export const Layout = () => {
     { label: 'Bills', path: '/bills' },
     { label: 'Subscriptions', path: '/subscriptions' },
     { label: 'Tax Deductible', path: '/tax-deductible' },
+    { label: 'Trends', path: '/trends' },
   ];
 
   // Fetch accounts with user filtering
