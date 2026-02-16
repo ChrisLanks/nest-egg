@@ -1,6 +1,7 @@
 """Celery application configuration."""
 
 from celery import Celery
+from celery.schedules import crontab
 
 from app.config import settings
 
@@ -24,9 +25,12 @@ celery_app.conf.update(
 )
 
 # Import tasks here as they're created
-# from app.workers.tasks import sync_account_task
+from app.workers.tasks import budget_tasks  # noqa: F401
 
-# Beat schedule (periodic tasks) - will be populated in Phase 2
+# Beat schedule (periodic tasks)
 celery_app.conf.beat_schedule = {
-    # Tasks will be added here
+    'check-budget-alerts-daily': {
+        'task': 'check_budget_alerts',
+        'schedule': crontab(hour=0, minute=0),  # Midnight daily
+    },
 }

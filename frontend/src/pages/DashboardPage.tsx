@@ -36,6 +36,7 @@ import { useUserView } from '../contexts/UserViewContext';
 import api from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { useState, useMemo } from 'react';
+import { InsightsCard } from '../components/InsightsCard';
 
 interface DashboardData {
   summary: {
@@ -249,6 +250,9 @@ export const DashboardPage = () => {
             </CardBody>
           </Card>
         </SimpleGrid>
+
+        {/* Spending Insights */}
+        <InsightsCard />
 
         {/* Net Worth Over Time Chart */}
         {historicalData && historicalData.length > 0 && (

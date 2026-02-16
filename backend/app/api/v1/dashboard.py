@@ -19,6 +19,7 @@ from app.dependencies import (
 from app.models.user import User
 from app.services.dashboard_service import DashboardService
 from app.services.deduplication_service import DeduplicationService
+from app.services.insights_service import InsightsService
 from app.schemas.transaction import TransactionDetail
 
 
@@ -60,6 +61,18 @@ class CashFlowMonth(BaseModel):
     income: float
     expenses: float
     net: float
+
+
+class SpendingInsight(BaseModel):
+    """Spending insight item."""
+    type: str
+    title: str
+    message: str
+    category: Optional[str] = None
+    amount: Optional[float] = None
+    percentage_change: Optional[float] = None
+    priority: str
+    icon: str
 
 
 class DashboardData(BaseModel):
@@ -224,3 +237,41 @@ async def get_dashboard_data(
             for cf in cash_flow_trend
         ],
     )
+
+
+@router.get("/insights", response_model=list[SpendingInsight])
+async def get_spending_insights(
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get smart spending insights for dashboard."""
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
+    # Generate insights
+    insights = await InsightsService.generate_insights(
+        db, current_user.organization_id, account_ids, max_insights=5
+    )
+
+    # Convert to SpendingInsight models
+    return [
+        SpendingInsight(
+            type=insight['type'],
+            title=insight['title'],
+            message=insight['message'],
+            category=insight.get('category'),
+            amount=insight.get('amount'),
+            percentage_change=insight.get('percentage_change'),
+            priority=insight['priority'],
+            icon=insight['icon']
+        )
+        for insight in insights
+    ]
