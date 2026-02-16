@@ -542,6 +542,13 @@ export const Layout = () => {
                 onClick={() => navigateWithParams('/investments')}
               />
 
+              {/* Debt Payoff */}
+              <TopNavItem
+                label="Debt Payoff"
+                isActive={location.pathname === '/debt-payoff'}
+                onClick={() => navigateWithParams('/debt-payoff')}
+              />
+
               {/* Accounts */}
               <TopNavItem
                 label="Accounts"

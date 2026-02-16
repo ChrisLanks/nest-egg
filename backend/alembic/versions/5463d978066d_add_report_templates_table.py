@@ -1,8 +1,8 @@
 """add_report_templates_table
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 5463d978066d
 Revises: 6ad249139327
-Create Date: 2026-02-15 18:00:00.000000
+Create Date: 2026-02-16 00:16:18.975921
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'a1b2c3d4e5f6'
+revision: str = '5463d978066d'
 down_revision: Union[str, None] = '6ad249139327'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

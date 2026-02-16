@@ -74,7 +74,7 @@ from app.api.v1 import (
     auth, accounts, contributions, transactions, labels, rules, categories, dev, dashboard,
     income_expenses, plaid, holdings, enrichment, notifications, budgets, savings_goals,
     recurring_transactions, transaction_splits, transaction_merges, csv_import, household,
-    subscriptions, reports
+    subscriptions, reports, debt_payoff
 )
 from app.api.v1 import settings as settings_router
 
@@ -104,3 +104,4 @@ app.include_router(transaction_splits.router, prefix="/api/v1/transaction-splits
 app.include_router(transaction_merges.router, prefix="/api/v1/transaction-merges", tags=["Transaction Merges"])
 app.include_router(csv_import.router, prefix="/api/v1/csv-import", tags=["CSV Import"])
 app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
+app.include_router(debt_payoff.router, prefix="/api/v1/debt-payoff", tags=["Debt Payoff"])

@@ -28,6 +28,7 @@ import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import TaxDeductiblePage from './pages/TaxDeductiblePage';
 import TrendsPage from './pages/TrendsPage';
 import ReportsPage from './pages/ReportsPage';
+import DebtPayoffPage from './pages/DebtPayoffPage';
 import { HouseholdSettingsPage } from './pages/HouseholdSettingsPage';
 import { AcceptInvitationPage } from './pages/AcceptInvitationPage';
 import { UserViewProvider } from './contexts/UserViewContext';
@@ -63,6 +64,7 @@ function App() {
                 <Route path="/recurring" element={<RecurringTransactionsPage />} />
                 <Route path="/bills" element={<BillsPage />} />
                 <Route path="/subscriptions" element={<SubscriptionsPage />} />
+                <Route path="/debt-payoff" element={<DebtPayoffPage />} />
                 <Route path="/preferences" element={<PreferencesPage />} />
                 <Route path="/household" element={<HouseholdSettingsPage />} />
               </Route>
