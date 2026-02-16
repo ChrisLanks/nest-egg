@@ -81,6 +81,15 @@ export const AccountsPage = () => {
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
 
+  // Fetch current user for permission checks
+  const { data: currentUser } = useQuery({
+    queryKey: ['current-user'],
+    queryFn: async () => {
+      const response = await api.get<User>('/users/me');
+      return response.data;
+    },
+  });
+
   // Fetch all accounts (ALWAYS include hidden - this is the admin page)
   const { data: accounts, isLoading } = useQuery({
     queryKey: ['accounts-admin', 'include-hidden'],
@@ -106,6 +115,12 @@ export const AccountsPage = () => {
     if (!users) return new Map<string, User>();
     return new Map(users.map(user => [user.id, user]));
   }, [users]);
+
+  // Check if current user can modify an account
+  const canModifyAccount = (account: Account): boolean => {
+    if (!currentUser) return false;
+    return account.user_id === currentUser.id;
+  };
 
   // Bulk delete mutation
   const deleteMutation = useMutation({
@@ -340,27 +355,89 @@ export const AccountsPage = () => {
   };
 
   const handleBulkHide = () => {
+    // Filter to only accounts the user owns
+    const ownedAccountIds = Array.from(selectedAccounts).filter(accountId => {
+      const account = accounts?.find(a => a.id === accountId);
+      return account && canModifyAccount(account);
+    });
+
+    if (ownedAccountIds.length === 0) {
+      toast({
+        title: 'No accounts to modify',
+        description: 'You can only modify your own accounts',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
     visibilityMutation.mutate({
-      accountIds: Array.from(selectedAccounts),
+      accountIds: ownedAccountIds,
       isActive: false,
     });
   };
 
   const handleBulkShow = () => {
+    // Filter to only accounts the user owns
+    const ownedAccountIds = Array.from(selectedAccounts).filter(accountId => {
+      const account = accounts?.find(a => a.id === accountId);
+      return account && canModifyAccount(account);
+    });
+
+    if (ownedAccountIds.length === 0) {
+      toast({
+        title: 'No accounts to modify',
+        description: 'You can only modify your own accounts',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
     visibilityMutation.mutate({
-      accountIds: Array.from(selectedAccounts),
+      accountIds: ownedAccountIds,
       isActive: true,
     });
   };
 
   const handleDeleteClick = (target: 'selected' | string) => {
+    if (target !== 'selected') {
+      // Single account deletion - check ownership
+      const account = accounts?.find(a => a.id === target);
+      if (account && !canModifyAccount(account)) {
+        toast({
+          title: 'Cannot delete account',
+          description: 'You can only delete your own accounts',
+          status: 'error',
+          duration: 3000,
+        });
+        return;
+      }
+    }
     setDeleteTarget(target);
     onDeleteOpen();
   };
 
   const handleDeleteConfirm = () => {
     if (deleteTarget === 'selected') {
-      deleteMutation.mutate(Array.from(selectedAccounts));
+      // Filter to only accounts the user owns
+      const ownedAccountIds = Array.from(selectedAccounts).filter(accountId => {
+        const account = accounts?.find(a => a.id === accountId);
+        return account && canModifyAccount(account);
+      });
+
+      if (ownedAccountIds.length === 0) {
+        toast({
+          title: 'No accounts to delete',
+          description: 'You can only delete your own accounts',
+          status: 'warning',
+          duration: 3000,
+        });
+        onDeleteClose();
+        return;
+      }
+
+      deleteMutation.mutate(ownedAccountIds);
     } else if (deleteTarget) {
       deleteMutation.mutate([deleteTarget]);
     }
@@ -481,12 +558,15 @@ export const AccountsPage = () => {
                       bg={account.is_active ? 'white' : 'gray.50'}
                     >
                       <Td>
-                        <Checkbox
-                          isChecked={selectedAccounts.has(account.id)}
-                          onChange={(e) =>
-                            handleSelectAccount(account.id, e.target.checked)
-                          }
-                        />
+                        <Tooltip label={!canModifyAccount(account) ? 'Cannot select another user\'s account' : ''}>
+                          <Checkbox
+                            isChecked={selectedAccounts.has(account.id)}
+                            isDisabled={!canModifyAccount(account)}
+                            onChange={(e) =>
+                              handleSelectAccount(account.id, e.target.checked)
+                            }
+                          />
+                        </Tooltip>
                       </Td>
                       <Td>
                         <VStack align="start" spacing={1}>
@@ -530,12 +610,13 @@ export const AccountsPage = () => {
                       </Td>
                       <Td>
                         <HStack spacing={2}>
-                          <Tooltip label={account.is_active ? 'Hide account from everywhere' : 'Show account everywhere'}>
+                          <Tooltip label={!canModifyAccount(account) ? 'Cannot modify another user\'s account' : (account.is_active ? 'Hide account from everywhere' : 'Show account everywhere')}>
                             <IconButton
                               icon={account.is_active ? <ViewOffIcon /> : <ViewIcon />}
                               size="sm"
                               variant="ghost"
                               aria-label={account.is_active ? 'Hide account' : 'Show account'}
+                              isDisabled={!canModifyAccount(account)}
                               onClick={() =>
                                 toggleAccountMutation.mutate({
                                   accountId: account.id,
@@ -544,13 +625,14 @@ export const AccountsPage = () => {
                               }
                             />
                           </Tooltip>
-                          <Tooltip label={account.exclude_from_cash_flow ? 'Include in budgets & cash flow' : 'Exclude from budgets & cash flow'}>
+                          <Tooltip label={!canModifyAccount(account) ? 'Cannot modify another user\'s account' : (account.exclude_from_cash_flow ? 'Include in budgets & cash flow' : 'Exclude from budgets & cash flow')}>
                             <IconButton
                               icon={<Icon as={account.exclude_from_cash_flow ? FiTrendingDown : FiTrendingUp} />}
                               size="sm"
                               variant="ghost"
                               colorScheme={account.exclude_from_cash_flow ? 'orange' : 'green'}
                               aria-label={account.exclude_from_cash_flow ? 'Include in cash flow' : 'Exclude from cash flow'}
+                              isDisabled={!canModifyAccount(account)}
                               onClick={() =>
                                 toggleCashFlowMutation.mutate({
                                   accountId: account.id,
@@ -559,22 +641,24 @@ export const AccountsPage = () => {
                               }
                             />
                           </Tooltip>
-                          <Tooltip label="Edit account details">
+                          <Tooltip label={!canModifyAccount(account) ? 'Cannot modify another user\'s account' : 'Edit account details'}>
                             <IconButton
                               icon={<EditIcon />}
                               size="sm"
                               variant="ghost"
                               aria-label="Edit account"
+                              isDisabled={!canModifyAccount(account)}
                               onClick={() => navigate(`/accounts/${account.id}`)}
                             />
                           </Tooltip>
-                          <Tooltip label="Delete account permanently">
+                          <Tooltip label={!canModifyAccount(account) ? 'Cannot modify another user\'s account' : 'Delete account permanently'}>
                             <IconButton
                               icon={<DeleteIcon />}
                               size="sm"
                               variant="ghost"
                               colorScheme="red"
                               aria-label="Delete account"
+                              isDisabled={!canModifyAccount(account)}
                               onClick={() => handleDeleteClick(account.id)}
                             />
                           </Tooltip>
