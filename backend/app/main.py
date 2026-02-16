@@ -13,6 +13,7 @@ from app.core.database import close_db, init_db
 from app.services.snapshot_scheduler import snapshot_scheduler
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
+from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.services.secrets_validation_service import secrets_validation_service
 
 
@@ -70,6 +71,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Error handler - Catch uncaught exceptions with PII redaction
+app.add_middleware(ErrorHandlerMiddleware)
 
 # Security middleware (production only)
 if not settings.DEBUG:

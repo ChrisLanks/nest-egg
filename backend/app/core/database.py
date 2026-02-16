@@ -7,13 +7,20 @@ from sqlalchemy.orm import declarative_base
 
 from app.config import settings
 
-# Create async engine
+# Create async engine with security and performance settings
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DB_ECHO,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_pre_ping=True,
+    pool_size=settings.DB_POOL_SIZE,  # Connection pool size (default: 20)
+    max_overflow=settings.DB_MAX_OVERFLOW,  # Extra connections allowed (default: 10)
+    pool_pre_ping=True,  # Verify connections before use (prevents stale connections)
+    pool_recycle=3600,  # Recycle connections after 1 hour (prevents timeout)
+    connect_args={
+        "statement_timeout": 30000,  # 30 second query timeout (prevents runaway queries)
+        "server_settings": {
+            "application_name": "nest_egg_api",  # Identify app in database logs
+        },
+    },
 )
 
 # Create async session factory
