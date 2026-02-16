@@ -86,6 +86,9 @@ import { useInfiniteTransactions } from '../hooks/useInfiniteTransactions';
 import { useUserView } from '../contexts/UserViewContext';
 import type { Transaction } from '../types/transaction';
 import api from '../services/api';
+import { TransactionsSkeleton } from '../components/LoadingSkeleton';
+import { EmptyState } from '../components/EmptyState';
+import { FiInbox } from 'react-icons/fi';
 
 const STORAGE_KEY = 'transactions-date-range';
 
@@ -946,11 +949,7 @@ export const TransactionsPage = () => {
   };
 
   if (isLoading) {
-    return (
-      <Center h="100vh">
-        <Spinner size="xl" color="brand.500" />
-      </Center>
-    );
+    return <TransactionsSkeleton />;
   }
 
   const formatCurrency = (amount: number) => {
@@ -1192,8 +1191,24 @@ export const TransactionsPage = () => {
           </Box>
         )}
 
+        {/* Empty State */}
+        {processedTransactions.length === 0 && !isLoading && (
+          <EmptyState
+            icon={FiInbox}
+            title="No transactions found"
+            description={
+              debouncedSearchQuery || selectedAccountId || selectedLabelId
+                ? "Try adjusting your filters or search query."
+                : "Connect your accounts to start tracking transactions."
+            }
+            actionLabel={!debouncedSearchQuery && !selectedAccountId && !selectedLabelId ? "Go to Accounts" : undefined}
+            onAction={() => navigate('/accounts')}
+            showAction={!debouncedSearchQuery && !selectedAccountId && !selectedLabelId}
+          />
+        )}
+
         {/* Desktop Table View */}
-        {!isMobile && (
+        {!isMobile && processedTransactions.length > 0 && (
           <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
             <Table variant="simple" size="sm">
             <Thead bg="gray.50">
@@ -1442,7 +1457,7 @@ export const TransactionsPage = () => {
         )}
 
         {/* Mobile Card View */}
-        {isMobile && (
+        {isMobile && processedTransactions.length > 0 && (
           <VStack spacing={4} align="stretch">
             {transactionsByMonth.map((monthGroup) => {
               // Calculate starting index for this month group

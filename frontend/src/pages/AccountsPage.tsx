@@ -48,6 +48,7 @@ import api from '../services/api';
 import { formatAssetType } from '../utils/formatAssetType';
 import { EmptyState } from '../components/EmptyState';
 import { useUserView } from '../contexts/UserViewContext';
+import { AccountsSkeleton } from '../components/LoadingSkeleton';
 
 interface Account {
   id: string;
@@ -485,11 +486,7 @@ export const AccountsPage = () => {
   };
 
   if (isLoading) {
-    return (
-      <Center h="50vh">
-        <Spinner size="xl" color="brand.500" />
-      </Center>
-    );
+    return <AccountsSkeleton />;
   }
 
   return (

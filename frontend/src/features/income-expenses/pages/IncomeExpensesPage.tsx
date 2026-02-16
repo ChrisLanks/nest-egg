@@ -57,6 +57,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Ba
 import type { Transaction } from '../../../types/transaction';
 import { TransactionDetailModal } from '../../../components/TransactionDetailModal';
 import { RuleBuilderModal } from '../../../components/RuleBuilderModal';
+import { IncomeExpensesSkeleton } from '../../../components/LoadingSkeleton';
 
 interface CategoryBreakdown {
   category: string;
@@ -833,11 +834,7 @@ export const IncomeExpensesPage = () => {
   const net = filteredTotals.net;
 
   if (summaryLoading || trendLoading || transactionsLoading) {
-    return (
-      <Center h="100vh">
-        <Spinner size="xl" color="brand.500" />
-      </Center>
-    );
+    return <IncomeExpensesSkeleton />;
   }
 
   const renderChart = (

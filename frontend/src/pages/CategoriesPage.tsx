@@ -45,6 +45,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DeleteIcon, EditIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { TableSkeleton } from '../components/LoadingSkeleton';
+import { EmptyState } from '../components/EmptyState';
+import { FiTag } from 'react-icons/fi';
 
 interface Category {
   id: string | null;  // null for Plaid categories not yet in DB
@@ -379,9 +382,12 @@ export const CategoriesPage = () => {
 
   if (isLoading) {
     return (
-      <Center h="100vh">
-        <Spinner size="xl" color="brand.500" />
-      </Center>
+      <Container maxW="container.xl" py={8}>
+        <VStack spacing={6} align="stretch">
+          <Heading size="lg">Categories</Heading>
+          <TableSkeleton />
+        </VStack>
+      </Container>
     );
   }
 
@@ -406,23 +412,13 @@ export const CategoriesPage = () => {
         </HStack>
 
         {customCategories.length === 0 && plaidCategories.length === 0 ? (
-          <Box
-            bg="white"
-            p={12}
-            borderRadius="lg"
-            boxShadow="sm"
-            textAlign="center"
-          >
-            <Text fontSize="lg" color="gray.600" mb={4}>
-              No categories yet
-            </Text>
-            <Text color="gray.500" mb={6}>
-              Create categories to organize your transactions
-            </Text>
-            <Button colorScheme="brand" onClick={handleCreate}>
-              Create Your First Category
-            </Button>
-          </Box>
+          <EmptyState
+            icon={FiTag}
+            title="No categories yet"
+            description="Create categories to organize your transactions and track spending patterns."
+            actionLabel="Create Your First Category"
+            onAction={handleCreate}
+          />
         ) : (
           <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
             <Table variant="simple" size="sm">

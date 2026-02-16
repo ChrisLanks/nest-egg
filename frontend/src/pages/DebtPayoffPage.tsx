@@ -49,6 +49,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useUserView } from '../contexts/UserViewContext';
+import { Skeleton, Stack } from '@chakra-ui/react';
+import { EmptyState } from '../components/EmptyState';
+import { FiCreditCard } from 'react-icons/fi';
 
 interface DebtAccount {
   account_id: string;
@@ -273,9 +276,34 @@ export default function DebtPayoffPage() {
   if (summaryLoading || debtsLoading) {
     return (
       <Container maxW="container.xl" py={8}>
-        <Center py={20}>
-          <Spinner size="xl" color="brand.500" />
-        </Center>
+        <VStack spacing={8} align="stretch">
+          <Box>
+            <Skeleton height="32px" width="250px" mb={2} />
+            <Skeleton height="20px" width="400px" />
+          </Box>
+          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
+            {[1, 2, 3].map((i) => (
+              <Card key={i}>
+                <CardBody>
+                  <Stack spacing={3}>
+                    <Skeleton height="16px" width="100px" />
+                    <Skeleton height="28px" width="120px" />
+                  </Stack>
+                </CardBody>
+              </Card>
+            ))}
+          </SimpleGrid>
+          <Card>
+            <CardBody>
+              <Skeleton height="24px" width="150px" mb={4} />
+              <Stack spacing={3}>
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} height="80px" />
+                ))}
+              </Stack>
+            </CardBody>
+          </Card>
+        </VStack>
       </Container>
     );
   }
@@ -288,20 +316,13 @@ export default function DebtPayoffPage() {
             <Heading size="lg">💳 Debt Payoff Planner</Heading>
             <Text color="gray.600">Strategic debt elimination tool</Text>
           </Box>
-          <Card>
-            <CardBody>
-              <Center py={10}>
-                <VStack spacing={4}>
-                  <Text fontSize="lg" color="gray.600">
-                    No debt accounts found
-                  </Text>
-                  <Text fontSize="sm" color="gray.500">
-                    Add debt accounts (credit cards, loans, mortgages) to use the payoff planner
-                  </Text>
-                </VStack>
-              </Center>
-            </CardBody>
-          </Card>
+          <EmptyState
+            icon={FiCreditCard}
+            title="No debt accounts found"
+            description="Add debt accounts (credit cards, loans, mortgages) with interest rates to use the payoff planner and compare strategies."
+            actionLabel="Go to Accounts"
+            onAction={() => window.location.href = '/accounts'}
+          />
         </VStack>
       </Container>
     );

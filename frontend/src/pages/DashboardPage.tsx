@@ -38,6 +38,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { useState, useMemo } from 'react';
 import { InsightsCard } from '../components/InsightsCard';
 import { ForecastChart } from '../components/ForecastChart';
+import { DashboardSkeleton } from '../components/LoadingSkeleton';
 
 interface DashboardData {
   summary: {
@@ -156,11 +157,7 @@ export const DashboardPage = () => {
   };
 
   if (isLoading) {
-    return (
-      <Center h="100vh">
-        <Spinner size="xl" color="brand.500" />
-      </Center>
-    );
+    return <DashboardSkeleton />;
   }
 
   const summary = dashboardData?.summary;
