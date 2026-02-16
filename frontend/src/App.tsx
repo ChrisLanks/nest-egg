@@ -25,6 +25,7 @@ import SavingsGoalsPage from './pages/SavingsGoalsPage';
 import RecurringTransactionsPage from './pages/RecurringTransactionsPage';
 import BillsPage from './pages/BillsPage';
 import { SubscriptionsPage } from './pages/SubscriptionsPage';
+import TaxDeductiblePage from './pages/TaxDeductiblePage';
 import { HouseholdSettingsPage } from './pages/HouseholdSettingsPage';
 import { AcceptInvitationPage } from './pages/AcceptInvitationPage';
 import { UserViewProvider } from './contexts/UserViewContext';
@@ -50,6 +51,7 @@ function App() {
                 <Route path="/rules" element={<RulesPage />} />
                 <Route path="/income-expenses" element={<IncomeExpensesPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
+                <Route path="/tax-deductible" element={<TaxDeductiblePage />} />
                 <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
                 <Route path="/budgets" element={<BudgetsPage />} />
