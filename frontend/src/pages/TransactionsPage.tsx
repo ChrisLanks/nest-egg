@@ -24,6 +24,7 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
+  InputRightElement,
   IconButton,
   Wrap,
   WrapItem,
@@ -61,8 +62,18 @@ import {
   FormControl,
   FormLabel,
   CloseButton,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverHeader,
+  PopoverBody,
+  PopoverArrow,
+  PopoverCloseButton,
+  Code,
+  List,
+  ListItem,
 } from '@chakra-ui/react';
-import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon, DownloadIcon } from '@chakra-ui/icons';
+import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon, DownloadIcon, QuestionIcon } from '@chakra-ui/icons';
 import { FiLock } from 'react-icons/fi';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -390,7 +401,7 @@ export const TransactionsPage = () => {
     if (debouncedSearchQuery) {
       const query = debouncedSearchQuery.toLowerCase();
 
-      // Parse special search syntax: labels:<x,y>, category:<x,y>, account:<x,y>
+      // Parse special search syntax: labels:<x,y>, categories:<x,y>, accounts:<x,y>
       // Support both quoted strings (with spaces), unquoted strings (no spaces), and empty quotes
       const labelsMatch = query.match(/labels?:((?:"[^"]*"|[^\s,]+)(?:,(?:"[^"]*"|[^\s,]+))*)/i);
       const categoryMatch = query.match(/categor(?:y|ies):((?:"[^"]*"|[^\s,]+)(?:,(?:"[^"]*"|[^\s,]+))*)/i);
@@ -645,17 +656,17 @@ export const TransactionsPage = () => {
 
   const handleCategoryClick = (category: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
-    // Add quotes if category contains spaces
-    const formattedCategory = category.includes(' ') ? `"${category}"` : category;
-    const newFilter = `category:${formattedCategory}`;
+    // Add quotes if category contains spaces or commas
+    const formattedCategory = (category.includes(' ') || category.includes(',')) ? `"${category}"` : category;
+    const newFilter = `categories:${formattedCategory}`;
     // Append to existing search if present
     setSearchQuery(searchQuery ? `${searchQuery} ${newFilter}` : newFilter);
   };
 
   const handleLabelClick = (labelName: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
-    // Add quotes if label contains spaces
-    const formattedLabel = labelName.includes(' ') ? `"${labelName}"` : labelName;
+    // Add quotes if label contains spaces or commas
+    const formattedLabel = (labelName.includes(' ') || labelName.includes(',')) ? `"${labelName}"` : labelName;
     const newFilter = `labels:${formattedLabel}`;
     // Append to existing search if present
     setSearchQuery(searchQuery ? `${searchQuery} ${newFilter}` : newFilter);
@@ -663,8 +674,8 @@ export const TransactionsPage = () => {
 
   const handleAccountClick = (accountName: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
-    // Add quotes if account name contains spaces
-    const formattedAccount = accountName.includes(' ') ? `"${accountName}"` : accountName;
+    // Add quotes if account name contains spaces or commas
+    const formattedAccount = (accountName.includes(' ') || accountName.includes(',')) ? `"${accountName}"` : accountName;
     const newFilter = `account:${formattedAccount}`;
     // Append to existing search if present
     setSearchQuery(searchQuery ? `${searchQuery} ${newFilter}` : newFilter);
@@ -865,10 +876,105 @@ export const TransactionsPage = () => {
               <SearchIcon color="gray.400" />
             </InputLeftElement>
             <Input
-              placeholder="Search or try: labels:Transfer account:Chase"
+              placeholder="Search or try: labels:Transfer accounts:Chase"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              pr="10"
             />
+            <InputRightElement>
+              <Popover placement="bottom-start">
+                <PopoverTrigger>
+                  <IconButton
+                    aria-label="Search help"
+                    icon={<QuestionIcon />}
+                    size="sm"
+                    variant="ghost"
+                    colorScheme="gray"
+                  />
+                </PopoverTrigger>
+                <PopoverContent width="400px">
+                  <PopoverArrow />
+                  <PopoverCloseButton />
+                  <PopoverHeader fontWeight="bold">Search Syntax Guide</PopoverHeader>
+                  <PopoverBody>
+                    <VStack align="stretch" spacing={3} fontSize="sm">
+                      <Box>
+                        <Text fontWeight="semibold" mb={1}>Basic Search</Text>
+                        <Text color="gray.600">
+                          Just type to search merchant names, descriptions, and amounts.
+                        </Text>
+                      </Box>
+
+                      <Divider />
+
+                      <Box>
+                        <Text fontWeight="semibold" mb={1}>Advanced Filters</Text>
+                        <List spacing={2}>
+                          <ListItem>
+                            <Code fontSize="xs">labels:Transfer</Code>
+                            <Text color="gray.600" mt={1}>Search by label name</Text>
+                          </ListItem>
+                          <ListItem>
+                            <Code fontSize="xs">categories:Groceries</Code>
+                            <Text color="gray.600" mt={1}>Search by category</Text>
+                          </ListItem>
+                          <ListItem>
+                            <Code fontSize="xs">accounts:Chase</Code>
+                            <Text color="gray.600" mt={1}>Search by account</Text>
+                          </ListItem>
+                          <ListItem>
+                            <Code fontSize="xs">labels:""</Code>
+                            <Text color="gray.600" mt={1}>Find transactions with no labels</Text>
+                          </ListItem>
+                        </List>
+                      </Box>
+
+                      <Divider />
+
+                      <Box>
+                        <Text fontWeight="semibold" mb={1}>Multiple Values</Text>
+                        <List spacing={2}>
+                          <ListItem>
+                            <Code fontSize="xs">categories:"Food and Drink","Service"</Code>
+                            <Text color="gray.600" mt={1}>Search for multiple categories (OR logic)</Text>
+                          </ListItem>
+                          <ListItem>
+                            <Code fontSize="xs">labels:Work,Personal</Code>
+                            <Text color="gray.600" mt={1}>Multiple labels without spaces</Text>
+                          </ListItem>
+                        </List>
+                      </Box>
+
+                      <Divider />
+
+                      <Box>
+                        <Text fontWeight="semibold" mb={1}>Quotes</Text>
+                        <Text color="gray.600" mb={2}>
+                          Use quotes for names with spaces or commas:
+                        </Text>
+                        <List spacing={2}>
+                          <ListItem>
+                            <Code fontSize="xs">categories:"Food and Drink"</Code>
+                          </ListItem>
+                          <ListItem>
+                            <Code fontSize="xs">accounts:"Wells Fargo Checking"</Code>
+                          </ListItem>
+                        </List>
+                      </Box>
+
+                      <Divider />
+
+                      <Box>
+                        <Text fontWeight="semibold" mb={1}>💡 Pro Tip</Text>
+                        <Text color="gray.600">
+                          Click any category, label, or account badge to automatically add it to your search!
+                        </Text>
+                      </Box>
+                    </VStack>
+                  </PopoverBody>
+                </PopoverContent>
+              </Popover>
+            </InputRightElement>
           </InputGroup>
 
           <HStack spacing={2}>
