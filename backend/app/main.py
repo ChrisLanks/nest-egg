@@ -12,6 +12,7 @@ from app.config import settings
 from app.core.database import close_db, init_db
 from app.services.snapshot_scheduler import snapshot_scheduler
 from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.middleware.request_size_limit import RequestSizeLimitMiddleware
 
 
 @asynccontextmanager
@@ -55,6 +56,9 @@ if not settings.DEBUG:
 
 # Security headers - Always apply (dev and production)
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Request size limit - Prevent DoS from large payloads (10MB limit)
+app.add_middleware(RequestSizeLimitMiddleware, max_request_size=10 * 1024 * 1024)
 
 # GZip compression for API responses > 1KB
 app.add_middleware(GZipMiddleware, minimum_size=1000)

@@ -15,8 +15,50 @@ from app.schemas.csv_import import (
     CSVImportResponse,
 )
 from app.services.csv_import_service import csv_import_service
+from app.services.input_sanitization_service import input_sanitization_service
 
 router = APIRouter()
+
+
+def validate_csv_file(file: UploadFile) -> None:
+    """
+    Validate CSV file upload for security.
+
+    Args:
+        file: Uploaded file
+
+    Raises:
+        HTTPException: If file validation fails
+    """
+    # Check file extension
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+
+    filename_lower = file.filename.lower()
+    if not filename_lower.endswith('.csv'):
+        raise HTTPException(
+            status_code=400,
+            detail="Only CSV files are allowed (.csv extension)"
+        )
+
+    # Sanitize filename to prevent path traversal
+    sanitized_name = input_sanitization_service.sanitize_filename(file.filename)
+    if sanitized_name != file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid filename. Filename contains unsafe characters"
+        )
+
+    # Check content type (allow both text/csv and application/vnd.ms-excel)
+    if file.content_type:
+        allowed_types = ['text/csv', 'application/vnd.ms-excel', 'application/csv']
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid content type: {file.content_type}. Expected CSV file"
+            )
+
+    # File size check is handled by RequestSizeLimitMiddleware (10MB limit)
 
 
 @router.post("/validate")
@@ -24,7 +66,10 @@ async def validate_csv(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
 ):
-    """Validate CSV file format. Requires authentication."""
+    """Validate CSV file format and security. Requires authentication."""
+    # Validate file upload security
+    validate_csv_file(file)
+
     try:
         content = await file.read()
         csv_content = content.decode("utf-8")
@@ -46,10 +91,13 @@ async def preview_csv_import(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Preview CSV file before import. Requires authentication.
+    Preview CSV file before import with security validation. Requires authentication.
 
     Returns detected columns, sample rows, and row count.
     """
+    # Validate file upload security
+    validate_csv_file(file)
+
     try:
         content = await file.read()
         csv_content = content.decode("utf-8")
@@ -74,7 +122,7 @@ async def import_csv(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Import transactions from CSV file.
+    Import transactions from CSV file with security validation.
 
     Args:
         account_id: Account to import transactions into
@@ -85,6 +133,9 @@ async def import_csv(
     Returns:
         Import statistics (imported, skipped, errors)
     """
+    # Validate file upload security
+    validate_csv_file(file)
+
     # Read file
     try:
         content = await file.read()
