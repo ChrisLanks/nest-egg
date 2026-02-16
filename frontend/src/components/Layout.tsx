@@ -478,7 +478,7 @@ export const Layout = () => {
             <Text fontSize="xl" fontWeight="bold" color="brand.600" whiteSpace="nowrap">
               Nest Egg
             </Text>
-            <HStack spacing={1}>
+            <HStack spacing={1} ml={48}>
               {/* Overview */}
               <TopNavItem
                 label="Overview"
@@ -838,7 +838,7 @@ export const Layout = () => {
         </Box>
 
         {/* Main content area */}
-        <Box flex={1} overflowY="auto" bg="gray.50" pl={48}>
+        <Box flex={1} overflowY="auto" bg="gray.50" pl={8}>
           <Outlet />
         </Box>
       </Flex>
