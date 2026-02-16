@@ -145,6 +145,42 @@ export const TransactionsPage = () => {
   const { canEdit, isOtherUserView } = useUserView();
   const isMobile = useBreakpointValue({ base: true, md: false });
 
+  // Fetch current user for ownership checks
+  const { data: currentUser } = useQuery({
+    queryKey: ['current-user'],
+    queryFn: async () => {
+      const response = await api.get('/users/me');
+      return response.data;
+    },
+  });
+
+  // Fetch all accounts to check transaction ownership
+  const { data: accounts = [] } = useQuery({
+    queryKey: ['accounts-all'],
+    queryFn: async () => {
+      const response = await api.get('/accounts', {
+        params: { include_hidden: true }
+      });
+      return response.data;
+    },
+  });
+
+  // Create account ownership map
+  const accountOwnershipMap = useMemo(() => {
+    const map = new Map<string, string>();
+    accounts.forEach((account: any) => {
+      map.set(account.id, account.user_id);
+    });
+    return map;
+  }, [accounts]);
+
+  // Check if user owns a transaction (via its account)
+  const canModifyTransaction = (transaction: Transaction): boolean => {
+    if (!currentUser || !transaction.account_id) return false;
+    const accountUserId = accountOwnershipMap.get(transaction.account_id);
+    return accountUserId === currentUser.id;
+  };
+
   // Fetch organization preferences for monthly_start_day
   const { data: orgPrefs } = useQuery({
     queryKey: ['orgPreferences'],
@@ -210,17 +246,30 @@ export const TransactionsPage = () => {
   // Mutation for bulk marking transactions as transfers
   const bulkMarkTransferMutation = useMutation({
     mutationFn: async ({ transactionIds, isTransfer }: { transactionIds: string[]; isTransfer: boolean }) => {
+      // Filter to only transactions user owns
+      const ownedTransactionIds = transactionIds.filter(id => {
+        const transaction = allTransactions.find(t => t.id === id);
+        return transaction && canModifyTransaction(transaction);
+      });
+
+      if (ownedTransactionIds.length === 0) {
+        throw new Error('No owned transactions to modify');
+      }
+
       // Update each transaction
-      const promises = transactionIds.map((id) =>
+      const promises = ownedTransactionIds.map((id) =>
         api.patch(`/transactions/${id}`, { is_transfer: isTransfer })
       );
       await Promise.all(promises);
+      return { attempted: transactionIds.length, modified: ownedTransactionIds.length, isTransfer };
     },
-    onSuccess: (_, variables) => {
-      const action = variables.isTransfer ? 'marked as transfers' : 'unmarked as transfers';
+    onSuccess: (result) => {
+      const action = result.isTransfer ? 'marked as transfers' : 'unmarked as transfers';
+      const skipped = result.attempted - result.modified;
       toast({
-        title: `${variables.transactionIds.length} transaction(s) ${action}`,
-        status: 'success',
+        title: `${result.modified} transaction(s) ${action}`,
+        description: skipped > 0 ? `${skipped} transaction(s) skipped (not owned by you)` : undefined,
+        status: skipped > 0 ? 'warning' : 'success',
         duration: 3000,
       });
       // Refetch transactions to get updated labels
@@ -231,9 +280,12 @@ export const TransactionsPage = () => {
       setSelectedTransactions(new Set());
       setBulkSelectMode(false);
     },
-    onError: () => {
+    onError: (error: any) => {
+      const message = error.message === 'No owned transactions to modify'
+        ? 'You can only modify your own transactions'
+        : 'Failed to update transactions';
       toast({
-        title: 'Failed to update transactions',
+        title: message,
         status: 'error',
         duration: 5000,
       });
@@ -243,23 +295,39 @@ export const TransactionsPage = () => {
   // Mutation for bulk adding labels
   const bulkAddLabelMutation = useMutation({
     mutationFn: async ({ transactionIds, labelId }: { transactionIds: string[]; labelId: string }) => {
-      const promises = transactionIds.map((id) =>
+      // Filter to only transactions user owns
+      const ownedTransactionIds = transactionIds.filter(id => {
+        const transaction = allTransactions.find(t => t.id === id);
+        return transaction && canModifyTransaction(transaction);
+      });
+
+      if (ownedTransactionIds.length === 0) {
+        throw new Error('No owned transactions to modify');
+      }
+
+      const promises = ownedTransactionIds.map((id) =>
         api.post(`/transactions/${id}/labels/${labelId}`)
       );
       await Promise.all(promises);
+      return { attempted: transactionIds.length, modified: ownedTransactionIds.length };
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (result, variables) => {
+      const skipped = result.attempted - result.modified;
       toast({
-        title: `Label added to ${variables.transactionIds.length} transaction(s)`,
-        status: 'success',
+        title: `Label added to ${result.modified} transaction(s)`,
+        description: skipped > 0 ? `${skipped} transaction(s) skipped (not owned by you)` : undefined,
+        status: skipped > 0 ? 'warning' : 'success',
         duration: 3000,
       });
       refetch();
       queryClient.invalidateQueries({ queryKey: ['income-expenses'] });
     },
-    onError: () => {
+    onError: (error: any) => {
+      const message = error.message === 'No owned transactions to modify'
+        ? 'You can only add labels to your own transactions'
+        : 'Failed to add labels';
       toast({
-        title: 'Failed to add labels',
+        title: message,
         status: 'error',
         duration: 5000,
       });
@@ -269,23 +337,39 @@ export const TransactionsPage = () => {
   // Mutation for bulk removing labels
   const bulkRemoveLabelMutation = useMutation({
     mutationFn: async ({ transactionIds, labelId }: { transactionIds: string[]; labelId: string }) => {
-      const promises = transactionIds.map((id) =>
+      // Filter to only transactions user owns
+      const ownedTransactionIds = transactionIds.filter(id => {
+        const transaction = allTransactions.find(t => t.id === id);
+        return transaction && canModifyTransaction(transaction);
+      });
+
+      if (ownedTransactionIds.length === 0) {
+        throw new Error('No owned transactions to modify');
+      }
+
+      const promises = ownedTransactionIds.map((id) =>
         api.delete(`/transactions/${id}/labels/${labelId}`)
       );
       await Promise.all(promises);
+      return { attempted: transactionIds.length, modified: ownedTransactionIds.length };
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (result, variables) => {
+      const skipped = result.attempted - result.modified;
       toast({
-        title: `Label removed from ${variables.transactionIds.length} transaction(s)`,
-        status: 'success',
+        title: `Label removed from ${result.modified} transaction(s)`,
+        description: skipped > 0 ? `${skipped} transaction(s) skipped (not owned by you)` : undefined,
+        status: skipped > 0 ? 'warning' : 'success',
         duration: 3000,
       });
       refetch();
       queryClient.invalidateQueries({ queryKey: ['income-expenses'] });
     },
-    onError: () => {
+    onError: (error: any) => {
+      const message = error.message === 'No owned transactions to modify'
+        ? 'You can only remove labels from your own transactions'
+        : 'Failed to remove labels';
       toast({
-        title: 'Failed to remove labels',
+        title: message,
         status: 'error',
         duration: 5000,
       });
@@ -295,23 +379,39 @@ export const TransactionsPage = () => {
   // Mutation for bulk category change
   const bulkChangeCategoryMutation = useMutation({
     mutationFn: async ({ transactionIds, category }: { transactionIds: string[]; category: string }) => {
-      const promises = transactionIds.map((id) =>
+      // Filter to only transactions user owns
+      const ownedTransactionIds = transactionIds.filter(id => {
+        const transaction = allTransactions.find(t => t.id === id);
+        return transaction && canModifyTransaction(transaction);
+      });
+
+      if (ownedTransactionIds.length === 0) {
+        throw new Error('No owned transactions to modify');
+      }
+
+      const promises = ownedTransactionIds.map((id) =>
         api.patch(`/transactions/${id}`, { category_primary: category })
       );
       await Promise.all(promises);
+      return { attempted: transactionIds.length, modified: ownedTransactionIds.length };
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (result, variables) => {
+      const skipped = result.attempted - result.modified;
       toast({
-        title: `Category updated for ${variables.transactionIds.length} transaction(s)`,
-        status: 'success',
+        title: `Category updated for ${result.modified} transaction(s)`,
+        description: skipped > 0 ? `${skipped} transaction(s) skipped (not owned by you)` : undefined,
+        status: skipped > 0 ? 'warning' : 'success',
         duration: 3000,
       });
       refetch();
       queryClient.invalidateQueries({ queryKey: ['income-expenses'] });
     },
-    onError: () => {
+    onError: (error: any) => {
+      const message = error.message === 'No owned transactions to modify'
+        ? 'You can only update categories for your own transactions'
+        : 'Failed to update categories';
       toast({
-        title: 'Failed to update categories',
+        title: message,
         status: 'error',
         duration: 5000,
       });
