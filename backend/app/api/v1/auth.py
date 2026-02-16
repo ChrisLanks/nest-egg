@@ -2,7 +2,7 @@
 
 import hashlib
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -131,17 +131,51 @@ async def login(
                 detail="Incorrect email or password",
             )
 
+        # Check if account is locked
+        if user.locked_until and user.locked_until > datetime.utcnow():
+            minutes_remaining = int((user.locked_until - datetime.utcnow()).total_seconds() / 60)
+            logger.warning(f"Login failed: Account locked - {data.email}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Account is locked due to too many failed login attempts. Try again in {minutes_remaining} minutes.",
+            )
+
+        # If lockout period has expired, reset failed attempts
+        if user.locked_until and user.locked_until <= datetime.utcnow():
+            user.failed_login_attempts = 0
+            user.locked_until = None
+            await db.commit()
+
         logger.info(f"User found: {user.email}, verifying password...")
 
         # Verify password
         if not verify_password(data.password, user.password_hash):
             logger.warning(f"Login failed: Incorrect password for {data.email}")
+
+            # Increment failed login attempts
+            user.failed_login_attempts += 1
+
+            # Lock account if too many failed attempts (5 failures = 30 min lockout)
+            if user.failed_login_attempts >= 5:
+                user.locked_until = datetime.utcnow() + timedelta(minutes=30)
+                await db.commit()
+                logger.warning(f"Account locked for 30 minutes: {data.email}")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Account locked due to too many failed login attempts. Try again in 30 minutes.",
+                )
+
+            await db.commit()
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password",
             )
 
         logger.info(f"Password verified for {user.email}")
+
+        # Reset failed login attempts on successful login
+        user.failed_login_attempts = 0
+        user.locked_until = None
 
         # Check if user is active
         if not user.is_active:

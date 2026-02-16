@@ -68,6 +68,11 @@ class User(Base):
     is_org_admin = Column(Boolean, default=False, nullable=False)
     is_primary_household_member = Column(Boolean, default=False, nullable=False)  # First user who created org
     email_verified = Column(Boolean, default=False, nullable=False)
+
+    # Account security fields
+    failed_login_attempts = Column(Integer, default=0, nullable=False)  # Track failed login attempts
+    locked_until = Column(DateTime, nullable=True)  # Account locked until this time (NULL = not locked)
+
     last_login_at = Column(DateTime)
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
