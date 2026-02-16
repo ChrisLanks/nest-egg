@@ -40,7 +40,7 @@ import {
   IconButton,
   Tooltip,
 } from '@chakra-ui/react';
-import { FiEdit2, FiCheck, FiX, FiLock } from 'react-icons/fi';
+import { FiEdit2, FiCheck, FiX, FiLock, FiRefreshCw } from 'react-icons/fi';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
@@ -63,6 +63,12 @@ interface Account {
   is_active: boolean;
   exclude_from_cash_flow: boolean;
   plaid_item_hash: string | null;
+  plaid_item_id: string | null;
+  // Sync status
+  last_synced_at: string | null;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  needs_reauth: boolean | null;
 }
 
 const accountTypeLabels: Record<string, string> = {
@@ -229,6 +235,46 @@ export const AccountDetailPage = () => {
     },
   });
 
+  // Sync transactions mutation
+  const syncTransactionsMutation = useMutation({
+    mutationFn: async (plaidItemId: string) => {
+      const response = await api.post(`/plaid/sync-transactions/${plaidItemId}`);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['account', accountId] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+
+      const stats = data.stats;
+      const message = stats
+        ? `Synced: ${stats.added} added, ${stats.updated} updated, ${stats.skipped} skipped`
+        : 'Transactions synced successfully';
+
+      toast({
+        title: 'Sync Complete',
+        description: message,
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = error?.response?.data?.detail || 'Failed to sync transactions';
+      toast({
+        title: 'Sync Failed',
+        description: errorMessage,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    },
+  });
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -247,6 +293,28 @@ export const AccountDetailPage = () => {
       year: 'numeric',
       hour: 'numeric',
       minute: 'numeric',
+    });
+  };
+
+  const formatLastSynced = (lastSyncedAt: string | null) => {
+    if (!lastSyncedAt) return 'Never synced';
+
+    const date = new Date(lastSyncedAt);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
     });
   };
 
@@ -534,6 +602,50 @@ export const AccountDetailPage = () => {
                   {account.institution_name && ` - ${account.institution_name}`}
                 </Text>
               </Box>
+
+              {/* Sync Status - Only for Plaid accounts */}
+              {account.plaid_item_id && (
+                <Box>
+                  <HStack justify="space-between" mb={2}>
+                    <Text fontSize="sm" fontWeight="medium" color="gray.600">
+                      Sync Status
+                    </Text>
+                    <Tooltip label="Refresh transactions from bank" placement="top">
+                      <IconButton
+                        icon={<FiRefreshCw />}
+                        size="xs"
+                        variant="ghost"
+                        aria-label="Sync transactions"
+                        onClick={() => syncTransactionsMutation.mutate(account.plaid_item_id!)}
+                        isLoading={syncTransactionsMutation.isPending}
+                        isDisabled={syncTransactionsMutation.isPending}
+                      />
+                    </Tooltip>
+                  </HStack>
+                  <VStack align="stretch" spacing={1}>
+                    <HStack>
+                      <Text fontSize="sm" color="gray.600">Last synced:</Text>
+                      <Text fontSize="sm" fontWeight="medium">
+                        {formatLastSynced(account.last_synced_at)}
+                      </Text>
+                    </HStack>
+                    {(account.last_error_code || account.needs_reauth) && (
+                      <HStack>
+                        <Badge colorScheme={account.needs_reauth ? 'orange' : 'red'} fontSize="xs">
+                          {account.needs_reauth ? 'Reauthentication Required' : 'Sync Error'}
+                        </Badge>
+                        {account.last_error_message && (
+                          <Tooltip label={account.last_error_message} placement="top">
+                            <Text fontSize="xs" color="gray.600" noOfLines={1}>
+                              {account.last_error_message}
+                            </Text>
+                          </Tooltip>
+                        )}
+                      </HStack>
+                    )}
+                  </VStack>
+                </Box>
+              )}
 
               <Divider />
 
