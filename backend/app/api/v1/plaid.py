@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User
+from app.models.user import User, Organization
 from app.models.account import Account, PlaidItem, AccountType
 from app.models.notification import NotificationType, NotificationPriority
 from app.schemas.plaid import (
@@ -257,6 +257,102 @@ async def handle_plaid_webhook(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/sync-transactions/{plaid_item_id}")
+async def sync_transactions(
+    plaid_item_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Manually trigger transaction sync for a Plaid item.
+
+    Useful for:
+    - Initial sync after linking accounts
+    - Manual refresh
+    - Testing
+    """
+    from app.services.plaid_transaction_sync_service import (
+        PlaidTransactionSyncService,
+        MockPlaidTransactionGenerator
+    )
+    from datetime import datetime, timedelta
+
+    # Get PlaidItem and verify ownership
+    result = await db.execute(
+        select(PlaidItem).where(
+            PlaidItem.id == plaid_item_id,
+            PlaidItem.organization_id == current_user.organization_id
+        )
+    )
+    plaid_item = result.scalar_one_or_none()
+
+    if not plaid_item:
+        raise HTTPException(status_code=404, detail="Plaid item not found")
+
+    try:
+        # Check if test user
+        is_test_user = current_user.email == "test@test.com"
+
+        if is_test_user:
+            # Generate mock transaction data for test users
+            print("🧪 Generating mock transactions for test user")
+
+            # Get accounts for this plaid_item
+            accounts_result = await db.execute(
+                select(Account).where(Account.plaid_item_id == plaid_item.id)
+            )
+            accounts = accounts_result.scalars().all()
+
+            if not accounts:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No accounts found for this Plaid item"
+                )
+
+            # Generate transactions for each account
+            all_transactions = []
+            end_date = datetime.now().date()
+            start_date = end_date - timedelta(days=90)  # Last 3 months
+
+            for account in accounts:
+                mock_transactions = MockPlaidTransactionGenerator.generate_mock_transactions(
+                    account_id=account.external_account_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                    count=30  # 30 transactions per account
+                )
+                all_transactions.extend(mock_transactions)
+
+            # Sync transactions
+            sync_service = PlaidTransactionSyncService()
+            stats = await sync_service.sync_transactions_for_item(
+                db=db,
+                plaid_item_id=plaid_item.id,
+                transactions_data=all_transactions,
+                is_test_mode=True
+            )
+
+            return {
+                "success": True,
+                "message": "Mock transactions synced successfully",
+                "stats": stats,
+                "is_test_mode": True
+            }
+        else:
+            # Real Plaid API call would go here
+            raise HTTPException(
+                status_code=501,
+                detail="Real Plaid API integration not yet implemented. "
+                       "Only available for test@test.com users."
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Sync error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
+
+
 async def _handle_item_webhook(
     db: AsyncSession,
     plaid_item: PlaidItem,
@@ -333,16 +429,79 @@ async def _handle_transactions_webhook(
     webhook_data: Dict[str, Any],
 ):
     """Handle TRANSACTIONS webhook events."""
+    from app.services.plaid_transaction_sync_service import (
+        PlaidTransactionSyncService,
+        MockPlaidTransactionGenerator
+    )
+    from datetime import datetime, timedelta
+
     if webhook_code in ["DEFAULT_UPDATE", "INITIAL_UPDATE", "HISTORICAL_UPDATE"]:
-        # New transaction data is available
-        # In a full implementation, this would trigger a sync
+        # New transaction data is available - trigger sync
         print(f"📊 Transaction data available for item: {plaid_item.item_id}")
-        # TODO: Trigger transaction sync
+
+        # Check if this is a test user
+        result = await db.execute(
+            select(User).join(Organization).where(
+                Organization.id == plaid_item.organization_id
+            ).limit(1)
+        )
+        user = result.scalar_one_or_none()
+        is_test_user = user and user.email == "test@test.com"
+
+        if is_test_user:
+            # Generate mock transaction data for test users
+            print("🧪 Generating mock transactions for test user")
+
+            # Get accounts for this plaid_item
+            accounts_result = await db.execute(
+                select(Account).where(Account.plaid_item_id == plaid_item.id)
+            )
+            accounts = accounts_result.scalars().all()
+
+            # Generate transactions for each account
+            all_transactions = []
+            end_date = datetime.now().date()
+            start_date = end_date - timedelta(days=90)  # Last 3 months
+
+            for account in accounts:
+                mock_transactions = MockPlaidTransactionGenerator.generate_mock_transactions(
+                    account_id=account.external_account_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                    count=30  # 30 transactions per account
+                )
+                all_transactions.extend(mock_transactions)
+
+            # Sync transactions
+            sync_service = PlaidTransactionSyncService()
+            stats = await sync_service.sync_transactions_for_item(
+                db=db,
+                plaid_item_id=plaid_item.id,
+                transactions_data=all_transactions,
+                is_test_mode=True
+            )
+
+            print(f"✅ Synced mock transactions: {stats}")
+        else:
+            # Real Plaid API call would go here
+            print("⚠️  Real Plaid API integration not yet implemented")
+            # In production, you would:
+            # 1. Call Plaid API to fetch transactions
+            # 2. Pass them to sync_service.sync_transactions_for_item()
+
     elif webhook_code == "TRANSACTIONS_REMOVED":
         # Transactions were removed (e.g., duplicates)
         removed_transaction_ids = webhook_data.get("removed_transactions", [])
         print(f"🗑️  Transactions removed: {removed_transaction_ids}")
-        # TODO: Handle removed transactions
+
+        if removed_transaction_ids:
+            sync_service = PlaidTransactionSyncService()
+            count = await sync_service.remove_transactions(
+                db=db,
+                plaid_item_id=plaid_item.id,
+                removed_transaction_ids=removed_transaction_ids
+            )
+            print(f"✅ Removed {count} transactions")
 
 
 async def _handle_auth_webhook(

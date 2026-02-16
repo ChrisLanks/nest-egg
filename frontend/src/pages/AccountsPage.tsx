@@ -39,7 +39,7 @@ import {
 } from '@chakra-ui/react';
 import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ViewIcon, ViewOffIcon, EditIcon, DeleteIcon, ChevronDownIcon } from '@chakra-ui/icons';
+import { ViewIcon, ViewOffIcon, EditIcon, DeleteIcon, ChevronDownIcon, RepeatIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
 import { FiCreditCard } from 'react-icons/fi';
 import api from '../services/api';
@@ -57,11 +57,14 @@ interface Account {
   limit: number | null;
   is_active: boolean;
   balance_as_of: string | null;
+  plaid_item_id: string | null;
+  last_synced_at: string | null;
 }
 
 export const AccountsPage = () => {
   const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<'selected' | string | null>(null);
+  const [syncingItemId, setSyncingItemId] = useState<string | null>(null);
   const toast = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -161,6 +164,47 @@ export const AccountsPage = () => {
     },
   });
 
+  // Sync transactions mutation
+  const syncTransactionsMutation = useMutation({
+    mutationFn: async (plaidItemId: string) => {
+      setSyncingItemId(plaidItemId);
+      const response = await api.post(`/plaid/sync-transactions/${plaidItemId}`);
+      return response.data;
+    },
+    onSuccess: (data, plaidItemId) => {
+      queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+
+      const stats = data.stats;
+      const message = stats
+        ? `Synced: ${stats.added} added, ${stats.updated} updated, ${stats.skipped} skipped`
+        : 'Transactions synced successfully';
+
+      toast({
+        title: 'Sync Complete',
+        description: message,
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+      setSyncingItemId(null);
+    },
+    onError: (error: any, plaidItemId) => {
+      const errorMessage = error?.response?.data?.detail || 'Failed to sync transactions';
+      toast({
+        title: 'Sync Failed',
+        description: errorMessage,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      setSyncingItemId(null);
+    },
+  });
+
   // Group accounts by institution
   const accountsByInstitution = useMemo(() => {
     if (!accounts) return {};
@@ -182,6 +226,28 @@ export const AccountsPage = () => {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);
+  };
+
+  const formatLastSynced = (lastSyncedAt: string | null) => {
+    if (!lastSyncedAt) return 'Never synced';
+
+    const date = new Date(lastSyncedAt);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    });
   };
 
   const handleSelectAccount = (accountId: string, checked: boolean) => {
@@ -288,20 +354,47 @@ export const AccountsPage = () => {
         </HStack>
 
         {/* Accounts by Institution */}
-        {Object.entries(accountsByInstitution).map(([institution, institutionAccounts]) => (
-          <Card key={institution}>
-            <CardHeader>
-              <HStack justify="space-between">
-                <Heading size="md">{institution}</Heading>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => toggleInstitutionVisibility(institutionAccounts)}
-                >
-                  {allVisible(institutionAccounts) ? 'Hide All' : 'Show All'}
-                </Button>
-              </HStack>
-            </CardHeader>
+        {Object.entries(accountsByInstitution).map(([institution, institutionAccounts]) => {
+          // Get plaid_item_id if all accounts share the same one (Plaid-linked institution)
+          const plaidItemId = institutionAccounts[0]?.plaid_item_id;
+          const isPlaidLinked = plaidItemId && institutionAccounts.every(a => a.plaid_item_id === plaidItemId);
+          const lastSynced = institutionAccounts[0]?.last_synced_at;
+          const isSyncing = syncingItemId === plaidItemId;
+
+          return (
+            <Card key={institution}>
+              <CardHeader>
+                <HStack justify="space-between" align="center">
+                  <Box>
+                    <Heading size="md">{institution}</Heading>
+                    {isPlaidLinked && lastSynced && (
+                      <Text fontSize="xs" color="gray.500" mt={1}>
+                        Last synced: {formatLastSynced(lastSynced)}
+                      </Text>
+                    )}
+                  </Box>
+                  <HStack spacing={2}>
+                    {isPlaidLinked && (
+                      <IconButton
+                        icon={<RepeatIcon />}
+                        size="sm"
+                        variant="ghost"
+                        aria-label="Sync transactions"
+                        onClick={() => syncTransactionsMutation.mutate(plaidItemId)}
+                        isLoading={isSyncing}
+                        isDisabled={isSyncing}
+                      />
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => toggleInstitutionVisibility(institutionAccounts)}
+                    >
+                      {allVisible(institutionAccounts) ? 'Hide All' : 'Show All'}
+                    </Button>
+                  </HStack>
+                </HStack>
+              </CardHeader>
             <CardBody pt={0}>
               <Table size="sm">
                 <Thead>
@@ -405,7 +498,8 @@ export const AccountsPage = () => {
               </Table>
             </CardBody>
           </Card>
-        ))}
+          );
+        })}
 
         {(!accounts || accounts.length === 0) && (
           <EmptyState
