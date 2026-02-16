@@ -54,6 +54,7 @@ async def list_debt_accounts(
 async def compare_payoff_strategies(
     extra_payment: Decimal = Query(..., description="Extra monthly payment amount"),
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    account_ids: Optional[str] = Query(None, description="Comma-separated account IDs to include"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -77,11 +78,20 @@ async def compare_payoff_strategies(
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
 
+    # Parse account IDs if provided
+    account_id_list = None
+    if account_ids:
+        try:
+            account_id_list = [UUID(id.strip()) for id in account_ids.split(',')]
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid account_ids format")
+
     comparison = await PayoffStrategyService.compare_strategies(
         db,
         current_user.organization_id,
         extra_payment,
-        user_id
+        user_id,
+        account_id_list
     )
 
     return comparison

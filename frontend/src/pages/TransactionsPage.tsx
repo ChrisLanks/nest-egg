@@ -122,6 +122,7 @@ export const TransactionsPage = () => {
   const [isRuleBuilderOpen, setIsRuleBuilderOpen] = useState(false);
   const [ruleTransaction, setRuleTransaction] = useState<Transaction | null>(null);
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>(loadDateRange());
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -723,14 +724,39 @@ export const TransactionsPage = () => {
     setRuleTransaction(null);
   };
 
-  const toggleTransactionSelection = (txnId: string) => {
+  const toggleTransactionSelection = (txnId: string, event?: React.MouseEvent, index?: number) => {
     const newSelected = new Set(selectedTransactions);
+
+    // Shift-click: Select range
+    if (event?.shiftKey && lastSelectedIndex !== null && index !== undefined) {
+      const start = Math.min(lastSelectedIndex, index);
+      const end = Math.max(lastSelectedIndex, index);
+
+      // Select all transactions in range
+      for (let i = start; i <= end; i++) {
+        if (processedTransactions[i]) {
+          newSelected.add(processedTransactions[i].id);
+        }
+      }
+
+      setSelectedTransactions(newSelected);
+      setLastSelectedIndex(index);
+      return;
+    }
+
+    // Regular click: Toggle selection
     if (newSelected.has(txnId)) {
       newSelected.delete(txnId);
     } else {
       newSelected.add(txnId);
     }
+
     setSelectedTransactions(newSelected);
+
+    // Update last selected index
+    if (index !== undefined) {
+      setLastSelectedIndex(index);
+    }
   };
 
   const toggleSelectAll = () => {
@@ -1173,13 +1199,22 @@ export const TransactionsPage = () => {
             <Thead bg="gray.50">
               <Tr>
                 <Th width="40px">
-                  <Checkbox
-                    isChecked={
-                      processedTransactions.length > 0 &&
-                      selectedTransactions.size === processedTransactions.length
-                    }
-                    onChange={toggleSelectAll}
-                  />
+                  <HStack spacing={1}>
+                    <Checkbox
+                      isChecked={
+                        processedTransactions.length > 0 &&
+                        selectedTransactions.size === processedTransactions.length
+                      }
+                      onChange={toggleSelectAll}
+                    />
+                    <Tooltip
+                      label="Tip: Hold Shift and click to select multiple transactions in a range"
+                      placement="right"
+                      hasArrow
+                    >
+                      <QuestionIcon boxSize={3} color="gray.400" cursor="help" />
+                    </Tooltip>
+                  </HStack>
                 </Th>
                 <Th
                   cursor="pointer"
@@ -1259,38 +1294,47 @@ export const TransactionsPage = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {transactionsByMonth.map((monthGroup) => (
-                <React.Fragment key={monthGroup.period}>
-                  {/* Month Period Header */}
-                  <Tr bg="gray.100">
-                    <Td
-                      colSpan={showStatusColumn ? 8 : 7}
-                      py={2}
-                    >
-                      <Text fontWeight="bold" fontSize="sm" color="gray.700">
-                        {monthGroup.period}
-                      </Text>
-                    </Td>
-                  </Tr>
+              {transactionsByMonth.map((monthGroup) => {
+                // Calculate starting index for this month group
+                let globalStartIndex = 0;
+                for (const group of transactionsByMonth) {
+                  if (group.period === monthGroup.period) break;
+                  globalStartIndex += group.transactions.length;
+                }
 
-                  {/* Transactions for this month */}
-                  {monthGroup.transactions.map((txn) => {
-                    const { formatted, isNegative } = formatCurrency(txn.amount);
-                    const isSelected = selectedTransactions.has(txn.id);
-                    return (
-                      <Tr
-                        key={txn.id}
-                        onClick={() => handleTransactionClick(txn)}
-                        cursor="pointer"
-                        _hover={{ bg: 'gray.50' }}
-                        bg={isSelected ? 'blue.50' : undefined}
+                return (
+                  <React.Fragment key={monthGroup.period}>
+                    {/* Month Period Header */}
+                    <Tr bg="gray.100">
+                      <Td
+                        colSpan={showStatusColumn ? 8 : 7}
+                        py={2}
                       >
-                        <Td width="40px" onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            isChecked={isSelected}
-                            onChange={() => toggleTransactionSelection(txn.id)}
-                          />
-                        </Td>
+                        <Text fontWeight="bold" fontSize="sm" color="gray.700">
+                          {monthGroup.period}
+                        </Text>
+                      </Td>
+                    </Tr>
+
+                    {/* Transactions for this month */}
+                    {monthGroup.transactions.map((txn, localIndex) => {
+                      const globalIndex = globalStartIndex + localIndex;
+                      const { formatted, isNegative } = formatCurrency(txn.amount);
+                      const isSelected = selectedTransactions.has(txn.id);
+                      return (
+                        <Tr
+                          key={txn.id}
+                          onClick={() => handleTransactionClick(txn)}
+                          cursor="pointer"
+                          _hover={{ bg: 'gray.50' }}
+                          bg={isSelected ? 'blue.50' : undefined}
+                        >
+                          <Td width="40px" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              isChecked={isSelected}
+                              onChange={(e) => toggleTransactionSelection(txn.id, e.nativeEvent as any, globalIndex)}
+                            />
+                          </Td>
                         <Td>{formatDate(txn.date)}</Td>
                         <Td>
                           <Text fontWeight="medium">{txn.merchant_name}</Text>
@@ -1390,7 +1434,8 @@ export const TransactionsPage = () => {
                     );
                   })}
                 </React.Fragment>
-              ))}
+                );
+              })}
             </Tbody>
           </Table>
         </Box>
@@ -1399,44 +1444,53 @@ export const TransactionsPage = () => {
         {/* Mobile Card View */}
         {isMobile && (
           <VStack spacing={4} align="stretch">
-            {transactionsByMonth.map((monthGroup) => (
-              <Box key={`mobile-month-${monthGroup.period}`}>
-                {/* Month Header */}
-                <Box mb={3} px={2}>
-                  <Text fontWeight="bold" fontSize="md" color="gray.700">
-                    {monthGroup.period}
-                  </Text>
-                </Box>
+            {transactionsByMonth.map((monthGroup) => {
+              // Calculate starting index for this month group
+              let globalStartIndex = 0;
+              for (const group of transactionsByMonth) {
+                if (group.period === monthGroup.period) break;
+                globalStartIndex += group.transactions.length;
+              }
 
-                {/* Transaction Cards */}
-                <VStack spacing={2} align="stretch">
-                  {monthGroup.transactions.map((txn) => {
-                    const { formatted, isNegative } = formatCurrency(txn.amount);
-                    const isSelected = selectedTransactions.has(txn.id);
+              return (
+                <Box key={`mobile-month-${monthGroup.period}`}>
+                  {/* Month Header */}
+                  <Box mb={3} px={2}>
+                    <Text fontWeight="bold" fontSize="md" color="gray.700">
+                      {monthGroup.period}
+                    </Text>
+                  </Box>
 
-                    return (
-                      <Card
-                        key={txn.id}
-                        variant="outline"
-                        cursor="pointer"
-                        onClick={() => handleTransactionClick(txn)}
-                        bg={isSelected ? 'blue.50' : 'white'}
-                        borderColor={isSelected ? 'blue.300' : 'gray.200'}
-                        _hover={{ borderColor: 'brand.300', shadow: 'sm' }}
-                      >
-                        <CardBody p={4}>
-                          <VStack align="stretch" spacing={3}>
-                            {/* Header Row: Merchant + Amount */}
-                            <HStack justify="space-between" align="start">
-                              <Box flex={1}>
-                                <Checkbox
-                                  isChecked={isSelected}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    toggleTransactionSelection(txn.id);
-                                  }}
-                                  mb={2}
-                                />
+                  {/* Transaction Cards */}
+                  <VStack spacing={2} align="stretch">
+                    {monthGroup.transactions.map((txn, localIndex) => {
+                      const globalIndex = globalStartIndex + localIndex;
+                      const { formatted, isNegative } = formatCurrency(txn.amount);
+                      const isSelected = selectedTransactions.has(txn.id);
+
+                      return (
+                        <Card
+                          key={txn.id}
+                          variant="outline"
+                          cursor="pointer"
+                          onClick={() => handleTransactionClick(txn)}
+                          bg={isSelected ? 'blue.50' : 'white'}
+                          borderColor={isSelected ? 'blue.300' : 'gray.200'}
+                          _hover={{ borderColor: 'brand.300', shadow: 'sm' }}
+                        >
+                          <CardBody p={4}>
+                            <VStack align="stretch" spacing={3}>
+                              {/* Header Row: Merchant + Amount */}
+                              <HStack justify="space-between" align="start">
+                                <Box flex={1}>
+                                  <Checkbox
+                                    isChecked={isSelected}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      toggleTransactionSelection(txn.id, e.nativeEvent as any, globalIndex);
+                                    }}
+                                    mb={2}
+                                  />
                                 <Text fontWeight="bold" fontSize="md">
                                   {txn.merchant_name}
                                 </Text>
@@ -1561,7 +1615,8 @@ export const TransactionsPage = () => {
                   })}
                 </VStack>
               </Box>
-            ))}
+              );
+            })}
           </VStack>
         )}
 

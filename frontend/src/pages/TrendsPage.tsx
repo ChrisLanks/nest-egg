@@ -114,7 +114,12 @@ export default function TrendsPage() {
       };
       if (selectedUserId) params.user_id = selectedUserId;
 
-      const response = await api.get('/income-expenses/year-over-year', { params });
+      const response = await api.get('/income-expenses/year-over-year', {
+        params,
+        paramsSerializer: {
+          indexes: null, // Use repeat format: years=2024&years=2023 instead of years[0]=2024
+        },
+      });
       return response.data;
     },
     enabled: selectedYears.length > 0,
@@ -129,7 +134,12 @@ export default function TrendsPage() {
       };
       if (selectedUserId) params.user_id = selectedUserId;
 
-      const response = await api.get('/income-expenses/quarterly-summary', { params });
+      const response = await api.get('/income-expenses/quarterly-summary', {
+        params,
+        paramsSerializer: {
+          indexes: null, // Use repeat format: years=2024&years=2023 instead of years[0]=2024
+        },
+      });
       return response.data;
     },
     enabled: selectedYears.length > 0,

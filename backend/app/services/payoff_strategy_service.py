@@ -313,7 +313,8 @@ class PayoffStrategyService:
         db: AsyncSession,
         organization_id: UUID,
         extra_payment: Decimal,
-        user_id: Optional[UUID] = None
+        user_id: Optional[UUID] = None,
+        account_ids: Optional[List[UUID]] = None
     ) -> Dict:
         """
         Compare snowball, avalanche, and current pace strategies.
@@ -323,6 +324,7 @@ class PayoffStrategyService:
             organization_id: Organization ID
             extra_payment: Extra monthly payment amount
             user_id: Optional user ID for filtering
+            account_ids: Optional list of specific account IDs to include
 
         Returns:
             Comparison of all three strategies
@@ -330,6 +332,10 @@ class PayoffStrategyService:
         debts = await PayoffStrategyService.get_debt_accounts(
             db, organization_id, user_id
         )
+
+        # Filter by account IDs if provided
+        if account_ids:
+            debts = [d for d in debts if d.account_id in account_ids]
 
         if not debts:
             return {

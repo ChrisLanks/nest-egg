@@ -122,8 +122,10 @@ const refreshTokenNow = async () => {
     devLog('[Auth] Token refreshed successfully and auth store updated');
 
     // Schedule next refresh (handled by setAccessToken)
-  } catch (error) {
-    devError('[Auth] Token refresh failed:', error);
+  } catch (error: any) {
+    const errorDetail = error?.response?.data?.detail || error.message || 'Unknown error';
+    devError('[Auth] Token refresh failed. Backend error:', errorDetail);
+    devError('[Auth] Full error:', error);
     // Don't clear localStorage here - let the response interceptor handle it
   }
 };

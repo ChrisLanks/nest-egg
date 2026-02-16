@@ -255,6 +255,7 @@ async def refresh_access_token(
 
         # Check token type
         if payload.get("type") != "refresh":
+            logger.warning("Token refresh failed: Invalid token type")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token type",
@@ -265,6 +266,7 @@ async def refresh_access_token(
         user_id_str = payload.get("sub")
 
         if not jti or not user_id_str:
+            logger.warning("Token refresh failed: Missing jti or user_id")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token",
@@ -275,18 +277,21 @@ async def refresh_access_token(
         refresh_token = await refresh_token_crud.get_by_token_hash(db, token_hash)
 
         if not refresh_token:
+            logger.warning(f"Token refresh failed: Token not found in database (jti: {jti[:10]}...)")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token not found",
             )
 
         if refresh_token.is_revoked:
+            logger.warning(f"Token refresh failed: Token has been revoked (user_id: {refresh_token.user_id})")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has been revoked",
             )
 
         if refresh_token.is_expired:
+            logger.warning(f"Token refresh failed: Token has expired (user_id: {refresh_token.user_id}, expired_at: {refresh_token.expires_at})")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has expired",
@@ -295,10 +300,13 @@ async def refresh_access_token(
         # Get user
         user = await user_crud.get_by_id(db, refresh_token.user_id)
         if not user or not user.is_active:
+            logger.warning(f"Token refresh failed: User not found or inactive (user_id: {refresh_token.user_id})")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found or inactive",
             )
+
+        logger.info(f"Token refresh successful for user: {user.email}")
 
         # Generate new access token
         access_token = create_access_token(
@@ -310,7 +318,10 @@ async def refresh_access_token(
 
         return AccessTokenResponse(access_token=access_token)
 
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"Token refresh error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate token",
@@ -351,3 +362,52 @@ async def get_current_user_info(
     Get current user information.
     """
     return UserSchema.from_orm(current_user)
+
+
+@router.post("/debug/check-refresh-token")
+async def debug_check_refresh_token(
+    data: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Debug endpoint to check refresh token validity.
+    Only available in DEBUG mode.
+    """
+    from app.config import settings
+    if not settings.DEBUG:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    try:
+        # Try to decode token
+        payload = decode_token(data.refresh_token)
+        jti = payload.get("jti")
+        token_type = payload.get("type")
+        user_id = payload.get("sub")
+        exp = payload.get("exp")
+
+        # Check if token is in database
+        token_hash = hashlib.sha256(jti.encode()).hexdigest() if jti else None
+        db_token = await refresh_token_crud.get_by_token_hash(db, token_hash) if token_hash else None
+
+        return {
+            "decode_success": True,
+            "payload": {
+                "jti_prefix": jti[:16] if jti else None,
+                "type": token_type,
+                "user_id": user_id,
+                "exp": exp,
+            },
+            "token_hash_prefix": token_hash[:16] if token_hash else None,
+            "in_database": db_token is not None,
+            "db_token_info": {
+                "expired": db_token.is_expired if db_token else None,
+                "revoked": db_token.is_revoked if db_token else None,
+                "expires_at": str(db_token.expires_at) if db_token else None,
+            } if db_token else None,
+        }
+    except Exception as e:
+        return {
+            "decode_success": False,
+            "error": str(e),
+            "error_type": type(e).__name__,
+        }
