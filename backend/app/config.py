@@ -44,8 +44,14 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
 
-    # CORS
+    # CORS - Environment-specific origins
+    # In production, this should be a specific domain like ["https://app.nestegg.com"]
+    # In development, allow localhost
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+
+    # Trusted hosts for production (prevents host header attacks)
+    # Example: ["app.nestegg.com", "api.nestegg.com"]
+    ALLOWED_HOSTS: list[str] = ["*"]  # In production, replace with specific domains
 
     # Pagination
     DEFAULT_PAGE_SIZE: int = 50

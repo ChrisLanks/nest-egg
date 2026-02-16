@@ -4,10 +4,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 from app.config import settings
 from app.core.database import close_db, init_db
 from app.services.snapshot_scheduler import snapshot_scheduler
+from app.middleware.security_headers import SecurityHeadersMiddleware
 
 
 @asynccontextmanager
@@ -37,6 +41,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Security middleware (production only)
+if not settings.DEBUG:
+    # HTTPS redirect - Force all requests to use HTTPS
+    app.add_middleware(HTTPSRedirectMiddleware)
+
+    # Trusted host - Prevent host header attacks
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=settings.ALLOWED_HOSTS
+    )
+
+# Security headers - Always apply (dev and production)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# GZip compression for API responses > 1KB
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Add exception handler for validation errors
 from fastapi.exceptions import RequestValidationError

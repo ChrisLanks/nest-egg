@@ -190,12 +190,21 @@ async def login(
 
 @router.post("/refresh", response_model=AccessTokenResponse)
 async def refresh_access_token(
+    request: Request,
     data: RefreshTokenRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """
     Refresh access token using refresh token.
+    Rate limited to 10 refreshes per minute to prevent abuse.
     """
+    # Rate limit: 10 refresh attempts per minute per IP
+    await rate_limit_service.check_rate_limit(
+        request=request,
+        max_requests=10,
+        window_seconds=60,
+    )
+
     try:
         # Decode refresh token
         payload = decode_token(data.refresh_token)

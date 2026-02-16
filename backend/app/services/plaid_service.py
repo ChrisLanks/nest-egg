@@ -1,10 +1,13 @@
 """Plaid API service with test mode for development."""
 
 from datetime import datetime, timedelta
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 import uuid
+import jwt
+from fastapi import HTTPException
 
 from app.models.user import User
+from app.config import settings
 
 
 class PlaidService:
@@ -17,6 +20,90 @@ class PlaidService:
     def is_test_user(self, user: User) -> bool:
         """Check if user is a test user (test@test.com)."""
         return user.email == "test@test.com"
+
+    @staticmethod
+    def verify_webhook_signature(
+        webhook_verification_header: Optional[str],
+        webhook_body: Dict[str, Any]
+    ) -> bool:
+        """
+        Verify Plaid webhook signature using JWT verification.
+
+        Plaid sends webhooks with a 'Plaid-Verification' header containing a JWT.
+        The JWT should be verified using the PLAID_WEBHOOK_SECRET.
+
+        Args:
+            webhook_verification_header: Value of 'Plaid-Verification' header
+            webhook_body: Webhook request body as dict
+
+        Returns:
+            True if signature is valid, raises HTTPException otherwise
+
+        Security Note:
+            In production, this MUST be enforced. For development with test users,
+            webhook verification may be skipped if PLAID_WEBHOOK_SECRET is not set.
+        """
+        # If no webhook secret configured, check if we're in development mode
+        if not settings.PLAID_WEBHOOK_SECRET:
+            if settings.DEBUG:
+                print("⚠️  PLAID_WEBHOOK_SECRET not configured - skipping webhook verification (development mode)")
+                return True
+            else:
+                # In production, webhook secret MUST be configured
+                raise HTTPException(
+                    status_code=500,
+                    detail="Webhook verification secret not configured"
+                )
+
+        # Verify webhook signature header is present
+        if not webhook_verification_header:
+            raise HTTPException(
+                status_code=401,
+                detail="Missing Plaid-Verification header"
+            )
+
+        try:
+            # Verify JWT signature
+            # The JWT contains claims about the webhook (webhook_code, item_id, etc.)
+            decoded = jwt.decode(
+                webhook_verification_header,
+                settings.PLAID_WEBHOOK_SECRET,
+                algorithms=["ES256"],  # Plaid uses ES256 (ECDSA with SHA-256)
+            )
+
+            # Optional: Verify webhook body matches JWT claims
+            # Plaid includes the item_id in the JWT which should match the body
+            if decoded.get("request_body_sha256"):
+                import hashlib
+                import json
+                body_str = json.dumps(webhook_body, separators=(',', ':'), sort_keys=True)
+                body_hash = hashlib.sha256(body_str.encode()).hexdigest()
+
+                if body_hash != decoded["request_body_sha256"]:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Webhook body hash mismatch"
+                    )
+
+            print(f"✅ Webhook signature verified for item: {webhook_body.get('item_id')}")
+            return True
+
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(
+                status_code=401,
+                detail="Webhook verification token expired"
+            )
+        except jwt.InvalidTokenError as e:
+            raise HTTPException(
+                status_code=401,
+                detail=f"Invalid webhook signature: {str(e)}"
+            )
+        except Exception as e:
+            print(f"❌ Webhook verification error: {str(e)}")
+            raise HTTPException(
+                status_code=401,
+                detail="Webhook verification failed"
+            )
 
     async def create_link_token(self, user: User) -> Tuple[str, str]:
         """

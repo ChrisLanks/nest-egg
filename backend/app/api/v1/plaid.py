@@ -23,6 +23,7 @@ from app.services.plaid_service import PlaidService
 from app.services.notification_service import notification_service
 from app.services.deduplication_service import DeduplicationService
 from app.services.encryption_service import get_encryption_service
+from app.services.rate_limit_service import rate_limit_service
 
 router = APIRouter()
 deduplication_service = DeduplicationService()
@@ -32,14 +33,23 @@ encryption_service = get_encryption_service()
 @router.post("/link-token", response_model=LinkTokenCreateResponse)
 async def create_link_token(
     request: LinkTokenCreateRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Create a Plaid Link token for initiating the Plaid Link flow.
+    Rate limited to 10 requests per minute to prevent API quota abuse.
 
     For test@test.com users, returns a dummy token.
     """
+    # Rate limit: 10 link token requests per minute per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=60,
+    )
+
     plaid_service = PlaidService()
 
     try:
@@ -59,14 +69,23 @@ async def create_link_token(
 @router.post("/exchange-token", response_model=PublicTokenExchangeResponse)
 async def exchange_public_token(
     request: PublicTokenExchangeRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Exchange a Plaid public token for an access token and create accounts.
+    Rate limited to 5 requests per minute to prevent token exchange abuse.
 
     For test@test.com users, creates accounts with dummy data.
     """
+    # Rate limit: 5 token exchanges per minute per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=5,
+        window_seconds=60,
+    )
+
     plaid_service = PlaidService()
 
     try:
@@ -216,6 +235,7 @@ async def handle_plaid_webhook(
 ):
     """
     Handle webhook notifications from Plaid.
+    Rate limited to 20 requests per minute to prevent abuse.
 
     Plaid sends webhooks for various events like:
     - ITEM_ERROR: Item encounters an error
@@ -223,8 +243,22 @@ async def handle_plaid_webhook(
     - USER_PERMISSION_REVOKED: User revoked permission
     - DEFAULT_UPDATE: General account updates
     """
+    # Rate limit: 20 webhook requests per minute per IP
+    await rate_limit_service.check_rate_limit(
+        request=request,
+        max_requests=20,
+        window_seconds=60,
+    )
+
     try:
         webhook_data: Dict[str, Any] = await request.json()
+
+        # Verify webhook signature to ensure it's from Plaid
+        plaid_verification_header = request.headers.get("Plaid-Verification")
+        PlaidService.verify_webhook_signature(
+            webhook_verification_header=plaid_verification_header,
+            webhook_body=webhook_data
+        )
 
         webhook_type = webhook_data.get("webhook_type")
         webhook_code = webhook_data.get("webhook_code")
@@ -260,17 +294,26 @@ async def handle_plaid_webhook(
 @router.post("/sync-transactions/{plaid_item_id}")
 async def sync_transactions(
     plaid_item_id: UUID,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Manually trigger transaction sync for a Plaid item.
+    Rate limited to 5 requests per minute to prevent excessive syncing.
 
     Useful for:
     - Initial sync after linking accounts
     - Manual refresh
     - Testing
     """
+    # Rate limit: 5 sync requests per minute per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=5,
+        window_seconds=60,
+    )
+
     from app.services.plaid_transaction_sync_service import (
         PlaidTransactionSyncService,
         MockPlaidTransactionGenerator
