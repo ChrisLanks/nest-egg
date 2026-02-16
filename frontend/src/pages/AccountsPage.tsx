@@ -76,7 +76,9 @@ export const AccountsPage = () => {
   const { data: accounts, isLoading } = useQuery({
     queryKey: ['accounts-admin'],
     queryFn: async () => {
-      const response = await api.get<Account[]>('/accounts?include_hidden=true');
+      const response = await api.get<Account[]>('/accounts', {
+        params: { include_hidden: true }
+      });
       return response.data;
     },
   });
