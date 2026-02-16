@@ -91,8 +91,16 @@ class AccountSummary(BaseModel):
     institution_name: Optional[str] = None
     mask: Optional[str] = None
     current_balance: Optional[Decimal] = None
+    balance_as_of: Optional[datetime] = None
     is_active: bool
     exclude_from_cash_flow: bool
     plaid_item_hash: Optional[str] = None  # For duplicate detection
+    plaid_item_id: Optional[UUID] = None  # For sync operations
+
+    # Sync status from PlaidItem
+    last_synced_at: Optional[datetime] = None
+    last_error_code: Optional[str] = None
+    last_error_message: Optional[str] = None
+    needs_reauth: Optional[bool] = None
 
     model_config = {"from_attributes": True}

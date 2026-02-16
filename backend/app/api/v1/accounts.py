@@ -51,7 +51,34 @@ async def list_accounts(
     # Sort by name
     accounts = sorted(accounts, key=lambda a: a.name)
 
-    return accounts
+    # Construct AccountSummary with PlaidItem sync status
+    summaries = []
+    for acc in accounts:
+        plaid_item = acc.plaid_item if acc.plaid_item_id else None
+
+        summary = AccountSummary(
+            id=acc.id,
+            user_id=acc.user_id,
+            name=acc.name,
+            account_type=acc.account_type,
+            property_type=acc.property_type,
+            institution_name=acc.institution_name,
+            mask=acc.mask,
+            current_balance=acc.current_balance,
+            balance_as_of=acc.balance_as_of,
+            is_active=acc.is_active,
+            exclude_from_cash_flow=acc.exclude_from_cash_flow,
+            plaid_item_hash=acc.plaid_item_hash,
+            plaid_item_id=acc.plaid_item_id,
+            # Include PlaidItem sync status
+            last_synced_at=plaid_item.last_synced_at if plaid_item else None,
+            last_error_code=plaid_item.last_error_code if plaid_item else None,
+            last_error_message=plaid_item.last_error_message if plaid_item else None,
+            needs_reauth=plaid_item.needs_reauth if plaid_item else None,
+        )
+        summaries.append(summary)
+
+    return summaries
 
 
 @router.get("/{account_id}", response_model=AccountSchema)

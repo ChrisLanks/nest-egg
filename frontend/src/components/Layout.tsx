@@ -26,6 +26,7 @@ import {
   AddIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  WarningIcon,
 } from '@chakra-ui/icons';
 import { FiSettings, FiLogOut, FiUsers } from 'react-icons/fi';
 import { Outlet, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
@@ -47,7 +48,13 @@ interface Account {
   balance_as_of: string | null;
   user_id: string;
   plaid_item_hash: string | null;
+  plaid_item_id: string | null;
   exclude_from_cash_flow: boolean;
+  // Sync status
+  last_synced_at: string | null;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  needs_reauth: boolean | null;
 }
 
 interface DedupedAccount extends Account {
@@ -132,6 +139,12 @@ const AccountItem = ({
   const primaryOwnerId = account.owner_ids[0];
   const bgColor = isCombinedView ? getUserBgColor(primaryOwnerId) : undefined;
 
+  // Check for sync errors
+  const hasSyncError = account.last_error_code || account.needs_reauth;
+  const errorTooltip = account.needs_reauth
+    ? 'Reauthentication required - click to reconnect account'
+    : account.last_error_message || 'Sync error - check account settings';
+
   return (
     <Box
       px={3}
@@ -148,10 +161,19 @@ const AccountItem = ({
     >
       <VStack align="stretch" spacing={1}>
         <HStack justify="space-between" align="center" spacing={2}>
-          <HStack flex={1} minW={0} spacing={2}>
+          <HStack flex={1} minW={0} spacing={1.5}>
             <Text fontSize="xs" fontWeight="medium" color="gray.700" noOfLines={1} flex={1}>
               {account.name}
             </Text>
+            {hasSyncError && (
+              <Tooltip label={errorTooltip} placement="right" hasArrow>
+                <WarningIcon
+                  boxSize={3}
+                  color={account.needs_reauth ? 'orange.500' : 'red.500'}
+                  flexShrink={0}
+                />
+              </Tooltip>
+            )}
           </HStack>
           <Text
             fontSize="xs"

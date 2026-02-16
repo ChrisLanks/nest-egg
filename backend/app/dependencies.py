@@ -13,7 +13,8 @@ from app.core.database import get_db
 from app.core.security import decode_token
 from app.crud.user import user_crud
 from app.models.user import User
-from app.models.account import Account
+from app.models.account import Account, PlaidItem
+from sqlalchemy.orm import joinedload
 
 # HTTP Bearer token scheme
 security = HTTPBearer()
@@ -217,17 +218,20 @@ async def get_user_accounts(
 
     # Get accounts owned by user
     result = await db.execute(
-        select(Account).where(
+        select(Account)
+        .options(joinedload(Account.plaid_item))
+        .where(
             Account.user_id == user_id,
             Account.organization_id == organization_id,
             Account.is_active == True
         )
     )
-    owned_accounts = result.scalars().all()
+    owned_accounts = result.unique().scalars().all()
 
     # Get accounts shared with user
     result = await db.execute(
         select(Account)
+        .options(joinedload(Account.plaid_item))
         .join(AccountShare, AccountShare.account_id == Account.id)
         .where(
             AccountShare.shared_with_user_id == user_id,
@@ -235,7 +239,7 @@ async def get_user_accounts(
             Account.is_active == True
         )
     )
-    shared_accounts = result.scalars().all()
+    shared_accounts = result.unique().scalars().all()
 
     # Combine and deduplicate (in case an account is both owned and shared)
     account_ids = set()
@@ -263,12 +267,14 @@ async def get_all_household_accounts(
         List of all active accounts in household
     """
     result = await db.execute(
-        select(Account).where(
+        select(Account)
+        .options(joinedload(Account.plaid_item))
+        .where(
             Account.organization_id == organization_id,
             Account.is_active == True
         )
     )
-    return result.scalars().all()
+    return result.unique().scalars().all()
 
 
 async def verify_account_access(
