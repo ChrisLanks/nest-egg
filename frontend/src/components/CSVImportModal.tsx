@@ -95,6 +95,35 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({ isOpen, onClose 
     onClose();
   };
 
+  const handleDownloadTemplate = () => {
+    // Create CSV template with all supported columns and example data
+    const template = [
+      ['Date', 'Amount', 'Description', 'Merchant', 'Category', 'Notes', 'Account', 'Labels'],
+      ['2024-01-15', '-45.67', 'Coffee shop purchase', 'Starbucks', 'Dining', 'Morning coffee', 'Credit Card', 'Business'],
+      ['2024-01-16', '-123.45', 'Grocery shopping', 'Whole Foods', 'Groceries', 'Weekly groceries', 'Checking', ''],
+      ['2024-01-17', '2500.00', 'Paycheck deposit', 'Employer Inc', 'Income', 'Salary', 'Checking', 'Income'],
+      ['2024-01-18', '-89.99', 'Internet service', 'Comcast', 'Utilities', 'Monthly bill', 'Checking', 'Bills'],
+      ['2024-01-19', '-35.20', 'Gas station', 'Shell', 'Transportation', 'Fuel', 'Credit Card', ''],
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([template], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'nest-egg-import-template.csv');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Template downloaded',
+      description: 'Use this template as a guide for formatting your CSV file',
+      status: 'success',
+      duration: 3000,
+    });
+  };
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
@@ -264,13 +293,22 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({ isOpen, onClose 
             <VStack spacing={6} align="stretch">
               <Alert status="info">
                 <AlertIcon />
-                <Box>
+                <Box flex={1}>
                   <AlertTitle>Supported Formats</AlertTitle>
                   <AlertDescription>
                     We support Mint.com export format and most standard CSV files with Date, Amount,
                     and Description columns.
                   </AlertDescription>
                 </Box>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  colorScheme="blue"
+                  onClick={handleDownloadTemplate}
+                  ml={4}
+                >
+                  Download Template
+                </Button>
               </Alert>
 
               <FormControl isRequired>
@@ -309,9 +347,16 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({ isOpen, onClose 
                   💡 Tips for best results:
                 </Text>
                 <VStack align="stretch" spacing={1}>
+                  <Text fontSize="sm">• Download our template above to see the recommended format</Text>
                   <Text fontSize="sm">• Ensure your CSV has headers in the first row</Text>
                   <Text fontSize="sm">• Date format: YYYY-MM-DD or MM/DD/YYYY</Text>
-                  <Text fontSize="sm">• Amount should be numeric (negative for expenses)</Text>
+                  <Text fontSize="sm">• Amount: Negative for expenses, positive for income</Text>
+                  <Text fontSize="sm">
+                    • Required columns: <strong>Date</strong> and <strong>Amount</strong>
+                  </Text>
+                  <Text fontSize="sm">
+                    • Optional columns: Description, Merchant, Category, Notes, Account, Labels
+                  </Text>
                   <Text fontSize="sm">• Maximum file size: 10 MB</Text>
                 </VStack>
               </Box>
