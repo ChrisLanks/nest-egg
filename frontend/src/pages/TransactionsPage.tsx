@@ -405,15 +405,34 @@ export const TransactionsPage = () => {
 
       filtered = filtered.filter((txn) => {
         // Helper to parse comma-separated values and remove quotes
+        // Handles commas inside quoted strings properly
         const parseValues = (str: string): string[] => {
-          return str.split(',').map(s => {
-            const trimmed = s.trim();
-            // Remove quotes if present
-            if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-              return trimmed.slice(1, -1).toLowerCase();
+          const values: string[] = [];
+          let current = '';
+          let inQuotes = false;
+
+          for (let i = 0; i < str.length; i++) {
+            const char = str[i];
+
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+              // Comma outside quotes = separator
+              if (current.trim()) {
+                values.push(current.trim().toLowerCase());
+              }
+              current = '';
+            } else {
+              current += char;
             }
-            return trimmed.toLowerCase();
-          });
+          }
+
+          // Add final value
+          if (current.trim()) {
+            values.push(current.trim().toLowerCase());
+          }
+
+          return values;
         };
 
         // Check labels filter
