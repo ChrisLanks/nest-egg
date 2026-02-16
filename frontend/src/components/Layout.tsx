@@ -838,7 +838,7 @@ export const Layout = () => {
         </Box>
 
         {/* Main content area */}
-        <Box flex={1} overflowY="auto" bg="gray.50" pl={8}>
+        <Box flex={1} overflowY="auto" bg="gray.50">
           <Outlet />
         </Box>
       </Flex>

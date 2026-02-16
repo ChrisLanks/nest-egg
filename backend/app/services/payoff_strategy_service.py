@@ -55,7 +55,7 @@ class PayoffStrategyService:
         conditions = [
             Account.organization_id == organization_id,
             Account.is_active == True,
-            Account.account_type.in_(['CREDIT_CARD', 'LOAN', 'student_loan', 'MORTGAGE']),
+            Account.account_type.in_(['CREDIT_CARD', 'LOAN', 'STUDENT_LOAN', 'MORTGAGE']),
             Account.current_balance < 0,  # Debt accounts have negative balances
         ]
 
