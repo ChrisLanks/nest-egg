@@ -56,6 +56,7 @@ interface Account {
   available_balance: number | null;
   limit: number | null;
   is_active: boolean;
+  exclude_from_cash_flow: boolean;
   balance_as_of: string | null;
   plaid_item_id: string | null;
   last_synced_at: string | null;
@@ -457,9 +458,16 @@ export const AccountsPage = () => {
                         </Text>
                       </Td>
                       <Td>
-                        <Badge colorScheme={account.is_active ? 'green' : 'gray'}>
-                          {account.is_active ? 'Visible' : 'Hidden'}
-                        </Badge>
+                        <VStack align="start" spacing={1}>
+                          <Badge colorScheme={account.is_active ? 'green' : 'gray'}>
+                            {account.is_active ? 'Visible' : 'Hidden'}
+                          </Badge>
+                          {account.exclude_from_cash_flow && (
+                            <Badge colorScheme="orange" fontSize="xs">
+                              Excluded from Cash Flow
+                            </Badge>
+                          )}
+                        </VStack>
                       </Td>
                       <Td>
                         <HStack spacing={2}>
