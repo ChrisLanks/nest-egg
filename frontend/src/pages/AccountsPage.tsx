@@ -50,6 +50,7 @@ import { EmptyState } from '../components/EmptyState';
 
 interface Account {
   id: string;
+  user_id: string;
   name: string;
   account_type: string;
   institution_name: string | null;
@@ -62,6 +63,12 @@ interface Account {
   balance_as_of: string | null;
   plaid_item_id: string | null;
   last_synced_at: string | null;
+}
+
+interface User {
+  id: string;
+  email: string;
+  full_name: string | null;
 }
 
 export const AccountsPage = () => {
@@ -84,6 +91,21 @@ export const AccountsPage = () => {
       return response.data;
     },
   });
+
+  // Fetch household users for ownership display
+  const { data: users } = useQuery({
+    queryKey: ['household-users'],
+    queryFn: async () => {
+      const response = await api.get<User[]>('/users/household');
+      return response.data;
+    },
+  });
+
+  // Create user map for quick lookups
+  const userMap = useMemo(() => {
+    if (!users) return new Map<string, User>();
+    return new Map(users.map(user => [user.id, user]));
+  }, [users]);
 
   // Bulk delete mutation
   const deleteMutation = useMutation({
@@ -467,8 +489,15 @@ export const AccountsPage = () => {
                         />
                       </Td>
                       <Td>
-                        <VStack align="start" spacing={0}>
-                          <Text fontWeight="medium">{account.name}</Text>
+                        <VStack align="start" spacing={1}>
+                          <HStack>
+                            <Text fontWeight="medium">{account.name}</Text>
+                            {userMap.get(account.user_id) && (
+                              <Badge colorScheme="purple" fontSize="xs">
+                                {userMap.get(account.user_id)?.full_name || userMap.get(account.user_id)?.email}
+                              </Badge>
+                            )}
+                          </HStack>
                           {account.mask && (
                             <Text fontSize="xs" color="gray.500">
                               •••• {account.mask}
