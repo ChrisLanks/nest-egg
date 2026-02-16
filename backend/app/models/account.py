@@ -4,7 +4,7 @@ import uuid
 from typing import Optional
 import enum
 
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Numeric, Text, Enum as SQLEnum
+from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, Numeric, Text, Integer, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -199,6 +199,16 @@ class Account(Base):
     is_active = Column(Boolean, default=True, nullable=False, index=True)
     is_manual = Column(Boolean, default=False, nullable=False)
     exclude_from_cash_flow = Column(Boolean, default=False, nullable=False)  # Exclude transactions from budgets/trends to prevent double-counting
+
+    # Debt/Loan fields (for debt payoff planning)
+    interest_rate = Column(Numeric(5, 2), nullable=True)  # Annual interest rate (APR) as percentage
+    interest_rate_type = Column(String(20), nullable=True)  # 'FIXED' or 'VARIABLE'
+    minimum_payment = Column(Numeric(10, 2), nullable=True)  # Minimum monthly payment
+    payment_due_day = Column(Integer, nullable=True)  # Day of month payment is due
+    original_amount = Column(Numeric(15, 2), nullable=True)  # Original loan/debt amount
+    origination_date = Column(Date, nullable=True)  # Date loan was originated
+    maturity_date = Column(Date, nullable=True)  # Date loan matures/ends
+    loan_term_months = Column(Integer, nullable=True)  # Total loan term in months
 
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
