@@ -41,6 +41,7 @@ class Organization(Base):
 
     # Relationships
     users = relationship("User", back_populates="organization", cascade="all, delete-orphan")
+    report_templates = relationship("ReportTemplate", back_populates="organization", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Organization {self.name}>"

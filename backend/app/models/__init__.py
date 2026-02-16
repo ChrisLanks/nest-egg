@@ -12,6 +12,7 @@ from app.models.savings_goal import SavingsGoal
 from app.models.recurring_transaction import RecurringTransaction
 from app.models.notification import Notification
 from app.models.contribution import AccountContribution
+from app.models.report_template import ReportTemplate
 
 __all__ = [
     "User",
@@ -34,4 +35,5 @@ __all__ = [
     "RecurringTransaction",
     "Notification",
     "AccountContribution",
+    "ReportTemplate",
 ]
