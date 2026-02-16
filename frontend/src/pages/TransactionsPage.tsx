@@ -88,7 +88,8 @@ import type { Transaction } from '../types/transaction';
 import api from '../services/api';
 import { TransactionsSkeleton } from '../components/LoadingSkeleton';
 import { EmptyState } from '../components/EmptyState';
-import { FiInbox } from 'react-icons/fi';
+import { CSVImportModal } from '../components/CSVImportModal';
+import { FiInbox, FiUpload } from 'react-icons/fi';
 
 const STORAGE_KEY = 'transactions-date-range';
 
@@ -138,6 +139,8 @@ export const TransactionsPage = () => {
 
   // Bulk edit modal
   const { isOpen: isBulkEditOpen, onOpen: onBulkEditOpen, onClose: onBulkEditClose } = useDisclosure();
+  // CSV import modal
+  const { isOpen: isImportOpen, onOpen: onImportOpen, onClose: onImportClose } = useDisclosure();
   const [pendingLabelsToAdd, setPendingLabelsToAdd] = useState<string[]>([]);
   const [pendingLabelsToRemove, setPendingLabelsToRemove] = useState<string[]>([]);
   const [selectedLabelToAdd, setSelectedLabelToAdd] = useState<string>('');
@@ -998,6 +1001,15 @@ export const TransactionsPage = () => {
             </Text>
           </Box>
           <HStack spacing={2}>
+            <Button
+              leftIcon={<FiUpload />}
+              variant="outline"
+              onClick={onImportOpen}
+              size="sm"
+              colorScheme="blue"
+            >
+              Import CSV
+            </Button>
             <Button
               leftIcon={<DownloadIcon />}
               variant="outline"
@@ -1912,6 +1924,9 @@ export const TransactionsPage = () => {
             </ModalFooter>
           </ModalContent>
         </Modal>
+
+        {/* CSV Import Modal */}
+        <CSVImportModal isOpen={isImportOpen} onClose={onImportClose} />
       </VStack>
     </Container>
   );
