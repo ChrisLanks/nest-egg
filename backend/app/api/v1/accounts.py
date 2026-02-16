@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.core.database import get_db
 from app.dependencies import (
@@ -35,18 +36,27 @@ async def list_accounts(
     db: AsyncSession = Depends(get_db),
 ):
     """List all accounts for the current user's organization."""
-    # Get accounts based on user filter
-    if user_id:
-        await verify_household_member(db, user_id, current_user.organization_id)
-        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-    else:
-        # Combined view: Return ALL accounts without deduplication
-        # Frontend will handle deduplication and marking shared accounts
-        accounts = await get_all_household_accounts(db, current_user.organization_id)
+    # Query accounts directly to respect include_hidden parameter
+    if include_hidden:
+        # Admin view - include ALL accounts regardless of is_active status
+        conditions = [Account.organization_id == current_user.organization_id]
+        if user_id:
+            await verify_household_member(db, user_id, current_user.organization_id)
+            conditions.append(Account.user_id == user_id)
 
-    # Filter hidden accounts if requested
-    if not include_hidden:
-        accounts = [acc for acc in accounts if acc.is_active]
+        result = await db.execute(
+            select(Account)
+            .options(joinedload(Account.plaid_item))
+            .where(*conditions)
+        )
+        accounts = result.unique().scalars().all()
+    else:
+        # Normal view - use existing dependencies that filter by is_active
+        if user_id:
+            await verify_household_member(db, user_id, current_user.organization_id)
+            accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+        else:
+            accounts = await get_all_household_accounts(db, current_user.organization_id)
 
     # Sort by name
     accounts = sorted(accounts, key=lambda a: a.name)
