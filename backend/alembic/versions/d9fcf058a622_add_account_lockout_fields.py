@@ -1,8 +1,8 @@
-"""add account lockout fields to users
+"""add_account_lockout_fields
 
-Revision ID: a1b2c3d4e5f6
-Revises: fecf4db781a3
-Create Date: 2026-02-16 10:30:00.000000
+Revision ID: d9fcf058a622
+Revises: 4d3dec06d605
+Create Date: 2026-02-16 13:57:58.044731
 
 """
 from typing import Sequence, Union
@@ -12,19 +12,19 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'a1b2c3d4e5f6'
-down_revision: Union[str, None] = 'fecf4db781a3'
+revision: str = 'd9fcf058a622'
+down_revision: Union[str, None] = '4d3dec06d605'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add account security fields to users table
+    # Add account lockout fields to users table
     op.add_column('users', sa.Column('failed_login_attempts', sa.Integer(), server_default='0', nullable=False))
     op.add_column('users', sa.Column('locked_until', sa.DateTime(), nullable=True))
 
 
 def downgrade() -> None:
-    # Remove account security fields from users table
+    # Remove account lockout fields from users table
     op.drop_column('users', 'locked_until')
     op.drop_column('users', 'failed_login_attempts')

@@ -55,11 +55,11 @@ class SecretsValidationService:
                 errors.append("Database password appears to be weak or default")
 
         # Critical: Encryption Key
-        if not settings.ENCRYPTION_KEY:
-            errors.append("ENCRYPTION_KEY must be set in production (used for Plaid tokens)")
-        elif len(settings.ENCRYPTION_KEY) < SecretsValidationService.MIN_SECRET_LENGTHS['encryption']:
+        if not settings.MASTER_ENCRYPTION_KEY:
+            errors.append("MASTER_ENCRYPTION_KEY must be set in production (used for Plaid tokens)")
+        elif len(settings.MASTER_ENCRYPTION_KEY) < SecretsValidationService.MIN_SECRET_LENGTHS['encryption']:
             errors.append(
-                f"ENCRYPTION_KEY must be at least {SecretsValidationService.MIN_SECRET_LENGTHS['encryption']} characters"
+                f"MASTER_ENCRYPTION_KEY must be at least {SecretsValidationService.MIN_SECRET_LENGTHS['encryption']} characters"
             )
 
         # Important: CORS Origins
@@ -198,8 +198,8 @@ class SecretsValidationService:
 
         # Encryption
         checklist['encryption_key_set'] = (
-            bool(settings.ENCRYPTION_KEY) and
-            len(settings.ENCRYPTION_KEY) >= SecretsValidationService.MIN_SECRET_LENGTHS['encryption']
+            bool(settings.MASTER_ENCRYPTION_KEY) and
+            len(settings.MASTER_ENCRYPTION_KEY) >= SecretsValidationService.MIN_SECRET_LENGTHS['encryption']
         )
 
         # Network security

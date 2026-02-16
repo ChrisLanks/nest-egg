@@ -16,9 +16,9 @@ engine = create_async_engine(
     pool_pre_ping=True,  # Verify connections before use (prevents stale connections)
     pool_recycle=3600,  # Recycle connections after 1 hour (prevents timeout)
     connect_args={
-        "statement_timeout": 30000,  # 30 second query timeout (prevents runaway queries)
         "server_settings": {
             "application_name": "nest_egg_api",  # Identify app in database logs
+            "statement_timeout": "30000",  # 30 second query timeout (prevents runaway queries)
         },
     },
 )

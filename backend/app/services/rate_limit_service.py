@@ -158,3 +158,7 @@ def get_rate_limit_service() -> RateLimitService:
     if _rate_limit_service is None:
         _rate_limit_service = RateLimitService()
     return _rate_limit_service
+
+
+# Create singleton instance for direct import
+rate_limit_service = get_rate_limit_service()
