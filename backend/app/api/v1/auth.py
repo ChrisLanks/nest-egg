@@ -21,6 +21,7 @@ from app.schemas.auth import (
 )
 from app.schemas.user import User as UserSchema
 from app.services.rate_limit_service import get_rate_limit_service
+from app.services.password_validation_service import password_validation_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -45,6 +46,10 @@ async def register(
         max_requests=3,
         window_seconds=600,  # 10 minutes
     )
+
+    # Validate password strength and check for breaches
+    await password_validation_service.validate_and_raise_async(data.password, check_breach=True)
+
     # Check if user already exists
     existing_user = await user_crud.get_by_email(db, data.email)
     if existing_user:

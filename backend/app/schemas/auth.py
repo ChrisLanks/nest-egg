@@ -9,7 +9,11 @@ class RegisterRequest(BaseModel):
     """Schema for user registration."""
 
     email: EmailStr
-    password: str = Field(..., min_length=8)
+    password: str = Field(
+        ...,
+        min_length=12,
+        description="Password must be at least 12 characters and include uppercase, lowercase, digit, and special character"
+    )
     first_name: str = Field(..., min_length=1)
     last_name: str = Field(..., min_length=1)
     organization_name: str = Field(..., min_length=1, max_length=255)
