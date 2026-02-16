@@ -27,6 +27,7 @@ import BillsPage from './pages/BillsPage';
 import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import TaxDeductiblePage from './pages/TaxDeductiblePage';
 import TrendsPage from './pages/TrendsPage';
+import ReportsPage from './pages/ReportsPage';
 import { HouseholdSettingsPage } from './pages/HouseholdSettingsPage';
 import { AcceptInvitationPage } from './pages/AcceptInvitationPage';
 import { UserViewProvider } from './contexts/UserViewContext';
@@ -54,6 +55,7 @@ function App() {
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/tax-deductible" element={<TaxDeductiblePage />} />
                 <Route path="/trends" element={<TrendsPage />} />
+                <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
                 <Route path="/budgets" element={<BudgetsPage />} />
