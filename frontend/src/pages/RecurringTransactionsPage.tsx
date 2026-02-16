@@ -23,10 +23,21 @@ import {
   Card,
   CardBody,
   Tooltip,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
+  SimpleGrid,
 } from '@chakra-ui/react';
 import { RepeatIcon, DeleteIcon } from '@chakra-ui/icons';
 import { FiLock, FiRepeat } from 'react-icons/fi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
 import { recurringTransactionsApi } from '../api/recurring-transactions';
 import { RecurringFrequency } from '../types/recurring-transaction';
 import { useUserView } from '../contexts/UserViewContext';
@@ -36,12 +47,42 @@ export default function RecurringTransactionsPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { canEdit, isOtherUserView } = useUserView();
+  const [tabIndex, setTabIndex] = useState(0);
 
   // Get all recurring patterns
   const { data: patterns = [], isLoading } = useQuery({
     queryKey: ['recurring-transactions'],
     queryFn: () => recurringTransactionsApi.getAll(),
   });
+
+  // Filter for subscriptions: monthly/yearly with high confidence (>70%)
+  const subscriptions = useMemo(() => {
+    return patterns.filter(
+      (pattern) =>
+        (pattern.frequency === RecurringFrequency.MONTHLY ||
+          pattern.frequency === RecurringFrequency.YEARLY) &&
+        (pattern.confidence_score ?? 0) >= 0.7
+    );
+  }, [patterns]);
+
+  // Calculate subscription summary
+  const subscriptionSummary = useMemo(() => {
+    const monthlyTotal = subscriptions.reduce((sum, sub) => {
+      const amount = Math.abs(sub.average_amount);
+      if (sub.frequency === RecurringFrequency.MONTHLY) {
+        return sum + amount;
+      } else if (sub.frequency === RecurringFrequency.YEARLY) {
+        return sum + amount / 12;
+      }
+      return sum;
+    }, 0);
+
+    return {
+      count: subscriptions.length,
+      monthlyTotal,
+      yearlyTotal: monthlyTotal * 12,
+    };
+  }, [subscriptions]);
 
   // Detect patterns mutation
   const detectMutation = useMutation({
@@ -116,9 +157,9 @@ export default function RecurringTransactionsPage() {
         {/* Header */}
         <HStack justify="space-between">
           <VStack align="start" spacing={1}>
-            <Heading size="lg">Recurring Transactions</Heading>
+            <Heading size="lg">Recurring Transactions & Subscriptions</Heading>
             <Text color="gray.600">
-              Auto-detected patterns in your transaction history
+              Auto-detected patterns and subscription charges
             </Text>
           </VStack>
           <Tooltip
@@ -159,96 +200,227 @@ export default function RecurringTransactionsPage() {
           />
         )}
 
-        {/* Patterns table */}
+        {/* Tabs for All Recurring vs Subscriptions */}
         {!isLoading && patterns.length > 0 && (
-          <Card>
-            <CardBody p={0}>
-              <Box overflowX="auto">
-                <Table variant="simple">
-                  <Thead>
-                    <Tr>
-                      <Th>Merchant</Th>
-                      <Th>Frequency</Th>
-                      <Th isNumeric>Amount</Th>
-                      <Th>Occurrences</Th>
-                      <Th>Next Expected</Th>
-                      <Th>Confidence</Th>
-                      <Th>Type</Th>
-                      <Th>Actions</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {patterns.map((pattern) => (
-                      <Tr key={pattern.id}>
-                        <Td fontWeight="medium">{pattern.merchant_name}</Td>
-                        <Td>
-                          <Badge colorScheme="blue">
-                            {formatFrequency(pattern.frequency)}
-                          </Badge>
-                        </Td>
-                        <Td isNumeric>{formatCurrency(pattern.average_amount)}</Td>
-                        <Td>{pattern.occurrence_count}×</Td>
-                        <Td>
-                          {pattern.next_expected_date
-                            ? new Date(pattern.next_expected_date).toLocaleDateString()
-                            : '—'}
-                        </Td>
-                        <Td>
-                          {pattern.confidence_score !== null && (
-                            <Badge
-                              colorScheme={
-                                pattern.confidence_score >= 0.8
-                                  ? 'green'
-                                  : pattern.confidence_score >= 0.6
-                                  ? 'yellow'
-                                  : 'orange'
-                              }
-                            >
-                              {(pattern.confidence_score * 100).toFixed(0)}%
-                            </Badge>
-                          )}
-                        </Td>
-                        <Td>
-                          <Badge colorScheme={pattern.is_user_created ? 'purple' : 'gray'}>
-                            {pattern.is_user_created ? 'Manual' : 'Auto'}
-                          </Badge>
-                        </Td>
-                        <Td>
-                          <Tooltip
-                            label={!canEdit ? "Read-only: You can only delete your own patterns" : ""}
-                            placement="top"
-                            isDisabled={canEdit}
-                          >
-                            <IconButton
-                              aria-label="Delete"
-                              icon={!canEdit ? <FiLock /> : <DeleteIcon />}
-                              size="sm"
-                              variant="ghost"
-                              colorScheme={!canEdit ? "gray" : "red"}
-                              onClick={() => deleteMutation.mutate(pattern.id)}
-                              isLoading={deleteMutation.isPending}
-                              isDisabled={!canEdit}
-                            />
-                          </Tooltip>
-                        </Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </Box>
-            </CardBody>
-          </Card>
-        )}
+          <Tabs index={tabIndex} onChange={setTabIndex} colorScheme="brand">
+            <TabList>
+              <Tab>All Recurring ({patterns.length})</Tab>
+              <Tab>Subscriptions ({subscriptions.length})</Tab>
+            </TabList>
 
-        {/* Info box */}
-        {!isLoading && patterns.length > 0 && (
-          <Box p={4} bg="blue.50" borderRadius="md">
-            <Text fontSize="sm" color="gray.700">
-              💡 <strong>Tip:</strong> These patterns are auto-detected based on your transaction
-              history. High confidence patterns are more reliable. You can delete any patterns that
-              don't look right.
-            </Text>
-          </Box>
+            <TabPanels>
+              {/* All Recurring Tab */}
+              <TabPanel px={0}>
+                <VStack align="stretch" spacing={6}>
+                  <Card>
+                    <CardBody p={0}>
+                      <Box overflowX="auto">
+                        <Table variant="simple">
+                          <Thead>
+                            <Tr>
+                              <Th>Merchant</Th>
+                              <Th>Frequency</Th>
+                              <Th isNumeric>Amount</Th>
+                              <Th>Occurrences</Th>
+                              <Th>Next Expected</Th>
+                              <Th>Confidence</Th>
+                              <Th>Type</Th>
+                              <Th>Actions</Th>
+                            </Tr>
+                          </Thead>
+                          <Tbody>
+                            {patterns.map((pattern) => (
+                              <Tr key={pattern.id}>
+                                <Td fontWeight="medium">{pattern.merchant_name}</Td>
+                                <Td>
+                                  <Badge colorScheme="blue">
+                                    {formatFrequency(pattern.frequency)}
+                                  </Badge>
+                                </Td>
+                                <Td isNumeric>{formatCurrency(pattern.average_amount)}</Td>
+                                <Td>{pattern.occurrence_count}×</Td>
+                                <Td>
+                                  {pattern.next_expected_date
+                                    ? new Date(pattern.next_expected_date).toLocaleDateString()
+                                    : '—'}
+                                </Td>
+                                <Td>
+                                  {pattern.confidence_score !== null && (
+                                    <Badge
+                                      colorScheme={
+                                        pattern.confidence_score >= 0.8
+                                          ? 'green'
+                                          : pattern.confidence_score >= 0.6
+                                          ? 'yellow'
+                                          : 'orange'
+                                      }
+                                    >
+                                      {(pattern.confidence_score * 100).toFixed(0)}%
+                                    </Badge>
+                                  )}
+                                </Td>
+                                <Td>
+                                  <Badge colorScheme={pattern.is_user_created ? 'purple' : 'gray'}>
+                                    {pattern.is_user_created ? 'Manual' : 'Auto'}
+                                  </Badge>
+                                </Td>
+                                <Td>
+                                  <Tooltip
+                                    label={!canEdit ? "Read-only: You can only delete your own patterns" : ""}
+                                    placement="top"
+                                    isDisabled={canEdit}
+                                  >
+                                    <IconButton
+                                      aria-label="Delete"
+                                      icon={!canEdit ? <FiLock /> : <DeleteIcon />}
+                                      size="sm"
+                                      variant="ghost"
+                                      colorScheme={!canEdit ? "gray" : "red"}
+                                      onClick={() => deleteMutation.mutate(pattern.id)}
+                                      isLoading={deleteMutation.isPending}
+                                      isDisabled={!canEdit}
+                                    />
+                                  </Tooltip>
+                                </Td>
+                              </Tr>
+                            ))}
+                          </Tbody>
+                        </Table>
+                      </Box>
+                    </CardBody>
+                  </Card>
+
+                  <Box p={4} bg="blue.50" borderRadius="md">
+                    <Text fontSize="sm" color="gray.700">
+                      💡 <strong>Tip:</strong> These patterns are auto-detected based on your transaction
+                      history. High confidence patterns are more reliable. You can delete any patterns that
+                      don't look right.
+                    </Text>
+                  </Box>
+                </VStack>
+              </TabPanel>
+
+              {/* Subscriptions Tab */}
+              <TabPanel px={0}>
+                <VStack align="stretch" spacing={6}>
+                  {/* Summary Cards */}
+                  <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
+                    <Card>
+                      <CardBody>
+                        <Stat>
+                          <StatLabel>Active Subscriptions</StatLabel>
+                          <StatNumber>{subscriptionSummary.count}</StatNumber>
+                          <StatHelpText>Monthly & yearly charges</StatHelpText>
+                        </Stat>
+                      </CardBody>
+                    </Card>
+
+                    <Card>
+                      <CardBody>
+                        <Stat>
+                          <StatLabel>Monthly Cost</StatLabel>
+                          <StatNumber color="red.600">
+                            {formatCurrency(subscriptionSummary.monthlyTotal)}
+                          </StatNumber>
+                          <StatHelpText>Recurring charges</StatHelpText>
+                        </Stat>
+                      </CardBody>
+                    </Card>
+
+                    <Card>
+                      <CardBody>
+                        <Stat>
+                          <StatLabel>Yearly Cost</StatLabel>
+                          <StatNumber>
+                            {formatCurrency(subscriptionSummary.yearlyTotal)}
+                          </StatNumber>
+                          <StatHelpText>Annual total</StatHelpText>
+                        </Stat>
+                      </CardBody>
+                    </Card>
+                  </SimpleGrid>
+
+                  {/* Subscriptions table */}
+                  {subscriptions.length > 0 ? (
+                    <Card>
+                      <CardBody p={0}>
+                        <Box overflowX="auto">
+                          <Table variant="simple">
+                            <Thead>
+                              <Tr>
+                                <Th>Service</Th>
+                                <Th>Frequency</Th>
+                                <Th isNumeric>Amount</Th>
+                                <Th>Next Charge</Th>
+                                <Th>Confidence</Th>
+                                <Th>Actions</Th>
+                              </Tr>
+                            </Thead>
+                            <Tbody>
+                              {subscriptions.map((sub) => (
+                                <Tr key={sub.id}>
+                                  <Td fontWeight="medium">{sub.merchant_name}</Td>
+                                  <Td>
+                                    <Badge colorScheme="purple">
+                                      {formatFrequency(sub.frequency)}
+                                    </Badge>
+                                  </Td>
+                                  <Td isNumeric>{formatCurrency(Math.abs(sub.average_amount))}</Td>
+                                  <Td>
+                                    {sub.next_expected_date
+                                      ? new Date(sub.next_expected_date).toLocaleDateString()
+                                      : '—'}
+                                  </Td>
+                                  <Td>
+                                    <Badge
+                                      colorScheme={sub.confidence_score >= 0.85 ? 'green' : 'yellow'}
+                                    >
+                                      {((sub.confidence_score ?? 0) * 100).toFixed(0)}%
+                                    </Badge>
+                                  </Td>
+                                  <Td>
+                                    <Tooltip
+                                      label={!canEdit ? "Read-only: You can only delete your own patterns" : "Not a subscription"}
+                                      placement="top"
+                                    >
+                                      <IconButton
+                                        aria-label="Delete"
+                                        icon={!canEdit ? <FiLock /> : <DeleteIcon />}
+                                        size="sm"
+                                        variant="ghost"
+                                        colorScheme={!canEdit ? "gray" : "red"}
+                                        onClick={() => deleteMutation.mutate(sub.id)}
+                                        isLoading={deleteMutation.isPending}
+                                        isDisabled={!canEdit}
+                                      />
+                                    </Tooltip>
+                                  </Td>
+                                </Tr>
+                              ))}
+                            </Tbody>
+                          </Table>
+                        </Box>
+                      </CardBody>
+                    </Card>
+                  ) : (
+                    <EmptyState
+                      icon={FiRepeat}
+                      title="No subscriptions detected"
+                      description="We'll automatically detect recurring monthly and yearly charges as transactions are imported."
+                    />
+                  )}
+
+                  <Box p={4} bg="purple.50" borderRadius="md">
+                    <Text fontSize="sm" color="gray.700">
+                      💡 <strong>Subscriptions</strong> are recurring charges that happen monthly or yearly
+                      with high confidence (70%+). If you see something that's not actually a subscription,
+                      you can remove it.
+                    </Text>
+                  </Box>
+                </VStack>
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
         )}
       </VStack>
     </Box>

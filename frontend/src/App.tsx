@@ -24,7 +24,6 @@ import BudgetsPage from './pages/BudgetsPage';
 import SavingsGoalsPage from './pages/SavingsGoalsPage';
 import RecurringTransactionsPage from './pages/RecurringTransactionsPage';
 import BillsPage from './pages/BillsPage';
-import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import TaxDeductiblePage from './pages/TaxDeductiblePage';
 import TrendsPage from './pages/TrendsPage';
 import ReportsPage from './pages/ReportsPage';
@@ -63,7 +62,8 @@ function App() {
                 <Route path="/goals" element={<SavingsGoalsPage />} />
                 <Route path="/recurring" element={<RecurringTransactionsPage />} />
                 <Route path="/bills" element={<BillsPage />} />
-                <Route path="/subscriptions" element={<SubscriptionsPage />} />
+                {/* Redirect old subscriptions route to recurring page */}
+                <Route path="/subscriptions" element={<Navigate to="/recurring" replace />} />
                 <Route path="/debt-payoff" element={<DebtPayoffPage />} />
                 <Route path="/preferences" element={<PreferencesPage />} />
                 <Route path="/household" element={<HouseholdSettingsPage />} />

@@ -254,10 +254,17 @@ export const Layout = () => {
     }
   };
 
-  const cashFlowMenuItems = [
-    { label: 'Cash Flow', path: '/income-expenses' },
+  const planningMenuItems = [
     { label: 'Budgets', path: '/budgets' },
     { label: 'Goals', path: '/goals' },
+    { label: 'Debt Payoff', path: '/debt-payoff' },
+  ];
+
+  const analyticsMenuItems = [
+    { label: 'Cash Flow', path: '/income-expenses' },
+    { label: 'Trends', path: '/trends' },
+    { label: 'Reports', path: '/reports' },
+    { label: 'Tax Deductible', path: '/tax-deductible' },
   ];
 
   const transactionsMenuItems = [
@@ -266,10 +273,6 @@ export const Layout = () => {
     { label: 'Rules', path: '/rules' },
     { label: 'Recurring', path: '/recurring' },
     { label: 'Bills', path: '/bills' },
-    { label: 'Subscriptions', path: '/subscriptions' },
-    { label: 'Tax Deductible', path: '/tax-deductible' },
-    { label: 'Trends', path: '/trends' },
-    { label: 'Reports', path: '/reports' },
   ];
 
   // Fetch accounts with user filtering
@@ -483,20 +486,46 @@ export const Layout = () => {
                 onClick={() => navigateWithParams('/overview')}
               />
 
-              {/* Cash Flow Dropdown */}
+              {/* Planning & Goals Dropdown */}
               <Menu>
                 <MenuButton
                   as={Button}
                   rightIcon={<ChevronDownIcon />}
-                  variant={cashFlowMenuItems.some(item => location.pathname === item.path) ? 'solid' : 'ghost'}
-                  colorScheme={cashFlowMenuItems.some(item => location.pathname === item.path) ? 'brand' : 'gray'}
+                  variant={planningMenuItems.some(item => location.pathname === item.path) ? 'solid' : 'ghost'}
+                  colorScheme={planningMenuItems.some(item => location.pathname === item.path) ? 'brand' : 'gray'}
                   size="sm"
-                  fontWeight={cashFlowMenuItems.some(item => location.pathname === item.path) ? 'semibold' : 'medium'}
+                  fontWeight={planningMenuItems.some(item => location.pathname === item.path) ? 'semibold' : 'medium'}
                 >
-                  Cash Flow
+                  Planning & Goals
                 </MenuButton>
                 <MenuList>
-                  {cashFlowMenuItems.map((item) => (
+                  {planningMenuItems.map((item) => (
+                    <MenuItem
+                      key={item.path}
+                      onClick={() => navigateWithParams(item.path)}
+                      fontWeight={location.pathname === item.path ? 'semibold' : 'normal'}
+                      bg={location.pathname === item.path ? 'brand.50' : 'transparent'}
+                    >
+                      {item.label}
+                    </MenuItem>
+                  ))}
+                </MenuList>
+              </Menu>
+
+              {/* Analytics Dropdown */}
+              <Menu>
+                <MenuButton
+                  as={Button}
+                  rightIcon={<ChevronDownIcon />}
+                  variant={analyticsMenuItems.some(item => location.pathname === item.path) ? 'solid' : 'ghost'}
+                  colorScheme={analyticsMenuItems.some(item => location.pathname === item.path) ? 'brand' : 'gray'}
+                  size="sm"
+                  fontWeight={analyticsMenuItems.some(item => location.pathname === item.path) ? 'semibold' : 'medium'}
+                >
+                  Analytics
+                </MenuButton>
+                <MenuList>
+                  {analyticsMenuItems.map((item) => (
                     <MenuItem
                       key={item.path}
                       onClick={() => navigateWithParams(item.path)}
@@ -540,13 +569,6 @@ export const Layout = () => {
                 label="Investments"
                 isActive={location.pathname === '/investments'}
                 onClick={() => navigateWithParams('/investments')}
-              />
-
-              {/* Debt Payoff */}
-              <TopNavItem
-                label="Debt Payoff"
-                isActive={location.pathname === '/debt-payoff'}
-                onClick={() => navigateWithParams('/debt-payoff')}
               />
 
               {/* Accounts */}
