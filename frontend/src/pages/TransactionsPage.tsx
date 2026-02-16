@@ -656,8 +656,18 @@ export const TransactionsPage = () => {
 
   const handleCategoryClick = (category: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
+
+    // Check if this category is already in the search
+    const quotedCategory = `"${category}"`;
+    const hasQuotedVersion = searchQuery.includes(`categories:${quotedCategory}`) || searchQuery.includes(`category:${quotedCategory}`);
+    const hasUnquotedVersion = searchQuery.includes(`categories:${category}`) || searchQuery.includes(`category:${category}`);
+
+    if (hasQuotedVersion || hasUnquotedVersion) {
+      return; // Already in search, don't add again
+    }
+
     // Add quotes if category contains spaces or commas
-    const formattedCategory = (category.includes(' ') || category.includes(',')) ? `"${category}"` : category;
+    const formattedCategory = (category.includes(' ') || category.includes(',')) ? quotedCategory : category;
     const newFilter = `categories:${formattedCategory}`;
     // Append to existing search if present
     setSearchQuery(searchQuery ? `${searchQuery} ${newFilter}` : newFilter);
@@ -665,8 +675,18 @@ export const TransactionsPage = () => {
 
   const handleLabelClick = (labelName: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
+
+    // Check if this label is already in the search
+    const quotedLabel = `"${labelName}"`;
+    const hasQuotedVersion = searchQuery.includes(`labels:${quotedLabel}`) || searchQuery.includes(`label:${quotedLabel}`);
+    const hasUnquotedVersion = searchQuery.includes(`labels:${labelName}`) || searchQuery.includes(`label:${labelName}`);
+
+    if (hasQuotedVersion || hasUnquotedVersion) {
+      return; // Already in search, don't add again
+    }
+
     // Add quotes if label contains spaces or commas
-    const formattedLabel = (labelName.includes(' ') || labelName.includes(',')) ? `"${labelName}"` : labelName;
+    const formattedLabel = (labelName.includes(' ') || labelName.includes(',')) ? quotedLabel : labelName;
     const newFilter = `labels:${formattedLabel}`;
     // Append to existing search if present
     setSearchQuery(searchQuery ? `${searchQuery} ${newFilter}` : newFilter);
@@ -674,8 +694,18 @@ export const TransactionsPage = () => {
 
   const handleAccountClick = (accountName: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening transaction modal
+
+    // Check if this account is already in the search
+    const quotedAccount = `"${accountName}"`;
+    const hasQuotedVersion = searchQuery.includes(`accounts:${quotedAccount}`) || searchQuery.includes(`account:${quotedAccount}`);
+    const hasUnquotedVersion = searchQuery.includes(`accounts:${accountName}`) || searchQuery.includes(`account:${accountName}`);
+
+    if (hasQuotedVersion || hasUnquotedVersion) {
+      return; // Already in search, don't add again
+    }
+
     // Add quotes if account name contains spaces or commas
-    const formattedAccount = (accountName.includes(' ') || accountName.includes(',')) ? `"${accountName}"` : accountName;
+    const formattedAccount = (accountName.includes(' ') || accountName.includes(',')) ? quotedAccount : accountName;
     const newFilter = `account:${formattedAccount}`;
     // Append to existing search if present
     setSearchQuery(searchQuery ? `${searchQuery} ${newFilter}` : newFilter);
