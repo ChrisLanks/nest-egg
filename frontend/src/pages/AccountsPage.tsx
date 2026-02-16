@@ -39,7 +39,7 @@ import {
   Tooltip,
   Icon,
 } from '@chakra-ui/react';
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ViewIcon, ViewOffIcon, EditIcon, DeleteIcon, ChevronDownIcon, RepeatIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
@@ -47,6 +47,7 @@ import { FiCreditCard, FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
 import api from '../services/api';
 import { formatAssetType } from '../utils/formatAssetType';
 import { EmptyState } from '../components/EmptyState';
+import { useUserView } from '../contexts/UserViewContext';
 
 interface Account {
   id: string;
@@ -80,23 +81,32 @@ export const AccountsPage = () => {
   const navigate = useNavigate();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const { canEdit, isOtherUserView, selectedUserId } = useUserView();
 
   // Fetch current user for permission checks
   const { data: currentUser } = useQuery({
     queryKey: ['current-user'],
     queryFn: async () => {
-      const response = await api.get<User>('/users/me');
+      const response = await api.get<User>('/auth/me');
       return response.data;
     },
   });
 
   // Fetch all accounts (ALWAYS include hidden - this is the admin page)
+  // Filter by selected user when not in combined view
   const { data: accounts, isLoading } = useQuery({
-    queryKey: ['accounts-admin', 'include-hidden'],
+    queryKey: ['accounts-admin', 'include-hidden', selectedUserId],
     queryFn: async () => {
-      const response = await api.get<Account[]>('/accounts', {
-        params: { include_hidden: true }
-      });
+      const params: { include_hidden: boolean; user_id?: string } = {
+        include_hidden: true
+      };
+
+      // Filter by user_id when a specific user is selected (not combined view)
+      if (selectedUserId) {
+        params.user_id = selectedUserId;
+      }
+
+      const response = await api.get<Account[]>('/accounts', { params });
       return response.data;
     },
   });
@@ -105,10 +115,18 @@ export const AccountsPage = () => {
   const { data: users } = useQuery({
     queryKey: ['household-users'],
     queryFn: async () => {
-      const response = await api.get<User[]>('/users/household');
+      const response = await api.get<User[]>('/household/members');
       return response.data;
     },
   });
+
+  // Refresh data when user view selection changes
+  useEffect(() => {
+    // Invalidate queries to refresh the page when view changes
+    queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
+    queryClient.invalidateQueries({ queryKey: ['current-user'] });
+    queryClient.invalidateQueries({ queryKey: ['household-users'] });
+  }, [selectedUserId, queryClient]);
 
   // Create user map for quick lookups
   const userMap = useMemo(() => {
@@ -118,8 +136,31 @@ export const AccountsPage = () => {
 
   // Check if current user can modify an account
   const canModifyAccount = (account: Account): boolean => {
-    if (!currentUser) return false;
-    return account.user_id === currentUser.id;
+    if (!currentUser) {
+      console.log('[AccountsPage] Cannot modify - currentUser not loaded');
+      return false;
+    }
+
+    // If viewing another user's data (not self, not combined), can't edit anything
+    if (isOtherUserView) {
+      console.log('[AccountsPage] Cannot modify - viewing another user');
+      return false;
+    }
+
+    // In combined view, can edit all household accounts
+    if (selectedUserId === null) {
+      console.log('[AccountsPage] Can modify - combined view');
+      return true;
+    }
+
+    // In self view, can edit own accounts
+    const canModify = account.user_id === currentUser.id;
+    console.log('[AccountsPage] Self view check:', {
+      accountUserId: account.user_id,
+      currentUserId: currentUser.id,
+      canModify,
+    });
+    return canModify;
   };
 
   // Bulk delete mutation

@@ -21,24 +21,29 @@ import {
   Collapse,
   IconButton,
   Tooltip,
-} from '@chakra-ui/react';
+} from "@chakra-ui/react";
 import {
   AddIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   WarningIcon,
-} from '@chakra-ui/icons';
-import { FiSettings, FiLogOut, FiUsers } from 'react-icons/fi';
-import { Outlet, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { useAuthStore } from '../features/auth/stores/authStore';
-import { useLogout } from '../features/auth/hooks/useAuth';
-import api from '../services/api';
-import { AddAccountModal } from '../features/accounts/components/AddAccountModal';
-import NotificationBell from '../features/notifications/components/NotificationBell';
-import { UserViewToggle } from './UserViewToggle';
-import { useUserView } from '../contexts/UserViewContext';
+} from "@chakra-ui/icons";
+import { FiSettings, FiLogOut, FiUsers } from "react-icons/fi";
+import {
+  Outlet,
+  useNavigate,
+  useLocation,
+  useSearchParams,
+} from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useAuthStore } from "../features/auth/stores/authStore";
+import { useLogout } from "../features/auth/hooks/useAuth";
+import api from "../services/api";
+import { AddAccountModal } from "../features/accounts/components/AddAccountModal";
+import NotificationBell from "../features/notifications/components/NotificationBell";
+import { UserViewToggle } from "./UserViewToggle";
+import { useUserView } from "../contexts/UserViewContext";
 
 interface Account {
   id: string;
@@ -58,8 +63,8 @@ interface Account {
 }
 
 interface DedupedAccount extends Account {
-  owner_ids: string[];  // Array of user IDs who own this account
-  is_shared: boolean;   // True if owned by multiple users
+  owner_ids: string[]; // Array of user IDs who own this account
+  is_shared: boolean; // True if owned by multiple users
 }
 
 interface NavItemProps {
@@ -69,14 +74,18 @@ interface NavItemProps {
   onClick: () => void;
 }
 
-const TopNavItem = ({ label, isActive, onClick }: Omit<NavItemProps, 'icon' | 'path'>) => {
+const TopNavItem = ({
+  label,
+  isActive,
+  onClick,
+}: Omit<NavItemProps, "icon" | "path">) => {
   return (
     <Button
-      variant={isActive ? 'solid' : 'ghost'}
-      colorScheme={isActive ? 'brand' : 'gray'}
+      variant={isActive ? "solid" : "ghost"}
+      colorScheme={isActive ? "brand" : "gray"}
       size="sm"
       onClick={onClick}
-      fontWeight={isActive ? 'semibold' : 'medium'}
+      fontWeight={isActive ? "semibold" : "medium"}
     >
       {label}
     </Button>
@@ -107,16 +116,16 @@ const AccountItem = ({
   membersLoaded,
 }: AccountItemProps) => {
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);
   };
 
   const formatLastUpdated = (dateStr: string | null) => {
-    if (!dateStr) return 'Never';
+    if (!dateStr) return "Never";
 
     const date = new Date(dateStr);
     const now = new Date();
@@ -128,12 +137,12 @@ const AccountItem = ({
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 30) return `${diffDays}d ago`;
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
   const balance = Number(account.current_balance);
   const isNegative = balance < 0;
-  const isOwnedByCurrentUser = account.owner_ids.includes(currentUserId || '');
+  const isOwnedByCurrentUser = account.owner_ids.includes(currentUserId || "");
 
   // Get background color from primary owner (first in list)
   const primaryOwnerId = account.owner_ids[0];
@@ -142,8 +151,8 @@ const AccountItem = ({
   // Check for sync errors
   const hasSyncError = account.last_error_code || account.needs_reauth;
   const errorTooltip = account.needs_reauth
-    ? 'Reauthentication required - click to reconnect account'
-    : account.last_error_message || 'Sync error - check account settings';
+    ? "Reauthentication required - click to reconnect account"
+    : account.last_error_message || "Sync error - check account settings";
 
   return (
     <Box
@@ -151,7 +160,7 @@ const AccountItem = ({
       py={1.5}
       ml={5}
       bg={bgColor}
-      _hover={{ bg: bgColor ? bgColor : 'gray.50', opacity: 0.8 }}
+      _hover={{ bg: bgColor ? bgColor : "gray.50", opacity: 0.8 }}
       cursor="pointer"
       borderRadius="md"
       transition="all 0.2s"
@@ -162,14 +171,20 @@ const AccountItem = ({
       <VStack align="stretch" spacing={1}>
         <HStack justify="space-between" align="center" spacing={2}>
           <HStack flex={1} minW={0} spacing={1.5}>
-            <Text fontSize="xs" fontWeight="medium" color="gray.700" noOfLines={1} flex={1}>
+            <Text
+              fontSize="xs"
+              fontWeight="medium"
+              color="gray.700"
+              noOfLines={1}
+              flex={1}
+            >
               {account.name}
             </Text>
             {hasSyncError && (
               <Tooltip label={errorTooltip} placement="right" hasArrow>
                 <WarningIcon
                   boxSize={3}
-                  color={account.needs_reauth ? 'orange.500' : 'red.500'}
+                  color={account.needs_reauth ? "orange.500" : "red.500"}
                   flexShrink={0}
                 />
               </Tooltip>
@@ -178,7 +193,7 @@ const AccountItem = ({
           <Text
             fontSize="xs"
             fontWeight="semibold"
-            color={isNegative ? 'red.600' : 'brand.600'}
+            color={isNegative ? "red.600" : "brand.600"}
             flexShrink={0}
           >
             {formatCurrency(balance)}
@@ -191,7 +206,11 @@ const AccountItem = ({
           {isCombinedView && membersLoaded && (
             <HStack spacing={1}>
               {account.owner_ids.map((ownerId) => (
-                <Tooltip key={ownerId} label={getUserName(ownerId)} placement="top">
+                <Tooltip
+                  key={ownerId}
+                  label={getUserName(ownerId)}
+                  placement="top"
+                >
                   <Badge
                     size="sm"
                     fontSize="2xs"
@@ -215,23 +234,23 @@ const AccountItem = ({
 };
 
 const accountTypeConfig: Record<string, { label: string; order: number }> = {
-  checking: { label: 'Cash', order: 1 },
-  savings: { label: 'Cash', order: 1 },
-  credit_card: { label: 'Credit Cards', order: 2 },
-  brokerage: { label: 'Investments', order: 3 },
-  private_equity: { label: 'Investments', order: 3 },
-  retirement_401k: { label: 'Retirement', order: 4 },
-  retirement_ira: { label: 'Retirement', order: 4 },
-  retirement_roth: { label: 'Retirement', order: 4 },
-  retirement_529: { label: 'Retirement', order: 4 },
-  hsa: { label: 'Retirement', order: 4 },
-  loan: { label: 'Loans', order: 5 },
-  mortgage: { label: 'Loans', order: 5 },
-  property: { label: 'Property', order: 6 },
-  vehicle: { label: 'Property', order: 6 },
-  crypto: { label: 'Crypto', order: 7 },
-  manual: { label: 'Other', order: 8 },
-  other: { label: 'Other', order: 8 },
+  checking: { label: "Cash", order: 1 },
+  savings: { label: "Cash", order: 1 },
+  credit_card: { label: "Credit Cards", order: 2 },
+  brokerage: { label: "Investments", order: 3 },
+  private_equity: { label: "Investments", order: 3 },
+  retirement_401k: { label: "Retirement", order: 4 },
+  retirement_ira: { label: "Retirement", order: 4 },
+  retirement_roth: { label: "Retirement", order: 4 },
+  retirement_529: { label: "Retirement", order: 4 },
+  hsa: { label: "Retirement", order: 4 },
+  loan: { label: "Loans", order: 5 },
+  mortgage: { label: "Loans", order: 5 },
+  property: { label: "Property", order: 6 },
+  vehicle: { label: "Property", order: 6 },
+  crypto: { label: "Crypto", order: 7 },
+  manual: { label: "Other", order: 8 },
+  other: { label: "Other", order: 8 },
 };
 
 export const Layout = () => {
@@ -239,14 +258,21 @@ export const Layout = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
-  const { selectedUserId, isCombinedView, isOtherUserView, canEdit } = useUserView();
+  const { selectedUserId, isCombinedView, isOtherUserView, canEdit } =
+    useUserView();
   const logoutMutation = useLogout();
-  const { isOpen: isAddAccountOpen, onOpen: onAddAccountOpen, onClose: onAddAccountClose } = useDisclosure();
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const {
+    isOpen: isAddAccountOpen,
+    onOpen: onAddAccountOpen,
+    onClose: onAddAccountClose,
+  } = useDisclosure();
+  const [collapsedSections, setCollapsedSections] = useState<
+    Record<string, boolean>
+  >({});
 
   // Navigation helper that preserves query params
   const navigateWithParams = (path: string) => {
-    const currentUser = searchParams.get('user');
+    const currentUser = searchParams.get("user");
     if (currentUser) {
       navigate(`${path}?user=${currentUser}`);
     } else {
@@ -255,58 +281,70 @@ export const Layout = () => {
   };
 
   const planningMenuItems = [
-    { label: 'Budgets', path: '/budgets' },
-    { label: 'Goals', path: '/goals' },
-    { label: 'Debt Payoff', path: '/debt-payoff' },
+    { label: "Budgets", path: "/budgets" },
+    { label: "Goals", path: "/goals" },
+    { label: "Debt Payoff", path: "/debt-payoff" },
   ];
 
   const analyticsMenuItems = [
-    { label: 'Cash Flow', path: '/income-expenses' },
-    { label: 'Trends', path: '/trends' },
-    { label: 'Reports', path: '/reports' },
-    { label: 'Tax Deductible', path: '/tax-deductible' },
+    { label: "Cash Flow", path: "/income-expenses" },
+    { label: "Trends", path: "/trends" },
+    { label: "Reports", path: "/reports" },
+    { label: "Tax Deductible", path: "/tax-deductible" },
   ];
 
   const transactionsMenuItems = [
-    { label: 'Transactions', path: '/transactions' },
-    { label: 'Categories', path: '/categories' },
-    { label: 'Rules', path: '/rules' },
-    { label: 'Recurring', path: '/recurring' },
-    { label: 'Bills', path: '/bills' },
+    { label: "Transactions", path: "/transactions" },
+    { label: "Categories", path: "/categories" },
+    { label: "Rules", path: "/rules" },
+    { label: "Recurring", path: "/recurring" },
+    { label: "Bills", path: "/bills" },
   ];
 
   // Fetch accounts with user filtering
   const { data: accounts, isLoading: accountsLoading } = useQuery<Account[]>({
-    queryKey: ['accounts', selectedUserId],
+    queryKey: ["accounts", selectedUserId],
     queryFn: async () => {
       const params = selectedUserId ? { user_id: selectedUserId } : {};
-      const response = await api.get('/accounts', { params });
+      const response = await api.get("/accounts", { params });
       return response.data;
     },
   });
 
   // Fetch dashboard summary for net worth (filtered by user)
   const { data: dashboardSummary } = useQuery({
-    queryKey: ['dashboard-summary', selectedUserId],
+    queryKey: ["dashboard-summary", selectedUserId],
     queryFn: async () => {
       const params = selectedUserId ? { user_id: selectedUserId } : {};
-      const response = await api.get('/dashboard/summary', { params });
+      const response = await api.get("/dashboard/summary", { params });
       return response.data;
     },
   });
 
   // Fetch household members for color coding
   const { data: members } = useQuery({
-    queryKey: ['household-members'],
+    queryKey: ["household-members"],
     queryFn: async () => {
-      const response = await api.get('/household/members');
+      const response = await api.get("/household/members");
       return response.data;
     },
   });
 
   // Assign colors to users for visual distinction in combined view
-  const userColors = ['blue.500', 'green.500', 'purple.500', 'orange.500', 'pink.500'];
-  const userBgColors = ['blue.50', 'green.50', 'purple.50', 'orange.50', 'pink.50'];
+  const userColors = [
+    "blue.500",
+    "green.500",
+    "purple.500",
+    "orange.500",
+    "pink.500",
+  ];
+  const userBgColors = [
+    "blue.50",
+    "green.50",
+    "purple.50",
+    "orange.50",
+    "pink.50",
+  ];
 
   const getUserColorIndex = (userId: string): number => {
     if (!members) return 0;
@@ -327,12 +365,12 @@ export const Layout = () => {
 
   const getUserName = (userId: string): string => {
     if (!members || !userId) {
-      return '';
+      return "";
     }
 
     const member = members.find((m: any) => m.id === userId);
     if (!member) {
-      return '';
+      return "";
     }
 
     // Try display_name first
@@ -349,19 +387,19 @@ export const Layout = () => {
     }
 
     // Fallback to email username
-    if (member.email && member.email.includes('@')) {
-      return member.email.split('@')[0];
+    if (member.email && member.email.includes("@")) {
+      return member.email.split("@")[0];
     }
 
-    return '';
+    return "";
   };
 
   const getUserInitials = (userId: string): string => {
     const name = getUserName(userId);
-    if (!name || name.length === 0) return '?';
+    if (!name || name.length === 0) return "?";
 
     // Split by space to get first and last name
-    const parts = name.split(' ').filter(p => p.length > 0);
+    const parts = name.split(" ").filter((p) => p.length > 0);
 
     if (parts.length >= 2) {
       // Use first letter of first word and first letter of last word
@@ -378,59 +416,72 @@ export const Layout = () => {
   };
 
   // Deduplicate accounts in combined view
-  const dedupedAccounts: DedupedAccount[] = isCombinedView && accounts
-    ? (() => {
-        const hashMap = new Map<string, DedupedAccount>();
+  const dedupedAccounts: DedupedAccount[] =
+    isCombinedView && accounts
+      ? (() => {
+          const hashMap = new Map<string, DedupedAccount>();
 
-        accounts.forEach((account) => {
-          const hash = account.plaid_item_hash || account.id; // Use account ID if no hash
+          accounts.forEach((account) => {
+            const hash = account.plaid_item_hash || account.id; // Use account ID if no hash
 
-          if (hashMap.has(hash)) {
-            // Account already exists, add this user as an owner
-            const existing = hashMap.get(hash)!;
-            if (!existing.owner_ids.includes(account.user_id)) {
-              existing.owner_ids.push(account.user_id);
-              existing.is_shared = true;
+            if (hashMap.has(hash)) {
+              // Account already exists, add this user as an owner
+              const existing = hashMap.get(hash)!;
+              if (!existing.owner_ids.includes(account.user_id)) {
+                existing.owner_ids.push(account.user_id);
+                existing.is_shared = true;
+              }
+            } else {
+              // First time seeing this account
+              hashMap.set(hash, {
+                ...account,
+                owner_ids: [account.user_id],
+                is_shared: false,
+              });
             }
-          } else {
-            // First time seeing this account
-            hashMap.set(hash, {
-              ...account,
-              owner_ids: [account.user_id],
-              is_shared: false,
-            });
-          }
-        });
+          });
 
-        return Array.from(hashMap.values());
-      })()
-    : accounts?.map(account => ({
-        ...account,
-        owner_ids: [account.user_id],
-        is_shared: false,
-      })) || [];
+          return Array.from(hashMap.values());
+        })()
+      : accounts?.map((account) => ({
+          ...account,
+          owner_ids: [account.user_id],
+          is_shared: false,
+        })) || [];
 
   // Group accounts by type (using deduplicated accounts)
-  const groupedAccounts = dedupedAccounts?.reduce((acc, account) => {
-    const typeConfig = accountTypeConfig[account.account_type] || { label: 'Other', order: 7 };
-    const label = typeConfig.label;
+  const groupedAccounts = dedupedAccounts?.reduce(
+    (acc, account) => {
+      const typeConfig = accountTypeConfig[account.account_type] || {
+        label: "Other",
+        order: 7,
+      };
+      const label = typeConfig.label;
 
-    if (!acc[label]) {
-      acc[label] = [];
-    }
-    acc[label].push(account);
-    return acc;
-  }, {} as Record<string, DedupedAccount[]>);
+      if (!acc[label]) {
+        acc[label] = [];
+      }
+      acc[label].push(account);
+      return acc;
+    },
+    {} as Record<string, DedupedAccount[]>,
+  );
 
   // Sort groups by order
   const sortedGroups = groupedAccounts
     ? Object.entries(groupedAccounts).sort((a, b) => {
-        const aOrder = accountTypeConfig[accounts?.find(acc =>
-          accountTypeConfig[acc.account_type]?.label === a[0]
-        )?.account_type || '']?.order || 7;
-        const bOrder = accountTypeConfig[accounts?.find(acc =>
-          accountTypeConfig[acc.account_type]?.label === b[0]
-        )?.account_type || '']?.order || 7;
+        const aOrder =
+          accountTypeConfig[
+            accounts?.find(
+              (acc) => accountTypeConfig[acc.account_type]?.label === a[0],
+            )?.account_type || ""
+          ]?.order || 7;
+        const bOrder =
+          accountTypeConfig[
+            accounts?.find(
+              (acc) => accountTypeConfig[acc.account_type]?.label === b[0],
+            )?.account_type || ""
+          ]?.order || 7;
         return aOrder - bOrder;
       })
     : [];
@@ -444,16 +495,16 @@ export const Layout = () => {
   };
 
   const toggleSection = (sectionName: string) => {
-    setCollapsedSections(prev => ({
+    setCollapsedSections((prev) => ({
       ...prev,
-      [sectionName]: !prev[sectionName]
+      [sectionName]: !prev[sectionName],
     }));
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);
@@ -475,15 +526,20 @@ export const Layout = () => {
         <HStack justify="space-between">
           {/* Left: Logo + Navigation */}
           <HStack spacing={8}>
-            <Text fontSize="xl" fontWeight="bold" color="brand.600" whiteSpace="nowrap">
+            <Text
+              fontSize="xl"
+              fontWeight="bold"
+              color="brand.600"
+              whiteSpace="nowrap"
+            >
               Nest Egg
             </Text>
-            <HStack spacing={1} ml={48}>
+            <HStack spacing={1} ml={36}>
               {/* Overview */}
               <TopNavItem
                 label="Overview"
-                isActive={location.pathname === '/overview'}
-                onClick={() => navigateWithParams('/overview')}
+                isActive={location.pathname === "/overview"}
+                onClick={() => navigateWithParams("/overview")}
               />
 
               {/* Planning & Goals Dropdown */}
@@ -491,10 +547,28 @@ export const Layout = () => {
                 <MenuButton
                   as={Button}
                   rightIcon={<ChevronDownIcon />}
-                  variant={planningMenuItems.some(item => location.pathname === item.path) ? 'solid' : 'ghost'}
-                  colorScheme={planningMenuItems.some(item => location.pathname === item.path) ? 'brand' : 'gray'}
+                  variant={
+                    planningMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "solid"
+                      : "ghost"
+                  }
+                  colorScheme={
+                    planningMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "brand"
+                      : "gray"
+                  }
                   size="sm"
-                  fontWeight={planningMenuItems.some(item => location.pathname === item.path) ? 'semibold' : 'medium'}
+                  fontWeight={
+                    planningMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "semibold"
+                      : "medium"
+                  }
                 >
                   Planning & Goals
                 </MenuButton>
@@ -503,8 +577,14 @@ export const Layout = () => {
                     <MenuItem
                       key={item.path}
                       onClick={() => navigateWithParams(item.path)}
-                      fontWeight={location.pathname === item.path ? 'semibold' : 'normal'}
-                      bg={location.pathname === item.path ? 'brand.50' : 'transparent'}
+                      fontWeight={
+                        location.pathname === item.path ? "semibold" : "normal"
+                      }
+                      bg={
+                        location.pathname === item.path
+                          ? "brand.50"
+                          : "transparent"
+                      }
                     >
                       {item.label}
                     </MenuItem>
@@ -517,10 +597,28 @@ export const Layout = () => {
                 <MenuButton
                   as={Button}
                   rightIcon={<ChevronDownIcon />}
-                  variant={analyticsMenuItems.some(item => location.pathname === item.path) ? 'solid' : 'ghost'}
-                  colorScheme={analyticsMenuItems.some(item => location.pathname === item.path) ? 'brand' : 'gray'}
+                  variant={
+                    analyticsMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "solid"
+                      : "ghost"
+                  }
+                  colorScheme={
+                    analyticsMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "brand"
+                      : "gray"
+                  }
                   size="sm"
-                  fontWeight={analyticsMenuItems.some(item => location.pathname === item.path) ? 'semibold' : 'medium'}
+                  fontWeight={
+                    analyticsMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "semibold"
+                      : "medium"
+                  }
                 >
                   Analytics
                 </MenuButton>
@@ -529,8 +627,14 @@ export const Layout = () => {
                     <MenuItem
                       key={item.path}
                       onClick={() => navigateWithParams(item.path)}
-                      fontWeight={location.pathname === item.path ? 'semibold' : 'normal'}
-                      bg={location.pathname === item.path ? 'brand.50' : 'transparent'}
+                      fontWeight={
+                        location.pathname === item.path ? "semibold" : "normal"
+                      }
+                      bg={
+                        location.pathname === item.path
+                          ? "brand.50"
+                          : "transparent"
+                      }
                     >
                       {item.label}
                     </MenuItem>
@@ -543,10 +647,28 @@ export const Layout = () => {
                 <MenuButton
                   as={Button}
                   rightIcon={<ChevronDownIcon />}
-                  variant={transactionsMenuItems.some(item => location.pathname === item.path) ? 'solid' : 'ghost'}
-                  colorScheme={transactionsMenuItems.some(item => location.pathname === item.path) ? 'brand' : 'gray'}
+                  variant={
+                    transactionsMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "solid"
+                      : "ghost"
+                  }
+                  colorScheme={
+                    transactionsMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "brand"
+                      : "gray"
+                  }
                   size="sm"
-                  fontWeight={transactionsMenuItems.some(item => location.pathname === item.path) ? 'semibold' : 'medium'}
+                  fontWeight={
+                    transactionsMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "semibold"
+                      : "medium"
+                  }
                 >
                   Transactions
                 </MenuButton>
@@ -555,8 +677,14 @@ export const Layout = () => {
                     <MenuItem
                       key={item.path}
                       onClick={() => navigateWithParams(item.path)}
-                      fontWeight={location.pathname === item.path ? 'semibold' : 'normal'}
-                      bg={location.pathname === item.path ? 'brand.50' : 'transparent'}
+                      fontWeight={
+                        location.pathname === item.path ? "semibold" : "normal"
+                      }
+                      bg={
+                        location.pathname === item.path
+                          ? "brand.50"
+                          : "transparent"
+                      }
                     >
                       {item.label}
                     </MenuItem>
@@ -567,15 +695,15 @@ export const Layout = () => {
               {/* Investments */}
               <TopNavItem
                 label="Investments"
-                isActive={location.pathname === '/investments'}
-                onClick={() => navigateWithParams('/investments')}
+                isActive={location.pathname === "/investments"}
+                onClick={() => navigateWithParams("/investments")}
               />
 
               {/* Accounts */}
               <TopNavItem
                 label="Accounts"
-                isActive={location.pathname === '/accounts'}
-                onClick={() => navigateWithParams('/accounts')}
+                isActive={location.pathname === "/accounts"}
+                onClick={() => navigateWithParams("/accounts")}
               />
             </HStack>
           </HStack>
@@ -586,40 +714,50 @@ export const Layout = () => {
             <NotificationBell />
 
             <Menu>
-            <MenuButton
-              as={Button}
-              rightIcon={<ChevronDownIcon />}
-              variant="ghost"
-              size="sm"
-            >
-              <HStack spacing={2}>
-                <Avatar
-                  size="sm"
-                  name={`${user?.first_name} ${user?.last_name}`}
-                  bg="brand.500"
-                />
-                <VStack align="start" spacing={0}>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {user?.first_name} {user?.last_name}
-                  </Text>
-                  <Text fontSize="xs" color="gray.600">
-                    {user?.email}
-                  </Text>
-                </VStack>
-              </HStack>
-            </MenuButton>
-            <MenuList>
-              <MenuItem icon={<FiUsers />} onClick={() => navigateWithParams('/household')}>
-                Household Settings
-              </MenuItem>
-              <MenuItem icon={<FiSettings />} onClick={() => navigateWithParams('/preferences')}>
-                Preferences
-              </MenuItem>
-              <MenuItem icon={<FiLogOut />} onClick={handleLogout} color="red.600">
-                Logout
-              </MenuItem>
-            </MenuList>
-          </Menu>
+              <MenuButton
+                as={Button}
+                rightIcon={<ChevronDownIcon />}
+                variant="ghost"
+                size="sm"
+              >
+                <HStack spacing={2}>
+                  <Avatar
+                    size="sm"
+                    name={`${user?.first_name} ${user?.last_name}`}
+                    bg="brand.500"
+                  />
+                  <VStack align="start" spacing={0}>
+                    <Text fontSize="sm" fontWeight="medium">
+                      {user?.first_name} {user?.last_name}
+                    </Text>
+                    <Text fontSize="xs" color="gray.600">
+                      {user?.email}
+                    </Text>
+                  </VStack>
+                </HStack>
+              </MenuButton>
+              <MenuList>
+                <MenuItem
+                  icon={<FiUsers />}
+                  onClick={() => navigateWithParams("/household")}
+                >
+                  Household Settings
+                </MenuItem>
+                <MenuItem
+                  icon={<FiSettings />}
+                  onClick={() => navigateWithParams("/preferences")}
+                >
+                  Preferences
+                </MenuItem>
+                <MenuItem
+                  icon={<FiLogOut />}
+                  onClick={handleLogout}
+                  color="red.600"
+                >
+                  Logout
+                </MenuItem>
+              </MenuList>
+            </Menu>
           </HStack>
         </HStack>
       </Box>
@@ -627,15 +765,19 @@ export const Layout = () => {
       {/* View Indicator Banner */}
       {!isCombinedView && members && (
         <Box
-          bg={isOtherUserView ? 'orange.50' : 'blue.50'}
+          bg={isOtherUserView ? "orange.50" : "blue.50"}
           borderBottomWidth={1}
-          borderColor={isOtherUserView ? 'orange.200' : 'blue.200'}
+          borderColor={isOtherUserView ? "orange.200" : "blue.200"}
           px={8}
           py={2}
         >
           <HStack spacing={3}>
-            <Text fontSize="sm" fontWeight="semibold" color={isOtherUserView ? 'orange.800' : 'blue.800'}>
-              {isOtherUserView ? '👁️ Viewing:' : '📊 Your View:'}
+            <Text
+              fontSize="sm"
+              fontWeight="semibold"
+              color={isOtherUserView ? "orange.800" : "blue.800"}
+            >
+              {isOtherUserView ? "👁️ Viewing:" : "📊 Your View:"}
             </Text>
             <Badge
               size="sm"
@@ -643,14 +785,18 @@ export const Layout = () => {
               px={2}
               py={1}
               borderRadius="md"
-              bg={getUserColor(selectedUserId || user?.id || '')}
+              bg={getUserColor(selectedUserId || user?.id || "")}
               color="white"
               fontWeight="bold"
             >
-              {getUserInitials(selectedUserId || user?.id || '')}
+              {getUserInitials(selectedUserId || user?.id || "")}
             </Badge>
-            <Text fontSize="sm" fontWeight="medium" color={isOtherUserView ? 'orange.700' : 'blue.700'}>
-              {getUserName(selectedUserId || user?.id || '')}
+            <Text
+              fontSize="sm"
+              fontWeight="medium"
+              color={isOtherUserView ? "orange.700" : "blue.700"}
+            >
+              {getUserName(selectedUserId || user?.id || "")}
               {isOtherUserView ? "'s Accounts (Read-only)" : "'s Accounts"}
             </Text>
           </HStack>
@@ -670,7 +816,13 @@ export const Layout = () => {
           <VStack align="stretch" spacing={2} mb={3}>
             <HStack justify="space-between">
               <VStack align="start" spacing={0}>
-                <Text fontSize="sm" fontWeight="bold" textTransform="uppercase" color="gray.700" letterSpacing="wide">
+                <Text
+                  fontSize="sm"
+                  fontWeight="bold"
+                  textTransform="uppercase"
+                  color="gray.700"
+                  letterSpacing="wide"
+                >
                   Accounts
                 </Text>
                 {!isCombinedView && members && (
@@ -681,14 +833,14 @@ export const Layout = () => {
                       px={1.5}
                       py={0.5}
                       borderRadius="md"
-                      bg={getUserColor(selectedUserId || user?.id || '')}
+                      bg={getUserColor(selectedUserId || user?.id || "")}
                       color="white"
                       fontWeight="bold"
                     >
-                      {getUserInitials(selectedUserId || user?.id || '')}
+                      {getUserInitials(selectedUserId || user?.id || "")}
                     </Badge>
                     <Text fontSize="2xs" color="gray.600">
-                      {getUserName(selectedUserId || user?.id || '')}
+                      {getUserName(selectedUserId || user?.id || "")}
                     </Text>
                   </HStack>
                 )}
@@ -697,7 +849,9 @@ export const Layout = () => {
                 <Text
                   fontSize="md"
                   fontWeight="bold"
-                  color={dashboardSummary.net_worth >= 0 ? 'green.600' : 'red.600'}
+                  color={
+                    dashboardSummary.net_worth >= 0 ? "green.600" : "red.600"
+                  }
                 >
                   {formatCurrency(Number(dashboardSummary.net_worth))}
                 </Text>
@@ -708,7 +862,12 @@ export const Layout = () => {
           {/* User color legend in combined view */}
           {isCombinedView && members && members.length > 1 && (
             <Box mb={3} p={2} bg="gray.50" borderRadius="md">
-              <Text fontSize="2xs" fontWeight="semibold" color="gray.600" mb={1.5}>
+              <Text
+                fontSize="2xs"
+                fontWeight="semibold"
+                color="gray.600"
+                mb={1.5}
+              >
                 HOUSEHOLD MEMBERS
               </Text>
               <VStack spacing={1} align="stretch">
@@ -744,7 +903,7 @@ export const Layout = () => {
               {sortedGroups.map(([groupName, groupAccounts]) => {
                 const groupTotal = groupAccounts.reduce(
                   (sum, account) => sum + Number(account.current_balance),
-                  0
+                  0,
                 );
                 const isCollapsed = collapsedSections[groupName];
 
@@ -756,7 +915,7 @@ export const Layout = () => {
                       px={2}
                       py={1.5}
                       cursor="pointer"
-                      _hover={{ bg: 'gray.50' }}
+                      _hover={{ bg: "gray.50" }}
                       borderRadius="md"
                       onClick={() => toggleSection(groupName)}
                     >
@@ -779,7 +938,7 @@ export const Layout = () => {
                       <Text
                         fontSize="sm"
                         fontWeight="bold"
-                        color={groupTotal < 0 ? 'red.600' : 'gray.800'}
+                        color={groupTotal < 0 ? "red.600" : "gray.800"}
                       >
                         {formatCurrency(groupTotal)}
                       </Text>
@@ -816,7 +975,11 @@ export const Layout = () => {
 
               {!isOtherUserView && (
                 <Tooltip
-                  label={!canEdit ? "You can only add accounts for yourself or in combined view" : ""}
+                  label={
+                    !canEdit
+                      ? "You can only add accounts for yourself or in combined view"
+                      : ""
+                  }
                   placement="top"
                   isDisabled={canEdit}
                 >

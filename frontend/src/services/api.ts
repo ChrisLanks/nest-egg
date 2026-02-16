@@ -141,9 +141,9 @@ if (initToken) {
   }
 }
 
-// Request interceptor to add JWT token
+// Request interceptor to add JWT token and check expiration
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     const token = localStorage.getItem('access_token');
 
     // Log all API requests
@@ -152,8 +152,27 @@ api.interceptors.request.use(
       data: config.data,
     });
 
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (token) {
+      // Check if token will expire soon (within 2 minutes)
+      if (isTokenExpired(token, 2)) {
+        devLog('[API] Token expiring soon, refreshing before request...');
+        try {
+          await refreshTokenNow();
+          // Get the new token after refresh
+          const newToken = localStorage.getItem('access_token');
+          if (newToken && config.headers) {
+            config.headers.Authorization = `Bearer ${newToken}`;
+          }
+        } catch (error) {
+          devError('[API] Pre-request token refresh failed:', error);
+          // Let the request continue - the response interceptor will handle it
+          if (config.headers) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
+        }
+      } else if (config.headers) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
 
     return config;
@@ -192,7 +211,7 @@ api.interceptors.response.use(
         if (!refreshToken) {
           // No refresh token, redirect to login
           devLog('[Auth] No refresh token found, redirecting to login');
-          localStorage.clear();
+          useAuthStore.getState().logout();
           window.location.href = '/login';
           return Promise.reject(error);
         }
@@ -222,7 +241,7 @@ api.interceptors.response.use(
         const errorMessage = refreshError.response?.data?.detail || refreshError.message;
         devError('[Auth] Token refresh failed:', errorMessage);
         devLog('[Auth] Clearing tokens and redirecting to login');
-        localStorage.clear();
+        useAuthStore.getState().logout();
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }

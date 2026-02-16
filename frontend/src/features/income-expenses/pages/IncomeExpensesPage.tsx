@@ -121,15 +121,27 @@ export const IncomeExpensesPage = () => {
     });
   };
 
-  // Default to current month
-  const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  // Initialize dateRange from localStorage or with a default current month
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    // Try to restore from localStorage
+    const saved = localStorage.getItem('income-expenses-date-range');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // Fall through to default
+      }
+    }
 
-  const [dateRange, setDateRange] = useState<DateRange>({
-    start: firstDay.toISOString().split('T')[0],
-    end: lastDay.toISOString().split('T')[0],
-    label: 'This Month',
+    // Default to current calendar month
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0],
+      label: 'This Month',
+    };
   });
 
   const [incomeChartType, setIncomeChartType] = useState<ChartType>('pie');
@@ -164,39 +176,58 @@ export const IncomeExpensesPage = () => {
 
   const customMonthStartDay = orgSettings?.monthly_start_day || 1;
 
-  // Update date range when custom month boundary loads
+  // Update date range when custom month boundary loads (only if no user selection saved)
   useEffect(() => {
     if (!orgSettings) return; // Wait for settings to load
+
+    // Check if user has a saved date range - if so, respect it
+    const savedRange = localStorage.getItem('income-expenses-date-range');
+    if (savedRange) return;
 
     const now = new Date();
     const start = new Date();
     const end = new Date();
 
     if (customMonthStartDay === 1) {
-      // Standard calendar month - from 1st to today
+      // Standard calendar month - from 1st to last day of month
       start.setDate(1);
+      end.setMonth(end.getMonth() + 1);
+      end.setDate(0); // Last day of current month
       end.setHours(23, 59, 59, 999);
     } else {
-      // Custom month boundary - from custom start day to today
+      // Custom month boundary - from custom start day to day before next boundary
       const currentDay = now.getDate();
       if (currentDay >= customMonthStartDay) {
         // We're past the boundary in current month
         start.setDate(customMonthStartDay);
+        // End is day before next boundary (next month, day before customMonthStartDay)
+        end.setMonth(end.getMonth() + 1);
+        end.setDate(customMonthStartDay - 1);
       } else {
         // We haven't reached the boundary yet, use previous month's boundary
         start.setMonth(start.getMonth() - 1);
         start.setDate(customMonthStartDay);
+        // End is day before current month's boundary
+        end.setDate(customMonthStartDay - 1);
       }
-      // End is always today for "This Month"
       end.setHours(23, 59, 59, 999);
     }
 
-    setDateRange({
+    const newRange = {
       start: start.toISOString().split('T')[0],
       end: end.toISOString().split('T')[0],
       label: 'This Month',
-    });
+    };
+
+    setDateRange(newRange);
+    localStorage.setItem('income-expenses-date-range', JSON.stringify(newRange));
   }, [orgSettings, customMonthStartDay]);
+
+  // Wrapper to save date range changes to localStorage
+  const handleDateRangeChange = (newRange: DateRange) => {
+    setDateRange(newRange);
+    localStorage.setItem('income-expenses-date-range', JSON.stringify(newRange));
+  };
 
   // Reset drill-down states when groupBy changes
   useEffect(() => {
@@ -1082,7 +1113,7 @@ export const IncomeExpensesPage = () => {
               Analyze your income sources and spending patterns
             </Text>
           </Box>
-          <DateRangePicker value={dateRange} onChange={setDateRange} customMonthStartDay={customMonthStartDay} />
+          <DateRangePicker value={dateRange} onChange={handleDateRangeChange} customMonthStartDay={customMonthStartDay} />
         </HStack>
 
         {/* Group By Toggle */}
@@ -1275,7 +1306,7 @@ export const IncomeExpensesPage = () => {
                     {/* Side by side categories */}
                     <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6} w="full">
                       {/* Income Section */}
-                      {summary && filteredSummary.income_categories.length > 0 && (
+                      {summary && filteredSummary && filteredSummary.income_categories.length > 0 && (
                         <VStack align="stretch" spacing={4}>
                           <HStack justify="space-between">
                             <Heading size="sm">
@@ -1319,7 +1350,7 @@ export const IncomeExpensesPage = () => {
                             )}
                           </Breadcrumb>
                           {incomeDrillDown.level === 'categories'
-                            ? renderChart(filteredSummary.income_categories, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
+                            ? renderChart(filteredSummary?.income_categories || [], 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
                             : incomeDrillDown.level === 'merchants' && incomeMerchants
                             ? renderChart(incomeMerchants, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
                             : renderChart(incomeTransactionBreakdown, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
@@ -1335,7 +1366,7 @@ export const IncomeExpensesPage = () => {
                       )}
 
                       {/* Expense Section */}
-                      {summary && filteredSummary.expense_categories.length > 0 && (
+                      {summary && filteredSummary && filteredSummary.expense_categories.length > 0 && (
                         <VStack align="stretch" spacing={4}>
                           <HStack justify="space-between">
                             <Heading size="sm">
@@ -1379,7 +1410,7 @@ export const IncomeExpensesPage = () => {
                             )}
                           </Breadcrumb>
                           {expenseDrillDown.level === 'categories'
-                            ? renderChart(filteredSummary.expense_categories, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
+                            ? renderChart(filteredSummary?.expense_categories || [], 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
                             : expenseDrillDown.level === 'merchants' && expenseMerchants
                             ? renderChart(expenseMerchants, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
                             : renderChart(expenseTransactionBreakdown, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
@@ -1506,7 +1537,7 @@ export const IncomeExpensesPage = () => {
                       </SimpleGrid>
                     )}
 
-                    {summary && filteredSummary.income_categories.length > 0 ? (
+                    {summary && filteredSummary && filteredSummary.income_categories.length > 0 ? (
                       <>
                         <HStack justify="space-between">
                           <Heading size="md">
@@ -1551,7 +1582,7 @@ export const IncomeExpensesPage = () => {
                         </Breadcrumb>
                         <Box>
                           {incomeDrillDown.level === 'categories'
-                            ? renderChart(filteredSummary.income_categories, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
+                            ? renderChart(filteredSummary?.income_categories || [], 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
                             : incomeDrillDown.level === 'merchants' && incomeMerchants
                             ? renderChart(incomeMerchants, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
                             : renderChart(incomeTransactionBreakdown, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
@@ -1680,7 +1711,7 @@ export const IncomeExpensesPage = () => {
                       </SimpleGrid>
                     )}
 
-                    {summary && filteredSummary.expense_categories.length > 0 ? (
+                    {summary && filteredSummary && filteredSummary.expense_categories.length > 0 ? (
                       <>
                         <HStack justify="space-between">
                           <Heading size="md">
@@ -1725,7 +1756,7 @@ export const IncomeExpensesPage = () => {
                         </Breadcrumb>
                         <Box>
                           {expenseDrillDown.level === 'categories'
-                            ? renderChart(filteredSummary.expense_categories, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
+                            ? renderChart(filteredSummary?.expense_categories || [], 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
                             : expenseDrillDown.level === 'merchants' && expenseMerchants
                             ? renderChart(expenseMerchants, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
                             : renderChart(expenseTransactionBreakdown, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
@@ -1750,7 +1781,7 @@ export const IncomeExpensesPage = () => {
         </Card>
 
         {/* Empty State */}
-        {summary && filteredSummary.income_categories.length === 0 && filteredSummary.expense_categories.length === 0 && (
+        {summary && filteredSummary && filteredSummary.income_categories.length === 0 && filteredSummary.expense_categories.length === 0 && (
           <Card>
             <CardBody textAlign="center" py={12}>
               <Text color="gray.600" fontSize="lg">

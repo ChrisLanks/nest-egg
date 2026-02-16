@@ -230,6 +230,18 @@ export default function TrendsPage() {
     });
   }, [yoyData, selectedYears]);
 
+  // Check if there's ANY non-zero data in the trend
+  const hasAnyExpenseData = useMemo(() => {
+    if (!expensesTrendData || expensesTrendData.length === 0) return false;
+
+    return expensesTrendData.some((month) =>
+      selectedYears.some((year) => {
+        const value = month[String(year)];
+        return value && value > 0;
+      })
+    );
+  }, [expensesTrendData, selectedYears]);
+
   // Color palette for years
   const yearColors = ['#3182CE', '#38A169', '#DD6B20'];
 
@@ -380,42 +392,54 @@ export default function TrendsPage() {
                   Track spending patterns month-by-month across years
                 </Text>
               </Box>
-              <ResponsiveContainer width="100%" height={350}>
-                <LineChart data={expensesTrendData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                  <XAxis
-                    dataKey="month"
-                    stroke="#718096"
-                    style={{ fontSize: '12px' }}
-                  />
-                  <YAxis
-                    tickFormatter={(value: number) => formatCurrency(value)}
-                    stroke="#718096"
-                    style={{ fontSize: '12px' }}
-                  />
-                  <Tooltip
-                    formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{
-                      backgroundColor: 'white',
-                      border: '1px solid #E2E8F0',
-                      borderRadius: '8px',
-                    }}
-                  />
-                  <Legend />
-                  {selectedYears.map((year, index) => (
-                    <Line
-                      key={year}
-                      type="monotone"
-                      dataKey={String(year)}
-                      stroke={yearColors[index]}
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                      activeDot={{ r: 6 }}
-                      name={`${year} Expenses`}
+              {hasAnyExpenseData ? (
+                <ResponsiveContainer width="100%" height={350}>
+                  <LineChart data={expensesTrendData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                    <XAxis
+                      dataKey="month"
+                      stroke="#718096"
+                      style={{ fontSize: '12px' }}
                     />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
+                    <YAxis
+                      tickFormatter={(value: number) => formatCurrency(value)}
+                      stroke="#718096"
+                      style={{ fontSize: '12px' }}
+                    />
+                    <Tooltip
+                      formatter={(value: number) => formatCurrency(value)}
+                      contentStyle={{
+                        backgroundColor: 'white',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Legend />
+                    {selectedYears.map((year, index) => (
+                      <Line
+                        key={year}
+                        type="monotone"
+                        dataKey={String(year)}
+                        stroke={yearColors[index]}
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
+                        name={`${year} Expenses`}
+                        connectNulls={false}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <Box textAlign="center" py={12} bg="gray.50" borderRadius="md">
+                  <Text color="gray.600" fontSize="lg" mb={2}>
+                    No transaction data for selected years
+                  </Text>
+                  <Text color="gray.500" fontSize="sm">
+                    Try selecting different years or add more historical transactions to see trends.
+                  </Text>
+                </Box>
+              )}
             </VStack>
           </CardBody>
         </Card>
