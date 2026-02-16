@@ -393,14 +393,14 @@ export const TransactionsPage = () => {
       // Parse special search syntax: labels:<x,y>, category:<x,y>, account:<x,y>
       // Support both quoted strings (with spaces), unquoted strings (no spaces), and empty quotes
       const labelsMatch = query.match(/labels?:((?:"[^"]*"|[^\s,]+)(?:,(?:"[^"]*"|[^\s,]+))*)/i);
-      const categoryMatch = query.match(/categor(?:y|ies):((?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*)/i);
-      const accountMatch = query.match(/accounts?:((?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*)/i);
+      const categoryMatch = query.match(/categor(?:y|ies):((?:"[^"]*"|[^\s,]+)(?:,(?:"[^"]*"|[^\s,]+))*)/i);
+      const accountMatch = query.match(/accounts?:((?:"[^"]*"|[^\s,]+)(?:,(?:"[^"]*"|[^\s,]+))*)/i);
 
       // Remove special syntax from query to get plain text search
       const plainQuery = query
-        .replace(/labels?:(?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*/gi, '')
-        .replace(/categor(?:y|ies):(?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*/gi, '')
-        .replace(/accounts?:(?:"[^"]+"|[^\s,]+)(?:,(?:"[^"]+"|[^\s,]+))*/gi, '')
+        .replace(/labels?:(?:"[^"]*"|[^\s,]+)(?:,(?:"[^"]*"|[^\s,]+))*/gi, '')
+        .replace(/categor(?:y|ies):(?:"[^"]*"|[^\s,]+)(?:,(?:"[^"]*"|[^\s,]+))*/gi, '')
+        .replace(/accounts?:(?:"[^"]*"|[^\s,]+)(?:,(?:"[^"]*"|[^\s,]+))*/gi, '')
         .trim();
 
       filtered = filtered.filter((txn) => {
