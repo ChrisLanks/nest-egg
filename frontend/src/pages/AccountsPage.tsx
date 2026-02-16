@@ -74,7 +74,7 @@ export const AccountsPage = () => {
 
   // Fetch all accounts (ALWAYS include hidden - this is the admin page)
   const { data: accounts, isLoading } = useQuery({
-    queryKey: ['accounts-admin'],
+    queryKey: ['accounts-admin', 'include-hidden'],
     queryFn: async () => {
       const response = await api.get<Account[]>('/accounts', {
         params: { include_hidden: true }
