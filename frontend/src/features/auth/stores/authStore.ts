@@ -16,6 +16,7 @@ interface AuthState {
 
   // Actions
   setTokens: (accessToken: string, refreshToken: string, user: User) => void;
+  setAccessToken: (accessToken: string) => void;
   setUser: (user: User) => void;
   logout: () => void;
   setLoading: (loading: boolean) => void;
@@ -42,6 +43,19 @@ export const useAuthStore = create<AuthState>()(
           accessToken,
           refreshToken,
           user,
+          isAuthenticated: true,
+        });
+      },
+
+      setAccessToken: (accessToken) => {
+        // Update just the access token (used during refresh)
+        localStorage.setItem('access_token', accessToken);
+
+        // Schedule next token refresh
+        scheduleTokenRefresh();
+
+        set({
+          accessToken,
           isAuthenticated: true,
         });
       },

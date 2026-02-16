@@ -3,6 +3,7 @@
  */
 
 import axios from 'axios';
+import { useAuthStore } from '../features/auth/stores/authStore';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
@@ -115,11 +116,12 @@ const refreshTokenNow = async () => {
     });
 
     const { access_token } = response.data;
-    localStorage.setItem('access_token', access_token);
-    devLog('[Auth] Token refreshed successfully');
 
-    // Schedule next refresh
-    scheduleTokenRefresh();
+    // Update both localStorage and Zustand store
+    useAuthStore.getState().setAccessToken(access_token);
+    devLog('[Auth] Token refreshed successfully and auth store updated');
+
+    // Schedule next refresh (handled by setAccessToken)
   } catch (error) {
     devError('[Auth] Token refresh failed:', error);
     // Don't clear localStorage here - let the response interceptor handle it
@@ -204,10 +206,10 @@ api.interceptors.response.use(
 
         const { access_token } = response.data;
 
-        // Save new access token
-        localStorage.setItem('access_token', access_token);
+        // Update both localStorage and Zustand store
+        useAuthStore.getState().setAccessToken(access_token);
 
-        devLog('[Auth] Token refreshed successfully, retrying original request');
+        devLog('[Auth] Token refreshed successfully and auth store updated, retrying original request');
 
         // Retry original request with new token
         if (originalRequest.headers) {
