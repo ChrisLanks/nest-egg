@@ -131,9 +131,10 @@ async def login(
                 detail="Incorrect email or password",
             )
 
-        # Check if account is locked
-        if user.locked_until and user.locked_until > datetime.utcnow():
-            minutes_remaining = int((user.locked_until - datetime.utcnow()).total_seconds() / 60)
+        # Check if account is locked (backward compatible - fields may not exist yet)
+        locked_until = getattr(user, 'locked_until', None)
+        if locked_until and locked_until > datetime.utcnow():
+            minutes_remaining = int((locked_until - datetime.utcnow()).total_seconds() / 60)
             logger.warning(f"Login failed: Account locked - {data.email}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -141,10 +142,11 @@ async def login(
             )
 
         # If lockout period has expired, reset failed attempts
-        if user.locked_until and user.locked_until <= datetime.utcnow():
-            user.failed_login_attempts = 0
-            user.locked_until = None
-            await db.commit()
+        if locked_until and locked_until <= datetime.utcnow():
+            if hasattr(user, 'failed_login_attempts'):
+                user.failed_login_attempts = 0
+                user.locked_until = None
+                await db.commit()
 
         logger.info(f"User found: {user.email}, verifying password...")
 
@@ -152,20 +154,22 @@ async def login(
         if not verify_password(data.password, user.password_hash):
             logger.warning(f"Login failed: Incorrect password for {data.email}")
 
-            # Increment failed login attempts
-            user.failed_login_attempts += 1
+            # Increment failed login attempts (if field exists)
+            if hasattr(user, 'failed_login_attempts'):
+                user.failed_login_attempts += 1
 
-            # Lock account if too many failed attempts (5 failures = 30 min lockout)
-            if user.failed_login_attempts >= 5:
-                user.locked_until = datetime.utcnow() + timedelta(minutes=30)
+                # Lock account if too many failed attempts (5 failures = 30 min lockout)
+                if user.failed_login_attempts >= 5:
+                    user.locked_until = datetime.utcnow() + timedelta(minutes=30)
+                    await db.commit()
+                    logger.warning(f"Account locked for 30 minutes: {data.email}")
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Account locked due to too many failed login attempts. Try again in 30 minutes.",
+                    )
+
                 await db.commit()
-                logger.warning(f"Account locked for 30 minutes: {data.email}")
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Account locked due to too many failed login attempts. Try again in 30 minutes.",
-                )
 
-            await db.commit()
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password",
@@ -173,9 +177,10 @@ async def login(
 
         logger.info(f"Password verified for {user.email}")
 
-        # Reset failed login attempts on successful login
-        user.failed_login_attempts = 0
-        user.locked_until = None
+        # Reset failed login attempts on successful login (if fields exist)
+        if hasattr(user, 'failed_login_attempts'):
+            user.failed_login_attempts = 0
+            user.locked_until = None
 
         # Check if user is active
         if not user.is_active:
