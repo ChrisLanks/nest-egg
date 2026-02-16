@@ -112,11 +112,11 @@ async def exchange_public_token(
 
             # Determine if account should be excluded from cash flow by default
             # Loans and mortgages are excluded to prevent double-counting
+            # Credit cards are INCLUDED - we want to see purchases, and payments are filtered via is_transfer
             exclude_from_cash_flow = account_type in [
                 AccountType.MORTGAGE,
                 AccountType.LOAN,
                 AccountType.STUDENT_LOAN,
-                AccountType.CREDIT_CARD,
             ]
 
             account = Account(
