@@ -710,7 +710,9 @@ export const Layout = () => {
 
           {/* Right: User View Toggle, Notification Bell and User Menu */}
           <HStack spacing={4}>
-            <UserViewToggle />
+            <Box ml={10}>
+              <UserViewToggle />
+            </Box>
             <NotificationBell />
 
             <Menu>
