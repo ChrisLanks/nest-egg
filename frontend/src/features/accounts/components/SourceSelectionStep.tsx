@@ -8,10 +8,11 @@ import {
   SimpleGrid,
   Box,
   Icon,
+  Badge,
 } from '@chakra-ui/react';
-import { FiLink, FiEdit3 } from 'react-icons/fi';
+import { FiLink, FiEdit3, FiDollarSign } from 'react-icons/fi';
 
-export type AccountSource = 'plaid' | 'mx' | 'manual';
+export type AccountSource = 'plaid' | 'teller' | 'mx' | 'manual';
 
 interface SourceSelectionStepProps {
   onSelectSource: (source: AccountSource) => void;
@@ -24,7 +25,7 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
         Choose how you'd like to add your account
       </Text>
 
-      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+      <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4}>
         {/* Plaid */}
         <Box
           as="button"
@@ -44,9 +45,45 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
         >
           <VStack spacing={3}>
             <Icon as={FiLink} boxSize={8} color="brand.500" />
-            <Text fontWeight="bold">Connect Account</Text>
+            <Text fontWeight="bold">Plaid</Text>
             <Text fontSize="sm" color="gray.600" textAlign="center">
-              Securely link your financial accounts for automatic syncing
+              11,000+ institutions. Comprehensive support.
+            </Text>
+          </VStack>
+        </Box>
+
+        {/* Teller */}
+        <Box
+          as="button"
+          onClick={() => onSelectSource('teller')}
+          p={6}
+          borderWidth={2}
+          borderRadius="lg"
+          borderColor="gray.200"
+          _hover={{
+            borderColor: 'green.500',
+            bg: 'green.50',
+            transform: 'translateY(-2px)',
+            shadow: 'md',
+          }}
+          transition="all 0.2s"
+          cursor="pointer"
+          position="relative"
+        >
+          <Badge
+            position="absolute"
+            top={2}
+            right={2}
+            colorScheme="green"
+            fontSize="xs"
+          >
+            100 FREE
+          </Badge>
+          <VStack spacing={3}>
+            <Icon as={FiDollarSign} boxSize={8} color="green.500" />
+            <Text fontWeight="bold">Teller</Text>
+            <Text fontSize="sm" color="gray.600" textAlign="center">
+              100 free accounts/month. Simple & affordable.
             </Text>
           </VStack>
         </Box>
@@ -65,9 +102,9 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
         >
           <VStack spacing={3}>
             <Icon as={FiLink} boxSize={8} color="brand.500" />
-            <Text fontWeight="bold">Connect via MX</Text>
+            <Text fontWeight="bold">MX</Text>
             <Text fontSize="sm" color="gray.600" textAlign="center">
-              Alternative secure connection method
+              Alternative provider
             </Text>
             <Text fontSize="xs" color="gray.500">
               Coming soon
@@ -94,7 +131,7 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
         >
           <VStack spacing={3}>
             <Icon as={FiEdit3} boxSize={8} color="brand.500" />
-            <Text fontWeight="bold">Add Manually</Text>
+            <Text fontWeight="bold">Manual</Text>
             <Text fontSize="sm" color="gray.600" textAlign="center">
               Enter account details yourself
             </Text>

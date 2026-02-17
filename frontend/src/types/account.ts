@@ -56,15 +56,34 @@ export enum AccountType {
   OTHER = 'other',
 }
 
+export enum AccountSource {
+  PLAID = 'plaid',
+  TELLER = 'teller',
+  MX = 'mx',
+  MANUAL = 'manual',
+}
+
 export interface Account {
   id: string;
+  user_id: string;
   name: string;
   account_type: AccountType;
+  account_source: AccountSource;
   property_type?: PropertyType | null;
   institution_name: string | null;
   mask: string | null;
   current_balance: number | null;
-  available_balance: number | null;
-  limit: number | null;
+  available_balance?: number | null;
+  limit?: number | null;
+  balance_as_of?: string | null;
   is_active: boolean;
+  exclude_from_cash_flow: boolean;
+  plaid_item_hash?: string | null;
+
+  // Provider-agnostic sync status
+  provider_item_id?: string | null;
+  last_synced_at?: string | null;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  needs_reauth?: boolean | null;
 }

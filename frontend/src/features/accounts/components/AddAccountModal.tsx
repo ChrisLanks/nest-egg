@@ -21,7 +21,7 @@ import { BasicManualAccountForm } from './forms/BasicManualAccountForm';
 import { InvestmentAccountForm } from './forms/InvestmentAccountForm';
 import { PropertyAccountForm } from './forms/PropertyAccountForm';
 import { VehicleAccountForm } from './forms/VehicleAccountForm';
-import { PlaidLinkStep } from './PlaidLinkStep';
+import { BankLinkStep, type BankProvider } from './BankLinkStep';
 import type {
   BasicManualAccountFormData,
   InvestmentAccountFormData,
@@ -32,7 +32,7 @@ import type {
 
 type WizardStep =
   | 'source_selection'
-  | 'plaid_link'
+  | 'bank_link'
   | 'mx_link'
   | 'manual_type_selection'
   | 'manual_form_basic'
@@ -49,6 +49,7 @@ interface AddAccountModalProps {
 export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
   const [currentStep, setCurrentStep] = useState<WizardStep>('source_selection');
   const [_selectedSource, setSelectedSource] = useState<AccountSource | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<BankProvider | null>(null);
   const [selectedAccountType, setSelectedAccountType] = useState<AccountType | null>(null);
   const [_selectedCategory, setSelectedCategory] = useState<'basic' | 'investment' | 'alternative' | 'insurance' | 'securities' | 'business' | 'property' | null>(null);
 
@@ -59,6 +60,7 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
   const handleClose = () => {
     setCurrentStep('source_selection');
     setSelectedSource(null);
+    setSelectedProvider(null);
     setSelectedAccountType(null);
     setSelectedCategory(null);
     onClose();
@@ -69,7 +71,11 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
     setSelectedSource(source);
 
     if (source === 'plaid') {
-      setCurrentStep('plaid_link');
+      setSelectedProvider('plaid');
+      setCurrentStep('bank_link');
+    } else if (source === 'teller') {
+      setSelectedProvider('teller');
+      setCurrentStep('bank_link');
     } else if (source === 'mx') {
       setCurrentStep('mx_link');
     } else if (source === 'manual') {
@@ -108,8 +114,8 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
     setSelectedCategory(null);
   };
 
-  // Handle Plaid success
-  const handlePlaidSuccess = () => {
+  // Handle bank link success (Plaid or Teller)
+  const handleBankLinkSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['accounts'] });
     handleClose();
   };
@@ -205,8 +211,9 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
       case 'manual_form_property':
       case 'manual_form_vehicle':
         return selectedAccountType ? `Add ${formatAccountType(selectedAccountType)} Account` : 'Account Details';
-      case 'plaid_link':
-        return 'Connect Bank Account';
+      case 'bank_link':
+        const providerName = selectedProvider === 'plaid' ? 'Plaid' : selectedProvider === 'teller' ? 'Teller' : 'Bank';
+        return `Connect via ${providerName}`;
       case 'mx_link':
         return 'Connect via MX';
       case 'success':
@@ -246,10 +253,11 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
             />
           )}
 
-          {/* Plaid Link */}
-          {currentStep === 'plaid_link' && (
-            <PlaidLinkStep
-              onSuccess={handlePlaidSuccess}
+          {/* Bank Link (Plaid or Teller) */}
+          {currentStep === 'bank_link' && selectedProvider && (
+            <BankLinkStep
+              provider={selectedProvider}
+              onSuccess={handleBankLinkSuccess}
               onBack={handleBackToSourceSelection}
             />
           )}
