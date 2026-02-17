@@ -5,7 +5,7 @@ Provides endpoints for health checks, metrics, and rate limiting status.
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -50,8 +50,8 @@ class RateLimitDashboard(BaseModel):
     current_active_limits: List[RateLimitStatus]
     total_requests_last_hour: int
     blocked_requests_last_hour: int
-    top_clients: List[Dict[str, any]]
-    top_endpoints: List[Dict[str, any]]
+    top_clients: List[Dict[str, Any]]
+    top_endpoints: List[Dict[str, Any]]
 
 
 @router.get("/health", response_model=HealthResponse)

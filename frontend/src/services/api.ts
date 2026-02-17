@@ -148,13 +148,24 @@ api.interceptors.request.use(
   async (config) => {
     const token = localStorage.getItem('access_token');
 
-    // Log all API requests
+    // Log all API requests (mask sensitive data)
+    const logData = config.url?.includes('/auth/')
+      ? { ...config.data, password: '***' }
+      : config.data;
+
     devLog(`[API] ${config.method?.toUpperCase()} ${config.url}`, {
       params: config.params,
-      data: config.data,
+      data: logData,
     });
 
-    if (token) {
+    // Skip token refresh for auth endpoints
+    const isAuthEndpoint = config.url?.includes('/auth/login') ||
+                          config.url?.includes('/auth/register') ||
+                          config.url?.includes('/auth/refresh');
+
+    devLog('[API] Auth endpoint check:', { url: config.url, isAuthEndpoint, hasToken: !!token });
+
+    if (token && !isAuthEndpoint) {
       // Check if token will expire soon (within 2 minutes)
       if (isTokenExpired(token, 2)) {
         devLog('[API] Token expiring soon, refreshing before request...');
@@ -177,6 +188,7 @@ api.interceptors.request.use(
       }
     }
 
+    devLog('[API] Request interceptor complete, sending request...');
     return config;
   },
   (error) => {
