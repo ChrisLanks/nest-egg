@@ -14,6 +14,7 @@ from app.models.user import User
 from app.models.transaction import Label
 from app.schemas.transaction import LabelCreate, LabelUpdate, LabelResponse
 from app.services.tax_service import TaxService
+from app.services.hierarchy_validation_service import hierarchy_validation_service
 
 router = APIRouter()
 
@@ -36,37 +37,6 @@ async def get_label_depth(label_id: UUID, db: AsyncSession) -> int:
             break
 
     return depth
-
-
-async def validate_parent_label(
-    parent_label_id: Optional[UUID],
-    organization_id: UUID,
-    db: AsyncSession,
-) -> Optional[Label]:
-    """Validate parent label exists and is at correct depth (max 1 level deep)."""
-    if not parent_label_id:
-        return None
-
-    # Check parent exists and belongs to organization
-    result = await db.execute(
-        select(Label).where(
-            Label.id == parent_label_id,
-            Label.organization_id == organization_id,
-        )
-    )
-    parent = result.scalar_one_or_none()
-
-    if not parent:
-        raise HTTPException(status_code=404, detail="Parent label not found")
-
-    # Check parent depth (parent cannot have a parent - max 2 levels)
-    if parent.parent_label_id is not None:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot create label: parent already has a parent. Maximum 2 levels allowed (parent and child)."
-        )
-
-    return parent
 
 
 @router.get("/", response_model=List[LabelResponse])
@@ -99,10 +69,13 @@ async def create_label(
         )
 
     # Validate parent if provided
-    await validate_parent_label(
+    await hierarchy_validation_service.validate_parent(
         label_data.parent_label_id,
         current_user.organization_id,
-        db
+        db,
+        Label,
+        parent_field_name="parent_label_id",
+        entity_name="label"
     )
 
     label = Label(
@@ -166,10 +139,13 @@ async def update_label(
             )
 
         # Validate the new parent
-        await validate_parent_label(
+        await hierarchy_validation_service.validate_parent(
             label_data.parent_label_id,
             current_user.organization_id,
-            db
+            db,
+            Label,
+            parent_field_name="parent_label_id",
+            entity_name="label"
         )
 
     if label_data.name is not None:

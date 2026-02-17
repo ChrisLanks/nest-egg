@@ -12,39 +12,9 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.transaction import Category, Transaction
 from app.schemas.transaction import CategoryCreate, CategoryUpdate, CategoryResponse
+from app.services.hierarchy_validation_service import hierarchy_validation_service
 
 router = APIRouter()
-
-
-async def validate_parent_category(
-    parent_category_id: Optional[UUID],
-    organization_id: UUID,
-    db: AsyncSession,
-) -> Optional[Category]:
-    """Validate parent category exists and is at correct depth (max 1 level deep)."""
-    if not parent_category_id:
-        return None
-
-    # Check parent exists and belongs to organization
-    result = await db.execute(
-        select(Category).where(
-            Category.id == parent_category_id,
-            Category.organization_id == organization_id,
-        )
-    )
-    parent = result.scalar_one_or_none()
-
-    if not parent:
-        raise HTTPException(status_code=404, detail="Parent category not found")
-
-    # Check parent depth (parent cannot have a parent - max 2 levels)
-    if parent.parent_category_id is not None:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot create category: parent already has a parent. Maximum 2 levels allowed (parent and child)."
-        )
-
-    return parent
 
 
 @router.get("/", response_model=List[CategoryResponse])
@@ -134,10 +104,13 @@ async def create_category(
 ):
     """Create a new category."""
     # Validate parent if provided
-    await validate_parent_category(
+    await hierarchy_validation_service.validate_parent(
         category_data.parent_category_id,
         current_user.organization_id,
-        db
+        db,
+        Category,
+        parent_field_name="parent_category_id",
+        entity_name="category"
     )
 
     category = Category(
@@ -194,10 +167,13 @@ async def update_category(
             )
 
         # Validate the new parent
-        await validate_parent_category(
+        await hierarchy_validation_service.validate_parent(
             category_data.parent_category_id,
             current_user.organization_id,
-            db
+            db,
+            Category,
+            parent_field_name="parent_category_id",
+            entity_name="category"
         )
 
     if category_data.name is not None:
