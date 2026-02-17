@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import decode_token
 from app.crud.user import user_crud
-from app.models.user import User
+from app.models.user import User, AccountShare, SharePermission
 from app.models.account import Account, PlaidItem
 from sqlalchemy.orm import joinedload
 
@@ -214,8 +214,6 @@ async def get_user_accounts(
     Returns:
         List of accounts (owned + shared)
     """
-    from app.models.user import AccountShare
-
     # Get accounts owned by user
     result = await db.execute(
         select(Account)
@@ -297,8 +295,6 @@ async def verify_account_access(
     Raises:
         HTTPException: If user doesn't have access
     """
-    from app.models.user import AccountShare, SharePermission
-
     # Get account
     result = await db.execute(
         select(Account).where(Account.id == account_id)

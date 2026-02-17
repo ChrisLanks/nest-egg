@@ -7,6 +7,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.database import get_db
 from app.core.security import create_access_token, create_refresh_token, decode_token, verify_password
 from app.crud.user import organization_crud, refresh_token_crud, user_crud
@@ -380,7 +381,6 @@ async def debug_check_refresh_token(
     Debug endpoint to check refresh token validity.
     Only available in DEBUG mode.
     """
-    from app.config import settings
     if not settings.DEBUG:
         raise HTTPException(status_code=404, detail="Not found")
 
