@@ -4,7 +4,7 @@ from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.core.database import Base
-from app.core.utils import utc_now_lambda
+from app.utils.datetime_utils import utc_now_lambda
 from uuid import uuid4
 
 

@@ -13,6 +13,7 @@ from app.models.recurring_transaction import RecurringTransaction
 from app.models.notification import Notification
 from app.models.contribution import AccountContribution
 from app.models.report_template import ReportTemplate
+from app.models.mfa import UserMFA
 
 __all__ = [
     "User",
@@ -36,4 +37,5 @@ __all__ = [
     "Notification",
     "AccountContribution",
     "ReportTemplate",
+    "UserMFA",
 ]
