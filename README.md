@@ -2,6 +2,22 @@
 
 A comprehensive multi-user personal finance application for tracking transactions, investments, budgets, and cash flow analysis with smart automation and proactive notifications.
 
+
+<img width="1511" height="789" alt="image" src="https://github.com/user-attachments/assets/22a77cad-e244-4ad4-a775-b512f7ae5579" />
+
+<img width="1512" height="982" alt="image" src="https://github.com/user-attachments/assets/09e0cf48-5d5e-47c3-a125-b54989f4c19a" />
+
+<img width="1512" height="982" alt="image" src="https://github.com/user-attachments/assets/97dae7d3-f55f-4d1b-98a2-efe192f189a1" />
+
+<img width="1512" height="797" alt="image" src="https://github.com/user-attachments/assets/3a2c1553-ce1e-4169-8933-8e3620357d47" />
+
+<img width="1511" height="790" alt="image" src="https://github.com/user-attachments/assets/3a6e813e-5bf2-4dd8-ad36-39cae2156b66" />
+
+<img width="1512" height="788" alt="image" src="https://github.com/user-attachments/assets/3f410abd-1fff-46a2-bb74-fb191cdc706e" />
+
+<img width="1512" height="789" alt="image" src="https://github.com/user-attachments/assets/90bf447e-65f6-4160-b353-d88e132dc855" />
+
+
 ## ✨ Features
 
 ### 📊 **Transaction & Account Management**
