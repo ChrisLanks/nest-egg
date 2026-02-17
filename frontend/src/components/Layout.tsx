@@ -34,6 +34,7 @@ import {
   useNavigate,
   useLocation,
   useSearchParams,
+  Link,
 } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -278,6 +279,12 @@ export const Layout = () => {
     } else {
       navigate(path);
     }
+  };
+
+  // Helper to get path with query params
+  const getPathWithParams = (path: string) => {
+    const currentUser = searchParams.get("user");
+    return currentUser ? `${path}?user=${currentUser}` : path;
   };
 
   const planningMenuItems = [
@@ -576,7 +583,8 @@ export const Layout = () => {
                   {planningMenuItems.map((item) => (
                     <MenuItem
                       key={item.path}
-                      onClick={() => navigateWithParams(item.path)}
+                      as={Link}
+                      to={getPathWithParams(item.path)}
                       fontWeight={
                         location.pathname === item.path ? "semibold" : "normal"
                       }
@@ -626,7 +634,8 @@ export const Layout = () => {
                   {analyticsMenuItems.map((item) => (
                     <MenuItem
                       key={item.path}
-                      onClick={() => navigateWithParams(item.path)}
+                      as={Link}
+                      to={getPathWithParams(item.path)}
                       fontWeight={
                         location.pathname === item.path ? "semibold" : "normal"
                       }
@@ -676,7 +685,8 @@ export const Layout = () => {
                   {transactionsMenuItems.map((item) => (
                     <MenuItem
                       key={item.path}
-                      onClick={() => navigateWithParams(item.path)}
+                      as={Link}
+                      to={getPathWithParams(item.path)}
                       fontWeight={
                         location.pathname === item.path ? "semibold" : "normal"
                       }
@@ -741,13 +751,15 @@ export const Layout = () => {
               <MenuList>
                 <MenuItem
                   icon={<FiUsers />}
-                  onClick={() => navigateWithParams("/household")}
+                  as={Link}
+                  to={getPathWithParams("/household")}
                 >
                   Household Settings
                 </MenuItem>
                 <MenuItem
                   icon={<FiSettings />}
-                  onClick={() => navigateWithParams("/preferences")}
+                  as={Link}
+                  to={getPathWithParams("/preferences")}
                 >
                   Preferences
                 </MenuItem>
