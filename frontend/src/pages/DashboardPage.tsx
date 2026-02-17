@@ -114,7 +114,7 @@ export const DashboardPage = () => {
   });
 
   // Fetch historical net worth data
-  const { data: historicalData } = useQuery({
+  const { data: historicalData, isLoading: isLoadingHistorical } = useQuery({
     queryKey: ['historical-net-worth', timeRange, customStartDate, customEndDate],
     queryFn: async () => {
       const now = new Date();
@@ -162,6 +162,7 @@ export const DashboardPage = () => {
       const response = await api.get<HistoricalSnapshot[]>('/holdings/historical', { params });
       return response.data;
     },
+    placeholderData: (previousData) => previousData, // Keep previous data while loading
   });
 
   // Sort account balances by balance (descending)
