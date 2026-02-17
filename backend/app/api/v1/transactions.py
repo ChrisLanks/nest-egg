@@ -507,53 +507,71 @@ async def export_transactions_csv(
     if account_id:
         query = query.where(Transaction.account_id == account_id)
 
-    # Execute query
-    result = await db.execute(query)
-    transactions = result.unique().scalars().all()
+    # Generator function to stream CSV rows
+    async def generate_csv():
+        """Generate CSV content in chunks to avoid loading all data into memory."""
+        output = StringIO()
+        writer = csv.writer(output)
 
-    # Create CSV in memory
-    output = StringIO()
-    writer = csv.writer(output)
-
-    # Write header
-    writer.writerow([
-        'Date',
-        'Merchant',
-        'Description',
-        'Category',
-        'Labels',
-        'Amount',
-        'Account',
-        'Account Number',
-        'Is Pending',
-        'Is Transfer',
-        'Transaction ID',
-    ])
-
-    # Write data rows
-    for txn in transactions:
-        # Format labels as comma-separated list
-        labels_str = ', '.join([label.label.name for label in txn.labels]) if txn.labels else ''
-
-        # Format category (use custom category if available, otherwise Plaid category)
-        category_str = txn.category.name if txn.category else (txn.category_primary or '')
-
+        # Write header
         writer.writerow([
-            txn.date.isoformat(),
-            txn.merchant_name or '',
-            txn.description or '',
-            category_str,
-            labels_str,
-            float(txn.amount),
-            txn.account.name if txn.account else '',
-            f"****{txn.account.mask}" if txn.account and txn.account.mask else '',
-            'Yes' if txn.is_pending else 'No',
-            'Yes' if txn.is_transfer else 'No',
-            str(txn.id),
+            'Date',
+            'Merchant',
+            'Description',
+            'Category',
+            'Labels',
+            'Amount',
+            'Account',
+            'Account Number',
+            'Is Pending',
+            'Is Transfer',
+            'Transaction ID',
         ])
+        yield output.getvalue()
+        output.seek(0)
+        output.truncate(0)
 
-    # Prepare response
-    output.seek(0)
+        # Stream transactions in batches to avoid memory issues
+        batch_size = 1000
+        offset = 0
+
+        while True:
+            # Fetch batch
+            batch_query = query.offset(offset).limit(batch_size)
+            result = await db.execute(batch_query)
+            transactions = result.unique().scalars().all()
+
+            if not transactions:
+                break
+
+            # Write batch to CSV
+            for txn in transactions:
+                # Format labels as comma-separated list
+                labels_str = ', '.join([label.label.name for label in txn.labels]) if txn.labels else ''
+
+                # Format category (use custom category if available, otherwise Plaid category)
+                category_str = txn.category.name if txn.category else (txn.category_primary or '')
+
+                writer.writerow([
+                    txn.date.isoformat(),
+                    txn.merchant_name or '',
+                    txn.description or '',
+                    category_str,
+                    labels_str,
+                    float(txn.amount),
+                    txn.account.name if txn.account else '',
+                    f"****{txn.account.mask}" if txn.account and txn.account.mask else '',
+                    'Yes' if txn.is_pending else 'No',
+                    'Yes' if txn.is_transfer else 'No',
+                    str(txn.id),
+                ])
+
+            # Yield batch
+            yield output.getvalue()
+            output.seek(0)
+            output.truncate(0)
+
+            offset += batch_size
 
     # Generate filename with date range
     filename = 'transactions'
@@ -566,7 +584,7 @@ async def export_transactions_csv(
     filename += '.csv'
 
     return StreamingResponse(
-        iter([output.getvalue()]),
+        generate_csv(),
         media_type='text/csv',
         headers={
             'Content-Disposition': f'attachment; filename="{filename}"'

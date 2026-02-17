@@ -3,6 +3,7 @@
 from functools import lru_cache
 from typing import Optional
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -79,6 +80,10 @@ class Settings(BaseSettings):
     # Rate Limiting
     MAX_MANUAL_SYNCS_PER_HOUR: int = 1
 
+    # Authentication & Account Security
+    MAX_LOGIN_ATTEMPTS: int = 5
+    ACCOUNT_LOCKOUT_MINUTES: int = 30
+
     # Monitoring
     SENTRY_DSN: Optional[str] = None
     LOG_LEVEL: str = "INFO"
@@ -94,6 +99,45 @@ class Settings(BaseSettings):
         case_sensitive=True,
         extra="ignore"
     )
+
+    @field_validator('SECRET_KEY')
+    @classmethod
+    def validate_secret_key(cls, v: str) -> str:
+        """Validate SECRET_KEY is not using insecure defaults in production."""
+        insecure_defaults = [
+            'dev-secret-key-change-in-production',
+            'dev-secret-key-change-in-production-generate-with-openssl',
+            'your-secret-key-here',
+            'change-me',
+            'secret',
+        ]
+
+        # Get ENVIRONMENT from environment variable directly (before Settings is fully initialized)
+        import os
+        environment = os.getenv('ENVIRONMENT', 'development')
+
+        if environment == 'production' and (v in insecure_defaults or len(v) < 32):
+            raise ValueError(
+                "Insecure SECRET_KEY detected in production! "
+                "Generate a secure key with: openssl rand -hex 32"
+            )
+
+        return v
+
+    @field_validator('ALLOWED_HOSTS')
+    @classmethod
+    def validate_allowed_hosts(cls, v: list[str]) -> list[str]:
+        """Validate ALLOWED_HOSTS is configured for production."""
+        import os
+        environment = os.getenv('ENVIRONMENT', 'development')
+
+        if environment == 'production' and '*' in v:
+            raise ValueError(
+                "ALLOWED_HOSTS=['*'] is insecure in production! "
+                "Set specific domains like ['app.nestegg.com', 'api.nestegg.com']"
+            )
+
+        return v
 
 
 @lru_cache()

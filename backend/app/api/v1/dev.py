@@ -1,6 +1,6 @@
 """Development/testing endpoints."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta, date
 from decimal import Decimal
@@ -8,6 +8,7 @@ import uuid
 import hashlib
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.account import Account, PlaidItem, AccountType, AccountSource
@@ -29,6 +30,10 @@ async def debug_transactions(
     db: AsyncSession = Depends(get_db),
 ):
     """Debug endpoint to see transactions and accounts."""
+    # Only allow in development/staging environments
+    if settings.ENVIRONMENT == 'production':
+        raise HTTPException(status_code=404, detail="Not found")
+
     from sqlalchemy import select, func
 
     # Get transaction count
@@ -175,6 +180,10 @@ async def seed_mock_data(
     db: AsyncSession = Depends(get_db),
 ):
     """Seed mock transaction data for the current user."""
+    # Only allow in development/staging environments
+    if settings.ENVIRONMENT == 'production':
+        raise HTTPException(status_code=404, detail="Not found")
+
     result = await seed_mock_data_internal(db, current_user)
     await db.commit()
 

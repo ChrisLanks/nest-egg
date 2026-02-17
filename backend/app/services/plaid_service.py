@@ -40,20 +40,17 @@ class PlaidService:
             True if signature is valid, raises HTTPException otherwise
 
         Security Note:
-            In production, this MUST be enforced. For development with test users,
-            webhook verification may be skipped if PLAID_WEBHOOK_SECRET is not set.
+            Webhook signature verification is ALWAYS required for security.
+            For development testing, use Plaid's webhook testing tools or set up
+            a proper webhook secret even in sandbox mode.
         """
-        # If no webhook secret configured, check if we're in development mode
+        # Webhook secret is REQUIRED for all webhooks
         if not settings.PLAID_WEBHOOK_SECRET:
-            if settings.DEBUG:
-                print("⚠️  PLAID_WEBHOOK_SECRET not configured - skipping webhook verification (development mode)")
-                return True
-            else:
-                # In production, webhook secret MUST be configured
-                raise HTTPException(
-                    status_code=500,
-                    detail="Webhook verification secret not configured"
-                )
+            raise HTTPException(
+                status_code=500,
+                detail="Webhook verification secret not configured. "
+                       "Set PLAID_WEBHOOK_SECRET even in sandbox mode for security."
+            )
 
         # Verify webhook signature header is present
         if not webhook_verification_header:

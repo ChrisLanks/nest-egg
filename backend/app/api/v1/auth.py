@@ -24,10 +24,49 @@ from app.schemas.user import User as UserSchema
 from app.services.rate_limit_service import get_rate_limit_service
 from app.services.password_validation_service import password_validation_service
 from app.utils.datetime_utils import utc_now
+from app.utils.logging_utils import redact_email
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 rate_limit_service = get_rate_limit_service()
+
+
+async def create_auth_response(
+    db: AsyncSession,
+    user: User,
+) -> TokenResponse:
+    """
+    Create authentication response with tokens.
+
+    Generates access and refresh tokens, stores refresh token hash in database.
+
+    Args:
+        db: Database session
+        user: Authenticated user
+
+    Returns:
+        TokenResponse with access token, refresh token, and user data
+    """
+    # Generate tokens
+    access_token = create_access_token(
+        data={"sub": str(user.id), "email": user.email}
+    )
+    refresh_token_str, jti, expires_at = create_refresh_token(str(user.id))
+
+    # Store refresh token hash
+    token_hash = hashlib.sha256(jti.encode()).hexdigest()
+    await refresh_token_crud.create(
+        db=db,
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+    )
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token_str,
+        user=UserSchema.from_orm(user),
+    )
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -80,26 +119,8 @@ async def register(
     # Update last login
     await user_crud.update_last_login(db, user.id)
 
-    # Generate tokens
-    access_token = create_access_token(
-        data={"sub": str(user.id), "email": user.email}
-    )
-    refresh_token_str, jti, expires_at = create_refresh_token(str(user.id))
-
-    # Store refresh token hash
-    token_hash = hashlib.sha256(jti.encode()).hexdigest()
-    await refresh_token_crud.create(
-        db=db,
-        user_id=user.id,
-        token_hash=token_hash,
-        expires_at=expires_at,
-    )
-
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token_str,
-        user=UserSchema.from_orm(user),
-    )
+    # Generate tokens and create response
+    return await create_auth_response(db, user)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -166,9 +187,9 @@ async def login(
             if hasattr(user, 'failed_login_attempts'):
                 user.failed_login_attempts += 1
 
-                # Lock account if too many failed attempts (5 failures = 30 min lockout)
-                if user.failed_login_attempts >= 5:
-                    user.locked_until = utc_now() + timedelta(minutes=30)
+                # Lock account if too many failed attempts
+                if user.failed_login_attempts >= settings.MAX_LOGIN_ATTEMPTS:
+                    user.locked_until = utc_now() + timedelta(minutes=settings.ACCOUNT_LOCKOUT_MINUTES)
                     await db.commit()
                     logger.warning(f"Account locked for 30 minutes: {data.email}")
                     raise HTTPException(
@@ -203,33 +224,14 @@ async def login(
         # Update last login
         await user_crud.update_last_login(db, user.id)
 
-        logger.info(f"Generating tokens for {user.email}")
+        logger.info(f"Generating tokens for user")
 
-        # Generate tokens
-        access_token = create_access_token(
-            data={
-                "sub": str(user.id),
-                "email": user.email,
-            }
-        )
-        refresh_token_str, jti, expires_at = create_refresh_token(str(user.id))
+        # Generate tokens and create response
+        response = await create_auth_response(db, user)
 
-        # Store refresh token hash
-        token_hash = hashlib.sha256(jti.encode()).hexdigest()
-        await refresh_token_crud.create(
-            db=db,
-            user_id=user.id,
-            token_hash=token_hash,
-            expires_at=expires_at,
-        )
+        logger.info(f"Login successful")
 
-        logger.info(f"Login successful for {user.email}")
-
-        return TokenResponse(
-            access_token=access_token,
-            refresh_token=refresh_token_str,
-            user=UserSchema.from_orm(user),
-        )
+        return response
     except HTTPException:
         raise
     except Exception as e:
