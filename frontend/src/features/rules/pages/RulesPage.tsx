@@ -160,7 +160,7 @@ export const RulesPage = () => {
                   <Th>Actions</Th>
                   <Th>Applied</Th>
                   <Th>Priority</Th>
-                  <Th>Actions</Th>
+                  <Th></Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -200,7 +200,7 @@ export const RulesPage = () => {
                       <Badge>{rule.priority}</Badge>
                     </Td>
                     <Td>
-                      <HStack spacing={2}>
+                      <HStack spacing={1} justify="flex-end">
                         <IconButton
                           icon={<EditIcon />}
                           aria-label="Edit rule"
