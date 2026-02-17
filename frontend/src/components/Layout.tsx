@@ -543,7 +543,7 @@ export const Layout = () => {
               />
 
               {/* Planning & Goals Dropdown */}
-              <Menu>
+              <Menu closeOnSelect={true}>
                 <MenuButton
                   as={Button}
                   rightIcon={<ChevronDownIcon />}
@@ -593,7 +593,7 @@ export const Layout = () => {
               </Menu>
 
               {/* Analytics Dropdown */}
-              <Menu>
+              <Menu closeOnSelect={true}>
                 <MenuButton
                   as={Button}
                   rightIcon={<ChevronDownIcon />}
@@ -643,7 +643,7 @@ export const Layout = () => {
               </Menu>
 
               {/* Transactions Dropdown */}
-              <Menu>
+              <Menu closeOnSelect={true}>
                 <MenuButton
                   as={Button}
                   rightIcon={<ChevronDownIcon />}
@@ -715,7 +715,7 @@ export const Layout = () => {
             </Box>
             <NotificationBell />
 
-            <Menu>
+            <Menu closeOnSelect={true}>
               <MenuButton
                 as={Button}
                 rightIcon={<ChevronDownIcon />}
