@@ -41,7 +41,7 @@ import {
   Input,
   useDisclosure,
 } from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../features/auth/stores/authStore';
 import { useUserView } from '../contexts/UserViewContext';
 import api from '../services/api';
@@ -99,9 +99,19 @@ interface HistoricalSnapshot {
 export const DashboardPage = () => {
   const { user } = useAuthStore();
   const { selectedUserId } = useUserView();
-  const [timeRange, setTimeRange] = useState<'1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM'>('1Y');
-  const [customStartDate, setCustomStartDate] = useState<string>('');
-  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const queryClient = useQueryClient();
+
+  // Initialize state from localStorage
+  const [timeRange, setTimeRange] = useState<'1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM'>(() => {
+    const saved = localStorage.getItem('dashboard-timeRange');
+    return (saved as '1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM') || '1Y';
+  });
+  const [customStartDate, setCustomStartDate] = useState<string>(() => {
+    return localStorage.getItem('dashboard-customStartDate') || '';
+  });
+  const [customEndDate, setCustomEndDate] = useState<string>(() => {
+    return localStorage.getItem('dashboard-customEndDate') || '';
+  });
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   const { data: dashboardData, isLoading } = useQuery({
@@ -292,31 +302,46 @@ export const DashboardPage = () => {
                 <Heading size="md">Net Worth Over Time</Heading>
                 <ButtonGroup size="sm" isAttached variant="outline">
                   <Button
-                    onClick={() => setTimeRange('1M')}
+                    onClick={() => {
+                      setTimeRange('1M');
+                      localStorage.setItem('dashboard-timeRange', '1M');
+                    }}
                     colorScheme={timeRange === '1M' ? 'brand' : 'gray'}
                   >
                     1M
                   </Button>
                   <Button
-                    onClick={() => setTimeRange('3M')}
+                    onClick={() => {
+                      setTimeRange('3M');
+                      localStorage.setItem('dashboard-timeRange', '3M');
+                    }}
                     colorScheme={timeRange === '3M' ? 'brand' : 'gray'}
                   >
                     3M
                   </Button>
                   <Button
-                    onClick={() => setTimeRange('6M')}
+                    onClick={() => {
+                      setTimeRange('6M');
+                      localStorage.setItem('dashboard-timeRange', '6M');
+                    }}
                     colorScheme={timeRange === '6M' ? 'brand' : 'gray'}
                   >
                     6M
                   </Button>
                   <Button
-                    onClick={() => setTimeRange('1Y')}
+                    onClick={() => {
+                      setTimeRange('1Y');
+                      localStorage.setItem('dashboard-timeRange', '1Y');
+                    }}
                     colorScheme={timeRange === '1Y' ? 'brand' : 'gray'}
                   >
                     1Y
                   </Button>
                   <Button
-                    onClick={() => setTimeRange('ALL')}
+                    onClick={() => {
+                      setTimeRange('ALL');
+                      localStorage.setItem('dashboard-timeRange', 'ALL');
+                    }}
                     colorScheme={timeRange === 'ALL' ? 'brand' : 'gray'}
                   >
                     ALL
@@ -518,7 +543,10 @@ export const DashboardPage = () => {
                 <Input
                   type="date"
                   value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  onChange={(e) => {
+                    setCustomStartDate(e.target.value);
+                    localStorage.setItem('dashboard-customStartDate', e.target.value);
+                  }}
                 />
               </FormControl>
               <FormControl>
@@ -526,7 +554,10 @@ export const DashboardPage = () => {
                 <Input
                   type="date"
                   value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  onChange={(e) => {
+                    setCustomEndDate(e.target.value);
+                    localStorage.setItem('dashboard-customEndDate', e.target.value);
+                  }}
                 />
               </FormControl>
             </VStack>
@@ -536,7 +567,17 @@ export const DashboardPage = () => {
               colorScheme="brand"
               mr={3}
               onClick={() => {
+                // Save to localStorage
+                localStorage.setItem('dashboard-timeRange', 'CUSTOM');
+                localStorage.setItem('dashboard-customStartDate', customStartDate);
+                localStorage.setItem('dashboard-customEndDate', customEndDate);
+
+                // Update state
                 setTimeRange('CUSTOM');
+
+                // Force refetch to update chart immediately
+                queryClient.invalidateQueries({ queryKey: ['historical-net-worth'] });
+
                 onClose();
               }}
               isDisabled={!customStartDate}
