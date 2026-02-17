@@ -188,6 +188,14 @@ class TellerService:
             existing_txn = result.scalar_one_or_none()
 
             if not existing_txn:
+                # Extract category from Teller response (details.category)
+                details = txn_data.get("details", {})
+                teller_category = details.get("category") if isinstance(details, dict) else None
+
+                # Extract counterparty/merchant name
+                counterparty = details.get("counterparty", {}) if isinstance(details, dict) else {}
+                merchant = counterparty.get("name") if isinstance(counterparty, dict) else None
+
                 # Create transaction
                 transaction = Transaction(
                     organization_id=account.organization_id,
@@ -195,8 +203,10 @@ class TellerService:
                     external_transaction_id=txn_data["id"],
                     date=datetime.fromisoformat(txn_data["date"].replace("Z", "+00:00")).date(),
                     amount=Decimal(str(txn_data["amount"])),
-                    merchant_name=txn_data.get("description"),
-                    description=txn_data.get("details"),
+                    merchant_name=merchant or txn_data.get("description"),
+                    description=txn_data.get("description"),
+                    category_primary=teller_category,  # Teller provides single-level category
+                    category_detailed=None,  # Teller doesn't have hierarchical categories
                     is_pending=txn_data.get("status") == "pending",
                     deduplication_hash=self._generate_dedup_hash(account.id, txn_data),
                 )
