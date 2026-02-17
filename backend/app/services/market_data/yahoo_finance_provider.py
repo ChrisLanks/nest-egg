@@ -21,6 +21,12 @@ from .base_provider import (
     HistoricalPrice,
     SearchResult,
 )
+from .security import (
+    validate_symbol,
+    validate_quote_response,
+    SymbolValidationError,
+    PriceValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +40,13 @@ class YahooFinanceProvider(MarketDataProvider):
 
     async def get_quote(self, symbol: str) -> QuoteData:
         """Get current quote from Yahoo Finance."""
+        # SECURITY: Validate symbol BEFORE making external API call
+        try:
+            symbol = validate_symbol(symbol)
+        except SymbolValidationError as e:
+            logger.error(f"Symbol validation failed: {e}")
+            raise ValueError(str(e))
+
         try:
             # Run in thread pool to avoid blocking
             ticker = await asyncio.to_thread(yf.Ticker, symbol)
@@ -52,25 +65,32 @@ class YahooFinanceProvider(MarketDataProvider):
             if current_price is None:
                 raise ValueError(f"No price data available for {symbol}")
 
-            return QuoteData(
-                symbol=symbol.upper(),
-                price=Decimal(str(current_price)),
-                name=info.get('longName') or info.get('shortName'),
-                currency=info.get('currency', 'USD'),
-                exchange=info.get('exchange'),
-                volume=info.get('volume') or info.get('regularMarketVolume'),
-                market_cap=Decimal(str(info['marketCap'])) if info.get('marketCap') else None,
-                change=Decimal(str(info['regularMarketChange'])) if info.get('regularMarketChange') else None,
-                change_percent=Decimal(str(info['regularMarketChangePercent'])) if info.get('regularMarketChangePercent') else None,
-                previous_close=Decimal(str(info['previousClose'])) if info.get('previousClose') else None,
-                open=Decimal(str(info['open'])) if info.get('open') else None,
-                high=Decimal(str(info['dayHigh'])) if info.get('dayHigh') else None,
-                low=Decimal(str(info['dayLow'])) if info.get('dayLow') else None,
-                year_high=Decimal(str(info['fiftyTwoWeekHigh'])) if info.get('fiftyTwoWeekHigh') else None,
-                year_low=Decimal(str(info['fiftyTwoWeekLow'])) if info.get('fiftyTwoWeekLow') else None,
-                dividend_yield=Decimal(str(info['dividendYield'])) if info.get('dividendYield') else None,
-                pe_ratio=Decimal(str(info['trailingPE'])) if info.get('trailingPE') else None,
-            )
+            # Build raw quote data
+            raw_quote = {
+                'symbol': symbol.upper(),
+                'price': current_price,
+                'name': info.get('longName') or info.get('shortName'),
+                'currency': info.get('currency', 'USD'),
+                'exchange': info.get('exchange'),
+                'volume': info.get('volume') or info.get('regularMarketVolume'),
+                'market_cap': info.get('marketCap'),
+                'change': info.get('regularMarketChange'),
+                'change_percent': info.get('regularMarketChangePercent'),
+                'previous_close': info.get('previousClose'),
+                'open': info.get('open'),
+                'high': info.get('dayHigh'),
+                'low': info.get('dayLow'),
+                'year_high': info.get('fiftyTwoWeekHigh'),
+                'year_low': info.get('fiftyTwoWeekLow'),
+                'dividend_yield': info.get('dividendYield'),
+                'pe_ratio': info.get('trailingPE'),
+            }
+
+            # SECURITY: Validate response before returning
+            validated = validate_quote_response(raw_quote, symbol)
+
+            # Convert validated data to QuoteData
+            return QuoteData(**validated.model_dump())
 
         except Exception as e:
             logger.error(f"Error fetching quote for {symbol} from Yahoo Finance: {e}")
