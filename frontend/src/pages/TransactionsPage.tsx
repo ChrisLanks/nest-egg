@@ -133,6 +133,12 @@ export const TransactionsPage = () => {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [showStatusColumn, setShowStatusColumn] = useState(false);
+  const [showDateColumn, setShowDateColumn] = useState(true);
+  const [showMerchantColumn, setShowMerchantColumn] = useState(true);
+  const [showAccountColumn, setShowAccountColumn] = useState(true);
+  const [showCategoryColumn, setShowCategoryColumn] = useState(true);
+  const [showLabelsColumn, setShowLabelsColumn] = useState(true);
+  const [showAmountColumn, setShowAmountColumn] = useState(true);
   const [bulkActionType, setBulkActionType] = useState<'mark' | 'unmark' | null>(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -1159,6 +1165,54 @@ export const TransactionsPage = () => {
               <MenuList>
                 <MenuItem>
                   <Checkbox
+                    isChecked={showDateColumn}
+                    onChange={(e) => setShowDateColumn(e.target.checked)}
+                  >
+                    Date
+                  </Checkbox>
+                </MenuItem>
+                <MenuItem>
+                  <Checkbox
+                    isChecked={showMerchantColumn}
+                    onChange={(e) => setShowMerchantColumn(e.target.checked)}
+                  >
+                    Merchant
+                  </Checkbox>
+                </MenuItem>
+                <MenuItem>
+                  <Checkbox
+                    isChecked={showAccountColumn}
+                    onChange={(e) => setShowAccountColumn(e.target.checked)}
+                  >
+                    Account
+                  </Checkbox>
+                </MenuItem>
+                <MenuItem>
+                  <Checkbox
+                    isChecked={showCategoryColumn}
+                    onChange={(e) => setShowCategoryColumn(e.target.checked)}
+                  >
+                    Category
+                  </Checkbox>
+                </MenuItem>
+                <MenuItem>
+                  <Checkbox
+                    isChecked={showLabelsColumn}
+                    onChange={(e) => setShowLabelsColumn(e.target.checked)}
+                  >
+                    Labels
+                  </Checkbox>
+                </MenuItem>
+                <MenuItem>
+                  <Checkbox
+                    isChecked={showAmountColumn}
+                    onChange={(e) => setShowAmountColumn(e.target.checked)}
+                  >
+                    Amount
+                  </Checkbox>
+                </MenuItem>
+                <MenuItem>
+                  <Checkbox
                     isChecked={showStatusColumn}
                     onChange={(e) => setShowStatusColumn(e.target.checked)}
                   >
@@ -1243,69 +1297,81 @@ export const TransactionsPage = () => {
                     </Tooltip>
                   </HStack>
                 </Th>
-                <Th
-                  cursor="pointer"
-                  onClick={() => handleSort('date')}
-                  _hover={{ bg: 'gray.100' }}
-                  minWidth="120px"
-                  maxWidth="140px"
-                >
-                  <HStack spacing={1}>
-                    <Text>Date</Text>
-                    <SortIcon field="date" />
-                  </HStack>
-                </Th>
-                <Th
-                  cursor="pointer"
-                  onClick={() => handleSort('merchant_name')}
-                  _hover={{ bg: 'gray.100' }}
-                >
-                  <HStack spacing={1}>
-                    <Text>Merchant</Text>
-                    <SortIcon field="merchant_name" />
-                  </HStack>
-                </Th>
-                <Th
-                  cursor="pointer"
-                  onClick={() => handleSort('account_name')}
-                  _hover={{ bg: 'gray.100' }}
-                >
-                  <HStack spacing={1}>
-                    <Text>Account</Text>
-                    <SortIcon field="account_name" />
-                  </HStack>
-                </Th>
-                <Th
-                  cursor="pointer"
-                  onClick={() => handleSort('category_primary')}
-                  _hover={{ bg: 'gray.100' }}
-                >
-                  <HStack spacing={1}>
-                    <Text>Category</Text>
-                    <SortIcon field="category_primary" />
-                  </HStack>
-                </Th>
-                <Th
-                  cursor="pointer"
-                  onClick={() => handleSort('labels')}
-                  _hover={{ bg: 'gray.100' }}
-                >
-                  <HStack spacing={1}>
-                    <Text>Labels</Text>
-                    <SortIcon field="labels" />
-                  </HStack>
-                </Th>
-                <Th
-                  isNumeric
-                  cursor="pointer"
-                  onClick={() => handleSort('amount')}
-                  _hover={{ bg: 'gray.100' }}
-                >
-                  <HStack spacing={1} justify="flex-end">
-                    <Text>Amount</Text>
-                    <SortIcon field="amount" />
-                  </HStack>
-                </Th>
+                {showDateColumn && (
+                  <Th
+                    cursor="pointer"
+                    onClick={() => handleSort('date')}
+                    _hover={{ bg: 'gray.100' }}
+                    minWidth="120px"
+                    maxWidth="140px"
+                  >
+                    <HStack spacing={1}>
+                      <Text>Date</Text>
+                      <SortIcon field="date" />
+                    </HStack>
+                  </Th>
+                )}
+                {showMerchantColumn && (
+                  <Th
+                    cursor="pointer"
+                    onClick={() => handleSort('merchant_name')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <HStack spacing={1}>
+                      <Text>Merchant</Text>
+                      <SortIcon field="merchant_name" />
+                    </HStack>
+                  </Th>
+                )}
+                {showAccountColumn && (
+                  <Th
+                    cursor="pointer"
+                    onClick={() => handleSort('account_name')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <HStack spacing={1}>
+                      <Text>Account</Text>
+                      <SortIcon field="account_name" />
+                    </HStack>
+                  </Th>
+                )}
+                {showCategoryColumn && (
+                  <Th
+                    cursor="pointer"
+                    onClick={() => handleSort('category_primary')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <HStack spacing={1}>
+                      <Text>Category</Text>
+                      <SortIcon field="category_primary" />
+                    </HStack>
+                  </Th>
+                )}
+                {showLabelsColumn && (
+                  <Th
+                    cursor="pointer"
+                    onClick={() => handleSort('labels')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <HStack spacing={1}>
+                      <Text>Labels</Text>
+                      <SortIcon field="labels" />
+                    </HStack>
+                  </Th>
+                )}
+                {showAmountColumn && (
+                  <Th
+                    isNumeric
+                    cursor="pointer"
+                    onClick={() => handleSort('amount')}
+                    _hover={{ bg: 'gray.100' }}
+                  >
+                    <HStack spacing={1} justify="flex-end">
+                      <Text>Amount</Text>
+                      <SortIcon field="amount" />
+                    </HStack>
+                  </Th>
+                )}
                 {showStatusColumn && (
                   <Th
                     cursor="pointer"
@@ -1329,12 +1395,22 @@ export const TransactionsPage = () => {
                   globalStartIndex += group.transactions.length;
                 }
 
+                // Calculate colspan dynamically
+                const visibleColumnsCount = 1 + // checkbox column
+                  (showDateColumn ? 1 : 0) +
+                  (showMerchantColumn ? 1 : 0) +
+                  (showAccountColumn ? 1 : 0) +
+                  (showCategoryColumn ? 1 : 0) +
+                  (showLabelsColumn ? 1 : 0) +
+                  (showAmountColumn ? 1 : 0) +
+                  (showStatusColumn ? 1 : 0);
+
                 return (
                   <React.Fragment key={monthGroup.period}>
                     {/* Month Period Header */}
                     <Tr bg="gray.100">
                       <Td
-                        colSpan={showStatusColumn ? 8 : 7}
+                        colSpan={visibleColumnsCount}
                         py={2}
                       >
                         <Text fontWeight="bold" fontSize="sm" color="gray.700">
@@ -1350,7 +1426,7 @@ export const TransactionsPage = () => {
                       const isSelected = selectedTransactions.has(txn.id);
                       return (
                         <Tr
-                          key={txn.id}
+                          key={`desktop-${txn.id}`}
                           onClick={() => handleTransactionClick(txn)}
                           cursor="pointer"
                           _hover={{ bg: 'gray.50' }}
@@ -1362,89 +1438,99 @@ export const TransactionsPage = () => {
                               onChange={(e) => toggleTransactionSelection(txn.id, e.nativeEvent as any, globalIndex)}
                             />
                           </Td>
-                        <Td>{formatDate(txn.date)}</Td>
-                        <Td>
-                          <Text fontWeight="medium">{txn.merchant_name}</Text>
-                          {txn.description && (
-                            <Text fontSize="sm" color="gray.600">
-                              {txn.description}
-                            </Text>
-                          )}
-                        </Td>
-                        <Td
-                          onClick={(e) =>
-                            txn.account_name && handleAccountClick(txn.account_name, e)
-                          }
-                        >
-                          <Text
-                            fontSize="sm"
-                            color="brand.600"
-                            cursor="pointer"
-                            _hover={{ textDecoration: 'underline' }}
+                        {showDateColumn && <Td>{formatDate(txn.date)}</Td>}
+                        {showMerchantColumn && (
+                          <Td>
+                            <Text fontWeight="medium">{txn.merchant_name}</Text>
+                            {txn.description && (
+                              <Text fontSize="sm" color="gray.600">
+                                {txn.description}
+                              </Text>
+                            )}
+                          </Td>
+                        )}
+                        {showAccountColumn && (
+                          <Td
+                            onClick={(e) =>
+                              txn.account_name && handleAccountClick(txn.account_name, e)
+                            }
                           >
-                            {txn.account_name}
-                            {txn.account_mask && ` ****${txn.account_mask}`}
-                          </Text>
-                        </Td>
-                        <Td
-                          onClick={(e) => {
-                            const categoryName = txn.category?.name || txn.category_primary;
-                            if (categoryName) handleCategoryClick(categoryName, e);
-                          }}
-                        >
-                          {(txn.category || txn.category_primary) && (
-                            <Badge
-                              colorScheme={txn.category?.color ? undefined : 'blue'}
-                              bg={txn.category?.color || undefined}
-                              color={txn.category?.color ? 'white' : undefined}
-                              fontSize="xs"
+                            <Text
+                              fontSize="sm"
+                              color="brand.600"
                               cursor="pointer"
-                              _hover={{ transform: 'scale(1.05)' }}
-                              transition="transform 0.2s"
+                              _hover={{ textDecoration: 'underline' }}
                             >
-                              {txn.category
-                                ? txn.category.parent_name
-                                  ? `${txn.category.parent_name} (${txn.category.name})`
-                                  : txn.category.name
-                                : txn.category_primary}
-                            </Badge>
-                          )}
-                        </Td>
-                        <Td>
-                          <Wrap spacing={1}>
-                            {txn.labels?.map((label) => (
-                              <WrapItem key={label.id}>
-                                <Badge
-                                  colorScheme={
-                                    label.color
-                                      ? undefined
-                                      : label.is_income
-                                      ? 'green'
-                                      : 'purple'
-                                  }
-                                  bg={label.color || undefined}
-                                  color={label.color ? 'white' : undefined}
-                                  fontSize="xs"
-                                  cursor="pointer"
-                                  _hover={{ transform: 'scale(1.05)' }}
-                                  transition="transform 0.2s"
-                                  onClick={(e) => handleLabelClick(label.name, e)}
-                                >
-                                  {label.name}
-                                </Badge>
-                              </WrapItem>
-                            ))}
-                          </Wrap>
-                        </Td>
-                        <Td isNumeric>
-                          <Text
-                            fontWeight="semibold"
-                            color={isNegative ? 'red.600' : 'green.600'}
+                              {txn.account_name}
+                              {txn.account_mask && ` ****${txn.account_mask}`}
+                            </Text>
+                          </Td>
+                        )}
+                        {showCategoryColumn && (
+                          <Td
+                            onClick={(e) => {
+                              const categoryName = txn.category?.name || txn.category_primary;
+                              if (categoryName) handleCategoryClick(categoryName, e);
+                            }}
                           >
-                            {isNegative ? '-' : '+'}
-                            {formatted}
-                          </Text>
-                        </Td>
+                            {(txn.category || txn.category_primary) && (
+                              <Badge
+                                colorScheme={txn.category?.color ? undefined : 'blue'}
+                                bg={txn.category?.color || undefined}
+                                color={txn.category?.color ? 'white' : undefined}
+                                fontSize="xs"
+                                cursor="pointer"
+                                _hover={{ transform: 'scale(1.05)' }}
+                                transition="transform 0.2s"
+                              >
+                                {txn.category
+                                  ? txn.category.parent_name
+                                    ? `${txn.category.parent_name} (${txn.category.name})`
+                                    : txn.category.name
+                                  : txn.category_primary}
+                              </Badge>
+                            )}
+                          </Td>
+                        )}
+                        {showLabelsColumn && (
+                          <Td>
+                            <Wrap spacing={1}>
+                              {txn.labels?.map((label) => (
+                                <WrapItem key={label.id}>
+                                  <Badge
+                                    colorScheme={
+                                      label.color
+                                        ? undefined
+                                        : label.is_income
+                                        ? 'green'
+                                        : 'purple'
+                                    }
+                                    bg={label.color || undefined}
+                                    color={label.color ? 'white' : undefined}
+                                    fontSize="xs"
+                                    cursor="pointer"
+                                    _hover={{ transform: 'scale(1.05)' }}
+                                    transition="transform 0.2s"
+                                    onClick={(e) => handleLabelClick(label.name, e)}
+                                  >
+                                    {label.name}
+                                  </Badge>
+                                </WrapItem>
+                              ))}
+                            </Wrap>
+                          </Td>
+                        )}
+                        {showAmountColumn && (
+                          <Td isNumeric>
+                            <Text
+                              fontWeight="semibold"
+                              color={isNegative ? 'red.600' : 'green.600'}
+                            >
+                              {isNegative ? '-' : '+'}
+                              {formatted}
+                            </Text>
+                          </Td>
+                        )}
                         {showStatusColumn && (
                           <Td>
                             <HStack spacing={2}>
@@ -1497,7 +1583,7 @@ export const TransactionsPage = () => {
 
                       return (
                         <Card
-                          key={txn.id}
+                          key={`mobile-${txn.id}`}
                           variant="outline"
                           cursor="pointer"
                           onClick={() => handleTransactionClick(txn)}

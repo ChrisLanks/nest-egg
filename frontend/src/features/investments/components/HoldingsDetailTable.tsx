@@ -300,7 +300,7 @@ export const HoldingsDetailTable = ({ holdings }: HoldingsDetailTableProps) => {
           <option value="all">All Types</option>
           {assetTypes.map((type) => (
             <option key={type} value={type}>
-              {type}
+              {formatAssetType(type)}
             </option>
           ))}
         </Select>

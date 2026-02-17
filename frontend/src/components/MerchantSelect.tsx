@@ -22,6 +22,7 @@ interface MerchantSelectProps {
   label?: string;
   placeholder?: string;
   isRequired?: boolean;
+  size?: 'sm' | 'md' | 'lg';
 }
 
 export const MerchantSelect = ({
@@ -30,6 +31,7 @@ export const MerchantSelect = ({
   label = 'Merchant Name',
   placeholder = 'Type or select merchant',
   isRequired = false,
+  size = 'md',
 }: MerchantSelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
@@ -98,6 +100,7 @@ export const MerchantSelect = ({
     <FormControl isRequired={isRequired} ref={wrapperRef} position="relative">
       <FormLabel>{label}</FormLabel>
       <Input
+        size={size}
         value={inputValue}
         onChange={handleInputChange}
         onFocus={handleInputFocus}

@@ -29,6 +29,7 @@ export const ActionValueInput = ({
           onChange={onChange}
           label=""
           placeholder="Category name"
+          size={size}
         />
       </FormControl>
     );
@@ -43,6 +44,7 @@ export const ActionValueInput = ({
           onChange={onChange}
           label=""
           placeholder="Merchant name"
+          size={size}
         />
       </FormControl>
     );

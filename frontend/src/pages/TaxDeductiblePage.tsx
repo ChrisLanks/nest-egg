@@ -137,23 +137,46 @@ export default function TaxDeductiblePage() {
   });
 
   // Export to CSV
-  const handleExport = () => {
-    const params = new URLSearchParams({
-      start_date: startDate,
-      end_date: endDate,
-    });
-    if (selectedUserId) params.append('user_id', selectedUserId);
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate,
+      });
+      if (selectedUserId) params.append('user_id', selectedUserId);
 
-    const url = `/labels/tax-deductible/export?${params}`;
-    window.location.href = `${api.defaults.baseURL}${url}`;
+      const url = `/labels/tax-deductible/export?${params}`;
 
-    toast({
-      title: 'Export started',
-      description: 'Your CSV file will download shortly',
-      status: 'info',
-      duration: 3000,
-      isClosable: true,
-    });
+      // Use axios to make authenticated request
+      const response = await api.get(url, {
+        responseType: 'blob', // Important for file download
+      });
+
+      // Create blob and download
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `tax-deductible-${startDate}-to-${endDate}.csv`;
+      link.click();
+      URL.revokeObjectURL(downloadUrl);
+
+      toast({
+        title: 'Export successful',
+        description: 'Your CSV file has been downloaded',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      toast({
+        title: 'Export failed',
+        description: 'Failed to download CSV file',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
   };
 
   const formatCurrency = (amount: number) => {

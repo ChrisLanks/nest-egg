@@ -22,6 +22,7 @@ interface CategorySelectProps {
   label?: string;
   placeholder?: string;
   isRequired?: boolean;
+  size?: 'sm' | 'md' | 'lg';
 }
 
 export const CategorySelect = ({
@@ -30,6 +31,7 @@ export const CategorySelect = ({
   label = 'Category',
   placeholder = 'Type or select category',
   isRequired = false,
+  size = 'md',
 }: CategorySelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
@@ -104,6 +106,7 @@ export const CategorySelect = ({
     <FormControl isRequired={isRequired} ref={wrapperRef} position="relative">
       <FormLabel>{label}</FormLabel>
       <Input
+        size={size}
         value={inputValue}
         onChange={handleInputChange}
         onFocus={handleInputFocus}

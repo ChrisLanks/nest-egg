@@ -101,11 +101,13 @@ export const RuleBuilderModal = ({
       ]);
 
       // Add category action if present
-      if (prefilledTransaction.category_primary) {
+      // Handle both category object and category_primary string
+      const categoryValue = prefilledTransaction.category?.name || prefilledTransaction.category_primary;
+      if (categoryValue) {
         setActions([
           {
             action_type: ActionType.SET_CATEGORY,
-            action_value: prefilledTransaction.category_primary,
+            action_value: categoryValue,
           },
         ]);
       }

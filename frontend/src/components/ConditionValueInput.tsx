@@ -29,6 +29,7 @@ export const ConditionValueInput = ({
           onChange={onChange}
           label=""
           placeholder="Merchant name"
+          size={size}
         />
       </FormControl>
     );
@@ -42,6 +43,7 @@ export const ConditionValueInput = ({
           onChange={onChange}
           label=""
           placeholder="Category"
+          size={size}
         />
       </FormControl>
     );
