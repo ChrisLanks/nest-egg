@@ -60,8 +60,10 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
     # Trusted hosts for production (prevents host header attacks)
-    # Example: ["app.nestegg.com", "api.nestegg.com"]
-    ALLOWED_HOSTS: list[str] = ["*"]  # In production, replace with specific domains
+    # SECURITY: Set to specific domains in production via ALLOWED_HOSTS env var
+    # Example: ALLOWED_HOSTS=app.nestegg.com,api.nestegg.com
+    # The validator will REJECT "*" in production
+    ALLOWED_HOSTS: list[str] = ["*"]  # Dev only - validator enforces specific hosts in production
 
     # Pagination
     DEFAULT_PAGE_SIZE: int = 50

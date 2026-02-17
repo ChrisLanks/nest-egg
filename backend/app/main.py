@@ -18,6 +18,7 @@ from app.middleware.request_size_limit import RequestSizeLimitMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware, AuditLogMiddleware, UserContextMiddleware
+from app.middleware.csrf_protection import CSRFProtectionMiddleware
 from app.services.secrets_validation_service import secrets_validation_service
 
 # Initialize Sentry for error tracking and monitoring (optional)
@@ -162,6 +163,9 @@ if not settings.DEBUG:
 
 # Security headers - Always apply (dev and production)
 app.add_middleware(SecurityHeadersMiddleware)
+
+# CSRF protection - Protect against cross-site request forgery
+app.add_middleware(CSRFProtectionMiddleware)
 
 # Global rate limiting - Prevent DoS attacks (1000 req/min per user/IP)
 app.add_middleware(RateLimitMiddleware)

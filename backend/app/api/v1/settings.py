@@ -4,7 +4,7 @@ from typing import Optional
 from uuid import UUID
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,8 +15,10 @@ from app.core.security import hash_password, verify_password
 from app.models.user import User, Organization
 from app.schemas.user import User as UserSchema, UserUpdate, OrganizationUpdate
 from app.services.password_validation_service import password_validation_service
+from app.services.rate_limit_service import get_rate_limit_service
 
 router = APIRouter()
+rate_limit_service = get_rate_limit_service()
 
 
 class UserProfileResponse(BaseModel):
@@ -72,10 +74,21 @@ async def get_user_profile(
 @router.patch("/profile", response_model=UserProfileResponse)
 async def update_user_profile(
     update_data: UserUpdate,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update current user's profile."""
+    """
+    Update current user's profile.
+    Rate limited to 10 updates per hour to prevent abuse.
+    """
+    # Rate limit: 10 profile updates per hour per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=3600,  # 1 hour
+    )
+
     # Update fields
     if update_data.first_name is not None:
         current_user.first_name = update_data.first_name
@@ -119,10 +132,21 @@ async def update_user_profile(
 @router.post("/profile/change-password")
 async def change_password(
     password_data: ChangePasswordRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Change user's password with strength validation."""
+    """
+    Change user's password with strength validation.
+    Rate limited to 5 password changes per hour to prevent abuse.
+    """
+    # Rate limit: 5 password changes per hour per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=5,
+        window_seconds=3600,  # 1 hour
+    )
+
     # Verify current password
     if not verify_password(password_data.current_password, current_user.password_hash):
         raise HTTPException(status_code=400, detail="Current password is incorrect")

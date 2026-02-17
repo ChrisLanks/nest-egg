@@ -13,21 +13,23 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response: Response = await call_next(request)
 
         # Content Security Policy - Prevent XSS attacks
-        # Build script-src based on environment
-        script_src = "'self' 'unsafe-inline'"
+        # This is an API-only backend (no HTML served), so we use strict CSP
+        # No unsafe-inline or unsafe-eval in production for maximum security
         if settings.DEBUG:
-            # Only allow unsafe-eval in development (needed for Vite HMR)
-            script_src += " 'unsafe-eval'"
+            # Development: Allow eval for debugging
+            script_src = "'self' 'unsafe-eval'"
+        else:
+            # Production: No unsafe directives
+            script_src = "'self'"
 
-        # Allow same-origin content, inline styles (for Chakra UI), and specific external resources
+        # Strict CSP for API responses (no inline scripts/styles)
         response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            f"script-src {script_src}; "
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-            "font-src 'self' https://fonts.gstatic.com data:; "
-            "img-src 'self' data: https:; "
-            "connect-src 'self' https://production.plaid.com https://development.plaid.com; "
-            "frame-ancestors 'none'; "
+            "default-src 'none'; "  # Block everything by default (API doesn't need resources)
+            f"script-src {script_src}; "  # Only if API docs served
+            "style-src 'self'; "  # Only for API docs styling
+            "img-src 'self' data:; "  # Only for API docs images
+            "connect-src 'self'; "  # API calls to self only
+            "frame-ancestors 'none'; "  # Prevent embedding
             "base-uri 'self'; "
             "form-action 'self'"
         )

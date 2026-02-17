@@ -73,11 +73,21 @@ async def list_household_members(
 
 @router.post("/invite", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
 async def invite_member(
-    request: InviteMemberRequest,
+    request_data: InviteMemberRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Invite a user to join the household. Only admins can invite."""
+    """
+    Invite a user to join the household. Only admins can invite.
+    Rate limited to 5 invitations per hour to prevent spam.
+    """
+    # Rate limit: 5 invitations per hour per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=5,
+        window_seconds=3600,  # 1 hour
+    )
 
     # Check household size limit
     result = await db.execute(
@@ -97,7 +107,7 @@ async def invite_member(
     # Check if user is already a member
     result = await db.execute(
         select(User).where(
-            User.email == request.email,
+            User.email == request_data.email,
             User.organization_id == current_user.organization_id
         )
     )
@@ -111,7 +121,7 @@ async def invite_member(
     # Check for pending invitation
     result = await db.execute(
         select(HouseholdInvitation).where(
-            HouseholdInvitation.email == request.email,
+            HouseholdInvitation.email == request_data.email,
             HouseholdInvitation.organization_id == current_user.organization_id,
             HouseholdInvitation.status == InvitationStatus.PENDING
         )
@@ -126,7 +136,7 @@ async def invite_member(
     # Create invitation
     invitation = HouseholdInvitation(
         organization_id=current_user.organization_id,
-        email=request.email,
+        email=request_data.email,
         invited_by_user_id=current_user.id,
         invitation_code=secrets.token_urlsafe(32),
         status=InvitationStatus.PENDING,

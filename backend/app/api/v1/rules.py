@@ -3,7 +3,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,8 +17,10 @@ from app.models.transaction import Transaction
 from app.schemas.rule import RuleCreate, RuleResponse, RuleUpdate
 from app.schemas.transaction import Transaction as TransactionSchema
 from app.services.rule_engine import RuleEngine
+from app.services.rate_limit_service import get_rate_limit_service
 
 router = APIRouter()
+rate_limit_service = get_rate_limit_service()
 
 
 class ApplyRuleRequest(BaseModel):
@@ -45,10 +47,21 @@ async def list_rules(
 @router.post("/", response_model=RuleResponse, status_code=201)
 async def create_rule(
     rule_data: RuleCreate,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new rule."""
+    """
+    Create a new rule.
+    Rate limited to 20 rule creations per hour to prevent abuse.
+    """
+    # Rate limit: 20 rule creations per hour per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=20,
+        window_seconds=3600,  # 1 hour
+    )
+
     # Create rule
     rule = Rule(
         organization_id=current_user.organization_id,
@@ -122,10 +135,21 @@ async def get_rule(
 async def update_rule(
     rule_id: UUID,
     rule_data: RuleUpdate,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update a rule."""
+    """
+    Update a rule.
+    Rate limited to 30 rule updates per hour to prevent abuse.
+    """
+    # Rate limit: 30 rule updates per hour per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=30,
+        window_seconds=3600,  # 1 hour
+    )
+
     result = await db.execute(
         select(Rule).where(
             Rule.id == rule_id,
@@ -163,10 +187,21 @@ async def update_rule(
 @router.delete("/{rule_id}", status_code=204)
 async def delete_rule(
     rule_id: UUID,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a rule."""
+    """
+    Delete a rule.
+    Rate limited to 20 rule deletions per hour to prevent abuse.
+    """
+    # Rate limit: 20 rule deletions per hour per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=20,
+        window_seconds=3600,  # 1 hour
+    )
+
     result = await db.execute(
         select(Rule).where(
             Rule.id == rule_id,
@@ -185,11 +220,22 @@ async def delete_rule(
 @router.post("/{rule_id}/apply")
 async def apply_rule(
     rule_id: UUID,
-    request: ApplyRuleRequest,
+    request_data: ApplyRuleRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Apply a rule to transactions."""
+    """
+    Apply a rule to transactions.
+    Rate limited to 10 rule applications per hour to prevent abuse.
+    """
+    # Rate limit: 10 rule applications per hour per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=3600,  # 1 hour
+    )
+
     # Get the rule with conditions and actions
     result = await db.execute(
         select(Rule)
@@ -206,7 +252,7 @@ async def apply_rule(
 
     # Apply the rule
     engine = RuleEngine(db)
-    count = await engine.apply_rule_to_transactions(rule, request.transaction_ids)
+    count = await engine.apply_rule_to_transactions(rule, request_data.transaction_ids)
 
     return {"applied_count": count, "message": f"Applied rule to {count} transaction(s)"}
 

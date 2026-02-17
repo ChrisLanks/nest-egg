@@ -14,9 +14,8 @@ from sqlalchemy.pool import NullPool
 
 from app.core.database import Base, get_db
 from app.main import app
-from app.models.user import User
-from app.models.organization import Organization
-from app.services.auth_service import auth_service
+from app.models.user import User, Organization
+from app.core.security import hash_password, create_access_token
 
 # Test database URL (use in-memory SQLite for fast tests)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -110,7 +109,7 @@ async def test_user(db_session: AsyncSession, test_organization: Organization) -
     user = User(
         id=uuid4(),
         email="test@example.com",
-        hashed_password=auth_service.hash_password("TestPassword123!"),
+        hashed_password=hash_password("TestPassword123!"),
         organization_id=test_organization.id,
         is_admin=True,
         is_active=True,
@@ -124,7 +123,7 @@ async def test_user(db_session: AsyncSession, test_organization: Organization) -
 @pytest.fixture
 def auth_headers(test_user: User) -> dict:
     """Create authentication headers with access token."""
-    access_token = auth_service.create_access_token(user_id=str(test_user.id))
+    access_token = create_access_token(data={"sub": str(test_user.id), "email": test_user.email})
     return {"Authorization": f"Bearer {access_token}"}
 
 

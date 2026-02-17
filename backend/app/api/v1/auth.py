@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.database import get_db
-from app.core.security import create_access_token, create_refresh_token, decode_token, verify_password
+from app.core.security import create_access_token, create_refresh_token, decode_token, verify_password, hash_password
 from app.crud.user import organization_crud, refresh_token_crud, user_crud
 from app.dependencies import get_current_user
 from app.models.user import User
@@ -28,6 +28,12 @@ from app.utils.logging_utils import redact_email
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Generate dummy password hash for timing attack prevention
+# This is generated once at module load time to prevent timing attacks
+# when checking non-existent users
+import secrets
+DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
 rate_limit_service = get_rate_limit_service()
 
 
@@ -150,10 +156,8 @@ async def login(
         if not user:
             # Perform dummy password verification to prevent timing attack
             # This ensures the response time is consistent whether user exists or not
-            verify_password(
-                data.password,
-                "$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQxMjM0NTY3OA$+rFdHQZz+XMFR9CqSJLp8Xr7LXG+hWCN8qGXZ5k4wQw"
-            )
+            # Uses dynamically generated hash to prevent precomputation attacks
+            verify_password(data.password, DUMMY_PASSWORD_HASH)
             logger.warning(f"Login failed: User not found - {redact_email(data.email)}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -287,7 +291,11 @@ async def refresh_access_token(
         refresh_token = await refresh_token_crud.get_by_token_hash(db, token_hash)
 
         if not refresh_token:
-            logger.warning(f"Token refresh failed: Token not found in database (jti: {jti[:10]}...)")
+            # Only log token details in DEBUG mode to prevent token leakage
+            if settings.DEBUG:
+                logger.warning(f"Token refresh failed: Token not found in database (jti: {jti[:10]}...)")
+            else:
+                logger.warning("Token refresh failed: Token not found in database")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token not found",
@@ -377,11 +385,12 @@ async def get_current_user_info(
 @router.post("/debug/check-refresh-token")
 async def debug_check_refresh_token(
     data: RefreshTokenRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Debug endpoint to check refresh token validity.
-    Only available in DEBUG mode.
+    Only available in DEBUG mode and requires authentication.
     """
     if not settings.DEBUG:
         raise HTTPException(status_code=404, detail="Not found")

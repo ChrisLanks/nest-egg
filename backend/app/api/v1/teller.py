@@ -1,5 +1,8 @@
 """Teller integration API endpoints."""
 
+import hashlib
+import hmac
+import json
 import logging
 from typing import Dict, Any
 from uuid import UUID
@@ -19,6 +22,87 @@ from app.config import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def verify_teller_webhook_signature(
+    signature_header: str,
+    webhook_body: bytes,
+    secret: str,
+) -> bool:
+    """
+    Verify Teller webhook signature using HMAC-SHA256.
+
+    Teller sends webhooks with a 'Teller-Signature' header containing an HMAC signature.
+    The signature is computed as HMAC-SHA256(webhook_secret, request_body).
+
+    Args:
+        signature_header: Value of 'Teller-Signature' header
+        webhook_body: Raw webhook request body as bytes
+        secret: Webhook secret key
+
+    Returns:
+        True if signature is valid, raises HTTPException otherwise
+
+    Security Note:
+        Webhook signature verification is REQUIRED for production.
+        In development with DEBUG=True, signature verification is logged but not enforced.
+    """
+    if not secret:
+        if settings.DEBUG:
+            logger.warning("⚠️  TELLER_WEBHOOK_SECRET not set - webhook verification disabled in DEBUG mode")
+            return True
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Webhook verification secret not configured. Set TELLER_WEBHOOK_SECRET for security."
+            )
+
+    if not signature_header:
+        if settings.DEBUG:
+            logger.warning("⚠️  Missing Teller-Signature header - allowing in DEBUG mode")
+            return True
+        else:
+            raise HTTPException(
+                status_code=401,
+                detail="Missing Teller-Signature header"
+            )
+
+    try:
+        # Compute expected signature using HMAC-SHA256
+        expected_signature = hmac.new(
+            secret.encode('utf-8'),
+            webhook_body,
+            hashlib.sha256
+        ).hexdigest()
+
+        # Compare signatures using constant-time comparison to prevent timing attacks
+        is_valid = hmac.compare_digest(expected_signature, signature_header)
+
+        if not is_valid:
+            if settings.DEBUG:
+                logger.warning(f"⚠️  Teller webhook signature mismatch - allowing in DEBUG mode")
+                logger.debug(f"Expected: {expected_signature[:16]}... Got: {signature_header[:16]}...")
+                return True
+            else:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid webhook signature"
+                )
+
+        if settings.DEBUG:
+            logger.info("✅ Teller webhook signature verified")
+        return True
+
+    except Exception as e:
+        if settings.DEBUG:
+            logger.warning(f"⚠️  Webhook verification error in DEBUG mode: {str(e)}")
+            return True
+        else:
+            logger.error(f"❌ Webhook verification error: {str(e)}")
+            raise HTTPException(
+                status_code=401,
+                detail="Webhook verification failed"
+            )
 
 
 @router.post("/webhook")
@@ -47,13 +131,19 @@ async def handle_teller_webhook(
     )
 
     try:
-        webhook_data: Dict[str, Any] = await request.json()
+        # Get raw body for signature verification (must be done before parsing JSON)
+        raw_body = await request.body()
 
-        # Verify webhook signature (if Teller provides one)
-        if settings.TELLER_WEBHOOK_SECRET:
-            teller_signature = request.headers.get("Teller-Signature")
-            # TODO: Implement signature verification when Teller docs are available
-            # For now, we'll trust webhooks in development
+        # Verify webhook signature
+        teller_signature = request.headers.get("Teller-Signature")
+        verify_teller_webhook_signature(
+            signature_header=teller_signature,
+            webhook_body=raw_body,
+            secret=settings.TELLER_WEBHOOK_SECRET,
+        )
+
+        # Now parse the JSON body
+        webhook_data: Dict[str, Any] = json.loads(raw_body.decode('utf-8'))
 
         event_type = webhook_data.get("event")
         payload = webhook_data.get("payload", {})
