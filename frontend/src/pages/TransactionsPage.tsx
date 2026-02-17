@@ -289,9 +289,6 @@ export const TransactionsPage = () => {
       refetch();
       // Invalidate income-expenses queries
       queryClient.invalidateQueries({ queryKey: ['income-expenses'] });
-      // Keep selection for additional operations
-      // User can manually deselect if needed
-      setBulkSelectMode(false);
     },
     onError: (error: any) => {
       const message = error.message === 'No owned transactions to modify'
@@ -711,7 +708,8 @@ export const TransactionsPage = () => {
   }, [processedTransactions, monthlyStartDay]);
 
   const handleTransactionClick = (txn: Transaction) => {
-    if (bulkSelectMode) {
+    // Check if any transactions are selected (bulk mode)
+    if (selectedTransactions.size > 0) {
       // In bulk select mode, clicking toggles checkbox
       toggleTransactionSelection(txn.id);
     } else {
@@ -1263,13 +1261,13 @@ export const TransactionsPage = () => {
             icon={FiInbox}
             title="No transactions found"
             description={
-              debouncedSearchQuery || selectedAccountId || selectedLabelId
-                ? "Try adjusting your filters or search query."
+              debouncedSearchQuery
+                ? "Try adjusting your search query."
                 : "Connect your accounts to start tracking transactions."
             }
-            actionLabel={!debouncedSearchQuery && !selectedAccountId && !selectedLabelId ? "Go to Accounts" : undefined}
+            actionLabel={!debouncedSearchQuery ? "Go to Accounts" : undefined}
             onAction={() => navigate('/accounts')}
-            showAction={!debouncedSearchQuery && !selectedAccountId && !selectedLabelId}
+            showAction={!debouncedSearchQuery}
           />
         )}
 

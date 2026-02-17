@@ -137,26 +137,11 @@ export const SectorBreakdownChart = ({ holdings, sectorBreakdown }: SectorBreakd
 
   return (
     <Box>
-      {/* Warning banner for heuristic data (Phase 1) */}
-      {!isRealData && (
-        <Alert status="warning" mb={6} borderRadius="md">
-          <AlertIcon />
-          <AlertDescription>
-            Sector classifications are estimated using ticker symbols and fund
-            names. Phase 2 will add real sector data from Alpha Vantage API for
-            more accurate analysis.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Data source badge */}
+      {/* Sector breakdown heading */}
       <HStack justify="space-between" mb={4}>
         <Text fontSize="lg" fontWeight="semibold">
           Portfolio by Sector
         </Text>
-        <Badge colorScheme={isRealData ? 'green' : 'orange'} fontSize="sm">
-          {isRealData ? 'Real Data' : 'Estimated'}
-        </Badge>
       </HStack>
 
       {/* Empty state */}

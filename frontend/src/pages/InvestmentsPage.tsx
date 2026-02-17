@@ -227,14 +227,30 @@ export const InvestmentsPage = () => {
       );
     });
 
-    // Recalculate total value from ALL visible accounts (including non-investment)
+    // Recalculate total value from visible accounts
+    // Match backend logic: sum holdings values for investment accounts, account balances for others
     const allVisibleAccounts = allAccounts.filter(
       (account: any) => !hiddenAccountIds.includes(account.id)
     );
-    const newTotalValue = allVisibleAccounts.reduce(
-      (sum: number, account: any) => sum + (Number(account.current_balance) || 0),
+
+    // Sum up holdings values from visible investment accounts
+    const holdingsValue = visibleAccounts.reduce(
+      (sum: number, account) => sum + Number(account.account_value || 0),
       0
     );
+
+    // Sum up property, vehicle, and other non-investment account balances
+    const otherAccountsValue = allVisibleAccounts
+      .filter((account: any) => {
+        const accountType = account.account_type?.toLowerCase();
+        return accountType === 'property' ||
+               accountType === 'vehicle' ||
+               accountType === 'checking' ||
+               accountType === 'savings';
+      })
+      .reduce((sum: number, account: any) => sum + (Number(account.current_balance) || 0), 0);
+
+    const newTotalValue = holdingsValue + otherAccountsValue;
 
     // Recalculate treemap data based on visible accounts
     let newTreemapData = rawPortfolio.treemap_data;
