@@ -7,9 +7,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
-import sentry_sdk
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
 from app.config import settings
 from app.core.database import close_db, init_db
@@ -19,8 +16,40 @@ from app.middleware.request_size_limit import RequestSizeLimitMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.services.secrets_validation_service import secrets_validation_service
 
-# Initialize Sentry for error tracking and monitoring
-if settings.SENTRY_DSN:
+# Initialize Sentry for error tracking and monitoring (optional)
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+    SENTRY_AVAILABLE = True
+except ImportError:
+    SENTRY_AVAILABLE = False
+    print("⚠️  Sentry SDK not installed - error tracking disabled")
+    print("   Install with: pip install sentry-sdk[fastapi]")
+
+if SENTRY_AVAILABLE and settings.SENTRY_DSN:
+    def _filter_sensitive_data(event):
+        """Filter sensitive data from Sentry events before sending."""
+        # Remove sensitive headers
+        if "request" in event and "headers" in event["request"]:
+            headers = event["request"]["headers"]
+            sensitive_headers = ["authorization", "cookie", "x-api-key", "x-auth-token"]
+            for header in sensitive_headers:
+                if header in headers:
+                    headers[header] = "[Filtered]"
+
+        # Remove sensitive query parameters
+        if "request" in event and "query_string" in event["request"]:
+            sensitive_params = ["token", "password", "api_key", "secret"]
+            query = event["request"].get("query_string", "")
+            for param in sensitive_params:
+                if param in query.lower():
+                    event["request"]["query_string"] = "[Filtered]"
+                    break
+
+        return event
+
     sentry_sdk.init(
         dsn=settings.SENTRY_DSN,
         integrations=[
@@ -42,33 +71,11 @@ if settings.SENTRY_DSN:
         # Attach stacktrace to all messages
         attach_stacktrace=True,
         # Filter out sensitive data from breadcrumbs
-        before_send=lambda event, hint: _filter_sensitive_data(event),
+        before_send=_filter_sensitive_data,
     )
     print(f"✅ Sentry initialized for {'development' if settings.DEBUG else 'production'}")
-else:
+elif SENTRY_AVAILABLE and not settings.SENTRY_DSN:
     print("⚠️  Sentry DSN not configured - error tracking disabled")
-
-
-def _filter_sensitive_data(event):
-    """Filter sensitive data from Sentry events before sending."""
-    # Remove sensitive headers
-    if "request" in event and "headers" in event["request"]:
-        headers = event["request"]["headers"]
-        sensitive_headers = ["authorization", "cookie", "x-api-key", "x-auth-token"]
-        for header in sensitive_headers:
-            if header in headers:
-                headers[header] = "[Filtered]"
-
-    # Remove sensitive query parameters
-    if "request" in event and "query_string" in event["request"]:
-        sensitive_params = ["token", "password", "api_key", "secret"]
-        query = event["request"].get("query_string", "")
-        for param in sensitive_params:
-            if param in query.lower():
-                event["request"]["query_string"] = "[Filtered]"
-                break
-
-    return event
 
 
 @asynccontextmanager

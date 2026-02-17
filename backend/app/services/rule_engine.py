@@ -147,7 +147,7 @@ class RuleEngine:
                 return field_value == condition_value
             # CONTAINS can match multiple account IDs (comma-separated)
             elif condition.operator == ConditionOperator.CONTAINS:
-                account_ids = [acc_id.strip() for acc_id.strip() in condition_value.split(',')]
+                account_ids = [acc_id.strip() for acc_id in condition_value.split(',')]
                 return field_value in account_ids
 
         # Handle string comparisons

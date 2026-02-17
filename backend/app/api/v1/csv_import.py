@@ -64,8 +64,8 @@ def validate_csv_file(file: UploadFile) -> None:
 
 @router.post("/validate")
 async def validate_csv(
-    file: UploadFile = File(...),
     http_request: Request,
+    file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -98,8 +98,8 @@ async def validate_csv(
 
 @router.post("/preview", response_model=CSVPreviewResponse)
 async def preview_csv_import(
-    file: UploadFile = File(...),
     http_request: Request,
+    file: UploadFile = File(...),
     column_mapping: Dict[str, str] = None,
     current_user: User = Depends(get_current_user),
 ):
@@ -136,8 +136,8 @@ async def preview_csv_import(
 @router.post("/import", response_model=CSVImportResponse)
 async def import_csv(
     account_id: UUID,
-    file: UploadFile = File(...),
     http_request: Request,
+    file: UploadFile = File(...),
     column_mapping: Dict[str, str] = None,
     skip_duplicates: bool = True,
     current_user: User = Depends(get_current_user),
