@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     PLAID_SECRET: str = ""
     PLAID_ENV: str = "sandbox"  # sandbox, development, production
     PLAID_WEBHOOK_SECRET: str = ""
+    PLAID_ENABLED: bool = True
+
+    # Teller API (100 free accounts/month in production!)
+    TELLER_APP_ID: str = ""
+    TELLER_API_KEY: str = ""
+    TELLER_ENV: str = "sandbox"  # sandbox, production
+    TELLER_WEBHOOK_SECRET: str = ""
+    TELLER_ENABLED: bool = True
 
     # Financial Data APIs (free tiers for market cap/metadata)
     ALPHA_VANTAGE_API_KEY: Optional[str] = None  # Free: 25 calls/day, 5/min

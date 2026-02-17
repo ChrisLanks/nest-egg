@@ -98,8 +98,50 @@ class AccountType(str, enum.Enum):
 class AccountSource(str, enum.Enum):
     """Account data sources."""
     PLAID = "plaid"
+    TELLER = "teller"
     MX = "mx"
     MANUAL = "manual"
+
+
+class TellerEnrollment(Base):
+    """Teller Enrollment represents a connected financial institution."""
+
+    __tablename__ = "teller_enrollments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Teller identifiers
+    enrollment_id = Column(String(255), unique=True, nullable=False, index=True)
+    access_token = Column(Text, nullable=False)  # Encrypted
+
+    # Institution info
+    institution_name = Column(String(255), nullable=True)
+
+    # Status
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    # Sync state
+    last_synced_at = Column(DateTime, nullable=True)
+
+    # Error tracking
+    last_error_code = Column(String(100), nullable=True)
+    last_error_message = Column(Text, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
+
+    # Relationships
+    accounts = relationship("Account", back_populates="teller_enrollment", cascade="all, delete-orphan")
+
+    def get_decrypted_access_token(self) -> str:
+        """Get the decrypted access token."""
+        from app.services.encryption_service import get_encryption_service
+
+        encryption_service = get_encryption_service()
+        return encryption_service.decrypt(self.access_token)
 
 
 class PlaidItem(Base):
@@ -172,6 +214,7 @@ class Account(Base):
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     plaid_item_id = Column(UUID(as_uuid=True), ForeignKey("plaid_items.id", ondelete="CASCADE"), nullable=True, index=True)
+    teller_enrollment_id = Column(UUID(as_uuid=True), ForeignKey("teller_enrollments.id", ondelete="CASCADE"), nullable=True, index=True)
 
     # Account identification
     name = Column(String(255), nullable=False)
@@ -216,5 +259,6 @@ class Account(Base):
 
     # Relationships
     plaid_item = relationship("PlaidItem", back_populates="accounts")
+    teller_enrollment = relationship("TellerEnrollment", back_populates="accounts")
     transactions = relationship("Transaction", back_populates="account", cascade="all, delete-orphan")
     holdings = relationship("Holding", back_populates="account", cascade="all, delete-orphan")
