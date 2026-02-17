@@ -231,7 +231,7 @@ from app.api.v1 import (
     auth, accounts, contributions, transactions, labels, rules, categories, dev, dashboard,
     income_expenses, plaid, teller, holdings, enrichment, notifications, budgets, savings_goals,
     recurring_transactions, transaction_splits, transaction_merges, csv_import, household,
-    subscriptions, reports, debt_payoff, monitoring, bank_linking
+    subscriptions, reports, debt_payoff, monitoring, bank_linking, market_data
 )
 from app.api.v1 import settings as settings_router
 
@@ -241,6 +241,7 @@ app.include_router(household.router, prefix="/api/v1", tags=["Household"])
 app.include_router(accounts.router, prefix="/api/v1/accounts", tags=["Accounts"])
 app.include_router(contributions.router, prefix="/api/v1", tags=["Contributions"])
 app.include_router(holdings.router, prefix="/api/v1/holdings", tags=["Holdings"])
+app.include_router(market_data.router, prefix="/api/v1/market-data", tags=["Market Data"])
 app.include_router(enrichment.router, prefix="/api/v1/enrichment", tags=["Enrichment"])
 app.include_router(bank_linking.router, prefix="/api/v1/bank-linking", tags=["Bank Linking"])
 app.include_router(plaid.router, prefix="/api/v1/plaid", tags=["Plaid"])

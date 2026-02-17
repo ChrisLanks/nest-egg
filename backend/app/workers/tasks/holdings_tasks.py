@@ -81,3 +81,77 @@ async def _capture_snapshots_async():
         except Exception as e:
             logger.error(f"Error in holdings snapshot task: {str(e)}", exc_info=True)
             raise
+
+
+@celery_app.task(name="update_holdings_prices")
+def update_holdings_prices_task():
+    """
+    Update prices for all holdings.
+    Runs daily at 6:00 PM EST (after market close).
+    """
+    import asyncio
+    asyncio.run(_update_prices_async())
+
+
+async def _update_prices_async():
+    """Async implementation of holdings price update."""
+    from app.models.account import Holding
+    from app.services.market_data import get_market_data_provider
+    from sqlalchemy import update
+    from datetime import datetime
+
+    async with async_session_factory() as db:
+        try:
+            # Get all holdings with symbols
+            result = await db.execute(
+                select(Holding).where(Holding.symbol.isnot(None))
+            )
+            holdings = result.scalars().all()
+
+            if not holdings:
+                logger.info("No holdings to update")
+                return
+
+            # Get unique symbols
+            symbols = list(set(h.symbol for h in holdings))
+            logger.info(f"Updating prices for {len(symbols)} unique symbols across {len(holdings)} holdings")
+
+            # Batch fetch quotes from market data provider
+            market_data = get_market_data_provider()
+            quotes = await market_data.get_quotes_batch(symbols)
+
+            # Update holdings
+            updated_count = 0
+            failed_count = 0
+
+            for holding in holdings:
+                if holding.symbol in quotes:
+                    try:
+                        quote = quotes[holding.symbol]
+                        await db.execute(
+                            update(Holding)
+                            .where(Holding.id == holding.id)
+                            .values(
+                                current_price=quote.price,
+                                last_price_update=datetime.utcnow(),
+                            )
+                        )
+                        updated_count += 1
+                    except Exception as e:
+                        logger.error(f"Error updating holding {holding.id} ({holding.symbol}): {e}")
+                        failed_count += 1
+                else:
+                    logger.warning(f"No quote available for {holding.symbol}")
+                    failed_count += 1
+
+            await db.commit()
+
+            logger.info(
+                f"Holdings price update complete. "
+                f"Updated: {updated_count}, Failed: {failed_count}, Total: {len(holdings)} "
+                f"(Provider: {market_data.get_provider_name()})"
+            )
+
+        except Exception as e:
+            logger.error(f"Error in holdings price update task: {str(e)}", exc_info=True)
+            raise

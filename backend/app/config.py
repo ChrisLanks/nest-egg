@@ -44,8 +44,9 @@ class Settings(BaseSettings):
     TELLER_WEBHOOK_SECRET: str = ""
     TELLER_ENABLED: bool = True
 
-    # Financial Data APIs (free tiers for market cap/metadata)
-    ALPHA_VANTAGE_API_KEY: Optional[str] = None  # Free: 25 calls/day, 5/min
+    # Market Data Provider (for investment prices)
+    MARKET_DATA_PROVIDER: str = "yahoo_finance"  # yahoo_finance, alpha_vantage, finnhub
+    ALPHA_VANTAGE_API_KEY: Optional[str] = None  # Free: 500 calls/day, 25/min
     FINNHUB_API_KEY: Optional[str] = None  # Free: 60 calls/min
 
     # Celery

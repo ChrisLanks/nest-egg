@@ -27,6 +27,7 @@ flower==2.0.1
 
 # Financial APIs
 plaid-python==17.0.0
+yfinance==0.2.36  # Yahoo Finance for investment prices (FREE)
 
 # Utilities
 python-dateutil==2.8.2

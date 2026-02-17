@@ -44,6 +44,10 @@ celery_app.conf.beat_schedule = {
         'task': 'check_cash_flow_forecast',
         'schedule': crontab(hour=6, minute=30),  # 6:30am daily
     },
+    'update-holdings-prices': {
+        'task': 'update_holdings_prices',
+        'schedule': crontab(hour=18, minute=0),  # 6:00 PM EST daily (after market close)
+    },
     'capture-daily-holdings-snapshot': {
         'task': 'capture_daily_holdings_snapshot',
         'schedule': crontab(hour=23, minute=59),  # 11:59 PM daily to capture end-of-day values
