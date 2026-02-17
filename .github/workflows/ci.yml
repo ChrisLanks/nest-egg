@@ -89,12 +89,27 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-asyncio pytest-cov httpx
 
+      - name: Run database migrations
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-secret-key-for-ci-32-chars-long
+          MASTER_ENCRYPTION_KEY: test-encryption-key-must-be-32-bytes-exactly
+          DEBUG: true
+        run: |
+          alembic upgrade head
+
       - name: Run tests with coverage
         working-directory: ./backend
         env:
           DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test_db
           REDIS_URL: redis://localhost:6379/0
-          SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: test-secret-key-for-ci-32-chars-long
+          MASTER_ENCRYPTION_KEY: test-encryption-key-must-be-32-bytes-exactly
+          PLAID_CLIENT_ID: test_client_id
+          PLAID_SECRET: test_secret
+          PLAID_ENV: sandbox
           DEBUG: true
         run: |
           pytest -v --cov=app --cov-report=xml --cov-report=term-missing
