@@ -213,11 +213,15 @@ export const AccountsPage = () => {
       });
       setSelectedAccounts(new Set());
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('[AccountsPage] Bulk visibility error:', error);
+      const errorMessage = error?.response?.data?.detail || error?.message || 'Unknown error';
       toast({
         title: 'Failed to update visibility',
+        description: errorMessage,
         status: 'error',
-        duration: 3000,
+        duration: 5000,
+        isClosable: true,
       });
     },
   });
@@ -394,6 +398,17 @@ export const AccountsPage = () => {
     // Filter to only accounts the user can modify
     const modifiableAccounts = accounts.filter(account => canModifyAccount(account));
 
+    console.log('[AccountsPage] toggleInstitutionVisibility called', {
+      totalAccounts: accounts.length,
+      modifiableAccounts: modifiableAccounts.length,
+      accountDetails: modifiableAccounts.map(a => ({
+        id: a.id,
+        name: a.name,
+        userId: a.user_id,
+        isActive: a.is_active,
+      })),
+    });
+
     if (modifiableAccounts.length === 0) {
       toast({
         title: 'No accounts to modify',
@@ -406,6 +421,13 @@ export const AccountsPage = () => {
 
     const shouldHide = allVisible(modifiableAccounts);
     const accountIds = modifiableAccounts.map((a) => a.id);
+
+    console.log('[AccountsPage] Calling bulk visibility mutation', {
+      accountIds,
+      isActive: !shouldHide,
+      shouldHide,
+    });
+
     visibilityMutation.mutate({ accountIds, isActive: !shouldHide });
   };
 

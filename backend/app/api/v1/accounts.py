@@ -174,6 +174,43 @@ async def create_manual_account(
     return account
 
 
+@router.patch("/bulk-visibility")
+async def bulk_update_visibility(
+    request: BulkVisibilityUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update visibility for multiple accounts. Only updates accounts owned by the current user."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"[bulk-visibility] Request: account_ids={request.account_ids}, is_active={request.is_active}, user_id={current_user.id}, org_id={current_user.organization_id}")
+
+    # Check which accounts exist and are owned by the user
+    check_result = await db.execute(
+        select(Account.id, Account.user_id, Account.organization_id, Account.is_active)
+        .where(Account.id.in_(request.account_ids))
+    )
+    existing_accounts = check_result.all()
+    logger.info(f"[bulk-visibility] Found {len(existing_accounts)} accounts: {existing_accounts}")
+
+    # Only allow updating accounts owned by the current user
+    result = await db.execute(
+        update(Account)
+        .where(
+            Account.id.in_(request.account_ids),
+            Account.organization_id == current_user.organization_id,
+            Account.user_id == current_user.id,  # Must be account owner
+        )
+        .values(is_active=request.is_active)
+    )
+    await db.commit()
+
+    logger.info(f"[bulk-visibility] Updated {result.rowcount} accounts")
+
+    return {"updated_count": result.rowcount}
+
+
 @router.patch("/{account_id}", response_model=AccountSchema)
 async def update_account(
     account_data: AccountUpdate,
@@ -216,24 +253,3 @@ async def bulk_delete_accounts(
     )
     await db.commit()
     return {"deleted_count": result.rowcount}
-
-
-@router.patch("/bulk-visibility")
-async def bulk_update_visibility(
-    request: BulkVisibilityUpdate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Update visibility for multiple accounts. Only updates accounts owned by the current user."""
-    # Only allow updating accounts owned by the current user
-    result = await db.execute(
-        update(Account)
-        .where(
-            Account.id.in_(request.account_ids),
-            Account.organization_id == current_user.organization_id,
-            Account.user_id == current_user.id,  # Must be account owner
-        )
-        .values(is_active=request.is_active)
-    )
-    await db.commit()
-    return {"updated_count": result.rowcount}
