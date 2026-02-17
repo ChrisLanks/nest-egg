@@ -571,7 +571,7 @@ export const AccountsPage = () => {
                       variant="outline"
                       onClick={() => toggleInstitutionVisibility(institutionAccounts)}
                     >
-                      {allVisible(institutionAccounts) ? 'Hide All' : 'Show All'}
+                      {allVisible(institutionAccounts.filter(canModifyAccount)) ? 'Hide All' : 'Show All'}
                     </Button>
                   </HStack>
                 </HStack>
