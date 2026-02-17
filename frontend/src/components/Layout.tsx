@@ -266,6 +266,29 @@ export const Layout = () => {
     onOpen: onAddAccountOpen,
     onClose: onAddAccountClose,
   } = useDisclosure();
+
+  // Disclosure hooks for dropdown menus
+  const {
+    isOpen: isPlanningMenuOpen,
+    onOpen: onPlanningMenuOpen,
+    onClose: onPlanningMenuClose,
+  } = useDisclosure();
+  const {
+    isOpen: isAnalyticsMenuOpen,
+    onOpen: onAnalyticsMenuOpen,
+    onClose: onAnalyticsMenuClose,
+  } = useDisclosure();
+  const {
+    isOpen: isTransactionsMenuOpen,
+    onOpen: onTransactionsMenuOpen,
+    onClose: onTransactionsMenuClose,
+  } = useDisclosure();
+  const {
+    isOpen: isUserMenuOpen,
+    onOpen: onUserMenuOpen,
+    onClose: onUserMenuClose,
+  } = useDisclosure();
+
   const [collapsedSections, setCollapsedSections] = useState<
     Record<string, boolean>
   >({});
@@ -543,10 +566,11 @@ export const Layout = () => {
               />
 
               {/* Planning & Goals Dropdown */}
-              <Menu closeOnSelect={true}>
+              <Menu isOpen={isPlanningMenuOpen} onClose={onPlanningMenuClose}>
                 <MenuButton
                   as={Button}
                   rightIcon={<ChevronDownIcon />}
+                  onClick={onPlanningMenuOpen}
                   variant={
                     planningMenuItems.some(
                       (item) => location.pathname === item.path,
@@ -576,7 +600,10 @@ export const Layout = () => {
                   {planningMenuItems.map((item) => (
                     <MenuItem
                       key={item.path}
-                      onClick={() => navigateWithParams(item.path)}
+                      onClick={() => {
+                        navigateWithParams(item.path);
+                        onPlanningMenuClose();
+                      }}
                       fontWeight={
                         location.pathname === item.path ? "semibold" : "normal"
                       }
@@ -593,10 +620,11 @@ export const Layout = () => {
               </Menu>
 
               {/* Analytics Dropdown */}
-              <Menu closeOnSelect={true}>
+              <Menu isOpen={isAnalyticsMenuOpen} onClose={onAnalyticsMenuClose}>
                 <MenuButton
                   as={Button}
                   rightIcon={<ChevronDownIcon />}
+                  onClick={onAnalyticsMenuOpen}
                   variant={
                     analyticsMenuItems.some(
                       (item) => location.pathname === item.path,
@@ -626,7 +654,10 @@ export const Layout = () => {
                   {analyticsMenuItems.map((item) => (
                     <MenuItem
                       key={item.path}
-                      onClick={() => navigateWithParams(item.path)}
+                      onClick={() => {
+                        navigateWithParams(item.path);
+                        onAnalyticsMenuClose();
+                      }}
                       fontWeight={
                         location.pathname === item.path ? "semibold" : "normal"
                       }
@@ -643,10 +674,11 @@ export const Layout = () => {
               </Menu>
 
               {/* Transactions Dropdown */}
-              <Menu closeOnSelect={true}>
+              <Menu isOpen={isTransactionsMenuOpen} onClose={onTransactionsMenuClose}>
                 <MenuButton
                   as={Button}
                   rightIcon={<ChevronDownIcon />}
+                  onClick={onTransactionsMenuOpen}
                   variant={
                     transactionsMenuItems.some(
                       (item) => location.pathname === item.path,
@@ -676,7 +708,10 @@ export const Layout = () => {
                   {transactionsMenuItems.map((item) => (
                     <MenuItem
                       key={item.path}
-                      onClick={() => navigateWithParams(item.path)}
+                      onClick={() => {
+                        navigateWithParams(item.path);
+                        onTransactionsMenuClose();
+                      }}
                       fontWeight={
                         location.pathname === item.path ? "semibold" : "normal"
                       }
@@ -715,10 +750,11 @@ export const Layout = () => {
             </Box>
             <NotificationBell />
 
-            <Menu closeOnSelect={true}>
+            <Menu isOpen={isUserMenuOpen} onClose={onUserMenuClose}>
               <MenuButton
                 as={Button}
                 rightIcon={<ChevronDownIcon />}
+                onClick={onUserMenuOpen}
                 variant="ghost"
                 size="sm"
               >
@@ -741,19 +777,28 @@ export const Layout = () => {
               <MenuList>
                 <MenuItem
                   icon={<FiUsers />}
-                  onClick={() => navigateWithParams("/household")}
+                  onClick={() => {
+                    navigateWithParams("/household");
+                    onUserMenuClose();
+                  }}
                 >
                   Household Settings
                 </MenuItem>
                 <MenuItem
                   icon={<FiSettings />}
-                  onClick={() => navigateWithParams("/preferences")}
+                  onClick={() => {
+                    navigateWithParams("/preferences");
+                    onUserMenuClose();
+                  }}
                 >
                   Preferences
                 </MenuItem>
                 <MenuItem
                   icon={<FiLogOut />}
-                  onClick={handleLogout}
+                  onClick={() => {
+                    handleLogout();
+                    onUserMenuClose();
+                  }}
                   color="red.600"
                 >
                   Logout
