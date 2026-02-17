@@ -47,3 +47,10 @@ pytest-cov==4.1.0
 black==24.1.1
 ruff==0.1.13
 mypy==1.8.0
+
+# Additional Testing & CI/CD
+isort==5.13.2
+flake8==7.0.0
+pylint==3.0.3
+safety==3.0.1
+pre-commit==3.6.0
