@@ -62,7 +62,6 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     Returns status of application and dependencies.
     """
     from app.config import settings
-    from app.core.database import async_engine
 
     # Check database
     db_status = "ok"
@@ -74,7 +73,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     # Check Redis
     redis_status = "ok"
     try:
-        redis = await rate_limit_service._get_redis()
+        redis = await rate_limit_service.get_redis()
         await redis.ping()
     except Exception as e:
         redis_status = f"error: {str(e)}"
@@ -97,7 +96,7 @@ async def get_rate_limit_dashboard(
 
     Only accessible by admin users.
     """
-    redis = await rate_limit_service._get_redis()
+    redis = await rate_limit_service.get_redis()
 
     # Get all rate limit keys
     rate_limit_keys = await redis.keys("rate_limit:*")
