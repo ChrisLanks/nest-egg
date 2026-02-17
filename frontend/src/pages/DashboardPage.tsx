@@ -29,6 +29,17 @@ import {
   Divider,
   Button,
   ButtonGroup,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  ModalCloseButton,
+  FormControl,
+  FormLabel,
+  Input,
+  useDisclosure,
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../features/auth/stores/authStore';
@@ -88,7 +99,10 @@ interface HistoricalSnapshot {
 export const DashboardPage = () => {
   const { user } = useAuthStore();
   const { selectedUserId } = useUserView();
-  const [timeRange, setTimeRange] = useState<'1M' | '3M' | '6M' | '1Y' | 'ALL'>('1Y');
+  const [timeRange, setTimeRange] = useState<'1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM'>('1Y');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const { isOpen, onOpen, onClose } = useDisclosure();
 
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['dashboard', selectedUserId],
@@ -101,10 +115,11 @@ export const DashboardPage = () => {
 
   // Fetch historical net worth data
   const { data: historicalData } = useQuery({
-    queryKey: ['historical-net-worth', timeRange],
+    queryKey: ['historical-net-worth', timeRange, customStartDate, customEndDate],
     queryFn: async () => {
       const now = new Date();
       let startDate: Date;
+      let endDate: Date | null = null;
 
       switch (timeRange) {
         case '1M':
@@ -122,13 +137,29 @@ export const DashboardPage = () => {
         case 'ALL':
           startDate = new Date(now.getFullYear() - 10, 0, 1); // 10 years ago
           break;
+        case 'CUSTOM':
+          if (!customStartDate) {
+            startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+          } else {
+            startDate = new Date(customStartDate);
+          }
+          if (customEndDate) {
+            endDate = new Date(customEndDate);
+          }
+          break;
+        default:
+          startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
       }
 
-      const response = await api.get<HistoricalSnapshot[]>('/holdings/historical', {
-        params: {
-          start_date: startDate.toISOString().split('T')[0],
-        },
-      });
+      const params: any = {
+        start_date: startDate.toISOString().split('T')[0],
+      };
+
+      if (endDate) {
+        params.end_date = endDate.toISOString().split('T')[0];
+      }
+
+      const response = await api.get<HistoricalSnapshot[]>('/holdings/historical', { params });
       return response.data;
     },
   });
@@ -288,6 +319,12 @@ export const DashboardPage = () => {
                     colorScheme={timeRange === 'ALL' ? 'brand' : 'gray'}
                   >
                     ALL
+                  </Button>
+                  <Button
+                    onClick={onOpen}
+                    colorScheme={timeRange === 'CUSTOM' ? 'brand' : 'gray'}
+                  >
+                    Custom
                   </Button>
                 </ButtonGroup>
               </HStack>
@@ -466,6 +503,51 @@ export const DashboardPage = () => {
           </Card>
         )}
       </VStack>
+
+      {/* Custom Date Range Modal */}
+      <Modal isOpen={isOpen} onClose={onClose} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Select Custom Date Range</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <VStack spacing={4}>
+              <FormControl>
+                <FormLabel>Start Date</FormLabel>
+                <Input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                />
+              </FormControl>
+              <FormControl>
+                <FormLabel>End Date (Optional)</FormLabel>
+                <Input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                />
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              colorScheme="brand"
+              mr={3}
+              onClick={() => {
+                setTimeRange('CUSTOM');
+                onClose();
+              }}
+              isDisabled={!customStartDate}
+            >
+              Apply
+            </Button>
+            <Button variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Container>
   );
 };
