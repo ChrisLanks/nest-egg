@@ -10,6 +10,8 @@ from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 from app.config import settings
 from app.core.database import close_db, init_db
+from app.core.logging_config import setup_logging
+from app.core.metrics import setup_metrics
 from app.services.snapshot_scheduler import snapshot_scheduler
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
@@ -84,6 +86,10 @@ async def lifespan(app: FastAPI):
     # Startup
     print("🚀 Starting Nest Egg API...")
 
+    # Initialize structured logging
+    setup_logging()
+    print("✅ Logging configured")
+
     # Validate secrets and configuration (production only)
     if not settings.DEBUG:
         print("🔒 Validating production secrets...")
@@ -123,6 +129,11 @@ app = FastAPI(
     version=settings.APP_VERSION,
     lifespan=lifespan,
 )
+
+# Setup Prometheus metrics
+if settings.METRICS_ENABLED:
+    setup_metrics(app)
+    print("✅ Prometheus metrics enabled at /metrics")
 
 # Configure CORS
 app.add_middleware(
@@ -220,10 +231,11 @@ from app.api.v1 import (
     auth, accounts, contributions, transactions, labels, rules, categories, dev, dashboard,
     income_expenses, plaid, holdings, enrichment, notifications, budgets, savings_goals,
     recurring_transactions, transaction_splits, transaction_merges, csv_import, household,
-    subscriptions, reports, debt_payoff
+    subscriptions, reports, debt_payoff, monitoring
 )
 from app.api.v1 import settings as settings_router
 
+app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["Monitoring"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(household.router, prefix="/api/v1", tags=["Household"])
 app.include_router(accounts.router, prefix="/api/v1/accounts", tags=["Accounts"])

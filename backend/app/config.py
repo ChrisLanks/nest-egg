@@ -73,6 +73,12 @@ class Settings(BaseSettings):
     # Monitoring
     SENTRY_DSN: Optional[str] = None
     LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "text"  # 'text' or 'json' (json for production)
+    ENVIRONMENT: str = "development"  # development, staging, production
+
+    # Prometheus Metrics
+    METRICS_ENABLED: bool = True
+    METRICS_INCLUDE_IN_SCHEMA: bool = False  # Hide from Swagger docs
 
     model_config = SettingsConfigDict(
         env_file=".env",
