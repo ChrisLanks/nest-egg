@@ -214,10 +214,13 @@ async def get_user_accounts(
     Returns:
         List of accounts (owned + shared)
     """
-    # Get accounts owned by user
+    # Get accounts owned by user (load all provider relationships)
     result = await db.execute(
         select(Account)
-        .options(joinedload(Account.plaid_item))
+        .options(
+            joinedload(Account.plaid_item),
+            joinedload(Account.teller_enrollment)
+        )
         .where(
             Account.user_id == user_id,
             Account.organization_id == organization_id,
@@ -226,10 +229,13 @@ async def get_user_accounts(
     )
     owned_accounts = result.unique().scalars().all()
 
-    # Get accounts shared with user
+    # Get accounts shared with user (load all provider relationships)
     result = await db.execute(
         select(Account)
-        .options(joinedload(Account.plaid_item))
+        .options(
+            joinedload(Account.plaid_item),
+            joinedload(Account.teller_enrollment)
+        )
         .join(AccountShare, AccountShare.account_id == Account.id)
         .where(
             AccountShare.shared_with_user_id == user_id,
@@ -266,7 +272,10 @@ async def get_all_household_accounts(
     """
     result = await db.execute(
         select(Account)
-        .options(joinedload(Account.plaid_item))
+        .options(
+            joinedload(Account.plaid_item),
+            joinedload(Account.teller_enrollment)
+        )
         .where(
             Account.organization_id == organization_id,
             Account.is_active == True

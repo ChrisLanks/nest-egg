@@ -81,12 +81,13 @@ class Account(AccountBase):
 
 
 class AccountSummary(BaseModel):
-    """Account summary for lists."""
+    """Account summary for lists (provider-agnostic)."""
 
     id: UUID
     user_id: UUID
     name: str
     account_type: AccountType
+    account_source: AccountSource  # plaid, teller, mx, manual
     property_type: Optional[PropertyType] = None  # For PROPERTY accounts only
     institution_name: Optional[str] = None
     mask: Optional[str] = None
@@ -95,9 +96,9 @@ class AccountSummary(BaseModel):
     is_active: bool
     exclude_from_cash_flow: bool
     plaid_item_hash: Optional[str] = None  # For duplicate detection
-    plaid_item_id: Optional[UUID] = None  # For sync operations
 
-    # Sync status from PlaidItem
+    # Provider-agnostic sync status (populated from PlaidItem, TellerEnrollment, etc.)
+    provider_item_id: Optional[UUID] = None  # ID of PlaidItem or TellerEnrollment
     last_synced_at: Optional[datetime] = None
     last_error_code: Optional[str] = None
     last_error_message: Optional[str] = None

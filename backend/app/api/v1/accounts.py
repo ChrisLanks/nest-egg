@@ -43,7 +43,7 @@ async def list_accounts(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all accounts for the current user's organization."""
+    """List all accounts for the current user's organization (provider-agnostic)."""
     # Query accounts directly to respect include_hidden parameter
     if include_hidden:
         # Admin view - include ALL accounts regardless of is_active status
@@ -54,7 +54,10 @@ async def list_accounts(
 
         result = await db.execute(
             select(Account)
-            .options(joinedload(Account.plaid_item))
+            .options(
+                joinedload(Account.plaid_item),
+                joinedload(Account.teller_enrollment)
+            )
             .where(*conditions)
         )
         accounts = result.unique().scalars().all()
@@ -69,16 +72,35 @@ async def list_accounts(
     # Sort by name
     accounts = sorted(accounts, key=lambda a: a.name)
 
-    # Construct AccountSummary with PlaidItem sync status
+    # Construct AccountSummary with provider-agnostic sync status
     summaries = []
     for acc in accounts:
-        plaid_item = acc.plaid_item if acc.plaid_item_id else None
+        # Determine which provider to use for sync status
+        provider_item_id = None
+        last_synced_at = None
+        last_error_code = None
+        last_error_message = None
+        needs_reauth = None
+
+        if acc.account_source.value == "plaid" and acc.plaid_item:
+            provider_item_id = acc.plaid_item_id
+            last_synced_at = acc.plaid_item.last_synced_at
+            last_error_code = acc.plaid_item.last_error_code
+            last_error_message = acc.plaid_item.last_error_message
+            needs_reauth = acc.plaid_item.needs_reauth
+        elif acc.account_source.value == "teller" and acc.teller_enrollment:
+            provider_item_id = acc.teller_enrollment_id
+            last_synced_at = acc.teller_enrollment.last_synced_at
+            last_error_code = acc.teller_enrollment.last_error_code
+            last_error_message = acc.teller_enrollment.last_error_message
+            needs_reauth = False  # Teller doesn't use reauth concept
 
         summary = AccountSummary(
             id=acc.id,
             user_id=acc.user_id,
             name=acc.name,
             account_type=acc.account_type,
+            account_source=acc.account_source,
             property_type=acc.property_type,
             institution_name=acc.institution_name,
             mask=acc.mask,
@@ -87,12 +109,12 @@ async def list_accounts(
             is_active=acc.is_active,
             exclude_from_cash_flow=acc.exclude_from_cash_flow,
             plaid_item_hash=acc.plaid_item_hash,
-            plaid_item_id=acc.plaid_item_id,
-            # Include PlaidItem sync status
-            last_synced_at=plaid_item.last_synced_at if plaid_item else None,
-            last_error_code=plaid_item.last_error_code if plaid_item else None,
-            last_error_message=plaid_item.last_error_message if plaid_item else None,
-            needs_reauth=plaid_item.needs_reauth if plaid_item else None,
+            # Provider-agnostic sync status
+            provider_item_id=provider_item_id,
+            last_synced_at=last_synced_at,
+            last_error_code=last_error_code,
+            last_error_message=last_error_message,
+            needs_reauth=needs_reauth,
         )
         summaries.append(summary)
 
