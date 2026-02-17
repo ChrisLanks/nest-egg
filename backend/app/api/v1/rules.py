@@ -15,6 +15,7 @@ from app.models.user import User
 from app.models.rule import Rule, RuleCondition, RuleAction
 from app.models.transaction import Transaction
 from app.schemas.rule import RuleCreate, RuleResponse, RuleUpdate
+from app.schemas.transaction import Transaction as TransactionSchema
 from app.services.rule_engine import RuleEngine
 
 router = APIRouter()
@@ -249,4 +250,107 @@ async def preview_rule(
     return {
         "matching_transaction_ids": matching_ids,
         "count": len(matching_ids),
+    }
+
+
+@router.post("/test", response_model=dict)
+async def test_rule(
+    rule_data: RuleCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Test a rule configuration without saving it.
+
+    Returns matching transactions with previews of what would change.
+    Useful for validating rule logic before creating/updating.
+    """
+    # Create temporary rule object (not saved to database)
+    temp_rule = Rule(
+        organization_id=current_user.organization_id,
+        name=rule_data.name,
+        description=rule_data.description,
+        match_type=rule_data.match_type,
+        apply_to=rule_data.apply_to,
+        priority=rule_data.priority or 0,
+        is_active=True,
+    )
+
+    # Create temporary conditions
+    temp_rule.conditions = [
+        RuleCondition(
+            field=c.field,
+            operator=c.operator,
+            value=c.value,
+            value_max=c.value_max,
+        )
+        for c in rule_data.conditions
+    ]
+
+    # Create temporary actions
+    temp_rule.actions = [
+        RuleAction(
+            action_type=a.action_type,
+            action_value=a.action_value,
+        )
+        for a in rule_data.actions
+    ]
+
+    # Get sample transactions (limit to recent 1000 for performance)
+    result = await db.execute(
+        select(Transaction)
+        .where(Transaction.organization_id == current_user.organization_id)
+        .order_by(Transaction.date.desc())
+        .limit(1000)
+    )
+    transactions = result.scalars().all()
+
+    # Test rule against transactions
+    engine = RuleEngine(db)
+    matching_transactions = []
+
+    for transaction in transactions:
+        if engine.matches_rule(transaction, temp_rule):
+            # Build preview of what would change
+            changes = []
+            for action in temp_rule.actions:
+                if action.action_type.value == "set_category":
+                    changes.append({
+                        "field": "category",
+                        "from": transaction.category_primary,
+                        "to": action.action_value
+                    })
+                elif action.action_type.value == "set_merchant":
+                    changes.append({
+                        "field": "merchant",
+                        "from": transaction.merchant_name,
+                        "to": action.action_value
+                    })
+                elif action.action_type.value == "add_label":
+                    changes.append({
+                        "field": "label",
+                        "action": "add",
+                        "label_id": action.action_value
+                    })
+                elif action.action_type.value == "remove_label":
+                    changes.append({
+                        "field": "label",
+                        "action": "remove",
+                        "label_id": action.action_value
+                    })
+
+            matching_transactions.append({
+                "id": str(transaction.id),
+                "date": transaction.date.isoformat() if transaction.date else None,
+                "merchant": transaction.merchant_name,
+                "amount": float(transaction.amount),
+                "category": transaction.category_primary,
+                "changes": changes,
+            })
+
+    return {
+        "matching_count": len(matching_transactions),
+        "matching_transactions": matching_transactions[:50],  # Limit to 50 for response size
+        "total_tested": len(transactions),
+        "message": f"Rule would match {len(matching_transactions)} of {len(transactions)} tested transactions"
     }

@@ -3,7 +3,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +22,7 @@ from app.models.account import Account, AccountType
 from app.models.holding import Holding
 from app.schemas.account import Account as AccountSchema, AccountSummary, ManualAccountCreate, AccountUpdate
 from app.services.deduplication_service import DeduplicationService
+from app.services.rate_limit_service import rate_limit_service
 
 
 class BulkVisibilityUpdate(BaseModel):
@@ -177,10 +178,22 @@ async def create_manual_account(
 @router.patch("/bulk-visibility")
 async def bulk_update_visibility(
     request: BulkVisibilityUpdate,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update visibility for multiple accounts. Only updates accounts owned by the current user."""
+    """
+    Update visibility for multiple accounts.
+    Rate limited to 30 requests per minute.
+    Only updates accounts owned by the current user.
+    """
+    # Rate limit: 30 bulk update requests per minute per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=30,
+        window_seconds=60,
+    )
+
     import logging
     logger = logging.getLogger(__name__)
 

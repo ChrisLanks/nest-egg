@@ -7,6 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
 from app.config import settings
 from app.core.database import close_db, init_db
@@ -15,6 +18,57 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.services.secrets_validation_service import secrets_validation_service
+
+# Initialize Sentry for error tracking and monitoring
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        integrations=[
+            FastApiIntegration(transaction_style="endpoint"),
+            SqlalchemyIntegration(),
+        ],
+        # Set traces_sample_rate to 1.0 to capture 100% of transactions for performance monitoring
+        # In production, you may want to reduce this to save quota (e.g., 0.1 for 10%)
+        traces_sample_rate=0.1 if not settings.DEBUG else 1.0,
+        # Set profiles_sample_rate to 1.0 to profile 100% of sampled transactions
+        # Helps identify performance bottlenecks
+        profiles_sample_rate=0.1 if not settings.DEBUG else 1.0,
+        # Send PII (personally identifiable information) - set to False in production
+        send_default_pii=False,
+        # Environment tracking
+        environment="development" if settings.DEBUG else "production",
+        # Release tracking for better error grouping
+        release=f"{settings.APP_NAME}@{settings.APP_VERSION}",
+        # Attach stacktrace to all messages
+        attach_stacktrace=True,
+        # Filter out sensitive data from breadcrumbs
+        before_send=lambda event, hint: _filter_sensitive_data(event),
+    )
+    print(f"✅ Sentry initialized for {'development' if settings.DEBUG else 'production'}")
+else:
+    print("⚠️  Sentry DSN not configured - error tracking disabled")
+
+
+def _filter_sensitive_data(event):
+    """Filter sensitive data from Sentry events before sending."""
+    # Remove sensitive headers
+    if "request" in event and "headers" in event["request"]:
+        headers = event["request"]["headers"]
+        sensitive_headers = ["authorization", "cookie", "x-api-key", "x-auth-token"]
+        for header in sensitive_headers:
+            if header in headers:
+                headers[header] = "[Filtered]"
+
+    # Remove sensitive query parameters
+    if "request" in event and "query_string" in event["request"]:
+        sensitive_params = ["token", "password", "api_key", "secret"]
+        query = event["request"].get("query_string", "")
+        for param in sensitive_params:
+            if param in query.lower():
+                event["request"]["query_string"] = "[Filtered]"
+                break
+
+    return event
 
 
 @asynccontextmanager

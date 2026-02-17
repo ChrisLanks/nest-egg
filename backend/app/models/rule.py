@@ -33,6 +33,14 @@ class ConditionField(str, enum.Enum):
     AMOUNT_EXACT = "amount_exact"
     CATEGORY = "category"
     DESCRIPTION = "description"
+    # Date-based conditions
+    DATE = "date"  # Specific date or date range
+    MONTH = "month"  # Month number (1-12)
+    YEAR = "year"  # Year (2024, 2025, etc.)
+    DAY_OF_WEEK = "day_of_week"  # Day of week (0=Monday, 6=Sunday)
+    # Account-based conditions
+    ACCOUNT_ID = "account_id"  # Specific account
+    ACCOUNT_TYPE = "account_type"  # Account type (checking, savings, credit_card, etc.)
 
 
 class ConditionOperator(str, enum.Enum):

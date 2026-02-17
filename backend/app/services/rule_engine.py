@@ -3,6 +3,7 @@
 import re
 from decimal import Decimal
 from typing import List
+from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -38,6 +39,25 @@ class RuleEngine:
             field_value = (transaction.category_primary or "").lower()
         elif condition.field == ConditionField.DESCRIPTION:
             field_value = (transaction.description or "").lower()
+        # Date-based conditions
+        elif condition.field == ConditionField.DATE:
+            field_value = transaction.date
+        elif condition.field == ConditionField.MONTH:
+            field_value = transaction.date.month if transaction.date else None
+        elif condition.field == ConditionField.YEAR:
+            field_value = transaction.date.year if transaction.date else None
+        elif condition.field == ConditionField.DAY_OF_WEEK:
+            field_value = transaction.date.weekday() if transaction.date else None  # 0=Monday, 6=Sunday
+        # Account-based conditions
+        elif condition.field == ConditionField.ACCOUNT_ID:
+            field_value = str(transaction.account_id)
+        elif condition.field == ConditionField.ACCOUNT_TYPE:
+            # Need to load account to get account_type
+            # For now, we'll skip this check if account isn't loaded
+            if hasattr(transaction, 'account') and transaction.account:
+                field_value = transaction.account.account_type.value if transaction.account.account_type else ""
+            else:
+                return False
         else:
             return False
 
@@ -65,22 +85,88 @@ class RuleEngine:
             else:
                 return False
 
-        # Handle string comparisons
-        condition_value = condition.value.lower()
-
-        if condition.operator == ConditionOperator.EQUALS:
-            return field_value == condition_value
-        elif condition.operator == ConditionOperator.CONTAINS:
-            return condition_value in field_value
-        elif condition.operator == ConditionOperator.STARTS_WITH:
-            return field_value.startswith(condition_value)
-        elif condition.operator == ConditionOperator.ENDS_WITH:
-            return field_value.endswith(condition_value)
-        elif condition.operator == ConditionOperator.REGEX:
-            try:
-                return bool(re.search(condition_value, field_value, re.IGNORECASE))
-            except re.error:
+        # Handle date comparisons
+        if condition.field == ConditionField.DATE:
+            if not field_value:
                 return False
+
+            try:
+                # Parse condition value as date
+                from datetime import date
+                if isinstance(condition.value, str):
+                    condition_date = datetime.fromisoformat(condition.value).date()
+                else:
+                    condition_date = condition.value
+
+                if condition.operator == ConditionOperator.EQUALS:
+                    return field_value == condition_date
+                elif condition.operator == ConditionOperator.GREATER_THAN:
+                    return field_value > condition_date
+                elif condition.operator == ConditionOperator.LESS_THAN:
+                    return field_value < condition_date
+                elif condition.operator == ConditionOperator.BETWEEN:
+                    if not condition.value_max:
+                        return False
+                    if isinstance(condition.value_max, str):
+                        max_date = datetime.fromisoformat(condition.value_max).date()
+                    else:
+                        max_date = condition.value_max
+                    return condition_date <= field_value <= max_date
+            except (ValueError, TypeError):
+                return False
+
+        # Handle numeric date fields (month, year, day_of_week)
+        if condition.field in [ConditionField.MONTH, ConditionField.YEAR, ConditionField.DAY_OF_WEEK]:
+            if field_value is None:
+                return False
+
+            try:
+                condition_value = int(condition.value)
+            except (ValueError, TypeError):
+                return False
+
+            if condition.operator == ConditionOperator.EQUALS:
+                return field_value == condition_value
+            elif condition.operator == ConditionOperator.GREATER_THAN:
+                return field_value > condition_value
+            elif condition.operator == ConditionOperator.LESS_THAN:
+                return field_value < condition_value
+            elif condition.operator == ConditionOperator.BETWEEN:
+                if not condition.value_max:
+                    return False
+                try:
+                    max_value = int(condition.value_max)
+                    return condition_value <= field_value <= max_value
+                except (ValueError, TypeError):
+                    return False
+
+        # Handle account ID condition
+        if condition.field == ConditionField.ACCOUNT_ID:
+            condition_value = condition.value
+            if condition.operator == ConditionOperator.EQUALS:
+                return field_value == condition_value
+            # CONTAINS can match multiple account IDs (comma-separated)
+            elif condition.operator == ConditionOperator.CONTAINS:
+                account_ids = [acc_id.strip() for acc_id.strip() in condition_value.split(',')]
+                return field_value in account_ids
+
+        # Handle string comparisons
+        if isinstance(field_value, str):
+            condition_value = condition.value.lower()
+
+            if condition.operator == ConditionOperator.EQUALS:
+                return field_value == condition_value
+            elif condition.operator == ConditionOperator.CONTAINS:
+                return condition_value in field_value
+            elif condition.operator == ConditionOperator.STARTS_WITH:
+                return field_value.startswith(condition_value)
+            elif condition.operator == ConditionOperator.ENDS_WITH:
+                return field_value.endswith(condition_value)
+            elif condition.operator == ConditionOperator.REGEX:
+                try:
+                    return bool(re.search(condition_value, field_value, re.IGNORECASE))
+                except re.error:
+                    return False
 
         return False
 

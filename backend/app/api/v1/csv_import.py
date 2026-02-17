@@ -3,7 +3,7 @@
 from typing import Dict
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
@@ -16,6 +16,7 @@ from app.schemas.csv_import import (
 )
 from app.services.csv_import_service import csv_import_service
 from app.services.input_sanitization_service import input_sanitization_service
+from app.services.rate_limit_service import rate_limit_service
 
 router = APIRouter()
 
@@ -64,9 +65,20 @@ def validate_csv_file(file: UploadFile) -> None:
 @router.post("/validate")
 async def validate_csv(
     file: UploadFile = File(...),
+    http_request: Request,
     current_user: User = Depends(get_current_user),
 ):
-    """Validate CSV file format and security. Requires authentication."""
+    """
+    Validate CSV file format and security.
+    Rate limited to 20 requests per minute.
+    """
+    # Rate limit: 20 validation requests per minute per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=20,
+        window_seconds=60,
+    )
+
     # Validate file upload security
     validate_csv_file(file)
 
@@ -87,14 +99,23 @@ async def validate_csv(
 @router.post("/preview", response_model=CSVPreviewResponse)
 async def preview_csv_import(
     file: UploadFile = File(...),
+    http_request: Request,
     column_mapping: Dict[str, str] = None,
     current_user: User = Depends(get_current_user),
 ):
     """
-    Preview CSV file before import with security validation. Requires authentication.
+    Preview CSV file before import with security validation.
+    Rate limited to 15 requests per minute.
 
     Returns detected columns, sample rows, and row count.
     """
+    # Rate limit: 15 preview requests per minute per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=15,
+        window_seconds=60,
+    )
+
     # Validate file upload security
     validate_csv_file(file)
 
@@ -116,6 +137,7 @@ async def preview_csv_import(
 async def import_csv(
     account_id: UUID,
     file: UploadFile = File(...),
+    http_request: Request,
     column_mapping: Dict[str, str] = None,
     skip_duplicates: bool = True,
     current_user: User = Depends(get_current_user),
@@ -123,6 +145,7 @@ async def import_csv(
 ):
     """
     Import transactions from CSV file with security validation.
+    Rate limited to 10 imports per hour to prevent abuse.
 
     Args:
         account_id: Account to import transactions into
@@ -133,6 +156,13 @@ async def import_csv(
     Returns:
         Import statistics (imported, skipped, errors)
     """
+    # Rate limit: 10 import requests per hour per IP (stricter limit for resource-intensive operation)
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=3600,  # 1 hour
+    )
+
     # Validate file upload security
     validate_csv_file(file)
 
