@@ -391,8 +391,21 @@ export const AccountsPage = () => {
   };
 
   const toggleInstitutionVisibility = (accounts: Account[]) => {
-    const shouldHide = allVisible(accounts);
-    const accountIds = accounts.map((a) => a.id);
+    // Filter to only accounts the user can modify
+    const modifiableAccounts = accounts.filter(account => canModifyAccount(account));
+
+    if (modifiableAccounts.length === 0) {
+      toast({
+        title: 'No accounts to modify',
+        description: 'You can only modify your own accounts',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
+    const shouldHide = allVisible(modifiableAccounts);
+    const accountIds = modifiableAccounts.map((a) => a.id);
     visibilityMutation.mutate({ accountIds, isActive: !shouldHide });
   };
 

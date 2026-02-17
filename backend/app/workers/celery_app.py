@@ -28,6 +28,7 @@ celery_app.conf.update(
 from app.workers.tasks import budget_tasks  # noqa: F401
 from app.workers.tasks import recurring_tasks  # noqa: F401
 from app.workers.tasks import forecast_tasks  # noqa: F401
+from app.workers.tasks import holdings_tasks  # noqa: F401
 
 # Beat schedule (periodic tasks)
 celery_app.conf.beat_schedule = {
@@ -42,5 +43,9 @@ celery_app.conf.beat_schedule = {
     'check-cash-flow-forecast': {
         'task': 'check_cash_flow_forecast',
         'schedule': crontab(hour=6, minute=30),  # 6:30am daily
+    },
+    'capture-daily-holdings-snapshot': {
+        'task': 'capture_daily_holdings_snapshot',
+        'schedule': crontab(hour=23, minute=59),  # 11:59 PM daily to capture end-of-day values
     },
 }
