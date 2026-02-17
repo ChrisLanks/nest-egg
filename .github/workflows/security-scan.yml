@@ -1,0 +1,168 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    # Run weekly on Monday at 9am UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  # Scan Python dependencies for vulnerabilities
+  python-security:
+    name: Python Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: |
+          pip install safety pip-audit bandit
+
+      - name: Run Safety check
+        working-directory: ./backend
+        continue-on-error: true
+        run: |
+          safety check --json --output safety-report.json || true
+          safety check || echo "::warning::Safety found vulnerabilities"
+
+      - name: Run pip-audit
+        working-directory: ./backend
+        continue-on-error: true
+        run: |
+          pip-audit --desc --format json --output pip-audit-report.json || true
+          pip-audit || echo "::warning::pip-audit found vulnerabilities"
+
+      - name: Run Bandit (Python SAST)
+        working-directory: ./backend
+        run: |
+          bandit -r app -f json -o bandit-report.json || true
+          bandit -r app || echo "::warning::Bandit found security issues"
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: python-security-reports
+          path: |
+            backend/safety-report.json
+            backend/pip-audit-report.json
+            backend/bandit-report.json
+
+  # Scan npm dependencies for vulnerabilities
+  npm-security:
+    name: NPM Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run npm audit
+        working-directory: ./frontend
+        continue-on-error: true
+        run: |
+          npm audit --json > npm-audit-report.json || true
+          npm audit || echo "::warning::npm audit found vulnerabilities"
+
+      - name: Upload npm audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: npm-security-report
+          path: frontend/npm-audit-report.json
+
+  # Scan Docker images for vulnerabilities
+  docker-security:
+    name: Docker Image Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -t nestegg-backend:test ./backend
+
+      - name: Run Trivy scan on backend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: nestegg-backend:test
+          format: 'sarif'
+          output: 'trivy-backend-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-backend-results.sarif'
+          category: 'docker-backend'
+
+  # Scan for secrets in code
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run GitLeaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE}}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
+          GITLEAKS_ENABLE_SUMMARY: true
+
+  # CodeQL analysis for Python
+  codeql-python:
+    name: CodeQL Python Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          queries: security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
+
+  # CodeQL analysis for JavaScript/TypeScript
+  codeql-javascript:
+    name: CodeQL JavaScript Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+          queries: security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript"
