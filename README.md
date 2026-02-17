@@ -1,135 +1,322 @@
 # Nest Egg - Personal Finance Tracking Application
 
-A comprehensive multi-tenant personal finance SaaS application for tracking transactions, investments, income vs expenses, with custom reporting and multi-user support.
+A comprehensive multi-user personal finance application for tracking transactions, investments, budgets, and cash flow analysis with smart automation and proactive notifications.
 
-## Features
+## ✨ Features
 
-- 📊 **Transaction Tracking**: Automatically sync transactions from banks via Plaid
-- 🏷️ **Smart Labeling**: Custom labels with rule-based automation
-- 💰 **Investment Analysis Dashboard**: Comprehensive 6-tab portfolio analysis
-  - **Asset Allocation**: Interactive treemap visualization
-  - **Sector Breakdown**: Holdings by financial sector (Tech, Healthcare, etc.)
-  - **Future Growth**: Monte Carlo simulation with best/worst case scenarios
-  - **Performance Trends**: Historical tracking with CAGR and YoY growth
-  - **Risk Analysis**: Volatility, diversification scores, and concentration warnings
-  - **Holdings Detail**: Sortable table with CSV export
-- 📈 **Income vs Expenses**: Detailed analysis with customizable time periods
-- 📅 **Custom Month Boundaries**: Define your own month-end dates
-- 👥 **Multi-User Support**: Track finances individually or combined
-- 📑 **Custom Reports**: Flexible aggregation logic for personalized insights
-- 🔮 **Future Projections**: Calculate retirement and investment goals
-- 🏠 **Manual Assets**: Track homes, treasuries, mortgages, and more
-- 🤖 **Smart Snapshot Scheduler**: Automatic daily portfolio snapshots with load distribution
+### 📊 **Transaction & Account Management**
+- **Multi-Source Data Import**:
+  - 🏦 **Plaid Integration**: Automatic bank sync with 11,000+ institutions
+  - 🔗 **MX Integration**: Alternative banking aggregation
+  - 📄 **CSV Import**: Manual upload for unsupported banks or historical data
+- **Smart Deduplication**: Multi-layer duplicate detection ensures no double-counting
+  - Provider transaction IDs (Plaid/MX)
+  - Content-based hashing (date + amount + merchant + account)
+  - Database unique constraints
+  - **Guaranteed**: Same transaction from multiple sources only counted once
+- **Column Visibility**: Customize transaction table columns (Date, Merchant, Account, Category, Labels, Amount, Status)
+- **Bulk Operations**: Edit multiple transactions at once (category, labels, mark as reviewed)
+- **Advanced Filtering**: Search by merchant, category, account, labels, amount range
+- **Shift-Click Selection**: Select multiple transactions in a range
 
-## Technology Stack
+### 🏷️ **Smart Categorization & Labels**
+- **Custom Categories**: Create your own category hierarchy with custom colors
+- **Plaid Category Mapping**: Automatic mapping from Plaid's 350+ categories to your custom categories
+- **Labels System**: Tag transactions with custom labels for flexible organization
+- **Rule Engine**: Automated categorization based on:
+  - Merchant name (exact, contains, starts with, ends with)
+  - Amount (exact, greater than, less than, between)
+  - Category matching
+  - Multi-condition logic (AND/OR)
+- **Smart Autocomplete**: Merchant and category selectors with search
+- **Tax-Deductible Tracking**:
+  - Pre-configured IRS categories (Medical & Dental, Charitable Donations, Business Expenses, Education, Home Office)
+  - Export to CSV for tax software
+  - Year-end reporting with date range selection
+
+### 💰 **Investment Analysis Dashboard**
+Comprehensive 6-tab portfolio analysis:
+- **Asset Allocation**: Interactive treemap visualization with drill-down
+- **Sector Breakdown**: Holdings by financial sector (Tech, Healthcare, Financials, etc.)
+- **Future Growth**: Monte Carlo simulation with best/worst/median projections
+  - Adjustable return rate, volatility, inflation, and time horizon
+  - Inflation-adjusted and nominal value views
+- **Performance Trends**: Historical tracking with CAGR and YoY growth
+  - Time range selector (1M, 3M, 6M, 1Y, ALL)
+  - Cost basis comparison
+  - Mock data generator for testing (uses 7% annualized growth with volatility)
+- **Risk Analysis**: Volatility, diversification scores, and concentration warnings
+  - Overall risk score (0-100) with color-coded badges
+  - Asset class allocation breakdown
+- **Holdings Detail**: Sortable table with CSV export
+
+### 📈 **Cash Flow Analytics (Income vs Expenses)**
+- **Advanced Drill-Down**: Click any stat or chart element to filter
+- **Time Period Selection**: Month, Quarter, Year, YTD, Custom range
+- **Group By Options**: Category, Label, or Month
+- **Interactive Visualizations**:
+  - Summary statistics (Total Income, Total Expenses, Net Savings, Savings Rate)
+  - Category breakdown pie chart with clickable legends
+  - Trend line chart showing income vs expenses over time
+  - Detailed transaction drilldowns
+- **Label-Based Analysis**: Filter by custom labels for specialized tracking
+
+### 💸 **Budget Management**
+- **Flexible Periods**: Monthly, Quarterly, or Yearly budgets
+- **Category-Based**: Set limits by spending category
+- **Alert Thresholds**: Customizable warning levels (e.g., 80% of budget)
+- **Proactive Notifications**:
+  - Automatic daily checks for budget violations
+  - High-priority alerts when over budget
+  - Medium-priority warnings when approaching limit
+- **Budget Tracking**: Real-time spending vs budget with progress bars
+- **User-Specific**: Create budgets for household members or combined
+
+### 🔔 **Smart Notification System**
+- **Real-Time Alerts**: Auto-refresh every 30 seconds
+- **Notification Types**:
+  - 💰 Budget alerts (exceeding thresholds)
+  - 💸 Large transaction warnings
+  - 🔄 Account sync status
+  - ⚠️ Low balance warnings
+  - 📊 Cash flow forecast alerts (projected negative balances)
+- **Notification Bell**: Unread count badge in top navigation
+- **Mark as Read**: Individual or bulk "mark all read" functionality
+- **Action Links**: Click notification to jump to relevant page
+- **Test Endpoint**: `/api/v1/notifications/test` for testing (requires authentication)
+
+### 📅 **Background Automation (Celery)**
+Scheduled tasks for hands-free operation:
+- **Daily Budget Alerts** (Midnight): Check all budgets and create notifications
+- **Weekly Recurring Detection** (Monday 2am): Auto-detect recurring transactions/subscriptions
+- **Daily Cash Flow Forecast** (6:30am): Check for projected negative balances
+- **Daily Portfolio Snapshots** (11:59pm): Capture end-of-day holdings values
+  - Smart offset-based scheduling distributes load across 24 hours
+  - Each organization runs at a consistent time based on UUID hash
+
+### 👥 **Multi-User Household Support**
+- **Up to 5 Members**: Each with individual login credentials
+- **View Modes**:
+  - Combined Household: All accounts deduplicated
+  - Individual: User's own accounts only
+  - Other Members: View household members (read-only or edit permissions)
+- **Account Sharing**: Grant view/edit permissions to specific users
+- **Account Ownership**: Each user owns their connected accounts
+- **Duplicate Detection**: Same bank account added by multiple users only counted once
+  - Uses SHA256 hash of `institution_id + account_id`
+  - Automatic on Plaid/MX sync
+- **Deep Linking**: URL state preservation (`?user=<uuid>`)
+- **RMD Calculations**: Age-specific Required Minimum Distribution per member
+
+### 🏠 **Manual Assets & Accounts**
+- **Manual Account Types**: Savings, Checking, Investment, Retirement, Loan, Mortgage, Credit Card, Other
+- **Property Tracking**: Track real estate, vehicles, and other assets
+- **Manual Balance Updates**: Update account balances directly
+- **Investment Holdings**: Manually add stocks, ETFs, bonds, etc.
+
+### 🔮 **Predictive Features**
+- **Cash Flow Forecasting**: 30/60/90-day projections using recurring transaction patterns
+- **Monte Carlo Simulations**: Investment growth modeling with uncertainty
+- **Retirement Planning**: RMD calculations based on IRS tables
+- **Negative Balance Alerts**: Proactive warnings when forecast shows insufficient funds
+
+## 🛡️ Data Integrity & Deduplication
+
+### **Guaranteed No Duplicates**
+
+The application uses a **multi-layer deduplication strategy** to ensure transactions are never double-counted:
+
+#### Layer 1: Provider Transaction IDs
+- Plaid: Uses `transaction_id` from Plaid API
+- MX: Uses `guid` from MX API
+- Database unique constraint on `(account_id, plaid_transaction_id)`
+
+#### Layer 2: Content-Based Hashing
+- SHA256 hash of: `date + amount + merchant_name + account_id`
+- Stored in `transaction_hash` column
+- Database unique constraint prevents exact duplicates
+- Works for CSV imports and manual entries
+
+#### Layer 3: Household Account Deduplication
+- SHA256 hash of: `institution_id + plaid_account_id`
+- Stored in `plaid_item_hash` column
+- When multiple users link the same bank account:
+  - First user becomes the "owner"
+  - Subsequent users' accounts are marked as duplicates
+  - Only one copy appears in "Combined" view
+  - Transactions not double-counted
+
+#### Layer 4: Database Constraints
+```sql
+-- Unique constraints ensure database-level protection
+UNIQUE (account_id, plaid_transaction_id)
+UNIQUE (transaction_hash) WHERE transaction_hash IS NOT NULL
+UNIQUE (plaid_item_hash) WHERE plaid_item_hash IS NOT NULL
+```
+
+### **Import Methods**
+
+#### Plaid Sync
+```bash
+# Automatic daily sync
+# Celery task: sync_account_task (scheduled)
+
+# Manual sync via UI
+Dashboard → Sync button on account card
+
+# API endpoint
+POST /api/v1/plaid/sync-account/{account_id}
+```
+
+#### MX Integration
+```bash
+# Similar to Plaid but uses MX API
+# Configure MX credentials in .env:
+MX_CLIENT_ID=your_mx_client_id
+MX_API_KEY=your_mx_api_key
+```
+
+#### CSV Import
+```bash
+# Upload via UI
+Transactions → Import CSV
+
+# Format:
+Date, Merchant, Amount, Category, Description
+2024-01-15, Starbucks, -5.50, Dining, Coffee
+
+# Deduplication: Automatic via transaction_hash
+# Existing transactions skipped, new ones added
+```
+
+## 🚀 Technology Stack
 
 ### Backend
-- **FastAPI** - Modern Python web framework
+- **FastAPI** - Modern Python async web framework
 - **PostgreSQL** - Primary database with JSONB support
-- **Redis** - Caching and task queue
-- **Celery** - Background task processing
-- **SQLAlchemy 2.0** - Async ORM
-- **Plaid** - Financial data aggregation
+- **Redis** - Caching and Celery task queue
+- **Celery** - Background task processing with Beat scheduler
+- **SQLAlchemy 2.0** - Async ORM with relationship loading
+- **Alembic** - Database migrations
+- **Plaid SDK** - Financial institution integration
+- **MX Platform SDK** - Alternative banking aggregation
+- **Pydantic v2** - Request/response validation
+- **Passlib** - Password hashing with bcrypt
+- **python-jose** - JWT token management
 
 ### Frontend
-- **React 18** - UI library
-- **TypeScript** - Type safety
-- **Vite** - Build tool
-- **Chakra UI** - Component library
-- **React Query** - Server state management
+- **React 18** - UI library with hooks
+- **TypeScript** - Type safety and IDE support
+- **Vite** - Lightning-fast build tool
+- **Chakra UI** - Accessible component library
+- **React Query (TanStack)** - Server state management with caching
 - **Zustand** - Client state management
-- **Recharts** - Data visualization
+- **Recharts** - Data visualization and charts
+- **React Router v6** - Client-side routing
+- **Axios** - HTTP client with interceptors
+- **date-fns** - Date manipulation
 
-## Quick Start
+## 📦 Quick Start
 
 ### Prerequisites
 
-- Docker and Docker Compose
+- Docker and Docker Compose (recommended)
 - Node.js 18+ (for frontend development)
-- Python 3.11+ (if running backend without Docker)
-- Plaid API credentials (sign up at https://dashboard.plaid.com/signup)
+- Python 3.11+ (for backend development without Docker)
+- Plaid API credentials ([sign up](https://dashboard.plaid.com/signup))
+- Optional: MX API credentials
 
-### Setup
+### Setup with Docker (Recommended)
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/yourusername/nest-egg.git
    cd nest-egg
    ```
 
 2. **Configure environment variables**
    ```bash
    cp .env.example .env
-   # Edit .env and add your Plaid API credentials
+   # Edit .env and add your API credentials
    ```
 
-3. **Start services with Docker Compose**
+   Required variables:
+   ```env
+   # Database
+   DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/nestegg
+
+   # Auth
+   SECRET_KEY=your-secret-key-here  # Generate with: openssl rand -hex 32
+   MASTER_ENCRYPTION_KEY=your-encryption-key  # Generate with: openssl rand -hex 32
+
+   # Plaid
+   PLAID_CLIENT_ID=your_plaid_client_id
+   PLAID_SECRET=your_plaid_secret
+   PLAID_ENV=sandbox  # or development, production
+
+   # Celery
+   CELERY_BROKER_URL=redis://redis:6379/0
+   CELERY_RESULT_BACKEND=redis://redis:6379/0
+   ```
+
+3. **Start all services**
    ```bash
    docker-compose up -d
    ```
 
    This starts:
-   - PostgreSQL (port 5432)
-   - Redis (port 6379)
-   - FastAPI API (port 8000)
-   - Celery Worker (background tasks)
-   - Celery Beat (task scheduler)
-   - Flower (Celery monitoring at port 5555)
+   - **PostgreSQL** (port 5432)
+   - **Redis** (port 6379)
+   - **FastAPI API** (port 8000)
+   - **Celery Worker** (background tasks)
+   - **Celery Beat** (task scheduler)
+   - **Flower** (Celery monitoring at port 5555)
 
 4. **Run database migrations**
    ```bash
    docker-compose exec api alembic upgrade head
    ```
 
-5. **Set up frontend** (in a separate terminal)
+5. **Set up frontend**
    ```bash
    cd frontend
    npm install
    cp .env.example .env
+   # Edit frontend/.env if needed (usually defaults are fine)
    npm run dev
    ```
 
-   Frontend will be available at http://localhost:5173
+   Frontend available at: http://localhost:5173
 
-### API Documentation
+### Development Setup (Without Docker)
 
-Once the backend is running, visit:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-### Celery Monitoring
-
-View background task status at:
-- Flower UI: http://localhost:5555
-
-## Development
-
-### Backend Development
+#### Backend
 
 ```bash
 cd backend
 
 # Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
 
+# Setup PostgreSQL and Redis locally
+# Create database: createdb nestegg
+
 # Run migrations
 alembic upgrade head
 
-# Start development server
-uvicorn app.main:app --reload
+# Start API server
+uvicorn app.main:app --reload --port 8000
 
-# Run tests
-pytest
-
-# Run tests with coverage
-pytest --cov=app tests/
+# In separate terminals, start Celery
+celery -A app.workers.celery_app worker --loglevel=info
+celery -A app.workers.celery_app beat --loglevel=info
 ```
 
-### Frontend Development
+#### Frontend
 
 ```bash
 cd frontend
@@ -137,493 +324,877 @@ cd frontend
 # Install dependencies
 npm install
 
-# Start dev server
+# Start development server
 npm run dev
-
-# Run tests
-npm test
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
 ```
 
-### Creating Database Migrations
-
-```bash
-cd backend
-
-# Auto-generate migration from model changes
-alembic revision --autogenerate -m "description of changes"
-
-# Apply migrations
-alembic upgrade head
-
-# Rollback one migration
-alembic downgrade -1
-```
-
-## Project Structure
-
-```
-nest-egg/
-├── backend/                 # FastAPI backend
-│   ├── app/
-│   │   ├── api/            # API endpoints
-│   │   ├── core/           # Core utilities (auth, db, config)
-│   │   ├── models/         # SQLAlchemy models
-│   │   ├── schemas/        # Pydantic schemas
-│   │   ├── services/       # Business logic
-│   │   ├── crud/           # CRUD operations
-│   │   ├── workers/        # Celery tasks
-│   │   ├── middleware/     # Custom middleware
-│   │   └── utils/          # Utility functions
-│   ├── alembic/            # Database migrations
-│   ├── tests/              # Backend tests
-│   └── requirements.txt    # Python dependencies
-│
-├── frontend/               # React frontend
-│   ├── src/
-│   │   ├── features/      # Feature modules
-│   │   ├── components/    # Shared components
-│   │   ├── stores/        # Zustand stores
-│   │   ├── services/      # API client
-│   │   ├── hooks/         # Custom hooks
-│   │   ├── utils/         # Utilities
-│   │   └── types/         # TypeScript types
-│   └── package.json       # npm dependencies
-│
-├── docker-compose.yml      # Docker services
-└── README.md              # This file
-```
-
-## Key Concepts
-
-### Multi-Tenancy
-
-The application supports multiple organizations with complete data isolation:
-- Each organization has multiple users
-- All queries automatically filter by `organization_id`
-- Row-level security ensures data isolation
-
-### User Views
-
-Users can view finances in three modes:
-- **Person 1**: Individual view for first user
-- **Person 2**: Individual view for second user
-- **Combined**: Aggregated view of both users
-
-All features respect the selected view mode.
-
-### Transaction Deduplication
-
-Transactions are deduplicated using a multi-layer approach:
-1. Provider transaction ID (Plaid)
-2. Content-based hashing (date + amount + merchant)
-3. Database constraints prevent duplicates
-
-### Background Sync
-
-Celery tasks automatically sync data:
-- **Daily**: Full sync of all accounts (2 AM)
-- **Hourly**: Active accounts (accessed in last 7 days)
-- **Webhook**: Real-time updates from Plaid
-- **Manual**: On-demand sync button
-
-### Multi-User Households
-
-The application supports **multi-user households** where up to 5 people can share financial data while maintaining individual account ownership.
-
-#### How It Works
-
-1. **Individual Logins**: Each person has their own login credentials
-2. **Household Invitation**: Primary user invites others via email
-3. **Account Ownership**: Each user owns specific accounts
-4. **View Modes**: Switch between individual and combined views
-5. **Duplicate Detection**: Same bank account added by multiple users only counted once
-
-#### Key Features
-
-- **User View Selector**: Dropdown on all major pages (Dashboard, Investments, Cash Flow)
-  - "Combined Household" - Shows all accounts (deduplicated)
-  - Individual users - Shows only that user's accounts (owned + shared)
-- **Household Limit**: Maximum 5 members per household
-- **Account Sharing**: Users can share specific accounts with view/edit permissions
-- **Deep Linking**: URL state persists user selection (`?user=<uuid>`)
-- **RMD Calculations**: Age-specific Required Minimum Distribution per member
-- **Deduplication**: SHA256 hash-based duplicate account detection
-
-#### Setting Up a Household
-
-**1. Send Invitation (Admin User)**
-```bash
-# Login as primary user
-http://localhost:5173/login
-
-# Navigate to Household Settings
-Click avatar → "Household Settings"
-
-# Send invitation
-Click "Invite Member"
-Enter: newmember@example.com
-```
-
-**2. Accept Invitation (New Member)**
-```bash
-# Register with invited email
-http://localhost:5173/register
-Email: newmember@example.com (must match invitation)
-Password: [secure password]
-
-# Accept invitation link
-http://localhost:5173/accept-invite?code=<invitation-code>
-Click "Accept Invitation"
-```
-
-**3. Use User View Selector**
-```bash
-# On any major page (Dashboard, Investments, Cash Flow)
-- Select "Combined Household" to see all accounts
-- Select individual user to see their accounts only
-- URL updates with ?user=<uuid> for bookmarking
-```
-
-#### Database Schema
-
-**New Tables:**
-- `household_invitations` - Tracks invitation lifecycle
-  - Status: pending, accepted, declined, expired
-  - 7-day expiration by default
-  - Unique invitation codes
-
-- `account_shares` - Account sharing permissions
-  - Share with specific users
-  - View or edit permissions
-  - Foreign keys with cascade delete
-
-**New Columns:**
-- `accounts.plaid_item_hash` - SHA256 hash for duplicate detection
-- `users.is_primary_household_member` - Marks household owner
-
-#### API Endpoints
-
-**Household Management:**
-```bash
-POST   /api/v1/household/invite              # Send invitation (admin only)
-GET    /api/v1/household/invitations         # List pending invitations
-GET    /api/v1/household/invitation/{code}   # Get invitation details (public)
-POST   /api/v1/household/accept/{code}       # Accept invitation (public)
-DELETE /api/v1/household/invitations/{id}    # Cancel invitation (admin only)
-GET    /api/v1/household/members             # List household members
-DELETE /api/v1/household/members/{id}        # Remove member (admin only)
-```
-
-**User Filtering:**
-All major endpoints accept optional `?user_id=<uuid>` parameter:
-- `/api/v1/dashboard/summary?user_id=<uuid>`
-- `/api/v1/holdings/portfolio?user_id=<uuid>`
-- `/api/v1/holdings/rmd-summary?user_id=<uuid>`
-- `/api/v1/income-expenses/summary?user_id=<uuid>`
-- `/api/v1/accounts?user_id=<uuid>`
-
-#### Testing Multi-User Features
-
-**Scenario: Two users with shared account**
-
-```bash
-# 1. Create test accounts
-User A: test@test.com (primary)
-User B: test2@test.com
-
-# 2. User A links Chase Checking
-Login as test@test.com
-Link Chase account via Plaid
-
-# 3. User B links same Chase Checking
-Login as test2@test.com
-Link same Chase account (Plaid detects via plaid_item_hash)
-
-# 4. Test view modes
-- User A individual view: Shows Chase once
-- User B individual view: Shows Chase once
-- Combined view: Shows Chase once (deduplicated)
-- Balance/transactions not double-counted
-```
-
-#### Backfill Script
-
-For existing installations, populate hashes and primary members:
-
-```bash
-cd backend
-./venv/bin/python app/scripts/backfill_account_hashes.py
-```
-
-This script:
-- Calculates `plaid_item_hash` for existing accounts
-- Sets `is_primary_household_member` for oldest user in each org
-- Required after database migration
-
-#### Security & Permissions
-
-**Access Control:**
-- Users can view **own accounts** + **explicitly shared accounts**
-- Users **cannot** view other members' non-shared accounts
-- Combined view shows all household accounts (respects organization_id)
-
-**Admin Functions:**
-Only `is_org_admin` users can:
-- Send invitations
-- Remove members (except self and primary member)
-- Cancel pending invitations
-
-**Row-Level Security:**
-- All queries filter by `organization_id`
-- Additional `account_ids` filter for user views
-- Duplicate detection only within same household
-
-### Investment Analysis
-
-The application provides comprehensive portfolio analysis through six specialized tabs:
-
-#### 1. Asset Allocation
-- Interactive treemap visualization showing portfolio breakdown
-- Drill-down capability to explore account and holding details
-- Visual representation of asset distribution
-
-#### 2. Sector Breakdown
-- Horizontal bar chart showing holdings by financial sector
-- Integrates with Alpha Vantage API for sector classification
-- Displays Technology, Healthcare, Financials, Consumer sectors, etc.
-- Shows holding count and percentage for each sector
-
-#### 3. Future Growth Projections
-- Monte Carlo simulation with 1000+ runs for realistic forecasting
-- Adjustable parameters:
-  - Annual Return (expected growth rate)
-  - Volatility (risk/uncertainty)
-  - Inflation Rate (purchasing power adjustment)
-  - Time Horizon (1-30 years)
-- Displays 6 projection lines:
-  - Best Case (90th percentile)
-  - Median (expected value)
-  - Worst Case (10th percentile)
-  - All available in both nominal and inflation-adjusted views
-
-#### 4. Performance Trends
-- Historical portfolio value tracking over time
-- Time range selector: 1M, 3M, 6M, 1Y, ALL
-- Performance metrics:
-  - **Total Return**: Absolute and percentage gain/loss
-  - **CAGR**: Compound Annual Growth Rate
-  - **YoY Growth**: Year-over-year comparison
-- Line chart with cost basis comparison
-- Automatically uses mock data until real snapshots accumulate
-
-#### 5. Risk Analysis
-- **Overall Risk Score** (0-100): Composite metric with color-coded badge
-  - Green (<40): Low Risk
-  - Yellow (40-70): Moderate Risk
-  - Red (>70): High Risk
-- **Volatility**: Annualized standard deviation from 6-month data
-- **Diversification Score**: Based on Herfindahl-Hirschman Index
-- **Asset Class Allocation**: Bar chart of stocks, ETFs, bonds, cash, etc.
-- **Top Concentrations**: Warnings for holdings >20% of portfolio
-
-#### 6. Holdings Detail
-- Sortable table with all holdings
-- Columns: Ticker, Name, Shares, Price, Value, Cost Basis, Gain/Loss
-- Filter by asset type
-- Search by ticker or name
-- CSV export functionality
-
-### Portfolio Snapshot Scheduler
-
-The application includes an intelligent background scheduler for daily portfolio snapshots:
-
-#### How It Works
-- **Offset-Based Distribution**: Each organization gets a unique time slot (0-24 hours)
-  - Deterministic: Same org always runs at same time
-  - Calculated from organization UUID hash
-  - Spreads load evenly across 24 hours
-- **Hourly Checks**: Scheduler wakes up every hour to check which orgs need snapshots
-- **Smart Execution**: Only captures if:
-  1. No snapshot exists for today
-  2. Organization's scheduled time has passed
-- **Startup Recovery**: On app restart, checks for missed snapshots and captures them
-- **No Cron Required**: Runs as integrated FastAPI background task
-
-#### Benefits
-- Prevents all organizations from updating simultaneously
-- Distributes database load across the day
-- Resilient to server restarts
-- Automatic with no external configuration
-- Provides historical data for Performance Trends and Risk Analysis tabs
-
-#### Example Timeline
-```
-Org A (UUID ending ...1234) → 3:45am UTC daily
-Org B (UUID ending ...5678) → 3:12pm UTC daily
-Org C (UUID ending ...9abc) → 9:30pm UTC daily
-```
-
-#### Manual Override
-To manually trigger a snapshot (ignores schedule):
-```bash
-curl -X POST http://localhost:8000/api/v1/holdings/capture-snapshot \
-  -H "Authorization: Bearer <your-token>"
-```
-
-## Plaid Integration Setup
-
-1. Sign up for Plaid at https://dashboard.plaid.com/signup
-2. Create a new application in the Plaid Dashboard
-3. Get your `client_id` and `secret` (start with Sandbox)
-4. Add credentials to `.env` file
-5. For webhook testing in development, use ngrok:
+### Accessing the Application
+
+- **Frontend**: http://localhost:5173
+- **API Docs (Swagger)**: http://localhost:8000/docs
+- **API Docs (ReDoc)**: http://localhost:8000/redoc
+- **Celery Flower**: http://localhost:5555
+
+### First Time Setup
+
+1. **Register an account**: http://localhost:5173/register
+2. **Verify email** (if email configured, otherwise auto-verified in dev)
+3. **Link bank account**: Dashboard → Connect Account → Plaid Link
+4. **Wait for sync**: Transactions should appear within 1-2 minutes
+5. **Set up categories**: Categories page → Create custom categories
+6. **Create budgets**: Budgets page → New Budget
+7. **Test notifications**:
    ```bash
-   ngrok http 8000
-   # Add the ngrok URL to Plaid webhook configuration
+   # From browser console while logged in:
+   fetch('/api/v1/notifications/test', {
+     method: 'POST',
+     headers: {
+       'Authorization': `Bearer ${localStorage.getItem('token')}`,
+       'Content-Type': 'application/json'
+     }
+   }).then(r => r.json()).then(console.log)
    ```
 
-## Testing
+## 🔧 Configuration
+
+### Environment Variables
+
+#### Backend (.env)
+
+```env
+# Application
+ENVIRONMENT=development
+DEBUG=true
+SECRET_KEY=<generate-with-openssl-rand-hex-32>
+MASTER_ENCRYPTION_KEY=<generate-with-openssl-rand-hex-32>
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+
+# Database
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/nestegg
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+
+# Celery
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+
+# Plaid
+PLAID_CLIENT_ID=your_client_id
+PLAID_SECRET=your_secret
+PLAID_ENV=sandbox  # sandbox, development, or production
+PLAID_WEBHOOK_URL=https://your-domain.com/api/v1/plaid/webhook
+
+# MX (Optional)
+MX_CLIENT_ID=your_mx_client_id
+MX_API_KEY=your_mx_api_key
+
+# Email (Optional)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+SMTP_FROM=noreply@nestegg.app
+
+# Alpha Vantage (for sector data)
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
+```
+
+#### Frontend (.env)
+
+```env
+VITE_API_URL=http://localhost:8000
+VITE_APP_NAME=Nest Egg
+```
+
+## 📚 Key Concepts
+
+### Multi-Tenancy & Organizations
+
+- **Organization Isolation**: All data scoped by `organization_id`
+- **Row-Level Security**: Every query automatically filters by organization
+- **No Cross-Org Access**: Users can only see their organization's data
+- **Household Model**: One organization = one household
+
+### User View Modes
+
+Users can view finances in three modes:
+
+1. **Combined Household** - All accounts (deduplicated)
+   - Shows total across all family members
+   - Duplicate accounts counted once
+   - Default view on login
+
+2. **Individual (Person 1, Person 2, etc.)** - User-specific view
+   - Only shows that user's owned accounts
+   - Plus any accounts explicitly shared with them
+   - URL parameter: `?user=<user_uuid>`
+
+3. **Other Member (Read-Only/Edit)** - View another household member
+   - Requires account sharing permissions
+   - Can be view-only or edit access
+
+All pages respect the selected view mode:
+- Dashboard
+- Transactions
+- Income vs Expenses (Cash Flow)
+- Investments
+- Budgets
+
+### Budget Alert System
+
+**How It Works:**
+
+1. **Budget Creation**: User creates budget (e.g., "Groceries $500/month, alert at 80%")
+2. **Daily Check**: Celery task `check_budget_alerts` runs at midnight
+3. **Threshold Calculation**: Compares actual spending to budget limit
+4. **Notification Creation**: If over threshold, creates notification with priority:
+   - **HIGH**: Spending ≥ 100% of budget (over limit)
+   - **MEDIUM**: Spending ≥ alert threshold (e.g., ≥ 80%)
+5. **User Notification**: Bell icon shows unread count, user clicks to view details
+
+**Testing Budget Alerts:**
+
+```bash
+# Manually trigger the check
+cd backend
+celery -A app.workers.celery_app call check_budget_alerts
+
+# Check logs
+docker-compose logs celery_worker | grep -i budget
+```
+
+### Transaction Deduplication Flow
+
+```
+CSV Import / Plaid Sync / Manual Entry
+    ↓
+Check provider transaction ID (Plaid/MX)
+    ↓ (if exists, skip)
+Calculate content hash (date+amount+merchant+account)
+    ↓ (if exists, skip)
+Insert into database
+    ↓ (DB constraint prevents duplicates)
+Success - New transaction added
+```
+
+**Example:**
+
+```python
+# User imports CSV with transaction
+Date: 2024-01-15, Merchant: Starbucks, Amount: -5.50
+
+# Hash calculated:
+hash = SHA256("2024-01-15|-5.50|Starbucks|account-uuid")
+# = "a3f5b2c8..."
+
+# Later, Plaid syncs same transaction
+# Same hash calculated → Duplicate detected → Skip
+```
+
+## 🧪 Testing
 
 ### Backend Tests
 
 ```bash
 cd backend
-pytest                          # Run all tests
-pytest tests/test_auth.py      # Run specific test file
-pytest -v                       # Verbose output
-pytest --cov=app               # With coverage
+
+# Run all tests
+pytest
+
+# Run specific test file
+pytest tests/test_deduplication.py
+
+# Run with coverage
+pytest --cov=app --cov-report=html
+
+# View coverage report
+open htmlcov/index.html
 ```
 
 ### Frontend Tests
 
 ```bash
 cd frontend
-npm test                        # Run all tests
-npm test -- --coverage         # With coverage
-npm run test:ui                # Interactive UI
+
+# Run all tests
+npm test
+
+# Run with coverage
+npm test -- --coverage
+
+# Run specific test
+npm test TransactionTable
+
+# Interactive mode
+npm run test:ui
 ```
 
-## Deployment
+### Manual Testing Scenarios
+
+#### Test Multi-User Deduplication
+
+1. User A logs in, links Chase Checking via Plaid
+2. User B logs in (same household), links same Chase Checking
+3. Switch to "Combined" view
+4. ✅ Verify: Account appears only once
+5. ✅ Verify: Balance not doubled
+6. ✅ Verify: Transactions not duplicated
+
+#### Test CSV Import Deduplication
+
+1. Download transactions as CSV from Transactions page
+2. Re-import the same CSV file
+3. ✅ Verify: No duplicate transactions created
+4. Check transaction count before and after import
+
+#### Test Budget Alerts
+
+1. Create budget: "Dining $100/month, alert at 80%"
+2. Add transactions totaling $85 in Dining
+3. Trigger alert check:
+   ```bash
+   celery -A app.workers.celery_app call check_budget_alerts
+   ```
+4. ✅ Verify: Notification appears in bell icon
+5. ✅ Verify: Notification message shows "$85 of $100 (85%)"
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+#### 1. **Notification Bell Not Updating**
+
+**Symptoms**: No unread count, notifications not appearing
+
+**Solutions**:
+```bash
+# Check backend logs
+docker-compose logs api | grep notification
+
+# Test notification endpoint
+curl -X POST http://localhost:8000/api/v1/notifications/test \
+  -H "Authorization: Bearer <your-token>"
+
+# Check Redis connection
+docker-compose exec redis redis-cli ping
+# Should return: PONG
+```
+
+#### 2. **Celery Tasks Not Running**
+
+**Symptoms**: Budget alerts not firing, snapshots not captured
+
+**Solutions**:
+```bash
+# Check Celery worker status
+docker-compose logs celery_worker
+
+# Check Celery beat (scheduler)
+docker-compose logs celery_beat
+
+# View task queue in Flower
+open http://localhost:5555
+
+# Manually trigger task
+celery -A app.workers.celery_app call check_budget_alerts
+```
+
+#### 3. **Duplicate Transactions After CSV Import**
+
+**Symptoms**: Same transactions appear twice
+
+**Diagnosis**:
+```bash
+# Check transaction hashes
+SELECT id, merchant_name, amount, transaction_hash
+FROM transactions
+WHERE merchant_name = 'Starbucks'
+ORDER BY date DESC
+LIMIT 10;
+
+# Check for NULL hashes (should not exist)
+SELECT COUNT(*) FROM transactions WHERE transaction_hash IS NULL;
+```
+
+**Solution**:
+```bash
+# Backfill missing hashes (if needed)
+cd backend
+python app/scripts/backfill_transaction_hashes.py
+```
+
+#### 4. **Plaid Sync Failing**
+
+**Symptoms**: "Sync failed" error, old transactions
+
+**Solutions**:
+```bash
+# Check Plaid logs
+docker-compose logs api | grep -i plaid
+
+# Verify Plaid credentials
+echo $PLAID_CLIENT_ID
+echo $PLAID_SECRET
+
+# Test Plaid connection
+curl -X POST http://localhost:8000/api/v1/plaid/test-connection
+
+# Re-link account
+Dashboard → Account → "Re-link Account" button
+```
+
+#### 5. **Database Migration Issues**
+
+**Symptoms**: "relation does not exist" errors
+
+**Solutions**:
+```bash
+# Check current migration
+cd backend
+alembic current
+
+# Check pending migrations
+alembic history
+
+# Run migrations
+alembic upgrade head
+
+# Rollback if needed
+alembic downgrade -1
+
+# Reset database (⚠️ destroys all data)
+docker-compose down -v
+docker-compose up -d
+docker-compose exec api alembic upgrade head
+```
+
+#### 6. **Frontend Not Loading**
+
+**Symptoms**: Blank page, API connection errors
+
+**Solutions**:
+```bash
+# Check API is running
+curl http://localhost:8000/health
+
+# Check frontend environment
+cd frontend
+cat .env
+# VITE_API_URL should be http://localhost:8000
+
+# Clear browser cache
+# Hard refresh: Cmd+Shift+R (Mac) or Ctrl+Shift+R (Windows)
+
+# Reinstall dependencies
+rm -rf node_modules
+npm install
+npm run dev
+```
+
+### Debugging Tips
+
+#### Enable Debug Logging
+
+```python
+# backend/app/config.py
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+#### Check Celery Task Status
+
+```bash
+# List registered tasks
+celery -A app.workers.celery_app inspect registered
+
+# Check active tasks
+celery -A app.workers.celery_app inspect active
+
+# Check scheduled tasks (beat schedule)
+celery -A app.workers.celery_app inspect scheduled
+```
+
+#### Database Query Debugging
+
+```python
+# Enable SQLAlchemy echo (shows all SQL queries)
+# In backend/app/core/database.py
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=True  # Add this line
+)
+```
+
+## 🚀 Deployment
 
 ### Production Checklist
 
-- [ ] Generate secure `SECRET_KEY` and `MASTER_ENCRYPTION_KEY`
-- [ ] Use managed PostgreSQL (AWS RDS, GCP Cloud SQL)
+#### Security
+- [ ] Generate secure `SECRET_KEY`: `openssl rand -hex 32`
+- [ ] Generate secure `MASTER_ENCRYPTION_KEY`: `openssl rand -hex 32`
+- [ ] Set `ENVIRONMENT=production`
+- [ ] Set `DEBUG=false`
+- [ ] Configure HTTPS/SSL certificates
+- [ ] Set restrictive CORS origins
+- [ ] Enable rate limiting
+- [ ] Set up Sentry error tracking
+
+#### Database
+- [ ] Use managed PostgreSQL (AWS RDS, GCP Cloud SQL, DigitalOcean)
+- [ ] Configure automated backups (daily snapshots)
+- [ ] Set up read replicas for scaling
+- [ ] Configure connection pooling
+- [ ] Set appropriate `max_connections` limit
+
+#### Redis
 - [ ] Use managed Redis (ElastiCache, Cloud Memorystore)
+- [ ] Configure persistence (AOF or RDB)
+- [ ] Set eviction policy
+- [ ] Enable authentication
+
+#### Celery
+- [ ] Use separate worker and beat processes
+- [ ] Configure autoscaling workers
+- [ ] Set appropriate concurrency limits
+- [ ] Monitor task queue depth
+- [ ] Set up dead letter queue for failed tasks
+
+#### External Services
 - [ ] Configure production Plaid credentials
-- [ ] Set up SSL/TLS certificates
-- [ ] Configure CORS for production domains
-- [ ] Set up Sentry for error tracking
-- [ ] Configure backup strategy for database
-- [ ] Set up monitoring and alerting
-- [ ] Review security settings
+- [ ] Set up webhook URLs with HTTPS
+- [ ] Configure email service (SendGrid, Mailgun, SES)
+- [ ] Set up monitoring (Datadog, New Relic, CloudWatch)
+- [ ] Configure logging aggregation (Loggly, Papertrail)
 
-## Common Tasks
+#### Performance
+- [ ] Enable HTTP/2
+- [ ] Configure CDN for static assets
+- [ ] Set up database indexes
+- [ ] Enable query caching
+- [ ] Configure Redis caching
 
-### Add a New User to Existing Organization
+### Docker Production Build
 
 ```bash
-# Via API (after login as org admin)
-curl -X POST http://localhost:8000/api/v1/users \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@example.com","password":"securepass","first_name":"John","last_name":"Doe"}'
+# Build production images
+docker-compose -f docker-compose.prod.yml build
+
+# Run migrations
+docker-compose -f docker-compose.prod.yml run api alembic upgrade head
+
+# Start services
+docker-compose -f docker-compose.prod.yml up -d
+
+# View logs
+docker-compose -f docker-compose.prod.yml logs -f
 ```
 
-### Manually Trigger Plaid Sync
+### Environment-Specific Settings
+
+#### Production
+```env
+ENVIRONMENT=production
+DEBUG=false
+ALLOWED_ORIGINS=https://app.nestegg.com
+DATABASE_URL=postgresql+asyncpg://user:pass@prod-db:5432/nestegg
+REDIS_URL=redis://prod-redis:6379/0
+PLAID_ENV=production
+```
+
+#### Staging
+```env
+ENVIRONMENT=staging
+DEBUG=false
+ALLOWED_ORIGINS=https://staging.nestegg.com
+DATABASE_URL=postgresql+asyncpg://user:pass@staging-db:5432/nestegg
+REDIS_URL=redis://staging-redis:6379/0
+PLAID_ENV=development
+```
+
+## 📝 Project Structure
+
+```
+nest-egg/
+├── backend/                      # FastAPI backend
+│   ├── app/
+│   │   ├── api/                  # API endpoints
+│   │   │   └── v1/               # API version 1
+│   │   │       ├── accounts.py           # Account management
+│   │   │       ├── auth.py               # Authentication
+│   │   │       ├── budgets.py            # Budget CRUD
+│   │   │       ├── categories.py         # Category management
+│   │   │       ├── dashboard.py          # Dashboard stats
+│   │   │       ├── holdings.py           # Investment holdings
+│   │   │       ├── household.py          # Multi-user management
+│   │   │       ├── income_expenses.py    # Cash flow analytics
+│   │   │       ├── labels.py             # Label management
+│   │   │       ├── notifications.py      # Notification CRUD
+│   │   │       ├── plaid.py              # Plaid integration
+│   │   │       ├── rules.py              # Rule engine
+│   │   │       └── transactions.py       # Transaction CRUD
+│   │   ├── core/                 # Core utilities
+│   │   │   ├── config.py                 # Settings management
+│   │   │   ├── database.py               # DB connection pool
+│   │   │   ├── security.py               # Auth utilities
+│   │   │   └── encryption.py             # Field encryption
+│   │   ├── models/               # SQLAlchemy models
+│   │   │   ├── account.py                # Account model
+│   │   │   ├── transaction.py            # Transaction model
+│   │   │   ├── budget.py                 # Budget model
+│   │   │   ├── category.py               # Category model
+│   │   │   ├── label.py                  # Label model
+│   │   │   ├── notification.py           # Notification model
+│   │   │   ├── user.py                   # User model
+│   │   │   └── ...                       # Other models
+│   │   ├── schemas/              # Pydantic schemas
+│   │   │   ├── account.py                # Account DTOs
+│   │   │   ├── transaction.py            # Transaction DTOs
+│   │   │   └── ...                       # Other schemas
+│   │   ├── services/             # Business logic
+│   │   │   ├── budget_service.py         # Budget calculations
+│   │   │   ├── deduplication_service.py  # Duplicate detection
+│   │   │   ├── notification_service.py   # Notification creation
+│   │   │   ├── plaid_service.py          # Plaid sync logic
+│   │   │   ├── rule_engine_service.py    # Rule evaluation
+│   │   │   └── ...                       # Other services
+│   │   ├── workers/              # Celery tasks
+│   │   │   ├── celery_app.py             # Celery configuration
+│   │   │   └── tasks/                    # Task modules
+│   │   │       ├── budget_tasks.py       # Budget alert tasks
+│   │   │       ├── holdings_tasks.py     # Snapshot tasks
+│   │   │       ├── recurring_tasks.py    # Pattern detection
+│   │   │       └── forecast_tasks.py     # Cash flow forecast
+│   │   └── utils/                # Utility functions
+│   ├── alembic/                  # Database migrations
+│   │   └── versions/             # Migration files
+│   ├── tests/                    # Backend tests
+│   ├── requirements.txt          # Python dependencies
+│   └── Dockerfile                # Backend container
+│
+├── frontend/                     # React frontend
+│   ├── src/
+│   │   ├── features/             # Feature modules
+│   │   │   ├── accounts/         # Account management
+│   │   │   ├── auth/             # Authentication
+│   │   │   ├── budgets/          # Budget UI
+│   │   │   ├── categories/       # Category management
+│   │   │   ├── dashboard/        # Dashboard widgets
+│   │   │   ├── income-expenses/  # Cash flow analytics
+│   │   │   ├── investments/      # Investment pages
+│   │   │   ├── notifications/    # Notification UI
+│   │   │   └── transactions/     # Transaction table
+│   │   ├── components/           # Shared components
+│   │   │   ├── Layout.tsx                # App layout with nav
+│   │   │   ├── UserViewToggle.tsx        # View mode selector
+│   │   │   ├── CategorySelect.tsx        # Category autocomplete
+│   │   │   ├── MerchantSelect.tsx        # Merchant autocomplete
+│   │   │   ├── RuleBuilderModal.tsx      # Rule creation UI
+│   │   │   └── ...                       # Other components
+│   │   ├── contexts/             # React contexts
+│   │   │   └── UserViewContext.tsx       # User view state
+│   │   ├── services/             # API client
+│   │   │   └── api.ts                    # Axios instance
+│   │   ├── hooks/                # Custom hooks
+│   │   ├── utils/                # Utilities
+│   │   ├── types/                # TypeScript types
+│   │   └── App.tsx               # Root component
+│   ├── package.json              # npm dependencies
+│   ├── vite.config.ts            # Vite configuration
+│   └── Dockerfile                # Frontend container
+│
+├── docker-compose.yml            # Development services
+├── docker-compose.prod.yml       # Production services
+├── .env.example                  # Environment template
+└── README.md                     # This file
+```
+
+## 🛠️ Common Tasks
+
+### Add New User to Household
 
 ```bash
+# Option 1: Via household invitation (recommended)
+# 1. Login as admin user
+# 2. Navigate to Household Settings
+# 3. Click "Invite Member"
+# 4. Enter email address
+# 5. New user registers with invited email
+# 6. Accept invitation via link
+
+# Option 2: Via API (direct creation)
+curl -X POST http://localhost:8000/api/v1/household/invite \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"newuser@example.com"}'
+```
+
+### Manually Sync Plaid Account
+
+```bash
+# Via API
+curl -X POST http://localhost:8000/api/v1/plaid/sync-account/<account-id> \
+  -H "Authorization: Bearer <token>"
+
 # Via Celery task
 docker-compose exec celery_worker python -c "
-from app.workers.tasks import sync_account_task
-sync_account_task.delay('account-uuid-here')
+from app.workers.tasks.plaid_tasks import sync_account_task
+sync_account_task.delay('<account-uuid>')
 "
 ```
 
-### View Celery Tasks
-
-Visit Flower UI: http://localhost:5555
-
-## Troubleshooting
-
-### Database Connection Issues
+### Export Transactions to CSV
 
 ```bash
-# Check if PostgreSQL is running
-docker-compose ps db
+# Via UI
+Transactions → Export CSV button
 
-# View logs
-docker-compose logs db
-
-# Reset database (WARNING: destroys all data)
-docker-compose down -v
-docker-compose up -d
+# Via API
+curl -X GET "http://localhost:8000/api/v1/transactions/export?start_date=2024-01-01&end_date=2024-12-31" \
+  -H "Authorization: Bearer <token>" \
+  -o transactions.csv
 ```
 
-### Plaid Sandbox Test Credentials
-
-For testing in Sandbox environment:
-- **Username**: user_good
-- **Password**: pass_good
-- **PIN/MFA**: 1234 (if asked)
-
-### Celery Tasks Not Running
+### Backfill Account Hashes (One-Time Migration)
 
 ```bash
-# Check worker status
-docker-compose logs celery_worker
+cd backend
+python app/scripts/backfill_account_hashes.py
 
-# Restart worker
-docker-compose restart celery_worker celery_beat
+# This script:
+# - Calculates plaid_item_hash for existing accounts
+# - Sets is_primary_household_member for oldest user
+# - Required after database migration
 ```
 
-## Contributing
+### Create Database Backup
+
+```bash
+# PostgreSQL dump
+docker-compose exec db pg_dump -U postgres nestegg > backup_$(date +%Y%m%d).sql
+
+# Restore from backup
+docker-compose exec -T db psql -U postgres nestegg < backup_20240115.sql
+```
+
+### View Celery Task Monitoring
+
+```bash
+# Flower UI
+open http://localhost:5555
+
+# CLI monitoring
+celery -A app.workers.celery_app inspect active
+celery -A app.workers.celery_app inspect registered
+celery -A app.workers.celery_app inspect stats
+```
+
+## ⚠️ Known Issues & Important Notes
+
+### 1. **Celery Worker Must Be Running**
+
+Budget alerts, recurring detection, and portfolio snapshots **require Celery** to be running:
+
+```bash
+# Check if running
+docker-compose ps celery_worker celery_beat
+
+# Start if not running
+docker-compose up -d celery_worker celery_beat
+```
+
+Without Celery:
+- ❌ Budget alerts won't fire
+- ❌ Recurring transactions won't be detected
+- ❌ Portfolio snapshots won't be captured
+- ❌ Cash flow forecasts won't generate alerts
+
+### 2. **First Portfolio Snapshot Takes 24 Hours**
+
+The smart snapshot scheduler distributes organizations across 24 hours. Your first snapshot may not appear immediately:
+
+- Each org assigned a time slot based on UUID hash
+- Check your org's scheduled time: `SELECT organization_id, calculated_offset FROM organizations`
+- Manual override: `POST /api/v1/holdings/capture-snapshot`
+
+### 3. **Plaid Sandbox Limitations**
+
+When using Plaid Sandbox environment:
+
+- ⚠️ Test institutions only (Chase, BoA, Wells Fargo, etc.)
+- ⚠️ Fixed test credentials: `user_good` / `pass_good`
+- ⚠️ Limited to 100 transactions per account
+- ⚠️ No real-time updates (manual sync required)
+- ✅ Switch to Development or Production for real banks
+
+### 4. **Transaction Dedupe Only Within Organization**
+
+Deduplication is **organization-scoped**:
+
+- ✅ Same transaction imported twice → Deduped
+- ✅ Same bank account added by household members → Deduped
+- ❌ Same transaction across different organizations → Both kept (correct behavior)
+
+### 5. **Category Mapping Persistence**
+
+When you map a Plaid category to a custom category:
+
+- Mapping stored in `category_mappings` table
+- Applies to **all future transactions** from Plaid
+- Existing transactions **not updated** (run manual recategorization if needed)
+
+### 6. **Notification Bell Requires Login**
+
+The test notification endpoint requires authentication:
+
+```javascript
+// From browser console while logged in:
+fetch('/api/v1/notifications/test', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+    'Content-Type': 'application/json'
+  }
+})
+```
+
+### 7. **Multi-User View Permission Complexity**
+
+User view permissions can be confusing:
+
+- **Combined View**: Shows all household accounts (deduplicated)
+- **Individual View**: Shows user's owned accounts + shared accounts
+- **Edit Permissions**: Only owner can edit account details (name, balance)
+- **Transaction Permissions**: All household members can edit transactions
+
+### 8. **CSV Import Format Requirements**
+
+CSV imports require these columns (order doesn't matter):
+
+```csv
+Date,Merchant,Amount,Category,Description
+2024-01-15,Starbucks,-5.50,Dining,Morning coffee
+```
+
+- **Date**: YYYY-MM-DD format
+- **Amount**: Negative for expenses, positive for income
+- **Category**: Must match existing category name
+- **Optional**: Description, Account
+
+## 🗺️ Roadmap
+
+### ✅ Completed Features
+
+- [x] Authentication and user management
+- [x] Plaid integration with automatic sync
+- [x] Multi-user household support with deduplication
+- [x] Transaction management with bulk operations
+- [x] Rule engine for automated categorization
+- [x] Custom categories with Plaid mapping
+- [x] Label system for flexible tagging
+- [x] Budget management with alerts
+- [x] Notification system with real-time updates
+- [x] Investment tracking with 6-tab analysis
+- [x] Cash flow analytics with drill-down
+- [x] Tax-deductible transaction tracking
+- [x] CSV import with deduplication
+- [x] Smart portfolio snapshot scheduler
+- [x] Celery background tasks
+
+### 🚧 In Progress
+
+- [ ] MX integration (alternative to Plaid)
+- [ ] Manual account improvements
+- [ ] Debt payoff planner (Phase 3)
+- [ ] Custom reports builder (Phase 3)
+
+### 🔮 Future Features
+
+- [ ] Multi-year trend analysis
+- [ ] Subscription tracker
+- [ ] Cash flow forecasting
+- [ ] Mobile app (React Native)
+- [ ] Receipt OCR and attachment storage
+- [ ] Bill payment reminders
+- [ ] Savings goals with progress tracking
+- [ ] Net worth tracking over time
+- [ ] Advanced investment analytics (Sharpe ratio, alpha, beta)
+- [ ] Tax bracket optimization
+- [ ] White-label SaaS offering
+
+## 🐛 Recent Bug Fixes
+
+### Navigation Dropdown Menu (Fixed)
+- **Issue**: Dropdown menus stayed open after clicking items
+- **Fix**: Implemented render prop pattern with explicit `onClose()` handlers
+- **Commit**: `bdf96c5`
+
+### Bulk Visibility Route Conflict (Fixed)
+- **Issue**: `/accounts/bulk-visibility` endpoint returning 422 errors
+- **Root Cause**: Route ordering - catch-all `/{account_id}` matched before specific route
+- **Fix**: Moved `/bulk-visibility` route before `/{account_id}` route
+- **Impact**: Hide All/Show All button now works correctly
+- **Commit**: `bdf96c5`
+
+### Transaction Duplicate Keys (Fixed)
+- **Issue**: React warning about duplicate keys in transaction table
+- **Fix**: Added unique prefixes (`desktop-${txn.id}`, `mobile-${txn.id}`)
+
+### Tax Export 401 Error (Fixed)
+- **Issue**: CSV export failing with authentication error
+- **Fix**: Use axios with credentials instead of direct fetch
+
+### Rule Builder Errors (Fixed)
+- **Issue**: Category and merchant selectors causing crashes
+- **Fix**: Added optional chaining and null checks
+
+### Investment Charts 0/N/A (Fixed)
+- **Issue**: Performance trends showing 0% and N/A
+- **Fix**: Corrected mock data calculation to use proper growth formula
+
+## 📄 License
+
+[Add your chosen license here]
+
+## 🤝 Contributing
 
 This is a personal project, but suggestions and bug reports are welcome!
 
 1. Create an issue describing the bug or feature
 2. Fork the repository
-3. Create a feature branch
+3. Create a feature branch (`git checkout -b feature/amazing-feature`)
 4. Make your changes with tests
-5. Submit a pull request
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
-## License
-
-[Add your chosen license here]
-
-## Support
+## 📞 Support
 
 For questions or issues:
-- Check the [implementation plan](/.claude/plans/distributed-finding-lobster.md)
-- Review API documentation at http://localhost:8000/docs
-- Check Celery logs for background task issues
 
-## Roadmap
+- **Documentation**: Review this README
+- **Implementation Plan**: Check `/.claude/plans/distributed-finding-lobster.md`
+- **API Docs**: http://localhost:8000/docs
+- **Celery Monitoring**: http://localhost:5555
+- **Database Logs**: `docker-compose logs db`
+- **API Logs**: `docker-compose logs api`
+- **Celery Logs**: `docker-compose logs celery_worker`
 
-- [x] Phase 1: Authentication and project foundation ✅
-- [x] Phase 2: Plaid integration and account management ✅
-- [x] Phase 3: Transaction management and labeling ✅
-- [x] Phase 4: Rule engine for automated categorization ✅
-- [x] Phase 5: Investment tracking and asset allocation ✅
-  - [x] Asset Allocation treemap visualization
-  - [x] Sector breakdown with Alpha Vantage integration
-  - [x] Future growth Monte Carlo projections
-  - [x] Performance trends with historical tracking
-  - [x] Risk analysis (volatility & diversification)
-  - [x] Holdings detail table with export
-  - [x] Smart snapshot scheduler with offset distribution
-- [x] Phase 6: Dashboard and income vs expenses ✅
-- [ ] Phase 7: Prediction calculator
-- [ ] Phase 8: Custom reporting engine
-- [ ] Phase 9: Manual accounts and additional assets (partial)
-- [ ] Phase 10: Webhooks and polish
+## 🙏 Acknowledgments
+
+Built with:
+- **FastAPI** - Modern Python web framework
+- **React** - UI library
+- **Chakra UI** - Component library
+- **Plaid** - Financial data aggregation
+- **Celery** - Task queue
+- **PostgreSQL** - Database
+- **Redis** - Caching
+- **SQLAlchemy** - ORM
+- **Recharts** - Data visualization
 
 ---
 
-Built with ❤️ using FastAPI, React, and modern web technologies.
+**Built with ❤️ for personal finance management**
+
+_Last Updated: February 2024_

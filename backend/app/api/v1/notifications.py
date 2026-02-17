@@ -91,3 +91,27 @@ async def mark_all_notifications_read(
     """Mark all notifications as read."""
     count = await notification_service.mark_all_as_read(db=db, user=current_user)
     return {"marked_read": count}
+
+
+@router.post("/test", response_model=NotificationResponse)
+async def create_test_notification(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a test notification (for testing purposes)."""
+    from app.models.notification import NotificationType, NotificationPriority
+    from app.services.notification_service import NotificationService
+
+    notification = await NotificationService.create_notification(
+        db=db,
+        organization_id=current_user.organization_id,
+        user_id=current_user.id,
+        type=NotificationType.BUDGET_ALERT,
+        title="Test Notification",
+        message="This is a test notification to verify the notification system is working correctly. Click to view budgets.",
+        priority=NotificationPriority.MEDIUM,
+        action_url="/budgets",
+        expires_in_days=7,
+    )
+
+    return notification
