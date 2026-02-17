@@ -14,6 +14,10 @@ from typing import Dict, List
 from datetime import date
 from decimal import Decimal
 import logging
+from time import time
+
+# Timeout for all external API calls (seconds)
+REQUEST_TIMEOUT = 5.0
 
 from .base_provider import (
     MarketDataProvider,
@@ -47,17 +51,35 @@ class YahooFinanceProvider(MarketDataProvider):
             logger.error(f"Symbol validation failed: {e}")
             raise ValueError(str(e))
 
+        # Log API call
+        logger.info(
+            "external_api_call",
+            extra={
+                "provider": "yahoo_finance",
+                "operation": "get_quote",
+                "symbol": symbol,
+            }
+        )
+        start_time = time()
+
         try:
-            # Run in thread pool to avoid blocking
-            ticker = await asyncio.to_thread(yf.Ticker, symbol)
-            info = await asyncio.to_thread(lambda: ticker.info)
+            # Run in thread pool to avoid blocking, with timeout
+            ticker = await asyncio.wait_for(
+                asyncio.to_thread(yf.Ticker, symbol),
+                timeout=REQUEST_TIMEOUT
+            )
+            info = await asyncio.wait_for(
+                asyncio.to_thread(lambda: ticker.info),
+                timeout=REQUEST_TIMEOUT
+            )
 
             # Handle different response formats
             current_price = info.get('currentPrice') or info.get('regularMarketPrice')
             if current_price is None:
                 # Try getting from history
-                hist = await asyncio.to_thread(
-                    lambda: ticker.history(period="1d")
+                hist = await asyncio.wait_for(
+                    asyncio.to_thread(lambda: ticker.history(period="1d")),
+                    timeout=REQUEST_TIMEOUT
                 )
                 if not hist.empty:
                     current_price = float(hist['Close'].iloc[-1])
@@ -90,26 +112,78 @@ class YahooFinanceProvider(MarketDataProvider):
             validated = validate_quote_response(raw_quote, symbol)
 
             # Convert validated data to QuoteData
-            return QuoteData(**validated.model_dump())
+            quote_data = QuoteData(**validated.model_dump())
 
+            # Log success
+            duration_ms = (time() - start_time) * 1000
+            logger.info(
+                "external_api_success",
+                extra={
+                    "provider": "yahoo_finance",
+                    "operation": "get_quote",
+                    "symbol": symbol,
+                    "duration_ms": duration_ms,
+                    "price": float(quote_data.price),
+                }
+            )
+
+            return quote_data
+
+        except asyncio.TimeoutError:
+            duration_ms = (time() - start_time) * 1000
+            logger.error(
+                "external_api_timeout",
+                extra={
+                    "provider": "yahoo_finance",
+                    "operation": "get_quote",
+                    "symbol": symbol,
+                    "duration_ms": duration_ms,
+                    "timeout_seconds": REQUEST_TIMEOUT,
+                }
+            )
+            raise ValueError(f"Request timeout for {symbol} - Yahoo Finance did not respond in time")
         except Exception as e:
-            logger.error(f"Error fetching quote for {symbol} from Yahoo Finance: {e}")
+            duration_ms = (time() - start_time) * 1000
+            logger.error(
+                "external_api_failure",
+                extra={
+                    "provider": "yahoo_finance",
+                    "operation": "get_quote",
+                    "symbol": symbol,
+                    "duration_ms": duration_ms,
+                    "error": str(e),
+                }
+            )
             raise ValueError(f"Failed to fetch quote for {symbol}: {str(e)}")
 
     async def get_quotes_batch(self, symbols: List[str]) -> Dict[str, QuoteData]:
         """Get multiple quotes efficiently."""
+        logger.info(
+            "external_api_call",
+            extra={
+                "provider": "yahoo_finance",
+                "operation": "get_quotes_batch",
+                "symbol_count": len(symbols),
+                "symbols": symbols[:10],  # Log first 10 to avoid huge logs
+            }
+        )
+        start_time = time()
+
         quotes = {}
 
         # Yahoo Finance allows batch downloads
         try:
             symbols_str = " ".join(symbols)
-            data = await asyncio.to_thread(
-                yf.download,
-                tickers=symbols_str,
-                period="1d",
-                group_by="ticker",
-                progress=False,
-                threads=True
+            data = await asyncio.wait_for(
+                asyncio.to_thread(
+                    yf.download,
+                    tickers=symbols_str,
+                    period="1d",
+                    group_by="ticker",
+                    progress=False,
+                    threads=True
+                ),
+                timeout=REQUEST_TIMEOUT * 2  # Allow more time for batch requests
             )
 
             # Parse results
@@ -150,6 +224,19 @@ class YahooFinanceProvider(MarketDataProvider):
                 except Exception:
                     pass  # Skip failed symbols
 
+        # Log success
+        duration_ms = (time() - start_time) * 1000
+        logger.info(
+            "external_api_success",
+            extra={
+                "provider": "yahoo_finance",
+                "operation": "get_quotes_batch",
+                "symbol_count": len(symbols),
+                "successful_count": len(quotes),
+                "duration_ms": duration_ms,
+            }
+        )
+
         return quotes
 
     async def get_historical_prices(
@@ -160,14 +247,33 @@ class YahooFinanceProvider(MarketDataProvider):
         interval: str = "1d"
     ) -> List[HistoricalPrice]:
         """Get historical price data."""
+        logger.info(
+            "external_api_call",
+            extra={
+                "provider": "yahoo_finance",
+                "operation": "get_historical_prices",
+                "symbol": symbol,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "interval": interval,
+            }
+        )
+        start_time = time()
+
         try:
-            ticker = await asyncio.to_thread(yf.Ticker, symbol)
-            hist = await asyncio.to_thread(
-                lambda: ticker.history(
-                    start=start_date.isoformat(),
-                    end=end_date.isoformat(),
-                    interval=interval
-                )
+            ticker = await asyncio.wait_for(
+                asyncio.to_thread(yf.Ticker, symbol),
+                timeout=REQUEST_TIMEOUT
+            )
+            hist = await asyncio.wait_for(
+                asyncio.to_thread(
+                    lambda: ticker.history(
+                        start=start_date.isoformat(),
+                        end=end_date.isoformat(),
+                        interval=interval
+                    )
+                ),
+                timeout=REQUEST_TIMEOUT * 2  # Historical data may take longer
             )
 
             prices = []
@@ -184,10 +290,46 @@ class YahooFinanceProvider(MarketDataProvider):
                     )
                 )
 
+            # Log success
+            duration_ms = (time() - start_time) * 1000
+            logger.info(
+                "external_api_success",
+                extra={
+                    "provider": "yahoo_finance",
+                    "operation": "get_historical_prices",
+                    "symbol": symbol,
+                    "duration_ms": duration_ms,
+                    "data_points": len(prices),
+                }
+            )
+
             return prices
 
+        except asyncio.TimeoutError:
+            duration_ms = (time() - start_time) * 1000
+            logger.error(
+                "external_api_timeout",
+                extra={
+                    "provider": "yahoo_finance",
+                    "operation": "get_historical_prices",
+                    "symbol": symbol,
+                    "duration_ms": duration_ms,
+                    "timeout_seconds": REQUEST_TIMEOUT * 2,
+                }
+            )
+            raise ValueError(f"Request timeout for {symbol} - Yahoo Finance did not respond in time")
         except Exception as e:
-            logger.error(f"Error fetching historical data for {symbol}: {e}")
+            duration_ms = (time() - start_time) * 1000
+            logger.error(
+                "external_api_failure",
+                extra={
+                    "provider": "yahoo_finance",
+                    "operation": "get_historical_prices",
+                    "symbol": symbol,
+                    "duration_ms": duration_ms,
+                    "error": str(e),
+                }
+            )
             raise ValueError(f"Failed to fetch historical data for {symbol}: {str(e)}")
 
     async def search_symbol(self, query: str) -> List[SearchResult]:
@@ -201,8 +343,14 @@ class YahooFinanceProvider(MarketDataProvider):
         # Basic implementation: try to get ticker info
         # For better search, use Alpha Vantage or Finnhub
         try:
-            ticker = await asyncio.to_thread(yf.Ticker, query.upper())
-            info = await asyncio.to_thread(lambda: ticker.info)
+            ticker = await asyncio.wait_for(
+                asyncio.to_thread(yf.Ticker, query.upper()),
+                timeout=REQUEST_TIMEOUT
+            )
+            info = await asyncio.wait_for(
+                asyncio.to_thread(lambda: ticker.info),
+                timeout=REQUEST_TIMEOUT
+            )
 
             if info.get('symbol'):
                 return [

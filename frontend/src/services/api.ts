@@ -28,8 +28,9 @@ export const api = axios.create({
   },
 });
 
-// Token refresh timer
+// Token refresh timer and flag
 let refreshTimer: NodeJS.Timeout | null = null;
+let isRefreshing = false;
 
 // Decode JWT token to get expiration time
 const decodeToken = (token: string): { exp: number } | null => {
@@ -102,12 +103,21 @@ export const scheduleTokenRefresh = () => {
 };
 
 // Refresh token immediately
-const refreshTokenNow = async () => {
+const refreshTokenNow = async (): Promise<string | null> => {
+  // Prevent concurrent refresh attempts
+  if (isRefreshing) {
+    devLog('[Auth] Token refresh already in progress, waiting...');
+    // Wait a bit and return the token from storage (it should be updated by the in-flight request)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return localStorage.getItem('access_token');
+  }
+
   try {
+    isRefreshing = true;
     const refreshToken = localStorage.getItem('refresh_token');
     if (!refreshToken) {
       devError('[Auth] No refresh token available');
-      return;
+      return null;
     }
 
     devLog('[Auth] Refreshing token...');
@@ -122,11 +132,15 @@ const refreshTokenNow = async () => {
     devLog('[Auth] Token refreshed successfully and auth store updated');
 
     // Schedule next refresh (handled by setAccessToken)
+    return access_token;
   } catch (error: any) {
     const errorDetail = error?.response?.data?.detail || error.message || 'Unknown error';
     devError('[Auth] Token refresh failed. Backend error:', errorDetail);
     devError('[Auth] Full error:', error);
     // Don't clear localStorage here - let the response interceptor handle it
+    return null;
+  } finally {
+    isRefreshing = false;
   }
 };
 
@@ -170,11 +184,15 @@ api.interceptors.request.use(
       if (isTokenExpired(token, 2)) {
         devLog('[API] Token expiring soon, refreshing before request...');
         try {
-          await refreshTokenNow();
-          // Get the new token after refresh
-          const newToken = localStorage.getItem('access_token');
+          const newToken = await refreshTokenNow();
           if (newToken && config.headers) {
             config.headers.Authorization = `Bearer ${newToken}`;
+            devLog('[API] Using refreshed token for request');
+          } else {
+            // Refresh failed, use old token and let response interceptor handle it
+            if (config.headers) {
+              config.headers.Authorization = `Bearer ${token}`;
+            }
           }
         } catch (error) {
           devError('[API] Pre-request token refresh failed:', error);

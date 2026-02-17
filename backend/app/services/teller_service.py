@@ -86,7 +86,7 @@ class TellerService:
         institution_name: Optional[str] = None,
     ) -> TellerEnrollment:
         """Create Teller enrollment record."""
-        encrypted_token = self.encryption_service.encrypt(access_token)
+        encrypted_token = self.encryption_service.encrypt_token(access_token)
 
         enrollment = TellerEnrollment(
             organization_id=organization_id,

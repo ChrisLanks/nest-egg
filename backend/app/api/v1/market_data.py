@@ -15,14 +15,18 @@ from decimal import Decimal
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.models.account import Holding
+from app.models.holding import Holding
 from app.services.market_data import (
     get_market_data_provider,
     QuoteData,
     HistoricalPrice,
     SearchResult,
 )
+from app.core.rate_limiter import check_rate_limit, market_data_limiter
 from pydantic import BaseModel
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -115,6 +119,9 @@ async def get_quote(
 
     Works with stocks, ETFs, mutual funds, crypto, etc.
     """
+    # Rate limit check
+    check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+
     try:
         market_data = get_market_data_provider(provider)
         quote = await market_data.get_quote(symbol.upper())
@@ -141,6 +148,9 @@ async def get_quotes_batch(
 
     Returns dict mapping symbol to quote data.
     """
+    # Rate limit check
+    check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+
     try:
         market_data = get_market_data_provider(provider)
         quotes = await market_data.get_quotes_batch([s.upper() for s in symbols])
@@ -167,6 +177,9 @@ async def get_historical_prices(
     current_user: User = Depends(get_current_user),
 ):
     """Get historical price data for charts."""
+    # Rate limit check
+    check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+
     try:
         market_data = get_market_data_provider(provider)
         prices = await market_data.get_historical_prices(
@@ -191,6 +204,9 @@ async def search_symbols(
     current_user: User = Depends(get_current_user),
 ):
     """Search for stocks/securities by name or symbol."""
+    # Rate limit check
+    check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+
     try:
         market_data = get_market_data_provider(provider)
         results = await market_data.search_symbol(query)
@@ -207,6 +223,9 @@ async def get_provider_info(
     current_user: User = Depends(get_current_user),
 ):
     """Get information about the current market data provider."""
+    # Rate limit check
+    check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+
     market_data = get_market_data_provider(provider)
 
     return ProviderInfo(
@@ -227,6 +246,9 @@ async def refresh_holding_price(
 
     Updates current_price and last_price_update fields.
     """
+    # Rate limit check
+    check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+
     # Get holding
     result = await db.execute(
         select(Holding).where(
@@ -286,6 +308,9 @@ async def refresh_all_holdings(
 
     Returns count of updated holdings.
     """
+    # Rate limit check
+    check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+
     # Get all holdings
     query = select(Holding).where(
         Holding.organization_id == current_user.organization_id

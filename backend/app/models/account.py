@@ -141,7 +141,7 @@ class TellerEnrollment(Base):
         from app.services.encryption_service import get_encryption_service
 
         encryption_service = get_encryption_service()
-        return encryption_service.decrypt(self.access_token)
+        return encryption_service.decrypt_token(self.access_token)
 
 
 class PlaidItem(Base):
