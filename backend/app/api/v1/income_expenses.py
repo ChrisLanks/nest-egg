@@ -1,11 +1,11 @@
 """Income vs Expenses API endpoints."""
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Query, HTTPException
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +27,42 @@ router = APIRouter()
 
 # Initialize deduplication service
 deduplication_service = DeduplicationService()
+
+
+def validate_date_range(start_date: date, end_date: date) -> None:
+    """Validate date range parameters."""
+    # Check date range bounds (prevent unrealistic queries)
+    min_date = date(1900, 1, 1)
+    max_date = date(2100, 12, 31)
+
+    if start_date < min_date:
+        raise HTTPException(
+            status_code=400,
+            detail=f"start_date cannot be before {min_date.isoformat()}"
+        )
+
+    if end_date > max_date:
+        raise HTTPException(
+            status_code=400,
+            detail=f"end_date cannot be after {max_date.isoformat()}"
+        )
+
+    # Check start is before end
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=400,
+            detail="start_date must be before or equal to end_date"
+        )
+
+    # Check date range is not too large (prevent DoS via huge queries)
+    max_range_days = 3650  # ~10 years
+    date_diff = (end_date - start_date).days
+
+    if date_diff > max_range_days:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Date range cannot exceed {max_range_days} days (~10 years)"
+        )
 
 
 class CategoryBreakdown(BaseModel):
@@ -63,6 +99,8 @@ async def get_income_expense_summary(
     db: AsyncSession = Depends(get_db),
 ):
     """Get income vs expense summary for date range."""
+    # Validate date range
+    validate_date_range(start_date, end_date)
 
     # Get accounts based on user filter
     if user_id:
