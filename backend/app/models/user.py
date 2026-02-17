@@ -108,7 +108,8 @@ class RefreshToken(Base):
     @property
     def is_expired(self) -> bool:
         """Check if token is expired."""
-        return datetime.utcnow() > self.expires_at
+        from app.utils.datetime_utils import utc_now
+        return utc_now() > self.expires_at
 
     @property
     def is_revoked(self) -> bool:
@@ -141,8 +142,8 @@ class HouseholdInvitation(Base):
     @property
     def is_expired(self) -> bool:
         """Check if invitation is expired."""
-        from datetime import datetime
-        return datetime.utcnow() > self.expires_at
+        from app.utils.datetime_utils import utc_now
+        return utc_now() > self.expires_at
 
     @property
     def is_valid(self) -> bool:

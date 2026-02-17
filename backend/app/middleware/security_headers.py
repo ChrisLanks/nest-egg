@@ -3,6 +3,7 @@
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
+from app.config import settings
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -12,10 +13,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response: Response = await call_next(request)
 
         # Content Security Policy - Prevent XSS attacks
+        # Build script-src based on environment
+        script_src = "'self' 'unsafe-inline'"
+        if settings.DEBUG:
+            # Only allow unsafe-eval in development (needed for Vite HMR)
+            script_src += " 'unsafe-eval'"
+
         # Allow same-origin content, inline styles (for Chakra UI), and specific external resources
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "  # unsafe-eval needed for Vite dev mode
+            f"script-src {script_src}; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com data:; "
             "img-src 'self' data: https:; "

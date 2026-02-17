@@ -2,7 +2,7 @@
 
 import hashlib
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +22,7 @@ from app.schemas.auth import (
 from app.schemas.user import User as UserSchema
 from app.services.rate_limit_service import get_rate_limit_service
 from app.services.password_validation_service import password_validation_service
+from app.utils.datetime_utils import utc_now
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -125,6 +126,12 @@ async def login(
         # Get user by email
         user = await user_crud.get_by_email(db, data.email)
         if not user:
+            # Perform dummy password verification to prevent timing attack
+            # This ensures the response time is consistent whether user exists or not
+            verify_password(
+                data.password,
+                "$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQxMjM0NTY3OA$+rFdHQZz+XMFR9CqSJLp8Xr7LXG+hWCN8qGXZ5k4wQw"
+            )
             logger.warning(f"Login failed: User not found - {data.email}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -133,8 +140,8 @@ async def login(
 
         # Check if account is locked (backward compatible - fields may not exist yet)
         locked_until = getattr(user, 'locked_until', None)
-        if locked_until and locked_until > datetime.utcnow():
-            minutes_remaining = int((locked_until - datetime.utcnow()).total_seconds() / 60)
+        if locked_until and locked_until > utc_now():
+            minutes_remaining = int((locked_until - utc_now()).total_seconds() / 60)
             logger.warning(f"Login failed: Account locked - {data.email}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -142,7 +149,7 @@ async def login(
             )
 
         # If lockout period has expired, reset failed attempts
-        if locked_until and locked_until <= datetime.utcnow():
+        if locked_until and locked_until <= utc_now():
             if hasattr(user, 'failed_login_attempts'):
                 user.failed_login_attempts = 0
                 user.locked_until = None
@@ -160,7 +167,7 @@ async def login(
 
                 # Lock account if too many failed attempts (5 failures = 30 min lockout)
                 if user.failed_login_attempts >= 5:
-                    user.locked_until = datetime.utcnow() + timedelta(minutes=30)
+                    user.locked_until = utc_now() + timedelta(minutes=30)
                     await db.commit()
                     logger.warning(f"Account locked for 30 minutes: {data.email}")
                     raise HTTPException(
