@@ -54,3 +54,7 @@ flake8==7.0.0
 pylint==3.0.3
 safety==3.0.1
 pre-commit==3.6.0
+
+# Multi-Factor Authentication
+pyotp==2.9.0
+qrcode[pil]==7.4.2
