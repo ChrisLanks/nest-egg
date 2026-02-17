@@ -59,9 +59,10 @@ const generateMockSnapshots = (currentValue: number, months: number = 12): Snaps
     const date = subMonths(today, i);
     // 7% annualized growth with some volatility
     const monthsFactor = i / 12;
+    // Calculate past value (divide by growth factor to go backwards in time)
     const growthFactor = Math.pow(1.07, monthsFactor);
     const volatility = (Math.random() - 0.5) * 0.1; // ±5% random
-    const value = currentValue * growthFactor * (1 + volatility);
+    const value = (currentValue / growthFactor) * (1 + volatility);
     const costBasis = value * 0.85; // Assume 15% gain on average
 
     snapshots.push({
