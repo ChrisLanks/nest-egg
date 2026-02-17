@@ -41,7 +41,7 @@ import {
   Input,
   useDisclosure,
 } from '@chakra-ui/react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../features/auth/stores/authStore';
 import { useUserView } from '../contexts/UserViewContext';
 import api from '../services/api';
@@ -99,7 +99,6 @@ interface HistoricalSnapshot {
 export const DashboardPage = () => {
   const { user } = useAuthStore();
   const { selectedUserId } = useUserView();
-  const queryClient = useQueryClient();
 
   // Initialize state from localStorage
   const [timeRange, setTimeRange] = useState<'1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM'>(() => {
@@ -124,7 +123,7 @@ export const DashboardPage = () => {
   });
 
   // Fetch historical net worth data
-  const { data: historicalData, isLoading: isLoadingHistorical } = useQuery({
+  const { data: historicalData, isLoading: isLoadingHistorical, isFetching } = useQuery({
     queryKey: ['historical-net-worth', timeRange, customStartDate, customEndDate],
     queryFn: async () => {
       const now = new Date();
@@ -172,7 +171,6 @@ export const DashboardPage = () => {
       const response = await api.get<HistoricalSnapshot[]>('/holdings/historical', { params });
       return response.data;
     },
-    placeholderData: (previousData) => previousData, // Keep previous data while loading
   });
 
   // Sort account balances by balance (descending)
@@ -297,7 +295,23 @@ export const DashboardPage = () => {
         {/* Net Worth Over Time Chart */}
         {historicalData && historicalData.length > 0 && (
           <Card>
-            <CardBody>
+            <CardBody position="relative">
+              {isFetching && (
+                <Box
+                  position="absolute"
+                  top={0}
+                  left={0}
+                  right={0}
+                  bottom={0}
+                  bg="whiteAlpha.800"
+                  zIndex={1}
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                >
+                  <Spinner size="lg" color="brand.500" />
+                </Box>
+              )}
               <HStack justify="space-between" mb={4}>
                 <Heading size="md">Net Worth Over Time</Heading>
                 <ButtonGroup size="sm" isAttached variant="outline">
@@ -572,11 +586,8 @@ export const DashboardPage = () => {
                 localStorage.setItem('dashboard-customStartDate', customStartDate);
                 localStorage.setItem('dashboard-customEndDate', customEndDate);
 
-                // Update state
+                // Update state (query will automatically refetch due to queryKey dependency)
                 setTimeRange('CUSTOM');
-
-                // Force refetch to update chart immediately
-                queryClient.invalidateQueries({ queryKey: ['historical-net-worth'] });
 
                 onClose();
               }}
