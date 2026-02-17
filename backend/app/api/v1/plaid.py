@@ -1,5 +1,6 @@
 """Plaid integration API endpoints."""
 
+import logging
 from typing import List, Dict, Any
 from uuid import UUID
 
@@ -26,6 +27,7 @@ from app.services.encryption_service import get_encryption_service
 from app.services.rate_limit_service import rate_limit_service
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 deduplication_service = DeduplicationService()
 encryption_service = get_encryption_service()
 
@@ -264,7 +266,7 @@ async def handle_plaid_webhook(
         webhook_code = webhook_data.get("webhook_code")
         item_id = webhook_data.get("item_id")
 
-        print(f"📥 Plaid webhook received: {webhook_type} - {webhook_code}")
+        logger.info(f"Plaid webhook received: {webhook_type} - {webhook_code}")
 
         # Get PlaidItem to find organization
         result = await db.execute(
@@ -273,7 +275,7 @@ async def handle_plaid_webhook(
         plaid_item = result.scalar_one_or_none()
 
         if not plaid_item:
-            print(f"⚠️  PlaidItem not found for item_id: {item_id}")
+            logger.warning(f"PlaidItem not found for item_id: {item_id}")
             return {"status": "item_not_found"}
 
         # Handle different webhook types
@@ -287,7 +289,7 @@ async def handle_plaid_webhook(
         return {"status": "acknowledged"}
 
     except Exception as e:
-        print(f"❌ Webhook error: {str(e)}")
+        logger.error(f"Webhook error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -338,7 +340,7 @@ async def sync_transactions(
 
         if is_test_user:
             # Generate mock transaction data for test users
-            print("🧪 Generating mock transactions for test user")
+            logger.info("Generating mock transactions for test user")
 
             # Get accounts for this plaid_item
             accounts_result = await db.execute(
@@ -392,7 +394,7 @@ async def sync_transactions(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Sync error: {str(e)}")
+        logger.error(f"Sync error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
 
 
@@ -480,7 +482,7 @@ async def _handle_transactions_webhook(
 
     if webhook_code in ["DEFAULT_UPDATE", "INITIAL_UPDATE", "HISTORICAL_UPDATE"]:
         # New transaction data is available - trigger sync
-        print(f"📊 Transaction data available for item: {plaid_item.item_id}")
+        logger.info(f"Transaction data available for item: {plaid_item.item_id}")
 
         # Check if this is a test user
         result = await db.execute(
@@ -493,7 +495,7 @@ async def _handle_transactions_webhook(
 
         if is_test_user:
             # Generate mock transaction data for test users
-            print("🧪 Generating mock transactions for test user")
+            logger.info("Generating mock transactions for test user")
 
             # Get accounts for this plaid_item
             accounts_result = await db.execute(
@@ -524,10 +526,10 @@ async def _handle_transactions_webhook(
                 is_test_mode=True
             )
 
-            print(f"✅ Synced mock transactions: {stats}")
+            logger.info(f"Synced mock transactions: {stats}")
         else:
             # Real Plaid API call would go here
-            print("⚠️  Real Plaid API integration not yet implemented")
+            logger.warning("Real Plaid API integration not yet implemented")
             # In production, you would:
             # 1. Call Plaid API to fetch transactions
             # 2. Pass them to sync_service.sync_transactions_for_item()
@@ -535,7 +537,7 @@ async def _handle_transactions_webhook(
     elif webhook_code == "TRANSACTIONS_REMOVED":
         # Transactions were removed (e.g., duplicates)
         removed_transaction_ids = webhook_data.get("removed_transactions", [])
-        print(f"🗑️  Transactions removed: {removed_transaction_ids}")
+        logger.info(f"Transactions removed: {removed_transaction_ids}")
 
         if removed_transaction_ids:
             sync_service = PlaidTransactionSyncService()
@@ -544,7 +546,7 @@ async def _handle_transactions_webhook(
                 plaid_item_id=plaid_item.id,
                 removed_transaction_ids=removed_transaction_ids
             )
-            print(f"✅ Removed {count} transactions")
+            logger.info(f"Removed {count} transactions")
 
 
 async def _handle_auth_webhook(
@@ -555,6 +557,6 @@ async def _handle_auth_webhook(
 ):
     """Handle AUTH webhook events."""
     if webhook_code == "AUTOMATICALLY_VERIFIED":
-        print(f"✅ Auth automatically verified for item: {plaid_item.item_id}")
+        logger.info(f"Auth automatically verified for item: {plaid_item.item_id}")
     elif webhook_code == "VERIFICATION_EXPIRED":
-        print(f"⏰ Auth verification expired for item: {plaid_item.item_id}")
+        logger.warning(f"Auth verification expired for item: {plaid_item.item_id}")
