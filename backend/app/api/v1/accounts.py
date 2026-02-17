@@ -4,6 +4,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -21,6 +22,12 @@ from app.models.account import Account, AccountType
 from app.models.holding import Holding
 from app.schemas.account import Account as AccountSchema, AccountSummary, ManualAccountCreate, AccountUpdate
 from app.services.deduplication_service import DeduplicationService
+
+
+class BulkVisibilityUpdate(BaseModel):
+    """Request model for bulk visibility updates."""
+    account_ids: List[UUID]
+    is_active: bool
 
 router = APIRouter()
 
@@ -213,8 +220,7 @@ async def bulk_delete_accounts(
 
 @router.patch("/bulk-visibility")
 async def bulk_update_visibility(
-    account_ids: List[UUID],
-    is_active: bool,
+    request: BulkVisibilityUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -223,11 +229,11 @@ async def bulk_update_visibility(
     result = await db.execute(
         update(Account)
         .where(
-            Account.id.in_(account_ids),
+            Account.id.in_(request.account_ids),
             Account.organization_id == current_user.organization_id,
             Account.user_id == current_user.id,  # Must be account owner
         )
-        .values(is_active=is_active)
+        .values(is_active=request.is_active)
     )
     await db.commit()
     return {"updated_count": result.rowcount}
