@@ -566,11 +566,10 @@ export const Layout = () => {
               />
 
               {/* Planning & Goals Dropdown */}
-              <Menu isOpen={isPlanningMenuOpen} onClose={onPlanningMenuClose}>
+              <Menu isOpen={isPlanningMenuOpen} onOpen={onPlanningMenuOpen} onClose={onPlanningMenuClose}>
                 <MenuButton
                   as={Button}
                   rightIcon={<ChevronDownIcon />}
-                  onClick={onPlanningMenuOpen}
                   variant={
                     planningMenuItems.some(
                       (item) => location.pathname === item.path,
@@ -620,11 +619,10 @@ export const Layout = () => {
               </Menu>
 
               {/* Analytics Dropdown */}
-              <Menu isOpen={isAnalyticsMenuOpen} onClose={onAnalyticsMenuClose}>
+              <Menu isOpen={isAnalyticsMenuOpen} onOpen={onAnalyticsMenuOpen} onClose={onAnalyticsMenuClose}>
                 <MenuButton
                   as={Button}
                   rightIcon={<ChevronDownIcon />}
-                  onClick={onAnalyticsMenuOpen}
                   variant={
                     analyticsMenuItems.some(
                       (item) => location.pathname === item.path,
@@ -674,11 +672,10 @@ export const Layout = () => {
               </Menu>
 
               {/* Transactions Dropdown */}
-              <Menu isOpen={isTransactionsMenuOpen} onClose={onTransactionsMenuClose}>
+              <Menu isOpen={isTransactionsMenuOpen} onOpen={onTransactionsMenuOpen} onClose={onTransactionsMenuClose}>
                 <MenuButton
                   as={Button}
                   rightIcon={<ChevronDownIcon />}
-                  onClick={onTransactionsMenuOpen}
                   variant={
                     transactionsMenuItems.some(
                       (item) => location.pathname === item.path,
@@ -750,11 +747,10 @@ export const Layout = () => {
             </Box>
             <NotificationBell />
 
-            <Menu isOpen={isUserMenuOpen} onClose={onUserMenuClose}>
+            <Menu isOpen={isUserMenuOpen} onOpen={onUserMenuOpen} onClose={onUserMenuClose}>
               <MenuButton
                 as={Button}
                 rightIcon={<ChevronDownIcon />}
-                onClick={onUserMenuOpen}
                 variant="ghost"
                 size="sm"
               >
