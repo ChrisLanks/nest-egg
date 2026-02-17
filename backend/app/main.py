@@ -17,6 +17,7 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.request_logging import RequestLoggingMiddleware, AuditLogMiddleware, UserContextMiddleware
 from app.services.secrets_validation_service import secrets_validation_service
 
 # Initialize Sentry for error tracking and monitoring (optional)
@@ -170,6 +171,15 @@ app.add_middleware(RequestSizeLimitMiddleware, max_request_size=10 * 1024 * 1024
 
 # GZip compression for API responses > 1KB
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# User context extraction - Extract user from JWT for logging (runs BEFORE logging middleware)
+app.add_middleware(UserContextMiddleware)
+
+# Request logging - Track all API requests for audit trail
+app.add_middleware(RequestLoggingMiddleware)
+
+# Audit logging - Track sensitive operations
+app.add_middleware(AuditLogMiddleware)
 
 # Add exception handler for validation errors
 from fastapi.exceptions import RequestValidationError
