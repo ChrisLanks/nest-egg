@@ -20,6 +20,7 @@ from app.models.user import User
 from app.models.transaction import Transaction, Label, TransactionLabel, Category
 from app.models.account import Account
 from app.schemas.transaction import TransactionDetail, TransactionListResponse, TransactionUpdate, CategorySummary
+from app.services.input_sanitization_service import input_sanitization_service
 
 router = APIRouter()
 
@@ -325,11 +326,11 @@ async def update_transaction(
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
-    # Update fields
+    # Update fields (sanitize text inputs to prevent XSS)
     if update_data.merchant_name is not None:
-        txn.merchant_name = update_data.merchant_name
+        txn.merchant_name = input_sanitization_service.sanitize_html(update_data.merchant_name)
     if update_data.description is not None:
-        txn.description = update_data.description
+        txn.description = input_sanitization_service.sanitize_html(update_data.description)
     if update_data.category_primary is not None:
         txn.category_primary = update_data.category_primary
     if update_data.is_transfer is not None:

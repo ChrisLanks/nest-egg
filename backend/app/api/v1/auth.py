@@ -142,7 +142,7 @@ async def login(
         window_seconds=60,
     )
 
-    logger.info(f"Login attempt for email: {data.email}")
+    logger.info(f"Login attempt for email: {redact_email(data.email)}")
 
     try:
         # Get user by email
@@ -154,7 +154,7 @@ async def login(
                 data.password,
                 "$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQxMjM0NTY3OA$+rFdHQZz+XMFR9CqSJLp8Xr7LXG+hWCN8qGXZ5k4wQw"
             )
-            logger.warning(f"Login failed: User not found - {data.email}")
+            logger.warning(f"Login failed: User not found - {redact_email(data.email)}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password",
@@ -164,7 +164,7 @@ async def login(
         locked_until = getattr(user, 'locked_until', None)
         if locked_until and locked_until > utc_now():
             minutes_remaining = int((locked_until - utc_now()).total_seconds() / 60)
-            logger.warning(f"Login failed: Account locked - {data.email}")
+            logger.warning(f"Login failed: Account locked - {redact_email(data.email)}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Account is locked due to too many failed login attempts. Try again in {minutes_remaining} minutes.",
@@ -177,11 +177,11 @@ async def login(
                 user.locked_until = None
                 await db.commit()
 
-        logger.info(f"User found: {user.email}, verifying password...")
+        logger.info(f"User found, verifying password...")
 
         # Verify password
         if not verify_password(data.password, user.password_hash):
-            logger.warning(f"Login failed: Incorrect password for {data.email}")
+            logger.warning(f"Login failed: Incorrect password for {redact_email(data.email)}")
 
             # Increment failed login attempts (if field exists)
             if hasattr(user, 'failed_login_attempts'):
@@ -191,7 +191,7 @@ async def login(
                 if user.failed_login_attempts >= settings.MAX_LOGIN_ATTEMPTS:
                     user.locked_until = utc_now() + timedelta(minutes=settings.ACCOUNT_LOCKOUT_MINUTES)
                     await db.commit()
-                    logger.warning(f"Account locked for 30 minutes: {data.email}")
+                    logger.warning(f"Account locked for {settings.ACCOUNT_LOCKOUT_MINUTES} minutes: {redact_email(data.email)}")
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="Account locked due to too many failed login attempts. Try again in 30 minutes.",
@@ -204,7 +204,7 @@ async def login(
                 detail="Incorrect email or password",
             )
 
-        logger.info(f"Password verified for {user.email}")
+        logger.info(f"Password verified")
 
         # Reset failed login attempts on successful login (if fields exist)
         if hasattr(user, 'failed_login_attempts'):
@@ -213,18 +213,18 @@ async def login(
 
         # Check if user is active
         if not user.is_active:
-            logger.warning(f"Login failed: Inactive account - {data.email}")
+            logger.warning(f"Login failed: Inactive account - {redact_email(data.email)}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account is inactive",
             )
 
-        logger.info(f"Updating last login for {user.email}")
+        logger.info(f"Updating last login")
 
         # Update last login
         await user_crud.update_last_login(db, user.id)
 
-        logger.info(f"Generating tokens for user")
+        logger.info(f"Generating tokens")
 
         # Generate tokens and create response
         response = await create_auth_response(db, user)
@@ -235,7 +235,7 @@ async def login(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Login error for {data.email}: {str(e)}", exc_info=True)
+        logger.error(f"Login error for {redact_email(data.email)}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during login"
@@ -316,7 +316,7 @@ async def refresh_access_token(
                 detail="User not found or inactive",
             )
 
-        logger.info(f"Token refresh successful for user: {user.email}")
+        logger.info(f"Token refresh successful")
 
         # Generate new access token
         access_token = create_access_token(
