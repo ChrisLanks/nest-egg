@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -63,7 +63,7 @@ async def list_household_members(
         select(User)
         .where(
             User.organization_id == current_user.organization_id,
-            User.is_active == True
+            User.is_active.is_(True)
         )
         .order_by(User.created_at)
     )
@@ -93,7 +93,7 @@ async def invite_member(
     result = await db.execute(
         select(User).where(
             User.organization_id == current_user.organization_id,
-            User.is_active == True
+            User.is_active.is_(True)
         )
     )
     member_count = len(result.scalars().all())
@@ -387,7 +387,7 @@ async def accept_invitation(
         result = await db.execute(
             select(User).where(
                 User.organization_id == old_organization_id,
-                User.is_active == True
+                User.is_active.is_(True)
             )
         )
         household_members = result.scalars().all()

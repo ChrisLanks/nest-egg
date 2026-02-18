@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.core.security import hash_password, verify_password
 from app.models.user import User, Organization
-from app.schemas.user import User as UserSchema, UserUpdate, OrganizationUpdate
+from app.schemas.user import UserUpdate, OrganizationUpdate
 from app.services.password_validation_service import password_validation_service
 from app.services.rate_limit_service import get_rate_limit_service
 

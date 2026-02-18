@@ -5,15 +5,12 @@ import hmac
 import json
 import logging
 from typing import Dict, Any
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
-from app.models.user import User
 from app.models.account import Account, TellerEnrollment
 from app.models.notification import NotificationType, NotificationPriority
 from app.services.notification_service import notification_service
@@ -80,7 +77,7 @@ def verify_teller_webhook_signature(
 
         if not is_valid:
             if settings.DEBUG:
-                logger.warning(f"⚠️  Teller webhook signature mismatch - allowing in DEBUG mode")
+                logger.warning("⚠️  Teller webhook signature mismatch - allowing in DEBUG mode")
                 logger.debug(f"Expected: {expected_signature[:16]}... Got: {signature_header[:16]}...")
                 return True
             else:
@@ -263,7 +260,7 @@ async def _handle_account_opened(
             organization_id=enrollment.organization_id,
             user_id=enrollment.user_id,
             type=NotificationType.ACCOUNT_CONNECTED,
-            title=f"New Account Detected",
+            title="New Account Detected",
             message=f"Found {len(new_accounts)} new account(s) at {enrollment.institution_name}",
             priority=NotificationPriority.LOW,
             expires_in_days=7,

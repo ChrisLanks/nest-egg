@@ -3,7 +3,7 @@
 import pytest
 from datetime import timedelta
 
-from app.services.auth_service import auth_service
+from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token
 
 
 @pytest.mark.unit
@@ -13,7 +13,7 @@ class TestAuthService:
     def test_hash_password(self):
         """Test password hashing."""
         password = "SecurePassword123!"
-        hashed = auth_service.hash_password(password)
+        hashed = hash_password(password)
 
         assert hashed is not None
         assert hashed != password
@@ -22,22 +22,22 @@ class TestAuthService:
     def test_verify_password_correct(self):
         """Test password verification with correct password."""
         password = "SecurePassword123!"
-        hashed = auth_service.hash_password(password)
+        hashed = hash_password(password)
 
-        assert auth_service.verify_password(password, hashed) is True
+        assert verify_password(password, hashed) is True
 
     def test_verify_password_incorrect(self):
         """Test password verification with incorrect password."""
         password = "SecurePassword123!"
         wrong_password = "WrongPassword123!"
-        hashed = auth_service.hash_password(password)
+        hashed = hash_password(password)
 
-        assert auth_service.verify_password(wrong_password, hashed) is False
+        assert verify_password(wrong_password, hashed) is False
 
     def test_create_access_token(self):
         """Test access token creation."""
         user_id = "test-user-id"
-        token = auth_service.create_access_token(user_id=user_id)
+        token = create_access_token(user_id=user_id)
 
         assert token is not None
         assert isinstance(token, str)
@@ -46,7 +46,7 @@ class TestAuthService:
     def test_create_refresh_token(self):
         """Test refresh token creation."""
         user_id = "test-user-id"
-        token = auth_service.create_refresh_token(user_id=user_id)
+        token = create_refresh_token(user_id=user_id)
 
         assert token is not None
         assert isinstance(token, str)

@@ -15,7 +15,6 @@ from app.models.user import User
 from app.models.rule import Rule, RuleCondition, RuleAction
 from app.models.transaction import Transaction
 from app.schemas.rule import RuleCreate, RuleResponse, RuleUpdate
-from app.schemas.transaction import Transaction as TransactionSchema
 from app.services.rule_engine import RuleEngine
 from app.services.rate_limit_service import get_rate_limit_service
 

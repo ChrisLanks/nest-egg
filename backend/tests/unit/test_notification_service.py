@@ -7,8 +7,7 @@ from decimal import Decimal
 
 from app.services.notification_service import NotificationService
 from app.models.notification import Notification, NotificationType, NotificationPriority
-from app.models.user import User
-from app.models.organization import Organization
+from app.models.user import User, Organization
 from app.utils.datetime_utils import utc_now
 
 

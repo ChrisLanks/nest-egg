@@ -2,6 +2,7 @@
 
 import hashlib
 import logging
+import secrets
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -32,7 +33,6 @@ logger = logging.getLogger(__name__)
 # Generate dummy password hash for timing attack prevention
 # This is generated once at module load time to prevent timing attacks
 # when checking non-existent users
-import secrets
 DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
 rate_limit_service = get_rate_limit_service()
 
@@ -181,7 +181,7 @@ async def login(
                 user.locked_until = None
                 await db.commit()
 
-        logger.info(f"User found, verifying password...")
+        logger.info("User found, verifying password...")
 
         # Verify password
         if not verify_password(data.password, user.password_hash):
@@ -208,7 +208,7 @@ async def login(
                 detail="Incorrect email or password",
             )
 
-        logger.info(f"Password verified")
+        logger.info("Password verified")
 
         # Reset failed login attempts on successful login (if fields exist)
         if hasattr(user, 'failed_login_attempts'):
@@ -223,17 +223,17 @@ async def login(
                 detail="User account is inactive",
             )
 
-        logger.info(f"Updating last login")
+        logger.info("Updating last login")
 
         # Update last login
         await user_crud.update_last_login(db, user.id)
 
-        logger.info(f"Generating tokens")
+        logger.info("Generating tokens")
 
         # Generate tokens and create response
         response = await create_auth_response(db, user)
 
-        logger.info(f"Login successful")
+        logger.info("Login successful")
 
         return response
     except HTTPException:
@@ -324,7 +324,7 @@ async def refresh_access_token(
                 detail="User not found or inactive",
             )
 
-        logger.info(f"Token refresh successful")
+        logger.info("Token refresh successful")
 
         # Generate new access token
         access_token = create_access_token(
