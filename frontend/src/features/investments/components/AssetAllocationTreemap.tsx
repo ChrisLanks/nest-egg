@@ -42,7 +42,8 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
     setCurrentNode(data);
     setBreadcrumbs([]);
     onDrillDown?.(null);
-  }, [data, onDrillDown]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]); // Only re-run when data changes, not when onDrillDown callback changes
 
   console.log('🎨 AssetAllocationTreemap render');
   console.log('   Root data:', data);
