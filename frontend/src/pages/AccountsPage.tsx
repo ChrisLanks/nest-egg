@@ -38,12 +38,15 @@ import {
   useDisclosure,
   Tooltip,
   Icon,
+  Alert,
+  AlertIcon,
+  AlertDescription,
 } from '@chakra-ui/react';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ViewIcon, ViewOffIcon, EditIcon, DeleteIcon, ChevronDownIcon, RepeatIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
-import { FiCreditCard, FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
+import { FiCreditCard, FiTrendingUp, FiTrendingDown, FiAlertTriangle } from 'react-icons/fi';
 import api from '../services/api';
 import { formatAssetType } from '../utils/formatAssetType';
 import { EmptyState } from '../components/EmptyState';
@@ -65,6 +68,9 @@ interface Account {
   balance_as_of: string | null;
   plaid_item_id: string | null;
   last_synced_at: string | null;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  needs_reauth: boolean | null;
 }
 
 interface User {
@@ -564,12 +570,28 @@ export const AccountsPage = () => {
           const lastSynced = institutionAccounts[0]?.last_synced_at;
           const isSyncing = syncingItemId === plaidItemId;
 
+          // Check if any accounts have errors
+          const hasError = institutionAccounts.some(a => a.last_error_code || a.needs_reauth);
+          const errorAccount = institutionAccounts.find(a => a.last_error_code || a.needs_reauth);
+
           return (
             <Card key={institution}>
               <CardHeader>
                 <HStack justify="space-between" align="center">
-                  <Box>
-                    <Heading size="md">{institution}</Heading>
+                  <Box flex={1}>
+                    <HStack spacing={2} align="center">
+                      <Heading size="md">{institution}</Heading>
+                      {hasError && (
+                        <Tooltip label={errorAccount?.last_error_message || 'Connection issue - check account status'}>
+                          <Badge colorScheme="red" fontSize="xs">
+                            <HStack spacing={1}>
+                              <Icon as={FiAlertTriangle} />
+                              <Text>Issue</Text>
+                            </HStack>
+                          </Badge>
+                        </Tooltip>
+                      )}
+                    </HStack>
                     {isPlaidLinked && lastSynced && (
                       <Text fontSize="xs" color="gray.500" mt={1}>
                         Last synced: {formatLastSynced(lastSynced)}
@@ -678,6 +700,26 @@ export const AccountsPage = () => {
                             <Badge colorScheme="orange" fontSize="xs">
                               Excluded from Cash Flow
                             </Badge>
+                          )}
+                          {account.needs_reauth && (
+                            <Tooltip label="Reconnect your account to resume syncing">
+                              <Badge colorScheme="red" fontSize="xs">
+                                <HStack spacing={1}>
+                                  <Icon as={FiAlertTriangle} />
+                                  <Text>Needs Reauth</Text>
+                                </HStack>
+                              </Badge>
+                            </Tooltip>
+                          )}
+                          {account.last_error_code && (
+                            <Tooltip label={account.last_error_message || 'Unknown error'}>
+                              <Badge colorScheme="red" fontSize="xs" maxW="150px">
+                                <HStack spacing={1}>
+                                  <Icon as={FiAlertTriangle} />
+                                  <Text isTruncated>Error: {account.last_error_code}</Text>
+                                </HStack>
+                              </Badge>
+                            </Tooltip>
                           )}
                         </VStack>
                       </Td>
