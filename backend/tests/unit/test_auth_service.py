@@ -37,7 +37,7 @@ class TestAuthService:
     def test_create_access_token(self):
         """Test access token creation."""
         user_id = "test-user-id"
-        token = create_access_token(user_id=user_id)
+        token = create_access_token(data={"sub": user_id, "email": "test@example.com"})
 
         assert token is not None
         assert isinstance(token, str)
@@ -46,35 +46,55 @@ class TestAuthService:
     def test_create_refresh_token(self):
         """Test refresh token creation."""
         user_id = "test-user-id"
-        token = create_refresh_token(user_id=user_id)
+        token, jti, expiration = create_refresh_token(user_id=user_id)
 
         assert token is not None
         assert isinstance(token, str)
         assert len(token) > 0
+        assert isinstance(jti, str)
+        assert len(jti) > 0
+        from datetime import datetime
+        assert isinstance(expiration, datetime)
 
     def test_verify_token_valid(self):
         """Test token verification with valid token."""
-        user_id = "test-user-id"
-        token = auth_service.create_access_token(user_id=user_id)
+        from app.core.security import decode_token
 
-        payload = auth_service.verify_token(token)
+        user_id = "test-user-id"
+        email = "test@example.com"
+        token = create_access_token(data={"sub": user_id, "email": email})
+
+        payload = decode_token(token)
         assert payload is not None
         assert payload.get("sub") == user_id
+        assert payload.get("email") == email
 
     def test_verify_token_invalid(self):
         """Test token verification with invalid token."""
+        from app.core.security import decode_token
+        from jose import JWTError
+
         invalid_token = "invalid.token.here"
 
-        payload = auth_service.verify_token(invalid_token)
-        assert payload is None
+        try:
+            payload = decode_token(invalid_token)
+            assert False, "Should have raised JWTError"
+        except JWTError:
+            pass  # Expected
 
     def test_verify_token_expired(self):
         """Test token verification with expired token."""
+        from app.core.security import decode_token
+        from jose import JWTError
+
         user_id = "test-user-id"
-        token = auth_service.create_access_token(
-            user_id=user_id,
+        token = create_access_token(
+            data={"sub": user_id},
             expires_delta=timedelta(seconds=-1)  # Already expired
         )
 
-        payload = auth_service.verify_token(token)
-        assert payload is None
+        try:
+            payload = decode_token(token)
+            assert False, "Should have raised JWTError for expired token"
+        except JWTError:
+            pass  # Expected
