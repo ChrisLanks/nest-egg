@@ -311,6 +311,10 @@ export const InvestmentsPage = () => {
           .map((child: any) => {
             // Base case: leaf node (individual account or ticker)
             if (!child.children) {
+              // For Investment Accounts (Holdings Unknown), check if visible by name
+              if (categoryName === 'Investment Accounts (Holdings Unknown)') {
+                return visibleAccountNames.has(child.name) ? child : null;
+              }
               // For account-based leaves (Property, Vehicles), check if visible by name
               if (categoryName === 'Property & Vehicles') {
                 return visibleAccountNames.has(child.name) ? child : null;
