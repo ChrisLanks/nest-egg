@@ -110,10 +110,14 @@ async def test_user(db_session: AsyncSession, test_organization: Organization) -
     user = User(
         id=uuid4(),
         email="test@example.com",
-        hashed_password=hash_password("TestPassword123!"),
+        password_hash=hash_password("password123"),
         organization_id=test_organization.id,
-        is_admin=True,
+        is_org_admin=True,
         is_active=True,
+        first_name="Test",
+        last_name="User",
+        failed_login_attempts=0,
+        locked_until=None,
     )
     db_session.add(user)
     await db_session.commit()
@@ -126,6 +130,53 @@ def auth_headers(test_user: User) -> dict:
     """Create authentication headers with access token."""
     access_token = create_access_token(data={"sub": str(test_user.id), "email": test_user.email})
     return {"Authorization": f"Bearer {access_token}"}
+
+
+@pytest_asyncio.fixture
+async def test_user_with_tokens(db_session: AsyncSession, test_user: User) -> tuple[str, str]:
+    """Create test user with access and refresh tokens stored in database."""
+    from app.core.security import create_refresh_token
+    import hashlib
+    from app.crud.user import refresh_token_crud
+
+    # Generate tokens
+    access_token = create_access_token(data={"sub": str(test_user.id), "email": test_user.email})
+    refresh_token_str, jti, expires_at = create_refresh_token(str(test_user.id))
+
+    # Store refresh token hash
+    token_hash = hashlib.sha256(jti.encode()).hexdigest()
+    await refresh_token_crud.create(
+        db=db_session,
+        user_id=test_user.id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+    )
+
+    return (access_token, refresh_token_str)
+
+
+@pytest_asyncio.fixture
+async def authenticated_client(override_get_db, test_user: User) -> AsyncGenerator[AsyncClient, None]:
+    """Create an async test client with authentication."""
+    from app.dependencies import get_current_user
+
+    async def mock_get_current_user():
+        return test_user
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = mock_get_current_user
+
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        yield ac
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def user_crud():
+    """Provide user CRUD service."""
+    from app.crud.user import user_crud as _user_crud
+    return _user_crud
 
 
 @pytest.fixture
