@@ -232,8 +232,6 @@ export const InvestmentsPage = () => {
     queryFn: async () => {
       const params = selectedUserId ? { user_id: selectedUserId } : {};
       const response = await api.get('/holdings/portfolio', { params });
-      console.log('📊 Portfolio Data:', response.data);
-      console.log('🗺️ Treemap Data (raw):', response.data.treemap_data);
 
       // Convert treemap data to use numbers instead of strings
       if (response.data.treemap_data) {

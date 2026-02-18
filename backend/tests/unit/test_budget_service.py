@@ -96,12 +96,12 @@ class TestBudgetService:
         assert end == date(2024, 12, 31)
 
     @pytest.mark.asyncio
-    async def test_create_budget(self, db, test_user):
+    async def test_create_budget(self, db_session, test_user):
         """Should create a new budget."""
         service = BudgetService()
 
         budget = await service.create_budget(
-            db=db,
+            db=db_session_session,
             user=test_user,
             name="Groceries",
             amount=Decimal("500.00"),
@@ -117,7 +117,7 @@ class TestBudgetService:
         assert budget.is_active is True
 
     @pytest.mark.asyncio
-    async def test_create_budget_with_category(self, db, test_user):
+    async def test_create_budget_with_category(self, db_session, test_user):
         """Should create budget linked to category."""
         service = BudgetService()
 
@@ -126,11 +126,11 @@ class TestBudgetService:
             organization_id=test_user.organization_id,
             name="Food",
         )
-        db.add(category)
-        await db.commit()
+        db_session.add(category)
+        await db_session.commit()
 
         budget = await service.create_budget(
-            db=db,
+            db=db_session_session,
             user=test_user,
             name="Food Budget",
             amount=Decimal("600.00"),
@@ -142,12 +142,12 @@ class TestBudgetService:
         assert budget.category_id == category.id
 
     @pytest.mark.asyncio
-    async def test_create_budget_with_custom_threshold(self, db, test_user):
+    async def test_create_budget_with_custom_threshold(self, db_session, test_user):
         """Should allow custom alert threshold."""
         service = BudgetService()
 
         budget = await service.create_budget(
-            db=db,
+            db=db_session,
             user=test_user,
             name="Custom Alert",
             amount=Decimal("1000.00"),
@@ -159,7 +159,7 @@ class TestBudgetService:
         assert budget.alert_threshold == Decimal("0.90")
 
     @pytest.mark.asyncio
-    async def test_get_budgets(self, db, test_user):
+    async def test_get_budgets(self, db_session, test_user):
         """Should get all budgets for organization."""
         service = BudgetService()
 
@@ -176,7 +176,7 @@ class TestBudgetService:
         assert len(budgets) >= 2
 
     @pytest.mark.asyncio
-    async def test_get_budgets_filter_active(self, db, test_user):
+    async def test_get_budgets_filter_active(self, db_session, test_user):
         """Should filter budgets by is_active status."""
         service = BudgetService()
 
@@ -200,7 +200,7 @@ class TestBudgetService:
         assert "Inactive" not in active_names
 
     @pytest.mark.asyncio
-    async def test_get_budget(self, db, test_user):
+    async def test_get_budget(self, db_session, test_user):
         """Should get specific budget by ID."""
         service = BudgetService()
 
@@ -215,7 +215,7 @@ class TestBudgetService:
         assert retrieved.name == "Test"
 
     @pytest.mark.asyncio
-    async def test_get_budget_cross_org_blocked(self, db, test_user):
+    async def test_get_budget_cross_org_blocked(self, db_session, test_user):
         """Should not allow accessing budgets from other orgs."""
         service = BudgetService()
         other_org_id = uuid4()
@@ -237,7 +237,7 @@ class TestBudgetService:
         assert retrieved is None
 
     @pytest.mark.asyncio
-    async def test_update_budget(self, db, test_user):
+    async def test_update_budget(self, db_session, test_user):
         """Should update budget fields."""
         service = BudgetService()
 
@@ -258,7 +258,7 @@ class TestBudgetService:
         assert updated.amount == Decimal("200")
 
     @pytest.mark.asyncio
-    async def test_update_budget_cross_org_blocked(self, db, test_user):
+    async def test_update_budget_cross_org_blocked(self, db_session, test_user):
         """Should not allow updating budgets from other orgs."""
         service = BudgetService()
         other_org_id = uuid4()
@@ -279,7 +279,7 @@ class TestBudgetService:
         assert updated is None
 
     @pytest.mark.asyncio
-    async def test_delete_budget(self, db, test_user):
+    async def test_delete_budget(self, db_session, test_user):
         """Should delete budget."""
         service = BudgetService()
 
@@ -296,7 +296,7 @@ class TestBudgetService:
         assert retrieved is None
 
     @pytest.mark.asyncio
-    async def test_delete_budget_cross_org_blocked(self, db, test_user):
+    async def test_delete_budget_cross_org_blocked(self, db_session, test_user):
         """Should not allow deleting budgets from other orgs."""
         service = BudgetService()
         other_org_id = uuid4()
@@ -406,7 +406,7 @@ class TestBudgetService:
         assert spending["spent"] == Decimal("50.00")
 
     @pytest.mark.asyncio
-    async def test_get_budget_spending_no_transactions(self, db, test_user):
+    async def test_get_budget_spending_no_transactions(self, db_session, test_user):
         """Should handle budget with no spending."""
         service = BudgetService()
 
