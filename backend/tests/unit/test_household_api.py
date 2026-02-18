@@ -17,6 +17,7 @@ from app.api.v1.household import (
     accept_invitation,
     InviteMemberRequest,
     MAX_HOUSEHOLD_MEMBERS,
+    router,
 )
 from app.models.user import User, HouseholdInvitation, InvitationStatus
 

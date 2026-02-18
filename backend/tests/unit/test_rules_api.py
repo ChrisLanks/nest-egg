@@ -18,6 +18,7 @@ from app.api.v1.rules import (
     preview_rule,
     test_rule,
     ApplyRuleRequest,
+    router,
 )
 from app.models.user import User
 from app.models.rule import Rule, RuleCondition, RuleAction, MatchType, ApplyTo, RuleField, RuleOperator, ActionType

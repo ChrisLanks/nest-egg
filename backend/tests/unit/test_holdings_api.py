@@ -18,6 +18,7 @@ from app.api.v1.holdings import (
     get_portfolio_summary,
     get_style_box_breakdown,
     get_rmd_summary,
+    router,
 )
 from app.models.user import User
 from app.models.account import Account, AccountType

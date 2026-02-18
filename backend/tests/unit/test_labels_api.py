@@ -17,6 +17,7 @@ from app.api.v1.labels import (
     initialize_tax_labels,
     get_tax_deductible_transactions,
     export_tax_deductible_csv,
+    router,
 )
 from app.models.user import User
 from app.models.transaction import Label

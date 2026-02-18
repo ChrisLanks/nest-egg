@@ -16,6 +16,7 @@ from app.api.v1.savings_goals import (
     delete_goal,
     sync_goal_from_account,
     get_goal_progress,
+    router,
 )
 from app.models.user import User
 from app.models.savings_goal import SavingsGoal

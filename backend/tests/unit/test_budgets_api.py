@@ -16,6 +16,7 @@ from app.api.v1.budgets import (
     delete_budget,
     get_budget_spending,
     check_budget_alerts,
+    router,
 )
 from app.models.user import User
 from app.models.budget import Budget, BudgetPeriod
