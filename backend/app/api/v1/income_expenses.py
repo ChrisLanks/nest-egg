@@ -1,5 +1,6 @@
 """Income vs Expenses API endpoints."""
 
+import logging
 from datetime import date
 from typing import Optional, List
 from uuid import UUID
@@ -25,7 +26,8 @@ from app.services.trend_analysis_service import TrendAnalysisService
 
 router = APIRouter()
 
-# Initialize deduplication service
+# Initialize logger and services
+logger = logging.getLogger(__name__)
 deduplication_service = DeduplicationService()
 
 
@@ -52,12 +54,12 @@ def validate_date_range(start_date: date, end_date: date) -> None:
         )
 
     # Check date range is not too large (prevent DoS via huge queries)
-    max_range_days = 3650  # ~10 years
+    max_range_days = 5475  # ~15 years (allows "All Time" views)
     date_diff = (end_date - start_date).days
 
     if date_diff > max_range_days:
         raise HTTPException(
-            status_code=400, detail=f"Date range cannot exceed {max_range_days} days (~10 years)"
+            status_code=400, detail=f"Date range cannot exceed {max_range_days} days (~15 years)"
         )
 
 
@@ -154,14 +156,35 @@ async def get_income_expense_summary(
     total_expenses = abs(float(expense_result.scalar() or 0))
 
     # Get income by category - only from active accounts
+    # Use hierarchical categories: show root category for child categories, otherwise show the category itself
+    from app.models.transaction import Category
+    from sqlalchemy.orm import aliased
+
+    # Alias for parent category
+    ParentCategory = aliased(Category)
+
+    # Build category name expression:
+    # - If transaction has custom category with parent, use parent name
+    # - If transaction has custom category without parent (root), use category name
+    # - Otherwise use provider category (category_primary)
+    category_name_expr = func.coalesce(
+        ParentCategory.name,  # Try parent name first
+        Category.name,  # Then try category name
+        Transaction.category_primary  # Finally fall back to provider category
+    ).label("category_name")
+
+    logger.info(f"[CATEGORY GROUPING] Querying income categories - org: {current_user.organization_id}, accounts: {len(account_ids)}, date range: {start_date} to {end_date}")
+
     income_categories_result = await db.execute(
         select(
-            Transaction.category_primary,
+            category_name_expr,
             func.sum(Transaction.amount).label("total"),
             func.count(Transaction.id).label("count"),
         )
         .select_from(Transaction)
         .join(Account)
+        .outerjoin(Category, Transaction.category_id == Category.id)
+        .outerjoin(ParentCategory, Category.parent_category_id == ParentCategory.id)
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
@@ -173,9 +196,10 @@ async def get_income_expense_summary(
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0,
-            Transaction.category_primary.isnot(None),
+            # Include transactions with either custom category or provider category
+            (Transaction.category_id.isnot(None)) | (Transaction.category_primary.isnot(None)),
         )
-        .group_by(Transaction.category_primary)
+        .group_by(category_name_expr)
         .order_by(func.sum(Transaction.amount).desc())
     )
 
@@ -185,19 +209,24 @@ async def get_income_expense_summary(
         percentage = (amount / total_income * 100) if total_income > 0 else 0
         income_categories.append(
             CategoryBreakdown(
-                category=row.category_primary, amount=amount, count=row.count, percentage=percentage
+                category=row.category_name, amount=amount, count=row.count, percentage=percentage
             )
         )
 
+    logger.info(f"[CATEGORY GROUPING] Found {len(income_categories)} income categories: {[c.category for c in income_categories]}")
+
     # Get expenses by category - only from active accounts
+    # Use hierarchical categories: show root category for child categories
     expense_categories_result = await db.execute(
         select(
-            Transaction.category_primary,
+            category_name_expr,
             func.sum(Transaction.amount).label("total"),
             func.count(Transaction.id).label("count"),
         )
         .select_from(Transaction)
         .join(Account)
+        .outerjoin(Category, Transaction.category_id == Category.id)
+        .outerjoin(ParentCategory, Category.parent_category_id == ParentCategory.id)
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
@@ -209,9 +238,10 @@ async def get_income_expense_summary(
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0,
-            Transaction.category_primary.isnot(None),
+            # Include transactions with either custom category or provider category
+            (Transaction.category_id.isnot(None)) | (Transaction.category_primary.isnot(None)),
         )
-        .group_by(Transaction.category_primary)
+        .group_by(category_name_expr)
         .order_by(func.sum(Transaction.amount).asc())  # Most negative first
     )
 
@@ -221,7 +251,315 @@ async def get_income_expense_summary(
         percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
         expense_categories.append(
             CategoryBreakdown(
-                category=row.category_primary, amount=amount, count=row.count, percentage=percentage
+                category=row.category_name, amount=amount, count=row.count, percentage=percentage
+            )
+        )
+
+    logger.info(f"[CATEGORY GROUPING] Found {len(expense_categories)} expense categories: {[c.category for c in expense_categories]}")
+
+    return IncomeExpenseSummary(
+        total_income=total_income,
+        total_expenses=total_expenses,
+        net=total_income - total_expenses,
+        income_categories=income_categories,
+        expense_categories=expense_categories,
+    )
+
+
+@router.get("/category-drill-down", response_model=IncomeExpenseSummary)
+async def get_category_drill_down(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    parent_category: str = Query(..., description="Parent category name to drill down into"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get child categories for a specific parent category (drill-down)."""
+    # Validate date range
+    validate_date_range(start_date, end_date)
+
+    # Get accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    account_ids = [acc.id for acc in accounts]
+
+    # Import models
+    from app.models.transaction import Category
+    from sqlalchemy.orm import aliased
+
+    # Find the parent category
+    parent_cat_result = await db.execute(
+        select(Category).where(
+            Category.organization_id == current_user.organization_id,
+            Category.name == parent_category
+        )
+    )
+    parent_cat = parent_cat_result.scalar_one_or_none()
+
+    if not parent_cat:
+        # If no custom category found, treat as provider category (leaf node with no children)
+        income_result = await db.execute(
+            select(
+                func.sum(Transaction.amount).label("total"),
+                func.count(Transaction.id).label("count")
+            )
+            .select_from(Transaction)
+            .join(Account)
+            .where(
+                Transaction.organization_id == current_user.organization_id,
+                Account.is_active.is_(True),
+                Account.exclude_from_cash_flow.is_(False),
+                Transaction.is_transfer.is_(False),
+                Transaction.account_id.in_(account_ids),
+                Transaction.date >= start_date,
+                Transaction.date <= end_date,
+                Transaction.amount > 0,
+                Transaction.category_primary == parent_category
+            )
+        )
+        income_row = income_result.one_or_none()
+        total_income = float(income_row.total) if income_row and income_row.total else 0
+        income_count = income_row.count if income_row else 0
+
+        expense_result = await db.execute(
+            select(
+                func.sum(Transaction.amount).label("total"),
+                func.count(Transaction.id).label("count")
+            )
+            .select_from(Transaction)
+            .join(Account)
+            .where(
+                Transaction.organization_id == current_user.organization_id,
+                Account.is_active.is_(True),
+                Account.exclude_from_cash_flow.is_(False),
+                Transaction.is_transfer.is_(False),
+                Transaction.account_id.in_(account_ids),
+                Transaction.date >= start_date,
+                Transaction.date <= end_date,
+                Transaction.amount < 0,
+                Transaction.category_primary == parent_category
+            )
+        )
+        expense_row = expense_result.one_or_none()
+        total_expenses = abs(float(expense_row.total)) if expense_row and expense_row.total else 0
+        expense_count = expense_row.count if expense_row else 0
+
+        # For provider categories (leaf nodes), return single category
+        return IncomeExpenseSummary(
+            total_income=total_income,
+            total_expenses=total_expenses,
+            net=total_income - total_expenses,
+            income_categories=[CategoryBreakdown(
+                category=parent_category,
+                amount=total_income,
+                count=income_count,
+                percentage=100.0
+            )] if total_income > 0 else [],
+            expense_categories=[CategoryBreakdown(
+                category=parent_category,
+                amount=total_expenses,
+                count=expense_count,
+                percentage=100.0
+            )] if total_expenses > 0 else [],
+        )
+
+    # Check if this category has children
+    child_cats_result = await db.execute(
+        select(Category).where(
+            Category.organization_id == current_user.organization_id,
+            Category.parent_category_id == parent_cat.id
+        )
+    )
+    child_cats = child_cats_result.scalars().all()
+
+    if not child_cats:
+        # Leaf category - return single breakdown
+        income_result = await db.execute(
+            select(
+                func.sum(Transaction.amount).label("total"),
+                func.count(Transaction.id).label("count")
+            )
+            .select_from(Transaction)
+            .join(Account)
+            .where(
+                Transaction.organization_id == current_user.organization_id,
+                Account.is_active.is_(True),
+                Account.exclude_from_cash_flow.is_(False),
+                Transaction.is_transfer.is_(False),
+                Transaction.account_id.in_(account_ids),
+                Transaction.date >= start_date,
+                Transaction.date <= end_date,
+                Transaction.amount > 0,
+                Transaction.category_id == parent_cat.id
+            )
+        )
+        income_row = income_result.one_or_none()
+        total_income = float(income_row.total) if income_row and income_row.total else 0
+        income_count = income_row.count if income_row else 0
+
+        expense_result = await db.execute(
+            select(
+                func.sum(Transaction.amount).label("total"),
+                func.count(Transaction.id).label("count")
+            )
+            .select_from(Transaction)
+            .join(Account)
+            .where(
+                Transaction.organization_id == current_user.organization_id,
+                Account.is_active.is_(True),
+                Account.exclude_from_cash_flow.is_(False),
+                Transaction.is_transfer.is_(False),
+                Transaction.account_id.in_(account_ids),
+                Transaction.date >= start_date,
+                Transaction.date <= end_date,
+                Transaction.amount < 0,
+                Transaction.category_id == parent_cat.id
+            )
+        )
+        expense_row = expense_result.one_or_none()
+        total_expenses = abs(float(expense_row.total)) if expense_row and expense_row.total else 0
+        expense_count = expense_row.count if expense_row else 0
+
+        return IncomeExpenseSummary(
+            total_income=total_income,
+            total_expenses=total_expenses,
+            net=total_income - total_expenses,
+            income_categories=[CategoryBreakdown(
+                category=parent_category,
+                amount=total_income,
+                count=income_count,
+                percentage=100.0
+            )] if total_income > 0 else [],
+            expense_categories=[CategoryBreakdown(
+                category=parent_category,
+                amount=total_expenses,
+                count=expense_count,
+                percentage=100.0
+            )] if total_expenses > 0 else [],
+        )
+
+    # Has children - return child breakdown
+    child_ids = [cat.id for cat in child_cats]
+
+    # Get totals for parent (including children)
+    parent_income_result = await db.execute(
+        select(func.sum(Transaction.amount))
+        .select_from(Transaction)
+        .join(Account)
+        .join(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),
+            Transaction.is_transfer.is_(False),
+            Transaction.account_id.in_(account_ids),
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount > 0,
+            (Category.id == parent_cat.id) | (Category.parent_category_id == parent_cat.id)
+        )
+    )
+    total_income = float(parent_income_result.scalar() or 0)
+
+    parent_expense_result = await db.execute(
+        select(func.sum(Transaction.amount))
+        .select_from(Transaction)
+        .join(Account)
+        .join(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),
+            Transaction.is_transfer.is_(False),
+            Transaction.account_id.in_(account_ids),
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount < 0,
+            (Category.id == parent_cat.id) | (Category.parent_category_id == parent_cat.id)
+        )
+    )
+    total_expenses = abs(float(parent_expense_result.scalar() or 0))
+
+    # Get child category breakdown
+    income_children_result = await db.execute(
+        select(
+            Category.name,
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count")
+        )
+        .select_from(Transaction)
+        .join(Account)
+        .join(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),
+            Transaction.is_transfer.is_(False),
+            Transaction.account_id.in_(account_ids),
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount > 0,
+            Category.id.in_(child_ids)
+        )
+        .group_by(Category.name)
+        .order_by(func.sum(Transaction.amount).desc())
+    )
+
+    income_categories = []
+    for row in income_children_result:
+        amount = float(row.total)
+        percentage = (amount / total_income * 100) if total_income > 0 else 0
+        income_categories.append(
+            CategoryBreakdown(
+                category=row.name,
+                amount=amount,
+                count=row.count,
+                percentage=percentage
+            )
+        )
+
+    expense_children_result = await db.execute(
+        select(
+            Category.name,
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count")
+        )
+        .select_from(Transaction)
+        .join(Account)
+        .join(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),
+            Transaction.is_transfer.is_(False),
+            Transaction.account_id.in_(account_ids),
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.amount < 0,
+            Category.id.in_(child_ids)
+        )
+        .group_by(Category.name)
+        .order_by(func.sum(Transaction.amount).asc())
+    )
+
+    expense_categories = []
+    for row in expense_children_result:
+        amount = abs(float(row.total))
+        percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
+        expense_categories.append(
+            CategoryBreakdown(
+                category=row.name,
+                amount=amount,
+                count=row.count,
+                percentage=percentage
             )
         )
 

@@ -274,6 +274,28 @@ export const IncomeExpensesPage = () => {
     },
   });
 
+  // Fetch category drill-down when clicking on a category
+  const { data: categoryDrillDown } = useQuery({
+    queryKey: ['income-expenses-category-drill-down', dateRange.start, dateRange.end, incomeDrillDown.category, expenseDrillDown.category, selectedUserId],
+    queryFn: async () => {
+      const parentCategory = incomeDrillDown.category || expenseDrillDown.category;
+      if (!parentCategory) return null;
+
+      const params = new URLSearchParams({
+        start_date: dateRange.start,
+        end_date: dateRange.end,
+        parent_category: parentCategory,
+      });
+      if (selectedUserId) {
+        params.append('user_id', selectedUserId);
+      }
+
+      const response = await api.get<IncomeExpenseSummary>(`/income-expenses/category-drill-down?${params.toString()}`);
+      return response.data;
+    },
+    enabled: groupBy === 'category' && (!!incomeDrillDown.category || !!expenseDrillDown.category) && incomeDrillDown.level === 'merchants' && expenseDrillDown.level === 'merchants',
+  });
+
   // Fetch merchant breakdown when drilling down
   const { data: incomeMerchants } = useQuery({
     queryKey: ['income-merchants', dateRange.start, dateRange.end, incomeDrillDown.category, groupBy, selectedUserId],
@@ -302,7 +324,7 @@ export const IncomeExpensesPage = () => {
       const response = await api.get<CategoryBreakdown[]>(`${endpoint}?${params.toString()}`);
       return response.data;
     },
-    enabled: incomeDrillDown.level === 'merchants' || incomeDrillDown.level === 'transactions',
+    enabled: (incomeDrillDown.level === 'merchants' || incomeDrillDown.level === 'transactions') && groupBy !== 'category',
   });
 
   const { data: expenseMerchants } = useQuery({
@@ -332,7 +354,7 @@ export const IncomeExpensesPage = () => {
       const response = await api.get<CategoryBreakdown[]>(`${endpoint}?${params.toString()}`);
       return response.data;
     },
-    enabled: expenseDrillDown.level === 'merchants' || expenseDrillDown.level === 'transactions',
+    enabled: (expenseDrillDown.level === 'merchants' || expenseDrillDown.level === 'transactions') && groupBy !== 'category',
   });
 
   // Fetch ALL transactions for the date range (with infinite loading)
@@ -1348,8 +1370,8 @@ export const IncomeExpensesPage = () => {
                           </Breadcrumb>
                           {incomeDrillDown.level === 'categories'
                             ? renderChart(filteredSummary?.income_categories || [], 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
-                            : incomeDrillDown.level === 'merchants' && incomeMerchants
-                            ? renderChart(incomeMerchants, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
+                            : incomeDrillDown.level === 'merchants' && (groupBy === 'category' ? categoryDrillDown?.income_categories : incomeMerchants)
+                            ? renderChart(groupBy === 'category' ? (categoryDrillDown?.income_categories || []) : (incomeMerchants || []), 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
                             : renderChart(incomeTransactionBreakdown, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
                           }
                           <Box>
@@ -1408,8 +1430,8 @@ export const IncomeExpensesPage = () => {
                           </Breadcrumb>
                           {expenseDrillDown.level === 'categories'
                             ? renderChart(filteredSummary?.expense_categories || [], 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
-                            : expenseDrillDown.level === 'merchants' && expenseMerchants
-                            ? renderChart(expenseMerchants, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
+                            : expenseDrillDown.level === 'merchants' && (groupBy === 'category' ? categoryDrillDown?.expense_categories : expenseMerchants)
+                            ? renderChart(groupBy === 'category' ? (categoryDrillDown?.expense_categories || []) : (expenseMerchants || []), 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
                             : renderChart(expenseTransactionBreakdown, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
                           }
                           <Box>
@@ -1580,8 +1602,8 @@ export const IncomeExpensesPage = () => {
                         <Box>
                           {incomeDrillDown.level === 'categories'
                             ? renderChart(filteredSummary?.income_categories || [], 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
-                            : incomeDrillDown.level === 'merchants' && incomeMerchants
-                            ? renderChart(incomeMerchants, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
+                            : incomeDrillDown.level === 'merchants' && (groupBy === 'category' ? categoryDrillDown?.income_categories : incomeMerchants)
+                            ? renderChart(groupBy === 'category' ? (categoryDrillDown?.income_categories || []) : (incomeMerchants || []), 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
                             : renderChart(incomeTransactionBreakdown, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
                           }
                         </Box>
@@ -1754,8 +1776,8 @@ export const IncomeExpensesPage = () => {
                         <Box>
                           {expenseDrillDown.level === 'categories'
                             ? renderChart(filteredSummary?.expense_categories || [], 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
-                            : expenseDrillDown.level === 'merchants' && expenseMerchants
-                            ? renderChart(expenseMerchants, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
+                            : expenseDrillDown.level === 'merchants' && (groupBy === 'category' ? categoryDrillDown?.expense_categories : expenseMerchants)
+                            ? renderChart(groupBy === 'category' ? (categoryDrillDown?.expense_categories || []) : (expenseMerchants || []), 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
                             : renderChart(expenseTransactionBreakdown, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
                           }
                         </Box>
