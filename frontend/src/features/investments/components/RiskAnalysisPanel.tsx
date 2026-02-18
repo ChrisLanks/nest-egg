@@ -163,6 +163,9 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
     staleTime: 15 * 60 * 1000,
   });
 
+  // Check if we have any holdings data
+  const hasHoldingsData = portfolio.holdings_by_ticker.length > 0;
+
   // Calculate metrics
   const metrics = useMemo(() => {
     const volatility = snapshots && snapshots.length >= 2 ? calculateVolatility(snapshots) : 0;
@@ -312,20 +315,26 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
                 </Text>
               </Tooltip>
             </StatLabel>
-            <StatNumber>{metrics.diversificationScore.toFixed(0)}</StatNumber>
-            <StatHelpText>out of 100</StatHelpText>
+            <StatNumber>
+              {hasHoldingsData ? metrics.diversificationScore.toFixed(0) : 'Unknown'}
+            </StatNumber>
+            <StatHelpText>
+              {hasHoldingsData ? 'out of 100' : 'No holdings data'}
+            </StatHelpText>
           </Stat>
-          <Box mt={4}>
-            <Progress
-              value={metrics.diversificationScore}
-              colorScheme={metrics.diversificationScore > 70 ? 'green' : metrics.diversificationScore > 40 ? 'yellow' : 'red'}
-              size="sm"
-              borderRadius="md"
-            />
-            <Text fontSize="xs" color="gray.500" mt={2}>
-              {portfolio.holdings_by_ticker.filter(h => h.current_total_value && h.current_total_value > 0).length} holdings
-            </Text>
-          </Box>
+          {hasHoldingsData && (
+            <Box mt={4}>
+              <Progress
+                value={metrics.diversificationScore}
+                colorScheme={metrics.diversificationScore > 70 ? 'green' : metrics.diversificationScore > 40 ? 'yellow' : 'red'}
+                size="sm"
+                borderRadius="md"
+              />
+              <Text fontSize="xs" color="gray.500" mt={2}>
+                {portfolio.holdings_by_ticker.filter(h => h.current_total_value && h.current_total_value > 0).length} holdings
+              </Text>
+            </Box>
+          )}
         </Box>
       </SimpleGrid>
 
@@ -383,7 +392,16 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
           <Text fontSize="md" fontWeight="medium" mb={4}>
             Top Concentrations
           </Text>
-          {topConcentrations.length > 0 ? (
+          {!hasHoldingsData ? (
+            <Box textAlign="center" py={10}>
+              <Text color="gray.600" _dark={{ color: 'gray.400' }} fontWeight="medium">
+                Unknown
+              </Text>
+              <Text fontSize="sm" color="gray.500" mt={2}>
+                No holdings data available
+              </Text>
+            </Box>
+          ) : topConcentrations.length > 0 ? (
             <VStack spacing={3} align="stretch">
               <Alert status="warning" size="sm">
                 <AlertIcon />
