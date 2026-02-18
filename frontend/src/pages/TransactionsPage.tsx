@@ -1043,7 +1043,7 @@ export const TransactionsPage = () => {
         {/* Search Bar and Controls */}
         <HStack spacing={3} justify="space-between">
           <HStack spacing={2}>
-            <InputGroup maxW="700px">
+            <InputGroup maxW="750px">
               <InputLeftElement pointerEvents="none">
                 <SearchIcon color="gray.400" />
               </InputLeftElement>
