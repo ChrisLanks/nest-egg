@@ -101,42 +101,8 @@ async def get_portfolio_summary(
     else:
         holdings = []
 
-    if not holdings:
-        # Create empty treemap for no holdings
-        empty_treemap = TreemapNode(
-            name="Portfolio",
-            value=Decimal("0"),
-            percent=Decimal("100"),
-            children=[],
-        )
-        return PortfolioSummary(
-            total_value=Decimal("0"),
-            total_cost_basis=Decimal("0"),
-            total_gain_loss=Decimal("0"),
-            total_gain_loss_percent=Decimal("0"),
-            holdings_by_ticker=[],
-            holdings_by_account=[],
-            stocks_value=Decimal("0"),
-            bonds_value=Decimal("0"),
-            etf_value=Decimal("0"),
-            mutual_funds_value=Decimal("0"),
-            cash_value=Decimal("0"),
-            other_value=Decimal("0"),
-            category_breakdown=CategoryBreakdown(
-                retirement_value=Decimal("0"),
-                retirement_percent=None,
-                taxable_value=Decimal("0"),
-                taxable_percent=None,
-            ),
-            geographic_breakdown=GeographicBreakdown(
-                domestic_value=Decimal("0"),
-                domestic_percent=None,
-                international_value=Decimal("0"),
-                international_percent=None,
-            ),
-            treemap_data=empty_treemap,
-            total_annual_fees=None,
-        )
+    # Don't return early if no holdings - accounts may still have balances without detailed holdings
+    # (e.g., investment accounts that haven't been synced yet or don't have holdings data)
 
     # Aggregate holdings by ticker
     holdings_by_ticker: dict[str, dict] = {}
@@ -573,6 +539,18 @@ async def get_portfolio_summary(
             else:
                 other_dict[ticker] = value
 
+    # Handle investment accounts with balances but no holdings (e.g., not yet synced)
+    investment_accounts_without_holdings_value = Decimal("0")
+    investment_accounts_without_holdings_dict = {}  # {account_name: value}
+
+    for account in accounts:
+        if account.account_type in investment_account_types and account.current_balance:
+            # Check if this account has any holdings
+            if account.id not in holdings_by_account or len(holdings_by_account[account.id]) == 0:
+                # Account has a balance but no holdings - include it
+                investment_accounts_without_holdings_value += account.current_balance
+                investment_accounts_without_holdings_dict[account.name] = account.current_balance
+
     # Calculate property, vehicle, crypto, and bank account values
     property_value = Decimal("0")
     for account in accounts:
@@ -630,6 +608,7 @@ async def get_portfolio_summary(
         + property_value
         + vehicle_value
         + crypto_value
+        + investment_accounts_without_holdings_value
     )
 
     # Add Domestic Stocks with market cap layers
@@ -1009,6 +988,30 @@ async def get_portfolio_summary(
                 ),
                 children=other_holdings,
                 color="#A0AEC0",  # gray
+            )
+        )
+
+    # Add Investment Accounts Without Holdings (accounts with balance but no holdings data)
+    if investment_accounts_without_holdings_value > 0:
+        account_nodes = [
+            TreemapNode(
+                name=account_name,
+                value=value,
+                percent=(value / investment_accounts_without_holdings_value * 100),
+            )
+            for account_name, value in investment_accounts_without_holdings_dict.items()
+        ]
+        treemap_children.append(
+            TreemapNode(
+                name="Investment Accounts (Holdings Unknown)",
+                value=investment_accounts_without_holdings_value,
+                percent=(
+                    (investment_accounts_without_holdings_value / portfolio_total * 100)
+                    if portfolio_total > 0
+                    else Decimal("0")
+                ),
+                children=account_nodes,
+                color="#CBD5E0",  # light gray to indicate unknown/incomplete data
             )
         )
 
