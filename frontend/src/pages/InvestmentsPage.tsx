@@ -177,7 +177,7 @@ export const InvestmentsPage = () => {
     };
   };
 
-  // Fetch all accounts for filtering
+  // Fetch all accounts for filtering (backend deduplicates shared accounts)
   const { data: allAccounts } = useQuery({
     queryKey: ['accounts', selectedUserId],
     queryFn: async () => {
@@ -227,30 +227,36 @@ export const InvestmentsPage = () => {
       );
     });
 
-    // Recalculate total value from visible accounts
-    // Match backend logic: sum holdings values for investment accounts, account balances for others
-    const allVisibleAccounts = allAccounts.filter(
+    // Recalculate total value by subtracting hidden accounts from backend total
+    // This avoids needing to replicate the backend's complex portfolio calculation logic
+
+    // Start with the backend's correct total
+    let newTotalValue = rawPortfolio.total_value;
+
+    // Subtract value of hidden accounts
+    if (hiddenAccountIds.length > 0 && allAccounts) {
+      const hiddenAccounts = allAccounts.filter((account: any) =>
+        hiddenAccountIds.includes(account.id)
+      );
+
+      hiddenAccounts.forEach((account: any) => {
+        // For investment accounts, use account_value from holdings_by_account if available
+        const holdingsAccount = rawPortfolio.holdings_by_account.find(
+          (h) => h.account_id === account.id
+        );
+        if (holdingsAccount) {
+          newTotalValue -= Number(holdingsAccount.account_value || 0);
+        } else {
+          // For other accounts (crypto without holdings, property, vehicle, etc), use current_balance
+          newTotalValue -= Number(account.current_balance || 0);
+        }
+      });
+    }
+
+    // Get visible accounts (all accounts minus hidden ones)
+    const allVisibleAccounts = allAccounts?.filter(
       (account: any) => !hiddenAccountIds.includes(account.id)
-    );
-
-    // Sum up holdings values from visible investment accounts
-    const holdingsValue = visibleAccounts.reduce(
-      (sum: number, account) => sum + Number(account.account_value || 0),
-      0
-    );
-
-    // Sum up property, vehicle, and other non-investment account balances
-    const otherAccountsValue = allVisibleAccounts
-      .filter((account: any) => {
-        const accountType = account.account_type?.toLowerCase();
-        return accountType === 'property' ||
-               accountType === 'vehicle' ||
-               accountType === 'checking' ||
-               accountType === 'savings';
-      })
-      .reduce((sum: number, account: any) => sum + (Number(account.current_balance) || 0), 0);
-
-    const newTotalValue = holdingsValue + otherAccountsValue;
+    ) || [];
 
     // Recalculate treemap data based on visible accounts
     let newTreemapData = rawPortfolio.treemap_data;

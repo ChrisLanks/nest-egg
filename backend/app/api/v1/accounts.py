@@ -75,6 +75,9 @@ async def list_accounts(
         else:
             accounts = await get_all_household_accounts(db, current_user.organization_id)
 
+    # Deduplicate accounts (shared accounts appear multiple times when multiple household members link the same account)
+    accounts = deduplication_service.deduplicate_accounts(accounts)
+
     # Sort by name
     accounts = sorted(accounts, key=lambda a: a.name)
 

@@ -601,15 +601,23 @@ async def get_portfolio_summary(
     crypto_value = Decimal("0")
     crypto_holdings_dict_prelim = {}
     for account in accounts:
-        if account.account_type == AccountType.CRYPTO and account.id in holdings_by_account:
-            for holding in holdings_by_account[account.id]:
-                if holding.current_total_value:
-                    crypto_value += holding.current_total_value
-                    ticker = holding.ticker
-                    if ticker in crypto_holdings_dict_prelim:
-                        crypto_holdings_dict_prelim[ticker] += holding.current_total_value
-                    else:
-                        crypto_holdings_dict_prelim[ticker] = holding.current_total_value
+        if account.account_type == AccountType.CRYPTO:
+            # If account has holdings records, use those
+            if account.id in holdings_by_account:
+                for holding in holdings_by_account[account.id]:
+                    if holding.current_total_value:
+                        crypto_value += holding.current_total_value
+                        ticker = holding.ticker
+                        if ticker in crypto_holdings_dict_prelim:
+                            crypto_holdings_dict_prelim[ticker] += holding.current_total_value
+                        else:
+                            crypto_holdings_dict_prelim[ticker] = holding.current_total_value
+            # If account has no holdings but has a balance, use account balance as fallback
+            elif account.current_balance and account.current_balance > 0:
+                crypto_value += account.current_balance
+                # Add placeholder for treemap (use account name as "ticker")
+                ticker_name = f"{account.name} (Balance)"
+                crypto_holdings_dict_prelim[ticker_name] = account.current_balance
 
     # Create treemap nodes for each asset class
     total_cash = cash_from_holdings + checking_value + savings_value
