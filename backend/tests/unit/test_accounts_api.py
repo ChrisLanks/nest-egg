@@ -132,6 +132,36 @@ class TestListAccounts:
         assert result[0].is_active is False
 
     @pytest.mark.asyncio
+    async def test_includes_hidden_with_user_filter(
+        self, mock_db, mock_user, mock_account
+    ):
+        """Should include hidden accounts filtered by user_id (admin view)."""
+        user_id = uuid4()
+        mock_account.is_active = False
+
+        # Mock database query for admin view with user filter
+        mock_result = Mock()
+        mock_result.unique.return_value.scalars.return_value.all.return_value = [
+            mock_account
+        ]
+        mock_db.execute.return_value = mock_result
+
+        with patch(
+            "app.api.v1.accounts.verify_household_member", return_value=None
+        ) as mock_verify:
+            result = await list_accounts(
+                include_hidden=True,
+                user_id=user_id,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            assert len(result) == 1
+            mock_verify.assert_called_once_with(
+                mock_db, user_id, mock_user.organization_id
+            )
+
+    @pytest.mark.asyncio
     async def test_sorts_accounts_by_name(self, mock_db, mock_user):
         """Should sort accounts alphabetically by name."""
         account1 = Mock(spec=Account)
@@ -234,6 +264,53 @@ class TestListAccounts:
             assert result[0].last_synced_at == plaid_item.last_synced_at
             assert result[0].last_error_code == "ITEM_LOGIN_REQUIRED"
             assert result[0].needs_reauth is True
+
+    @pytest.mark.asyncio
+    async def test_includes_teller_sync_status(self, mock_db, mock_user):
+        """Should include Teller sync status for Teller accounts."""
+        from datetime import datetime
+
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.user_id = uuid4()
+        account.name = "Teller Checking"
+        account.account_source = AccountSource.TELLER
+        account.account_type = AccountType.CHECKING
+        account.property_type = None
+        account.institution_name = "Bank of America"
+        account.mask = "4321"
+        account.current_balance = Decimal("4000")
+        account.balance_as_of = None
+        account.is_active = True
+        account.exclude_from_cash_flow = False
+        account.plaid_item_hash = None
+        account.plaid_item = None
+        account.plaid_item_id = None
+
+        # Mock Teller enrollment
+        teller_enrollment = Mock()
+        teller_enrollment.last_synced_at = datetime(2024, 2, 1, 10, 0, 0)
+        teller_enrollment.last_error_code = "INVALID_CREDENTIALS"
+        teller_enrollment.last_error_message = "Login failed"
+
+        account.teller_enrollment = teller_enrollment
+        account.teller_enrollment_id = uuid4()
+
+        with patch(
+            "app.api.v1.accounts.get_all_household_accounts", return_value=[account]
+        ):
+            result = await list_accounts(
+                include_hidden=False,
+                user_id=None,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            assert len(result) == 1
+            assert result[0].provider_item_id == account.teller_enrollment_id
+            assert result[0].last_synced_at == teller_enrollment.last_synced_at
+            assert result[0].last_error_code == "INVALID_CREDENTIALS"
+            assert result[0].needs_reauth is False  # Teller doesn't use reauth
 
 
 @pytest.mark.unit

@@ -493,6 +493,31 @@ class TestRefreshTokenEndpoint:
                     assert "not found" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
+    async def test_refresh_rejects_token_without_jti(self):
+        """Should reject tokens without jti (takes else branch in logging when DEBUG=False)."""
+        from app.api.v1.auth import refresh_access_token
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_data = Mock()
+        mock_data.refresh_token = "token"
+
+        # Payload without jti (None)
+        mock_payload = {"type": "refresh", "sub": str(uuid4()), "jti": None}
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.decode_token", return_value=mock_payload):
+                with patch("app.api.v1.auth.refresh_token_crud.get_by_token_hash", new=AsyncMock(return_value=None)):
+                    # Patch settings where it's used in auth.py
+                    with patch("app.api.v1.auth.settings") as mock_settings:
+                        mock_settings.DEBUG = False
+
+                        with pytest.raises(HTTPException) as exc_info:
+                            await refresh_access_token(mock_request, mock_data, mock_db)
+
+                        assert exc_info.value.status_code == 401
+
+    @pytest.mark.asyncio
     async def test_refresh_rejects_revoked_token(self):
         """Should reject revoked tokens."""
         from app.api.v1.auth import refresh_access_token
