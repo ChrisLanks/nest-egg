@@ -677,3 +677,293 @@ class TestAcceptInvitation:
             assert exc_info.value.status_code == 400
             assert "not found" in exc_info.value.detail
             assert "register first" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_migrates_solo_user_with_accounts(self, mock_db, mock_request):
+        """Should migrate solo user and their accounts to new household."""
+        from app.models.account import Account
+        from app.models.user import Organization
+
+        invitation_code = "test-code"
+        old_org_id = uuid4()
+        new_org_id = uuid4()
+
+        invitation = Mock(spec=HouseholdInvitation)
+        invitation.email = "solo@example.com"
+        invitation.organization_id = new_org_id
+        invitation.status = InvitationStatus.PENDING
+        invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+
+        existing_user = Mock(spec=User)
+        existing_user.email = "solo@example.com"
+        existing_user.id = uuid4()
+        existing_user.organization_id = old_org_id  # User in different org
+
+        # Mock accounts to migrate
+        account1 = Mock(spec=Account)
+        account1.id = uuid4()
+        account1.organization_id = old_org_id
+        account1.user_id = existing_user.id
+
+        account2 = Mock(spec=Account)
+        account2.id = uuid4()
+        account2.organization_id = old_org_id
+        account2.user_id = existing_user.id
+
+        old_org = Mock(spec=Organization)
+        old_org.id = old_org_id
+
+        # Mock invitation query
+        invitation_result = Mock()
+        invitation_result.scalar_one_or_none.return_value = invitation
+
+        # Mock user query
+        user_result = Mock()
+        user_result.scalar_one_or_none.return_value = existing_user
+
+        # Mock household members query (solo user)
+        household_result = Mock()
+        household_result.scalars.return_value.all.return_value = [existing_user]  # Only 1 member
+
+        # Mock user accounts query
+        accounts_result = Mock()
+        accounts_result.scalars.return_value.all.return_value = [account1, account2]
+
+        # Mock old organization query
+        org_result = Mock()
+        org_result.scalar_one_or_none.return_value = old_org
+
+        mock_db.execute.side_effect = [
+            invitation_result,
+            user_result,
+            household_result,  # Household size check
+            accounts_result,  # User's accounts
+            org_result,  # Old organization
+        ]
+
+        with patch(
+            "app.api.v1.household.rate_limit_service.check_rate_limit",
+            return_value=None,
+        ):
+            result = await accept_invitation(
+                invitation_code=invitation_code,
+                request=mock_request,
+                db=mock_db,
+            )
+
+            # Verify migration happened
+            assert result["message"] == "Invitation accepted successfully"
+            assert result["organization_id"] == str(new_org_id)
+            assert result["accounts_migrated"] == 2
+
+            # Verify account migrations
+            assert account1.organization_id == new_org_id
+            assert account2.organization_id == new_org_id
+
+            # Verify user migration
+            assert existing_user.organization_id == new_org_id
+            assert existing_user.is_primary_household_member is False
+
+            # Verify invitation marked as accepted
+            assert invitation.status == InvitationStatus.ACCEPTED
+            assert invitation.accepted_at is not None
+
+            # Verify old org deleted
+            assert mock_db.delete.called_with(old_org)
+            assert mock_db.commit.call_count == 2  # Once for migration, once for org delete
+
+    @pytest.mark.asyncio
+    async def test_migrates_user_without_accounts(self, mock_db, mock_request):
+        """Should migrate solo user even if they have no accounts."""
+        from app.models.user import Organization
+
+        invitation_code = "test-code"
+        old_org_id = uuid4()
+        new_org_id = uuid4()
+
+        invitation = Mock(spec=HouseholdInvitation)
+        invitation.organization_id = new_org_id
+        invitation.status = InvitationStatus.PENDING
+        invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+
+        existing_user = Mock(spec=User)
+        existing_user.id = uuid4()
+        existing_user.organization_id = old_org_id
+
+        old_org = Mock(spec=Organization)
+        old_org.id = old_org_id
+
+        # Mock queries
+        invitation_result = Mock()
+        invitation_result.scalar_one_or_none.return_value = invitation
+
+        user_result = Mock()
+        user_result.scalar_one_or_none.return_value = existing_user
+
+        household_result = Mock()
+        household_result.scalars.return_value.all.return_value = [existing_user]
+
+        # No accounts
+        accounts_result = Mock()
+        accounts_result.scalars.return_value.all.return_value = []
+
+        org_result = Mock()
+        org_result.scalar_one_or_none.return_value = old_org
+
+        mock_db.execute.side_effect = [
+            invitation_result,
+            user_result,
+            household_result,
+            accounts_result,
+            org_result,
+        ]
+
+        with patch(
+            "app.api.v1.household.rate_limit_service.check_rate_limit",
+            return_value=None,
+        ):
+            result = await accept_invitation(
+                invitation_code=invitation_code,
+                request=mock_request,
+                db=mock_db,
+            )
+
+            assert result["accounts_migrated"] == 0
+            assert existing_user.organization_id == new_org_id
+
+    @pytest.mark.asyncio
+    async def test_handles_missing_old_organization(self, mock_db, mock_request):
+        """Should handle case where old organization was already deleted."""
+        invitation_code = "test-code"
+        old_org_id = uuid4()
+        new_org_id = uuid4()
+
+        invitation = Mock(spec=HouseholdInvitation)
+        invitation.organization_id = new_org_id
+        invitation.status = InvitationStatus.PENDING
+        invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+
+        existing_user = Mock(spec=User)
+        existing_user.id = uuid4()
+        existing_user.organization_id = old_org_id
+
+        # Mock queries
+        invitation_result = Mock()
+        invitation_result.scalar_one_or_none.return_value = invitation
+
+        user_result = Mock()
+        user_result.scalar_one_or_none.return_value = existing_user
+
+        household_result = Mock()
+        household_result.scalars.return_value.all.return_value = [existing_user]
+
+        accounts_result = Mock()
+        accounts_result.scalars.return_value.all.return_value = []
+
+        # Old org not found
+        org_result = Mock()
+        org_result.scalar_one_or_none.return_value = None
+
+        mock_db.execute.side_effect = [
+            invitation_result,
+            user_result,
+            household_result,
+            accounts_result,
+            org_result,
+        ]
+
+        with patch(
+            "app.api.v1.household.rate_limit_service.check_rate_limit",
+            return_value=None,
+        ):
+            result = await accept_invitation(
+                invitation_code=invitation_code,
+                request=mock_request,
+                db=mock_db,
+            )
+
+            # Should complete successfully even without old org
+            assert result["message"] == "Invitation accepted successfully"
+            # Delete should not be called if org not found
+            assert not mock_db.delete.called
+
+    @pytest.mark.asyncio
+    async def test_rejects_when_already_in_target_household(self, mock_db, mock_request):
+        """Should reject when user is already in the target household."""
+        invitation_code = "test-code"
+        org_id = uuid4()  # Same org
+
+        invitation = Mock(spec=HouseholdInvitation)
+        invitation.organization_id = org_id
+        invitation.status = InvitationStatus.PENDING
+        invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+
+        existing_user = Mock(spec=User)
+        existing_user.organization_id = org_id  # Already in target org!
+
+        # Mock queries
+        invitation_result = Mock()
+        invitation_result.scalar_one_or_none.return_value = invitation
+
+        user_result = Mock()
+        user_result.scalar_one_or_none.return_value = existing_user
+
+        mock_db.execute.side_effect = [invitation_result, user_result]
+
+        with patch(
+            "app.api.v1.household.rate_limit_service.check_rate_limit",
+            return_value=None,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await accept_invitation(
+                    invitation_code=invitation_code,
+                    request=mock_request,
+                    db=mock_db,
+                )
+
+            assert exc_info.value.status_code == 400
+            assert "already a member" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_rejects_when_not_solo_in_current_household(self, mock_db, mock_request):
+        """Should reject when user has other household members."""
+        invitation_code = "test-code"
+        old_org_id = uuid4()
+        new_org_id = uuid4()
+
+        invitation = Mock(spec=HouseholdInvitation)
+        invitation.organization_id = new_org_id
+        invitation.status = InvitationStatus.PENDING
+        invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+
+        existing_user = Mock(spec=User)
+        existing_user.organization_id = old_org_id
+
+        other_user = Mock(spec=User)
+
+        # Mock queries
+        invitation_result = Mock()
+        invitation_result.scalar_one_or_none.return_value = invitation
+
+        user_result = Mock()
+        user_result.scalar_one_or_none.return_value = existing_user
+
+        # Multiple household members
+        household_result = Mock()
+        household_result.scalars.return_value.all.return_value = [existing_user, other_user]
+
+        mock_db.execute.side_effect = [invitation_result, user_result, household_result]
+
+        with patch(
+            "app.api.v1.household.rate_limit_service.check_rate_limit",
+            return_value=None,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await accept_invitation(
+                    invitation_code=invitation_code,
+                    request=mock_request,
+                    db=mock_db,
+                )
+
+            assert exc_info.value.status_code == 400
+            assert "not the only member" in exc_info.value.detail

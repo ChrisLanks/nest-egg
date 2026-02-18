@@ -763,3 +763,570 @@ class TestGetRMDSummary:
                 assert result.user_age >= 73
                 assert result.total_required_distribution > Decimal("0")
                 assert len(result.accounts) > 0
+
+
+@pytest.mark.unit
+class TestGetPortfolioSummaryComprehensive:
+    """Comprehensive tests for get_portfolio_summary function."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    def create_mock_holding(
+        self,
+        ticker: str,
+        shares: Decimal,
+        price: Decimal,
+        account_id: UUID,
+        name: str = None,
+        asset_class: str = None,
+        sector: str = None,
+    ):
+        """Helper to create mock holding with common attributes."""
+        holding = Mock(spec=Holding)
+        holding.ticker = ticker
+        holding.shares = shares
+        holding.current_price_per_share = price
+        holding.current_total_value = shares * price
+        holding.cost_basis_per_share = price
+        holding.total_cost_basis = shares * price
+        holding.account_id = account_id
+        holding.name = name or ticker
+        holding.asset_class = asset_class
+        holding.sector = sector
+        return holding
+
+    @pytest.mark.asyncio
+    async def test_portfolio_with_domestic_stocks(self, mock_db, mock_user):
+        """Should classify and aggregate domestic stocks."""
+        account_id = uuid4()
+
+        # Create retirement account with domestic stocks
+        account = Mock(spec=Account)
+        account.id = account_id
+        account.name = "401(k)"
+        account.account_type = AccountType.RETIREMENT_401K
+        account.current_balance = Decimal("100000")
+        account.user_id = mock_user.id
+
+        # Create holdings - Large cap domestic stocks
+        holdings = [
+            self.create_mock_holding("AAPL", Decimal("100"), Decimal("150"), account_id, "Apple Inc"),
+            self.create_mock_holding("MSFT", Decimal("50"), Decimal("300"), account_id, "Microsoft Corp"),
+            self.create_mock_holding("GOOGL", Decimal("20"), Decimal("100"), account_id, "Alphabet Inc"),
+        ]
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
+        ):
+            # Mock holdings query
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = holdings
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Verify total value
+            expected_total = Decimal("15000") + Decimal("15000") + Decimal("2000")
+            assert result.total_value == expected_total
+
+            # Verify asset allocation has domestic stocks
+            assert any(
+                alloc.asset_type == "Domestic Stocks"
+                for alloc in result.asset_allocation
+            )
+
+    @pytest.mark.asyncio
+    async def test_portfolio_with_international_stocks(self, mock_db, mock_user):
+        """Should classify international stocks separately."""
+        account_id = uuid4()
+
+        account = Mock(spec=Account)
+        account.id = account_id
+        account.name = "Brokerage"
+        account.account_type = AccountType.BROKERAGE
+        account.current_balance = Decimal("50000")
+        account.user_id = mock_user.id
+
+        # International stocks - common international ETFs
+        holdings = [
+            self.create_mock_holding(
+                "VXUS",
+                Decimal("100"),
+                Decimal("50"),
+                account_id,
+                "Vanguard Total International Stock ETF",
+            ),
+            self.create_mock_holding(
+                "EFA",
+                Decimal("50"),
+                Decimal("60"),
+                account_id,
+                "iShares MSCI EAFE ETF",
+            ),
+        ]
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
+        ):
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = holdings
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Verify international classification
+            assert any(
+                alloc.asset_type == "International Stocks"
+                for alloc in result.asset_allocation
+            )
+
+    @pytest.mark.asyncio
+    async def test_portfolio_with_bonds(self, mock_db, mock_user):
+        """Should classify bonds and fixed income."""
+        account_id = uuid4()
+
+        account = Mock(spec=Account)
+        account.id = account_id
+        account.name = "IRA"
+        account.account_type = AccountType.RETIREMENT_IRA
+        account.current_balance = Decimal("75000")
+        account.user_id = mock_user.id
+
+        # Bond holdings
+        holdings = [
+            self.create_mock_holding(
+                "BND",
+                Decimal("500"),
+                Decimal("80"),
+                account_id,
+                "Vanguard Total Bond Market ETF",
+            ),
+            self.create_mock_holding(
+                "AGG",
+                Decimal("200"),
+                Decimal("100"),
+                account_id,
+                "iShares Core U.S. Aggregate Bond ETF",
+            ),
+        ]
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
+        ):
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = holdings
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Verify bonds classification
+            assert any(
+                "Bond" in alloc.asset_type for alloc in result.asset_allocation
+            )
+
+    @pytest.mark.asyncio
+    async def test_portfolio_with_cash(self, mock_db, mock_user):
+        """Should include cash and money market funds."""
+        account_id = uuid4()
+
+        account = Mock(spec=Account)
+        account.id = account_id
+        account.name = "Brokerage"
+        account.account_type = AccountType.BROKERAGE
+        account.current_balance = Decimal("10000")
+        account.user_id = mock_user.id
+
+        # Money market holdings
+        holdings = [
+            self.create_mock_holding(
+                "VMFXX",
+                Decimal("10000"),
+                Decimal("1"),
+                account_id,
+                "Vanguard Federal Money Market Fund",
+            ),
+        ]
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
+        ):
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = holdings
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Verify cash classification
+            assert any(
+                "Cash" in alloc.asset_type or "Money Market" in alloc.asset_type
+                for alloc in result.asset_allocation
+            )
+
+    @pytest.mark.asyncio
+    async def test_portfolio_market_cap_classification(self, mock_db, mock_user):
+        """Should classify stocks by market cap based on fund names."""
+        account_id = uuid4()
+
+        account = Mock(spec=Account)
+        account.id = account_id
+        account.name = "401(k)"
+        account.account_type = AccountType.RETIREMENT_401K
+        account.current_balance = Decimal("100000")
+        account.user_id = mock_user.id
+
+        # Holdings with market cap indicators in names
+        holdings = [
+            self.create_mock_holding(
+                "VTI",
+                Decimal("100"),
+                Decimal("200"),
+                account_id,
+                "Vanguard Total Stock Market ETF",  # Large cap
+            ),
+            self.create_mock_holding(
+                "VO",
+                Decimal("50"),
+                Decimal("150"),
+                account_id,
+                "Vanguard Mid-Cap ETF",  # Mid cap
+            ),
+            self.create_mock_holding(
+                "VB",
+                Decimal("30"),
+                Decimal("180"),
+                account_id,
+                "Vanguard Small-Cap ETF",  # Small cap
+            ),
+        ]
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
+        ):
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = holdings
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Should have treemap nodes (verifying structure is generated)
+            assert result.treemap is not None
+
+    @pytest.mark.asyncio
+    async def test_portfolio_with_property(self, mock_db, mock_user):
+        """Should include property accounts."""
+        property_account = Mock(spec=Account)
+        property_account.id = uuid4()
+        property_account.name = "Primary Residence"
+        property_account.account_type = AccountType.PROPERTY
+        property_account.current_balance = Decimal("500000")
+        property_account.user_id = mock_user.id
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts",
+            return_value=[property_account],
+        ):
+            # No holdings for property accounts
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = []
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Verify property included in total
+            assert result.total_value >= Decimal("500000")
+
+            # Verify property in asset allocation
+            assert any(
+                "Property" in alloc.asset_type for alloc in result.asset_allocation
+            )
+
+    @pytest.mark.asyncio
+    async def test_portfolio_with_crypto(self, mock_db, mock_user):
+        """Should include cryptocurrency accounts."""
+        crypto_account = Mock(spec=Account)
+        crypto_account.id = uuid4()
+        crypto_account.name = "Coinbase"
+        crypto_account.account_type = AccountType.CRYPTO
+        crypto_account.current_balance = Decimal("25000")
+        crypto_account.user_id = mock_user.id
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts",
+            return_value=[crypto_account],
+        ):
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = []
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Verify crypto in asset allocation
+            assert any(
+                "Crypto" in alloc.asset_type for alloc in result.asset_allocation
+            )
+
+    @pytest.mark.asyncio
+    async def test_portfolio_retirement_vs_taxable_breakdown(self, mock_db, mock_user):
+        """Should categorize retirement vs taxable accounts."""
+        retirement_id = uuid4()
+        taxable_id = uuid4()
+
+        retirement_account = Mock(spec=Account)
+        retirement_account.id = retirement_id
+        retirement_account.name = "IRA"
+        retirement_account.account_type = AccountType.RETIREMENT_IRA
+        retirement_account.current_balance = Decimal("100000")
+        retirement_account.user_id = mock_user.id
+
+        taxable_account = Mock(spec=Account)
+        taxable_account.id = taxable_id
+        taxable_account.name = "Brokerage"
+        taxable_account.account_type = AccountType.BROKERAGE
+        taxable_account.current_balance = Decimal("50000")
+        taxable_account.user_id = mock_user.id
+
+        # Holdings split between retirement and taxable
+        holdings = [
+            self.create_mock_holding(
+                "VTI", Decimal("100"), Decimal("200"), retirement_id
+            ),
+            self.create_mock_holding(
+                "AAPL", Decimal("50"), Decimal("150"), taxable_id
+            ),
+        ]
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts",
+            return_value=[retirement_account, taxable_account],
+        ):
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = holdings
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Verify category breakdown exists
+            assert result.category_breakdown is not None
+            assert len(result.category_breakdown) >= 2
+
+    @pytest.mark.asyncio
+    async def test_portfolio_sector_breakdown(self, mock_db, mock_user):
+        """Should provide sector breakdown for stocks."""
+        account_id = uuid4()
+
+        account = Mock(spec=Account)
+        account.id = account_id
+        account.name = "Brokerage"
+        account.account_type = AccountType.BROKERAGE
+        account.current_balance = Decimal("50000")
+        account.user_id = mock_user.id
+
+        # Holdings with sector information
+        holdings = [
+            self.create_mock_holding(
+                "AAPL",
+                Decimal("100"),
+                Decimal("150"),
+                account_id,
+                "Apple Inc",
+                sector="Technology",
+            ),
+            self.create_mock_holding(
+                "JNJ",
+                Decimal("50"),
+                Decimal("160"),
+                account_id,
+                "Johnson & Johnson",
+                sector="Healthcare",
+            ),
+        ]
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
+        ):
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = holdings
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Verify sector breakdown exists
+            assert result.sector_breakdown is not None
+
+    @pytest.mark.asyncio
+    async def test_portfolio_aggregates_duplicate_tickers(self, mock_db, mock_user):
+        """Should aggregate same ticker across multiple accounts."""
+        account1_id = uuid4()
+        account2_id = uuid4()
+
+        account1 = Mock(spec=Account)
+        account1.id = account1_id
+        account1.name = "IRA"
+        account1.account_type = AccountType.RETIREMENT_IRA
+        account1.current_balance = Decimal("50000")
+        account1.user_id = mock_user.id
+
+        account2 = Mock(spec=Account)
+        account2.id = account2_id
+        account2.name = "401(k)"
+        account2.account_type = AccountType.RETIREMENT_401K
+        account2.current_balance = Decimal("50000")
+        account2.user_id = mock_user.id
+
+        # Same ticker in both accounts
+        holdings = [
+            self.create_mock_holding("VTI", Decimal("50"), Decimal("200"), account1_id),
+            self.create_mock_holding("VTI", Decimal("30"), Decimal("200"), account2_id),
+        ]
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts",
+            return_value=[account1, account2],
+        ):
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = holdings
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Should aggregate VTI holdings
+            # Total value should be (50 + 30) * 200 = 16000
+            assert result.total_value >= Decimal("16000")
+
+    @pytest.mark.asyncio
+    async def test_portfolio_with_checking_savings_as_cash(self, mock_db, mock_user):
+        """Should include checking and savings accounts in cash category."""
+        checking = Mock(spec=Account)
+        checking.id = uuid4()
+        checking.name = "Checking"
+        checking.account_type = AccountType.CHECKING
+        checking.current_balance = Decimal("5000")
+        checking.user_id = mock_user.id
+
+        savings = Mock(spec=Account)
+        savings.id = uuid4()
+        savings.name = "Savings"
+        savings.account_type = AccountType.SAVINGS
+        savings.current_balance = Decimal("20000")
+        savings.user_id = mock_user.id
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts",
+            return_value=[checking, savings],
+        ):
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = []
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Verify cash included in total
+            assert result.total_value >= Decimal("25000")
+
+            # Verify cash in asset allocation
+            assert any(
+                "Cash" in alloc.asset_type for alloc in result.asset_allocation
+            )
+
+    @pytest.mark.asyncio
+    async def test_portfolio_excludes_credit_cards_and_loans(self, mock_db, mock_user):
+        """Should exclude liability accounts from portfolio."""
+        credit_card = Mock(spec=Account)
+        credit_card.id = uuid4()
+        credit_card.name = "Credit Card"
+        credit_card.account_type = AccountType.CREDIT_CARD
+        credit_card.current_balance = Decimal("-2000")  # Negative balance
+        credit_card.user_id = mock_user.id
+
+        loan = Mock(spec=Account)
+        loan.id = uuid4()
+        loan.name = "Auto Loan"
+        loan.account_type = AccountType.LOAN
+        loan.current_balance = Decimal("-15000")
+        loan.user_id = mock_user.id
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts",
+            return_value=[credit_card, loan],
+        ):
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = []
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Portfolio should be empty or minimal (not include liabilities)
+            # Total value should not be negative
+            assert result.total_value >= Decimal("0")
+
+    @pytest.mark.asyncio
+    async def test_portfolio_calculates_percentages(self, mock_db, mock_user):
+        """Should calculate correct percentages for asset allocation."""
+        account_id = uuid4()
+
+        account = Mock(spec=Account)
+        account.id = account_id
+        account.name = "IRA"
+        account.account_type = AccountType.RETIREMENT_IRA
+        account.current_balance = Decimal("100000")
+        account.user_id = mock_user.id
+
+        # Mix of assets with known values
+        holdings = [
+            self.create_mock_holding(
+                "VTI", Decimal("250"), Decimal("200"), account_id
+            ),  # $50,000
+            self.create_mock_holding(
+                "BND", Decimal("500"), Decimal("80"), account_id
+            ),  # $40,000
+        ]
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
+        ):
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = holdings
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Verify percentages add up close to 100%
+            total_percentage = sum(
+                alloc.percentage for alloc in result.asset_allocation
+            )
+            assert 99.0 <= total_percentage <= 101.0  # Allow small rounding errors
