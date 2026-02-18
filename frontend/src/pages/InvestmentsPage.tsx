@@ -456,7 +456,8 @@ export const InvestmentsPage = () => {
     );
   }
 
-  if (!portfolio || portfolio.holdings_by_ticker.length === 0) {
+  // Show empty state only if no portfolio data AND no accounts with balances
+  if (!portfolio || (portfolio.holdings_by_ticker.length === 0 && portfolio.holdings_by_account.length === 0 && portfolio.total_value === 0)) {
     return (
       <Container maxW="container.lg" py={8}>
         <VStack spacing={6} align="stretch">
@@ -464,9 +465,9 @@ export const InvestmentsPage = () => {
           <Card>
             <CardBody>
               <VStack spacing={4}>
-                <Text color="gray.500">No investment holdings found.</Text>
+                <Text color="gray.500">No investment accounts found.</Text>
                 <Text fontSize="sm" color="gray.600">
-                  Add investment accounts with holdings to see your portfolio here.
+                  Add investment accounts to see your portfolio here.
                 </Text>
               </VStack>
             </CardBody>
@@ -957,52 +958,66 @@ export const InvestmentsPage = () => {
 
                         <Collapse in={isExpanded}>
                           <Box mt={4} overflowX="auto">
-                            <Table variant="simple" size="sm">
-                              <Thead>
-                                <Tr>
-                                  <Th>Ticker</Th>
-                                  <Th>Name</Th>
-                                  <Th isNumeric>Shares</Th>
-                                  <Th isNumeric>Price</Th>
-                                  <Th isNumeric>Value</Th>
-                                  <Th isNumeric>Cost Basis</Th>
-                                  <Th>Type</Th>
-                                </Tr>
-                              </Thead>
-                              <Tbody>
-                                {account.holdings.map((holding) => (
-                                  <Tr key={holding.id}>
-                                    <Td>
-                                      <Text fontWeight="bold">{holding.ticker}</Text>
-                                    </Td>
-                                    <Td>
-                                      <Text fontSize="sm" color="gray.600">
-                                        {holding.name || '-'}
-                                      </Text>
-                                    </Td>
-                                    <Td isNumeric>{formatShares(holding.shares)}</Td>
-                                    <Td isNumeric>
-                                      {holding.current_price_per_share
-                                        ? formatCurrency(holding.current_price_per_share)
-                                        : 'N/A'}
-                                    </Td>
-                                    <Td isNumeric>
-                                      <Text fontWeight="semibold">
-                                        {formatCurrency(holding.current_total_value)}
-                                      </Text>
-                                    </Td>
-                                    <Td isNumeric>{formatCurrency(holding.total_cost_basis)}</Td>
-                                    <Td>
-                                      {holding.asset_type && (
-                                        <Badge colorScheme="blue" size="sm">
-                                          {holding.asset_type}
-                                        </Badge>
-                                      )}
-                                    </Td>
+                            {account.holdings.length === 0 ? (
+                              <VStack spacing={2} py={4} align="center">
+                                <Text fontSize="sm" color="gray.600">
+                                  Holdings details not available for this account.
+                                </Text>
+                                <Text fontSize="xs" color="gray.500">
+                                  Account balance: {formatCurrency(account.account_value)}
+                                </Text>
+                                <Text fontSize="xs" color="gray.500">
+                                  Sync holdings data from your provider to see detailed breakdown.
+                                </Text>
+                              </VStack>
+                            ) : (
+                              <Table variant="simple" size="sm">
+                                <Thead>
+                                  <Tr>
+                                    <Th>Ticker</Th>
+                                    <Th>Name</Th>
+                                    <Th isNumeric>Shares</Th>
+                                    <Th isNumeric>Price</Th>
+                                    <Th isNumeric>Value</Th>
+                                    <Th isNumeric>Cost Basis</Th>
+                                    <Th>Type</Th>
                                   </Tr>
-                                ))}
-                              </Tbody>
-                            </Table>
+                                </Thead>
+                                <Tbody>
+                                  {account.holdings.map((holding) => (
+                                    <Tr key={holding.id}>
+                                      <Td>
+                                        <Text fontWeight="bold">{holding.ticker}</Text>
+                                      </Td>
+                                      <Td>
+                                        <Text fontSize="sm" color="gray.600">
+                                          {holding.name || '-'}
+                                        </Text>
+                                      </Td>
+                                      <Td isNumeric>{formatShares(holding.shares)}</Td>
+                                      <Td isNumeric>
+                                        {holding.current_price_per_share
+                                          ? formatCurrency(holding.current_price_per_share)
+                                          : 'N/A'}
+                                      </Td>
+                                      <Td isNumeric>
+                                        <Text fontWeight="semibold">
+                                          {formatCurrency(holding.current_total_value)}
+                                        </Text>
+                                      </Td>
+                                      <Td isNumeric>{formatCurrency(holding.total_cost_basis)}</Td>
+                                      <Td>
+                                        {holding.asset_type && (
+                                          <Badge colorScheme="blue" size="sm">
+                                            {holding.asset_type}
+                                          </Badge>
+                                        )}
+                                      </Td>
+                                    </Tr>
+                                  ))}
+                                </Tbody>
+                              </Table>
+                            )}
                           </Box>
                         </Collapse>
                       </CardBody>
