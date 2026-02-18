@@ -1,4 +1,4 @@
-"""Category service for mapping Plaid categories to custom categories."""
+"""Category service for mapping provider categories to custom categories."""
 
 from typing import Optional
 from uuid import UUID
@@ -15,16 +15,20 @@ async def get_category_id_for_plaid_category(
     plaid_category_name: Optional[str],
 ) -> Optional[UUID]:
     """
-    Find a custom category that matches the given Plaid category name.
+    Find a custom category that matches the given provider category name.
 
     This enables auto-mapping of transactions to custom categories when they're
-    synced from Plaid/MX. If a custom category has a plaid_category_name that
-    matches the transaction's category_primary, return its ID.
+    synced from account providers (Plaid, Teller, MX, etc.). If a custom category
+    has a plaid_category_name that matches the transaction's category_primary,
+    return its ID.
+
+    Note: Function and parameter names reference "plaid" for backward compatibility,
+    but this works for categories from any provider.
 
     Args:
         db: Database session
         organization_id: Organization ID to scope the search
-        plaid_category_name: The Plaid category_primary from the transaction
+        plaid_category_name: The provider's category_primary from the transaction
 
     Returns:
         UUID of the matching custom category, or None if no match found

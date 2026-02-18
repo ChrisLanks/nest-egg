@@ -45,8 +45,8 @@ class Transaction(Base):
         nullable=True,
         index=True,
     )  # Custom category
-    category_primary = Column(String(100), nullable=True)  # From Plaid
-    category_detailed = Column(String(100), nullable=True)  # From Plaid
+    category_primary = Column(String(100), nullable=True)  # From account provider (Plaid, Teller, MX)
+    category_detailed = Column(String(100), nullable=True)  # Detailed category from provider
 
     # Status
     is_pending = Column(Boolean, default=False, nullable=False, index=True)
@@ -102,10 +102,10 @@ class Category(Base):
         UUID(as_uuid=True), ForeignKey("categories.id", ondelete="CASCADE"), nullable=True
     )
 
-    # Link to Plaid category for automatic mapping
+    # Link to provider category for automatic mapping
     plaid_category_name = Column(
         String(100), nullable=True, index=True
-    )  # Original Plaid category_primary
+    )  # Original provider category_primary (field name kept for backward compatibility)
 
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)

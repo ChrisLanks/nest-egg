@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.transaction import Category, Transaction
+from app.models.account import Account
 from app.schemas.transaction import CategoryCreate, CategoryUpdate, CategoryResponse
 from app.services.hierarchy_validation_service import hierarchy_validation_service
 
@@ -24,8 +25,9 @@ async def list_categories(
 ):
     """List all categories for the current user's organization.
 
-    Returns both custom categories (from categories table) and Plaid categories
-    (from transactions.category_primary). Plaid categories have is_custom=False.
+    Returns both custom categories (from categories table) and provider categories
+    (from transactions.category_primary). Provider categories come from connected
+    accounts (Plaid, Teller, MX, etc.) and have is_custom=False.
     """
     # Get custom categories from categories table
     custom_result = await db.execute(
@@ -37,8 +39,9 @@ async def list_categories(
     )
     custom_categories = custom_result.all()
 
-    # Get Plaid categories from transactions
-    plaid_result = await db.execute(
+    # Get provider categories from transactions (agnostic of provider source)
+    # These are categories assigned by account providers like Plaid, Teller, MX
+    provider_result = await db.execute(
         select(Transaction.category_primary, func.count(Transaction.id).label("transaction_count"))
         .where(
             Transaction.organization_id == current_user.organization_id,
@@ -48,7 +51,7 @@ async def list_categories(
         .group_by(Transaction.category_primary)
         .order_by(Transaction.category_primary)
     )
-    plaid_categories = plaid_result.all()
+    provider_categories = provider_result.all()
 
     # Build response combining both types
     response = []
@@ -62,7 +65,7 @@ async def list_categories(
                 name=category.name,
                 color=category.color,
                 parent_category_id=category.parent_category_id,
-                plaid_category_name=category.plaid_category_name,
+                plaid_category_name=category.plaid_category_name,  # Legacy field, kept for compatibility
                 is_custom=True,
                 transaction_count=tx_count,
                 created_at=category.created_at,
@@ -70,17 +73,18 @@ async def list_categories(
             )
         )
 
-    # Add Plaid categories that aren't already custom categories
+    # Add provider categories that aren't already custom categories
     custom_category_names = {cat.name.lower() for cat, _ in custom_categories}
-    for plaid_name, tx_count in plaid_categories:
-        if plaid_name.lower() not in custom_category_names:
+    for provider_name, tx_count in provider_categories:
+        if provider_name.lower() not in custom_category_names:
             response.append(
                 CategoryResponse(
                     id=None,
                     organization_id=current_user.organization_id,
-                    name=plaid_name,
+                    name=provider_name,
                     color=None,
                     parent_category_id=None,
+                    plaid_category_name=None,  # Not a mapped category
                     is_custom=False,
                     transaction_count=tx_count,
                     created_at=None,

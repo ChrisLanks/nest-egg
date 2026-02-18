@@ -103,7 +103,7 @@ class CategoryCreate(BaseModel):
     name: str
     color: Optional[str] = None
     parent_category_id: Optional[UUID] = None
-    plaid_category_name: Optional[str] = None  # Link to Plaid category for auto-mapping
+    plaid_category_name: Optional[str] = None  # Link to provider category for auto-mapping (field name kept for compatibility)
 
     @field_validator("name")
     @classmethod
@@ -197,13 +197,13 @@ class CategoryUpdate(BaseModel):
 class CategoryResponse(BaseModel):
     """Category response schema."""
 
-    id: Optional[UUID] = None  # None for Plaid categories not yet in DB
+    id: Optional[UUID] = None  # None for provider categories not yet in DB
     organization_id: UUID
     name: str
     color: Optional[str] = None
     parent_category_id: Optional[UUID] = None
-    plaid_category_name: Optional[str] = None  # Linked Plaid category
-    is_custom: bool = True  # False for Plaid categories from transactions
+    plaid_category_name: Optional[str] = None  # Linked provider category (field name kept for compatibility)
+    is_custom: bool = True  # False for provider categories from transactions
     transaction_count: int = 0
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
