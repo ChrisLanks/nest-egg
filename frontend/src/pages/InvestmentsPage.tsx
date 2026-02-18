@@ -315,9 +315,10 @@ export const InvestmentsPage = () => {
               if (categoryName === 'Cash') {
                 return visibleAccountNames.has(child.name) ? child : null;
               }
-              // For Investment Accounts (Holdings Unknown), check if visible by name
-              if (categoryName === 'Investment Accounts (Holdings Unknown)') {
-                return visibleAccountNames.has(child.name) ? child : null;
+              // For Investment Accounts, check if visible by name (strip "(Holdings Unknown)" suffix)
+              if (categoryName === 'Investment Accounts') {
+                const accountName = child.name.replace(' (Holdings Unknown)', '');
+                return visibleAccountNames.has(accountName) ? child : null;
               }
               // For account-based leaves (Property, Vehicles), check if visible by name
               if (categoryName === 'Property & Vehicles') {

@@ -1867,3 +1867,282 @@ class TestGetRmdSummary:
                 assert result is not None
                 assert result.requires_rmd is True
                 assert result.total_required_distribution > 0
+
+
+@pytest.mark.unit
+class TestInvestmentAccountsWithoutHoldings:
+    """Test portfolio summary with investment accounts that have balances but no holdings."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_includes_investment_accounts_without_holdings(
+        self, mock_db, mock_user
+    ):
+        """Should include investment accounts with balances but no holdings data."""
+        # Create investment account with balance but no holdings
+        brokerage_account = Mock(spec=Account)
+        brokerage_account.id = uuid4()
+        brokerage_account.name = "Chase Bank Brokerage"
+        brokerage_account.account_type = AccountType.BROKERAGE
+        brokerage_account.current_balance = Decimal("45680.25")
+        brokerage_account.user_id = mock_user.id
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts",
+            return_value=[brokerage_account],
+        ):
+            # No holdings for this account
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = []
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Verify account balance included in total
+            assert result.total_value == Decimal("45680.25")
+
+            # Verify treemap has Investment Accounts category
+            assert result.treemap_data is not None
+            assert result.treemap_data.children is not None
+            assert len(result.treemap_data.children) > 0
+
+            # Find Investment Accounts category
+            investment_accounts_category = next(
+                (
+                    child
+                    for child in result.treemap_data.children
+                    if child.name == "Investment Accounts"
+                ),
+                None,
+            )
+            assert investment_accounts_category is not None
+            assert investment_accounts_category.value == Decimal("45680.25")
+
+            # Verify children have "(Holdings Unknown)" suffix
+            assert investment_accounts_category.children is not None
+            assert len(investment_accounts_category.children) > 0
+            assert investment_accounts_category.children[0].name == "Chase Bank Brokerage (Holdings Unknown)"
+
+    @pytest.mark.asyncio
+    async def test_treemap_with_cash_and_investment_accounts(
+        self, mock_db, mock_user
+    ):
+        """Should show both Cash and Investment Accounts categories in treemap."""
+        # Create checking account (Cash category)
+        checking = Mock(spec=Account)
+        checking.id = uuid4()
+        checking.name = "Checking Account"
+        checking.account_type = AccountType.CHECKING
+        checking.current_balance = Decimal("5000")
+        checking.user_id = mock_user.id
+
+        # Create savings account (Cash category)
+        savings = Mock(spec=Account)
+        savings.id = uuid4()
+        savings.name = "Savings Account"
+        savings.account_type = AccountType.SAVINGS
+        savings.current_balance = Decimal("20000")
+        savings.user_id = mock_user.id
+
+        # Create brokerage without holdings (Investment Accounts category)
+        brokerage = Mock(spec=Account)
+        brokerage.id = uuid4()
+        brokerage.name = "Wells Fargo Brokerage"
+        brokerage.account_type = AccountType.BROKERAGE
+        brokerage.current_balance = Decimal("45680.25")
+        brokerage.user_id = mock_user.id
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts",
+            return_value=[checking, savings, brokerage],
+        ):
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = []
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Verify total includes all accounts
+            expected_total = Decimal("5000") + Decimal("20000") + Decimal("45680.25")
+            assert result.total_value == expected_total
+
+            # Verify treemap has 2 top-level categories
+            assert result.treemap_data is not None
+            assert result.treemap_data.children is not None
+            assert len(result.treemap_data.children) == 2
+
+            category_names = {child.name for child in result.treemap_data.children}
+            assert "Cash" in category_names
+            assert "Investment Accounts" in category_names
+
+            # Verify Cash category has checking and savings
+            cash_category = next(
+                child
+                for child in result.treemap_data.children
+                if child.name == "Cash"
+            )
+            assert cash_category.value == Decimal("25000")
+            assert len(cash_category.children) == 2
+            cash_account_names = {child.name for child in cash_category.children}
+            assert "Checking" in cash_account_names
+            assert "Savings" in cash_account_names
+
+            # Verify Investment Accounts category
+            investment_category = next(
+                child
+                for child in result.treemap_data.children
+                if child.name == "Investment Accounts"
+            )
+            assert investment_category.value == Decimal("45680.25")
+            assert investment_category.color == "#4299E1"  # Blue color
+            assert len(investment_category.children) == 1
+            assert (
+                investment_category.children[0].name
+                == "Wells Fargo Brokerage (Holdings Unknown)"
+            )
+
+    @pytest.mark.asyncio
+    async def test_multiple_investment_accounts_without_holdings(
+        self, mock_db, mock_user
+    ):
+        """Should handle multiple investment accounts without holdings."""
+        # Create two brokerages without holdings
+        brokerage1 = Mock(spec=Account)
+        brokerage1.id = uuid4()
+        brokerage1.name = "Chase Bank Brokerage"
+        brokerage1.account_type = AccountType.BROKERAGE
+        brokerage1.current_balance = Decimal("45680.25")
+        brokerage1.user_id = mock_user.id
+
+        brokerage2 = Mock(spec=Account)
+        brokerage2.id = uuid4()
+        brokerage2.name = "Wells Fargo Brokerage"
+        brokerage2.account_type = AccountType.BROKERAGE
+        brokerage2.current_balance = Decimal("45680.25")
+        brokerage2.user_id = mock_user.id
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts",
+            return_value=[brokerage1, brokerage2],
+        ):
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = []
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Verify total
+            assert result.total_value == Decimal("91360.50")
+
+            # Verify Investment Accounts category aggregates both
+            investment_category = next(
+                child
+                for child in result.treemap_data.children
+                if child.name == "Investment Accounts"
+            )
+            assert investment_category.value == Decimal("91360.50")
+            assert len(investment_category.children) == 2
+
+            child_names = {child.name for child in investment_category.children}
+            assert "Chase Bank Brokerage (Holdings Unknown)" in child_names
+            assert "Wells Fargo Brokerage (Holdings Unknown)" in child_names
+
+    @pytest.mark.asyncio
+    async def test_mixed_investment_accounts_with_and_without_holdings(
+        self, mock_db, mock_user
+    ):
+        """Should handle mix of investment accounts with and without holdings."""
+        # Account with holdings
+        account_with_holdings_id = uuid4()
+        account_with = Mock(spec=Account)
+        account_with.id = account_with_holdings_id
+        account_with.name = "Fidelity 401k"
+        account_with.account_type = AccountType.RETIREMENT_401K
+        account_with.current_balance = Decimal("100000")
+        account_with.user_id = mock_user.id
+
+        # Account without holdings
+        account_without = Mock(spec=Account)
+        account_without.id = uuid4()
+        account_without.name = "Chase Brokerage"
+        account_without.account_type = AccountType.BROKERAGE
+        account_without.current_balance = Decimal("50000")
+        account_without.user_id = mock_user.id
+
+        # Create one holding for first account
+        from datetime import datetime
+
+        holding = Mock(spec=Holding)
+        holding.id = uuid4()
+        holding.organization_id = mock_user.organization_id
+        holding.ticker = "VTI"
+        holding.shares = Decimal("100")
+        holding.current_price_per_share = Decimal("200")
+        holding.current_total_value = Decimal("20000")
+        holding.cost_basis_per_share = Decimal("180")
+        holding.total_cost_basis = Decimal("18000")
+        holding.account_id = account_with_holdings_id
+        holding.name = "Vanguard Total Market"
+        holding.country = "US"
+        holding.price_as_of = datetime.utcnow()
+        holding.expense_ratio = Decimal("0.03")
+        holding.created_at = datetime.utcnow()
+        holding.updated_at = datetime.utcnow()
+        holding.asset_type = "Stock"
+        holding.asset_class = None
+        holding.sector = None
+        holding.industry = None
+        holding.market_cap = None
+        holding.pe_ratio = None
+        holding.dividend_yield = None
+        holding.beta = None
+        holding.fifty_two_week_high = None
+        holding.fifty_two_week_low = None
+        holding.account = account_with
+
+        with patch(
+            "app.api.v1.holdings.get_all_household_accounts",
+            return_value=[account_with, account_without],
+        ):
+            holdings_result = Mock()
+            holdings_result.scalars.return_value.all.return_value = [holding]
+            mock_db.execute.return_value = holdings_result
+
+            result = await get_portfolio_summary(
+                user_id=None, current_user=mock_user, db=mock_db
+            )
+
+            # Should have holdings-based category (either Domestic Stocks or Other) and Investment Accounts
+            category_names = {child.name for child in result.treemap_data.children}
+            assert "Investment Accounts" in category_names
+            # VTI will be classified based on its metadata - could be Domestic Stocks or Other
+            assert len(category_names) == 2
+
+            # Investment Accounts should only have the account without holdings
+            investment_category = next(
+                child
+                for child in result.treemap_data.children
+                if child.name == "Investment Accounts"
+            )
+            assert investment_category.value == Decimal("50000")
+            assert len(investment_category.children) == 1
+            assert (
+                investment_category.children[0].name
+                == "Chase Brokerage (Holdings Unknown)"
+            )

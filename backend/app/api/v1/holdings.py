@@ -995,7 +995,7 @@ async def get_portfolio_summary(
     if investment_accounts_without_holdings_value > 0:
         account_nodes = [
             TreemapNode(
-                name=account_name,
+                name=f"{account_name} (Holdings Unknown)",
                 value=value,
                 percent=(value / investment_accounts_without_holdings_value * 100),
             )
@@ -1003,7 +1003,7 @@ async def get_portfolio_summary(
         ]
         treemap_children.append(
             TreemapNode(
-                name="Investment Accounts (Holdings Unknown)",
+                name="Investment Accounts",
                 value=investment_accounts_without_holdings_value,
                 percent=(
                     (investment_accounts_without_holdings_value / portfolio_total * 100)
@@ -1011,7 +1011,7 @@ async def get_portfolio_summary(
                     else Decimal("0")
                 ),
                 children=account_nodes,
-                color="#CBD5E0",  # light gray to indicate unknown/incomplete data
+                color="#4299E1",  # blue for investment accounts
             )
         )
 
