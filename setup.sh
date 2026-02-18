@@ -227,13 +227,13 @@ setup_docker() {
     print_header "Setting Up Docker Services"
 
     # Check if services are already running
-    if docker compose ps | grep -q "Up"; then
+    if docker-compose -f docker-compose.dev.yml ps 2>/dev/null | grep -q "Up"; then
         print_warning "Some services already running"
         read -p "Stop and restart services? (y/N): " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             print_info "Stopping existing services..."
-            docker compose down
+            docker-compose -f docker-compose.dev.yml down
         else
             print_info "Keeping existing services running"
             return
@@ -242,11 +242,11 @@ setup_docker() {
 
     # Pull latest images
     print_info "Pulling Docker images..."
-    docker compose pull
+    docker-compose -f docker-compose.dev.yml pull
 
     # Start services
-    print_info "Starting Docker services (PostgreSQL, Redis, Celery, Flower)..."
-    docker compose up -d db redis
+    print_info "Starting Docker services (PostgreSQL, Redis)..."
+    docker-compose -f docker-compose.dev.yml up -d postgres redis
 
     print_success "Docker services started"
 
@@ -257,7 +257,7 @@ setup_docker() {
     local max_wait=60
     local waited=0
     while [ $waited -lt $max_wait ]; do
-        if docker compose ps | grep -q "healthy"; then
+        if docker-compose -f docker-compose.dev.yml ps 2>/dev/null | grep -q "healthy"; then
             print_success "Services are healthy"
             break
         fi
@@ -268,7 +268,7 @@ setup_docker() {
     echo ""
 
     if [ $waited -ge $max_wait ]; then
-        print_warning "Services may not be fully ready - check with: docker compose ps"
+        print_warning "Services may not be fully ready - check with: docker-compose -f docker-compose.dev.yml ps"
     fi
 }
 
@@ -385,14 +385,14 @@ verify_setup() {
 
     # Check Docker services
     if ! $SKIP_DOCKER; then
-        if docker compose ps | grep -q "db.*healthy"; then
+        if docker-compose -f docker-compose.dev.yml ps 2>/dev/null | grep -q "postgres.*healthy"; then
             print_success "PostgreSQL is running"
         else
             print_error "PostgreSQL is not healthy"
             all_good=false
         fi
 
-        if docker compose ps | grep -q "redis.*healthy"; then
+        if docker-compose -f docker-compose.dev.yml ps 2>/dev/null | grep -q "redis.*healthy"; then
             print_success "Redis is running"
         else
             print_error "Redis is not healthy"
@@ -469,22 +469,28 @@ print_next_steps() {
         echo ""
     fi
 
-    echo -e "${BLUE}Or use the convenient Makefile commands:${NC}"
-    echo "   ${YELLOW}make dev${NC}         # Start backend + frontend + celery"
-    echo "   ${YELLOW}make test${NC}        # Run all tests"
-    echo "   ${YELLOW}make lint${NC}        # Run all linters"
+    echo -e "${BLUE}Or use Docker for full containerized development:${NC}"
+    echo "   ${YELLOW}docker-compose -f docker-compose.dev.yml up${NC}     # Start all services with hot-reload"
+    echo "   ${YELLOW}docker-compose -f docker-compose.dev.yml down${NC}   # Stop all services"
+    echo "   ${YELLOW}docker-compose -f docker-compose.dev.yml logs -f${NC} # View logs"
     echo ""
 
     echo -e "${BLUE}Access Points:${NC}"
-    echo "   Frontend:      ${GREEN}http://localhost:5173${NC}"
+    echo "   Frontend:      ${GREEN}http://localhost:3000${NC} (Docker) or ${GREEN}http://localhost:5173${NC} (local)"
+    echo "   Backend API:   ${GREEN}http://localhost:8000${NC}"
     echo "   API Docs:      ${GREEN}http://localhost:8000/docs${NC}"
     echo "   Flower:        ${GREEN}http://localhost:5555${NC} (Celery monitoring)"
     echo ""
 
     echo -e "${BLUE}Useful Commands:${NC}"
-    echo "   ${YELLOW}make help${NC}                  # Show all available commands"
-    echo "   ${YELLOW}docker compose ps${NC}          # Check service status"
-    echo "   ${YELLOW}docker compose logs -f${NC}     # View Docker logs"
+    echo "   ${YELLOW}docker-compose -f docker-compose.dev.yml ps${NC}     # Check service status"
+    echo "   ${YELLOW}docker-compose -f docker-compose.dev.yml logs -f${NC} # View Docker logs"
+    echo "   ${YELLOW}docker-compose -f docker-compose.dev.yml exec backend pytest${NC} # Run tests in Docker"
+    echo ""
+
+    echo -e "${BLUE}For production deployment, see:${NC}"
+    echo "   ${YELLOW}README.Docker.md${NC}  # Quick Docker reference"
+    echo "   ${YELLOW}DEPLOYMENT.md${NC}     # Full deployment guide"
     echo ""
 
     echo -e "${YELLOW}⚠ Important:${NC} Update your Plaid credentials in ${YELLOW}.env${NC}:"

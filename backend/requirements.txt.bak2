@@ -46,7 +46,6 @@ prometheus-fastapi-instrumentator==6.1.0
 pytest==7.4.4
 pytest-asyncio==0.23.3
 pytest-cov==4.1.0
-aiosqlite==0.20.0  # For in-memory SQLite testing
 
 # Development
 black==24.1.1

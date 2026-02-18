@@ -72,7 +72,7 @@ services:
 
       # Security (Dev keys - DO NOT use in production)
       SECRET_KEY: dev-secret-key-change-in-production
-      MASTER_ENCRYPTION_KEY: "7e-SNM2HypcsbkeQO3W0Mjpux4sQTp1mFjQDTBMd2GI="
+      MASTER_ENCRYPTION_KEY: dev-encryption-key-change-in-production
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 15
       REFRESH_TOKEN_EXPIRE_DAYS: 30
@@ -125,7 +125,7 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       SECRET_KEY: dev-secret-key-change-in-production
-      MASTER_ENCRYPTION_KEY: "7e-SNM2HypcsbkeQO3W0Mjpux4sQTp1mFjQDTBMd2GI="
+      MASTER_ENCRYPTION_KEY: dev-encryption-key-change-in-production
       PLAID_CLIENT_ID: ${PLAID_CLIENT_ID}
       PLAID_SECRET: ${PLAID_SECRET}
       PLAID_ENV: sandbox
