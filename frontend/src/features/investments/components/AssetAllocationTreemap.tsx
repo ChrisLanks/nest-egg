@@ -3,7 +3,7 @@
  */
 
 import { Box, Heading, HStack, Button, Text } from '@chakra-ui/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Treemap, ResponsiveContainer } from 'recharts';
 
 interface TreemapNode {
@@ -36,6 +36,13 @@ const COLORS = {
 export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTreemapProps) => {
   const [breadcrumbs, setBreadcrumbs] = useState<TreemapNode[]>([]);
   const [currentNode, setCurrentNode] = useState<TreemapNode>(data);
+
+  // Sync currentNode when data prop changes (e.g., when portfolio updates)
+  useEffect(() => {
+    setCurrentNode(data);
+    setBreadcrumbs([]);
+    onDrillDown?.(null);
+  }, [data, onDrillDown]);
 
   console.log('🎨 AssetAllocationTreemap render');
   console.log('   Root data:', data);
