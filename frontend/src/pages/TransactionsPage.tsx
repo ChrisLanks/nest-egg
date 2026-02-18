@@ -73,7 +73,7 @@ import {
   List,
   ListItem,
 } from '@chakra-ui/react';
-import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon, DownloadIcon, QuestionIcon } from '@chakra-ui/icons';
+import { SearchIcon, ChevronUpIcon, ChevronDownIcon, ViewIcon, DownloadIcon, QuestionIcon, CloseIcon } from '@chakra-ui/icons';
 import { FiLock } from 'react-icons/fi';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -1042,32 +1042,44 @@ export const TransactionsPage = () => {
 
         {/* Search Bar and Controls */}
         <HStack spacing={3} justify="space-between">
-          <InputGroup maxW="500px">
-            <InputLeftElement pointerEvents="none">
-              <SearchIcon color="gray.400" />
-            </InputLeftElement>
-            <Input
-              placeholder="Search or try: labels:Transfer accounts:Chase"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              pr="10"
-            />
-            <InputRightElement>
-              <Popover placement="bottom-start">
-                <PopoverTrigger>
+          <HStack spacing={2}>
+            <InputGroup maxW="500px">
+              <InputLeftElement pointerEvents="none">
+                <SearchIcon color="gray.400" />
+              </InputLeftElement>
+              <Input
+                placeholder="Search or try: labels:Transfer accounts:Chase"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                pr="10"
+              />
+              {searchQuery && (
+                <InputRightElement>
                   <IconButton
-                    aria-label="Search help"
-                    icon={<QuestionIcon />}
+                    aria-label="Clear search"
+                    icon={<CloseIcon />}
                     size="sm"
                     variant="ghost"
-                    colorScheme="gray"
+                    onClick={() => setSearchQuery('')}
                   />
-                </PopoverTrigger>
-                <PopoverContent width="400px">
-                  <PopoverArrow />
-                  <PopoverCloseButton />
-                  <PopoverHeader fontWeight="bold">Search Syntax Guide</PopoverHeader>
-                  <PopoverBody>
+                </InputRightElement>
+              )}
+            </InputGroup>
+            <Popover placement="bottom-start">
+              <PopoverTrigger>
+                <IconButton
+                  aria-label="Search help"
+                  icon={<QuestionIcon />}
+                  size="sm"
+                  variant="ghost"
+                  colorScheme="gray"
+                />
+              </PopoverTrigger>
+              <PopoverContent width="400px">
+                <PopoverArrow />
+                <PopoverCloseButton />
+                <PopoverHeader fontWeight="bold">Search Syntax Guide</PopoverHeader>
+                <PopoverBody>
                     <VStack align="stretch" spacing={3} fontSize="sm">
                       <Box>
                         <Text fontWeight="semibold" mb={1}>Basic Search</Text>
@@ -1145,8 +1157,7 @@ export const TransactionsPage = () => {
                   </PopoverBody>
                 </PopoverContent>
               </Popover>
-            </InputRightElement>
-          </InputGroup>
+          </HStack>
 
           <HStack spacing={2}>
             <DateRangePicker
