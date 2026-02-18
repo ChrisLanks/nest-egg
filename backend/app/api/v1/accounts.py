@@ -28,6 +28,15 @@ from app.schemas.account import (
 )
 from app.services.deduplication_service import DeduplicationService
 from app.services.rate_limit_service import rate_limit_service
+from app.config import settings
+
+
+class ProviderAvailability(BaseModel):
+    """Response model for provider availability."""
+
+    plaid: bool
+    teller: bool
+    mx: bool
 
 
 class BulkVisibilityUpdate(BaseModel):
@@ -41,6 +50,23 @@ router = APIRouter()
 
 # Initialize deduplication service
 deduplication_service = DeduplicationService()
+
+
+@router.get("/providers/availability", response_model=ProviderAvailability)
+async def get_provider_availability(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get availability status of account providers based on configured credentials.
+
+    Returns which providers (Plaid, Teller, MX) are available based on whether
+    their API credentials are configured in the environment.
+    """
+    return ProviderAvailability(
+        plaid=settings.PLAID_ENABLED and bool(settings.PLAID_CLIENT_ID and settings.PLAID_SECRET),
+        teller=settings.TELLER_ENABLED and bool(settings.TELLER_APP_ID and settings.TELLER_API_KEY),
+        mx=False,  # MX not yet implemented
+    )
 
 
 @router.get("/", response_model=List[AccountSummary])
