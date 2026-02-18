@@ -2,8 +2,7 @@
 
 import pytest
 from decimal import Decimal
-from datetime import date, timedelta
-from uuid import uuid4
+from datetime import date
 
 # TransactionService class doesn't exist - these tests are outdated
 # Skip entire test class until service is refactored/created
@@ -51,54 +50,58 @@ class TestTransactionService:
     def test_is_transfer_detection(self):
         """Test transfer detection logic."""
         # Positive amount = credit (not transfer by default)
-        assert TransactionService._is_transfer(
-            amount=Decimal("100.00"),
-            category="Transfer",
-            merchant_name="Payment",
-        ) is True
+        assert (
+            TransactionService._is_transfer(
+                amount=Decimal("100.00"),
+                category="Transfer",
+                merchant_name="Payment",
+            )
+            is True
+        )
 
         # Negative amount with Transfer category
-        assert TransactionService._is_transfer(
-            amount=Decimal("-100.00"),
-            category="Transfer",
-            merchant_name="Transfer",
-        ) is True
+        assert (
+            TransactionService._is_transfer(
+                amount=Decimal("-100.00"),
+                category="Transfer",
+                merchant_name="Transfer",
+            )
+            is True
+        )
 
         # Regular purchase
-        assert TransactionService._is_transfer(
-            amount=Decimal("-50.00"),
-            category="Dining",
-            merchant_name="Starbucks",
-        ) is False
+        assert (
+            TransactionService._is_transfer(
+                amount=Decimal("-50.00"),
+                category="Dining",
+                merchant_name="Starbucks",
+            )
+            is False
+        )
 
     def test_categorize_transaction_income_vs_expense(self):
         """Test income vs expense categorization."""
         # Negative amount = expense
-        assert TransactionService._categorize_income_expense(
-            Decimal("-50.00")
-        ) == "EXPENSE"
+        assert TransactionService._categorize_income_expense(Decimal("-50.00")) == "EXPENSE"
 
         # Positive amount = income
-        assert TransactionService._categorize_income_expense(
-            Decimal("2000.00")
-        ) == "INCOME"
+        assert TransactionService._categorize_income_expense(Decimal("2000.00")) == "INCOME"
 
         # Zero amount
-        assert TransactionService._categorize_income_expense(
-            Decimal("0.00")
-        ) == "INCOME"
+        assert TransactionService._categorize_income_expense(Decimal("0.00")) == "INCOME"
 
     def test_normalize_merchant_name(self):
         """Test merchant name normalization."""
         # Remove common suffixes
-        assert TransactionService._normalize_merchant_name(
-            "STARBUCKS #12345"
-        ).lower() == "starbucks"
+        assert (
+            TransactionService._normalize_merchant_name("STARBUCKS #12345").lower() == "starbucks"
+        )
 
         # Remove extra whitespace
-        assert TransactionService._normalize_merchant_name(
-            "  Amazon    Marketplace  "
-        ).lower() == "amazon marketplace"
+        assert (
+            TransactionService._normalize_merchant_name("  Amazon    Marketplace  ").lower()
+            == "amazon marketplace"
+        )
 
         # Handle None
         assert TransactionService._normalize_merchant_name(None) == ""
@@ -111,19 +114,13 @@ class TestTransactionService:
             "Shopping": "Shopping",
         }
 
-        assert TransactionService._apply_category_mapping(
-            "Food and Drink",
-            mapping
-        ) == "Dining"
+        assert TransactionService._apply_category_mapping("Food and Drink", mapping) == "Dining"
 
         # Test no match (return original)
-        assert TransactionService._apply_category_mapping(
-            "Unknown Category",
-            mapping
-        ) == "Unknown Category"
+        assert (
+            TransactionService._apply_category_mapping("Unknown Category", mapping)
+            == "Unknown Category"
+        )
 
         # Test None category
-        assert TransactionService._apply_category_mapping(
-            None,
-            mapping
-        ) is None
+        assert TransactionService._apply_category_mapping(None, mapping) is None

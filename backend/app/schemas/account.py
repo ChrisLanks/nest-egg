@@ -23,6 +23,10 @@ class AccountBase(BaseModel):
 
 class AccountCreate(AccountBase):
     """Account creation schema."""
+
+    pass
+
+
 class HoldingData(BaseModel):
     """Holding data for account creation."""
 
@@ -99,4 +103,3 @@ class AccountSummary(BaseModel):
     last_error_code: Optional[str] = None
     last_error_message: Optional[str] = None
     needs_reauth: Optional[bool] = None
-

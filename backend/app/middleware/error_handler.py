@@ -34,7 +34,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 # Try to get user from request state (set by auth dependency)
                 if hasattr(request.state, "user"):
                     user_id = str(request.state.user.id)
-            except:
+            except Exception:
                 pass
 
             # Build error context

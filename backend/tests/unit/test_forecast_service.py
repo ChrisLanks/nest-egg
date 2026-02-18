@@ -3,7 +3,6 @@
 import pytest
 from decimal import Decimal
 from datetime import date, timedelta
-from unittest.mock import Mock
 
 from app.services.forecast_service import ForecastService
 from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
@@ -23,8 +22,7 @@ class TestForecastService:
         )
 
         occurrences = ForecastService._calculate_future_occurrences(
-            pattern,
-            days_ahead=21  # 3 weeks
+            pattern, days_ahead=21  # 3 weeks
         )
 
         # Should have 4 occurrences (weekly for 3 weeks, inclusive)
@@ -41,8 +39,7 @@ class TestForecastService:
         )
 
         occurrences = ForecastService._calculate_future_occurrences(
-            pattern,
-            days_ahead=90  # ~3 months
+            pattern, days_ahead=90  # ~3 months
         )
 
         # Should have 4 occurrences (monthly recurring within 90 days, inclusive)
@@ -60,8 +57,7 @@ class TestForecastService:
         )
 
         occurrences = ForecastService._calculate_future_occurrences(
-            pattern,
-            days_ahead=56  # 4 biweekly periods
+            pattern, days_ahead=56  # 4 biweekly periods
         )
 
         # Should have 5 occurrences (biweekly for 56 days, inclusive)
@@ -78,8 +74,7 @@ class TestForecastService:
         )
 
         occurrences = ForecastService._calculate_future_occurrences(
-            pattern,
-            days_ahead=45  # 1.5 months
+            pattern, days_ahead=45  # 1.5 months
         )
 
         # Should have 2 occurrences (monthly within 45 days, inclusive)
@@ -94,10 +89,7 @@ class TestForecastService:
         ]
 
         # Find first negative balance
-        negative_day = next(
-            (day for day in forecast_data if day["projected_balance"] < 0),
-            None
-        )
+        negative_day = next((day for day in forecast_data if day["projected_balance"] < 0), None)
 
         assert negative_day is not None
         assert negative_day["projected_balance"] == -100.0

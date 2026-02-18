@@ -45,7 +45,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         # Enforce HTTPS for 1 year (only in production)
         # This header tells browsers to always use HTTPS for this domain
-        if not request.url.hostname in ["localhost", "127.0.0.1"]:
+        if request.url.hostname not in ["localhost", "127.0.0.1"]:
             response.headers["Strict-Transport-Security"] = (
                 "max-age=31536000; includeSubDomains; preload"
             )

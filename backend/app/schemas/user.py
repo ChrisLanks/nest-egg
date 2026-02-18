@@ -50,6 +50,8 @@ class UserInDB(UserBase):
 
 class User(UserInDB):
     """User schema for API responses."""
+
+
 class OrganizationBase(BaseModel):
     """Base organization schema."""
 
@@ -63,6 +65,8 @@ class OrganizationBase(BaseModel):
 
 class OrganizationCreate(OrganizationBase):
     """Schema for creating an organization."""
+
+
 class OrganizationUpdate(BaseModel):
     """Schema for updating an organization."""
 

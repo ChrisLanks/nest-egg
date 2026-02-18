@@ -1,7 +1,7 @@
 """Tests for dashboard service."""
 
 import pytest
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
@@ -162,8 +162,7 @@ class TestDashboardService:
 
         service = DashboardService(db)
         net_worth = await service.get_net_worth(
-            test_user.organization_id,
-            account_ids=[account1.id]
+            test_user.organization_id, account_ids=[account1.id]
         )
 
         # Should only count account1
@@ -332,9 +331,7 @@ class TestDashboardService:
 
         service = DashboardService(db)
         spending = await service.get_monthly_spending(
-            test_user.organization_id,
-            start_date=start_date,
-            end_date=end_date
+            test_user.organization_id, start_date=start_date, end_date=end_date
         )
 
         # Should only count txn1
@@ -381,8 +378,7 @@ class TestDashboardService:
 
         service = DashboardService(db)
         spending = await service.get_monthly_spending(
-            test_user.organization_id,
-            account_ids=[account1.id]
+            test_user.organization_id, account_ids=[account1.id]
         )
 
         # Should only count account1 transaction
@@ -464,15 +460,17 @@ class TestDashboardService:
 
         assert len(categories) == 2
         # Should be ordered by total (most negative first)
-        assert categories[0]['category'] == "Groceries"
-        assert categories[0]['total'] == 150.0
-        assert categories[0]['count'] == 2
-        assert categories[1]['category'] == "Transportation"
-        assert categories[1]['total'] == 75.0
-        assert categories[1]['count'] == 1
+        assert categories[0]["category"] == "Groceries"
+        assert categories[0]["total"] == 150.0
+        assert categories[0]["count"] == 2
+        assert categories[1]["category"] == "Transportation"
+        assert categories[1]["total"] == 75.0
+        assert categories[1]["count"] == 1
 
     @pytest.mark.asyncio
-    async def test_get_expense_by_category_excludes_uncategorized(self, db, test_user, test_account):
+    async def test_get_expense_by_category_excludes_uncategorized(
+        self, db, test_user, test_account
+    ):
         """Should exclude transactions without category."""
         categorized = Transaction(
             organization_id=test_user.organization_id,
@@ -498,7 +496,7 @@ class TestDashboardService:
 
         # Should only include categorized
         assert len(categories) == 1
-        assert categories[0]['category'] == "Shopping"
+        assert categories[0]["category"] == "Shopping"
 
     @pytest.mark.asyncio
     async def test_get_expense_by_category_respects_limit(self, db, test_user, test_account):
@@ -517,10 +515,7 @@ class TestDashboardService:
         await db.commit()
 
         service = DashboardService(db)
-        categories = await service.get_expense_by_category(
-            test_user.organization_id,
-            limit=5
-        )
+        categories = await service.get_expense_by_category(test_user.organization_id, limit=5)
 
         # Should return only 5
         assert len(categories) == 5
@@ -546,10 +541,7 @@ class TestDashboardService:
         await db.commit()
 
         service = DashboardService(db)
-        transactions = await service.get_recent_transactions(
-            test_user.organization_id,
-            limit=10
-        )
+        transactions = await service.get_recent_transactions(test_user.organization_id, limit=10)
 
         # Should be ordered most recent first
         assert len(transactions) == 2
@@ -572,10 +564,7 @@ class TestDashboardService:
         await db.commit()
 
         service = DashboardService(db)
-        transactions = await service.get_recent_transactions(
-            test_user.organization_id,
-            limit=5
-        )
+        transactions = await service.get_recent_transactions(test_user.organization_id, limit=5)
 
         assert len(transactions) == 5
 
@@ -617,18 +606,15 @@ class TestDashboardService:
         await db.commit()
 
         service = DashboardService(db)
-        trend = await service.get_cash_flow_trend(
-            test_user.organization_id,
-            months=3
-        )
+        trend = await service.get_cash_flow_trend(test_user.organization_id, months=3)
 
         # Should have monthly aggregations
         assert len(trend) > 0
         # Find January data
-        jan_data = next((t for t in trend if t['month'] == '2024-01'), None)
+        jan_data = next((t for t in trend if t["month"] == "2024-01"), None)
         if jan_data:
-            assert jan_data['income'] == 2000.0
-            assert jan_data['expenses'] == 1000.0
+            assert jan_data["income"] == 2000.0
+            assert jan_data["expenses"] == 1000.0
 
     @pytest.mark.asyncio
     async def test_get_account_balances(self, db, test_user):
@@ -660,9 +646,9 @@ class TestDashboardService:
         balances = await service.get_account_balances(test_user.organization_id)
 
         assert len(balances) == 2
-        assert balances[0]['name'] in ["Checking", "Savings"]
-        assert balances[0]['balance'] in [5000.0, 10000.0]
-        assert balances[0]['institution'] in ["Chase", "Wells Fargo"]
+        assert balances[0]["name"] in ["Checking", "Savings"]
+        assert balances[0]["balance"] in [5000.0, 10000.0]
+        assert balances[0]["institution"] in ["Chase", "Wells Fargo"]
 
     @pytest.mark.asyncio
     async def test_get_account_balances_ordered(self, db, test_user):

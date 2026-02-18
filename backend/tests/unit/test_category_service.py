@@ -24,9 +24,7 @@ class TestCategoryService:
 
         # Search for it
         result = await get_category_id_for_plaid_category(
-            db,
-            test_user.organization_id,
-            "Food and Drink"
+            db, test_user.organization_id, "Food and Drink"
         )
 
         assert result == category.id
@@ -35,9 +33,7 @@ class TestCategoryService:
     async def test_get_category_id_for_plaid_category_not_found(self, db, test_user):
         """Should return None when no matching category exists."""
         result = await get_category_id_for_plaid_category(
-            db,
-            test_user.organization_id,
-            "Nonexistent Category"
+            db, test_user.organization_id, "Nonexistent Category"
         )
 
         assert result is None
@@ -45,22 +41,14 @@ class TestCategoryService:
     @pytest.mark.asyncio
     async def test_get_category_id_for_plaid_category_null_input(self, db, test_user):
         """Should return None for null input."""
-        result = await get_category_id_for_plaid_category(
-            db,
-            test_user.organization_id,
-            None
-        )
+        result = await get_category_id_for_plaid_category(db, test_user.organization_id, None)
 
         assert result is None
 
     @pytest.mark.asyncio
     async def test_get_category_id_for_plaid_category_empty_string(self, db, test_user):
         """Should return None for empty string."""
-        result = await get_category_id_for_plaid_category(
-            db,
-            test_user.organization_id,
-            ""
-        )
+        result = await get_category_id_for_plaid_category(db, test_user.organization_id, "")
 
         assert result is None
 
@@ -79,11 +67,7 @@ class TestCategoryService:
         await db.commit()
 
         # Search for it from test_user's org
-        result = await get_category_id_for_plaid_category(
-            db,
-            test_user.organization_id,
-            "Shopping"
-        )
+        result = await get_category_id_for_plaid_category(db, test_user.organization_id, "Shopping")
 
         # Should not find it (different org)
         assert result is None
@@ -100,18 +84,12 @@ class TestCategoryService:
         await db.commit()
 
         # Exact match
-        result = await get_category_id_for_plaid_category(
-            db,
-            test_user.organization_id,
-            "Travel"
-        )
+        result = await get_category_id_for_plaid_category(db, test_user.organization_id, "Travel")
         assert result == category.id
 
         # Different case - should not match (SQL default is case-sensitive for strings)
         result_diff_case = await get_category_id_for_plaid_category(
-            db,
-            test_user.organization_id,
-            "TRAVEL"
+            db, test_user.organization_id, "TRAVEL"
         )
         # Note: This depends on database collation. PostgreSQL default is case-sensitive.
         # If it matches, it's due to database settings, which is acceptable.
@@ -134,9 +112,7 @@ class TestCategoryService:
         await db.commit()
 
         result = await get_category_id_for_plaid_category(
-            db,
-            test_user.organization_id,
-            "Groceries"
+            db, test_user.organization_id, "Groceries"
         )
 
         # Should return one of them (implementation uses limit(1))
@@ -155,9 +131,7 @@ class TestCategoryService:
         await db.commit()
 
         result = await get_category_id_for_plaid_category(
-            db,
-            test_user.organization_id,
-            "Custom Category"
+            db, test_user.organization_id, "Custom Category"
         )
 
         # Should not match (plaid_category_name is None)

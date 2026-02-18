@@ -1,13 +1,11 @@
 """Tests for notification service."""
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import timedelta
 from uuid import uuid4
-from decimal import Decimal
 
 from app.services.notification_service import NotificationService
-from app.models.notification import Notification, NotificationType, NotificationPriority
-from app.models.user import User, Organization
+from app.models.notification import NotificationType, NotificationPriority
 from app.utils.datetime_utils import utc_now
 
 

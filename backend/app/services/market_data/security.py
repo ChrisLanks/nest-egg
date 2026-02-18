@@ -22,8 +22,12 @@ DANGEROUS_PATTERNS = ["../", "\\", "|", ";", "&", "$", "`", "<", ">", "{", "}"]
 
 class SymbolValidationError(ValueError):
     """Raised when symbol validation fails."""
+
+
 class PriceValidationError(ValueError):
     """Raised when price validation fails."""
+
+
 def validate_symbol(symbol: str) -> str:
     """
     Validate and sanitize stock symbol.

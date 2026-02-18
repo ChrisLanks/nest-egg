@@ -2,9 +2,8 @@
 
 import pytest
 import base64
-from cryptography.fernet import Fernet, InvalidToken
 
-from app.services.encryption_service import EncryptionService, get_encryption_service
+from app.services.encryption_service import get_encryption_service
 
 
 class TestEncryptionService:
@@ -35,7 +34,8 @@ class TestEncryptionService:
 
         # Should be valid base64
         import re
-        assert re.match(r'^[A-Za-z0-9+/=]+$', encrypted)
+
+        assert re.match(r"^[A-Za-z0-9+/=]+$", encrypted)
 
         # Should be decodable
         try:
@@ -108,7 +108,7 @@ class TestEncryptionService:
         service = get_encryption_service()
 
         # Valid base64 but not valid Fernet token
-        corrupted = base64.b64encode(b"corrupted_data").decode('utf-8')
+        corrupted = base64.b64encode(b"corrupted_data").decode("utf-8")
 
         with pytest.raises(ValueError, match="Failed to decrypt token"):
             service.decrypt_token(corrupted)

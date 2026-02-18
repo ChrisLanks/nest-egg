@@ -1,7 +1,6 @@
 """Tests for holdings API endpoints."""
 
 import pytest
-from datetime import date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -20,10 +19,10 @@ class TestHoldingsEndpoints:
 
         assert response.status_code == 200
         data = response.json()
-        assert data['total_value'] == '0'
-        assert data['total_cost_basis'] == '0'
-        assert data['holdings_by_ticker'] == []
-        assert data['holdings_by_account'] == []
+        assert data["total_value"] == "0"
+        assert data["total_cost_basis"] == "0"
+        assert data["holdings_by_ticker"] == []
+        assert data["holdings_by_account"] == []
 
     @pytest.mark.asyncio
     async def test_get_portfolio_summary_with_holdings(self, client, auth_headers, test_user, db):
@@ -61,12 +60,12 @@ class TestHoldingsEndpoints:
 
         assert response.status_code == 200
         data = response.json()
-        assert float(data['total_value']) == 1800.0
-        assert float(data['total_cost_basis']) == 1500.0
-        assert float(data['total_gain_loss']) == 300.0
-        assert len(data['holdings_by_ticker']) == 1
-        assert data['holdings_by_ticker'][0]['ticker'] == "AAPL"
-        assert len(data['holdings_by_account']) == 1
+        assert float(data["total_value"]) == 1800.0
+        assert float(data["total_cost_basis"]) == 1500.0
+        assert float(data["total_gain_loss"]) == 300.0
+        assert len(data["holdings_by_ticker"]) == 1
+        assert data["holdings_by_ticker"][0]["ticker"] == "AAPL"
+        assert len(data["holdings_by_account"]) == 1
 
     @pytest.mark.asyncio
     async def test_get_portfolio_aggregates_by_ticker(self, client, auth_headers, test_user, db):
@@ -122,11 +121,11 @@ class TestHoldingsEndpoints:
         assert response.status_code == 200
         data = response.json()
         # Should aggregate to single ticker entry
-        assert len(data['holdings_by_ticker']) == 1
-        ticker_data = data['holdings_by_ticker'][0]
-        assert ticker_data['ticker'] == "VTI"
-        assert float(ticker_data['total_shares']) == 8.0  # 5 + 3
-        assert float(ticker_data['total_cost_basis']) == 1440.0  # 900 + 540
+        assert len(data["holdings_by_ticker"]) == 1
+        ticker_data = data["holdings_by_ticker"][0]
+        assert ticker_data["ticker"] == "VTI"
+        assert float(ticker_data["total_shares"]) == 8.0  # 5 + 3
+        assert float(ticker_data["total_cost_basis"]) == 1440.0  # 900 + 540
 
     @pytest.mark.asyncio
     async def test_get_portfolio_category_breakdown(self, client, auth_headers, test_user, db):
@@ -179,11 +178,11 @@ class TestHoldingsEndpoints:
 
         assert response.status_code == 200
         data = response.json()
-        assert float(data['category_breakdown']['retirement_value']) == 10000.0
-        assert float(data['category_breakdown']['taxable_value']) == 8000.0
+        assert float(data["category_breakdown"]["retirement_value"]) == 10000.0
+        assert float(data["category_breakdown"]["taxable_value"]) == 8000.0
         # Percentages
-        assert abs(float(data['category_breakdown']['retirement_percent']) - 55.56) < 0.1
-        assert abs(float(data['category_breakdown']['taxable_percent']) - 44.44) < 0.1
+        assert abs(float(data["category_breakdown"]["retirement_percent"]) - 55.56) < 0.1
+        assert abs(float(data["category_breakdown"]["taxable_percent"]) - 44.44) < 0.1
 
     @pytest.mark.asyncio
     async def test_get_account_holdings(self, client, auth_headers, test_user, db):
@@ -211,19 +210,18 @@ class TestHoldingsEndpoints:
             db.add(holding)
         await db.commit()
 
-        response = await client.get(
-            f"/api/v1/holdings/account/{account.id}",
-            headers=auth_headers
-        )
+        response = await client.get(f"/api/v1/holdings/account/{account.id}", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 3
-        tickers = {h['ticker'] for h in data}
+        tickers = {h["ticker"] for h in data}
         assert tickers == {"AAPL", "MSFT", "GOOGL"}
 
     @pytest.mark.asyncio
-    async def test_get_account_holdings_cross_org_blocked(self, client, auth_headers, test_user, db):
+    async def test_get_account_holdings_cross_org_blocked(
+        self, client, auth_headers, test_user, db
+    ):
         """Should not allow access to accounts from other orgs."""
         other_org_id = uuid4()
         other_account = Account(
@@ -238,8 +236,7 @@ class TestHoldingsEndpoints:
         await db.commit()
 
         response = await client.get(
-            f"/api/v1/holdings/account/{other_account.id}",
-            headers=auth_headers
+            f"/api/v1/holdings/account/{other_account.id}", headers=auth_headers
         )
 
         assert response.status_code == 404
@@ -267,18 +264,14 @@ class TestHoldingsEndpoints:
             "asset_type": "stock",
         }
 
-        response = await client.post(
-            "/api/v1/holdings/",
-            headers=auth_headers,
-            json=payload
-        )
+        response = await client.post("/api/v1/holdings/", headers=auth_headers, json=payload)
 
         assert response.status_code == 201
         data = response.json()
-        assert data['ticker'] == "TSLA"  # Should be uppercase
-        assert float(data['shares']) == 5.5
-        assert float(data['cost_basis_per_share']) == 200.0
-        assert float(data['total_cost_basis']) == 1100.0  # 5.5 * 200
+        assert data["ticker"] == "TSLA"  # Should be uppercase
+        assert float(data["shares"]) == 5.5
+        assert float(data["cost_basis_per_share"]) == 200.0
+        assert float(data["total_cost_basis"]) == 1100.0  # 5.5 * 200
 
     @pytest.mark.asyncio
     async def test_create_holding_invalid_account(self, client, auth_headers, test_user):
@@ -291,14 +284,10 @@ class TestHoldingsEndpoints:
             "shares": "10.0",
         }
 
-        response = await client.post(
-            "/api/v1/holdings/",
-            headers=auth_headers,
-            json=payload
-        )
+        response = await client.post("/api/v1/holdings/", headers=auth_headers, json=payload)
 
         assert response.status_code == 404
-        assert "Account not found" in response.json()['detail']
+        assert "Account not found" in response.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_create_holding_non_investment_account(self, client, auth_headers, test_user, db):
@@ -321,14 +310,10 @@ class TestHoldingsEndpoints:
             "shares": "10.0",
         }
 
-        response = await client.post(
-            "/api/v1/holdings/",
-            headers=auth_headers,
-            json=payload
-        )
+        response = await client.post("/api/v1/holdings/", headers=auth_headers, json=payload)
 
         assert response.status_code == 400
-        assert "investment accounts" in response.json()['detail']
+        assert "investment accounts" in response.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_update_holding(self, client, auth_headers, test_user, db):
@@ -362,19 +347,19 @@ class TestHoldingsEndpoints:
         }
 
         response = await client.patch(
-            f"/api/v1/holdings/{holding.id}",
-            headers=auth_headers,
-            json=payload
+            f"/api/v1/holdings/{holding.id}", headers=auth_headers, json=payload
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert float(data['shares']) == 15.0
-        assert float(data['current_price_per_share']) == 180.0
-        assert float(data['current_total_value']) == 2700.0  # 15 * 180
+        assert float(data["shares"]) == 15.0
+        assert float(data["current_price_per_share"]) == 180.0
+        assert float(data["current_total_value"]) == 2700.0  # 15 * 180
 
     @pytest.mark.asyncio
-    async def test_update_holding_recalculates_cost_basis(self, client, auth_headers, test_user, db):
+    async def test_update_holding_recalculates_cost_basis(
+        self, client, auth_headers, test_user, db
+    ):
         """Should recalculate total cost basis when cost per share changes."""
         account = Account(
             id=uuid4(),
@@ -404,15 +389,13 @@ class TestHoldingsEndpoints:
         }
 
         response = await client.patch(
-            f"/api/v1/holdings/{holding.id}",
-            headers=auth_headers,
-            json=payload
+            f"/api/v1/holdings/{holding.id}", headers=auth_headers, json=payload
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert float(data['cost_basis_per_share']) == 160.0
-        assert float(data['total_cost_basis']) == 1600.0  # 10 * 160
+        assert float(data["cost_basis_per_share"]) == 160.0
+        assert float(data["total_cost_basis"]) == 1600.0  # 10 * 160
 
     @pytest.mark.asyncio
     async def test_update_holding_cross_org_blocked(self, client, auth_headers, test_user, db):
@@ -441,9 +424,7 @@ class TestHoldingsEndpoints:
         payload = {"shares": "20.0"}
 
         response = await client.patch(
-            f"/api/v1/holdings/{other_holding.id}",
-            headers=auth_headers,
-            json=payload
+            f"/api/v1/holdings/{other_holding.id}", headers=auth_headers, json=payload
         )
 
         assert response.status_code == 404
@@ -472,18 +453,12 @@ class TestHoldingsEndpoints:
         await db.commit()
         holding_id = holding.id
 
-        response = await client.delete(
-            f"/api/v1/holdings/{holding_id}",
-            headers=auth_headers
-        )
+        response = await client.delete(f"/api/v1/holdings/{holding_id}", headers=auth_headers)
 
         assert response.status_code == 204
 
         # Verify deleted
-        response = await client.get(
-            f"/api/v1/holdings/account/{account.id}",
-            headers=auth_headers
-        )
+        response = await client.get(f"/api/v1/holdings/account/{account.id}", headers=auth_headers)
         assert len(response.json()) == 0
 
     @pytest.mark.asyncio
@@ -510,10 +485,7 @@ class TestHoldingsEndpoints:
         db.add(other_holding)
         await db.commit()
 
-        response = await client.delete(
-            f"/api/v1/holdings/{other_holding.id}",
-            headers=auth_headers
-        )
+        response = await client.delete(f"/api/v1/holdings/{other_holding.id}", headers=auth_headers)
 
         assert response.status_code == 404
 
@@ -564,8 +536,8 @@ class TestHoldingsEndpoints:
         assert response.status_code == 200
         data = response.json()
         # Should only include active account holding
-        assert len(data['holdings_by_ticker']) == 1
-        assert data['holdings_by_ticker'][0]['ticker'] == "AAPL"
+        assert len(data["holdings_by_ticker"]) == 1
+        assert data["holdings_by_ticker"][0]["ticker"] == "AAPL"
 
     @pytest.mark.asyncio
     async def test_portfolio_user_filter(self, client, auth_headers, test_user, db):
@@ -625,15 +597,14 @@ class TestHoldingsEndpoints:
 
         # Filter by test_user
         response = await client.get(
-            f"/api/v1/holdings/portfolio?user_id={test_user.id}",
-            headers=auth_headers
+            f"/api/v1/holdings/portfolio?user_id={test_user.id}", headers=auth_headers
         )
 
         assert response.status_code == 200
         data = response.json()
         # Should only include test_user's holdings
-        assert len(data['holdings_by_ticker']) == 1
-        assert data['holdings_by_ticker'][0]['ticker'] == "AAPL"
+        assert len(data["holdings_by_ticker"]) == 1
+        assert data["holdings_by_ticker"][0]["ticker"] == "AAPL"
 
     @pytest.mark.asyncio
     async def test_geographic_breakdown(self, client, auth_headers, test_user, db):
@@ -678,9 +649,9 @@ class TestHoldingsEndpoints:
 
         assert response.status_code == 200
         data = response.json()
-        geo = data['geographic_breakdown']
-        assert float(geo['domestic_value']) > 0
-        assert float(geo['international_value']) > 0
+        geo = data["geographic_breakdown"]
+        assert float(geo["domestic_value"]) > 0
+        assert float(geo["international_value"]) > 0
 
     @pytest.mark.asyncio
     async def test_expense_ratio_aggregation(self, client, auth_headers, test_user, db):
@@ -715,7 +686,7 @@ class TestHoldingsEndpoints:
         assert response.status_code == 200
         data = response.json()
         # Annual fee = 10000 * 0.0003 = 3.00
-        assert float(data['total_annual_fees']) == 3.0
+        assert float(data["total_annual_fees"]) == 3.0
 
     @pytest.mark.asyncio
     async def test_sector_breakdown(self, client, auth_headers, test_user, db):
@@ -767,14 +738,14 @@ class TestHoldingsEndpoints:
 
         assert response.status_code == 200
         data = response.json()
-        sectors = data['sector_breakdown']
+        sectors = data["sector_breakdown"]
         assert len(sectors) == 2
         # Should be ordered by value descending
-        assert sectors[0]['sector'] == "Technology"
-        assert float(sectors[0]['value']) == 3800.0  # 1800 + 2000
-        assert sectors[0]['count'] == 2
-        assert sectors[1]['sector'] == "Healthcare"
-        assert float(sectors[1]['value']) == 1600.0
+        assert sectors[0]["sector"] == "Technology"
+        assert float(sectors[0]["value"]) == 3800.0  # 1800 + 2000
+        assert sectors[0]["count"] == 2
+        assert sectors[1]["sector"] == "Healthcare"
+        assert float(sectors[1]["value"]) == 1600.0
 
     @pytest.mark.asyncio
     async def test_holdings_not_found(self, client, auth_headers):
@@ -782,16 +753,11 @@ class TestHoldingsEndpoints:
         fake_id = uuid4()
 
         response = await client.patch(
-            f"/api/v1/holdings/{fake_id}",
-            headers=auth_headers,
-            json={"shares": "10.0"}
+            f"/api/v1/holdings/{fake_id}", headers=auth_headers, json={"shares": "10.0"}
         )
 
         assert response.status_code == 404
 
-        response = await client.delete(
-            f"/api/v1/holdings/{fake_id}",
-            headers=auth_headers
-        )
+        response = await client.delete(f"/api/v1/holdings/{fake_id}", headers=auth_headers)
 
         assert response.status_code == 404

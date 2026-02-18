@@ -26,5 +26,7 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-# Lambda version for SQLAlchemy default/onupdate parameters
-utc_now_lambda = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+# Function version for SQLAlchemy default/onupdate parameters
+def utc_now_lambda() -> datetime:
+    """Get current UTC datetime for SQLAlchemy default/onupdate parameters."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)

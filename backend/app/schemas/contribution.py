@@ -24,6 +24,8 @@ class ContributionBase(BaseModel):
 
 class ContributionCreate(ContributionBase):
     """Contribution creation schema."""
+
+
 class ContributionUpdate(BaseModel):
     """Contribution update schema."""
 
@@ -44,4 +46,3 @@ class Contribution(ContributionBase):
     account_id: UUID
     created_at: datetime
     updated_at: datetime
-

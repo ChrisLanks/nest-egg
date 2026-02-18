@@ -181,7 +181,7 @@ class TestBudgetService:
         service = BudgetService()
 
         # Create active budget
-        active = await service.create_budget(
+        _active = await service.create_budget(
             db, test_user, "Active", Decimal("100"), BudgetPeriod.MONTHLY, date.today()
         )
 
@@ -274,9 +274,7 @@ class TestBudgetService:
         db.add(other_budget)
         await db.commit()
 
-        updated = await service.update_budget(
-            db, other_budget.id, test_user, name="Hacked"
-        )
+        updated = await service.update_budget(db, other_budget.id, test_user, name="Hacked")
 
         assert updated is None
 
@@ -324,8 +322,7 @@ class TestBudgetService:
 
         # Create monthly budget
         budget = await service.create_budget(
-            db, test_user, "Monthly", Decimal("500.00"),
-            BudgetPeriod.MONTHLY, date.today()
+            db, test_user, "Monthly", Decimal("500.00"), BudgetPeriod.MONTHLY, date.today()
         )
 
         # Get current month dates
@@ -351,10 +348,10 @@ class TestBudgetService:
 
         spending = await service.get_budget_spending(db, budget.id, test_user)
 
-        assert spending['budget_amount'] == Decimal("500.00")
-        assert spending['spent'] == Decimal("250.00")  # 100 + 150
-        assert spending['remaining'] == Decimal("250.00")  # 500 - 250
-        assert spending['percentage'] == Decimal("50.00")  # 250/500 * 100
+        assert spending["budget_amount"] == Decimal("500.00")
+        assert spending["spent"] == Decimal("250.00")  # 100 + 150
+        assert spending["remaining"] == Decimal("250.00")  # 500 - 250
+        assert spending["percentage"] == Decimal("50.00")  # 250/500 * 100
 
     @pytest.mark.asyncio
     async def test_get_budget_spending_category_specific(self, db, test_user, test_account):
@@ -371,8 +368,12 @@ class TestBudgetService:
 
         # Create category-specific budget
         budget = await service.create_budget(
-            db, test_user, "Food Budget", Decimal("300.00"),
-            BudgetPeriod.MONTHLY, date.today(),
+            db,
+            test_user,
+            "Food Budget",
+            Decimal("300.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
             category_id=category.id,
         )
 
@@ -402,7 +403,7 @@ class TestBudgetService:
         spending = await service.get_budget_spending(db, budget.id, test_user)
 
         # Should only count food transaction
-        assert spending['spent'] == Decimal("50.00")
+        assert spending["spent"] == Decimal("50.00")
 
     @pytest.mark.asyncio
     async def test_get_budget_spending_no_transactions(self, db, test_user):
@@ -410,15 +411,14 @@ class TestBudgetService:
         service = BudgetService()
 
         budget = await service.create_budget(
-            db, test_user, "Empty", Decimal("500.00"),
-            BudgetPeriod.MONTHLY, date.today()
+            db, test_user, "Empty", Decimal("500.00"), BudgetPeriod.MONTHLY, date.today()
         )
 
         spending = await service.get_budget_spending(db, budget.id, test_user)
 
-        assert spending['spent'] == Decimal("0.00")
-        assert spending['remaining'] == Decimal("500.00")
-        assert spending['percentage'] == Decimal("0.00")
+        assert spending["spent"] == Decimal("0.00")
+        assert spending["remaining"] == Decimal("500.00")
+        assert spending["percentage"] == Decimal("0.00")
 
     @pytest.mark.asyncio
     async def test_check_budget_alerts_under_threshold(self, db, test_user, test_account):
@@ -427,9 +427,13 @@ class TestBudgetService:
 
         # Create budget with 80% threshold
         budget = await service.create_budget(
-            db, test_user, "Test", Decimal("1000.00"),
-            BudgetPeriod.MONTHLY, date.today(),
-            alert_threshold=Decimal("0.80")
+            db,
+            test_user,
+            "Test",
+            Decimal("1000.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            alert_threshold=Decimal("0.80"),
         )
 
         period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
@@ -456,9 +460,13 @@ class TestBudgetService:
         service = BudgetService()
 
         budget = await service.create_budget(
-            db, test_user, "Test", Decimal("1000.00"),
-            BudgetPeriod.MONTHLY, date.today(),
-            alert_threshold=Decimal("0.80")
+            db,
+            test_user,
+            "Test",
+            Decimal("1000.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            alert_threshold=Decimal("0.80"),
         )
 
         period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
@@ -479,7 +487,7 @@ class TestBudgetService:
         # Should trigger alert
         assert len(alerts) > 0
         alert = alerts[0]
-        assert alert['budget'].id == budget.id
+        assert alert["budget"].id == budget.id
 
     @pytest.mark.asyncio
     async def test_check_budget_alerts_over_budget(self, db, test_user, test_account):
@@ -487,9 +495,13 @@ class TestBudgetService:
         service = BudgetService()
 
         budget = await service.create_budget(
-            db, test_user, "Test", Decimal("1000.00"),
-            BudgetPeriod.MONTHLY, date.today(),
-            alert_threshold=Decimal("0.80")
+            db,
+            test_user,
+            "Test",
+            Decimal("1000.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            alert_threshold=Decimal("0.80"),
         )
 
         period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
@@ -511,6 +523,7 @@ class TestBudgetService:
         # Verify notification was created
         from app.models.notification import Notification
         from sqlalchemy import select
+
         result = await db.execute(
             select(Notification).where(
                 Notification.organization_id == test_user.organization_id,
@@ -528,8 +541,7 @@ class TestBudgetService:
 
         # Create inactive budget
         budget = await service.create_budget(
-            db, test_user, "Inactive", Decimal("100.00"),
-            BudgetPeriod.MONTHLY, date.today()
+            db, test_user, "Inactive", Decimal("100.00"), BudgetPeriod.MONTHLY, date.today()
         )
         budget.is_active = False
         await db.commit()
@@ -550,7 +562,7 @@ class TestBudgetService:
         alerts = await service.check_budget_alerts(db, test_user)
 
         # Should not create alert for inactive budget
-        inactive_alerts = [a for a in alerts if a['budget'].id == budget.id]
+        inactive_alerts = [a for a in alerts if a["budget"].id == budget.id]
         assert len(inactive_alerts) == 0
 
     def test_singleton_instance(self):

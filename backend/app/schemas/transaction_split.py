@@ -18,6 +18,8 @@ class TransactionSplitBase(BaseModel):
 
 class TransactionSplitCreate(TransactionSplitBase):
     """Schema for creating a transaction split."""
+
+
 class CreateSplitsRequest(BaseModel):
     """Schema for creating multiple splits for a transaction."""
 

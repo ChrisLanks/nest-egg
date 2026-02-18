@@ -121,7 +121,9 @@ async def get_income_expense_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
@@ -139,7 +141,9 @@ async def get_income_expense_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
@@ -161,7 +165,9 @@ async def get_income_expense_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
@@ -195,7 +201,9 @@ async def get_income_expense_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
@@ -262,7 +270,9 @@ async def get_income_expense_trend(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
@@ -406,7 +416,9 @@ async def get_label_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
@@ -424,7 +436,9 @@ async def get_label_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
@@ -727,7 +741,9 @@ async def get_merchant_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
@@ -745,7 +761,9 @@ async def get_merchant_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
@@ -767,7 +785,9 @@ async def get_merchant_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
@@ -804,7 +824,9 @@ async def get_merchant_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
@@ -868,7 +890,9 @@ async def get_account_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
@@ -886,7 +910,9 @@ async def get_account_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
@@ -909,7 +935,9 @@ async def get_account_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
@@ -943,7 +971,9 @@ async def get_account_summary(
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Account.exclude_from_cash_flow.is_(
+                False
+            ),  # Exclude loans/mortgages to prevent double-counting
             Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,

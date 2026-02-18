@@ -21,7 +21,7 @@ class TestMarketDataEndpoints:
             price=Decimal("150.25"),
             name="Apple Inc.",
             currency="USD",
-            exchange="NASDAQ"
+            exchange="NASDAQ",
         )
 
     @pytest.fixture
@@ -32,24 +32,21 @@ class TestMarketDataEndpoints:
         provider.get_provider_name.return_value = "Yahoo Finance"
         provider.supports_realtime.return_value = True
         provider.get_rate_limits.return_value = {
-            'calls_per_minute': 0,
-            'calls_per_day': 0,
-            'note': 'Unlimited'
+            "calls_per_minute": 0,
+            "calls_per_day": 0,
+            "note": "Unlimited",
         }
         return provider
 
     async def test_get_quote_success(self, client, auth_headers, mock_provider):
         """Should successfully fetch quote for valid symbol."""
-        with patch('app.api.v1.market_data.get_market_data_provider', return_value=mock_provider):
-            response = await client.get(
-                "/api/v1/market-data/quote/AAPL",
-                headers=auth_headers
-            )
+        with patch("app.api.v1.market_data.get_market_data_provider", return_value=mock_provider):
+            response = await client.get("/api/v1/market-data/quote/AAPL", headers=auth_headers)
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            assert data['symbol'] == "AAPL"
-            assert data['provider'] == "Yahoo Finance"
+            assert data["symbol"] == "AAPL"
+            assert data["provider"] == "Yahoo Finance"
 
     async def test_get_quote_requires_authentication(self, client):
         """Should require authentication."""
@@ -61,31 +58,29 @@ class TestMarketDataEndpoints:
         """Should enforce rate limiting."""
         # Make 101 requests (over the limit of 100)
         for i in range(101):
-            response = await client.get(
-                f"/api/v1/market-data/quote/AAPL",
-                headers=auth_headers
-            )
+            response = await client.get("/api/v1/market-data/quote/AAPL", headers=auth_headers)
 
             if i < 100:
-                assert response.status_code in [status.HTTP_200_OK, status.HTTP_500_OK]  # May fail for other reasons
+                assert response.status_code in [
+                    status.HTTP_200_OK,
+                    status.HTTP_500_OK,
+                ]  # May fail for other reasons
             else:
                 # 101st request should be rate limited
                 assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
                 data = response.json()
-                assert "Rate limit exceeded" in str(data['detail'])
+                assert "Rate limit exceeded" in str(data["detail"])
 
     async def test_get_quotes_batch(self, client, auth_headers, mock_provider):
         """Should fetch multiple quotes in batch."""
         mock_provider.get_quotes_batch.return_value = {
             "AAPL": QuoteData(symbol="AAPL", price=Decimal("150.25")),
-            "GOOGL": QuoteData(symbol="GOOGL", price=Decimal("2825.50"))
+            "GOOGL": QuoteData(symbol="GOOGL", price=Decimal("2825.50")),
         }
 
-        with patch('app.api.v1.market_data.get_market_data_provider', return_value=mock_provider):
+        with patch("app.api.v1.market_data.get_market_data_provider", return_value=mock_provider):
             response = await client.post(
-                "/api/v1/market-data/quote/batch",
-                json=["AAPL", "GOOGL"],
-                headers=auth_headers
+                "/api/v1/market-data/quote/batch", json=["AAPL", "GOOGL"], headers=auth_headers
             )
 
             assert response.status_code == status.HTTP_200_OK
@@ -102,62 +97,51 @@ class TestMarketDataEndpoints:
                 high=Decimal("148.0"),
                 low=Decimal("144.0"),
                 close=Decimal("147.0"),
-                volume=1000000
+                volume=1000000,
             )
         ]
 
-        with patch('app.api.v1.market_data.get_market_data_provider', return_value=mock_provider):
+        with patch("app.api.v1.market_data.get_market_data_provider", return_value=mock_provider):
             response = await client.get(
                 "/api/v1/market-data/historical/AAPL",
-                params={
-                    "start_date": "2024-01-01",
-                    "end_date": "2024-01-31"
-                },
-                headers=auth_headers
+                params={"start_date": "2024-01-01", "end_date": "2024-01-31"},
+                headers=auth_headers,
             )
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert len(data) == 1
-            assert data[0]['date'] == "2024-01-01"
+            assert data[0]["date"] == "2024-01-01"
 
     async def test_search_symbols(self, client, auth_headers, mock_provider):
         """Should search for symbols."""
         mock_provider.search_symbol.return_value = [
-            SearchResult(
-                symbol="AAPL",
-                name="Apple Inc.",
-                type="stock",
-                exchange="NASDAQ"
-            )
+            SearchResult(symbol="AAPL", name="Apple Inc.", type="stock", exchange="NASDAQ")
         ]
 
-        with patch('app.api.v1.market_data.get_market_data_provider', return_value=mock_provider):
+        with patch("app.api.v1.market_data.get_market_data_provider", return_value=mock_provider):
             response = await client.get(
-                "/api/v1/market-data/search",
-                params={"query": "Apple"},
-                headers=auth_headers
+                "/api/v1/market-data/search", params={"query": "Apple"}, headers=auth_headers
             )
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert len(data) == 1
-            assert data[0]['symbol'] == "AAPL"
+            assert data[0]["symbol"] == "AAPL"
 
     async def test_get_provider_info(self, client, auth_headers, mock_provider):
         """Should return provider information."""
-        with patch('app.api.v1.market_data.get_market_data_provider', return_value=mock_provider):
-            response = await client.get(
-                "/api/v1/market-data/provider-info",
-                headers=auth_headers
-            )
+        with patch("app.api.v1.market_data.get_market_data_provider", return_value=mock_provider):
+            response = await client.get("/api/v1/market-data/provider-info", headers=auth_headers)
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            assert data['name'] == "Yahoo Finance"
-            assert data['supports_realtime'] is True
+            assert data["name"] == "Yahoo Finance"
+            assert data["supports_realtime"] is True
 
-    async def test_refresh_holding_price(self, client, auth_headers, test_user, test_account, mock_provider):
+    async def test_refresh_holding_price(
+        self, client, auth_headers, test_user, test_account, mock_provider
+    ):
         """Should refresh price for specific holding."""
         # Create a test holding
         from app.models.holding import Holding
@@ -166,20 +150,19 @@ class TestMarketDataEndpoints:
             account_id=test_account.id,
             symbol="AAPL",
             shares=Decimal("10"),
-            cost_basis=Decimal("1000")
+            cost_basis=Decimal("1000"),
         )
         # Save to database (implementation depends on your test fixtures)
 
-        with patch('app.api.v1.market_data.get_market_data_provider', return_value=mock_provider):
+        with patch("app.api.v1.market_data.get_market_data_provider", return_value=mock_provider):
             response = await client.post(
-                f"/api/v1/market-data/holdings/{holding.id}/refresh-price",
-                headers=auth_headers
+                f"/api/v1/market-data/holdings/{holding.id}/refresh-price", headers=auth_headers
             )
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
-            assert data['symbol'] == "AAPL"
-            assert 'current_price' in data
+            assert data["symbol"] == "AAPL"
+            assert "current_price" in data
 
 
 class TestMarketDataSecurity:
@@ -194,16 +177,13 @@ class TestMarketDataSecurity:
         ]
 
         for symbol in malicious_symbols:
-            response = await client.get(
-                f"/api/v1/market-data/quote/{symbol}",
-                headers=auth_headers
-            )
+            response = await client.get(f"/api/v1/market-data/quote/{symbol}", headers=auth_headers)
 
             # Should return validation error, not execute SQL
             assert response.status_code in [
                 status.HTTP_400_BAD_REQUEST,
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
-                status.HTTP_500_INTERNAL_SERVER_ERROR
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
             ]
 
     async def test_xss_protection(self, client, auth_headers):
@@ -211,9 +191,7 @@ class TestMarketDataSecurity:
         xss_query = "<script>alert('XSS')</script>"
 
         response = await client.get(
-            "/api/v1/market-data/search",
-            params={"query": xss_query},
-            headers=auth_headers
+            "/api/v1/market-data/search", params={"query": xss_query}, headers=auth_headers
         )
 
         # Response should not contain unescaped script tags
@@ -237,11 +215,8 @@ class TestRateLimitHeaders:
 
     async def test_rate_limit_headers_included(self, client, auth_headers, mock_provider):
         """Should include rate limit headers in response."""
-        with patch('app.api.v1.market_data.get_market_data_provider', return_value=mock_provider):
-            response = await client.get(
-                "/api/v1/market-data/quote/AAPL",
-                headers=auth_headers
-            )
+        with patch("app.api.v1.market_data.get_market_data_provider", return_value=mock_provider):
+            response = await client.get("/api/v1/market-data/quote/AAPL", headers=auth_headers)
 
             # Should include rate limit headers
             assert "X-RateLimit-Limit" in response.headers
@@ -250,19 +225,13 @@ class TestRateLimitHeaders:
 
     async def test_rate_limit_remaining_decrements(self, client, auth_headers, mock_provider):
         """Should decrement remaining count with each request."""
-        with patch('app.api.v1.market_data.get_market_data_provider', return_value=mock_provider):
+        with patch("app.api.v1.market_data.get_market_data_provider", return_value=mock_provider):
             # First request
-            response1 = await client.get(
-                "/api/v1/market-data/quote/AAPL",
-                headers=auth_headers
-            )
+            response1 = await client.get("/api/v1/market-data/quote/AAPL", headers=auth_headers)
             remaining1 = int(response1.headers["X-RateLimit-Remaining"])
 
             # Second request
-            response2 = await client.get(
-                "/api/v1/market-data/quote/AAPL",
-                headers=auth_headers
-            )
+            response2 = await client.get("/api/v1/market-data/quote/AAPL", headers=auth_headers)
             remaining2 = int(response2.headers["X-RateLimit-Remaining"])
 
             # Remaining should decrease

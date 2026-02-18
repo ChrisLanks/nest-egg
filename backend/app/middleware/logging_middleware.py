@@ -101,7 +101,7 @@ async def log_request(request: Request, call_next: Callable) -> Response:
 
         logger.info(
             f"{request.method} {request.url.path} "
-            f"completed in {duration*1000:.2f}ms "
+            f"completed in {duration * 1000:.2f}ms "
             f"with status {response.status_code}"
         )
 
@@ -110,6 +110,6 @@ async def log_request(request: Request, call_next: Callable) -> Response:
         duration = time.time() - start_time
         logger.exception(
             f"{request.method} {request.url.path} "
-            f"failed after {duration*1000:.2f}ms: {str(exc)}"
+            f"failed after {duration * 1000:.2f}ms: {str(exc)}"
         )
         raise

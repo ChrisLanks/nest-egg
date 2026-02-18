@@ -114,9 +114,9 @@ class TestRecurringDetectionService:
         # Weekly pattern with slight variation (±2 days)
         dates = [
             date(2024, 1, 1),
-            date(2024, 1, 8),    # 7 days
-            date(2024, 1, 16),   # 8 days
-            date(2024, 1, 22),   # 6 days
+            date(2024, 1, 8),  # 7 days
+            date(2024, 1, 16),  # 8 days
+            date(2024, 1, 22),  # 6 days
         ]
 
         frequency = service._calculate_frequency(dates)
@@ -199,9 +199,7 @@ class TestRecurringDetectionService:
             db.add(txn)
         await db.commit()
 
-        patterns = await service.detect_recurring_patterns(
-            db, test_user, min_occurrences=3
-        )
+        patterns = await service.detect_recurring_patterns(db, test_user, min_occurrences=3)
 
         assert len(patterns) > 0
         netflix_pattern = next((p for p in patterns if p.merchant_name == "Netflix"), None)
@@ -211,7 +209,9 @@ class TestRecurringDetectionService:
         assert netflix_pattern.occurrence_count == 4
 
     @pytest.mark.asyncio
-    async def test_detect_recurring_patterns_ignores_insufficient_data(self, db, test_user, test_account):
+    async def test_detect_recurring_patterns_ignores_insufficient_data(
+        self, db, test_user, test_account
+    ):
         """Should ignore patterns with insufficient occurrences."""
         service = RecurringDetectionService()
 
@@ -227,9 +227,7 @@ class TestRecurringDetectionService:
             db.add(txn)
         await db.commit()
 
-        patterns = await service.detect_recurring_patterns(
-            db, test_user, min_occurrences=3
-        )
+        patterns = await service.detect_recurring_patterns(db, test_user, min_occurrences=3)
 
         # Should not detect pattern
         rare_pattern = next((p for p in patterns if p.merchant_name == "Rare Merchant"), None)
@@ -276,7 +274,9 @@ class TestRecurringDetectionService:
         assert spotify_patterns[0].occurrence_count == 5  # Updated count
 
     @pytest.mark.asyncio
-    async def test_detect_recurring_patterns_filters_low_confidence(self, db, test_user, test_account):
+    async def test_detect_recurring_patterns_filters_low_confidence(
+        self, db, test_user, test_account
+    ):
         """Should exclude low confidence patterns."""
         service = RecurringDetectionService()
 
@@ -301,13 +301,17 @@ class TestRecurringDetectionService:
         patterns = await service.detect_recurring_patterns(db, test_user)
 
         # Should filter out low confidence
-        irregular_pattern = next((p for p in patterns if p.merchant_name == "Irregular Store"), None)
+        irregular_pattern = next(
+            (p for p in patterns if p.merchant_name == "Irregular Store"), None
+        )
         if irregular_pattern:
             # If it's detected, confidence should be below threshold or None
             assert irregular_pattern is None or irregular_pattern.confidence_score < Decimal("0.60")
 
     @pytest.mark.asyncio
-    async def test_detect_recurring_patterns_calculates_next_expected_date(self, db, test_user, test_account):
+    async def test_detect_recurring_patterns_calculates_next_expected_date(
+        self, db, test_user, test_account
+    ):
         """Should calculate next expected date based on frequency."""
         service = RecurringDetectionService()
 
@@ -382,7 +386,7 @@ class TestRecurringDetectionService:
         service = RecurringDetectionService()
 
         # Create active pattern
-        active = await service.create_manual_recurring(
+        _active = await service.create_manual_recurring(
             db, test_user, "Active", test_account.id, RecurringFrequency.MONTHLY, Decimal("100")
         )
 
@@ -423,7 +427,9 @@ class TestRecurringDetectionService:
         assert updated.average_amount == Decimal("150.00")
 
     @pytest.mark.asyncio
-    async def test_update_recurring_transaction_cross_org_blocked(self, db, test_user, test_account):
+    async def test_update_recurring_transaction_cross_org_blocked(
+        self, db, test_user, test_account
+    ):
         """Should not allow updating patterns from other orgs."""
         service = RecurringDetectionService()
 
@@ -470,7 +476,9 @@ class TestRecurringDetectionService:
         assert deleted_pattern is None
 
     @pytest.mark.asyncio
-    async def test_delete_recurring_transaction_cross_org_blocked(self, db, test_user, test_account):
+    async def test_delete_recurring_transaction_cross_org_blocked(
+        self, db, test_user, test_account
+    ):
         """Should not allow deleting patterns from other orgs."""
         service = RecurringDetectionService()
 
@@ -500,18 +508,28 @@ class TestRecurringDetectionService:
 
         # Create bill due in 2 days
         upcoming = await service.create_manual_recurring(
-            db, test_user, "Upcoming Bill", test_account.id,
-            RecurringFrequency.MONTHLY, Decimal("100"),
-            is_bill=True, reminder_days_before=5
+            db,
+            test_user,
+            "Upcoming Bill",
+            test_account.id,
+            RecurringFrequency.MONTHLY,
+            Decimal("100"),
+            is_bill=True,
+            reminder_days_before=5,
         )
         upcoming.next_expected_date = date.today() + timedelta(days=2)
         await db.commit()
 
         # Create bill far in future
         far_future = await service.create_manual_recurring(
-            db, test_user, "Far Future", test_account.id,
-            RecurringFrequency.MONTHLY, Decimal("100"),
-            is_bill=True, reminder_days_before=3
+            db,
+            test_user,
+            "Far Future",
+            test_account.id,
+            RecurringFrequency.MONTHLY,
+            Decimal("100"),
+            is_bill=True,
+            reminder_days_before=3,
         )
         far_future.next_expected_date = date.today() + timedelta(days=60)
         await db.commit()
@@ -520,7 +538,7 @@ class TestRecurringDetectionService:
         bills = await service.get_upcoming_bills(db, test_user, days_ahead=30)
 
         # Should include upcoming (within reminder window) but not far future
-        bill_names = [b['merchant_name'] for b in bills]
+        bill_names = [b["merchant_name"] for b in bills]
         assert "Upcoming Bill" in bill_names
         assert "Far Future" not in bill_names
 
@@ -531,9 +549,14 @@ class TestRecurringDetectionService:
 
         # Create overdue bill
         overdue = await service.create_manual_recurring(
-            db, test_user, "Overdue", test_account.id,
-            RecurringFrequency.MONTHLY, Decimal("100"),
-            is_bill=True, reminder_days_before=3
+            db,
+            test_user,
+            "Overdue",
+            test_account.id,
+            RecurringFrequency.MONTHLY,
+            Decimal("100"),
+            is_bill=True,
+            reminder_days_before=3,
         )
         overdue.next_expected_date = date.today() - timedelta(days=5)  # 5 days ago
         await db.commit()
@@ -541,10 +564,10 @@ class TestRecurringDetectionService:
         bills = await service.get_upcoming_bills(db, test_user)
 
         # Should include overdue
-        overdue_bill = next((b for b in bills if b['merchant_name'] == "Overdue"), None)
+        overdue_bill = next((b for b in bills if b["merchant_name"] == "Overdue"), None)
         assert overdue_bill is not None
-        assert overdue_bill['is_overdue'] is True
-        assert overdue_bill['days_until_due'] < 0
+        assert overdue_bill["is_overdue"] is True
+        assert overdue_bill["days_until_due"] < 0
 
     @pytest.mark.asyncio
     async def test_get_subscriptions(self, db, test_user, test_account):
@@ -553,24 +576,36 @@ class TestRecurringDetectionService:
 
         # Create monthly subscription
         monthly_sub = await service.create_manual_recurring(
-            db, test_user, "Netflix", test_account.id,
-            RecurringFrequency.MONTHLY, Decimal("15.99"),
+            db,
+            test_user,
+            "Netflix",
+            test_account.id,
+            RecurringFrequency.MONTHLY,
+            Decimal("15.99"),
         )
         monthly_sub.confidence_score = Decimal("0.80")  # High confidence
         await db.commit()
 
         # Create yearly subscription
         yearly_sub = await service.create_manual_recurring(
-            db, test_user, "Prime", test_account.id,
-            RecurringFrequency.YEARLY, Decimal("119.00"),
+            db,
+            test_user,
+            "Prime",
+            test_account.id,
+            RecurringFrequency.YEARLY,
+            Decimal("119.00"),
         )
         yearly_sub.confidence_score = Decimal("0.90")
         await db.commit()
 
         # Create weekly pattern (not a subscription)
         weekly = await service.create_manual_recurring(
-            db, test_user, "Grocery", test_account.id,
-            RecurringFrequency.WEEKLY, Decimal("50.00"),
+            db,
+            test_user,
+            "Grocery",
+            test_account.id,
+            RecurringFrequency.WEEKLY,
+            Decimal("50.00"),
         )
         weekly.confidence_score = Decimal("0.85")
         await db.commit()
@@ -590,16 +625,24 @@ class TestRecurringDetectionService:
 
         # High confidence subscription
         high_conf = await service.create_manual_recurring(
-            db, test_user, "High Confidence", test_account.id,
-            RecurringFrequency.MONTHLY, Decimal("10.00"),
+            db,
+            test_user,
+            "High Confidence",
+            test_account.id,
+            RecurringFrequency.MONTHLY,
+            Decimal("10.00"),
         )
         high_conf.confidence_score = Decimal("0.80")
         await db.commit()
 
         # Low confidence subscription
         low_conf = await service.create_manual_recurring(
-            db, test_user, "Low Confidence", test_account.id,
-            RecurringFrequency.MONTHLY, Decimal("10.00"),
+            db,
+            test_user,
+            "Low Confidence",
+            test_account.id,
+            RecurringFrequency.MONTHLY,
+            Decimal("10.00"),
         )
         low_conf.confidence_score = Decimal("0.50")
         await db.commit()
@@ -617,27 +660,35 @@ class TestRecurringDetectionService:
 
         # Monthly subscription: $10
         monthly = await service.create_manual_recurring(
-            db, test_user, "Monthly", test_account.id,
-            RecurringFrequency.MONTHLY, Decimal("10.00"),
+            db,
+            test_user,
+            "Monthly",
+            test_account.id,
+            RecurringFrequency.MONTHLY,
+            Decimal("10.00"),
         )
         monthly.confidence_score = Decimal("0.80")
         await db.commit()
 
         # Yearly subscription: $120 ($10/month)
         yearly = await service.create_manual_recurring(
-            db, test_user, "Yearly", test_account.id,
-            RecurringFrequency.YEARLY, Decimal("120.00"),
+            db,
+            test_user,
+            "Yearly",
+            test_account.id,
+            RecurringFrequency.YEARLY,
+            Decimal("120.00"),
         )
         yearly.confidence_score = Decimal("0.90")
         await db.commit()
 
         summary = await service.get_subscription_summary(db, test_user.organization_id)
 
-        assert summary['total_count'] == 2
+        assert summary["total_count"] == 2
         # Monthly cost = 10 + (120/12) = 20
-        assert summary['monthly_cost'] == 20.0
+        assert summary["monthly_cost"] == 20.0
         # Yearly cost = 20 * 12 = 240
-        assert summary['yearly_cost'] == 240.0
+        assert summary["yearly_cost"] == 240.0
 
     @pytest.mark.asyncio
     async def test_get_subscription_summary_empty(self, db, test_user):
@@ -646,9 +697,9 @@ class TestRecurringDetectionService:
 
         summary = await service.get_subscription_summary(db, test_user.organization_id)
 
-        assert summary['total_count'] == 0
-        assert summary['monthly_cost'] == 0.0
-        assert summary['yearly_cost'] == 0.0
+        assert summary["total_count"] == 0
+        assert summary["monthly_cost"] == 0.0
+        assert summary["yearly_cost"] == 0.0
 
     def test_singleton_instance(self):
         """Should provide singleton instance."""

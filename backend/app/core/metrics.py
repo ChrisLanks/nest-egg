@@ -11,7 +11,6 @@ This module provides Prometheus metrics for:
 Metrics are exposed at /metrics endpoint for Prometheus scraping.
 """
 
-
 from fastapi import FastAPI
 from prometheus_client import Counter, Gauge, Histogram
 from prometheus_fastapi_instrumentator import Instrumentator, metrics

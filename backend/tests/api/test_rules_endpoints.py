@@ -21,18 +21,9 @@ class TestRuleEndpoints:
                 "priority": 10,
                 "is_active": True,
                 "conditions": [
-                    {
-                        "field": "MERCHANT_NAME",
-                        "operator": "CONTAINS",
-                        "value": "Amazon"
-                    }
+                    {"field": "MERCHANT_NAME", "operator": "CONTAINS", "value": "Amazon"}
                 ],
-                "actions": [
-                    {
-                        "action_type": "SET_CATEGORY",
-                        "action_value": "Shopping"
-                    }
-                ]
+                "actions": [{"action_type": "SET_CATEGORY", "action_value": "Shopping"}],
             },
             headers=auth_headers,
         )
@@ -59,23 +50,10 @@ class TestRuleEndpoints:
                 "name": "Large Amazon Purchases",
                 "match_type": "ALL",  # Must match ALL conditions
                 "conditions": [
-                    {
-                        "field": "MERCHANT_NAME",
-                        "operator": "CONTAINS",
-                        "value": "Amazon"
-                    },
-                    {
-                        "field": "AMOUNT",
-                        "operator": "GREATER_THAN",
-                        "value": "100.00"
-                    }
+                    {"field": "MERCHANT_NAME", "operator": "CONTAINS", "value": "Amazon"},
+                    {"field": "AMOUNT", "operator": "GREATER_THAN", "value": "100.00"},
                 ],
-                "actions": [
-                    {
-                        "action_type": "ADD_LABEL",
-                        "action_value": "Large Purchase"
-                    }
-                ]
+                "actions": [{"action_type": "ADD_LABEL", "action_value": "Large Purchase"}],
             },
             headers=auth_headers,
         )
@@ -93,23 +71,10 @@ class TestRuleEndpoints:
                 "name": "Food Merchants",
                 "match_type": "ANY",  # Match ANY condition
                 "conditions": [
-                    {
-                        "field": "MERCHANT_NAME",
-                        "operator": "CONTAINS",
-                        "value": "Restaurant"
-                    },
-                    {
-                        "field": "MERCHANT_NAME",
-                        "operator": "CONTAINS",
-                        "value": "Cafe"
-                    }
+                    {"field": "MERCHANT_NAME", "operator": "CONTAINS", "value": "Restaurant"},
+                    {"field": "MERCHANT_NAME", "operator": "CONTAINS", "value": "Cafe"},
                 ],
-                "actions": [
-                    {
-                        "action_type": "SET_CATEGORY",
-                        "action_value": "Dining"
-                    }
-                ]
+                "actions": [{"action_type": "SET_CATEGORY", "action_value": "Dining"}],
             },
             headers=auth_headers,
         )
@@ -130,15 +95,10 @@ class TestRuleEndpoints:
                         "field": "AMOUNT",
                         "operator": "BETWEEN",
                         "value": "50.00",
-                        "value_max": "200.00"
+                        "value_max": "200.00",
                     }
                 ],
-                "actions": [
-                    {
-                        "action_type": "ADD_LABEL",
-                        "action_value": "Medium Purchase"
-                    }
-                ]
+                "actions": [{"action_type": "ADD_LABEL", "action_value": "Medium Purchase"}],
             },
             headers=auth_headers,
         )
@@ -156,22 +116,12 @@ class TestRuleEndpoints:
             json={
                 "name": "Recurring Netflix",
                 "conditions": [
-                    {
-                        "field": "MERCHANT_NAME",
-                        "operator": "EQUALS",
-                        "value": "Netflix"
-                    }
+                    {"field": "MERCHANT_NAME", "operator": "EQUALS", "value": "Netflix"}
                 ],
                 "actions": [
-                    {
-                        "action_type": "SET_CATEGORY",
-                        "action_value": "Entertainment"
-                    },
-                    {
-                        "action_type": "ADD_LABEL",
-                        "action_value": "Subscription"
-                    }
-                ]
+                    {"action_type": "SET_CATEGORY", "action_value": "Entertainment"},
+                    {"action_type": "ADD_LABEL", "action_value": "Subscription"},
+                ],
             },
             headers=auth_headers,
         )
@@ -189,12 +139,7 @@ class TestRuleEndpoints:
             json={
                 "name": "Invalid Rule",
                 "conditions": [],  # Empty conditions
-                "actions": [
-                    {
-                        "action_type": "SET_CATEGORY",
-                        "action_value": "Test"
-                    }
-                ]
+                "actions": [{"action_type": "SET_CATEGORY", "action_value": "Test"}],
             },
             headers=auth_headers,
         )
@@ -208,14 +153,8 @@ class TestRuleEndpoints:
             "/api/v1/rules",
             json={
                 "name": "Invalid Rule",
-                "conditions": [
-                    {
-                        "field": "MERCHANT_NAME",
-                        "operator": "CONTAINS",
-                        "value": "Test"
-                    }
-                ],
-                "actions": []  # Empty actions
+                "conditions": [{"field": "MERCHANT_NAME", "operator": "CONTAINS", "value": "Test"}],
+                "actions": [],  # Empty actions
             },
             headers=auth_headers,
         )
@@ -230,19 +169,8 @@ class TestRuleEndpoints:
             "/api/v1/rules",
             json={
                 "name": "Test List Rule",
-                "conditions": [
-                    {
-                        "field": "MERCHANT_NAME",
-                        "operator": "CONTAINS",
-                        "value": "Test"
-                    }
-                ],
-                "actions": [
-                    {
-                        "action_type": "SET_CATEGORY",
-                        "action_value": "Test"
-                    }
-                ]
+                "conditions": [{"field": "MERCHANT_NAME", "operator": "CONTAINS", "value": "Test"}],
+                "actions": [{"action_type": "SET_CATEGORY", "action_value": "Test"}],
             },
             headers=auth_headers,
         )
@@ -266,19 +194,8 @@ class TestRuleEndpoints:
             "/api/v1/rules",
             json={
                 "name": "Get By ID Test",
-                "conditions": [
-                    {
-                        "field": "MERCHANT_NAME",
-                        "operator": "CONTAINS",
-                        "value": "Test"
-                    }
-                ],
-                "actions": [
-                    {
-                        "action_type": "SET_CATEGORY",
-                        "action_value": "Test"
-                    }
-                ]
+                "conditions": [{"field": "MERCHANT_NAME", "operator": "CONTAINS", "value": "Test"}],
+                "actions": [{"action_type": "SET_CATEGORY", "action_value": "Test"}],
             },
             headers=auth_headers,
         )
@@ -317,19 +234,8 @@ class TestRuleEndpoints:
                 "name": "Original Name",
                 "is_active": True,
                 "priority": 5,
-                "conditions": [
-                    {
-                        "field": "MERCHANT_NAME",
-                        "operator": "CONTAINS",
-                        "value": "Test"
-                    }
-                ],
-                "actions": [
-                    {
-                        "action_type": "SET_CATEGORY",
-                        "action_value": "Test"
-                    }
-                ]
+                "conditions": [{"field": "MERCHANT_NAME", "operator": "CONTAINS", "value": "Test"}],
+                "actions": [{"action_type": "SET_CATEGORY", "action_value": "Test"}],
             },
             headers=auth_headers,
         )
@@ -359,19 +265,8 @@ class TestRuleEndpoints:
             "/api/v1/rules",
             json={
                 "name": "Delete Me",
-                "conditions": [
-                    {
-                        "field": "MERCHANT_NAME",
-                        "operator": "CONTAINS",
-                        "value": "Test"
-                    }
-                ],
-                "actions": [
-                    {
-                        "action_type": "SET_CATEGORY",
-                        "action_value": "Test"
-                    }
-                ]
+                "conditions": [{"field": "MERCHANT_NAME", "operator": "CONTAINS", "value": "Test"}],
+                "actions": [{"action_type": "SET_CATEGORY", "action_value": "Test"}],
             },
             headers=auth_headers,
         )
@@ -411,7 +306,7 @@ class TestRuleEndpoints:
                 "name": "Low Priority",
                 "priority": 1,
                 "conditions": [{"field": "MERCHANT_NAME", "operator": "CONTAINS", "value": "A"}],
-                "actions": [{"action_type": "SET_CATEGORY", "action_value": "Test"}]
+                "actions": [{"action_type": "SET_CATEGORY", "action_value": "Test"}],
             },
             headers=auth_headers,
         )
@@ -422,7 +317,7 @@ class TestRuleEndpoints:
                 "name": "High Priority",
                 "priority": 100,
                 "conditions": [{"field": "MERCHANT_NAME", "operator": "CONTAINS", "value": "B"}],
-                "actions": [{"action_type": "SET_CATEGORY", "action_value": "Test"}]
+                "actions": [{"action_type": "SET_CATEGORY", "action_value": "Test"}],
             },
             headers=auth_headers,
         )
@@ -446,7 +341,7 @@ class TestRuleEndpoints:
             json={
                 "name": "Test Rule",
                 "conditions": [{"field": "MERCHANT_NAME", "operator": "CONTAINS", "value": "Test"}],
-                "actions": [{"action_type": "SET_CATEGORY", "action_value": "Test"}]
+                "actions": [{"action_type": "SET_CATEGORY", "action_value": "Test"}],
             },
         )
 

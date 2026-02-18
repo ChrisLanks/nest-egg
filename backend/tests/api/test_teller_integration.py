@@ -5,7 +5,6 @@ from fastapi import status
 from unittest.mock import AsyncMock, patch, MagicMock
 from decimal import Decimal
 from datetime import date
-from uuid import uuid4
 
 from app.models.account import TellerEnrollment, Account, AccountSource, AccountType
 from app.services.teller_service import TellerService
@@ -29,7 +28,7 @@ class TestTellerService:
             user_id=test_user.id,
             enrollment_id=enrollment_id,
             access_token=plaintext_token,
-            institution_name="Test Bank"
+            institution_name="Test Bank",
         )
 
         # Access token should be encrypted (not plaintext)
@@ -49,7 +48,7 @@ class TestTellerService:
             user_id=test_user.id,
             enrollment_id="enr_test",
             access_token="encrypted_token",
-            institution_name="Test Bank"
+            institution_name="Test Bank",
         )
         db.add(enrollment)
         await db.commit()
@@ -63,7 +62,7 @@ class TestTellerService:
                 "type": "depository",
                 "last_four": "1234",
                 "institution": {"name": "Test Bank"},
-                "balance": {"available": 1000.50}
+                "balance": {"available": 1000.50},
             },
             {
                 "id": "acc_456",
@@ -71,11 +70,11 @@ class TestTellerService:
                 "type": "depository",
                 "last_four": "5678",
                 "institution": {"name": "Test Bank"},
-                "balance": {"available": 5000.00}
-            }
+                "balance": {"available": 5000.00},
+            },
         ]
 
-        with patch.object(service, '_make_request', return_value=mock_accounts_data):
+        with patch.object(service, "_make_request", return_value=mock_accounts_data):
             accounts = await service.sync_accounts(db, enrollment)
 
         # Should create 2 accounts
@@ -94,7 +93,7 @@ class TestTellerService:
             organization_id=test_user.organization_id,
             user_id=test_user.id,
             enrollment_id="enr_test",
-            access_token="encrypted_token"
+            access_token="encrypted_token",
         )
         db.add(enrollment)
         await db.commit()
@@ -109,7 +108,7 @@ class TestTellerService:
             name="Checking",
             account_type=AccountType.CHECKING,
             account_source=AccountSource.TELLER,
-            current_balance=Decimal("1000.00")
+            current_balance=Decimal("1000.00"),
         )
         db.add(existing_account)
         await db.commit()
@@ -120,11 +119,11 @@ class TestTellerService:
                 "id": "acc_123",
                 "name": "Checking",
                 "type": "depository",
-                "balance": {"available": 2000.50}
+                "balance": {"available": 2000.50},
             }
         ]
 
-        with patch.object(service, '_make_request', return_value=mock_accounts_data):
+        with patch.object(service, "_make_request", return_value=mock_accounts_data):
             accounts = await service.sync_accounts(db, enrollment)
 
         # Should update existing account balance
@@ -141,7 +140,7 @@ class TestTellerService:
             organization_id=test_user.organization_id,
             user_id=test_user.id,
             enrollment_id="enr_test",
-            access_token="encrypted_token"
+            access_token="encrypted_token",
         )
         db.add(enrollment)
         await db.commit()
@@ -161,24 +160,21 @@ class TestTellerService:
                 "description": "Starbucks",
                 "details": {
                     "category": "food_and_drink",
-                    "counterparty": {"name": "Starbucks Coffee"}
+                    "counterparty": {"name": "Starbucks Coffee"},
                 },
-                "status": "posted"
+                "status": "posted",
             },
             {
                 "id": "txn_2",
                 "date": "2024-01-14T00:00:00Z",
                 "amount": "-25.50",
                 "description": "Gas Station",
-                "details": {
-                    "category": "transportation",
-                    "counterparty": {"name": "Shell Gas"}
-                },
-                "status": "posted"
-            }
+                "details": {"category": "transportation", "counterparty": {"name": "Shell Gas"}},
+                "status": "posted",
+            },
         ]
 
-        with patch.object(service, '_make_request', return_value=mock_transactions_data):
+        with patch.object(service, "_make_request", return_value=mock_transactions_data):
             transactions = await service.sync_transactions(db, test_account)
 
         # Should create 2 transactions
@@ -198,7 +194,7 @@ class TestTellerService:
             organization_id=test_user.organization_id,
             user_id=test_user.id,
             enrollment_id="enr_test",
-            access_token="encrypted_token"
+            access_token="encrypted_token",
         )
         db.add(enrollment)
         await db.commit()
@@ -215,7 +211,7 @@ class TestTellerService:
             external_transaction_id="txn_1",
             date=date(2024, 1, 15),
             amount=Decimal("-50.00"),
-            merchant_name="Starbucks"
+            merchant_name="Starbucks",
         )
         db.add(existing_txn)
         await db.commit()
@@ -228,11 +224,11 @@ class TestTellerService:
                 "amount": "-50.00",
                 "description": "Starbucks",
                 "details": {"category": "food", "counterparty": {"name": "Starbucks"}},
-                "status": "posted"
+                "status": "posted",
             }
         ]
 
-        with patch.object(service, '_make_request', return_value=mock_transactions_data):
+        with patch.object(service, "_make_request", return_value=mock_transactions_data):
             transactions = await service.sync_transactions(db, test_account)
 
         # Should not create duplicate
@@ -256,7 +252,7 @@ class TestTellerService:
             "id": "txn_123",
             "date": "2024-01-15",
             "amount": "-50.00",
-            "description": "Test Merchant"
+            "description": "Test Merchant",
         }
 
         hash1 = service._generate_dedup_hash(test_account.id, txn_data)
@@ -272,17 +268,11 @@ class TestTellerWebhookHandling:
 
     async def test_webhook_requires_rate_limiting(self, client):
         """Should enforce rate limiting on webhook endpoint."""
-        webhook_data = {
-            "event": "enrollment.connected",
-            "payload": {"enrollment_id": "enr_test"}
-        }
+        webhook_data = {"event": "enrollment.connected", "payload": {"enrollment_id": "enr_test"}}
 
         # Make more requests than rate limit allows (20/minute)
         for i in range(25):
-            response = await client.post(
-                "/api/v1/teller/webhook",
-                json=webhook_data
-            )
+            response = await client.post("/api/v1/teller/webhook", json=webhook_data)
 
             if i < 20:
                 # First 20 should succeed (or fail for other reasons)
@@ -300,33 +290,32 @@ class TestTellerWebhookHandling:
             user_id=test_user.id,
             enrollment_id="enr_test123",
             access_token="encrypted",
-            institution_name="Test Bank"
+            institution_name="Test Bank",
         )
         db.add(enrollment)
         await db.commit()
 
         webhook_data = {
             "event": "enrollment.connected",
-            "payload": {"enrollment_id": "enr_test123"}
+            "payload": {"enrollment_id": "enr_test123"},
         }
 
-        response = await client.post(
-            "/api/v1/teller/webhook",
-            json=webhook_data
-        )
+        response = await client.post("/api/v1/teller/webhook", json=webhook_data)
 
         # Should acknowledge webhook
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["status"] == "acknowledged"
 
-    async def test_webhook_transaction_posted_triggers_sync(self, client, db, test_user, test_account):
+    async def test_webhook_transaction_posted_triggers_sync(
+        self, client, db, test_user, test_account
+    ):
         """Should trigger transaction sync on transaction.posted webhook."""
         # Create enrollment
         enrollment = TellerEnrollment(
             organization_id=test_user.organization_id,
             user_id=test_user.id,
             enrollment_id="enr_test",
-            access_token="encrypted"
+            access_token="encrypted",
         )
         db.add(enrollment)
         await db.commit()
@@ -339,20 +328,14 @@ class TestTellerWebhookHandling:
 
         webhook_data = {
             "event": "transaction.posted",
-            "payload": {
-                "enrollment_id": "enr_test",
-                "account_id": "acc_123"
-            }
+            "payload": {"enrollment_id": "enr_test", "account_id": "acc_123"},
         }
 
-        with patch('app.api.v1.teller.get_teller_service') as mock_service:
+        with patch("app.api.v1.teller.get_teller_service") as mock_service:
             mock_teller = AsyncMock()
             mock_service.return_value = mock_teller
 
-            response = await client.post(
-                "/api/v1/teller/webhook",
-                json=webhook_data
-            )
+            response = await client.post("/api/v1/teller/webhook", json=webhook_data)
 
             # Should trigger sync
             assert response.status_code == status.HTTP_200_OK
@@ -363,13 +346,10 @@ class TestTellerWebhookHandling:
         """Should handle webhook for unknown enrollment gracefully."""
         webhook_data = {
             "event": "enrollment.connected",
-            "payload": {"enrollment_id": "nonexistent"}
+            "payload": {"enrollment_id": "nonexistent"},
         }
 
-        response = await client.post(
-            "/api/v1/teller/webhook",
-            json=webhook_data
-        )
+        response = await client.post("/api/v1/teller/webhook", json=webhook_data)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -387,14 +367,14 @@ class TestTellerErrorHandling:
             organization_id=test_user.organization_id,
             user_id=test_user.id,
             enrollment_id="enr_test",
-            access_token="encrypted"
+            access_token="encrypted",
         )
         db.add(enrollment)
         await db.commit()
         await db.refresh(enrollment)
 
         # Mock timeout
-        with patch.object(service, '_make_request', side_effect=TimeoutError("Request timeout")):
+        with patch.object(service, "_make_request", side_effect=TimeoutError("Request timeout")):
             with pytest.raises(Exception):
                 await service.sync_accounts(db, enrollment)
 
@@ -406,7 +386,7 @@ class TestTellerErrorHandling:
             organization_id=test_user.organization_id,
             user_id=test_user.id,
             enrollment_id="enr_test",
-            access_token="invalid_encrypted_token"
+            access_token="invalid_encrypted_token",
         )
         db.add(enrollment)
         await db.commit()
@@ -416,6 +396,6 @@ class TestTellerErrorHandling:
         mock_error = MagicMock()
         mock_error.status_code = 401
 
-        with patch.object(service, '_make_request', side_effect=Exception("Unauthorized")):
+        with patch.object(service, "_make_request", side_effect=Exception("Unauthorized")):
             with pytest.raises(Exception):
                 await service.sync_accounts(db, enrollment)

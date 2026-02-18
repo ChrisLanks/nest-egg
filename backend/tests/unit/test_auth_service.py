@@ -3,7 +3,12 @@
 import pytest
 from datetime import timedelta
 
-from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token
+from app.core.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+)
 
 
 @pytest.mark.unit
@@ -54,6 +59,7 @@ class TestAuthService:
         assert isinstance(jti, str)
         assert len(jti) > 0
         from datetime import datetime
+
         assert isinstance(expiration, datetime)
 
     def test_verify_token_valid(self):
@@ -77,7 +83,7 @@ class TestAuthService:
         invalid_token = "invalid.token.here"
 
         try:
-            payload = decode_token(invalid_token)
+            _payload = decode_token(invalid_token)
             assert False, "Should have raised JWTError"
         except JWTError:
             pass  # Expected
@@ -89,12 +95,11 @@ class TestAuthService:
 
         user_id = "test-user-id"
         token = create_access_token(
-            data={"sub": user_id},
-            expires_delta=timedelta(seconds=-1)  # Already expired
+            data={"sub": user_id}, expires_delta=timedelta(seconds=-1)  # Already expired
         )
 
         try:
-            payload = decode_token(token)
+            _payload = decode_token(token)
             assert False, "Should have raised JWTError for expired token"
         except JWTError:
             pass  # Expected

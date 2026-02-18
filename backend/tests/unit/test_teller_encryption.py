@@ -1,7 +1,7 @@
 """Tests for Teller credential encryption."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 from app.models.account import TellerEnrollment
@@ -43,7 +43,8 @@ class TestTellerEncryption:
 
         # Should be base64 (contains only alphanumeric + / + =)
         import re
-        assert re.match(r'^[A-Za-z0-9+/=]+$', encrypted)
+
+        assert re.match(r"^[A-Za-z0-9+/=]+$", encrypted)
 
     def test_teller_enrollment_decryption(self):
         """Should decrypt access token via model method."""

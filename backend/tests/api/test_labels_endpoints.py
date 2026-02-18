@@ -312,7 +312,9 @@ class TestLabelEndpoints:
 
         assert response.status_code == 401  # Unauthorized
 
-    def test_apply_label_to_transaction(self, client: TestClient, auth_headers, test_account, test_transaction):
+    def test_apply_label_to_transaction(
+        self, client: TestClient, auth_headers, test_account, test_transaction
+    ):
         """Test applying label to transaction."""
         # Create label
         label_response = client.post(
@@ -342,7 +344,9 @@ class TestLabelEndpoints:
         txn_data = txn_response.json()
         assert any(label["id"] == label_id for label in txn_data.get("labels", []))
 
-    def test_remove_label_from_transaction(self, client: TestClient, auth_headers, test_account, test_transaction):
+    def test_remove_label_from_transaction(
+        self, client: TestClient, auth_headers, test_account, test_transaction
+    ):
         """Test removing label from transaction."""
         # Create label
         label_response = client.post(

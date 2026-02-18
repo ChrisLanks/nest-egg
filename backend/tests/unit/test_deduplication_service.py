@@ -1,11 +1,10 @@
 """Tests for account deduplication service."""
 
-import pytest
 from uuid import uuid4
 import hashlib
 
 from app.services.deduplication_service import DeduplicationService, deduplication_service
-from app.models.account import Account, AccountType, AccountSource
+from app.models.account import Account, AccountType
 
 
 class TestDeduplicationService:
@@ -58,18 +57,12 @@ class TestDeduplicationService:
         service = DeduplicationService()
 
         hash1 = service.calculate_manual_account_hash(
-            AccountType.CHECKING,
-            "Chase Bank",
-            "1234",
-            "My Checking"
+            AccountType.CHECKING, "Chase Bank", "1234", "My Checking"
         )
 
         # Same inputs should produce same hash
         hash2 = service.calculate_manual_account_hash(
-            AccountType.CHECKING,
-            "Chase Bank",
-            "1234",
-            "My Checking"
+            AccountType.CHECKING, "Chase Bank", "1234", "My Checking"
         )
 
         assert hash1 == hash2
@@ -80,17 +73,11 @@ class TestDeduplicationService:
         service = DeduplicationService()
 
         hash1 = service.calculate_manual_account_hash(
-            AccountType.CHECKING,
-            "Chase Bank",
-            "1234",
-            "My Checking"
+            AccountType.CHECKING, "Chase Bank", "1234", "My Checking"
         )
 
         hash2 = service.calculate_manual_account_hash(
-            AccountType.CHECKING,
-            "CHASE BANK",
-            "1234",
-            "MY CHECKING"
+            AccountType.CHECKING, "CHASE BANK", "1234", "MY CHECKING"
         )
 
         # Should match despite different case
@@ -101,17 +88,11 @@ class TestDeduplicationService:
         service = DeduplicationService()
 
         hash1 = service.calculate_manual_account_hash(
-            AccountType.CHECKING,
-            " Chase Bank ",
-            " 1234 ",
-            " My Checking "
+            AccountType.CHECKING, " Chase Bank ", " 1234 ", " My Checking "
         )
 
         hash2 = service.calculate_manual_account_hash(
-            AccountType.CHECKING,
-            "Chase Bank",
-            "1234",
-            "My Checking"
+            AccountType.CHECKING, "Chase Bank", "1234", "My Checking"
         )
 
         assert hash1 == hash2
@@ -124,25 +105,19 @@ class TestDeduplicationService:
             AccountType.PROPERTY,
             None,  # No institution for property
             None,  # No mask for property
-            "123 Main St"
+            "123 Main St",
         )
 
         # Verify hash is deterministic
         hash2 = service.calculate_manual_account_hash(
-            AccountType.PROPERTY,
-            None,
-            None,
-            "123 Main St"
+            AccountType.PROPERTY, None, None, "123 Main St"
         )
 
         assert hash1 == hash2
 
         # Different property should have different hash
         hash3 = service.calculate_manual_account_hash(
-            AccountType.PROPERTY,
-            None,
-            None,
-            "456 Oak Ave"
+            AccountType.PROPERTY, None, None, "456 Oak Ave"
         )
 
         assert hash1 != hash3
@@ -152,28 +127,19 @@ class TestDeduplicationService:
         service = DeduplicationService()
 
         hash1 = service.calculate_manual_account_hash(
-            AccountType.MORTGAGE,
-            "Wells Fargo",
-            None,
-            "Home Mortgage"
+            AccountType.MORTGAGE, "Wells Fargo", None, "Home Mortgage"
         )
 
         # Same mortgage at same institution should match
         hash2 = service.calculate_manual_account_hash(
-            AccountType.MORTGAGE,
-            "Wells Fargo",
-            None,
-            "Home Mortgage"
+            AccountType.MORTGAGE, "Wells Fargo", None, "Home Mortgage"
         )
 
         assert hash1 == hash2
 
         # Different institution should differ
         hash3 = service.calculate_manual_account_hash(
-            AccountType.MORTGAGE,
-            "Bank of America",
-            None,
-            "Home Mortgage"
+            AccountType.MORTGAGE, "Bank of America", None, "Home Mortgage"
         )
 
         assert hash1 != hash3
@@ -183,17 +149,11 @@ class TestDeduplicationService:
         service = DeduplicationService()
 
         hash_checking = service.calculate_manual_account_hash(
-            AccountType.CHECKING,
-            "Chase",
-            "1234",
-            "My Account"
+            AccountType.CHECKING, "Chase", "1234", "My Account"
         )
 
         hash_savings = service.calculate_manual_account_hash(
-            AccountType.SAVINGS,
-            "Chase",
-            "1234",
-            "My Account"
+            AccountType.SAVINGS, "Chase", "1234", "My Account"
         )
 
         # Different account type should produce different hash
@@ -330,28 +290,66 @@ class TestDeduplicationService:
 
         accounts = [
             # Duplicate group 1 (hash A)
-            Account(id=uuid4(), organization_id=org_id, user_id=uuid4(),
-                   name="Dup1-A", account_type=AccountType.CHECKING, plaid_item_hash="hashA"),
-            Account(id=uuid4(), organization_id=org_id, user_id=uuid4(),
-                   name="Dup1-B", account_type=AccountType.CHECKING, plaid_item_hash="hashA"),
-
+            Account(
+                id=uuid4(),
+                organization_id=org_id,
+                user_id=uuid4(),
+                name="Dup1-A",
+                account_type=AccountType.CHECKING,
+                plaid_item_hash="hashA",
+            ),
+            Account(
+                id=uuid4(),
+                organization_id=org_id,
+                user_id=uuid4(),
+                name="Dup1-B",
+                account_type=AccountType.CHECKING,
+                plaid_item_hash="hashA",
+            ),
             # Unique account 1
-            Account(id=uuid4(), organization_id=org_id, user_id=uuid4(),
-                   name="Unique1", account_type=AccountType.SAVINGS, plaid_item_hash="hashB"),
-
+            Account(
+                id=uuid4(),
+                organization_id=org_id,
+                user_id=uuid4(),
+                name="Unique1",
+                account_type=AccountType.SAVINGS,
+                plaid_item_hash="hashB",
+            ),
             # Duplicate group 2 (hash C)
-            Account(id=uuid4(), organization_id=org_id, user_id=uuid4(),
-                   name="Dup2-A", account_type=AccountType.CREDIT_CARD, plaid_item_hash="hashC"),
-            Account(id=uuid4(), organization_id=org_id, user_id=uuid4(),
-                   name="Dup2-B", account_type=AccountType.CREDIT_CARD, plaid_item_hash="hashC"),
-
+            Account(
+                id=uuid4(),
+                organization_id=org_id,
+                user_id=uuid4(),
+                name="Dup2-A",
+                account_type=AccountType.CREDIT_CARD,
+                plaid_item_hash="hashC",
+            ),
+            Account(
+                id=uuid4(),
+                organization_id=org_id,
+                user_id=uuid4(),
+                name="Dup2-B",
+                account_type=AccountType.CREDIT_CARD,
+                plaid_item_hash="hashC",
+            ),
             # Unique account 2
-            Account(id=uuid4(), organization_id=org_id, user_id=uuid4(),
-                   name="Unique2", account_type=AccountType.BROKERAGE, plaid_item_hash="hashD"),
-
+            Account(
+                id=uuid4(),
+                organization_id=org_id,
+                user_id=uuid4(),
+                name="Unique2",
+                account_type=AccountType.BROKERAGE,
+                plaid_item_hash="hashD",
+            ),
             # Account without hash
-            Account(id=uuid4(), organization_id=org_id, user_id=uuid4(),
-                   name="NoHash", account_type=AccountType.OTHER, plaid_item_hash=None),
+            Account(
+                id=uuid4(),
+                organization_id=org_id,
+                user_id=uuid4(),
+                name="NoHash",
+                account_type=AccountType.OTHER,
+                plaid_item_hash=None,
+            ),
         ]
 
         deduplicated = service.deduplicate_accounts(accounts)
@@ -378,12 +376,7 @@ class TestDeduplicationService:
         """Should handle empty strings gracefully."""
         service = DeduplicationService()
 
-        hash1 = service.calculate_manual_account_hash(
-            AccountType.CHECKING,
-            "",
-            "",
-            "Account Name"
-        )
+        hash1 = service.calculate_manual_account_hash(AccountType.CHECKING, "", "", "Account Name")
 
         # Should still generate a hash
         assert hash1 is not None
@@ -395,12 +388,7 @@ class TestDeduplicationService:
 
         long_name = "A" * 1000  # Very long name
 
-        hash1 = service.calculate_manual_account_hash(
-            AccountType.PROPERTY,
-            None,
-            None,
-            long_name
-        )
+        hash1 = service.calculate_manual_account_hash(AccountType.PROPERTY, None, None, long_name)
 
         # Should still work
         assert hash1 is not None
@@ -413,18 +401,12 @@ class TestDeduplicationService:
         special_name = "Account with $pecial Ch@rs! #123"
 
         hash1 = service.calculate_manual_account_hash(
-            AccountType.CHECKING,
-            "Bank & Trust",
-            "1234",
-            special_name
+            AccountType.CHECKING, "Bank & Trust", "1234", special_name
         )
 
         # Should work and be deterministic
         hash2 = service.calculate_manual_account_hash(
-            AccountType.CHECKING,
-            "Bank & Trust",
-            "1234",
-            special_name
+            AccountType.CHECKING, "Bank & Trust", "1234", special_name
         )
 
         assert hash1 == hash2

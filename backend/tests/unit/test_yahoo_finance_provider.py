@@ -8,7 +8,6 @@ import asyncio
 
 from app.services.market_data.yahoo_finance_provider import YahooFinanceProvider
 from app.services.market_data.base_provider import QuoteData
-from app.services.market_data.security import SymbolValidationError
 
 
 class TestYahooFinanceProvider:
@@ -25,26 +24,28 @@ class TestYahooFinanceProvider:
         # Mock yfinance Ticker
         mock_ticker = Mock()
         mock_ticker.info = {
-            'symbol': 'AAPL',
-            'currentPrice': 150.25,
-            'longName': 'Apple Inc.',
-            'currency': 'USD',
-            'exchange': 'NASDAQ',
-            'volume': 50000000,
-            'marketCap': 2500000000000,
-            'regularMarketChange': 2.50,
-            'regularMarketChangePercent': 1.69,
-            'previousClose': 147.75,
-            'open': 148.00,
-            'dayHigh': 151.00,
-            'dayLow': 147.50,
-            'fiftyTwoWeekHigh': 180.00,
-            'fiftyTwoWeekLow': 120.00,
-            'dividendYield': 0.005,
-            'trailingPE': 25.5,
+            "symbol": "AAPL",
+            "currentPrice": 150.25,
+            "longName": "Apple Inc.",
+            "currency": "USD",
+            "exchange": "NASDAQ",
+            "volume": 50000000,
+            "marketCap": 2500000000000,
+            "regularMarketChange": 2.50,
+            "regularMarketChangePercent": 1.69,
+            "previousClose": 147.75,
+            "open": 148.00,
+            "dayHigh": 151.00,
+            "dayLow": 147.50,
+            "fiftyTwoWeekHigh": 180.00,
+            "fiftyTwoWeekLow": 120.00,
+            "dividendYield": 0.005,
+            "trailingPE": 25.5,
         }
 
-        with patch('app.services.market_data.yahoo_finance_provider.yf.Ticker', return_value=mock_ticker):
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             quote = await provider.get_quote("AAPL")
 
             assert quote.symbol == "AAPL"
@@ -61,12 +62,16 @@ class TestYahooFinanceProvider:
     @pytest.mark.asyncio
     async def test_get_quote_with_timeout(self, provider):
         """Should timeout after configured timeout period."""
+
         # Mock a slow ticker that takes longer than timeout
         async def slow_ticker(*args, **kwargs):
             await asyncio.sleep(10)  # Sleep longer than 5 second timeout
             return Mock()
 
-        with patch('app.services.market_data.yahoo_finance_provider.asyncio.to_thread', side_effect=slow_ticker):
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.asyncio.to_thread",
+            side_effect=slow_ticker,
+        ):
             with pytest.raises(ValueError, match="timeout"):
                 await provider.get_quote("AAPL")
 
@@ -74,11 +79,13 @@ class TestYahooFinanceProvider:
     async def test_get_quote_no_price_data(self, provider):
         """Should raise error when no price data available."""
         mock_ticker = Mock()
-        mock_ticker.info = {'symbol': 'AAPL'}  # No price data
+        mock_ticker.info = {"symbol": "AAPL"}  # No price data
         mock_ticker.history.return_value = MagicMock()
         mock_ticker.history.return_value.empty = True
 
-        with patch('app.services.market_data.yahoo_finance_provider.yf.Ticker', return_value=mock_ticker):
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             with pytest.raises(ValueError, match="No price data available"):
                 await provider.get_quote("AAPL")
 
@@ -87,11 +94,13 @@ class TestYahooFinanceProvider:
         """Should validate response data before returning."""
         mock_ticker = Mock()
         mock_ticker.info = {
-            'symbol': 'AAPL',
-            'currentPrice': -100,  # Invalid negative price
+            "symbol": "AAPL",
+            "currentPrice": -100,  # Invalid negative price
         }
 
-        with patch('app.services.market_data.yahoo_finance_provider.yf.Ticker', return_value=mock_ticker):
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             with pytest.raises(ValueError):
                 await provider.get_quote("AAPL")
 
@@ -102,27 +111,34 @@ class TestYahooFinanceProvider:
 
         # Mock batch download response
         mock_data = {
-            'AAPL': pd.DataFrame({
-                'Open': [148.0],
-                'High': [151.0],
-                'Low': [147.5],
-                'Close': [150.25],
-                'Volume': [50000000]
-            }),
-            'GOOGL': pd.DataFrame({
-                'Open': [2800.0],
-                'High': [2850.0],
-                'Low': [2790.0],
-                'Close': [2825.50],
-                'Volume': [1000000]
-            })
+            "AAPL": pd.DataFrame(
+                {
+                    "Open": [148.0],
+                    "High": [151.0],
+                    "Low": [147.5],
+                    "Close": [150.25],
+                    "Volume": [50000000],
+                }
+            ),
+            "GOOGL": pd.DataFrame(
+                {
+                    "Open": [2800.0],
+                    "High": [2850.0],
+                    "Low": [2790.0],
+                    "Close": [2825.50],
+                    "Volume": [1000000],
+                }
+            ),
         }
 
         # Create a mock that simulates yf.download structure
         mock_download = MagicMock()
         mock_download.__getitem__ = lambda self, key: mock_data[key]
 
-        with patch('app.services.market_data.yahoo_finance_provider.yf.download', return_value=mock_download):
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.download",
+            return_value=mock_download,
+        ):
             quotes = await provider.get_quotes_batch(["AAPL", "GOOGL"])
 
             assert "AAPL" in quotes
@@ -134,14 +150,14 @@ class TestYahooFinanceProvider:
     async def test_get_quotes_batch_falls_back_on_error(self, provider):
         """Should fall back to individual fetches if batch fails."""
         # Mock batch download to fail
-        with patch('app.services.market_data.yahoo_finance_provider.yf.download', side_effect=Exception("Batch failed")):
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.download",
+            side_effect=Exception("Batch failed"),
+        ):
             # Mock individual get_quote to succeed
-            mock_quote = QuoteData(
-                symbol="AAPL",
-                price=Decimal("150.25")
-            )
+            mock_quote = QuoteData(symbol="AAPL", price=Decimal("150.25"))
 
-            with patch.object(provider, 'get_quote', return_value=mock_quote):
+            with patch.object(provider, "get_quote", return_value=mock_quote):
                 quotes = await provider.get_quotes_batch(["AAPL"])
 
                 assert "AAPL" in quotes
@@ -153,19 +169,22 @@ class TestYahooFinanceProvider:
         import pandas as pd
 
         mock_ticker = Mock()
-        mock_ticker.history.return_value = pd.DataFrame({
-            'Open': [145.0, 146.0, 147.0],
-            'High': [148.0, 149.0, 150.0],
-            'Low': [144.0, 145.0, 146.0],
-            'Close': [147.0, 148.0, 149.0],
-            'Volume': [1000000, 1100000, 1200000]
-        }, index=pd.date_range('2024-01-01', periods=3))
+        mock_ticker.history.return_value = pd.DataFrame(
+            {
+                "Open": [145.0, 146.0, 147.0],
+                "High": [148.0, 149.0, 150.0],
+                "Low": [144.0, 145.0, 146.0],
+                "Close": [147.0, 148.0, 149.0],
+                "Volume": [1000000, 1100000, 1200000],
+            },
+            index=pd.date_range("2024-01-01", periods=3),
+        )
 
-        with patch('app.services.market_data.yahoo_finance_provider.yf.Ticker', return_value=mock_ticker):
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             prices = await provider.get_historical_prices(
-                "AAPL",
-                date(2024, 1, 1),
-                date(2024, 1, 3)
+                "AAPL", date(2024, 1, 1), date(2024, 1, 3)
             )
 
             assert len(prices) == 3
@@ -178,14 +197,16 @@ class TestYahooFinanceProvider:
         """Should search for symbol by query."""
         mock_ticker = Mock()
         mock_ticker.info = {
-            'symbol': 'AAPL',
-            'longName': 'Apple Inc.',
-            'quoteType': 'EQUITY',
-            'exchange': 'NASDAQ',
-            'currency': 'USD'
+            "symbol": "AAPL",
+            "longName": "Apple Inc.",
+            "quoteType": "EQUITY",
+            "exchange": "NASDAQ",
+            "currency": "USD",
         }
 
-        with patch('app.services.market_data.yahoo_finance_provider.yf.Ticker', return_value=mock_ticker):
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             results = await provider.search_symbol("AAPL")
 
             assert len(results) == 1
@@ -201,9 +222,9 @@ class TestYahooFinanceProvider:
         """Should return rate limit info."""
         limits = provider.get_rate_limits()
 
-        assert 'calls_per_minute' in limits
-        assert 'calls_per_day' in limits
-        assert limits['calls_per_minute'] == 0  # Unlimited (soft limit)
+        assert "calls_per_minute" in limits
+        assert "calls_per_day" in limits
+        assert limits["calls_per_minute"] == 0  # Unlimited (soft limit)
 
     def test_get_provider_name(self, provider):
         """Should return provider name."""
@@ -221,7 +242,7 @@ class TestYahooFinanceProviderSecurity:
     async def test_validates_symbol_before_api_call(self, provider):
         """Should validate symbol format before making API call."""
         # Mock yf.Ticker to ensure it's never called
-        with patch('app.services.market_data.yahoo_finance_provider.yf.Ticker') as mock_ticker:
+        with patch("app.services.market_data.yahoo_finance_provider.yf.Ticker") as mock_ticker:
             with pytest.raises(ValueError):
                 await provider.get_quote("../../../etc/passwd")
 
@@ -254,11 +275,13 @@ class TestYahooFinanceProviderSecurity:
         """Should normalize symbols to uppercase."""
         mock_ticker = Mock()
         mock_ticker.info = {
-            'symbol': 'AAPL',
-            'currentPrice': 150.25,
+            "symbol": "AAPL",
+            "currentPrice": 150.25,
         }
 
-        with patch('app.services.market_data.yahoo_finance_provider.yf.Ticker', return_value=mock_ticker):
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             quote = await provider.get_quote("aapl")  # lowercase
 
             assert quote.symbol == "AAPL"  # Should be uppercase
@@ -275,15 +298,18 @@ class TestYahooFinanceProviderLogging:
     async def test_logs_api_call(self, provider, caplog):
         """Should log external API calls."""
         import logging
+
         caplog.set_level(logging.INFO)
 
         mock_ticker = Mock()
         mock_ticker.info = {
-            'symbol': 'AAPL',
-            'currentPrice': 150.25,
+            "symbol": "AAPL",
+            "currentPrice": 150.25,
         }
 
-        with patch('app.services.market_data.yahoo_finance_provider.yf.Ticker', return_value=mock_ticker):
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             await provider.get_quote("AAPL")
 
             # Should have logged the API call
@@ -295,15 +321,18 @@ class TestYahooFinanceProviderLogging:
     async def test_logs_success_with_timing(self, provider, caplog):
         """Should log successful API calls with duration."""
         import logging
+
         caplog.set_level(logging.INFO)
 
         mock_ticker = Mock()
         mock_ticker.info = {
-            'symbol': 'AAPL',
-            'currentPrice': 150.25,
+            "symbol": "AAPL",
+            "currentPrice": 150.25,
         }
 
-        with patch('app.services.market_data.yahoo_finance_provider.yf.Ticker', return_value=mock_ticker):
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker", return_value=mock_ticker
+        ):
             await provider.get_quote("AAPL")
 
             # Should log success with duration
@@ -314,9 +343,13 @@ class TestYahooFinanceProviderLogging:
     async def test_logs_failure(self, provider, caplog):
         """Should log failed API calls."""
         import logging
+
         caplog.set_level(logging.ERROR)
 
-        with patch('app.services.market_data.yahoo_finance_provider.yf.Ticker', side_effect=Exception("Network error")):
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            side_effect=Exception("Network error"),
+        ):
             with pytest.raises(ValueError):
                 await provider.get_quote("AAPL")
 
