@@ -769,7 +769,7 @@ class TestAcceptInvitation:
             assert invitation.accepted_at is not None
 
             # Verify old org deleted
-            assert mock_db.delete.called_with(old_org)
+            mock_db.delete.assert_called_with(old_org)
             assert mock_db.commit.call_count == 2  # Once for migration, once for org delete
 
     @pytest.mark.asyncio

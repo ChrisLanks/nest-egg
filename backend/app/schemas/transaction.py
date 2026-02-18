@@ -263,6 +263,7 @@ class LabelUpdate(BaseModel):
     name: Optional[str] = None
     color: Optional[str] = None
     is_income: Optional[bool] = None
+    parent_label_id: Optional[UUID] = None
 
     @field_validator("name")
     @classmethod

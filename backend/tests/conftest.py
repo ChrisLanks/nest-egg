@@ -1,5 +1,56 @@
 """Pytest configuration and shared fixtures."""
 
+# IMPORTANT: Monkey-patch UUID support for SQLite BEFORE importing any models
+import sys
+from sqlalchemy import TypeDecorator, String, event
+from sqlalchemy.engine import Engine
+from sqlalchemy.dialects import postgresql as pg_dialect
+import uuid as uuid_module
+
+# Create SQLite-compatible UUID type
+class SQLiteUUID(TypeDecorator):
+    """Platform-independent UUID type for tests."""
+    impl = String(36)
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'sqlite':
+            return dialect.type_descriptor(String(36))
+        return dialect.type_descriptor(pg_dialect.UUID(as_uuid=True))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        if isinstance(value, uuid_module.UUID):
+            return str(value) if dialect.name == 'sqlite' else value
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        if isinstance(value, uuid_module.UUID):
+            return value
+        return uuid_module.UUID(value)
+
+# Replace PostgreSQL UUID with our SQLite-compatible version
+pg_dialect.UUID = SQLiteUUID
+
+# Also handle JSONB for SQLite
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import JSON
+
+class SQLiteJSONB(TypeDecorator):
+    """Platform-independent JSONB type for tests."""
+    impl = JSON
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'sqlite':
+            return dialect.type_descriptor(JSON())
+        return dialect.type_descriptor(JSONB())
+
+pg_dialect.JSONB = SQLiteJSONB
+
 import asyncio
 from typing import AsyncGenerator, Generator
 from uuid import uuid4
@@ -20,6 +71,14 @@ from app.core.security import hash_password, create_access_token
 # Test database URL (use in-memory SQLite for fast tests)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_conn, connection_record):
+    """Enable foreign keys for SQLite."""
+    if hasattr(dbapi_conn, 'execute'):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
 
 @pytest.fixture(scope="session")
 def event_loop() -> Generator:
@@ -32,6 +91,9 @@ def event_loop() -> Generator:
 @pytest_asyncio.fixture(scope="function")
 async def test_engine():
     """Create a test database engine."""
+    # Import all models to ensure they're registered with Base.metadata
+    from app.models import user, account, transaction, budget, savings_goal, rule, holding  # noqa: F401
+
     engine = create_async_engine(
         TEST_DATABASE_URL,
         echo=False,

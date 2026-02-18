@@ -40,13 +40,14 @@ class TestCreateBudget:
 
     @pytest.fixture
     def budget_create_data(self):
+        from datetime import date
         return BudgetCreate(
             name="Groceries Budget",
             amount=Decimal("500.00"),
             period=BudgetPeriod.MONTHLY,
-            category_primary="Food and Drink",
+            start_date=date(2025, 1, 1),
+            category_id=uuid4(),
             alert_threshold=Decimal("0.80"),
-            is_active=True,
         )
 
     @pytest.mark.asyncio

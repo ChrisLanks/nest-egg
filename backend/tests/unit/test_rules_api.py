@@ -21,9 +21,9 @@ from app.api.v1.rules import (
     router,
 )
 from app.models.user import User
-from app.models.rule import Rule, RuleCondition, RuleAction, MatchType, ApplyTo, RuleField, RuleOperator, ActionType
+from app.models.rule import Rule, RuleCondition, RuleAction, RuleMatchType, RuleApplyTo, ConditionField, ConditionOperator, ActionType
 from app.models.transaction import Transaction
-from app.schemas.rule import RuleCreate, RuleUpdate, ConditionCreate, ActionCreate
+from app.schemas.rule import RuleCreate, RuleUpdate, RuleConditionCreate, RuleActionCreate
 
 
 @pytest.mark.unit
@@ -102,19 +102,19 @@ class TestCreateRule:
         return RuleCreate(
             name="Auto-categorize Groceries",
             description="Automatically set category for grocery purchases",
-            match_type=MatchType.ALL,
-            apply_to=ApplyTo.FUTURE,
+            match_type=RuleMatchType.ALL,
+            apply_to=RuleApplyTo.NEW_ONLY,
             priority=5,
             is_active=True,
             conditions=[
-                ConditionCreate(
-                    field=RuleField.MERCHANT,
-                    operator=RuleOperator.CONTAINS,
+                RuleConditionCreate(
+                    field=ConditionField.MERCHANT_NAME,
+                    operator=ConditionOperator.CONTAINS,
                     value="Safeway",
                 ),
             ],
             actions=[
-                ActionCreate(
+                RuleActionCreate(
                     action_type=ActionType.SET_CATEGORY,
                     action_value="Food and Drink",
                 ),
@@ -691,19 +691,19 @@ class TestTestRule:
         return RuleCreate(
             name="Test Rule",
             description="Test description",
-            match_type=MatchType.ALL,
-            apply_to=ApplyTo.FUTURE,
+            match_type=RuleMatchType.ALL,
+            apply_to=RuleApplyTo.NEW_ONLY,
             priority=5,
             is_active=True,
             conditions=[
-                ConditionCreate(
-                    field=RuleField.MERCHANT,
-                    operator=RuleOperator.CONTAINS,
+                RuleConditionCreate(
+                    field=ConditionField.MERCHANT_NAME,
+                    operator=ConditionOperator.CONTAINS,
                     value="Amazon",
                 ),
             ],
             actions=[
-                ActionCreate(
+                RuleActionCreate(
                     action_type=ActionType.SET_CATEGORY,
                     action_value="Shopping",
                 ),

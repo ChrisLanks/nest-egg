@@ -541,13 +541,14 @@ class TestInitializeTaxLabels:
     @pytest.mark.asyncio
     async def test_creates_tax_labels(self, mock_db, mock_user):
         """Should create default tax labels."""
-        expected_labels = [
-            Mock(spec=Label, id=uuid4(), name="Medical & Dental"),
-            Mock(spec=Label, id=uuid4(), name="Charitable Donations"),
-            Mock(spec=Label, id=uuid4(), name="Business Expenses"),
-            Mock(spec=Label, id=uuid4(), name="Education"),
-            Mock(spec=Label, id=uuid4(), name="Home Office"),
-        ]
+        # Create mock labels properly - set attributes after construction
+        label_names = ["Medical & Dental", "Charitable Donations", "Business Expenses", "Education", "Home Office"]
+        expected_labels = []
+        for label_name in label_names:
+            label = Mock(spec=Label)
+            label.id = uuid4()
+            label.name = label_name
+            expected_labels.append(label)
 
         with patch(
             "app.api.v1.labels.TaxService.initialize_tax_labels",

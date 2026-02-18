@@ -44,6 +44,7 @@ class TestCreateGoal:
             name="Vacation Fund",
             target_amount=Decimal("5000.00"),
             current_amount=Decimal("500.00"),
+            start_date=date(2025, 1, 1),
             target_date=date(2025, 6, 1),
             account_id=None,
         )

@@ -53,7 +53,8 @@
       "Bash(poetry run python:*)",
       "Bash(./venv/bin/python3:*)",
       "Bash(./venv/bin/alembic revision:*)",
-      "Bash(PGPASSWORD=nestegg_dev_password psql:*)"
+      "Bash(PGPASSWORD=nestegg_dev_password psql:*)",
+      "Bash(PYTHONPATH=/Users/chris/github/ChrisLanks27/nest-egg/backend ./venv/bin/pytest:*)"
     ]
   }
 }

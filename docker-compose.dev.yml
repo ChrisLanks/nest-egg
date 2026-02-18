@@ -1,0 +1,215 @@
+# Development Docker Compose Configuration
+# Features: Hot-reload, debug mode, mounted volumes, exposed ports
+#
+# Usage:
+#   docker-compose -f docker-compose.dev.yml up
+#   docker-compose -f docker-compose.dev.yml up -d  # Detached mode
+#   docker-compose -f docker-compose.dev.yml down   # Stop services
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: nestegg-dev-postgres
+    environment:
+      POSTGRES_DB: nestegg_dev
+      POSTGRES_USER: nestegg
+      POSTGRES_PASSWORD: nestegg_dev_password
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nestegg"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nestegg-dev-network
+
+  # Redis (for Celery broker and caching)
+  redis:
+    image: redis:7-alpine
+    container_name: nestegg-dev-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nestegg-dev-network
+
+  # FastAPI Backend with hot-reload
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nestegg-dev-backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app  # Mount source code for hot-reload
+    ports:
+      - "8000:8000"
+    environment:
+      # Application
+      APP_NAME: "Nest Egg Dev"
+      ENVIRONMENT: development
+      DEBUG: true
+
+      # Database
+      DATABASE_URL: postgresql+asyncpg://nestegg:nestegg_dev_password@postgres:5432/nestegg_dev
+      DB_ECHO: true  # Log SQL queries for debugging
+
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+
+      # Security (Dev keys - DO NOT use in production)
+      SECRET_KEY: dev-secret-key-change-in-production
+      MASTER_ENCRYPTION_KEY: dev-encryption-key-change-in-production
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 15
+      REFRESH_TOKEN_EXPIRE_DAYS: 30
+
+      # Plaid (use your sandbox credentials)
+      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID}
+      PLAID_SECRET: ${PLAID_SECRET}
+      PLAID_ENV: sandbox
+      PLAID_ENABLED: true
+
+      # Teller (optional)
+      TELLER_APP_ID: ${TELLER_APP_ID}
+      TELLER_API_KEY: ${TELLER_API_KEY}
+      TELLER_ENV: sandbox
+      TELLER_ENABLED: false
+
+      # Market Data (Yahoo Finance - free, no key needed)
+      MARKET_DATA_PROVIDER: yahoo_finance
+
+      # Celery
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+
+      # CORS (Allow all in dev)
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173,http://localhost:80
+
+      # Monitoring
+      LOG_LEVEL: DEBUG
+      LOG_FORMAT: text  # Human-readable logs for development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - nestegg-dev-network
+
+  # Celery Worker
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nestegg-dev-celery-worker
+    command: celery -A app.workers.celery_app worker --loglevel=debug --concurrency=2
+    volumes:
+      - ./backend:/app  # Mount for hot-reload
+    environment:
+      DATABASE_URL: postgresql+asyncpg://nestegg:nestegg_dev_password@postgres:5432/nestegg_dev
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SECRET_KEY: dev-secret-key-change-in-production
+      MASTER_ENCRYPTION_KEY: dev-encryption-key-change-in-production
+      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID}
+      PLAID_SECRET: ${PLAID_SECRET}
+      PLAID_ENV: sandbox
+      PLAID_ENABLED: true
+      MARKET_DATA_PROVIDER: yahoo_finance
+      LOG_LEVEL: DEBUG
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    networks:
+      - nestegg-dev-network
+
+  # Celery Beat (Scheduler)
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nestegg-dev-celery-beat
+    command: celery -A app.workers.celery_app beat --loglevel=debug
+    volumes:
+      - ./backend:/app  # Mount for hot-reload
+    environment:
+      DATABASE_URL: postgresql+asyncpg://nestegg:nestegg_dev_password@postgres:5432/nestegg_dev
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      LOG_LEVEL: DEBUG
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - nestegg-dev-network
+
+  # Flower (Celery monitoring)
+  celery-flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nestegg-dev-flower
+    command: celery -A app.workers.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+      celery-worker:
+        condition: service_started
+    networks:
+      - nestegg-dev-network
+
+  # React Frontend (Vite dev server)
+  frontend:
+    image: node:20-alpine
+    container_name: nestegg-dev-frontend
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 3000"
+    volumes:
+      - ./frontend:/app  # Mount source code for hot-reload
+      - /app/node_modules  # Prevent overwriting node_modules
+    ports:
+      - "3000:3000"  # Vite dev server
+    environment:
+      VITE_API_URL: http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - nestegg-dev-network
+
+networks:
+  nestegg-dev-network:
+    driver: bridge
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
