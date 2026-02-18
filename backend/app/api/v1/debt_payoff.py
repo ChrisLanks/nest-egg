@@ -31,11 +31,7 @@ async def list_debt_accounts(
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
 
-    debts = await PayoffStrategyService.get_debt_accounts(
-        db,
-        current_user.organization_id,
-        user_id
-    )
+    debts = await PayoffStrategyService.get_debt_accounts(db, current_user.organization_id, user_id)
 
     return [
         {
@@ -82,16 +78,12 @@ async def compare_payoff_strategies(
     account_id_list = None
     if account_ids:
         try:
-            account_id_list = [UUID(id.strip()) for id in account_ids.split(',')]
+            account_id_list = [UUID(id.strip()) for id in account_ids.split(",")]
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid account_ids format")
 
     comparison = await PayoffStrategyService.compare_strategies(
-        db,
-        current_user.organization_id,
-        extra_payment,
-        user_id,
-        account_id_list
+        db, current_user.organization_id, extra_payment, user_id, account_id_list
     )
 
     return comparison
@@ -116,11 +108,7 @@ async def get_debt_summary(
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
 
-    debts = await PayoffStrategyService.get_debt_accounts(
-        db,
-        current_user.organization_id,
-        user_id
-    )
+    debts = await PayoffStrategyService.get_debt_accounts(db, current_user.organization_id, user_id)
 
     if not debts:
         return {
@@ -134,9 +122,7 @@ async def get_debt_summary(
     total_minimum = sum(debt.minimum_payment for debt in debts)
 
     # Calculate weighted average interest rate
-    weighted_rate_sum = sum(
-        debt.balance * debt.interest_rate for debt in debts
-    )
+    weighted_rate_sum = sum(debt.balance * debt.interest_rate for debt in debts)
     avg_rate = weighted_rate_sum / total_debt if total_debt > 0 else Decimal(0)
 
     return {

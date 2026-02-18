@@ -53,9 +53,9 @@ class ReportService:
         # Build base query conditions
         conditions = [
             Transaction.organization_id == organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,
-            Transaction.is_transfer == False,
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),
+            Transaction.is_transfer.is_(False),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
         ]
@@ -84,17 +84,11 @@ class ReportService:
                 db, conditions, time_grouping
             )
         elif group_by == "category":
-            result_data = await ReportService._execute_category_query(
-                db, conditions, config
-            )
+            result_data = await ReportService._execute_category_query(db, conditions, config)
         elif group_by == "merchant":
-            result_data = await ReportService._execute_merchant_query(
-                db, conditions, config
-            )
+            result_data = await ReportService._execute_merchant_query(db, conditions, config)
         elif group_by == "account":
-            result_data = await ReportService._execute_account_query(
-                db, conditions, config
-            )
+            result_data = await ReportService._execute_account_query(db, conditions, config)
         else:
             result_data = []
 
@@ -137,40 +131,42 @@ class ReportService:
             start_str = date_range_config.get("startDate")
             end_str = date_range_config.get("endDate")
 
-            start_date = datetime.fromisoformat(start_str).date() if start_str else date.today() - timedelta(days=30)
+            start_date = (
+                datetime.fromisoformat(start_str).date()
+                if start_str
+                else date.today() - timedelta(days=30)
+            )
             end_date = datetime.fromisoformat(end_str).date() if end_str else date.today()
 
             return start_date, end_date
 
     @staticmethod
     async def _execute_time_grouped_query(
-        db: AsyncSession,
-        conditions: List,
-        time_grouping: str
+        db: AsyncSession, conditions: List, time_grouping: str
     ) -> List[Dict]:
         """Execute query grouped by time period."""
         # Determine time truncation based on grouping
         if time_grouping == "daily":
             date_expr = func.date(Transaction.date)
         elif time_grouping == "weekly":
-            date_expr = func.date_trunc('week', Transaction.date)
+            date_expr = func.date_trunc("week", Transaction.date)
         elif time_grouping == "quarterly":
-            date_expr = func.date_trunc('quarter', Transaction.date)
+            date_expr = func.date_trunc("quarter", Transaction.date)
         elif time_grouping == "yearly":
-            date_expr = func.date_trunc('year', Transaction.date)
+            date_expr = func.date_trunc("year", Transaction.date)
         else:  # monthly
-            date_expr = func.date_trunc('month', Transaction.date)
+            date_expr = func.date_trunc("month", Transaction.date)
 
         result = await db.execute(
             select(
-                date_expr.label('period'),
-                func.sum(
-                    case((Transaction.amount > 0, Transaction.amount), else_=0)
-                ).label('income'),
-                func.sum(
-                    case((Transaction.amount < 0, Transaction.amount), else_=0)
-                ).label('expenses'),
-                func.count(Transaction.id).label('count'),
+                date_expr.label("period"),
+                func.sum(case((Transaction.amount > 0, Transaction.amount), else_=0)).label(
+                    "income"
+                ),
+                func.sum(case((Transaction.amount < 0, Transaction.amount), else_=0)).label(
+                    "expenses"
+                ),
+                func.count(Transaction.id).label("count"),
             )
             .select_from(Transaction)
             .join(Account, Transaction.account_id == Account.id)
@@ -181,43 +177,40 @@ class ReportService:
 
         data = []
         for row in result.all():
-            period_str = row.period.strftime('%Y-%m-%d') if row.period else ''
+            period_str = row.period.strftime("%Y-%m-%d") if row.period else ""
             income = float(row.income or 0)
             expenses = abs(float(row.expenses or 0))
 
-            data.append({
-                "name": period_str,
-                "income": income,
-                "expenses": expenses,
-                "net": income - expenses,
-                "count": row.count,
-            })
+            data.append(
+                {
+                    "name": period_str,
+                    "income": income,
+                    "expenses": expenses,
+                    "net": income - expenses,
+                    "count": row.count,
+                }
+            )
 
         return data
 
     @staticmethod
     async def _execute_category_query(
-        db: AsyncSession,
-        conditions: List,
-        config: Dict
+        db: AsyncSession, conditions: List, config: Dict
     ) -> List[Dict]:
         """Execute query grouped by category."""
-        sort_by = config.get("sortBy", "amount")
+        config.get("sortBy", "amount")
         sort_direction = config.get("sortDirection", "desc")
         limit = config.get("limit", 20)
 
         result = await db.execute(
             select(
                 Transaction.category_primary,
-                func.sum(func.abs(Transaction.amount)).label('total'),
-                func.count(Transaction.id).label('count'),
+                func.sum(func.abs(Transaction.amount)).label("total"),
+                func.count(Transaction.id).label("count"),
             )
             .select_from(Transaction)
             .join(Account, Transaction.account_id == Account.id)
-            .where(
-                and_(*conditions),
-                Transaction.category_primary.isnot(None)
-            )
+            .where(and_(*conditions), Transaction.category_primary.isnot(None))
             .group_by(Transaction.category_primary)
             .order_by(
                 func.sum(func.abs(Transaction.amount)).desc()
@@ -233,11 +226,13 @@ class ReportService:
             amount = float(row.total or 0)
             total_sum += amount
 
-            data.append({
-                "name": row.category_primary or "Uncategorized",
-                "amount": amount,
-                "count": row.count,
-            })
+            data.append(
+                {
+                    "name": row.category_primary or "Uncategorized",
+                    "amount": amount,
+                    "count": row.count,
+                }
+            )
 
         # Calculate percentages
         for item in data:
@@ -247,9 +242,7 @@ class ReportService:
 
     @staticmethod
     async def _execute_merchant_query(
-        db: AsyncSession,
-        conditions: List,
-        config: Dict
+        db: AsyncSession, conditions: List, config: Dict
     ) -> List[Dict]:
         """Execute query grouped by merchant."""
         limit = config.get("limit", 20)
@@ -257,15 +250,12 @@ class ReportService:
         result = await db.execute(
             select(
                 Transaction.merchant_name,
-                func.sum(func.abs(Transaction.amount)).label('total'),
-                func.count(Transaction.id).label('count'),
+                func.sum(func.abs(Transaction.amount)).label("total"),
+                func.count(Transaction.id).label("count"),
             )
             .select_from(Transaction)
             .join(Account, Transaction.account_id == Account.id)
-            .where(
-                and_(*conditions),
-                Transaction.merchant_name.isnot(None)
-            )
+            .where(and_(*conditions), Transaction.merchant_name.isnot(None))
             .group_by(Transaction.merchant_name)
             .order_by(func.sum(func.abs(Transaction.amount)).desc())
             .limit(limit)
@@ -273,26 +263,26 @@ class ReportService:
 
         data = []
         for row in result.all():
-            data.append({
-                "name": row.merchant_name or "Unknown",
-                "amount": float(row.total or 0),
-                "count": row.count,
-            })
+            data.append(
+                {
+                    "name": row.merchant_name or "Unknown",
+                    "amount": float(row.total or 0),
+                    "count": row.count,
+                }
+            )
 
         return data
 
     @staticmethod
     async def _execute_account_query(
-        db: AsyncSession,
-        conditions: List,
-        config: Dict
+        db: AsyncSession, conditions: List, config: Dict
     ) -> List[Dict]:
         """Execute query grouped by account."""
         result = await db.execute(
             select(
                 Account.name,
-                func.sum(func.abs(Transaction.amount)).label('total'),
-                func.count(Transaction.id).label('count'),
+                func.sum(func.abs(Transaction.amount)).label("total"),
+                func.count(Transaction.id).label("count"),
             )
             .select_from(Transaction)
             .join(Account, Transaction.account_id == Account.id)
@@ -303,11 +293,13 @@ class ReportService:
 
         data = []
         for row in result.all():
-            data.append({
-                "name": row.name,
-                "amount": float(row.total or 0),
-                "count": row.count,
-            })
+            data.append(
+                {
+                    "name": row.name,
+                    "amount": float(row.total or 0),
+                    "count": row.count,
+                }
+            )
 
         return data
 
@@ -360,7 +352,7 @@ class ReportService:
             select(ReportTemplate).where(
                 and_(
                     ReportTemplate.id == template_id,
-                    ReportTemplate.organization_id == organization_id
+                    ReportTemplate.organization_id == organization_id,
                 )
             )
         )

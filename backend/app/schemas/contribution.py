@@ -24,10 +24,6 @@ class ContributionBase(BaseModel):
 
 class ContributionCreate(ContributionBase):
     """Contribution creation schema."""
-
-    pass
-
-
 class ContributionUpdate(BaseModel):
     """Contribution update schema."""
 

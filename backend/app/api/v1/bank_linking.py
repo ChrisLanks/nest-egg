@@ -9,7 +9,7 @@ import logging
 from typing import List, Dict, Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,11 +32,13 @@ Provider = Literal["plaid", "teller"]
 
 class LinkTokenRequest(BaseModel):
     """Request to create a link token for account linking."""
+
     provider: Provider
 
 
 class LinkTokenResponse(BaseModel):
     """Response containing link token."""
+
     provider: Provider
     link_token: str
     expiration: str
@@ -44,6 +46,7 @@ class LinkTokenResponse(BaseModel):
 
 class ExchangeTokenRequest(BaseModel):
     """Request to exchange public/enrollment token for access token."""
+
     provider: Provider
     public_token: str  # Plaid: public_token, Teller: enrollment_id
     institution_id: str
@@ -53,6 +56,7 @@ class ExchangeTokenRequest(BaseModel):
 
 class AccountItem(BaseModel):
     """Account information returned after linking."""
+
     account_id: str
     name: str
     mask: str | None
@@ -63,6 +67,7 @@ class AccountItem(BaseModel):
 
 class ExchangeTokenResponse(BaseModel):
     """Response after exchanging token and creating accounts."""
+
     provider: Provider
     item_id: str  # Plaid: item_id, Teller: enrollment_id
     accounts: List[AccountItem]
@@ -92,10 +97,7 @@ async def create_link_token(
     try:
         if request.provider == "plaid":
             if not settings.PLAID_ENABLED:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Plaid integration is not enabled"
-                )
+                raise HTTPException(status_code=400, detail="Plaid integration is not enabled")
 
             plaid_service = PlaidService()
             link_token, expiration = await plaid_service.create_link_token(current_user)
@@ -108,10 +110,7 @@ async def create_link_token(
 
         elif request.provider == "teller":
             if not settings.TELLER_ENABLED:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Teller integration is not enabled"
-                )
+                raise HTTPException(status_code=400, detail="Teller integration is not enabled")
 
             teller_service = get_teller_service()
             link_url = await teller_service.get_enrollment_url(str(current_user.id))
@@ -125,10 +124,7 @@ async def create_link_token(
             )
 
         else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported provider: {request.provider}"
-            )
+            raise HTTPException(status_code=400, detail=f"Unsupported provider: {request.provider}")
 
     except HTTPException:
         raise
@@ -229,10 +225,7 @@ async def exchange_token(
             )
 
         else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported provider: {request.provider}"
-            )
+            raise HTTPException(status_code=400, detail=f"Unsupported provider: {request.provider}")
 
     except HTTPException:
         raise
@@ -269,8 +262,7 @@ async def sync_transactions(
     # Get account and verify ownership
     result = await db.execute(
         select(Account).where(
-            Account.id == account_id,
-            Account.organization_id == current_user.organization_id
+            Account.id == account_id, Account.organization_id == current_user.organization_id
         )
     )
     account = result.scalar_one_or_none()
@@ -284,10 +276,7 @@ async def sync_transactions(
             from app.api.v1.plaid import sync_transactions as plaid_sync
 
             if not account.plaid_item_id:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Account is not linked to a Plaid item"
-                )
+                raise HTTPException(status_code=400, detail="Account is not linked to a Plaid item")
 
             return await plaid_sync(
                 plaid_item_id=account.plaid_item_id,
@@ -302,14 +291,11 @@ async def sync_transactions(
 
             if not account.teller_enrollment:
                 raise HTTPException(
-                    status_code=400,
-                    detail="Account is not linked to a Teller enrollment"
+                    status_code=400, detail="Account is not linked to a Teller enrollment"
                 )
 
             transactions = await teller_service.sync_transactions(
-                db=db,
-                account=account,
-                days_back=90
+                db=db, account=account, days_back=90
             )
 
             return {
@@ -323,14 +309,13 @@ async def sync_transactions(
 
         elif account.account_source == AccountSource.MANUAL:
             raise HTTPException(
-                status_code=400,
-                detail="Manual accounts cannot be synced automatically"
+                status_code=400, detail="Manual accounts cannot be synced automatically"
             )
 
         else:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported account source: {account.account_source.value}"
+                detail=f"Unsupported account source: {account.account_source.value}",
             )
 
     except HTTPException:
@@ -352,21 +337,25 @@ async def list_providers(
     providers = []
 
     if settings.PLAID_ENABLED:
-        providers.append({
-            "id": "plaid",
-            "name": "Plaid",
-            "description": "Connect to 11,000+ banks and financial institutions",
-            "coverage": "US, Canada, Europe",
-            "features": ["checking", "savings", "credit_cards", "loans", "investments"],
-        })
+        providers.append(
+            {
+                "id": "plaid",
+                "name": "Plaid",
+                "description": "Connect to 11,000+ banks and financial institutions",
+                "coverage": "US, Canada, Europe",
+                "features": ["checking", "savings", "credit_cards", "loans", "investments"],
+            }
+        )
 
     if settings.TELLER_ENABLED:
-        providers.append({
-            "id": "teller",
-            "name": "Teller",
-            "description": "100 free accounts/month, then $1/account",
-            "coverage": "US (5,000+ banks)",
-            "features": ["checking", "savings", "credit_cards", "loans"],
-        })
+        providers.append(
+            {
+                "id": "teller",
+                "name": "Teller",
+                "description": "100 free accounts/month, then $1/account",
+                "coverage": "US (5,000+ banks)",
+                "features": ["checking", "savings", "credit_cards", "loans"],
+            }
+        )
 
     return {"providers": providers}

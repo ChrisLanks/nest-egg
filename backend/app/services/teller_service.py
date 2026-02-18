@@ -10,7 +10,7 @@ Teller provides bank account linking with a generous free tier:
 import httpx
 from typing import Dict, List, Optional
 from uuid import UUID
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,7 +28,11 @@ class TellerService:
 
     def __init__(self):
         """Initialize Teller client."""
-        self.base_url = "https://api.teller.io" if settings.TELLER_ENV == "production" else "https://api.teller.io"
+        self.base_url = (
+            "https://api.teller.io"
+            if settings.TELLER_ENV == "production"
+            else "https://api.teller.io"
+        )
         self.app_id = settings.TELLER_APP_ID
         self.api_key = settings.TELLER_API_KEY
         self.encryption_service = get_encryption_service()
@@ -102,9 +106,7 @@ class TellerService:
 
         return enrollment
 
-    async def sync_accounts(
-        self, db: AsyncSession, enrollment: TellerEnrollment
-    ) -> List[Account]:
+    async def sync_accounts(self, db: AsyncSession, enrollment: TellerEnrollment) -> List[Account]:
         """Sync accounts from Teller."""
         access_token = enrollment.get_decrypted_access_token()
 
@@ -135,7 +137,9 @@ class TellerService:
                     account_source=AccountSource.TELLER,
                     mask=account_data.get("last_four"),
                     institution_name=account_data.get("institution", {}).get("name"),
-                    current_balance=Decimal(str(account_data.get("balance", {}).get("available", 0))),
+                    current_balance=Decimal(
+                        str(account_data.get("balance", {}).get("available", 0))
+                    ),
                 )
                 db.add(account)
             else:

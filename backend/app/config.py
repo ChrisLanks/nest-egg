@@ -96,29 +96,26 @@ class Settings(BaseSettings):
     METRICS_ENABLED: bool = True
     METRICS_INCLUDE_IN_SCHEMA: bool = False  # Hide from Swagger docs
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        case_sensitive=True,
-        extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
-    @field_validator('SECRET_KEY')
+    @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
         """Validate SECRET_KEY is not using insecure defaults in production."""
         insecure_defaults = [
-            'dev-secret-key-change-in-production',
-            'dev-secret-key-change-in-production-generate-with-openssl',
-            'your-secret-key-here',
-            'change-me',
-            'secret',
+            "dev-secret-key-change-in-production",
+            "dev-secret-key-change-in-production-generate-with-openssl",
+            "your-secret-key-here",
+            "change-me",
+            "secret",
         ]
 
         # Get ENVIRONMENT from environment variable directly (before Settings is fully initialized)
         import os
-        environment = os.getenv('ENVIRONMENT', 'development')
 
-        if environment == 'production' and (v in insecure_defaults or len(v) < 32):
+        environment = os.getenv("ENVIRONMENT", "development")
+
+        if environment == "production" and (v in insecure_defaults or len(v) < 32):
             raise ValueError(
                 "Insecure SECRET_KEY detected in production! "
                 "Generate a secure key with: openssl rand -hex 32"
@@ -126,14 +123,15 @@ class Settings(BaseSettings):
 
         return v
 
-    @field_validator('ALLOWED_HOSTS')
+    @field_validator("ALLOWED_HOSTS")
     @classmethod
     def validate_allowed_hosts(cls, v: list[str]) -> list[str]:
         """Validate ALLOWED_HOSTS is configured for production."""
         import os
-        environment = os.getenv('ENVIRONMENT', 'development')
 
-        if environment == 'production' and '*' in v:
+        environment = os.getenv("ENVIRONMENT", "development")
+
+        if environment == "production" and "*" in v:
             raise ValueError(
                 "ALLOWED_HOSTS=['*'] is insecure in production! "
                 "Set specific domains like ['app.nestegg.com', 'api.nestegg.com']"

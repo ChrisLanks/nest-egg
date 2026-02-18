@@ -127,8 +127,7 @@ async def exchange_public_token(
 
             # Generate hash for deduplication across household members
             plaid_item_hash = deduplication_service.calculate_plaid_hash(
-                plaid_item.item_id,
-                plaid_account["account_id"]
+                plaid_item.item_id, plaid_account["account_id"]
             )
 
             # Determine if account should be excluded from cash flow by default
@@ -258,8 +257,7 @@ async def handle_plaid_webhook(
         # Verify webhook signature to ensure it's from Plaid
         plaid_verification_header = request.headers.get("Plaid-Verification")
         PlaidService.verify_webhook_signature(
-            webhook_verification_header=plaid_verification_header,
-            webhook_body=webhook_data
+            webhook_verification_header=plaid_verification_header, webhook_body=webhook_data
         )
 
         webhook_type = webhook_data.get("webhook_type")
@@ -269,9 +267,7 @@ async def handle_plaid_webhook(
         logger.info(f"Plaid webhook received: {webhook_type} - {webhook_code}")
 
         # Get PlaidItem to find organization
-        result = await db.execute(
-            select(PlaidItem).where(PlaidItem.item_id == item_id)
-        )
+        result = await db.execute(select(PlaidItem).where(PlaidItem.item_id == item_id))
         plaid_item = result.scalar_one_or_none()
 
         if not plaid_item:
@@ -318,15 +314,14 @@ async def sync_transactions(
 
     from app.services.plaid_transaction_sync_service import (
         PlaidTransactionSyncService,
-        MockPlaidTransactionGenerator
+        MockPlaidTransactionGenerator,
     )
     from datetime import datetime, timedelta
 
     # Get PlaidItem and verify ownership
     result = await db.execute(
         select(PlaidItem).where(
-            PlaidItem.id == plaid_item_id,
-            PlaidItem.organization_id == current_user.organization_id
+            PlaidItem.id == plaid_item_id, PlaidItem.organization_id == current_user.organization_id
         )
     )
     plaid_item = result.scalar_one_or_none()
@@ -349,10 +344,7 @@ async def sync_transactions(
             accounts = accounts_result.scalars().all()
 
             if not accounts:
-                raise HTTPException(
-                    status_code=400,
-                    detail="No accounts found for this Plaid item"
-                )
+                raise HTTPException(status_code=400, detail="No accounts found for this Plaid item")
 
             # Generate transactions for each account
             all_transactions = []
@@ -364,7 +356,7 @@ async def sync_transactions(
                     account_id=account.external_account_id,
                     start_date=start_date,
                     end_date=end_date,
-                    count=30  # 30 transactions per account
+                    count=30,  # 30 transactions per account
                 )
                 all_transactions.extend(mock_transactions)
 
@@ -374,21 +366,21 @@ async def sync_transactions(
                 db=db,
                 plaid_item_id=plaid_item.id,
                 transactions_data=all_transactions,
-                is_test_mode=True
+                is_test_mode=True,
             )
 
             return {
                 "success": True,
                 "message": "Mock transactions synced successfully",
                 "stats": stats,
-                "is_test_mode": True
+                "is_test_mode": True,
             }
         else:
             # Real Plaid API call would go here
             raise HTTPException(
                 status_code=501,
                 detail="Real Plaid API integration not yet implemented. "
-                       "Only available for test@test.com users."
+                "Only available for test@test.com users.",
             )
 
     except HTTPException:
@@ -476,7 +468,7 @@ async def _handle_transactions_webhook(
     """Handle TRANSACTIONS webhook events."""
     from app.services.plaid_transaction_sync_service import (
         PlaidTransactionSyncService,
-        MockPlaidTransactionGenerator
+        MockPlaidTransactionGenerator,
     )
     from datetime import datetime, timedelta
 
@@ -486,9 +478,10 @@ async def _handle_transactions_webhook(
 
         # Check if this is a test user
         result = await db.execute(
-            select(User).join(Organization).where(
-                Organization.id == plaid_item.organization_id
-            ).limit(1)
+            select(User)
+            .join(Organization)
+            .where(Organization.id == plaid_item.organization_id)
+            .limit(1)
         )
         user = result.scalar_one_or_none()
         is_test_user = user and user.email == "test@test.com"
@@ -513,7 +506,7 @@ async def _handle_transactions_webhook(
                     account_id=account.external_account_id,
                     start_date=start_date,
                     end_date=end_date,
-                    count=30  # 30 transactions per account
+                    count=30,  # 30 transactions per account
                 )
                 all_transactions.extend(mock_transactions)
 
@@ -523,7 +516,7 @@ async def _handle_transactions_webhook(
                 db=db,
                 plaid_item_id=plaid_item.id,
                 transactions_data=all_transactions,
-                is_test_mode=True
+                is_test_mode=True,
             )
 
             logger.info(f"Synced mock transactions: {stats}")
@@ -542,9 +535,7 @@ async def _handle_transactions_webhook(
         if removed_transaction_ids:
             sync_service = PlaidTransactionSyncService()
             count = await sync_service.remove_transactions(
-                db=db,
-                plaid_item_id=plaid_item.id,
-                removed_transaction_ids=removed_transaction_ids
+                db=db, plaid_item_id=plaid_item.id, removed_transaction_ids=removed_transaction_ids
             )
             logger.info(f"Removed {count} transactions")
 

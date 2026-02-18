@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.core.security import decode_token
 from app.crud.user import user_crud
 from app.models.user import User, AccountShare, SharePermission
-from app.models.account import Account, PlaidItem
+from app.models.account import Account
 from sqlalchemy.orm import joinedload
 
 # HTTP Bearer token scheme
@@ -153,15 +153,13 @@ async def get_verified_account(
     account = result.scalar_one_or_none()
 
     if not account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Account not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
 
     return account
 
 
 # Household multi-user support functions
+
 
 async def verify_household_member(
     db: AsyncSession,
@@ -183,17 +181,14 @@ async def verify_household_member(
     """
     result = await db.execute(
         select(User).where(
-            User.id == user_id,
-            User.organization_id == organization_id,
-            User.is_active == True
+            User.id == user_id, User.organization_id == organization_id, User.is_active.is_(True)
         )
     )
     user = result.scalar_one_or_none()
 
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found or not in household"
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found or not in household"
         )
 
     return user
@@ -217,14 +212,11 @@ async def get_user_accounts(
     # Get accounts owned by user (load all provider relationships)
     result = await db.execute(
         select(Account)
-        .options(
-            joinedload(Account.plaid_item),
-            joinedload(Account.teller_enrollment)
-        )
+        .options(joinedload(Account.plaid_item), joinedload(Account.teller_enrollment))
         .where(
             Account.user_id == user_id,
             Account.organization_id == organization_id,
-            Account.is_active == True
+            Account.is_active.is_(True),
         )
     )
     owned_accounts = result.unique().scalars().all()
@@ -232,15 +224,12 @@ async def get_user_accounts(
     # Get accounts shared with user (load all provider relationships)
     result = await db.execute(
         select(Account)
-        .options(
-            joinedload(Account.plaid_item),
-            joinedload(Account.teller_enrollment)
-        )
+        .options(joinedload(Account.plaid_item), joinedload(Account.teller_enrollment))
         .join(AccountShare, AccountShare.account_id == Account.id)
         .where(
             AccountShare.shared_with_user_id == user_id,
             Account.organization_id == organization_id,
-            Account.is_active == True
+            Account.is_active.is_(True),
         )
     )
     shared_accounts = result.unique().scalars().all()
@@ -272,23 +261,14 @@ async def get_all_household_accounts(
     """
     result = await db.execute(
         select(Account)
-        .options(
-            joinedload(Account.plaid_item),
-            joinedload(Account.teller_enrollment)
-        )
-        .where(
-            Account.organization_id == organization_id,
-            Account.is_active == True
-        )
+        .options(joinedload(Account.plaid_item), joinedload(Account.teller_enrollment))
+        .where(Account.organization_id == organization_id, Account.is_active.is_(True))
     )
     return result.unique().scalars().all()
 
 
 async def verify_account_access(
-    account_id: UUID,
-    current_user: User,
-    db: AsyncSession,
-    require_edit: bool = False
+    account_id: UUID, current_user: User, db: AsyncSession, require_edit: bool = False
 ) -> Account:
     """Verify user has access to account (owned or shared).
 
@@ -305,23 +285,15 @@ async def verify_account_access(
         HTTPException: If user doesn't have access
     """
     # Get account
-    result = await db.execute(
-        select(Account).where(Account.id == account_id)
-    )
+    result = await db.execute(select(Account).where(Account.id == account_id))
     account = result.scalar_one_or_none()
 
     if not account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Account not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
 
     # Check household membership
     if account.organization_id != current_user.organization_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     # Owner has full access
     if account.user_id == current_user.id:
@@ -331,22 +303,21 @@ async def verify_account_access(
     result = await db.execute(
         select(AccountShare).where(
             AccountShare.account_id == account_id,
-            AccountShare.shared_with_user_id == current_user.id
+            AccountShare.shared_with_user_id == current_user.id,
         )
     )
     share = result.scalar_one_or_none()
 
     if not share:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this account"
+            status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this account"
         )
 
     # If edit permission required, check it
     if require_edit and share.permission != SharePermission.EDIT:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have edit permission for this account"
+            detail="You don't have edit permission for this account",
         )
 
     return account

@@ -8,18 +8,17 @@ to avoid all organizations updating simultaneously.
 import asyncio
 import logging
 import hashlib
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, time, timedelta
 from typing import Optional
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
 from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.user import Organization
 from app.services.snapshot_service import snapshot_service
-from app.api.v1 import holdings as holdings_api
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +54,7 @@ class SnapshotScheduler:
         """
         # Hash the organization ID to get a deterministic random value
         hash_bytes = hashlib.sha256(str(organization_id).encode()).digest()
-        hash_int = int.from_bytes(hash_bytes[:4], byteorder='big')
+        hash_int = int.from_bytes(hash_bytes[:4], byteorder="big")
 
         # Map to 0-24 hour range
         offset_hours = (hash_int % (24 * 60)) / 60.0  # Minutes to hours
@@ -92,10 +91,7 @@ class SnapshotScheduler:
             return today_scheduled
 
     async def should_capture_snapshot(
-        self,
-        db: AsyncSession,
-        organization_id: UUID,
-        now: Optional[datetime] = None
+        self, db: AsyncSession, organization_id: UUID, now: Optional[datetime] = None
     ) -> bool:
         """
         Check if a snapshot should be captured for an organization.
@@ -119,10 +115,9 @@ class SnapshotScheduler:
 
         # Check if snapshot already exists for today
         existing = await db.execute(
-            select(PortfolioSnapshot)
-            .where(
+            select(PortfolioSnapshot).where(
                 PortfolioSnapshot.organization_id == organization_id,
-                PortfolioSnapshot.snapshot_date == today
+                PortfolioSnapshot.snapshot_date == today,
             )
         )
         if existing.scalar_one_or_none():
@@ -140,11 +135,7 @@ class SnapshotScheduler:
         # If next run is tomorrow, today's window has passed - capture now
         return True
 
-    async def capture_organization_snapshot(
-        self,
-        db: AsyncSession,
-        organization_id: UUID
-    ) -> bool:
+    async def capture_organization_snapshot(self, db: AsyncSession, organization_id: UUID) -> bool:
         """
         Capture snapshot for a single organization.
 
@@ -175,9 +166,7 @@ class SnapshotScheduler:
 
             # Capture snapshot
             await snapshot_service.capture_snapshot(
-                db=db,
-                organization_id=organization_id,
-                portfolio=portfolio
+                db=db, organization_id=organization_id, portfolio=portfolio
             )
 
             logger.info(f"✓ Captured snapshot for org {organization_id}: ${portfolio.total_value}")

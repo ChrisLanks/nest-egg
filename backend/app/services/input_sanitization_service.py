@@ -10,14 +10,33 @@ class InputSanitizationService:
 
     # Dangerous HTML tags that should always be stripped
     DANGEROUS_TAGS = [
-        'script', 'iframe', 'object', 'embed', 'applet', 'meta', 'link',
-        'style', 'form', 'input', 'button', 'textarea', 'select'
+        "script",
+        "iframe",
+        "object",
+        "embed",
+        "applet",
+        "meta",
+        "link",
+        "style",
+        "form",
+        "input",
+        "button",
+        "textarea",
+        "select",
     ]
 
     # Dangerous attributes that should be removed
     DANGEROUS_ATTRS = [
-        'onclick', 'onload', 'onerror', 'onmouseover', 'onmouseout',
-        'onfocus', 'onblur', 'onchange', 'onsubmit', 'javascript:'
+        "onclick",
+        "onload",
+        "onerror",
+        "onmouseover",
+        "onmouseout",
+        "onfocus",
+        "onblur",
+        "onchange",
+        "onsubmit",
+        "javascript:",
     ]
 
     @staticmethod
@@ -38,13 +57,13 @@ class InputSanitizationService:
         # First pass: remove dangerous tags
         for tag in InputSanitizationService.DANGEROUS_TAGS:
             # Remove opening and closing tags
-            text = re.sub(f'<{tag}[^>]*>', '', text, flags=re.IGNORECASE)
-            text = re.sub(f'</{tag}>', '', text, flags=re.IGNORECASE)
+            text = re.sub(f"<{tag}[^>]*>", "", text, flags=re.IGNORECASE)
+            text = re.sub(f"</{tag}>", "", text, flags=re.IGNORECASE)
 
         # Remove dangerous attributes from any remaining tags
         for attr in InputSanitizationService.DANGEROUS_ATTRS:
-            text = re.sub(f'{attr}="[^"]*"', '', text, flags=re.IGNORECASE)
-            text = re.sub(f"{attr}='[^']*'", '', text, flags=re.IGNORECASE)
+            text = re.sub(f'{attr}="[^"]*"', "", text, flags=re.IGNORECASE)
+            text = re.sub(f"{attr}='[^']*'", "", text, flags=re.IGNORECASE)
 
         # If basic formatting not allowed, escape all HTML
         if not allow_basic_formatting:
@@ -64,21 +83,21 @@ class InputSanitizationService:
             Sanitized filename safe for filesystem operations
         """
         # Remove path separators
-        filename = filename.replace('/', '_').replace('\\', '_')
+        filename = filename.replace("/", "_").replace("\\", "_")
 
         # Remove null bytes
-        filename = filename.replace('\x00', '')
+        filename = filename.replace("\x00", "")
 
         # Remove leading dots (hidden files)
-        filename = filename.lstrip('.')
+        filename = filename.lstrip(".")
 
         # Only allow alphanumeric, dash, underscore, and dot
-        filename = re.sub(r'[^a-zA-Z0-9._-]', '_', filename)
+        filename = re.sub(r"[^a-zA-Z0-9._-]", "_", filename)
 
         # Limit length
         if len(filename) > 255:
-            name, ext = filename.rsplit('.', 1) if '.' in filename else (filename, '')
-            filename = name[:250] + ('.' + ext if ext else '')
+            name, ext = filename.rsplit(".", 1) if "." in filename else (filename, "")
+            filename = name[:250] + ("." + ext if ext else "")
 
         return filename
 
@@ -100,13 +119,13 @@ class InputSanitizationService:
             return ""
 
         # Remove SQL comment indicators
-        query = query.replace('--', '').replace('/*', '').replace('*/', '')
+        query = query.replace("--", "").replace("/*", "").replace("*/", "")
 
         # Remove semicolons (SQL statement terminators)
-        query = query.replace(';', '')
+        query = query.replace(";", "")
 
         # Remove null bytes
-        query = query.replace('\x00', '')
+        query = query.replace("\x00", "")
 
         # Limit length to prevent DoS
         if len(query) > 500:
@@ -126,7 +145,7 @@ class InputSanitizationService:
             True if valid email format
         """
         # Basic email regex (Pydantic EmailStr is better, this is backup)
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         return bool(re.match(pattern, email))
 
     @staticmethod
@@ -146,16 +165,16 @@ class InputSanitizationService:
         url = url.strip()
 
         # Block dangerous protocols
-        dangerous_protocols = ['javascript:', 'data:', 'vbscript:', 'file:']
+        dangerous_protocols = ["javascript:", "data:", "vbscript:", "file:"]
         for protocol in dangerous_protocols:
             if url.lower().startswith(protocol):
                 return None
 
         # Only allow http, https, and mailto
-        if not re.match(r'^(https?|mailto):', url, re.IGNORECASE):
+        if not re.match(r"^(https?|mailto):", url, re.IGNORECASE):
             # If no protocol, assume https
-            if not url.startswith('//'):
-                url = 'https://' + url
+            if not url.startswith("//"):
+                url = "https://" + url
 
         return url
 
@@ -171,10 +190,10 @@ class InputSanitizationService:
             Sanitized string
         """
         # Remove control characters
-        text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
+        text = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", text)
 
         # Escape backslashes and quotes
-        text = text.replace('\\', '\\\\').replace('"', '\\"')
+        text = text.replace("\\", "\\\\").replace('"', '\\"')
 
         return text
 
@@ -190,7 +209,7 @@ class InputSanitizationService:
             Text without control characters
         """
         # Remove all control characters except newline and tab
-        return re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f-\x9f]', '', text)
+        return re.sub(r"[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f-\x9f]", "", text)
 
 
 # Create singleton instance

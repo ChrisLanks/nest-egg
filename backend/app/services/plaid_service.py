@@ -15,7 +15,6 @@ class PlaidService:
 
     def __init__(self):
         """Initialize Plaid service."""
-        pass
 
     def is_test_user(self, user: User) -> bool:
         """Check if user is a test user (test@test.com)."""
@@ -23,8 +22,7 @@ class PlaidService:
 
     @staticmethod
     def verify_webhook_signature(
-        webhook_verification_header: Optional[str],
-        webhook_body: Dict[str, Any]
+        webhook_verification_header: Optional[str], webhook_body: Dict[str, Any]
     ) -> bool:
         """
         Verify Plaid webhook signature using JWT verification.
@@ -49,15 +47,12 @@ class PlaidService:
             raise HTTPException(
                 status_code=500,
                 detail="Webhook verification secret not configured. "
-                       "Set PLAID_WEBHOOK_SECRET even in sandbox mode for security."
+                "Set PLAID_WEBHOOK_SECRET even in sandbox mode for security.",
             )
 
         # Verify webhook signature header is present
         if not webhook_verification_header:
-            raise HTTPException(
-                status_code=401,
-                detail="Missing Plaid-Verification header"
-            )
+            raise HTTPException(status_code=401, detail="Missing Plaid-Verification header")
 
         try:
             # Verify JWT signature
@@ -73,34 +68,23 @@ class PlaidService:
             if decoded.get("request_body_sha256"):
                 import hashlib
                 import json
-                body_str = json.dumps(webhook_body, separators=(',', ':'), sort_keys=True)
+
+                body_str = json.dumps(webhook_body, separators=(",", ":"), sort_keys=True)
                 body_hash = hashlib.sha256(body_str.encode()).hexdigest()
 
                 if body_hash != decoded["request_body_sha256"]:
-                    raise HTTPException(
-                        status_code=401,
-                        detail="Webhook body hash mismatch"
-                    )
+                    raise HTTPException(status_code=401, detail="Webhook body hash mismatch")
 
             print(f"✅ Webhook signature verified for item: {webhook_body.get('item_id')}")
             return True
 
         except jwt.ExpiredSignatureError:
-            raise HTTPException(
-                status_code=401,
-                detail="Webhook verification token expired"
-            )
+            raise HTTPException(status_code=401, detail="Webhook verification token expired")
         except jwt.InvalidTokenError as e:
-            raise HTTPException(
-                status_code=401,
-                detail=f"Invalid webhook signature: {str(e)}"
-            )
+            raise HTTPException(status_code=401, detail=f"Invalid webhook signature: {str(e)}")
         except Exception as e:
             print(f"❌ Webhook verification error: {str(e)}")
-            raise HTTPException(
-                status_code=401,
-                detail="Webhook verification failed"
-            )
+            raise HTTPException(status_code=401, detail="Webhook verification failed")
 
     async def create_link_token(self, user: User) -> Tuple[str, str]:
         """
@@ -233,7 +217,9 @@ class PlaidService:
 
         raise NotImplementedError("Real Plaid integration not yet implemented")
 
-    async def get_investment_holdings(self, user: User, access_token: str) -> Tuple[List[dict], List[dict]]:
+    async def get_investment_holdings(
+        self, user: User, access_token: str
+    ) -> Tuple[List[dict], List[dict]]:
         """
         Fetch investment holdings from Plaid.
 

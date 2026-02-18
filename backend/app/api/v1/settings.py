@@ -23,6 +23,7 @@ rate_limit_service = get_rate_limit_service()
 
 class UserProfileResponse(BaseModel):
     """User profile response."""
+
     id: UUID
     email: EmailStr
     first_name: Optional[str] = None
@@ -36,16 +37,18 @@ class UserProfileResponse(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     """Request to change password."""
+
     current_password: str
     new_password: str = Field(
         ...,
         min_length=12,
-        description="Password must be at least 12 characters and include uppercase, lowercase, digit, and special character"
+        description="Password must be at least 12 characters and include uppercase, lowercase, digit, and special character",
     )
 
 
 class OrganizationPreferencesResponse(BaseModel):
     """Organization preferences response."""
+
     id: UUID
     name: str
     monthly_start_day: int
@@ -106,9 +109,7 @@ async def update_user_profile(
     # Email update requires additional verification (not implemented here)
     if update_data.email is not None and update_data.email != current_user.email:
         # Check if email is already taken
-        result = await db.execute(
-            select(User).where(User.email == update_data.email)
-        )
+        result = await db.execute(select(User).where(User.email == update_data.email))
         existing_user = result.scalar_one_or_none()
         if existing_user:
             raise HTTPException(status_code=400, detail="Email already in use")
@@ -152,7 +153,9 @@ async def change_password(
         raise HTTPException(status_code=400, detail="Current password is incorrect")
 
     # Validate new password strength and check for breaches
-    await password_validation_service.validate_and_raise_async(password_data.new_password, check_breach=True)
+    await password_validation_service.validate_and_raise_async(
+        password_data.new_password, check_breach=True
+    )
 
     # Update password
     current_user.password_hash = hash_password(password_data.new_password)
@@ -192,7 +195,9 @@ async def update_organization_preferences(
 ):
     """Update organization preferences. Requires org admin."""
     if not current_user.is_org_admin:
-        raise HTTPException(status_code=403, detail="Only organization admins can update preferences")
+        raise HTTPException(
+            status_code=403, detail="Only organization admins can update preferences"
+        )
 
     result = await db.execute(
         select(Organization).where(Organization.id == current_user.organization_id)

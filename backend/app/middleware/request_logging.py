@@ -3,7 +3,7 @@
 import logging
 import time
 import uuid
-from typing import Callable, Optional
+from typing import Callable
 
 from fastapi import Request, Response
 from jose import JWTError

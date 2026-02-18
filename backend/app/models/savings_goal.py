@@ -1,9 +1,7 @@
 """Savings goal models."""
 
 import uuid
-from datetime import date
 from decimal import Decimal
-from typing import Optional
 
 from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, Numeric, Text, Index
 from sqlalchemy.dialects.postgresql import UUID
@@ -19,7 +17,12 @@ class SavingsGoal(Base):
     __tablename__ = "savings_goals"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    organization_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     # Goal details
     name = Column(String(200), nullable=False)
@@ -32,7 +35,12 @@ class SavingsGoal(Base):
     target_date = Column(Date, nullable=True)  # Optional deadline
 
     # Linked account (optional - track specific account balance)
-    account_id = Column(UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True, index=True)
+    account_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("accounts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     # Status
     is_completed = Column(Boolean, default=False, nullable=False)
@@ -45,6 +53,4 @@ class SavingsGoal(Base):
     # Relationships
     account = relationship("Account")
 
-    __table_args__ = (
-        Index('ix_savings_goals_org_active', 'organization_id', 'is_completed'),
-    )
+    __table_args__ = (Index("ix_savings_goals_org_active", "organization_id", "is_completed"),)

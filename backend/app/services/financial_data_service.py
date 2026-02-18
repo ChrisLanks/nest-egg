@@ -10,11 +10,10 @@ import asyncio
 import logging
 from decimal import Decimal
 from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from app.core import cache
 from app.config import settings
@@ -27,14 +26,16 @@ class FinancialDataService:
     """Service for fetching financial data with multiple API fallbacks."""
 
     def __init__(self):
-        self.alpha_vantage_key = settings.ALPHA_VANTAGE_API_KEY if hasattr(settings, 'ALPHA_VANTAGE_API_KEY') else None
-        self.finnhub_key = settings.FINNHUB_API_KEY if hasattr(settings, 'FINNHUB_API_KEY') else None
+        self.alpha_vantage_key = (
+            settings.ALPHA_VANTAGE_API_KEY if hasattr(settings, "ALPHA_VANTAGE_API_KEY") else None
+        )
+        self.finnhub_key = (
+            settings.FINNHUB_API_KEY if hasattr(settings, "FINNHUB_API_KEY") else None
+        )
         self.cache_ttl = 86400 * 7  # 7 days for market cap data (changes rarely)
 
     async def get_security_metadata(
-        self,
-        ticker: str,
-        force_refresh: bool = False
+        self, ticker: str, force_refresh: bool = False
     ) -> Optional[Dict[str, Any]]:
         """
         Get security metadata including market cap classification.
@@ -190,10 +191,7 @@ class FinancialDataService:
             return None
 
     async def enrich_holding(
-        self,
-        db: AsyncSession,
-        holding: Holding,
-        force_refresh: bool = False
+        self, db: AsyncSession, holding: Holding, force_refresh: bool = False
     ) -> bool:
         """
         Enrich a holding with market cap and asset class data.
@@ -208,7 +206,7 @@ class FinancialDataService:
             return True
 
         # Only enrich stocks and ETFs
-        if holding.asset_type not in ['stock', 'etf', 'mutual_fund']:
+        if holding.asset_type not in ["stock", "etf", "mutual_fund"]:
             return False
 
         metadata = await self.get_security_metadata(holding.ticker, force_refresh)
@@ -223,9 +221,13 @@ class FinancialDataService:
             holding.asset_class = metadata["asset_class"]
             holding.sector = metadata.get("sector")  # Persist sector data
             holding.industry = metadata.get("industry")  # Persist industry data
-            holding.country = metadata.get("country")  # Persist country data for international categorization
+            holding.country = metadata.get(
+                "country"
+            )  # Persist country data for international categorization
             await db.commit()
-            logger.info(f"Enriched {holding.ticker} with {metadata['market_cap']} {metadata['asset_class']} - {metadata.get('country', 'unknown')} - {metadata.get('sector', 'unknown sector')}")
+            logger.info(
+                f"Enriched {holding.ticker} with {metadata['market_cap']} {metadata['asset_class']} - {metadata.get('country', 'unknown')} - {metadata.get('sector', 'unknown sector')}"
+            )
             return True
         except Exception as e:
             logger.error(f"Failed to update holding {holding.ticker}: {e}")
@@ -233,11 +235,7 @@ class FinancialDataService:
             return False
 
     async def enrich_holdings_batch(
-        self,
-        db: AsyncSession,
-        organization_id: str,
-        limit: int = 20,
-        force_refresh: bool = False
+        self, db: AsyncSession, organization_id: str, limit: int = 20, force_refresh: bool = False
     ) -> int:
         """
         Enrich multiple holdings in a batch with rate limiting.
@@ -251,13 +249,11 @@ class FinancialDataService:
         # Find holdings that need enrichment
         query = select(Holding).where(
             Holding.organization_id == organization_id,
-            Holding.asset_type.in_(['stock', 'etf', 'mutual_fund'])
+            Holding.asset_type.in_(["stock", "etf", "mutual_fund"]),
         )
 
         if not force_refresh:
-            query = query.where(
-                (Holding.market_cap == None) | (Holding.asset_class == None)
-            )
+            query = query.where((Holding.market_cap.is_(None)) | (Holding.asset_class.is_(None)))
 
         query = query.limit(limit)
         result = await db.execute(query)

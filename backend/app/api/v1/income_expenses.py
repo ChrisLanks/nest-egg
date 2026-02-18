@@ -1,11 +1,11 @@
 """Income vs Expenses API endpoints."""
 
-from datetime import date, timedelta
+from datetime import date
 from typing import Optional, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, HTTPException
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,7 @@ from app.dependencies import (
     get_current_user,
     verify_household_member,
     get_user_accounts,
-    get_all_household_accounts
+    get_all_household_accounts,
 )
 from app.models.user import User
 from app.models.transaction import Transaction
@@ -37,21 +37,18 @@ def validate_date_range(start_date: date, end_date: date) -> None:
 
     if start_date < min_date:
         raise HTTPException(
-            status_code=400,
-            detail=f"start_date cannot be before {min_date.isoformat()}"
+            status_code=400, detail=f"start_date cannot be before {min_date.isoformat()}"
         )
 
     if end_date > max_date:
         raise HTTPException(
-            status_code=400,
-            detail=f"end_date cannot be after {max_date.isoformat()}"
+            status_code=400, detail=f"end_date cannot be after {max_date.isoformat()}"
         )
 
     # Check start is before end
     if start_date > end_date:
         raise HTTPException(
-            status_code=400,
-            detail="start_date must be before or equal to end_date"
+            status_code=400, detail="start_date must be before or equal to end_date"
         )
 
     # Check date range is not too large (prevent DoS via huge queries)
@@ -60,13 +57,13 @@ def validate_date_range(start_date: date, end_date: date) -> None:
 
     if date_diff > max_range_days:
         raise HTTPException(
-            status_code=400,
-            detail=f"Date range cannot exceed {max_range_days} days (~10 years)"
+            status_code=400, detail=f"Date range cannot exceed {max_range_days} days (~10 years)"
         )
 
 
 class CategoryBreakdown(BaseModel):
     """Category breakdown item."""
+
     category: str
     amount: float
     count: int
@@ -75,6 +72,7 @@ class CategoryBreakdown(BaseModel):
 
 class IncomeExpenseSummary(BaseModel):
     """Income vs expense summary."""
+
     total_income: float
     total_expenses: float
     net: float
@@ -84,6 +82,7 @@ class IncomeExpenseSummary(BaseModel):
 
 class MonthlyTrend(BaseModel):
     """Monthly income/expense trend."""
+
     month: str
     income: float
     expenses: float
@@ -94,7 +93,9 @@ class MonthlyTrend(BaseModel):
 async def get_income_expense_summary(
     start_date: date = Query(...),
     end_date: date = Query(...),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -119,13 +120,13 @@ async def get_income_expense_summary(
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount > 0
+            Transaction.amount > 0,
         )
     )
     total_income = float(income_result.scalar() or 0)
@@ -137,13 +138,13 @@ async def get_income_expense_summary(
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount < 0
+            Transaction.amount < 0,
         )
     )
     total_expenses = abs(float(expense_result.scalar() or 0))
@@ -152,76 +153,76 @@ async def get_income_expense_summary(
     income_categories_result = await db.execute(
         select(
             Transaction.category_primary,
-            func.sum(Transaction.amount).label('total'),
-            func.count(Transaction.id).label('count')
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count"),
         )
         .select_from(Transaction)
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0,
-            Transaction.category_primary.isnot(None)
-        ).group_by(Transaction.category_primary)
+            Transaction.category_primary.isnot(None),
+        )
+        .group_by(Transaction.category_primary)
         .order_by(func.sum(Transaction.amount).desc())
     )
-    
+
     income_categories = []
     for row in income_categories_result:
         amount = float(row.total)
         percentage = (amount / total_income * 100) if total_income > 0 else 0
-        income_categories.append(CategoryBreakdown(
-            category=row.category_primary,
-            amount=amount,
-            count=row.count,
-            percentage=percentage
-        ))
-    
+        income_categories.append(
+            CategoryBreakdown(
+                category=row.category_primary, amount=amount, count=row.count, percentage=percentage
+            )
+        )
+
     # Get expenses by category - only from active accounts
     expense_categories_result = await db.execute(
         select(
             Transaction.category_primary,
-            func.sum(Transaction.amount).label('total'),
-            func.count(Transaction.id).label('count')
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count"),
         )
         .select_from(Transaction)
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0,
-            Transaction.category_primary.isnot(None)
-        ).group_by(Transaction.category_primary)
+            Transaction.category_primary.isnot(None),
+        )
+        .group_by(Transaction.category_primary)
         .order_by(func.sum(Transaction.amount).asc())  # Most negative first
     )
-    
+
     expense_categories = []
     for row in expense_categories_result:
         amount = abs(float(row.total))
         percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
-        expense_categories.append(CategoryBreakdown(
-            category=row.category_primary,
-            amount=amount,
-            count=row.count,
-            percentage=percentage
-        ))
-    
+        expense_categories.append(
+            CategoryBreakdown(
+                category=row.category_primary, amount=amount, count=row.count, percentage=percentage
+            )
+        )
+
     return IncomeExpenseSummary(
         total_income=total_income,
         total_expenses=total_expenses,
         net=total_income - total_expenses,
         income_categories=income_categories,
-        expense_categories=expense_categories
+        expense_categories=expense_categories,
     )
 
 
@@ -229,7 +230,9 @@ async def get_income_expense_summary(
 async def get_income_expense_trend(
     start_date: date = Query(...),
     end_date: date = Query(...),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -246,29 +249,26 @@ async def get_income_expense_trend(
     account_ids = [acc.id for acc in accounts]
 
     # Create the date_trunc expression once to reuse
-    month_expr = func.date_trunc('month', Transaction.date)
+    month_expr = func.date_trunc("month", Transaction.date)
 
     result = await db.execute(
         select(
-            month_expr.label('month'),
-            func.sum(
-                case((Transaction.amount > 0, Transaction.amount), else_=0)
-            ).label('income'),
-            func.sum(
-                case((Transaction.amount < 0, Transaction.amount), else_=0)
-            ).label('expenses')
+            month_expr.label("month"),
+            func.sum(case((Transaction.amount > 0, Transaction.amount), else_=0)).label("income"),
+            func.sum(case((Transaction.amount < 0, Transaction.amount), else_=0)).label("expenses"),
         )
         .select_from(Transaction)
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
-            Transaction.date <= end_date
-        ).group_by(month_expr)
+            Transaction.date <= end_date,
+        )
+        .group_by(month_expr)
         .order_by(month_expr)
     )
 
@@ -276,12 +276,14 @@ async def get_income_expense_trend(
     for row in result:
         income = float(row.income or 0)
         expenses = abs(float(row.expenses or 0))
-        trend.append(MonthlyTrend(
-            month=row.month.strftime('%Y-%m') if row.month else '',
-            income=income,
-            expenses=expenses,
-            net=income - expenses
-        ))
+        trend.append(
+            MonthlyTrend(
+                month=row.month.strftime("%Y-%m") if row.month else "",
+                income=income,
+                expenses=expenses,
+                net=income - expenses,
+            )
+        )
 
     return trend
 
@@ -292,7 +294,9 @@ async def get_merchant_breakdown(
     end_date: date = Query(...),
     category: Optional[str] = Query(None),
     transaction_type: str = Query(..., description="income or expense"),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -311,7 +315,7 @@ async def get_merchant_breakdown(
     # Build base conditions - only include transactions from active accounts
     conditions = [
         Transaction.organization_id == current_user.organization_id,
-        Account.is_active == True,
+        Account.is_active.is_(True),
         Transaction.account_id.in_(account_ids),
         Transaction.date >= start_date,
         Transaction.date <= end_date,
@@ -319,7 +323,7 @@ async def get_merchant_breakdown(
     ]
 
     # Add transaction type filter
-    if transaction_type == 'income':
+    if transaction_type == "income":
         conditions.append(Transaction.amount > 0)
     else:
         conditions.append(Transaction.amount < 0)
@@ -332,14 +336,18 @@ async def get_merchant_breakdown(
     result = await db.execute(
         select(
             Transaction.merchant_name,
-            func.sum(Transaction.amount).label('total'),
-            func.count(Transaction.id).label('count')
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count"),
         )
         .select_from(Transaction)
         .join(Account)
         .where(and_(*conditions))
         .group_by(Transaction.merchant_name)
-        .order_by(func.sum(Transaction.amount).desc() if transaction_type == 'income' else func.sum(Transaction.amount).asc())
+        .order_by(
+            func.sum(Transaction.amount).desc()
+            if transaction_type == "income"
+            else func.sum(Transaction.amount).asc()
+        )
     )
 
     # Calculate total for percentage
@@ -355,20 +363,25 @@ async def get_merchant_breakdown(
     for row in result:
         amount = abs(float(row.total))
         percentage = (amount / total * 100) if total > 0 else 0
-        merchants.append(CategoryBreakdown(
-            category=row.merchant_name,  # Using category field to store merchant name
-            amount=amount,
-            count=row.count,
-            percentage=percentage
-        ))
+        merchants.append(
+            CategoryBreakdown(
+                category=row.merchant_name,  # Using category field to store merchant name
+                amount=amount,
+                count=row.count,
+                percentage=percentage,
+            )
+        )
 
     return merchants
+
 
 @router.get("/label-summary", response_model=IncomeExpenseSummary)
 async def get_label_summary(
     start_date: date = Query(...),
     end_date: date = Query(...),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -392,13 +405,13 @@ async def get_label_summary(
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount > 0
+            Transaction.amount > 0,
         )
     )
     total_income = float(income_result.scalar() or 0)
@@ -410,24 +423,25 @@ async def get_label_summary(
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount < 0
+            Transaction.amount < 0,
         )
     )
     total_expenses = abs(float(expense_result.scalar() or 0))
-    
+
     # Get income by label
     income_labels_result = await db.execute(
         select(
             Label.name,
-            func.sum(Transaction.amount).label('total'),
-            func.count(Transaction.id).label('count')
-        ).select_from(Transaction)
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count"),
+        )
+        .select_from(Transaction)
         .join(transaction_labels, Transaction.id == transaction_labels.c.transaction_id)
         .join(Label, Label.id == transaction_labels.c.label_id)
         .where(
@@ -435,24 +449,24 @@ async def get_label_summary(
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount > 0
-        ).group_by(Label.name)
+            Transaction.amount > 0,
+        )
+        .group_by(Label.name)
         .order_by(func.sum(Transaction.amount).desc())
     )
-    
+
     income_categories = []
     labeled_income_total = 0
     for row in income_labels_result:
         amount = float(row.total)
         labeled_income_total += amount
         percentage = (amount / total_income * 100) if total_income > 0 else 0
-        income_categories.append(CategoryBreakdown(
-            category=row.name,
-            amount=amount,
-            count=row.count,
-            percentage=percentage
-        ))
-    
+        income_categories.append(
+            CategoryBreakdown(
+                category=row.name, amount=amount, count=row.count, percentage=percentage
+            )
+        )
+
     # Add "Unlabeled" category for income transactions without labels
     if labeled_income_total < total_income:
         unlabeled_income = total_income - labeled_income_total
@@ -465,25 +479,28 @@ async def get_label_summary(
                 Transaction.amount > 0,
                 ~Transaction.id.in_(
                     select(transaction_labels.c.transaction_id).select_from(transaction_labels)
-                )
+                ),
             )
         )
         unlabeled_count = unlabeled_income_count_result.scalar() or 0
         percentage = (unlabeled_income / total_income * 100) if total_income > 0 else 0
-        income_categories.append(CategoryBreakdown(
-            category="Unlabeled",
-            amount=unlabeled_income,
-            count=unlabeled_count,
-            percentage=percentage
-        ))
+        income_categories.append(
+            CategoryBreakdown(
+                category="Unlabeled",
+                amount=unlabeled_income,
+                count=unlabeled_count,
+                percentage=percentage,
+            )
+        )
 
     # Get expenses by label
     expense_labels_result = await db.execute(
         select(
             Label.name,
-            func.sum(Transaction.amount).label('total'),
-            func.count(Transaction.id).label('count')
-        ).select_from(Transaction)
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count"),
+        )
+        .select_from(Transaction)
         .join(transaction_labels, Transaction.id == transaction_labels.c.transaction_id)
         .join(Label, Label.id == transaction_labels.c.label_id)
         .where(
@@ -491,24 +508,24 @@ async def get_label_summary(
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount < 0
-        ).group_by(Label.name)
+            Transaction.amount < 0,
+        )
+        .group_by(Label.name)
         .order_by(func.sum(Transaction.amount).asc())
     )
-    
+
     expense_categories = []
     labeled_expense_total = 0
     for row in expense_labels_result:
         amount = abs(float(row.total))
         labeled_expense_total += amount
         percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
-        expense_categories.append(CategoryBreakdown(
-            category=row.name,
-            amount=amount,
-            count=row.count,
-            percentage=percentage
-        ))
-    
+        expense_categories.append(
+            CategoryBreakdown(
+                category=row.name, amount=amount, count=row.count, percentage=percentage
+            )
+        )
+
     # Add "Unlabeled" category for expense transactions without labels
     if labeled_expense_total < total_expenses:
         unlabeled_expense = total_expenses - labeled_expense_total
@@ -521,24 +538,26 @@ async def get_label_summary(
                 Transaction.amount < 0,
                 ~Transaction.id.in_(
                     select(transaction_labels.c.transaction_id).select_from(transaction_labels)
-                )
+                ),
             )
         )
         unlabeled_count = unlabeled_expense_count_result.scalar() or 0
         percentage = (unlabeled_expense / total_expenses * 100) if total_expenses > 0 else 0
-        expense_categories.append(CategoryBreakdown(
-            category="Unlabeled",
-            amount=unlabeled_expense,
-            count=unlabeled_count,
-            percentage=percentage
-        ))
-    
+        expense_categories.append(
+            CategoryBreakdown(
+                category="Unlabeled",
+                amount=unlabeled_expense,
+                count=unlabeled_count,
+                percentage=percentage,
+            )
+        )
+
     return IncomeExpenseSummary(
         total_income=total_income,
         total_expenses=total_expenses,
         net=total_income - total_expenses,
         income_categories=income_categories,
-        expense_categories=expense_categories
+        expense_categories=expense_categories,
     )
 
 
@@ -548,7 +567,9 @@ async def get_label_merchant_breakdown(
     end_date: date = Query(...),
     label: Optional[str] = Query(None),
     transaction_type: str = Query(..., description="income or expense"),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -573,37 +594,43 @@ async def get_label_merchant_breakdown(
         Transaction.date <= end_date,
         Transaction.merchant_name.isnot(None),
     ]
-    
+
     # Add transaction type filter
-    if transaction_type == 'income':
+    if transaction_type == "income":
         conditions.append(Transaction.amount > 0)
     else:
         conditions.append(Transaction.amount < 0)
-    
+
     # Handle "Unlabeled" special case
     if label == "Unlabeled":
         # Get transactions without any labels
         result = await db.execute(
             select(
                 Transaction.merchant_name,
-                func.sum(Transaction.amount).label('total'),
-                func.count(Transaction.id).label('count')
-            ).where(
+                func.sum(Transaction.amount).label("total"),
+                func.count(Transaction.id).label("count"),
+            )
+            .where(
                 and_(*conditions),
                 ~Transaction.id.in_(
                     select(transaction_labels.c.transaction_id).select_from(transaction_labels)
-                )
-            ).group_by(Transaction.merchant_name)
-            .order_by(func.sum(Transaction.amount).desc() if transaction_type == 'income' else func.sum(Transaction.amount).asc())
+                ),
+            )
+            .group_by(Transaction.merchant_name)
+            .order_by(
+                func.sum(Transaction.amount).desc()
+                if transaction_type == "income"
+                else func.sum(Transaction.amount).asc()
+            )
         )
-        
+
         # Calculate total for percentage
         total_result = await db.execute(
             select(func.sum(Transaction.amount)).where(
                 and_(*conditions),
                 ~Transaction.id.in_(
                     select(transaction_labels.c.transaction_id).select_from(transaction_labels)
-                )
+                ),
             )
         )
     elif label:
@@ -611,57 +638,61 @@ async def get_label_merchant_breakdown(
         result = await db.execute(
             select(
                 Transaction.merchant_name,
-                func.sum(Transaction.amount).label('total'),
-                func.count(Transaction.id).label('count')
-            ).select_from(Transaction)
+                func.sum(Transaction.amount).label("total"),
+                func.count(Transaction.id).label("count"),
+            )
+            .select_from(Transaction)
             .join(transaction_labels, Transaction.id == transaction_labels.c.transaction_id)
             .join(Label, Label.id == transaction_labels.c.label_id)
-            .where(
-                and_(*conditions),
-                Label.name == label
-            ).group_by(Transaction.merchant_name)
-            .order_by(func.sum(Transaction.amount).desc() if transaction_type == 'income' else func.sum(Transaction.amount).asc())
+            .where(and_(*conditions), Label.name == label)
+            .group_by(Transaction.merchant_name)
+            .order_by(
+                func.sum(Transaction.amount).desc()
+                if transaction_type == "income"
+                else func.sum(Transaction.amount).asc()
+            )
         )
-        
+
         # Calculate total for percentage
         total_result = await db.execute(
             select(func.sum(Transaction.amount))
             .select_from(Transaction)
             .join(transaction_labels, Transaction.id == transaction_labels.c.transaction_id)
             .join(Label, Label.id == transaction_labels.c.label_id)
-            .where(
-                and_(*conditions),
-                Label.name == label
-            )
+            .where(and_(*conditions), Label.name == label)
         )
     else:
         # No label filter - return all merchants
         result = await db.execute(
             select(
                 Transaction.merchant_name,
-                func.sum(Transaction.amount).label('total'),
-                func.count(Transaction.id).label('count')
-            ).where(and_(*conditions))
+                func.sum(Transaction.amount).label("total"),
+                func.count(Transaction.id).label("count"),
+            )
+            .where(and_(*conditions))
             .group_by(Transaction.merchant_name)
-            .order_by(func.sum(Transaction.amount).desc() if transaction_type == 'income' else func.sum(Transaction.amount).asc())
+            .order_by(
+                func.sum(Transaction.amount).desc()
+                if transaction_type == "income"
+                else func.sum(Transaction.amount).asc()
+            )
         )
-        
+
         total_result = await db.execute(
             select(func.sum(Transaction.amount)).where(and_(*conditions))
         )
-    
+
     total = abs(float(total_result.scalar() or 0))
-    
+
     merchants = []
     for row in result:
         amount = abs(float(row.total))
         percentage = (amount / total * 100) if total > 0 else 0
-        merchants.append(CategoryBreakdown(
-            category=row.merchant_name,
-            amount=amount,
-            count=row.count,
-            percentage=percentage
-        ))
+        merchants.append(
+            CategoryBreakdown(
+                category=row.merchant_name, amount=amount, count=row.count, percentage=percentage
+            )
+        )
 
     return merchants
 
@@ -670,7 +701,9 @@ async def get_label_merchant_breakdown(
 async def get_merchant_summary(
     start_date: date = Query(...),
     end_date: date = Query(...),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -693,13 +726,13 @@ async def get_merchant_summary(
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount > 0
+            Transaction.amount > 0,
         )
     )
     total_income = float(income_result.scalar() or 0)
@@ -711,13 +744,13 @@ async def get_merchant_summary(
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount < 0
+            Transaction.amount < 0,
         )
     )
     total_expenses = abs(float(expense_result.scalar() or 0))
@@ -726,22 +759,23 @@ async def get_merchant_summary(
     income_merchants_result = await db.execute(
         select(
             Transaction.merchant_name,
-            func.sum(Transaction.amount).label('total'),
-            func.count(Transaction.id).label('count')
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count"),
         )
         .select_from(Transaction)
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0,
-            Transaction.merchant_name.isnot(None)
-        ).group_by(Transaction.merchant_name)
+            Transaction.merchant_name.isnot(None),
+        )
+        .group_by(Transaction.merchant_name)
         .order_by(func.sum(Transaction.amount).desc())
     )
 
@@ -749,33 +783,36 @@ async def get_merchant_summary(
     for row in income_merchants_result:
         amount = float(row.total)
         percentage = (amount / total_income * 100) if total_income > 0 else 0
-        income_categories.append(CategoryBreakdown(
-            category=row.merchant_name or 'Unknown',
-            amount=amount,
-            count=row.count,
-            percentage=percentage
-        ))
+        income_categories.append(
+            CategoryBreakdown(
+                category=row.merchant_name or "Unknown",
+                amount=amount,
+                count=row.count,
+                percentage=percentage,
+            )
+        )
 
     # Get expenses by merchant - only from active accounts
     expense_merchants_result = await db.execute(
         select(
             Transaction.merchant_name,
-            func.sum(Transaction.amount).label('total'),
-            func.count(Transaction.id).label('count')
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count"),
         )
         .select_from(Transaction)
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0,
-            Transaction.merchant_name.isnot(None)
-        ).group_by(Transaction.merchant_name)
+            Transaction.merchant_name.isnot(None),
+        )
+        .group_by(Transaction.merchant_name)
         .order_by(func.sum(Transaction.amount).asc())  # Most negative first
     )
 
@@ -783,19 +820,21 @@ async def get_merchant_summary(
     for row in expense_merchants_result:
         amount = abs(float(row.total))
         percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
-        expense_categories.append(CategoryBreakdown(
-            category=row.merchant_name or 'Unknown',
-            amount=amount,
-            count=row.count,
-            percentage=percentage
-        ))
+        expense_categories.append(
+            CategoryBreakdown(
+                category=row.merchant_name or "Unknown",
+                amount=amount,
+                count=row.count,
+                percentage=percentage,
+            )
+        )
 
     return IncomeExpenseSummary(
         total_income=total_income,
         total_expenses=total_expenses,
         net=total_income - total_expenses,
         income_categories=income_categories,
-        expense_categories=expense_categories
+        expense_categories=expense_categories,
     )
 
 
@@ -803,7 +842,9 @@ async def get_merchant_summary(
 async def get_account_summary(
     start_date: date = Query(...),
     end_date: date = Query(...),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -826,13 +867,13 @@ async def get_account_summary(
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount > 0
+            Transaction.amount > 0,
         )
     )
     total_income = float(income_result.scalar() or 0)
@@ -844,13 +885,13 @@ async def get_account_summary(
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount < 0
+            Transaction.amount < 0,
         )
     )
     total_expenses = abs(float(expense_result.scalar() or 0))
@@ -860,21 +901,22 @@ async def get_account_summary(
         select(
             Account.id,
             Account.name,
-            func.sum(Transaction.amount).label('total'),
-            func.count(Transaction.id).label('count')
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count"),
         )
         .select_from(Transaction)
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount > 0
-        ).group_by(Account.id, Account.name)
+            Transaction.amount > 0,
+        )
+        .group_by(Account.id, Account.name)
         .order_by(func.sum(Transaction.amount).desc())
     )
 
@@ -882,33 +924,33 @@ async def get_account_summary(
     for row in income_accounts_result:
         amount = float(row.total)
         percentage = (amount / total_income * 100) if total_income > 0 else 0
-        income_categories.append(CategoryBreakdown(
-            category=row.name,
-            amount=amount,
-            count=row.count,
-            percentage=percentage
-        ))
+        income_categories.append(
+            CategoryBreakdown(
+                category=row.name, amount=amount, count=row.count, percentage=percentage
+            )
+        )
 
     # Get expenses by account - only from active accounts
     expense_accounts_result = await db.execute(
         select(
             Account.id,
             Account.name,
-            func.sum(Transaction.amount).label('total'),
-            func.count(Transaction.id).label('count')
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count"),
         )
         .select_from(Transaction)
         .join(Account)
         .where(
             Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer == False,  # Exclude transfers to prevent double-counting
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
             Transaction.account_id.in_(account_ids),
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount < 0
-        ).group_by(Account.id, Account.name)
+            Transaction.amount < 0,
+        )
+        .group_by(Account.id, Account.name)
         .order_by(func.sum(Transaction.amount).asc())  # Most negative first
     )
 
@@ -916,19 +958,18 @@ async def get_account_summary(
     for row in expense_accounts_result:
         amount = abs(float(row.total))
         percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
-        expense_categories.append(CategoryBreakdown(
-            category=row.name,
-            amount=amount,
-            count=row.count,
-            percentage=percentage
-        ))
+        expense_categories.append(
+            CategoryBreakdown(
+                category=row.name, amount=amount, count=row.count, percentage=percentage
+            )
+        )
 
     return IncomeExpenseSummary(
         total_income=total_income,
         total_expenses=total_expenses,
         net=total_income - total_expenses,
         income_categories=income_categories,
-        expense_categories=expense_categories
+        expense_categories=expense_categories,
     )
 
 
@@ -938,7 +979,9 @@ async def get_account_merchant_breakdown(
     end_date: date = Query(...),
     account_id: Optional[str] = Query(None),
     transaction_type: str = Query(..., description="income or expense"),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -957,7 +1000,7 @@ async def get_account_merchant_breakdown(
     # Build base conditions - only include transactions from active accounts
     conditions = [
         Transaction.organization_id == current_user.organization_id,
-        Account.is_active == True,
+        Account.is_active.is_(True),
         Transaction.account_id.in_(account_ids),
         Transaction.date >= start_date,
         Transaction.date <= end_date,
@@ -965,7 +1008,7 @@ async def get_account_merchant_breakdown(
     ]
 
     # Add transaction type filter
-    if transaction_type == 'income':
+    if transaction_type == "income":
         conditions.append(Transaction.amount > 0)
     else:
         conditions.append(Transaction.amount < 0)
@@ -978,14 +1021,18 @@ async def get_account_merchant_breakdown(
     result = await db.execute(
         select(
             Transaction.merchant_name,
-            func.sum(Transaction.amount).label('total'),
-            func.count(Transaction.id).label('count')
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count"),
         )
         .select_from(Transaction)
         .join(Account)
         .where(and_(*conditions))
         .group_by(Transaction.merchant_name)
-        .order_by(func.sum(Transaction.amount).desc() if transaction_type == 'income' else func.sum(Transaction.amount).asc())
+        .order_by(
+            func.sum(Transaction.amount).desc()
+            if transaction_type == "income"
+            else func.sum(Transaction.amount).asc()
+        )
     )
 
     # Calculate total for percentage
@@ -1001,12 +1048,11 @@ async def get_account_merchant_breakdown(
     for row in result:
         amount = abs(float(row.total))
         percentage = (amount / total * 100) if total > 0 else 0
-        merchants.append(CategoryBreakdown(
-            category=row.merchant_name,
-            amount=amount,
-            count=row.count,
-            percentage=percentage
-        ))
+        merchants.append(
+            CategoryBreakdown(
+                category=row.merchant_name, amount=amount, count=row.count, percentage=percentage
+            )
+        )
 
     return merchants
 
@@ -1017,7 +1063,9 @@ async def get_account_merchant_breakdown(
 @router.get("/year-over-year")
 async def get_year_over_year_comparison(
     years: List[int] = Query(..., description="Years to compare (e.g., [2024, 2023, 2022])"),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1053,7 +1101,9 @@ async def get_year_over_year_comparison(
 @router.get("/quarterly-summary")
 async def get_quarterly_summary(
     years: List[int] = Query(..., description="Years to compare (e.g., [2024, 2023])"),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1091,7 +1141,9 @@ async def get_category_trends(
     category: str = Query(..., description="Category name to analyze"),
     start_date: date = Query(...),
     end_date: date = Query(...),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1130,7 +1182,9 @@ async def get_category_trends(
 @router.get("/annual-summary")
 async def get_annual_summary(
     year: int = Query(..., description="Year to summarize"),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

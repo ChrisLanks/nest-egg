@@ -6,7 +6,7 @@ from typing import List, Optional, Dict
 from uuid import UUID
 from collections import defaultdict
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
@@ -85,7 +85,7 @@ class RecurringDetectionService:
         date_score = date_consistency
 
         # Weighted average
-        confidence = (count_score * 0.4 + amount_score * 0.3 + date_score * 0.3)
+        confidence = count_score * 0.4 + amount_score * 0.3 + date_score * 0.3
 
         return Decimal(str(round(confidence, 2)))
 
@@ -112,13 +112,15 @@ class RecurringDetectionService:
         cutoff_date = date.today() - timedelta(days=lookback_days)
 
         result = await db.execute(
-            select(Transaction).where(
+            select(Transaction)
+            .where(
                 and_(
                     Transaction.organization_id == user.organization_id,
                     Transaction.date >= cutoff_date,
                     Transaction.merchant_name.isnot(None),
                 )
-            ).order_by(Transaction.date)
+            )
+            .order_by(Transaction.date)
         )
         transactions = list(result.scalars().all())
 
@@ -149,7 +151,9 @@ class RecurringDetectionService:
 
             # Calculate date consistency
             sorted_dates = sorted(dates)
-            gaps = [(sorted_dates[i + 1] - sorted_dates[i]).days for i in range(len(sorted_dates) - 1)]
+            gaps = [
+                (sorted_dates[i + 1] - sorted_dates[i]).days for i in range(len(sorted_dates) - 1)
+            ]
             avg_gap = sum(gaps) / len(gaps)
             gap_variance = sum(abs(gap - avg_gap) for gap in gaps) / len(gaps)
             date_consistency = max(0, 1.0 - (gap_variance / avg_gap))
@@ -364,15 +368,17 @@ class RecurringDetectionService:
 
         # Query for recurring transactions marked as bills
         result = await db.execute(
-            select(RecurringTransaction).where(
+            select(RecurringTransaction)
+            .where(
                 and_(
                     RecurringTransaction.organization_id == user.organization_id,
-                    RecurringTransaction.is_bill == True,
-                    RecurringTransaction.is_active == True,
+                    RecurringTransaction.is_bill.is_(True),
+                    RecurringTransaction.is_active.is_(True),
                     RecurringTransaction.next_expected_date.isnot(None),
                     RecurringTransaction.next_expected_date <= future_date,
                 )
-            ).order_by(RecurringTransaction.next_expected_date)
+            )
+            .order_by(RecurringTransaction.next_expected_date)
         )
         bills = list(result.scalars().all())
 
@@ -385,16 +391,18 @@ class RecurringDetectionService:
             should_remind = days_until_due <= bill.reminder_days_before
 
             if should_remind or days_until_due < 0:  # Include overdue bills
-                upcoming_bills.append({
-                    "recurring_transaction_id": bill.id,
-                    "merchant_name": bill.merchant_name,
-                    "average_amount": bill.average_amount,
-                    "next_expected_date": bill.next_expected_date,
-                    "days_until_due": days_until_due,
-                    "is_overdue": days_until_due < 0,
-                    "account_id": bill.account_id,
-                    "category_id": bill.category_id,
-                })
+                upcoming_bills.append(
+                    {
+                        "recurring_transaction_id": bill.id,
+                        "merchant_name": bill.merchant_name,
+                        "average_amount": bill.average_amount,
+                        "next_expected_date": bill.next_expected_date,
+                        "days_until_due": days_until_due,
+                        "is_overdue": days_until_due < 0,
+                        "account_id": bill.account_id,
+                        "category_id": bill.category_id,
+                    }
+                )
 
         return upcoming_bills
 
@@ -403,7 +411,7 @@ class RecurringDetectionService:
         db: AsyncSession,
         organization_id: UUID,
         user_id: Optional[UUID] = None,
-        is_active: bool = True
+        is_active: bool = True,
     ) -> List[RecurringTransaction]:
         """
         Get subscription-like recurring transactions.
@@ -423,10 +431,9 @@ class RecurringDetectionService:
         query = select(RecurringTransaction).where(
             and_(
                 RecurringTransaction.organization_id == organization_id,
-                RecurringTransaction.frequency.in_([
-                    RecurringFrequency.MONTHLY,
-                    RecurringFrequency.YEARLY
-                ]),
+                RecurringTransaction.frequency.in_(
+                    [RecurringFrequency.MONTHLY, RecurringFrequency.YEARLY]
+                ),
                 RecurringTransaction.confidence_score >= Decimal("0.70"),
                 RecurringTransaction.is_active == is_active,
             )
@@ -443,9 +450,7 @@ class RecurringDetectionService:
 
     @staticmethod
     async def get_subscription_summary(
-        db: AsyncSession,
-        organization_id: UUID,
-        user_id: Optional[UUID] = None
+        db: AsyncSession, organization_id: UUID, user_id: Optional[UUID] = None
     ) -> Dict:
         """
         Calculate total monthly cost of subscriptions.

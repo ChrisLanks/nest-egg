@@ -1,7 +1,6 @@
 """Service for multi-year trend analysis and year-over-year comparisons."""
 
 from datetime import date
-from decimal import Decimal
 from typing import List, Dict, Optional
 from uuid import UUID
 
@@ -51,9 +50,9 @@ class TrendAnalysisService:
         # Build base query conditions
         conditions = [
             Transaction.organization_id == organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,
-            Transaction.is_transfer == False,
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),
+            Transaction.is_transfer.is_(False),
         ]
 
         if user_id:
@@ -63,37 +62,41 @@ class TrendAnalysisService:
             conditions.append(Transaction.account_id.in_(account_ids))
 
         # Add year filter
-        conditions.append(extract('year', Transaction.date).in_(years))
+        conditions.append(extract("year", Transaction.date).in_(years))
 
         # Query to get monthly data for all years
         result = await db.execute(
             select(
-                extract('year', Transaction.date).label('year'),
-                extract('month', Transaction.date).label('month'),
-                func.sum(
-                    case((Transaction.amount > 0, Transaction.amount), else_=0)
-                ).label('income'),
-                func.sum(
-                    case((Transaction.amount < 0, Transaction.amount), else_=0)
-                ).label('expenses'),
+                extract("year", Transaction.date).label("year"),
+                extract("month", Transaction.date).label("month"),
+                func.sum(case((Transaction.amount > 0, Transaction.amount), else_=0)).label(
+                    "income"
+                ),
+                func.sum(case((Transaction.amount < 0, Transaction.amount), else_=0)).label(
+                    "expenses"
+                ),
             )
             .select_from(Transaction)
             .join(Account, Transaction.account_id == Account.id)
             .where(and_(*conditions))
-            .group_by(
-                extract('year', Transaction.date),
-                extract('month', Transaction.date)
-            )
-            .order_by(
-                extract('month', Transaction.date),
-                extract('year', Transaction.date)
-            )
+            .group_by(extract("year", Transaction.date), extract("month", Transaction.date))
+            .order_by(extract("month", Transaction.date), extract("year", Transaction.date))
         )
 
         # Organize data by month
         month_names = [
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
         ]
 
         # Initialize structure for all 12 months
@@ -102,7 +105,7 @@ class TrendAnalysisService:
             monthly_data[month_num] = {
                 "month": month_num,
                 "month_name": month_names[month_num - 1],
-                "data": {}
+                "data": {},
             }
 
         # Populate with actual data
@@ -167,9 +170,9 @@ class TrendAnalysisService:
         # Build base query conditions
         conditions = [
             Transaction.organization_id == organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,
-            Transaction.is_transfer == False,
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),
+            Transaction.is_transfer.is_(False),
         ]
 
         if user_id:
@@ -179,31 +182,25 @@ class TrendAnalysisService:
             conditions.append(Transaction.account_id.in_(account_ids))
 
         # Add year filter
-        conditions.append(extract('year', Transaction.date).in_(years))
+        conditions.append(extract("year", Transaction.date).in_(years))
 
         # Query to get quarterly data
         result = await db.execute(
             select(
-                extract('year', Transaction.date).label('year'),
-                func.extract('quarter', Transaction.date).label('quarter'),
-                func.sum(
-                    case((Transaction.amount > 0, Transaction.amount), else_=0)
-                ).label('income'),
-                func.sum(
-                    case((Transaction.amount < 0, Transaction.amount), else_=0)
-                ).label('expenses'),
+                extract("year", Transaction.date).label("year"),
+                func.extract("quarter", Transaction.date).label("quarter"),
+                func.sum(case((Transaction.amount > 0, Transaction.amount), else_=0)).label(
+                    "income"
+                ),
+                func.sum(case((Transaction.amount < 0, Transaction.amount), else_=0)).label(
+                    "expenses"
+                ),
             )
             .select_from(Transaction)
             .join(Account, Transaction.account_id == Account.id)
             .where(and_(*conditions))
-            .group_by(
-                extract('year', Transaction.date),
-                func.extract('quarter', Transaction.date)
-            )
-            .order_by(
-                func.extract('quarter', Transaction.date),
-                extract('year', Transaction.date)
-            )
+            .group_by(extract("year", Transaction.date), func.extract("quarter", Transaction.date))
+            .order_by(func.extract("quarter", Transaction.date), extract("year", Transaction.date))
         )
 
         # Initialize structure for all 4 quarters
@@ -212,7 +209,7 @@ class TrendAnalysisService:
             quarterly_data[quarter_num] = {
                 "quarter": quarter_num,
                 "quarter_name": f"Q{quarter_num}",
-                "data": {}
+                "data": {},
             }
 
         # Populate with actual data
@@ -274,9 +271,9 @@ class TrendAnalysisService:
         # Build base query conditions
         conditions = [
             Transaction.organization_id == organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,
-            Transaction.is_transfer == False,
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),
+            Transaction.is_transfer.is_(False),
             Transaction.category_primary == category,
             Transaction.date >= start_date,
             Transaction.date <= end_date,
@@ -289,13 +286,13 @@ class TrendAnalysisService:
             conditions.append(Transaction.account_id.in_(account_ids))
 
         # Query monthly trend for category
-        month_expr = func.date_trunc('month', Transaction.date)
+        month_expr = func.date_trunc("month", Transaction.date)
 
         result = await db.execute(
             select(
-                month_expr.label('month'),
-                func.sum(func.abs(Transaction.amount)).label('amount'),
-                func.count(Transaction.id).label('count'),
+                month_expr.label("month"),
+                func.sum(func.abs(Transaction.amount)).label("amount"),
+                func.count(Transaction.id).label("count"),
             )
             .select_from(Transaction)
             .join(Account, Transaction.account_id == Account.id)
@@ -306,19 +303,18 @@ class TrendAnalysisService:
 
         trends = []
         for row in result.all():
-            trends.append({
-                "month": row.month.strftime('%Y-%m') if row.month else '',
-                "amount": float(row.amount or 0),
-                "count": row.count,
-            })
+            trends.append(
+                {
+                    "month": row.month.strftime("%Y-%m") if row.month else "",
+                    "amount": float(row.amount or 0),
+                    "count": row.count,
+                }
+            )
 
         return trends
 
     @staticmethod
-    def calculate_growth_rate(
-        base_value: float,
-        current_value: float
-    ) -> Optional[float]:
+    def calculate_growth_rate(base_value: float, current_value: float) -> Optional[float]:
         """
         Calculate year-over-year growth rate percentage.
 
@@ -337,9 +333,7 @@ class TrendAnalysisService:
 
     @staticmethod
     def calculate_cagr(
-        starting_value: float,
-        ending_value: float,
-        num_years: int
+        starting_value: float, ending_value: float, num_years: int
     ) -> Optional[float]:
         """
         Calculate Compound Annual Growth Rate (CAGR).
@@ -391,10 +385,10 @@ class TrendAnalysisService:
         # Build base query conditions
         conditions = [
             Transaction.organization_id == organization_id,
-            Account.is_active == True,
-            Account.exclude_from_cash_flow == False,
-            Transaction.is_transfer == False,
-            extract('year', Transaction.date) == year,
+            Account.is_active.is_(True),
+            Account.exclude_from_cash_flow.is_(False),
+            Transaction.is_transfer.is_(False),
+            extract("year", Transaction.date) == year,
         ]
 
         if user_id:
@@ -406,12 +400,12 @@ class TrendAnalysisService:
         # Get annual totals
         totals_result = await db.execute(
             select(
-                func.sum(
-                    case((Transaction.amount > 0, Transaction.amount), else_=0)
-                ).label('income'),
-                func.sum(
-                    case((Transaction.amount < 0, Transaction.amount), else_=0)
-                ).label('expenses'),
+                func.sum(case((Transaction.amount > 0, Transaction.amount), else_=0)).label(
+                    "income"
+                ),
+                func.sum(case((Transaction.amount < 0, Transaction.amount), else_=0)).label(
+                    "expenses"
+                ),
             )
             .select_from(Transaction)
             .join(Account, Transaction.account_id == Account.id)
@@ -423,18 +417,15 @@ class TrendAnalysisService:
         total_expenses = abs(float(totals.expenses or 0))
 
         # Get monthly breakdown to find peak month
-        month_expr = extract('month', Transaction.date)
+        month_expr = extract("month", Transaction.date)
         monthly_result = await db.execute(
             select(
-                month_expr.label('month'),
-                func.sum(func.abs(Transaction.amount)).label('total'),
+                month_expr.label("month"),
+                func.sum(func.abs(Transaction.amount)).label("total"),
             )
             .select_from(Transaction)
             .join(Account, Transaction.account_id == Account.id)
-            .where(
-                and_(*conditions),
-                Transaction.amount < 0  # Only expenses
-            )
+            .where(and_(*conditions), Transaction.amount < 0)  # Only expenses
             .group_by(month_expr)
             .order_by(func.sum(func.abs(Transaction.amount)).desc())
             .limit(1)
@@ -442,8 +433,18 @@ class TrendAnalysisService:
 
         peak_month_row = monthly_result.one_or_none()
         month_names = [
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
         ]
 
         if peak_month_row:
@@ -455,7 +456,7 @@ class TrendAnalysisService:
 
         # Count months with data to calculate averages
         months_with_data_result = await db.execute(
-            select(func.count(func.distinct(extract('month', Transaction.date))))
+            select(func.count(func.distinct(extract("month", Transaction.date))))
             .select_from(Transaction)
             .join(Account, Transaction.account_id == Account.id)
             .where(and_(*conditions))
@@ -468,7 +469,9 @@ class TrendAnalysisService:
             "total_expenses": total_expenses,
             "net": total_income - total_expenses,
             "avg_monthly_income": total_income / months_with_data if months_with_data > 0 else 0,
-            "avg_monthly_expenses": total_expenses / months_with_data if months_with_data > 0 else 0,
+            "avg_monthly_expenses": (
+                total_expenses / months_with_data if months_with_data > 0 else 0
+            ),
             "peak_expense_month": peak_month,
             "peak_expense_amount": peak_amount,
         }

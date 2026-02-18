@@ -18,6 +18,7 @@ def check_cash_flow_forecast_task():
     Runs daily at 6:30am.
     """
     import asyncio
+
     asyncio.run(_check_forecast_async())
 
 
@@ -26,9 +27,7 @@ async def _check_forecast_async():
     async with async_session_factory() as db:
         try:
             # Get all unique organization IDs
-            result = await db.execute(
-                select(User.organization_id).distinct()
-            )
+            result = await db.execute(select(User.organization_id).distinct())
             org_ids = [row[0] for row in result.all()]
 
             logger.info(f"Checking cash flow forecasts for {len(org_ids)} organizations")

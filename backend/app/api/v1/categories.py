@@ -1,10 +1,10 @@
 """Category API endpoints."""
 
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, func, distinct
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -29,10 +29,7 @@ async def list_categories(
     """
     # Get custom categories from categories table
     custom_result = await db.execute(
-        select(
-            Category,
-            func.count(Transaction.id).label('transaction_count')
-        )
+        select(Category, func.count(Transaction.id).label("transaction_count"))
         .outerjoin(Transaction, Transaction.category_id == Category.id)
         .where(Category.organization_id == current_user.organization_id)
         .group_by(Category.id)
@@ -42,14 +39,11 @@ async def list_categories(
 
     # Get Plaid categories from transactions
     plaid_result = await db.execute(
-        select(
-            Transaction.category_primary,
-            func.count(Transaction.id).label('transaction_count')
-        )
+        select(Transaction.category_primary, func.count(Transaction.id).label("transaction_count"))
         .where(
             Transaction.organization_id == current_user.organization_id,
             Transaction.category_primary.isnot(None),
-            Transaction.category_primary != ''
+            Transaction.category_primary != "",
         )
         .group_by(Transaction.category_primary)
         .order_by(Transaction.category_primary)
@@ -61,34 +55,38 @@ async def list_categories(
 
     # Add custom categories
     for category, tx_count in custom_categories:
-        response.append(CategoryResponse(
-            id=category.id,
-            organization_id=category.organization_id,
-            name=category.name,
-            color=category.color,
-            parent_category_id=category.parent_category_id,
-            plaid_category_name=category.plaid_category_name,
-            is_custom=True,
-            transaction_count=tx_count,
-            created_at=category.created_at,
-            updated_at=category.updated_at,
-        ))
+        response.append(
+            CategoryResponse(
+                id=category.id,
+                organization_id=category.organization_id,
+                name=category.name,
+                color=category.color,
+                parent_category_id=category.parent_category_id,
+                plaid_category_name=category.plaid_category_name,
+                is_custom=True,
+                transaction_count=tx_count,
+                created_at=category.created_at,
+                updated_at=category.updated_at,
+            )
+        )
 
     # Add Plaid categories that aren't already custom categories
     custom_category_names = {cat.name.lower() for cat, _ in custom_categories}
     for plaid_name, tx_count in plaid_categories:
         if plaid_name.lower() not in custom_category_names:
-            response.append(CategoryResponse(
-                id=None,
-                organization_id=current_user.organization_id,
-                name=plaid_name,
-                color=None,
-                parent_category_id=None,
-                is_custom=False,
-                transaction_count=tx_count,
-                created_at=None,
-                updated_at=None,
-            ))
+            response.append(
+                CategoryResponse(
+                    id=None,
+                    organization_id=current_user.organization_id,
+                    name=plaid_name,
+                    color=None,
+                    parent_category_id=None,
+                    is_custom=False,
+                    transaction_count=tx_count,
+                    created_at=None,
+                    updated_at=None,
+                )
+            )
 
     # Sort by name
     response.sort(key=lambda x: x.name.lower())
@@ -110,7 +108,7 @@ async def create_category(
         db,
         Category,
         parent_field_name="parent_category_id",
-        entity_name="category"
+        entity_name="category",
     )
 
     category = Category(
@@ -149,10 +147,7 @@ async def update_category(
     if category_data.parent_category_id is not None:
         # Prevent setting self as parent
         if category_data.parent_category_id == category_id:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot set category as its own parent"
-            )
+            raise HTTPException(status_code=400, detail="Cannot set category as its own parent")
 
         # Check if this category has children - if so, can't make it a child
         children_result = await db.execute(
@@ -163,7 +158,7 @@ async def update_category(
         if has_children and category_data.parent_category_id:
             raise HTTPException(
                 status_code=400,
-                detail="Cannot assign a parent to this category because it already has children. Maximum 2 levels allowed."
+                detail="Cannot assign a parent to this category because it already has children. Maximum 2 levels allowed.",
             )
 
         # Validate the new parent
@@ -173,7 +168,7 @@ async def update_category(
             db,
             Category,
             parent_field_name="parent_category_id",
-            entity_name="category"
+            entity_name="category",
         )
 
     if category_data.name is not None:

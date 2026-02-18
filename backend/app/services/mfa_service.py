@@ -5,8 +5,7 @@ import qrcode
 import io
 import secrets
 from base64 import b64encode
-from typing import List, Tuple, Optional
-from datetime import datetime
+from typing import List
 
 from app.services.encryption_service import encryption_service
 
@@ -32,10 +31,7 @@ class MFAService:
         Returns:
             Provisioning URI string
         """
-        return pyotp.totp.TOTP(secret).provisioning_uri(
-            name=email,
-            issuer_name=issuer
-        )
+        return pyotp.totp.TOTP(secret).provisioning_uri(name=email, issuer_name=issuer)
 
     @staticmethod
     def generate_qr_code(uri: str) -> str:
@@ -112,6 +108,7 @@ class MFAService:
         clean_code = code.replace("-", "")
 
         from argon2 import PasswordHasher
+
         ph = PasswordHasher()
         return ph.hash(clean_code)
 
@@ -131,6 +128,7 @@ class MFAService:
 
         try:
             from argon2 import PasswordHasher
+
             ph = PasswordHasher()
             ph.verify(hashed_code, clean_code)
             return True

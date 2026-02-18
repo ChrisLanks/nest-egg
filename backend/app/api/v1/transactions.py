@@ -10,7 +10,7 @@ from io import StringIO
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, func, and_, tuple_
+from sqlalchemy import select, func, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -19,7 +19,12 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.transaction import Transaction, Label, TransactionLabel, Category
 from app.models.account import Account
-from app.schemas.transaction import TransactionDetail, TransactionListResponse, TransactionUpdate, CategorySummary
+from app.schemas.transaction import (
+    TransactionDetail,
+    TransactionListResponse,
+    TransactionUpdate,
+    CategorySummary,
+)
 from app.services.input_sanitization_service import input_sanitization_service
 
 router = APIRouter()
@@ -32,7 +37,7 @@ async def get_or_create_transfer_label(db: AsyncSession, organization_id: UUID) 
         select(Label).where(
             Label.organization_id == organization_id,
             Label.name == "Transfer",
-            Label.is_system == True
+            Label.is_system.is_(True),
         )
     )
     label = result.scalar_one_or_none()
@@ -55,9 +60,9 @@ async def get_or_create_transfer_label(db: AsyncSession, organization_id: UUID) 
 def encode_cursor(txn_date: date, created_at: datetime, txn_id: UUID) -> str:
     """Encode transaction cursor for pagination."""
     cursor_data = {
-        'date': txn_date.isoformat(),
-        'created_at': created_at.isoformat(),
-        'id': str(txn_id)
+        "date": txn_date.isoformat(),
+        "created_at": created_at.isoformat(),
+        "id": str(txn_id),
     }
     json_str = json.dumps(cursor_data)
     return base64.b64encode(json_str.encode()).decode()
@@ -69,9 +74,9 @@ def decode_cursor(cursor: str) -> tuple:
         json_str = base64.b64decode(cursor.encode()).decode()
         cursor_data = json.loads(json_str)
         return (
-            datetime.fromisoformat(cursor_data['date']).date(),
-            datetime.fromisoformat(cursor_data['created_at']),
-            UUID(cursor_data['id'])
+            datetime.fromisoformat(cursor_data["date"]).date(),
+            datetime.fromisoformat(cursor_data["created_at"]),
+            UUID(cursor_data["id"]),
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid cursor: {str(e)}")
@@ -113,8 +118,7 @@ async def list_transactions(
         .options(joinedload(Transaction.category).joinedload(Category.parent))
         .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
         .where(
-            Transaction.organization_id == current_user.organization_id,
-            Account.is_active == True
+            Transaction.organization_id == current_user.organization_id, Account.is_active.is_(True)
         )
     )
 
@@ -140,15 +144,13 @@ async def list_transactions(
         cursor_date, cursor_created_at, cursor_id = decode_cursor(cursor)
         # Use tuple comparison for stable ordering
         query = query.where(
-            tuple_(Transaction.date, Transaction.created_at, Transaction.id) <
-            tuple_(cursor_date, cursor_created_at, cursor_id)
+            tuple_(Transaction.date, Transaction.created_at, Transaction.id)
+            < tuple_(cursor_date, cursor_created_at, cursor_id)
         )
 
     # Order by date DESC, created_at DESC, id DESC for consistent ordering
     query = query.order_by(
-        Transaction.date.desc(),
-        Transaction.created_at.desc(),
-        Transaction.id.desc()
+        Transaction.date.desc(), Transaction.created_at.desc(), Transaction.id.desc()
     )
 
     # Fetch one extra to determine if there are more results
@@ -178,7 +180,7 @@ async def list_transactions(
             .join(Account)
             .where(
                 Transaction.organization_id == current_user.organization_id,
-                Account.is_active == True
+                Account.is_active.is_(True),
             )
         )
         if account_id:
@@ -368,7 +370,7 @@ async def update_transaction(
     txn.updated_at = datetime.utcnow()
 
     await db.commit()
-    await db.refresh(txn, ['labels'])
+    await db.refresh(txn, ["labels"])
 
     # Extract labels from the many-to-many relationship
     transaction_labels = [tl.label for tl in txn.labels if tl.label]
@@ -492,13 +494,16 @@ async def export_transactions_csv(
     spreadsheet applications, tax software, or archival purposes.
     """
     # Build query
-    query = select(Transaction).options(
-        joinedload(Transaction.account),
-        joinedload(Transaction.category),
-        joinedload(Transaction.labels).joinedload(TransactionLabel.label),
-    ).where(
-        Transaction.organization_id == current_user.organization_id
-    ).order_by(Transaction.date.desc(), Transaction.created_at.desc())
+    query = (
+        select(Transaction)
+        .options(
+            joinedload(Transaction.account),
+            joinedload(Transaction.category),
+            joinedload(Transaction.labels).joinedload(TransactionLabel.label),
+        )
+        .where(Transaction.organization_id == current_user.organization_id)
+        .order_by(Transaction.date.desc(), Transaction.created_at.desc())
+    )
 
     # Apply filters
     if start_date:
@@ -515,19 +520,21 @@ async def export_transactions_csv(
         writer = csv.writer(output)
 
         # Write header
-        writer.writerow([
-            'Date',
-            'Merchant',
-            'Description',
-            'Category',
-            'Labels',
-            'Amount',
-            'Account',
-            'Account Number',
-            'Is Pending',
-            'Is Transfer',
-            'Transaction ID',
-        ])
+        writer.writerow(
+            [
+                "Date",
+                "Merchant",
+                "Description",
+                "Category",
+                "Labels",
+                "Amount",
+                "Account",
+                "Account Number",
+                "Is Pending",
+                "Is Transfer",
+                "Transaction ID",
+            ]
+        )
         yield output.getvalue()
         output.seek(0)
         output.truncate(0)
@@ -548,24 +555,28 @@ async def export_transactions_csv(
             # Write batch to CSV
             for txn in transactions:
                 # Format labels as comma-separated list
-                labels_str = ', '.join([label.label.name for label in txn.labels]) if txn.labels else ''
+                labels_str = (
+                    ", ".join([label.label.name for label in txn.labels]) if txn.labels else ""
+                )
 
                 # Format category (use custom category if available, otherwise Plaid category)
-                category_str = txn.category.name if txn.category else (txn.category_primary or '')
+                category_str = txn.category.name if txn.category else (txn.category_primary or "")
 
-                writer.writerow([
-                    txn.date.isoformat(),
-                    txn.merchant_name or '',
-                    txn.description or '',
-                    category_str,
-                    labels_str,
-                    float(txn.amount),
-                    txn.account.name if txn.account else '',
-                    f"****{txn.account.mask}" if txn.account and txn.account.mask else '',
-                    'Yes' if txn.is_pending else 'No',
-                    'Yes' if txn.is_transfer else 'No',
-                    str(txn.id),
-                ])
+                writer.writerow(
+                    [
+                        txn.date.isoformat(),
+                        txn.merchant_name or "",
+                        txn.description or "",
+                        category_str,
+                        labels_str,
+                        float(txn.amount),
+                        txn.account.name if txn.account else "",
+                        f"****{txn.account.mask}" if txn.account and txn.account.mask else "",
+                        "Yes" if txn.is_pending else "No",
+                        "Yes" if txn.is_transfer else "No",
+                        str(txn.id),
+                    ]
+                )
 
             # Yield batch
             yield output.getvalue()
@@ -575,19 +586,17 @@ async def export_transactions_csv(
             offset += batch_size
 
     # Generate filename with date range
-    filename = 'transactions'
+    filename = "transactions"
     if start_date and end_date:
-        filename = f'transactions_{start_date}_to_{end_date}'
+        filename = f"transactions_{start_date}_to_{end_date}"
     elif start_date:
-        filename = f'transactions_from_{start_date}'
+        filename = f"transactions_from_{start_date}"
     elif end_date:
-        filename = f'transactions_until_{end_date}'
-    filename += '.csv'
+        filename = f"transactions_until_{end_date}"
+    filename += ".csv"
 
     return StreamingResponse(
         generate_csv(),
-        media_type='text/csv',
-        headers={
-            'Content-Disposition': f'attachment; filename="{filename}"'
-        }
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

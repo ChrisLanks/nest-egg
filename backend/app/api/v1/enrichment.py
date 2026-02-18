@@ -79,7 +79,7 @@ async def get_enrichment_status(
     # Count total equity holdings
     total_query = select(func.count(Holding.id)).where(
         Holding.organization_id == current_user.organization_id,
-        Holding.asset_type.in_(['stock', 'etf', 'mutual_fund'])
+        Holding.asset_type.in_(["stock", "etf", "mutual_fund"]),
     )
     total_result = await db.execute(total_query)
     total_count = total_result.scalar() or 0
@@ -87,9 +87,9 @@ async def get_enrichment_status(
     # Count enriched holdings
     enriched_query = select(func.count(Holding.id)).where(
         Holding.organization_id == current_user.organization_id,
-        Holding.asset_type.in_(['stock', 'etf', 'mutual_fund']),
-        Holding.market_cap != None,
-        Holding.asset_class != None
+        Holding.asset_type.in_(["stock", "etf", "mutual_fund"]),
+        Holding.market_cap.is_not(None),
+        Holding.asset_class.is_not(None),
     )
     enriched_result = await db.execute(enriched_query)
     enriched_count = enriched_result.scalar() or 0

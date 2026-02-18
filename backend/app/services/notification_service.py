@@ -1,6 +1,6 @@
 """Service for managing user notifications."""
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import List, Optional
 from uuid import UUID
 
@@ -98,23 +98,19 @@ class NotificationService:
                 Notification.organization_id == user.organization_id,
                 or_(
                     Notification.user_id == user.id,
-                    Notification.user_id.is_(None)  # Org-wide notifications
+                    Notification.user_id.is_(None),  # Org-wide notifications
                 ),
-                Notification.is_dismissed == False,
-                or_(
-                    Notification.expires_at.is_(None),
-                    Notification.expires_at > utc_now()
-                )
+                Notification.is_dismissed.is_(False),
+                or_(Notification.expires_at.is_(None), Notification.expires_at > utc_now()),
             )
         )
 
         if not include_read:
-            query = query.where(Notification.is_read == False)
+            query = query.where(Notification.is_read.is_(False))
 
-        query = query.order_by(
-            Notification.priority.desc(),
-            Notification.created_at.desc()
-        ).limit(limit)
+        query = query.order_by(Notification.priority.desc(), Notification.created_at.desc()).limit(
+            limit
+        )
 
         result = await db.execute(query)
         return list(result.scalars().all())
@@ -182,11 +178,8 @@ class NotificationService:
             .where(
                 and_(
                     Notification.organization_id == user.organization_id,
-                    or_(
-                        Notification.user_id == user.id,
-                        Notification.user_id.is_(None)
-                    ),
-                    Notification.is_read == False,
+                    or_(Notification.user_id == user.id, Notification.user_id.is_(None)),
+                    Notification.is_read.is_(False),
                 )
             )
             .values(is_read=True, read_at=utc_now())
@@ -205,18 +198,16 @@ class NotificationService:
         """Get count of unread notifications."""
         from sqlalchemy import func
 
-        query = select(func.count()).select_from(Notification).where(
-            and_(
-                Notification.organization_id == user.organization_id,
-                or_(
-                    Notification.user_id == user.id,
-                    Notification.user_id.is_(None)
-                ),
-                Notification.is_read == False,
-                Notification.is_dismissed == False,
-                or_(
-                    Notification.expires_at.is_(None),
-                    Notification.expires_at > utc_now()
+        query = (
+            select(func.count())
+            .select_from(Notification)
+            .where(
+                and_(
+                    Notification.organization_id == user.organization_id,
+                    or_(Notification.user_id == user.id, Notification.user_id.is_(None)),
+                    Notification.is_read.is_(False),
+                    Notification.is_dismissed.is_(False),
+                    or_(Notification.expires_at.is_(None), Notification.expires_at > utc_now()),
                 )
             )
         )

@@ -4,7 +4,7 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db, get_verified_account
@@ -16,7 +16,11 @@ from app.schemas.contribution import Contribution, ContributionCreate, Contribut
 router = APIRouter()
 
 
-@router.post("/accounts/{account_id}/contributions", response_model=Contribution, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/accounts/{account_id}/contributions",
+    response_model=Contribution,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_contribution(
     contribution_data: ContributionCreate,
     account: Account = Depends(get_verified_account),
@@ -28,7 +32,7 @@ async def create_contribution(
     contribution = AccountContribution(
         organization_id=current_user.organization_id,
         account_id=account.id,
-        **contribution_data.model_dump()
+        **contribution_data.model_dump(),
     )
 
     db.add(contribution)
@@ -49,7 +53,7 @@ async def list_contributions(
     # Build query
     query = select(AccountContribution).where(
         AccountContribution.account_id == account.id,
-        AccountContribution.organization_id == current_user.organization_id
+        AccountContribution.organization_id == current_user.organization_id,
     )
 
     if not include_inactive:
@@ -73,16 +77,13 @@ async def get_contribution(
     result = await db.execute(
         select(AccountContribution).where(
             AccountContribution.id == contribution_id,
-            AccountContribution.organization_id == current_user.organization_id
+            AccountContribution.organization_id == current_user.organization_id,
         )
     )
     contribution = result.scalar_one_or_none()
 
     if not contribution:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Contribution not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contribution not found")
 
     return contribution
 
@@ -99,16 +100,13 @@ async def update_contribution(
     result = await db.execute(
         select(AccountContribution).where(
             AccountContribution.id == contribution_id,
-            AccountContribution.organization_id == current_user.organization_id
+            AccountContribution.organization_id == current_user.organization_id,
         )
     )
     contribution = result.scalar_one_or_none()
 
     if not contribution:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Contribution not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contribution not found")
 
     # Update fields
     update_data = contribution_update.model_dump(exclude_unset=True)
@@ -131,16 +129,13 @@ async def delete_contribution(
     result = await db.execute(
         select(AccountContribution).where(
             AccountContribution.id == contribution_id,
-            AccountContribution.organization_id == current_user.organization_id
+            AccountContribution.organization_id == current_user.organization_id,
         )
     )
     contribution = result.scalar_one_or_none()
 
     if not contribution:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Contribution not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contribution not found")
 
     await db.delete(contribution)
     await db.commit()

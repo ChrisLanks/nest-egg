@@ -100,9 +100,7 @@ class BudgetService:
         is_active: Optional[bool] = None,
     ) -> List[Budget]:
         """Get all budgets for organization."""
-        query = select(Budget).where(
-            Budget.organization_id == user.organization_id
-        )
+        query = select(Budget).where(Budget.organization_id == user.organization_id)
 
         if is_active is not None:
             query = query.where(Budget.is_active == is_active)
@@ -244,7 +242,9 @@ class BudgetService:
             # Check if over alert threshold
             if percentage >= (budget.alert_threshold * 100):
                 # Create notification
-                priority = NotificationPriority.HIGH if percentage >= 100 else NotificationPriority.MEDIUM
+                priority = (
+                    NotificationPriority.HIGH if percentage >= 100 else NotificationPriority.MEDIUM
+                )
 
                 title = f"Budget Alert: {budget.name}"
                 message = (
@@ -266,10 +266,12 @@ class BudgetService:
                     expires_in_days=7,
                 )
 
-                alerts.append({
-                    "budget": budget,
-                    "spending": spending,
-                })
+                alerts.append(
+                    {
+                        "budget": budget,
+                        "spending": spending,
+                    }
+                )
 
         return alerts
 

@@ -50,31 +50,27 @@ class UserInDB(UserBase):
 
 class User(UserInDB):
     """User schema for API responses."""
-
-    pass
-
-
 class OrganizationBase(BaseModel):
     """Base organization schema."""
 
     name: str = Field(..., min_length=1, max_length=255)
     custom_month_end_day: int = Field(default=30, ge=1, le=31)
-    monthly_start_day: int = Field(default=1, ge=1, le=28, description="Day of month to start monthly tracking (1-28)")
+    monthly_start_day: int = Field(
+        default=1, ge=1, le=28, description="Day of month to start monthly tracking (1-28)"
+    )
     timezone: str = Field(default="UTC")
 
 
 class OrganizationCreate(OrganizationBase):
     """Schema for creating an organization."""
-
-    pass
-
-
 class OrganizationUpdate(BaseModel):
     """Schema for updating an organization."""
 
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     custom_month_end_day: Optional[int] = Field(None, ge=1, le=31)
-    monthly_start_day: Optional[int] = Field(None, ge=1, le=28, description="Day of month to start monthly tracking (1-28)")
+    monthly_start_day: Optional[int] = Field(
+        None, ge=1, le=28, description="Day of month to start monthly tracking (1-28)"
+    )
     timezone: Optional[str] = None
 
 
@@ -92,5 +88,3 @@ class OrganizationInDB(OrganizationBase):
 
 class Organization(OrganizationInDB):
     """Organization schema for API responses."""
-
-    pass

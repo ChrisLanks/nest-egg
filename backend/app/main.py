@@ -17,7 +17,11 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
-from app.middleware.request_logging import RequestLoggingMiddleware, AuditLogMiddleware, UserContextMiddleware
+from app.middleware.request_logging import (
+    RequestLoggingMiddleware,
+    AuditLogMiddleware,
+    UserContextMiddleware,
+)
 from app.middleware.csrf_protection import CSRFProtectionMiddleware
 from app.services.secrets_validation_service import secrets_validation_service
 
@@ -34,6 +38,7 @@ except ImportError:
     print("   Install with: pip install sentry-sdk[fastapi]")
 
 if SENTRY_AVAILABLE and settings.SENTRY_DSN:
+
     def _filter_sensitive_data(event):
         """Filter sensitive data from Sentry events before sending."""
         # Remove sensitive headers
@@ -156,10 +161,7 @@ if not settings.DEBUG:
     app.add_middleware(HTTPSRedirectMiddleware)
 
     # Trusted host - Prevent host header attacks
-    app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=settings.ALLOWED_HOSTS
-    )
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.ALLOWED_HOSTS)
 
 # Security headers - Always apply (dev and production)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -188,6 +190,7 @@ app.add_middleware(AuditLogMiddleware)
 # Add exception handler for validation errors
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
@@ -238,18 +241,43 @@ async def security_status():
         "checklist": checklist,
         "environment": "production" if not settings.DEBUG else "development",
         "recommendation": (
-            "Production ready" if security_score >= 90 else
-            "Review failed checks before deploying to production"
-        )
+            "Production ready"
+            if security_score >= 90
+            else "Review failed checks before deploying to production"
+        ),
     }
 
 
 # Import and include routers
 from app.api.v1 import (
-    auth, accounts, contributions, transactions, labels, rules, categories, dev, dashboard,
-    income_expenses, plaid, teller, holdings, enrichment, notifications, budgets, savings_goals,
-    recurring_transactions, transaction_splits, transaction_merges, csv_import, household,
-    subscriptions, reports, debt_payoff, monitoring, bank_linking, market_data
+    auth,
+    accounts,
+    contributions,
+    transactions,
+    labels,
+    rules,
+    categories,
+    dev,
+    dashboard,
+    income_expenses,
+    plaid,
+    teller,
+    holdings,
+    enrichment,
+    notifications,
+    budgets,
+    savings_goals,
+    recurring_transactions,
+    transaction_splits,
+    transaction_merges,
+    csv_import,
+    household,
+    subscriptions,
+    reports,
+    debt_payoff,
+    monitoring,
+    bank_linking,
+    market_data,
 )
 from app.api.v1 import settings as settings_router
 
@@ -269,7 +297,9 @@ app.include_router(labels.router, prefix="/api/v1/labels", tags=["Labels"])
 app.include_router(rules.router, prefix="/api/v1/rules", tags=["Rules"])
 app.include_router(categories.router, prefix="/api/v1/categories", tags=["Categories"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
-app.include_router(income_expenses.router, prefix="/api/v1/income-expenses", tags=["Income vs Expenses"])
+app.include_router(
+    income_expenses.router, prefix="/api/v1/income-expenses", tags=["Income vs Expenses"]
+)
 app.include_router(settings_router.router, prefix="/api/v1/settings", tags=["Settings"])
 app.include_router(dev.router, prefix="/api/v1/dev", tags=["Development"])
 
@@ -277,10 +307,18 @@ app.include_router(dev.router, prefix="/api/v1/dev", tags=["Development"])
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])
 app.include_router(budgets.router, prefix="/api/v1/budgets", tags=["Budgets"])
 app.include_router(savings_goals.router, prefix="/api/v1/savings-goals", tags=["Savings Goals"])
-app.include_router(recurring_transactions.router, prefix="/api/v1/recurring-transactions", tags=["Recurring Transactions"])
+app.include_router(
+    recurring_transactions.router,
+    prefix="/api/v1/recurring-transactions",
+    tags=["Recurring Transactions"],
+)
 app.include_router(subscriptions.router, prefix="/api/v1/subscriptions", tags=["Subscriptions"])
-app.include_router(transaction_splits.router, prefix="/api/v1/transaction-splits", tags=["Transaction Splits"])
-app.include_router(transaction_merges.router, prefix="/api/v1/transaction-merges", tags=["Transaction Merges"])
+app.include_router(
+    transaction_splits.router, prefix="/api/v1/transaction-splits", tags=["Transaction Splits"]
+)
+app.include_router(
+    transaction_merges.router, prefix="/api/v1/transaction-merges", tags=["Transaction Merges"]
+)
 app.include_router(csv_import.router, prefix="/api/v1/csv-import", tags=["CSV Import"])
 app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
 app.include_router(debt_payoff.router, prefix="/api/v1/debt-payoff", tags=["Debt Payoff"])

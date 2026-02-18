@@ -21,7 +21,9 @@ class EncryptionService:
         try:
             self.cipher = Fernet(key)
         except Exception as e:
-            raise ValueError(f"Invalid MASTER_ENCRYPTION_KEY format. Must be a valid Fernet key: {e}")
+            raise ValueError(
+                f"Invalid MASTER_ENCRYPTION_KEY format. Must be a valid Fernet key: {e}"
+            )
 
     def encrypt_token(self, token: str) -> str:
         """
@@ -38,7 +40,7 @@ class EncryptionService:
 
         encrypted_bytes = self.cipher.encrypt(token.encode())
         # Base64 encode for storage in TEXT columns
-        return base64.b64encode(encrypted_bytes).decode('utf-8')
+        return base64.b64encode(encrypted_bytes).decode("utf-8")
 
     def decrypt_token(self, encrypted_token: str) -> str:
         """
@@ -55,7 +57,7 @@ class EncryptionService:
 
         try:
             # Base64 decode first
-            encrypted_bytes = base64.b64decode(encrypted_token.encode('utf-8'))
+            encrypted_bytes = base64.b64decode(encrypted_token.encode("utf-8"))
             return self.cipher.decrypt(encrypted_bytes).decode()
         except Exception as e:
             raise ValueError(f"Failed to decrypt token. Token may be corrupted or key changed: {e}")

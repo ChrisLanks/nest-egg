@@ -113,17 +113,13 @@ class RefreshTokenCRUD:
     @staticmethod
     async def get_by_token_hash(db: AsyncSession, token_hash: str) -> Optional[RefreshToken]:
         """Get refresh token by hash."""
-        result = await db.execute(
-            select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-        )
+        result = await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
         return result.scalar_one_or_none()
 
     @staticmethod
     async def revoke(db: AsyncSession, token_hash: str) -> None:
         """Revoke a refresh token."""
-        result = await db.execute(
-            select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-        )
+        result = await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
         token = result.scalar_one_or_none()
         if token:
             token.revoked_at = utc_now()

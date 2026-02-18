@@ -2,9 +2,18 @@
 
 import uuid
 import enum
-from datetime import datetime
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Enum as SQLEnum, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Enum as SQLEnum,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -14,6 +23,7 @@ from app.utils.datetime_utils import utc_now_lambda, utc_now
 
 class InvitationStatus(str, enum.Enum):
     """Invitation status enum."""
+
     PENDING = "pending"
     ACCEPTED = "accepted"
     DECLINED = "declined"
@@ -22,6 +32,7 @@ class InvitationStatus(str, enum.Enum):
 
 class SharePermission(str, enum.Enum):
     """Account share permission enum."""
+
     VIEW = "view"
     EDIT = "edit"
 
@@ -34,7 +45,9 @@ class Organization(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     custom_month_end_day = Column(Integer, default=30, nullable=False)
-    monthly_start_day = Column(Integer, default=1, nullable=False)  # Day of month to start tracking (1-31)
+    monthly_start_day = Column(
+        Integer, default=1, nullable=False
+    )  # Day of month to start tracking (1-31)
     timezone = Column(String(50), default="UTC", nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
@@ -42,7 +55,9 @@ class Organization(Base):
 
     # Relationships
     users = relationship("User", back_populates="organization", cascade="all, delete-orphan")
-    report_templates = relationship("ReportTemplate", back_populates="organization", cascade="all, delete-orphan")
+    report_templates = relationship(
+        "ReportTemplate", back_populates="organization", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<Organization {self.name}>"
@@ -54,7 +69,9 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
     email = Column(String(255), nullable=False, unique=True, index=True)
     password_hash = Column(String(255), nullable=False)
     first_name = Column(String(100))
@@ -67,12 +84,18 @@ class User(Base):
 
     is_active = Column(Boolean, default=True, nullable=False)
     is_org_admin = Column(Boolean, default=False, nullable=False)
-    is_primary_household_member = Column(Boolean, default=False, nullable=False)  # First user who created org
+    is_primary_household_member = Column(
+        Boolean, default=False, nullable=False
+    )  # First user who created org
     email_verified = Column(Boolean, default=False, nullable=False)
 
     # Account security fields
-    failed_login_attempts = Column(Integer, default=0, nullable=False)  # Track failed login attempts
-    locked_until = Column(DateTime, nullable=True)  # Account locked until this time (NULL = not locked)
+    failed_login_attempts = Column(
+        Integer, default=0, nullable=False
+    )  # Track failed login attempts
+    locked_until = Column(
+        DateTime, nullable=True
+    )  # Account locked until this time (NULL = not locked)
 
     last_login_at = Column(DateTime)
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
@@ -80,8 +103,12 @@ class User(Base):
 
     # Relationships
     organization = relationship("Organization", back_populates="users")
-    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
-    mfa = relationship("UserMFA", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    refresh_tokens = relationship(
+        "RefreshToken", back_populates="user", cascade="all, delete-orphan"
+    )
+    mfa = relationship(
+        "UserMFA", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<User {self.email}>"
@@ -122,11 +149,19 @@ class HouseholdInvitation(Base):
     __tablename__ = "household_invitations"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
     email = Column(String(255), nullable=False)
-    invited_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    invited_by_user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
     invitation_code = Column(String(64), nullable=False, unique=True, index=True)
-    status = Column(SQLEnum(InvitationStatus, name='invitation_status'), nullable=False, default=InvitationStatus.PENDING)
+    status = Column(
+        SQLEnum(InvitationStatus, name="invitation_status"),
+        nullable=False,
+        default=InvitationStatus.PENDING,
+    )
     expires_at = Column(DateTime, nullable=False)
     accepted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
@@ -155,14 +190,22 @@ class AccountShare(Base):
     __tablename__ = "account_shares"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    account_id = Column(UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
-    shared_with_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    permission = Column(SQLEnum(SharePermission, name='share_permission'), nullable=False, default=SharePermission.VIEW)
+    account_id = Column(
+        UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
+    )
+    shared_with_user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    permission = Column(
+        SQLEnum(SharePermission, name="share_permission"),
+        nullable=False,
+        default=SharePermission.VIEW,
+    )
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
 
     # Add unique constraint
     __table_args__ = (
-        UniqueConstraint('account_id', 'shared_with_user_id', name='uq_account_user_share'),
+        UniqueConstraint("account_id", "shared_with_user_id", name="uq_account_user_share"),
     )
 
     # Relationships

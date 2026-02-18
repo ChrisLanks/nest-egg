@@ -1,10 +1,9 @@
 """Portfolio snapshot model for historical tracking."""
 
-from datetime import date
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-from sqlalchemy import Column, String, DateTime, Date, Numeric, UniqueConstraint, JSON
+from sqlalchemy import Column, DateTime, Date, Numeric, UniqueConstraint, JSON
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
 from app.core.database import Base
@@ -32,20 +31,20 @@ class PortfolioSnapshot(Base):
     total_gain_loss_percent = Column(Numeric(10, 4), nullable=True)
 
     # Asset allocation breakdown
-    stocks_value = Column(Numeric(15, 2), default=Decimal('0'))
-    bonds_value = Column(Numeric(15, 2), default=Decimal('0'))
-    etf_value = Column(Numeric(15, 2), default=Decimal('0'))
-    mutual_funds_value = Column(Numeric(15, 2), default=Decimal('0'))
-    cash_value = Column(Numeric(15, 2), default=Decimal('0'))
-    other_value = Column(Numeric(15, 2), default=Decimal('0'))
+    stocks_value = Column(Numeric(15, 2), default=Decimal("0"))
+    bonds_value = Column(Numeric(15, 2), default=Decimal("0"))
+    etf_value = Column(Numeric(15, 2), default=Decimal("0"))
+    mutual_funds_value = Column(Numeric(15, 2), default=Decimal("0"))
+    cash_value = Column(Numeric(15, 2), default=Decimal("0"))
+    other_value = Column(Numeric(15, 2), default=Decimal("0"))
 
     # Category breakdown (retirement vs taxable)
-    retirement_value = Column(Numeric(15, 2), default=Decimal('0'))
-    taxable_value = Column(Numeric(15, 2), default=Decimal('0'))
+    retirement_value = Column(Numeric(15, 2), default=Decimal("0"))
+    taxable_value = Column(Numeric(15, 2), default=Decimal("0"))
 
     # Geographic breakdown
-    domestic_value = Column(Numeric(15, 2), default=Decimal('0'))
-    international_value = Column(Numeric(15, 2), default=Decimal('0'))
+    domestic_value = Column(Numeric(15, 2), default=Decimal("0"))
+    international_value = Column(Numeric(15, 2), default=Decimal("0"))
 
     # Full snapshot data (JSONB for flexibility)
     # Contains complete PortfolioSummary for historical drill-down
@@ -55,8 +54,10 @@ class PortfolioSnapshot(Base):
 
     # Unique constraint: one snapshot per organization per day
     __table_args__ = (
-        UniqueConstraint('organization_id', 'snapshot_date', name='uq_org_snapshot_date'),
+        UniqueConstraint("organization_id", "snapshot_date", name="uq_org_snapshot_date"),
     )
 
     def __repr__(self):
-        return f"<PortfolioSnapshot {self.organization_id} {self.snapshot_date} ${self.total_value}>"
+        return (
+            f"<PortfolioSnapshot {self.organization_id} {self.snapshot_date} ${self.total_value}>"
+        )

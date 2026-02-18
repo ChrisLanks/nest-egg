@@ -22,7 +22,7 @@ class DebtAccount:
         balance: Decimal,
         interest_rate: Decimal,
         minimum_payment: Decimal,
-        account_type: str
+        account_type: str,
     ):
         self.account_id = account_id
         self.name = name
@@ -37,9 +37,7 @@ class PayoffStrategyService:
 
     @staticmethod
     async def get_debt_accounts(
-        db: AsyncSession,
-        organization_id: UUID,
-        user_id: Optional[UUID] = None
+        db: AsyncSession, organization_id: UUID, user_id: Optional[UUID] = None
     ) -> List[DebtAccount]:
         """
         Get all debt accounts with positive balances.
@@ -54,17 +52,15 @@ class PayoffStrategyService:
         """
         conditions = [
             Account.organization_id == organization_id,
-            Account.is_active == True,
-            Account.account_type.in_(['CREDIT_CARD', 'LOAN', 'STUDENT_LOAN', 'MORTGAGE']),
+            Account.is_active.is_(True),
+            Account.account_type.in_(["CREDIT_CARD", "LOAN", "STUDENT_LOAN", "MORTGAGE"]),
             Account.current_balance < 0,  # Debt accounts have negative balances
         ]
 
         if user_id:
             conditions.append(Account.user_id == user_id)
 
-        result = await db.execute(
-            select(Account).where(and_(*conditions))
-        )
+        result = await db.execute(select(Account).where(and_(*conditions)))
 
         accounts = result.scalars().all()
         debt_accounts = []
@@ -75,37 +71,36 @@ class PayoffStrategyService:
             # Estimate minimum payment if not set
             if account.minimum_payment and account.minimum_payment > 0:
                 min_payment = account.minimum_payment
-            elif account.account_type == 'CREDIT_CARD':
+            elif account.account_type == "CREDIT_CARD":
                 min_payment = AmortizationService.calculate_credit_card_minimum(balance)
             elif account.interest_rate and account.interest_rate > 0:
                 # Estimate based on 5-year payoff
                 min_payment = AmortizationService.calculate_monthly_payment(
-                    balance,
-                    account.interest_rate,
-                    60  # 5 years
+                    balance, account.interest_rate, 60  # 5 years
                 )
             else:
                 # Default to 2% of balance
-                min_payment = max(balance * Decimal('0.02'), Decimal('25'))
+                min_payment = max(balance * Decimal("0.02"), Decimal("25"))
 
-            interest_rate = account.interest_rate or Decimal('18.0')  # Default 18% for unknown rates
+            interest_rate = account.interest_rate or Decimal(
+                "18.0"
+            )  # Default 18% for unknown rates
 
-            debt_accounts.append(DebtAccount(
-                account_id=account.id,
-                name=account.name,
-                balance=balance,
-                interest_rate=interest_rate,
-                minimum_payment=min_payment,
-                account_type=account.account_type
-            ))
+            debt_accounts.append(
+                DebtAccount(
+                    account_id=account.id,
+                    name=account.name,
+                    balance=balance,
+                    interest_rate=interest_rate,
+                    minimum_payment=min_payment,
+                    account_type=account.account_type,
+                )
+            )
 
         return debt_accounts
 
     @staticmethod
-    def calculate_snowball(
-        debts: List[DebtAccount],
-        extra_payment: Decimal
-    ) -> Dict:
+    def calculate_snowball(debts: List[DebtAccount], extra_payment: Decimal) -> Dict:
         """
         Calculate snowball strategy (smallest balance first).
 
@@ -123,23 +118,16 @@ class PayoffStrategyService:
                 "total_interest": 0,
                 "total_paid": 0,
                 "debt_free_date": None,
-                "debts": []
+                "debts": [],
             }
 
         # Sort by balance (smallest first)
         sorted_debts = sorted(debts, key=lambda d: d.balance)
 
-        return PayoffStrategyService._calculate_strategy(
-            sorted_debts,
-            extra_payment,
-            "SNOWBALL"
-        )
+        return PayoffStrategyService._calculate_strategy(sorted_debts, extra_payment, "SNOWBALL")
 
     @staticmethod
-    def calculate_avalanche(
-        debts: List[DebtAccount],
-        extra_payment: Decimal
-    ) -> Dict:
+    def calculate_avalanche(debts: List[DebtAccount], extra_payment: Decimal) -> Dict:
         """
         Calculate avalanche strategy (highest interest rate first).
 
@@ -157,17 +145,13 @@ class PayoffStrategyService:
                 "total_interest": 0,
                 "total_paid": 0,
                 "debt_free_date": None,
-                "debts": []
+                "debts": [],
             }
 
         # Sort by interest rate (highest first)
         sorted_debts = sorted(debts, key=lambda d: d.interest_rate, reverse=True)
 
-        return PayoffStrategyService._calculate_strategy(
-            sorted_debts,
-            extra_payment,
-            "AVALANCHE"
-        )
+        return PayoffStrategyService._calculate_strategy(sorted_debts, extra_payment, "AVALANCHE")
 
     @staticmethod
     def calculate_current_pace(debts: List[DebtAccount]) -> Dict:
@@ -187,20 +171,14 @@ class PayoffStrategyService:
                 "total_interest": 0,
                 "total_paid": 0,
                 "debt_free_date": None,
-                "debts": []
+                "debts": [],
             }
 
-        return PayoffStrategyService._calculate_strategy(
-            debts,
-            Decimal(0),
-            "CURRENT_PACE"
-        )
+        return PayoffStrategyService._calculate_strategy(debts, Decimal(0), "CURRENT_PACE")
 
     @staticmethod
     def _calculate_strategy(
-        debts: List[DebtAccount],
-        extra_payment: Decimal,
-        strategy_name: str
+        debts: List[DebtAccount], extra_payment: Decimal, strategy_name: str
     ) -> Dict:
         """
         Core strategy calculation engine.
@@ -242,12 +220,12 @@ class PayoffStrategyService:
 
             # Apply minimum payments and interest to all debts
             for debt in debt_states:
-                if debt["balance"] > Decimal('0.01'):
+                if debt["balance"] > Decimal("0.01"):
                     all_paid = False
 
                     # Calculate interest for this month
                     monthly_rate = debt["interest_rate"] / Decimal(100) / Decimal(12)
-                    interest = (debt["balance"] * monthly_rate).quantize(Decimal('0.01'))
+                    interest = (debt["balance"] * monthly_rate).quantize(Decimal("0.01"))
 
                     # Apply minimum payment
                     payment = min(debt["minimum_payment"], debt["balance"] + interest)
@@ -263,16 +241,18 @@ class PayoffStrategyService:
 
             # Apply extra payment to first debt with balance (snowball/avalanche priority)
             for debt in debt_states:
-                if debt["balance"] > Decimal('0.01') and available_extra > 0:
+                if debt["balance"] > Decimal("0.01") and available_extra > 0:
                     extra_principal = min(available_extra, debt["balance"])
                     debt["balance"] -= extra_principal
                     debt["total_paid"] += extra_principal
                     available_extra -= extra_principal
 
-                    if debt["balance"] <= Decimal('0.01'):
+                    if debt["balance"] <= Decimal("0.01"):
                         debt["balance"] = Decimal(0)
                         debt["months_to_payoff"] = current_month
-                        debt["payoff_date"] = (date.today().replace(day=1) + timedelta(days=30 * current_month)).isoformat()
+                        debt["payoff_date"] = (
+                            date.today().replace(day=1) + timedelta(days=30 * current_month)
+                        ).isoformat()
 
                         # Snowball effect: add this debt's minimum to available extra
                         available_extra += debt["minimum_payment"]
@@ -288,7 +268,7 @@ class PayoffStrategyService:
 
         # Set payoff dates for any remaining debts
         for debt in debt_states:
-            if debt["months_to_payoff"] == 0 and debt["balance"] <= Decimal('0.01'):
+            if debt["months_to_payoff"] == 0 and debt["balance"] <= Decimal("0.01"):
                 debt["months_to_payoff"] = current_month
 
         # Convert Decimal to float for JSON serialization
@@ -304,7 +284,11 @@ class PayoffStrategyService:
             "total_months": current_month,
             "total_interest": float(total_interest),
             "total_paid": float(total_paid),
-            "debt_free_date": (date.today().replace(day=1) + timedelta(days=30 * current_month)).isoformat() if current_month < max_months else None,
+            "debt_free_date": (
+                (date.today().replace(day=1) + timedelta(days=30 * current_month)).isoformat()
+                if current_month < max_months
+                else None
+            ),
             "debts": debt_states,
         }
 
@@ -314,7 +298,7 @@ class PayoffStrategyService:
         organization_id: UUID,
         extra_payment: Decimal,
         user_id: Optional[UUID] = None,
-        account_ids: Optional[List[UUID]] = None
+        account_ids: Optional[List[UUID]] = None,
     ) -> Dict:
         """
         Compare snowball, avalanche, and current pace strategies.
@@ -329,9 +313,7 @@ class PayoffStrategyService:
         Returns:
             Comparison of all three strategies
         """
-        debts = await PayoffStrategyService.get_debt_accounts(
-            db, organization_id, user_id
-        )
+        debts = await PayoffStrategyService.get_debt_accounts(db, organization_id, user_id)
 
         # Filter by account IDs if provided
         if account_ids:
@@ -351,14 +333,24 @@ class PayoffStrategyService:
 
         # Add savings comparisons
         if extra_payment > 0:
-            snowball["interest_saved_vs_current"] = current_pace["total_interest"] - snowball["total_interest"]
-            snowball["months_saved_vs_current"] = current_pace["total_months"] - snowball["total_months"]
+            snowball["interest_saved_vs_current"] = (
+                current_pace["total_interest"] - snowball["total_interest"]
+            )
+            snowball["months_saved_vs_current"] = (
+                current_pace["total_months"] - snowball["total_months"]
+            )
 
-            avalanche["interest_saved_vs_current"] = current_pace["total_interest"] - avalanche["total_interest"]
-            avalanche["months_saved_vs_current"] = current_pace["total_months"] - avalanche["total_months"]
+            avalanche["interest_saved_vs_current"] = (
+                current_pace["total_interest"] - avalanche["total_interest"]
+            )
+            avalanche["months_saved_vs_current"] = (
+                current_pace["total_months"] - avalanche["total_months"]
+            )
 
         # Determine recommendation
-        recommendation = "AVALANCHE" if avalanche["total_interest"] < snowball["total_interest"] else "SNOWBALL"
+        recommendation = (
+            "AVALANCHE" if avalanche["total_interest"] < snowball["total_interest"] else "SNOWBALL"
+        )
 
         return {
             "snowball": snowball,

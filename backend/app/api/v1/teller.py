@@ -46,12 +46,14 @@ def verify_teller_webhook_signature(
     """
     if not secret:
         if settings.DEBUG:
-            logger.warning("⚠️  TELLER_WEBHOOK_SECRET not set - webhook verification disabled in DEBUG mode")
+            logger.warning(
+                "⚠️  TELLER_WEBHOOK_SECRET not set - webhook verification disabled in DEBUG mode"
+            )
             return True
         else:
             raise HTTPException(
                 status_code=500,
-                detail="Webhook verification secret not configured. Set TELLER_WEBHOOK_SECRET for security."
+                detail="Webhook verification secret not configured. Set TELLER_WEBHOOK_SECRET for security.",
             )
 
     if not signature_header:
@@ -59,17 +61,12 @@ def verify_teller_webhook_signature(
             logger.warning("⚠️  Missing Teller-Signature header - allowing in DEBUG mode")
             return True
         else:
-            raise HTTPException(
-                status_code=401,
-                detail="Missing Teller-Signature header"
-            )
+            raise HTTPException(status_code=401, detail="Missing Teller-Signature header")
 
     try:
         # Compute expected signature using HMAC-SHA256
         expected_signature = hmac.new(
-            secret.encode('utf-8'),
-            webhook_body,
-            hashlib.sha256
+            secret.encode("utf-8"), webhook_body, hashlib.sha256
         ).hexdigest()
 
         # Compare signatures using constant-time comparison to prevent timing attacks
@@ -78,13 +75,12 @@ def verify_teller_webhook_signature(
         if not is_valid:
             if settings.DEBUG:
                 logger.warning("⚠️  Teller webhook signature mismatch - allowing in DEBUG mode")
-                logger.debug(f"Expected: {expected_signature[:16]}... Got: {signature_header[:16]}...")
+                logger.debug(
+                    f"Expected: {expected_signature[:16]}... Got: {signature_header[:16]}..."
+                )
                 return True
             else:
-                raise HTTPException(
-                    status_code=401,
-                    detail="Invalid webhook signature"
-                )
+                raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
         if settings.DEBUG:
             logger.info("✅ Teller webhook signature verified")
@@ -96,10 +92,7 @@ def verify_teller_webhook_signature(
             return True
         else:
             logger.error(f"❌ Webhook verification error: {str(e)}")
-            raise HTTPException(
-                status_code=401,
-                detail="Webhook verification failed"
-            )
+            raise HTTPException(status_code=401, detail="Webhook verification failed")
 
 
 @router.post("/webhook")
@@ -140,7 +133,7 @@ async def handle_teller_webhook(
         )
 
         # Now parse the JSON body
-        webhook_data: Dict[str, Any] = json.loads(raw_body.decode('utf-8'))
+        webhook_data: Dict[str, Any] = json.loads(raw_body.decode("utf-8"))
 
         event_type = webhook_data.get("event")
         payload = webhook_data.get("payload", {})

@@ -25,9 +25,7 @@ async def get_label_depth(label_id: UUID, db: AsyncSession) -> int:
     current_id = label_id
 
     while current_id and depth < 3:  # Safety limit
-        result = await db.execute(
-            select(Label.parent_label_id).where(Label.id == current_id)
-        )
+        result = await db.execute(select(Label.parent_label_id).where(Label.id == current_id))
         parent_id = result.scalar_one_or_none()
 
         if parent_id:
@@ -65,7 +63,7 @@ async def create_label(
     if label_data.name.lower() == "transfer":
         raise HTTPException(
             status_code=400,
-            detail="Cannot create label named 'Transfer' - this is a reserved system label"
+            detail="Cannot create label named 'Transfer' - this is a reserved system label",
         )
 
     # Validate parent if provided
@@ -75,7 +73,7 @@ async def create_label(
         db,
         Label,
         parent_field_name="parent_label_id",
-        entity_name="label"
+        entity_name="label",
     )
 
     label = Label(
@@ -114,17 +112,14 @@ async def update_label(
     if label_data.name is not None and label_data.name.lower() == "transfer":
         raise HTTPException(
             status_code=400,
-            detail="Cannot rename label to 'Transfer' - this is a reserved system label"
+            detail="Cannot rename label to 'Transfer' - this is a reserved system label",
         )
 
     # Validate parent if changing it
     if label_data.parent_label_id is not None:
         # Prevent setting self as parent
         if label_data.parent_label_id == label_id:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot set label as its own parent"
-            )
+            raise HTTPException(status_code=400, detail="Cannot set label as its own parent")
 
         # Check if this label has children - if so, can't make it a child
         children_result = await db.execute(
@@ -135,7 +130,7 @@ async def update_label(
         if has_children and label_data.parent_label_id:
             raise HTTPException(
                 status_code=400,
-                detail="Cannot assign a parent to this label because it already has children. Maximum 2 levels allowed."
+                detail="Cannot assign a parent to this label because it already has children. Maximum 2 levels allowed.",
             )
 
         # Validate the new parent
@@ -145,7 +140,7 @@ async def update_label(
             db,
             Label,
             parent_field_name="parent_label_id",
-            entity_name="label"
+            entity_name="label",
         )
 
     if label_data.name is not None:
@@ -182,10 +177,7 @@ async def delete_label(
 
     # Prevent deleting system labels
     if label.is_system:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot delete system label"
-        )
+        raise HTTPException(status_code=400, detail="Cannot delete system label")
 
     await db.delete(label)
     await db.commit()
@@ -211,9 +203,7 @@ async def initialize_tax_labels(
 
     Idempotent operation - only creates labels that don't exist.
     """
-    labels = await TaxService.initialize_tax_labels(
-        db, current_user.organization_id
-    )
+    labels = await TaxService.initialize_tax_labels(db, current_user.organization_id)
     return labels
 
 
@@ -291,7 +281,5 @@ async def export_tax_deductible_csv(
     return Response(
         content=csv_data,
         media_type="text/csv",
-        headers={
-            "Content-Disposition": f"attachment; filename={filename}"
-        }
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )

@@ -25,10 +25,6 @@ class RecurringTransactionBase(BaseModel):
 
 class RecurringTransactionCreate(RecurringTransactionBase):
     """Schema for creating a recurring transaction."""
-
-    pass
-
-
 class RecurringTransactionUpdate(BaseModel):
     """Schema for updating a recurring transaction."""
 

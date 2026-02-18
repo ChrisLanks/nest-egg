@@ -40,20 +40,22 @@ class MarketDataProviderFactory:
 
         # Determine which provider to use
         if provider_name is None:
-            provider_name = os.getenv('MARKET_DATA_PROVIDER', 'yahoo_finance')
+            provider_name = os.getenv("MARKET_DATA_PROVIDER", "yahoo_finance")
 
         provider_name = provider_name.lower()
 
         # Create provider instance
-        if provider_name == 'yahoo_finance':
+        if provider_name == "yahoo_finance":
             provider = YahooFinanceProvider()
-        elif provider_name == 'alpha_vantage':
+        elif provider_name == "alpha_vantage":
             # Import only if needed
             from .alpha_vantage_provider import AlphaVantageProvider
+
             provider = AlphaVantageProvider()
-        elif provider_name == 'finnhub':
+        elif provider_name == "finnhub":
             # Import only if needed
             from .finnhub_provider import FinnhubProvider
+
             provider = FinnhubProvider()
         else:
             raise ValueError(

@@ -3,7 +3,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,20 +15,27 @@ from app.dependencies import (
     get_verified_account,
     verify_household_member,
     get_user_accounts,
-    get_all_household_accounts
+    get_all_household_accounts,
 )
 from app.models.user import User
 from app.models.account import Account, AccountType
 from app.models.holding import Holding
-from app.schemas.account import Account as AccountSchema, AccountSummary, ManualAccountCreate, AccountUpdate
+from app.schemas.account import (
+    Account as AccountSchema,
+    AccountSummary,
+    ManualAccountCreate,
+    AccountUpdate,
+)
 from app.services.deduplication_service import DeduplicationService
 from app.services.rate_limit_service import rate_limit_service
 
 
 class BulkVisibilityUpdate(BaseModel):
     """Request model for bulk visibility updates."""
+
     account_ids: List[UUID]
     is_active: bool
+
 
 router = APIRouter()
 
@@ -39,7 +46,9 @@ deduplication_service = DeduplicationService()
 @router.get("/", response_model=List[AccountSummary])
 async def list_accounts(
     include_hidden: bool = Query(False, description="Include hidden accounts (admin view)"),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -54,10 +63,7 @@ async def list_accounts(
 
         result = await db.execute(
             select(Account)
-            .options(
-                joinedload(Account.plaid_item),
-                joinedload(Account.teller_enrollment)
-            )
+            .options(joinedload(Account.plaid_item), joinedload(Account.teller_enrollment))
             .where(*conditions)
         )
         accounts = result.unique().scalars().all()
@@ -141,7 +147,7 @@ async def create_manual_account(
         account_type=account_data.account_type,
         institution_name=account_data.institution,
         mask=account_data.account_number_last4,
-        name=account_data.name
+        name=account_data.name,
     )
 
     # Determine if account should be excluded from cash flow by default
@@ -217,14 +223,18 @@ async def bulk_update_visibility(
     )
 
     import logging
+
     logger = logging.getLogger(__name__)
 
-    logger.info(f"[bulk-visibility] Request: account_ids={request.account_ids}, is_active={request.is_active}, user_id={current_user.id}, org_id={current_user.organization_id}")
+    logger.info(
+        f"[bulk-visibility] Request: account_ids={request.account_ids}, is_active={request.is_active}, user_id={current_user.id}, org_id={current_user.organization_id}"
+    )
 
     # Check which accounts exist and are owned by the user
     check_result = await db.execute(
-        select(Account.id, Account.user_id, Account.organization_id, Account.is_active)
-        .where(Account.id.in_(request.account_ids))
+        select(Account.id, Account.user_id, Account.organization_id, Account.is_active).where(
+            Account.id.in_(request.account_ids)
+        )
     )
     existing_accounts = check_result.all()
     logger.info(f"[bulk-visibility] Found {len(existing_accounts)} accounts: {existing_accounts}")

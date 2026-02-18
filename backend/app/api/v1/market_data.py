@@ -18,9 +18,6 @@ from app.models.user import User
 from app.models.holding import Holding
 from app.services.market_data import (
     get_market_data_provider,
-    QuoteData,
-    HistoricalPrice,
-    SearchResult,
 )
 from app.core.rate_limiter import check_rate_limit, market_data_limiter
 from pydantic import BaseModel
@@ -34,6 +31,7 @@ router = APIRouter()
 # ============================================================================
 # Response Models
 # ============================================================================
+
 
 class QuoteResponse(BaseModel):
     """Quote data response."""
@@ -108,10 +106,13 @@ class ProviderInfo(BaseModel):
 # Endpoints
 # ============================================================================
 
+
 @router.get("/quote/{symbol}", response_model=QuoteResponse)
 async def get_quote(
     symbol: str,
-    provider: Optional[str] = Query(None, description="Override provider (yahoo_finance, alpha_vantage, finnhub)"),
+    provider: Optional[str] = Query(
+        None, description="Override provider (yahoo_finance, alpha_vantage, finnhub)"
+    ),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -126,10 +127,7 @@ async def get_quote(
         market_data = get_market_data_provider(provider)
         quote = await market_data.get_quote(symbol.upper())
 
-        return QuoteResponse(
-            **quote.model_dump(),
-            provider=market_data.get_provider_name()
-        )
+        return QuoteResponse(**quote.model_dump(), provider=market_data.get_provider_name())
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -157,8 +155,7 @@ async def get_quotes_batch(
 
         return {
             symbol: QuoteResponse(
-                **quote.model_dump(),
-                provider=market_data.get_provider_name()
+                **quote.model_dump(), provider=market_data.get_provider_name()
             ).model_dump()
             for symbol, quote in quotes.items()
         }
@@ -183,10 +180,7 @@ async def get_historical_prices(
     try:
         market_data = get_market_data_provider(provider)
         prices = await market_data.get_historical_prices(
-            symbol.upper(),
-            start_date,
-            end_date,
-            interval
+            symbol.upper(), start_date, end_date, interval
         )
 
         return [HistoricalPriceResponse(**p.model_dump()) for p in prices]
@@ -231,7 +225,7 @@ async def get_provider_info(
     return ProviderInfo(
         name=market_data.get_provider_name(),
         supports_realtime=market_data.supports_realtime(),
-        rate_limits=market_data.get_rate_limits()
+        rate_limits=market_data.get_rate_limits(),
     )
 
 
@@ -312,9 +306,7 @@ async def refresh_all_holdings(
     check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
 
     # Get all holdings
-    query = select(Holding).where(
-        Holding.organization_id == current_user.organization_id
-    )
+    query = select(Holding).where(Holding.organization_id == current_user.organization_id)
 
     if user_id:
         # Filter by user if specified

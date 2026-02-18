@@ -55,10 +55,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         # Permissions policy - disable unnecessary browser features
         response.headers["Permissions-Policy"] = (
-            "geolocation=(), "
-            "microphone=(), "
-            "camera=(), "
-            "payment=()"
+            "geolocation=(), " "microphone=(), " "camera=(), " "payment=()"
         )
 
         return response

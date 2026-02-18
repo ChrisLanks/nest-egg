@@ -18,7 +18,6 @@ Usage:
 import logging
 import logging.config
 import sys
-from typing import Any
 
 import structlog
 from pythonjsonlogger import jsonlogger
@@ -46,6 +45,7 @@ def setup_logging() -> None:
 
     # Create logs directory if it doesn't exist
     import os
+
     os.makedirs("logs", exist_ok=True)
 
     # Configure structlog processors

@@ -47,10 +47,7 @@ class TaxService:
     ]
 
     @staticmethod
-    async def initialize_tax_labels(
-        db: AsyncSession,
-        organization_id: UUID
-    ) -> List[Label]:
+    async def initialize_tax_labels(db: AsyncSession, organization_id: UUID) -> List[Label]:
         """
         Create default tax-deductible labels for an organization.
 
@@ -69,10 +66,7 @@ class TaxService:
             # Check if label already exists
             result = await db.execute(
                 select(Label).where(
-                    and_(
-                        Label.organization_id == organization_id,
-                        Label.name == label_data["name"]
-                    )
+                    and_(Label.organization_id == organization_id, Label.name == label_data["name"])
                 )
             )
             existing = result.scalar_one_or_none()
@@ -125,11 +119,11 @@ class TaxService:
         # Build base query for transactions with tax labels
         query = (
             select(
-                Label.id.label('label_id'),
-                Label.name.label('label_name'),
-                Label.color.label('label_color'),
-                func.sum(func.abs(Transaction.amount)).label('total_amount'),
-                func.count(Transaction.id).label('transaction_count'),
+                Label.id.label("label_id"),
+                Label.name.label("label_name"),
+                Label.color.label("label_color"),
+                func.sum(func.abs(Transaction.amount)).label("total_amount"),
+                func.count(Transaction.id).label("transaction_count"),
             )
             .select_from(Transaction)
             .join(TransactionLabel, Transaction.id == TransactionLabel.transaction_id)
@@ -140,8 +134,8 @@ class TaxService:
                     Account.organization_id == organization_id,
                     Transaction.date >= start_date,
                     Transaction.date <= end_date,
-                    Transaction.is_transfer == False,
-                    Account.exclude_from_cash_flow == False,
+                    Transaction.is_transfer.is_(False),
+                    Account.exclude_from_cash_flow.is_(False),
                 )
             )
         )
@@ -202,7 +196,7 @@ class TaxService:
                 Transaction.description,
                 Transaction.amount,
                 Transaction.category_primary,
-                Account.name.label('account_name'),
+                Account.name.label("account_name"),
             )
             .select_from(Transaction)
             .join(TransactionLabel, Transaction.id == TransactionLabel.transaction_id)
@@ -212,8 +206,8 @@ class TaxService:
                     Account.organization_id == organization_id,
                     Transaction.date >= start_date,
                     Transaction.date <= end_date,
-                    Transaction.is_transfer == False,
-                    Account.exclude_from_cash_flow == False,
+                    Transaction.is_transfer.is_(False),
+                    Account.exclude_from_cash_flow.is_(False),
                     TransactionLabel.label_id == label_id,
                 )
             )
@@ -228,15 +222,17 @@ class TaxService:
         transactions = []
 
         for row in result.all():
-            transactions.append({
-                "id": str(row.id),
-                "date": row.date.isoformat(),
-                "merchant_name": row.merchant_name,
-                "description": row.description or "",
-                "amount": float(abs(row.amount)),
-                "category": row.category_primary or "Uncategorized",
-                "account_name": row.account_name,
-            })
+            transactions.append(
+                {
+                    "id": str(row.id),
+                    "date": row.date.isoformat(),
+                    "merchant_name": row.merchant_name,
+                    "description": row.description or "",
+                    "amount": float(abs(row.amount)),
+                    "category": row.category_primary or "Uncategorized",
+                    "account_name": row.account_name,
+                }
+            )
 
         return transactions
 
@@ -275,30 +271,34 @@ class TaxService:
         writer = csv.writer(output)
 
         # Header row
-        writer.writerow([
-            'Date',
-            'Merchant',
-            'Description',
-            'Category',
-            'Tax Label',
-            'Amount',
-            'Account',
-            'Notes'
-        ])
+        writer.writerow(
+            [
+                "Date",
+                "Merchant",
+                "Description",
+                "Category",
+                "Tax Label",
+                "Amount",
+                "Account",
+                "Notes",
+            ]
+        )
 
         # Data rows
         for summary in summaries:
             for transaction in summary.transactions:
-                writer.writerow([
-                    transaction['date'],
-                    transaction['merchant_name'],
-                    transaction['description'],
-                    transaction['category'],
-                    summary.label_name,
-                    f"${transaction['amount']:.2f}",
-                    transaction['account_name'],
-                    '',  # Notes column for user's manual entries
-                ])
+                writer.writerow(
+                    [
+                        transaction["date"],
+                        transaction["merchant_name"],
+                        transaction["description"],
+                        transaction["category"],
+                        summary.label_name,
+                        f"${transaction['amount']:.2f}",
+                        transaction["account_name"],
+                        "",  # Notes column for user's manual entries
+                    ]
+                )
 
         return output.getvalue()
 

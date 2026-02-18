@@ -8,7 +8,7 @@ from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.models.account import Account, AccountType
+from app.models.account import Account
 from app.models.transaction import Transaction, TransactionLabel
 
 
@@ -18,19 +18,16 @@ class DashboardService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_net_worth(self, organization_id: str, account_ids: Optional[List[UUID]] = None) -> Decimal:
+    async def get_net_worth(
+        self, organization_id: str, account_ids: Optional[List[UUID]] = None
+    ) -> Decimal:
         """Calculate net worth (assets - debts)."""
         # Get all active accounts
-        conditions = [
-            Account.organization_id == organization_id,
-            Account.is_active == True
-        ]
+        conditions = [Account.organization_id == organization_id, Account.is_active.is_(True)]
         if account_ids is not None:
             conditions.append(Account.id.in_(account_ids))
 
-        result = await self.db.execute(
-            select(Account).where(and_(*conditions))
-        )
+        result = await self.db.execute(select(Account).where(and_(*conditions)))
         accounts = result.scalars().all()
 
         total = Decimal(0)
@@ -46,44 +43,46 @@ class DashboardService:
 
         return total
 
-    async def get_total_assets(self, organization_id: str, account_ids: Optional[List[UUID]] = None) -> Decimal:
+    async def get_total_assets(
+        self, organization_id: str, account_ids: Optional[List[UUID]] = None
+    ) -> Decimal:
         """Calculate total assets."""
-        conditions = [
-            Account.organization_id == organization_id,
-            Account.is_active == True
-        ]
+        conditions = [Account.organization_id == organization_id, Account.is_active.is_(True)]
         if account_ids is not None:
             conditions.append(Account.id.in_(account_ids))
 
-        result = await self.db.execute(
-            select(Account).where(and_(*conditions))
-        )
+        result = await self.db.execute(select(Account).where(and_(*conditions)))
         accounts = result.scalars().all()
 
         # Filter for asset accounts using category property
         return sum(
-            (account.current_balance or Decimal(0) for account in accounts if account.account_type.is_asset),
-            Decimal(0)
+            (
+                account.current_balance or Decimal(0)
+                for account in accounts
+                if account.account_type.is_asset
+            ),
+            Decimal(0),
         )
 
-    async def get_total_debts(self, organization_id: str, account_ids: Optional[List[UUID]] = None) -> Decimal:
+    async def get_total_debts(
+        self, organization_id: str, account_ids: Optional[List[UUID]] = None
+    ) -> Decimal:
         """Calculate total debts."""
-        conditions = [
-            Account.organization_id == organization_id,
-            Account.is_active == True
-        ]
+        conditions = [Account.organization_id == organization_id, Account.is_active.is_(True)]
         if account_ids is not None:
             conditions.append(Account.id.in_(account_ids))
 
-        result = await self.db.execute(
-            select(Account).where(and_(*conditions))
-        )
+        result = await self.db.execute(select(Account).where(and_(*conditions)))
         accounts = result.scalars().all()
 
         # Filter for debt accounts using category property and return absolute value for display
         return sum(
-            (abs(account.current_balance or Decimal(0)) for account in accounts if account.account_type.is_debt),
-            Decimal(0)
+            (
+                abs(account.current_balance or Decimal(0))
+                for account in accounts
+                if account.account_type.is_debt
+            ),
+            Decimal(0),
         )
 
     async def get_monthly_spending(
@@ -91,7 +90,7 @@ class DashboardService:
         organization_id: str,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-        account_ids: Optional[List[UUID]] = None
+        account_ids: Optional[List[UUID]] = None,
     ) -> Decimal:
         """Calculate total spending for the period (negative transactions)."""
         if not start_date:
@@ -106,7 +105,7 @@ class DashboardService:
             Transaction.organization_id == organization_id,
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount < 0  # Expenses are negative
+            Transaction.amount < 0,  # Expenses are negative
         ]
         if account_ids is not None:
             conditions.append(Transaction.account_id.in_(account_ids))
@@ -122,7 +121,7 @@ class DashboardService:
         organization_id: str,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-        account_ids: Optional[List[UUID]] = None
+        account_ids: Optional[List[UUID]] = None,
     ) -> Decimal:
         """Calculate total income for the period (positive transactions)."""
         if not start_date:
@@ -137,7 +136,7 @@ class DashboardService:
             Transaction.organization_id == organization_id,
             Transaction.date >= start_date,
             Transaction.date <= end_date,
-            Transaction.amount > 0  # Income is positive
+            Transaction.amount > 0,  # Income is positive
         ]
         if account_ids is not None:
             conditions.append(Transaction.account_id.in_(account_ids))
@@ -154,7 +153,7 @@ class DashboardService:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
         limit: int = 10,
-        account_ids: Optional[List[UUID]] = None
+        account_ids: Optional[List[UUID]] = None,
     ) -> List[Dict]:
         """Get top expense categories."""
         if not start_date:
@@ -169,7 +168,7 @@ class DashboardService:
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0,
-            Transaction.category_primary.isnot(None)
+            Transaction.category_primary.isnot(None),
         ]
         if account_ids is not None:
             conditions.append(Transaction.account_id.in_(account_ids))
@@ -177,33 +176,33 @@ class DashboardService:
         result = await self.db.execute(
             select(
                 Transaction.category_primary,
-                func.sum(Transaction.amount).label('total'),
-                func.count(Transaction.id).label('count')
+                func.sum(Transaction.amount).label("total"),
+                func.count(Transaction.id).label("count"),
             )
             .where(and_(*conditions))
             .group_by(Transaction.category_primary)
             .order_by(func.sum(Transaction.amount).asc())  # Most negative first
             .limit(limit)
         )
-        
+
         categories = []
         for row in result:
-            categories.append({
-                'category': row.category_primary,
-                'total': abs(float(row.total)),
-                'count': row.count
-            })
-        
+            categories.append(
+                {
+                    "category": row.category_primary,
+                    "total": abs(float(row.total)),
+                    "count": row.count,
+                }
+            )
+
         return categories
 
     async def get_recent_transactions(
-        self,
-        organization_id: str,
-        limit: int = 10,
-        account_ids: Optional[List[UUID]] = None
+        self, organization_id: str, limit: int = 10, account_ids: Optional[List[UUID]] = None
     ) -> List[Transaction]:
         """Get recent transactions."""
         from app.models.transaction import Category
+
         conditions = [Transaction.organization_id == organization_id]
         if account_ids is not None:
             conditions.append(Transaction.account_id.in_(account_ids))
@@ -213,7 +212,7 @@ class DashboardService:
             .options(
                 joinedload(Transaction.labels).joinedload(TransactionLabel.label),
                 joinedload(Transaction.account),
-                joinedload(Transaction.category).joinedload(Category.parent)
+                joinedload(Transaction.category).joinedload(Category.parent),
             )
             .where(and_(*conditions))
             .order_by(Transaction.date.desc(), Transaction.created_at.desc())
@@ -222,35 +221,32 @@ class DashboardService:
         return result.unique().scalars().all()
 
     async def get_cash_flow_trend(
-        self,
-        organization_id: str,
-        months: int = 6,
-        account_ids: Optional[List[UUID]] = None
+        self, organization_id: str, months: int = 6, account_ids: Optional[List[UUID]] = None
     ) -> List[Dict]:
         """Get income vs expenses trend over time."""
         end_date = date.today()
         start_date = end_date - timedelta(days=months * 30)
 
         # Get transactions grouped by month
-        month_expr = func.date_trunc('month', Transaction.date)
+        month_expr = func.date_trunc("month", Transaction.date)
 
         conditions = [
             Transaction.organization_id == organization_id,
             Transaction.date >= start_date,
-            Transaction.date <= end_date
+            Transaction.date <= end_date,
         ]
         if account_ids is not None:
             conditions.append(Transaction.account_id.in_(account_ids))
 
         result = await self.db.execute(
             select(
-                month_expr.label('month'),
-                func.sum(
-                    case((Transaction.amount > 0, Transaction.amount), else_=0)
-                ).label('income'),
-                func.sum(
-                    case((Transaction.amount < 0, Transaction.amount), else_=0)
-                ).label('expenses')
+                month_expr.label("month"),
+                func.sum(case((Transaction.amount > 0, Transaction.amount), else_=0)).label(
+                    "income"
+                ),
+                func.sum(case((Transaction.amount < 0, Transaction.amount), else_=0)).label(
+                    "expenses"
+                ),
             )
             .where(and_(*conditions))
             .group_by(month_expr)
@@ -259,20 +255,21 @@ class DashboardService:
 
         trend = []
         for row in result:
-            trend.append({
-                'month': row.month.strftime('%Y-%m') if row.month else '',
-                'income': float(row.income or 0),
-                'expenses': abs(float(row.expenses or 0))
-            })
+            trend.append(
+                {
+                    "month": row.month.strftime("%Y-%m") if row.month else "",
+                    "income": float(row.income or 0),
+                    "expenses": abs(float(row.expenses or 0)),
+                }
+            )
 
         return trend
 
-    async def get_account_balances(self, organization_id: str, account_ids: Optional[List[UUID]] = None) -> List[Dict]:
+    async def get_account_balances(
+        self, organization_id: str, account_ids: Optional[List[UUID]] = None
+    ) -> List[Dict]:
         """Get all active account balances."""
-        conditions = [
-            Account.organization_id == organization_id,
-            Account.is_active == True
-        ]
+        conditions = [Account.organization_id == organization_id, Account.is_active.is_(True)]
         if account_ids is not None:
             conditions.append(Account.id.in_(account_ids))
 
@@ -283,12 +280,14 @@ class DashboardService:
 
         balances = []
         for account in accounts:
-            balances.append({
-                'id': str(account.id),
-                'name': account.name,
-                'type': account.account_type,
-                'balance': float(account.current_balance or 0),
-                'institution': account.institution_name
-            })
+            balances.append(
+                {
+                    "id": str(account.id),
+                    "name": account.name,
+                    "type": account.account_type,
+                    "balance": float(account.current_balance or 0),
+                    "institution": account.institution_name,
+                }
+            )
 
         return balances

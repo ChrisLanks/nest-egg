@@ -23,10 +23,6 @@ class AccountBase(BaseModel):
 
 class AccountCreate(AccountBase):
     """Account creation schema."""
-
-    pass
-
-
 class HoldingData(BaseModel):
     """Holding data for account creation."""
 

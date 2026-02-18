@@ -2,7 +2,6 @@
 
 import hashlib
 from typing import Optional
-from datetime import timedelta
 
 import redis.asyncio as redis
 from fastapi import HTTPException, Request, status
@@ -21,9 +20,7 @@ class RateLimitService:
         """Get or create Redis connection."""
         if self.redis_client is None:
             self.redis_client = redis.from_url(
-                settings.REDIS_URL,
-                encoding="utf-8",
-                decode_responses=True
+                settings.REDIS_URL, encoding="utf-8", decode_responses=True
             )
         return self.redis_client
 
@@ -106,7 +103,6 @@ class RateLimitService:
             # Log error but don't block request if Redis fails
             print(f"Rate limit check failed: {e}")
             # In production, you might want to log this properly
-            pass
 
     async def reset_rate_limit(self, identifier: str, endpoint: str) -> None:
         """

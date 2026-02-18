@@ -35,9 +35,7 @@ async def create_test_user_2(db: AsyncSession):
     print("\n1. Creating test2@test.com user...")
 
     # Check if user already exists
-    result = await db.execute(
-        select(User).where(User.email == "test2@test.com")
-    )
+    result = await db.execute(select(User).where(User.email == "test2@test.com"))
     existing_user = result.scalar_one_or_none()
 
     if existing_user:
@@ -136,9 +134,7 @@ async def get_test_user_1_accounts(db: AsyncSession):
     print("\n3. Finding test@test.com's accounts for overlap...")
 
     # Get test@test.com user
-    result = await db.execute(
-        select(User).where(User.email == "test@test.com")
-    )
+    result = await db.execute(select(User).where(User.email == "test@test.com"))
     test_user_1 = result.scalar_one_or_none()
 
     if not test_user_1:
@@ -147,10 +143,7 @@ async def get_test_user_1_accounts(db: AsyncSession):
 
     # Get their accounts
     result = await db.execute(
-        select(Account).where(
-            Account.user_id == test_user_1.id,
-            Account.is_active == True
-        )
+        select(Account).where(Account.user_id == test_user_1.id, Account.is_active.is_(True))
     )
     accounts = result.scalars().all()
 
@@ -194,15 +187,16 @@ async def create_overlapping_accounts(db: AsyncSession, user2: User, user1_accou
         # Calculate and set plaid_item_hash for duplicate detection
         if acc.plaid_item_id and acc.external_account_id:
             overlap_account.plaid_item_hash = dedup_service.calculate_account_hash(
-                acc.plaid_item_id,
-                acc.external_account_id
+                acc.plaid_item_id, acc.external_account_id
             )
 
         db.add(overlap_account)
         overlapping_accounts.append(overlap_account)
 
         print(f"   ✓ Created overlap: {acc.name}")
-        print(f"     Hash: {overlap_account.plaid_item_hash[:16] if overlap_account.plaid_item_hash else 'None'}...")
+        print(
+            f"     Hash: {overlap_account.plaid_item_hash[:16] if overlap_account.plaid_item_hash else 'None'}..."
+        )
 
     await db.commit()
     return overlapping_accounts
@@ -319,30 +313,23 @@ async def create_transactions(db: AsyncSession, accounts: list):
 
 async def print_summary(db: AsyncSession):
     """Print summary of created data."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("SEED DATA SUMMARY")
-    print("="*60)
+    print("=" * 60)
 
     # Get test2 user
-    result = await db.execute(
-        select(User).where(User.email == "test2@test.com")
-    )
+    result = await db.execute(select(User).where(User.email == "test2@test.com"))
     user2 = result.scalar_one()
 
     # Count accounts
     result = await db.execute(
-        select(Account).where(
-            Account.user_id == user2.id,
-            Account.is_active == True
-        )
+        select(Account).where(Account.user_id == user2.id, Account.is_active.is_(True))
     )
     accounts = result.scalars().all()
 
     # Count transactions
     result = await db.execute(
-        select(Transaction).where(
-            Transaction.organization_id == user2.organization_id
-        )
+        select(Transaction).where(Transaction.organization_id == user2.organization_id)
     )
     transactions = result.scalars().all()
 
@@ -371,9 +358,9 @@ async def print_summary(db: AsyncSession):
 
 async def main():
     """Run seed script."""
-    print("="*60)
+    print("=" * 60)
     print("Multi-User Household Test Data Seeder")
-    print("="*60)
+    print("=" * 60)
 
     async for db in get_db():
         try:
@@ -387,7 +374,7 @@ async def main():
             user1, user1_accounts = await get_test_user_1_accounts(db)
 
             # Create overlapping accounts
-            overlap_accounts = await create_overlapping_accounts(db, user2, user1_accounts)
+            await create_overlapping_accounts(db, user2, user1_accounts)
 
             # Create transactions for unique accounts only (overlaps share transactions)
             await create_transactions(db, unique_accounts)
@@ -395,13 +382,14 @@ async def main():
             # Print summary
             await print_summary(db)
 
-            print("\n" + "="*60)
+            print("\n" + "=" * 60)
             print("✅ SEED DATA COMPLETE!")
-            print("="*60)
+            print("=" * 60)
 
         except Exception as e:
             print(f"\n❌ Error during seeding: {e}")
             import traceback
+
             traceback.print_exc()
             raise
         finally:

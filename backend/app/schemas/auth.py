@@ -12,7 +12,7 @@ class RegisterRequest(BaseModel):
     password: str = Field(
         ...,
         min_length=12,
-        description="Password must be at least 12 characters and include uppercase, lowercase, digit, and special character"
+        description="Password must be at least 12 characters and include uppercase, lowercase, digit, and special character",
     )
     first_name: str = Field(..., min_length=1)
     last_name: str = Field(..., min_length=1)

@@ -29,7 +29,6 @@ from .security import (
     validate_symbol,
     validate_quote_response,
     SymbolValidationError,
-    PriceValidationError,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,54 +57,51 @@ class YahooFinanceProvider(MarketDataProvider):
                 "provider": "yahoo_finance",
                 "operation": "get_quote",
                 "symbol": symbol,
-            }
+            },
         )
         start_time = time()
 
         try:
             # Run in thread pool to avoid blocking, with timeout
             ticker = await asyncio.wait_for(
-                asyncio.to_thread(yf.Ticker, symbol),
-                timeout=REQUEST_TIMEOUT
+                asyncio.to_thread(yf.Ticker, symbol), timeout=REQUEST_TIMEOUT
             )
             info = await asyncio.wait_for(
-                asyncio.to_thread(lambda: ticker.info),
-                timeout=REQUEST_TIMEOUT
+                asyncio.to_thread(lambda: ticker.info), timeout=REQUEST_TIMEOUT
             )
 
             # Handle different response formats
-            current_price = info.get('currentPrice') or info.get('regularMarketPrice')
+            current_price = info.get("currentPrice") or info.get("regularMarketPrice")
             if current_price is None:
                 # Try getting from history
                 hist = await asyncio.wait_for(
-                    asyncio.to_thread(lambda: ticker.history(period="1d")),
-                    timeout=REQUEST_TIMEOUT
+                    asyncio.to_thread(lambda: ticker.history(period="1d")), timeout=REQUEST_TIMEOUT
                 )
                 if not hist.empty:
-                    current_price = float(hist['Close'].iloc[-1])
+                    current_price = float(hist["Close"].iloc[-1])
 
             if current_price is None:
                 raise ValueError(f"No price data available for {symbol}")
 
             # Build raw quote data
             raw_quote = {
-                'symbol': symbol.upper(),
-                'price': current_price,
-                'name': info.get('longName') or info.get('shortName'),
-                'currency': info.get('currency', 'USD'),
-                'exchange': info.get('exchange'),
-                'volume': info.get('volume') or info.get('regularMarketVolume'),
-                'market_cap': info.get('marketCap'),
-                'change': info.get('regularMarketChange'),
-                'change_percent': info.get('regularMarketChangePercent'),
-                'previous_close': info.get('previousClose'),
-                'open': info.get('open'),
-                'high': info.get('dayHigh'),
-                'low': info.get('dayLow'),
-                'year_high': info.get('fiftyTwoWeekHigh'),
-                'year_low': info.get('fiftyTwoWeekLow'),
-                'dividend_yield': info.get('dividendYield'),
-                'pe_ratio': info.get('trailingPE'),
+                "symbol": symbol.upper(),
+                "price": current_price,
+                "name": info.get("longName") or info.get("shortName"),
+                "currency": info.get("currency", "USD"),
+                "exchange": info.get("exchange"),
+                "volume": info.get("volume") or info.get("regularMarketVolume"),
+                "market_cap": info.get("marketCap"),
+                "change": info.get("regularMarketChange"),
+                "change_percent": info.get("regularMarketChangePercent"),
+                "previous_close": info.get("previousClose"),
+                "open": info.get("open"),
+                "high": info.get("dayHigh"),
+                "low": info.get("dayLow"),
+                "year_high": info.get("fiftyTwoWeekHigh"),
+                "year_low": info.get("fiftyTwoWeekLow"),
+                "dividend_yield": info.get("dividendYield"),
+                "pe_ratio": info.get("trailingPE"),
             }
 
             # SECURITY: Validate response before returning
@@ -124,7 +120,7 @@ class YahooFinanceProvider(MarketDataProvider):
                     "symbol": symbol,
                     "duration_ms": duration_ms,
                     "price": float(quote_data.price),
-                }
+                },
             )
 
             return quote_data
@@ -139,9 +135,11 @@ class YahooFinanceProvider(MarketDataProvider):
                     "symbol": symbol,
                     "duration_ms": duration_ms,
                     "timeout_seconds": REQUEST_TIMEOUT,
-                }
+                },
             )
-            raise ValueError(f"Request timeout for {symbol} - Yahoo Finance did not respond in time")
+            raise ValueError(
+                f"Request timeout for {symbol} - Yahoo Finance did not respond in time"
+            )
         except Exception as e:
             duration_ms = (time() - start_time) * 1000
             logger.error(
@@ -152,7 +150,7 @@ class YahooFinanceProvider(MarketDataProvider):
                     "symbol": symbol,
                     "duration_ms": duration_ms,
                     "error": str(e),
-                }
+                },
             )
             raise ValueError(f"Failed to fetch quote for {symbol}: {str(e)}")
 
@@ -165,7 +163,7 @@ class YahooFinanceProvider(MarketDataProvider):
                 "operation": "get_quotes_batch",
                 "symbol_count": len(symbols),
                 "symbols": symbols[:10],  # Log first 10 to avoid huge logs
-            }
+            },
         )
         start_time = time()
 
@@ -181,9 +179,9 @@ class YahooFinanceProvider(MarketDataProvider):
                     period="1d",
                     group_by="ticker",
                     progress=False,
-                    threads=True
+                    threads=True,
                 ),
-                timeout=REQUEST_TIMEOUT * 2  # Allow more time for batch requests
+                timeout=REQUEST_TIMEOUT * 2,  # Allow more time for batch requests
             )
 
             # Parse results
@@ -200,12 +198,12 @@ class YahooFinanceProvider(MarketDataProvider):
                         latest = symbol_data.iloc[-1]
                         quotes[symbol] = QuoteData(
                             symbol=symbol.upper(),
-                            price=Decimal(str(latest['Close'])),
-                            open=Decimal(str(latest['Open'])),
-                            high=Decimal(str(latest['High'])),
-                            low=Decimal(str(latest['Low'])),
-                            volume=int(latest['Volume']) if latest['Volume'] > 0 else None,
-                            previous_close=Decimal(str(latest['Close'])),  # Approximation
+                            price=Decimal(str(latest["Close"])),
+                            open=Decimal(str(latest["Open"])),
+                            high=Decimal(str(latest["High"])),
+                            low=Decimal(str(latest["Low"])),
+                            volume=int(latest["Volume"]) if latest["Volume"] > 0 else None,
+                            previous_close=Decimal(str(latest["Close"])),  # Approximation
                         )
                 except Exception as e:
                     logger.warning(f"Error parsing quote for {symbol}: {e}")
@@ -234,17 +232,13 @@ class YahooFinanceProvider(MarketDataProvider):
                 "symbol_count": len(symbols),
                 "successful_count": len(quotes),
                 "duration_ms": duration_ms,
-            }
+            },
         )
 
         return quotes
 
     async def get_historical_prices(
-        self,
-        symbol: str,
-        start_date: date,
-        end_date: date,
-        interval: str = "1d"
+        self, symbol: str, start_date: date, end_date: date, interval: str = "1d"
     ) -> List[HistoricalPrice]:
         """Get historical price data."""
         logger.info(
@@ -256,24 +250,21 @@ class YahooFinanceProvider(MarketDataProvider):
                 "start_date": start_date.isoformat(),
                 "end_date": end_date.isoformat(),
                 "interval": interval,
-            }
+            },
         )
         start_time = time()
 
         try:
             ticker = await asyncio.wait_for(
-                asyncio.to_thread(yf.Ticker, symbol),
-                timeout=REQUEST_TIMEOUT
+                asyncio.to_thread(yf.Ticker, symbol), timeout=REQUEST_TIMEOUT
             )
             hist = await asyncio.wait_for(
                 asyncio.to_thread(
                     lambda: ticker.history(
-                        start=start_date.isoformat(),
-                        end=end_date.isoformat(),
-                        interval=interval
+                        start=start_date.isoformat(), end=end_date.isoformat(), interval=interval
                     )
                 ),
-                timeout=REQUEST_TIMEOUT * 2  # Historical data may take longer
+                timeout=REQUEST_TIMEOUT * 2,  # Historical data may take longer
             )
 
             prices = []
@@ -281,12 +272,12 @@ class YahooFinanceProvider(MarketDataProvider):
                 prices.append(
                     HistoricalPrice(
                         date=idx.date(),
-                        open=Decimal(str(row['Open'])),
-                        high=Decimal(str(row['High'])),
-                        low=Decimal(str(row['Low'])),
-                        close=Decimal(str(row['Close'])),
-                        volume=int(row['Volume']),
-                        adjusted_close=Decimal(str(row['Close'])),  # Yahoo provides adjusted
+                        open=Decimal(str(row["Open"])),
+                        high=Decimal(str(row["High"])),
+                        low=Decimal(str(row["Low"])),
+                        close=Decimal(str(row["Close"])),
+                        volume=int(row["Volume"]),
+                        adjusted_close=Decimal(str(row["Close"])),  # Yahoo provides adjusted
                     )
                 )
 
@@ -300,7 +291,7 @@ class YahooFinanceProvider(MarketDataProvider):
                     "symbol": symbol,
                     "duration_ms": duration_ms,
                     "data_points": len(prices),
-                }
+                },
             )
 
             return prices
@@ -315,9 +306,11 @@ class YahooFinanceProvider(MarketDataProvider):
                     "symbol": symbol,
                     "duration_ms": duration_ms,
                     "timeout_seconds": REQUEST_TIMEOUT * 2,
-                }
+                },
             )
-            raise ValueError(f"Request timeout for {symbol} - Yahoo Finance did not respond in time")
+            raise ValueError(
+                f"Request timeout for {symbol} - Yahoo Finance did not respond in time"
+            )
         except Exception as e:
             duration_ms = (time() - start_time) * 1000
             logger.error(
@@ -328,7 +321,7 @@ class YahooFinanceProvider(MarketDataProvider):
                     "symbol": symbol,
                     "duration_ms": duration_ms,
                     "error": str(e),
-                }
+                },
             )
             raise ValueError(f"Failed to fetch historical data for {symbol}: {str(e)}")
 
@@ -344,22 +337,20 @@ class YahooFinanceProvider(MarketDataProvider):
         # For better search, use Alpha Vantage or Finnhub
         try:
             ticker = await asyncio.wait_for(
-                asyncio.to_thread(yf.Ticker, query.upper()),
-                timeout=REQUEST_TIMEOUT
+                asyncio.to_thread(yf.Ticker, query.upper()), timeout=REQUEST_TIMEOUT
             )
             info = await asyncio.wait_for(
-                asyncio.to_thread(lambda: ticker.info),
-                timeout=REQUEST_TIMEOUT
+                asyncio.to_thread(lambda: ticker.info), timeout=REQUEST_TIMEOUT
             )
 
-            if info.get('symbol'):
+            if info.get("symbol"):
                 return [
                     SearchResult(
-                        symbol=info['symbol'],
-                        name=info.get('longName') or info.get('shortName', query),
-                        type=info.get('quoteType', 'stock').lower(),
-                        exchange=info.get('exchange'),
-                        currency=info.get('currency'),
+                        symbol=info["symbol"],
+                        name=info.get("longName") or info.get("shortName", query),
+                        type=info.get("quoteType", "stock").lower(),
+                        exchange=info.get("exchange"),
+                        currency=info.get("currency"),
                     )
                 ]
         except Exception as e:
@@ -374,9 +365,9 @@ class YahooFinanceProvider(MarketDataProvider):
     def get_rate_limits(self) -> Dict[str, int]:
         """Yahoo Finance is free with soft rate limits."""
         return {
-            'calls_per_minute': 0,  # Unlimited (soft limit)
-            'calls_per_day': 0,      # Unlimited (soft limit)
-            'note': 'Free with reasonable use limits'
+            "calls_per_minute": 0,  # Unlimited (soft limit)
+            "calls_per_day": 0,  # Unlimited (soft limit)
+            "note": "Free with reasonable use limits",
         }
 
     def get_provider_name(self) -> str:

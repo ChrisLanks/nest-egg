@@ -32,24 +32,21 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
             user_id = None
             try:
                 # Try to get user from request state (set by auth dependency)
-                if hasattr(request.state, 'user'):
+                if hasattr(request.state, "user"):
                     user_id = str(request.state.user.id)
             except:
                 pass
 
             # Build error context
             context = {
-                'method': request.method,
-                'url': str(request.url),
-                'client_host': request.client.host if request.client else None,
+                "method": request.method,
+                "url": str(request.url),
+                "client_host": request.client.host if request.client else None,
             }
 
             # Log error with PII redaction
             error_logging_service.log_error(
-                logger=logger,
-                error=exc,
-                context=context,
-                user_id=user_id
+                logger=logger, error=exc, context=context, user_id=user_id
             )
 
             # Determine response based on environment
@@ -69,6 +66,5 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 }
 
             return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content=error_detail
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=error_detail
             )

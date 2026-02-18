@@ -56,7 +56,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     "message": f"Too many requests. Maximum {api_limiter.calls_per_minute} requests per minute.",
                     "retry_after": 60,  # seconds
                     "remaining_calls": remaining,
-                }
+                },
             )
 
         # Log rate limit status for monitoring (only when approaching limit)

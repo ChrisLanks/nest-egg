@@ -1,11 +1,10 @@
 """Insights service for generating smart spending insights and anomaly detection."""
 
 from datetime import date, datetime, timedelta
-from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Dict, List
 from uuid import UUID
 
-from sqlalchemy import select, func, and_, case, or_
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Transaction
@@ -17,10 +16,7 @@ class InsightsService:
 
     @staticmethod
     async def generate_insights(
-        db: AsyncSession,
-        organization_id: UUID,
-        account_ids: List[UUID],
-        max_insights: int = 5
+        db: AsyncSession, organization_id: UUID, account_ids: List[UUID], max_insights: int = 5
     ) -> List[Dict]:
         """
         Generate prioritized insights for dashboard display.
@@ -37,26 +33,20 @@ class InsightsService:
         insights = []
 
         # Detect category trends (month-over-month changes)
-        trends = await InsightsService._detect_category_trends(
-            db, organization_id, account_ids
-        )
+        trends = await InsightsService._detect_category_trends(db, organization_id, account_ids)
         insights.extend(trends)
 
         # Detect spending anomalies
-        anomalies = await InsightsService._detect_anomalies(
-            db, organization_id, account_ids
-        )
+        anomalies = await InsightsService._detect_anomalies(db, organization_id, account_ids)
         insights.extend(anomalies)
 
         # Sort by priority score (high priority first) and limit
-        insights.sort(key=lambda x: x['priority_score'], reverse=True)
+        insights.sort(key=lambda x: x["priority_score"], reverse=True)
         return insights[:max_insights]
 
     @staticmethod
     async def _detect_category_trends(
-        db: AsyncSession,
-        organization_id: UUID,
-        account_ids: List[UUID]
+        db: AsyncSession, organization_id: UUID, account_ids: List[UUID]
     ) -> List[Dict]:
         """
         Calculate month-over-month category spending changes.
@@ -84,50 +74,54 @@ class InsightsService:
         # Get spending by category for current month
         current_month_result = await db.execute(
             select(
-                Transaction.category_primary,
-                func.sum(func.abs(Transaction.amount)).label('total')
+                Transaction.category_primary, func.sum(func.abs(Transaction.amount)).label("total")
             )
             .select_from(Transaction)
             .join(Account)
             .where(
                 and_(
                     Transaction.organization_id == organization_id,
-                    Account.is_active == True,
-                    Account.exclude_from_cash_flow == False,
-                    Transaction.is_transfer == False,
+                    Account.is_active.is_(True),
+                    Account.exclude_from_cash_flow.is_(False),
+                    Transaction.is_transfer.is_(False),
                     Transaction.account_id.in_(account_ids),
                     Transaction.date >= current_month_start,
                     Transaction.date <= current_month_end,
                     Transaction.amount < 0,  # Expenses only
-                    Transaction.category_primary.isnot(None)
+                    Transaction.category_primary.isnot(None),
                 )
-            ).group_by(Transaction.category_primary)
+            )
+            .group_by(Transaction.category_primary)
         )
-        current_month_data = {row.category_primary: float(row.total) for row in current_month_result}
+        current_month_data = {
+            row.category_primary: float(row.total) for row in current_month_result
+        }
 
         # Get spending by category for previous month
         previous_month_result = await db.execute(
             select(
-                Transaction.category_primary,
-                func.sum(func.abs(Transaction.amount)).label('total')
+                Transaction.category_primary, func.sum(func.abs(Transaction.amount)).label("total")
             )
             .select_from(Transaction)
             .join(Account)
             .where(
                 and_(
                     Transaction.organization_id == organization_id,
-                    Account.is_active == True,
-                    Account.exclude_from_cash_flow == False,
-                    Transaction.is_transfer == False,
+                    Account.is_active.is_(True),
+                    Account.exclude_from_cash_flow.is_(False),
+                    Transaction.is_transfer.is_(False),
                     Transaction.account_id.in_(account_ids),
                     Transaction.date >= previous_month_start,
                     Transaction.date <= previous_month_end,
                     Transaction.amount < 0,  # Expenses only
-                    Transaction.category_primary.isnot(None)
+                    Transaction.category_primary.isnot(None),
                 )
-            ).group_by(Transaction.category_primary)
+            )
+            .group_by(Transaction.category_primary)
         )
-        previous_month_data = {row.category_primary: float(row.total) for row in previous_month_result}
+        previous_month_data = {
+            row.category_primary: float(row.total) for row in previous_month_result
+        }
 
         # Calculate trends
         insights = []
@@ -154,38 +148,41 @@ class InsightsService:
             if abs(change_pct) >= 20:
                 if change_pct > 0:
                     # Spending increased
-                    insights.append({
-                        'type': 'category_increase',
-                        'title': f'{category} spending up',
-                        'message': f'You spent ${current:.0f} on {category} this month, {change_pct:.0f}% more than last month (${previous:.0f})',
-                        'category': category,
-                        'amount': current,
-                        'percentage_change': change_pct,
-                        'priority': 'high' if change_pct > 50 else 'medium',
-                        'icon': '📈',
-                        'priority_score': change_pct  # Higher changes = higher priority
-                    })
+                    insights.append(
+                        {
+                            "type": "category_increase",
+                            "title": f"{category} spending up",
+                            "message": f"You spent ${current:.0f} on {category} this month, {change_pct:.0f}% more than last month (${previous:.0f})",
+                            "category": category,
+                            "amount": current,
+                            "percentage_change": change_pct,
+                            "priority": "high" if change_pct > 50 else "medium",
+                            "icon": "📈",
+                            "priority_score": change_pct,  # Higher changes = higher priority
+                        }
+                    )
                 else:
                     # Spending decreased (positive trend)
-                    insights.append({
-                        'type': 'category_decrease',
-                        'title': f'{category} spending down',
-                        'message': f'Great job! You spent ${current:.0f} on {category} this month, {abs(change_pct):.0f}% less than last month (${previous:.0f})',
-                        'category': category,
-                        'amount': current,
-                        'percentage_change': change_pct,
-                        'priority': 'low',
-                        'icon': '📉',
-                        'priority_score': abs(change_pct) * 0.8  # Lower priority than increases
-                    })
+                    insights.append(
+                        {
+                            "type": "category_decrease",
+                            "title": f"{category} spending down",
+                            "message": f"Great job! You spent ${current:.0f} on {category} this month, {abs(change_pct):.0f}% less than last month (${previous:.0f})",
+                            "category": category,
+                            "amount": current,
+                            "percentage_change": change_pct,
+                            "priority": "low",
+                            "icon": "📉",
+                            "priority_score": abs(change_pct)
+                            * 0.8,  # Lower priority than increases
+                        }
+                    )
 
         return insights
 
     @staticmethod
     async def _detect_anomalies(
-        db: AsyncSession,
-        organization_id: UUID,
-        account_ids: List[UUID]
+        db: AsyncSession, organization_id: UUID, account_ids: List[UUID]
     ) -> List[Dict]:
         """
         Find unusual transactions (>2 standard deviations from merchant average).
@@ -205,20 +202,20 @@ class InsightsService:
                 Transaction.merchant_name,
                 Transaction.amount,
                 Transaction.date,
-                Transaction.category_primary
+                Transaction.category_primary,
             )
             .select_from(Transaction)
             .join(Account)
             .where(
                 and_(
                     Transaction.organization_id == organization_id,
-                    Account.is_active == True,
-                    Account.exclude_from_cash_flow == False,
-                    Transaction.is_transfer == False,
+                    Account.is_active.is_(True),
+                    Account.exclude_from_cash_flow.is_(False),
+                    Transaction.is_transfer.is_(False),
                     Transaction.account_id.in_(account_ids),
                     Transaction.date >= lookback_date,
                     Transaction.amount < 0,  # Expenses only
-                    Transaction.merchant_name.isnot(None)
+                    Transaction.merchant_name.isnot(None),
                 )
             )
         )
@@ -246,22 +243,26 @@ class InsightsService:
 
             # Calculate mean and standard deviation
             mean = sum(merchant_transactions) / len(merchant_transactions)
-            variance = sum((x - mean) ** 2 for x in merchant_transactions) / len(merchant_transactions)
-            std_dev = variance ** 0.5
+            variance = sum((x - mean) ** 2 for x in merchant_transactions) / len(
+                merchant_transactions
+            )
+            std_dev = variance**0.5
 
             # Check if this transaction is >2 standard deviations from mean
             if std_dev > 0:
                 z_score = (amount - mean) / std_dev
                 if z_score > 2:  # More than 2 std devs above mean
-                    insights.append({
-                        'type': 'anomaly',
-                        'title': f'Unusual {merchant} charge',
-                        'message': f'You spent ${amount:.0f} at {merchant}, which is unusually high compared to your typical ${mean:.0f}',
-                        'category': txn.category_primary,
-                        'amount': amount,
-                        'priority': 'high' if z_score > 3 else 'medium',
-                        'icon': '⚠️',
-                        'priority_score': z_score * 30  # z_score of 3 = priority 90
-                    })
+                    insights.append(
+                        {
+                            "type": "anomaly",
+                            "title": f"Unusual {merchant} charge",
+                            "message": f"You spent ${amount:.0f} at {merchant}, which is unusually high compared to your typical ${mean:.0f}",
+                            "category": txn.category_primary,
+                            "amount": amount,
+                            "priority": "high" if z_score > 3 else "medium",
+                            "icon": "⚠️",
+                            "priority_score": z_score * 30,  # z_score of 3 = priority 90
+                        }
+                    )
 
         return insights

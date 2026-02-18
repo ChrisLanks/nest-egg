@@ -8,8 +8,6 @@ from app.workers.celery_app import celery_app
 from app.core.database import async_session_factory
 from app.models.user import User
 from app.services.snapshot_service import snapshot_service
-from app.dependencies import get_all_household_accounts
-from app.services.deduplication_service import deduplication_service
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +19,7 @@ def capture_daily_holdings_snapshot_task():
     Runs daily at 11:59 PM to capture end-of-day values.
     """
     import asyncio
+
     asyncio.run(_capture_snapshots_async())
 
 
@@ -41,9 +40,7 @@ async def _capture_snapshots_async():
                 try:
                     # Get any user from this organization
                     user_result = await db.execute(
-                        select(User)
-                        .where(User.organization_id == org_id)
-                        .limit(1)
+                        select(User).where(User.organization_id == org_id).limit(1)
                     )
                     user = user_result.scalar_one_or_none()
 
@@ -56,27 +53,26 @@ async def _capture_snapshots_async():
 
                     # Get current portfolio summary (this handles all the complex logic)
                     portfolio = await get_portfolio_summary(
-                        user_id=None,  # Get combined household view
-                        current_user=user,
-                        db=db
+                        user_id=None, current_user=user, db=db  # Get combined household view
                     )
 
                     # Capture snapshot for this organization
                     snapshot = await snapshot_service.capture_snapshot(
-                        db=db,
-                        organization_id=org_id,
-                        portfolio=portfolio,
-                        snapshot_date=today
+                        db=db, organization_id=org_id, portfolio=portfolio, snapshot_date=today
                     )
 
                     total_snapshots += 1
                     logger.info(f"Created snapshot for org {org_id}: ${snapshot.total_value:,.2f}")
 
                 except Exception as e:
-                    logger.error(f"Error creating snapshot for org {org_id}: {str(e)}", exc_info=True)
+                    logger.error(
+                        f"Error creating snapshot for org {org_id}: {str(e)}", exc_info=True
+                    )
                     # Continue with other organizations
 
-            logger.info(f"Holdings snapshot capture complete. Total snapshots created: {total_snapshots}")
+            logger.info(
+                f"Holdings snapshot capture complete. Total snapshots created: {total_snapshots}"
+            )
 
         except Exception as e:
             logger.error(f"Error in holdings snapshot task: {str(e)}", exc_info=True)
@@ -90,6 +86,7 @@ def update_holdings_prices_task():
     Runs daily at 6:00 PM EST (after market close).
     """
     import asyncio
+
     asyncio.run(_update_prices_async())
 
 
@@ -103,9 +100,7 @@ async def _update_prices_async():
     async with async_session_factory() as db:
         try:
             # Get all holdings with symbols
-            result = await db.execute(
-                select(Holding).where(Holding.symbol.isnot(None))
-            )
+            result = await db.execute(select(Holding).where(Holding.symbol.isnot(None)))
             holdings = result.scalars().all()
 
             if not holdings:
@@ -114,7 +109,9 @@ async def _update_prices_async():
 
             # Get unique symbols
             symbols = list(set(h.symbol for h in holdings))
-            logger.info(f"Updating prices for {len(symbols)} unique symbols across {len(holdings)} holdings")
+            logger.info(
+                f"Updating prices for {len(symbols)} unique symbols across {len(holdings)} holdings"
+            )
 
             # Batch fetch quotes from market data provider
             market_data = get_market_data_provider()

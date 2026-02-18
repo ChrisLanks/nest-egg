@@ -9,7 +9,6 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from redis.asyncio import Redis
 
 from app.core.database import get_db
 from app.dependencies import get_current_admin_user

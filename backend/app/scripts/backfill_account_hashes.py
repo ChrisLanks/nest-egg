@@ -15,7 +15,7 @@ from pathlib import Path
 backend_dir = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from sqlalchemy import select, update, func
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -49,7 +49,7 @@ async def backfill_account_hashes(db: AsyncSession):
         .where(
             Account.plaid_item_id.isnot(None),
             Account.external_account_id.isnot(None),
-            Account.plaid_item_hash.is_(None)
+            Account.plaid_item_hash.is_(None),
         )
     )
     accounts = result.unique().scalars().all()
@@ -68,10 +68,7 @@ async def backfill_account_hashes(db: AsyncSession):
             continue
 
         # Calculate hash
-        hash_value = calculate_account_hash(
-            account.plaid_item.item_id,
-            account.external_account_id
-        )
+        hash_value = calculate_account_hash(account.plaid_item.item_id, account.external_account_id)
 
         # Update account
         account.plaid_item_hash = hash_value
@@ -89,8 +86,8 @@ async def set_primary_household_members(db: AsyncSession):
 
     # Get all organizations
     result = await db.execute(
-        select(User.organization_id, func.min(User.created_at).label('oldest_created_at'))
-        .where(User.is_active == True)
+        select(User.organization_id, func.min(User.created_at).label("oldest_created_at"))
+        .where(User.is_active.is_(True))
         .group_by(User.organization_id)
     )
     org_oldest = result.all()
@@ -108,7 +105,7 @@ async def set_primary_household_members(db: AsyncSession):
             select(User).where(
                 User.organization_id == org_id,
                 User.created_at == oldest_created_at,
-                User.is_active == True
+                User.is_active.is_(True),
             )
         )
         oldest_user = result.scalars().first()

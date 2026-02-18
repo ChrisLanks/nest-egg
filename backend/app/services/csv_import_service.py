@@ -153,7 +153,9 @@ class CSVImportService:
 
             parsed_row = {
                 "date": CSVImportService._parse_date(row.get(column_mapping.get("date", ""), "")),
-                "amount": CSVImportService._parse_amount(row.get(column_mapping.get("amount", ""), "")),
+                "amount": CSVImportService._parse_amount(
+                    row.get(column_mapping.get("amount", ""), "")
+                ),
                 "description": row.get(column_mapping.get("description", ""), ""),
                 "merchant": row.get(column_mapping.get("merchant", ""), ""),
                 "raw": row,
@@ -220,7 +222,9 @@ class CSVImportService:
             try:
                 # Parse fields
                 txn_date = CSVImportService._parse_date(row.get(column_mapping.get("date", ""), ""))
-                amount = CSVImportService._parse_amount(row.get(column_mapping.get("amount", ""), ""))
+                amount = CSVImportService._parse_amount(
+                    row.get(column_mapping.get("amount", ""), "")
+                )
                 description = row.get(column_mapping.get("description", ""), "")
                 merchant = row.get(column_mapping.get("merchant", ""), "")
 
@@ -243,9 +247,7 @@ class CSVImportService:
                 # Check for duplicate
                 if skip_duplicates:
                     existing_result = await db.execute(
-                        select(Transaction).where(
-                            Transaction.deduplication_hash == dedup_hash
-                        )
+                        select(Transaction).where(Transaction.deduplication_hash == dedup_hash)
                     )
                     if existing_result.scalar_one_or_none():
                         skipped += 1
@@ -314,7 +316,7 @@ class CSVImportService:
 
             # Try to read first row
             try:
-                first_row = next(reader)
+                next(reader)
             except StopIteration:
                 errors.append("CSV file is empty (no data rows)")
 

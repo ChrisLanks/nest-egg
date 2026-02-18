@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Transaction, TransactionSplit
@@ -59,9 +59,7 @@ class TransactionSplitService:
 
         # Delete existing splits if any
         await db.execute(
-            select(TransactionSplit).where(
-                TransactionSplit.parent_transaction_id == transaction_id
-            )
+            select(TransactionSplit).where(TransactionSplit.parent_transaction_id == transaction_id)
         )
         await db.execute(
             TransactionSplit.__table__.delete().where(

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeMeta
 
 
-T = TypeVar('T', bound=DeclarativeMeta)
+T = TypeVar("T", bound=DeclarativeMeta)
 
 
 class HierarchyValidationService:
@@ -54,10 +54,7 @@ class HierarchyValidationService:
         parent = result.scalar_one_or_none()
 
         if not parent:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Parent {entity_name} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Parent {entity_name} not found")
 
         # Check parent depth (parent cannot have a parent - max 2 levels)
         parent_id_value = getattr(parent, parent_field_name, None)
@@ -67,7 +64,7 @@ class HierarchyValidationService:
                 detail=(
                     f"Cannot create {entity_name}: parent already has a parent. "
                     "Maximum 2 levels allowed (parent and child)."
-                )
+                ),
             )
 
         return parent

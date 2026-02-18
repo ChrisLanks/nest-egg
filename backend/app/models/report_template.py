@@ -1,8 +1,6 @@
 """Report template models."""
 
 import uuid
-from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -22,7 +20,7 @@ class ReportTemplate(Base):
         UUID(as_uuid=True),
         ForeignKey("organizations.id", ondelete="CASCADE"),
         nullable=False,
-        index=True
+        index=True,
     )
 
     # Template details
@@ -64,10 +62,7 @@ class ReportTemplate(Base):
 
     # Metadata
     created_by_user_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     created_at = Column(DateTime, nullable=False, default=utc_now_lambda)
     updated_at = Column(DateTime, nullable=False, default=utc_now_lambda, onupdate=utc_now_lambda)

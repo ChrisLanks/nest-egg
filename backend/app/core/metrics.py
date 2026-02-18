@@ -11,12 +11,10 @@ This module provides Prometheus metrics for:
 Metrics are exposed at /metrics endpoint for Prometheus scraping.
 """
 
-from typing import Callable
 
-from fastapi import FastAPI, Request, Response
-from prometheus_client import Counter, Gauge, Histogram, generate_latest
+from fastapi import FastAPI
+from prometheus_client import Counter, Gauge, Histogram
 from prometheus_fastapi_instrumentator import Instrumentator, metrics
-from starlette.responses import Response as StarletteResponse
 from starlette.types import ASGIApp
 
 
@@ -187,8 +185,8 @@ class MetricsMiddleware:
             return
 
         # Track request
-        method = scope["method"]
-        path = scope["path"]
+        scope["method"]
+        scope["path"]
 
         # Execute request
         await self.app(scope, receive, send)

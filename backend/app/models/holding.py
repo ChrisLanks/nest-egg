@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import Column, String, DateTime, ForeignKey, Numeric, Integer
+from sqlalchemy import Column, String, DateTime, ForeignKey, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -16,8 +16,18 @@ class Holding(Base):
     __tablename__ = "holdings"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    account_id = Column(UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False, index=True)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("accounts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    organization_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     # Holding identification
     ticker = Column(String(20), nullable=False)  # Stock symbol (e.g., "AAPL", "VTSAX")
@@ -36,15 +46,27 @@ class Holding(Base):
     price_as_of = Column(DateTime, nullable=True)  # When the price was last fetched
 
     # Asset classification
-    asset_type = Column(String(50), nullable=True)  # 'stock', 'bond', 'etf', 'mutual_fund', 'cash', 'other'
-    asset_class = Column(String(50), nullable=True)  # 'domestic', 'international', 'bond', 'cash', 'other'
+    asset_type = Column(
+        String(50), nullable=True
+    )  # 'stock', 'bond', 'etf', 'mutual_fund', 'cash', 'other'
+    asset_class = Column(
+        String(50), nullable=True
+    )  # 'domestic', 'international', 'bond', 'cash', 'other'
     market_cap = Column(String(20), nullable=True)  # 'large', 'mid', 'small', null for non-equity
-    sector = Column(String(100), nullable=True)  # Financial sector (e.g., 'Technology', 'Healthcare', 'Financials')
-    industry = Column(String(100), nullable=True)  # Industry within sector (e.g., 'Software', 'Biotechnology')
-    country = Column(String(100), nullable=True)  # Country of domicile (e.g., 'USA', 'Germany', 'China')
+    sector = Column(
+        String(100), nullable=True
+    )  # Financial sector (e.g., 'Technology', 'Healthcare', 'Financials')
+    industry = Column(
+        String(100), nullable=True
+    )  # Industry within sector (e.g., 'Software', 'Biotechnology')
+    country = Column(
+        String(100), nullable=True
+    )  # Country of domicile (e.g., 'USA', 'Germany', 'China')
 
     # Fees
-    expense_ratio = Column(Numeric(5, 4), nullable=True)  # Annual expense ratio as decimal (e.g., 0.0003 = 0.03%)
+    expense_ratio = Column(
+        Numeric(5, 4), nullable=True
+    )  # Annual expense ratio as decimal (e.g., 0.0003 = 0.03%)
 
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)

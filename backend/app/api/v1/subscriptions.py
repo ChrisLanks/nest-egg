@@ -27,6 +27,7 @@ deduplication_service = DeduplicationService()
 
 class SubscriptionItem(BaseModel):
     """Individual subscription item."""
+
     id: UUID
     merchant_name: str
     average_amount: float
@@ -39,6 +40,7 @@ class SubscriptionItem(BaseModel):
 
 class SubscriptionSummary(BaseModel):
     """Summary of all subscriptions."""
+
     subscriptions: List[SubscriptionItem]
     total_count: int
     monthly_cost: float

@@ -1,8 +1,7 @@
 """Dashboard API endpoints."""
 
-from datetime import date, datetime
+from datetime import date
 from typing import Optional
-from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -14,7 +13,7 @@ from app.dependencies import (
     get_current_user,
     verify_household_member,
     get_user_accounts,
-    get_all_household_accounts
+    get_all_household_accounts,
 )
 from app.models.user import User
 from app.services.dashboard_service import DashboardService
@@ -32,6 +31,7 @@ deduplication_service = DeduplicationService()
 
 class DashboardSummary(BaseModel):
     """Dashboard summary response."""
+
     net_worth: float
     total_assets: float
     total_debts: float
@@ -42,6 +42,7 @@ class DashboardSummary(BaseModel):
 
 class ExpenseCategory(BaseModel):
     """Expense category breakdown."""
+
     category: str
     total: float
     count: int
@@ -49,6 +50,7 @@ class ExpenseCategory(BaseModel):
 
 class AccountBalance(BaseModel):
     """Account balance info."""
+
     id: str
     name: str
     type: str
@@ -58,6 +60,7 @@ class AccountBalance(BaseModel):
 
 class CashFlowMonth(BaseModel):
     """Cash flow for a month."""
+
     month: str
     income: float
     expenses: float
@@ -66,6 +69,7 @@ class CashFlowMonth(BaseModel):
 
 class SpendingInsight(BaseModel):
     """Spending insight item."""
+
     type: str
     title: str
     message: str
@@ -78,6 +82,7 @@ class SpendingInsight(BaseModel):
 
 class ForecastDataPoint(BaseModel):
     """Cash flow forecast data point."""
+
     date: str
     projected_balance: float
     day_change: float
@@ -86,6 +91,7 @@ class ForecastDataPoint(BaseModel):
 
 class DashboardData(BaseModel):
     """Complete dashboard data."""
+
     summary: DashboardSummary
     recent_transactions: list[TransactionDetail]
     top_expenses: list[ExpenseCategory]
@@ -97,7 +103,9 @@ class DashboardData(BaseModel):
 async def get_dashboard_summary(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -139,7 +147,9 @@ async def get_dashboard_summary(
 async def get_dashboard_data(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -193,6 +203,7 @@ async def get_dashboard_data(
 
         # Extract category information
         from app.schemas.transaction import CategorySummary
+
         category_summary = None
         if txn.category:
             category_summary = CategorySummary(
@@ -203,26 +214,28 @@ async def get_dashboard_data(
                 parent_name=txn.category.parent.name if txn.category.parent else None,
             )
 
-        transaction_details.append(TransactionDetail(
-            id=txn.id,
-            organization_id=txn.organization_id,
-            account_id=txn.account_id,
-            external_transaction_id=txn.external_transaction_id,
-            date=txn.date,
-            amount=txn.amount,
-            merchant_name=txn.merchant_name,
-            description=txn.description,
-            category_primary=txn.category_primary,
-            category_detailed=txn.category_detailed,
-            is_pending=txn.is_pending,
-            is_transfer=txn.is_transfer,
-            created_at=txn.created_at,
-            updated_at=txn.updated_at,
-            account_name=account_name,
-            account_mask=account_mask,
-            category=category_summary,
-            labels=transaction_labels
-        ))
+        transaction_details.append(
+            TransactionDetail(
+                id=txn.id,
+                organization_id=txn.organization_id,
+                account_id=txn.account_id,
+                external_transaction_id=txn.external_transaction_id,
+                date=txn.date,
+                amount=txn.amount,
+                merchant_name=txn.merchant_name,
+                description=txn.description,
+                category_primary=txn.category_primary,
+                category_detailed=txn.category_detailed,
+                is_pending=txn.is_pending,
+                is_transfer=txn.is_transfer,
+                created_at=txn.created_at,
+                updated_at=txn.updated_at,
+                account_name=account_name,
+                account_mask=account_mask,
+                category=category_summary,
+                labels=transaction_labels,
+            )
+        )
 
     return DashboardData(
         summary=DashboardSummary(
@@ -238,10 +251,10 @@ async def get_dashboard_data(
         account_balances=[AccountBalance(**bal) for bal in account_balances],
         cash_flow_trend=[
             CashFlowMonth(
-                month=cf['month'],
-                income=cf['income'],
-                expenses=cf['expenses'],
-                net=cf['income'] - cf['expenses']
+                month=cf["month"],
+                income=cf["income"],
+                expenses=cf["expenses"],
+                net=cf["income"] - cf["expenses"],
             )
             for cf in cash_flow_trend
         ],
@@ -250,7 +263,9 @@ async def get_dashboard_data(
 
 @router.get("/insights", response_model=list[SpendingInsight])
 async def get_spending_insights(
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -273,14 +288,14 @@ async def get_spending_insights(
     # Convert to SpendingInsight models
     return [
         SpendingInsight(
-            type=insight['type'],
-            title=insight['title'],
-            message=insight['message'],
-            category=insight.get('category'),
-            amount=insight.get('amount'),
-            percentage_change=insight.get('percentage_change'),
-            priority=insight['priority'],
-            icon=insight['icon']
+            type=insight["type"],
+            title=insight["title"],
+            message=insight["message"],
+            category=insight.get("category"),
+            amount=insight.get("amount"),
+            percentage_change=insight.get("percentage_change"),
+            priority=insight["priority"],
+            icon=insight["icon"],
         )
         for insight in insights
     ]
@@ -289,7 +304,9 @@ async def get_spending_insights(
 @router.get("/forecast", response_model=list[ForecastDataPoint])
 async def get_cash_flow_forecast(
     days_ahead: int = Query(90, ge=30, le=365, description="Number of days to forecast"),
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

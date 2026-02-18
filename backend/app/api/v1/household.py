@@ -61,10 +61,7 @@ async def list_household_members(
     """List all members in the current user's household."""
     result = await db.execute(
         select(User)
-        .where(
-            User.organization_id == current_user.organization_id,
-            User.is_active.is_(True)
-        )
+        .where(User.organization_id == current_user.organization_id, User.is_active.is_(True))
         .order_by(User.created_at)
     )
     members = result.scalars().all()
@@ -92,8 +89,7 @@ async def invite_member(
     # Check household size limit
     result = await db.execute(
         select(User).where(
-            User.organization_id == current_user.organization_id,
-            User.is_active.is_(True)
+            User.organization_id == current_user.organization_id, User.is_active.is_(True)
         )
     )
     member_count = len(result.scalars().all())
@@ -101,21 +97,20 @@ async def invite_member(
     if member_count >= MAX_HOUSEHOLD_MEMBERS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Household cannot exceed {MAX_HOUSEHOLD_MEMBERS} members"
+            detail=f"Household cannot exceed {MAX_HOUSEHOLD_MEMBERS} members",
         )
 
     # Check if user is already a member
     result = await db.execute(
         select(User).where(
-            User.email == request_data.email,
-            User.organization_id == current_user.organization_id
+            User.email == request_data.email, User.organization_id == current_user.organization_id
         )
     )
     existing_user = result.scalar_one_or_none()
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User is already a member of this household"
+            detail="User is already a member of this household",
         )
 
     # Check for pending invitation
@@ -123,14 +118,14 @@ async def invite_member(
         select(HouseholdInvitation).where(
             HouseholdInvitation.email == request_data.email,
             HouseholdInvitation.organization_id == current_user.organization_id,
-            HouseholdInvitation.status == InvitationStatus.PENDING
+            HouseholdInvitation.status == InvitationStatus.PENDING,
         )
     )
     existing_invitation = result.scalar_one_or_none()
     if existing_invitation:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An invitation is already pending for this email"
+            detail="An invitation is already pending for this email",
         )
 
     # Create invitation
@@ -172,7 +167,7 @@ async def list_invitations(
         select(HouseholdInvitation)
         .where(
             HouseholdInvitation.organization_id == current_user.organization_id,
-            HouseholdInvitation.status == InvitationStatus.PENDING
+            HouseholdInvitation.status == InvitationStatus.PENDING,
         )
         .order_by(HouseholdInvitation.created_at.desc())
     )
@@ -181,20 +176,20 @@ async def list_invitations(
     # Fetch invited_by users
     response = []
     for inv in invitations:
-        result = await db.execute(
-            select(User).where(User.id == inv.invited_by_user_id)
-        )
+        result = await db.execute(select(User).where(User.id == inv.invited_by_user_id))
         invited_by = result.scalar_one()
 
-        response.append({
-            "id": inv.id,
-            "email": inv.email,
-            "invitation_code": inv.invitation_code,
-            "status": inv.status,
-            "expires_at": inv.expires_at,
-            "created_at": inv.created_at,
-            "invited_by_email": invited_by.email,
-        })
+        response.append(
+            {
+                "id": inv.id,
+                "email": inv.email,
+                "invitation_code": inv.invitation_code,
+                "status": inv.status,
+                "expires_at": inv.expires_at,
+                "created_at": inv.created_at,
+                "invited_by_email": invited_by.email,
+            }
+        )
 
     return response
 
@@ -209,31 +204,25 @@ async def remove_member(
 
     # Get user to remove
     result = await db.execute(
-        select(User).where(
-            User.id == user_id,
-            User.organization_id == current_user.organization_id
-        )
+        select(User).where(User.id == user_id, User.organization_id == current_user.organization_id)
     )
     user_to_remove = result.scalar_one_or_none()
 
     if not user_to_remove:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     # Cannot remove yourself
     if user_to_remove.id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot remove yourself from the household"
+            detail="Cannot remove yourself from the household",
         )
 
     # Cannot remove primary household member
     if user_to_remove.is_primary_household_member:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot remove the primary household member"
+            detail="Cannot remove the primary household member",
         )
 
     # Soft delete by marking inactive
@@ -254,16 +243,13 @@ async def cancel_invitation(
     result = await db.execute(
         select(HouseholdInvitation).where(
             HouseholdInvitation.id == invitation_id,
-            HouseholdInvitation.organization_id == current_user.organization_id
+            HouseholdInvitation.organization_id == current_user.organization_id,
         )
     )
     invitation = result.scalar_one_or_none()
 
     if not invitation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invitation not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
 
     # Delete invitation
     await db.delete(invitation)
@@ -289,22 +275,15 @@ async def get_invitation_details(
         window_seconds=60,
     )
     result = await db.execute(
-        select(HouseholdInvitation).where(
-            HouseholdInvitation.invitation_code == invitation_code
-        )
+        select(HouseholdInvitation).where(HouseholdInvitation.invitation_code == invitation_code)
     )
     invitation = result.scalar_one_or_none()
 
     if not invitation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invitation not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
 
     # Get invited_by user email
-    result = await db.execute(
-        select(User).where(User.id == invitation.invited_by_user_id)
-    )
+    result = await db.execute(select(User).where(User.id == invitation.invited_by_user_id))
     invited_by = result.scalar_one()
 
     return {
@@ -333,23 +312,18 @@ async def accept_invitation(
     )
     # Get invitation
     result = await db.execute(
-        select(HouseholdInvitation).where(
-            HouseholdInvitation.invitation_code == invitation_code
-        )
+        select(HouseholdInvitation).where(HouseholdInvitation.invitation_code == invitation_code)
     )
     invitation = result.scalar_one_or_none()
 
     if not invitation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invitation not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
 
     # Check if invitation is still pending
     if invitation.status != InvitationStatus.PENDING:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invitation has already been {invitation.status}"
+            detail=f"Invitation has already been {invitation.status}",
         )
 
     # Check if invitation is expired
@@ -357,20 +331,17 @@ async def accept_invitation(
         invitation.status = InvitationStatus.EXPIRED
         await db.commit()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invitation has expired"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invitation has expired"
         )
 
     # Check if user already exists with this email
-    result = await db.execute(
-        select(User).where(User.email == invitation.email)
-    )
+    result = await db.execute(select(User).where(User.email == invitation.email))
     existing_user = result.scalar_one_or_none()
 
     if not existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User account not found. Please register first with the invited email address."
+            detail="User account not found. Please register first with the invited email address.",
         )
 
     # Check if user is already in a household
@@ -380,14 +351,13 @@ async def accept_invitation(
         if old_organization_id == invitation.organization_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User is already a member of this household"
+                detail="User is already a member of this household",
             )
 
         # Check if user is the only member in their current household
         result = await db.execute(
             select(User).where(
-                User.organization_id == old_organization_id,
-                User.is_active.is_(True)
+                User.organization_id == old_organization_id, User.is_active.is_(True)
             )
         )
         household_members = result.scalars().all()
@@ -396,16 +366,16 @@ async def accept_invitation(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot accept invitation. You are not the only member in your current household. "
-                       "Please have other members leave first, or create a new account."
+                "Please have other members leave first, or create a new account.",
             )
 
         # User is solo - migrate them and their accounts
         # Update all accounts to new organization
         from app.models.account import Account
+
         result = await db.execute(
             select(Account).where(
-                Account.organization_id == old_organization_id,
-                Account.user_id == existing_user.id
+                Account.organization_id == old_organization_id, Account.user_id == existing_user.id
             )
         )
         user_accounts = result.scalars().all()
@@ -426,6 +396,7 @@ async def accept_invitation(
 
         # Now safe to delete old organization (user is already moved)
         from app.models.user import Organization
+
         result = await db.execute(
             select(Organization).where(Organization.id == old_organization_id)
         )
@@ -437,7 +408,7 @@ async def accept_invitation(
         return {
             "message": "Invitation accepted successfully",
             "organization_id": str(invitation.organization_id),
-            "accounts_migrated": len(user_accounts)
+            "accounts_migrated": len(user_accounts),
         }
     else:
         # User has no organization - simple case
@@ -452,5 +423,5 @@ async def accept_invitation(
         return {
             "message": "Invitation accepted successfully",
             "organization_id": str(invitation.organization_id),
-            "accounts_migrated": 0
+            "accounts_migrated": 0,
         }

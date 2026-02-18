@@ -19,7 +19,9 @@ class HoldingBase(BaseModel):
     sector: Optional[str] = None  # Financial sector (e.g., 'Technology', 'Healthcare')
     industry: Optional[str] = None  # Industry within sector (e.g., 'Software', 'Biotechnology')
     country: Optional[str] = None  # Country of domicile (e.g., 'USA', 'Germany', 'China')
-    expense_ratio: Optional[Decimal] = None  # Annual expense ratio as decimal (e.g., 0.0003 = 0.03%)
+    expense_ratio: Optional[Decimal] = (
+        None  # Annual expense ratio as decimal (e.g., 0.0003 = 0.03%)
+    )
 
 
 class HoldingCreate(HoldingBase):
@@ -79,22 +81,22 @@ class HoldingSummary(BaseModel):
 class CategoryBreakdown(BaseModel):
     """Breakdown by category (retirement, taxable, etc.)."""
 
-    retirement_value: Decimal = Decimal('0')
+    retirement_value: Decimal = Decimal("0")
     retirement_percent: Optional[Decimal] = None
-    taxable_value: Decimal = Decimal('0')
+    taxable_value: Decimal = Decimal("0")
     taxable_percent: Optional[Decimal] = None
-    other_value: Decimal = Decimal('0')
+    other_value: Decimal = Decimal("0")
     other_percent: Optional[Decimal] = None
 
 
 class GeographicBreakdown(BaseModel):
     """Geographic allocation breakdown."""
 
-    domestic_value: Decimal = Decimal('0')
+    domestic_value: Decimal = Decimal("0")
     domestic_percent: Optional[Decimal] = None
-    international_value: Decimal = Decimal('0')
+    international_value: Decimal = Decimal("0")
     international_percent: Optional[Decimal] = None
-    unknown_value: Decimal = Decimal('0')
+    unknown_value: Decimal = Decimal("0")
     unknown_percent: Optional[Decimal] = None
 
 
@@ -113,7 +115,7 @@ class TreemapNode(BaseModel):
     name: str
     value: Decimal
     percent: Decimal
-    children: Optional[list['TreemapNode']] = None
+    children: Optional[list["TreemapNode"]] = None
     color: Optional[str] = None
 
 
@@ -138,12 +140,12 @@ class PortfolioSummary(BaseModel):
     holdings_by_account: list[AccountHoldings]  # NEW: Holdings grouped by account
 
     # Asset allocation
-    stocks_value: Decimal = Decimal('0')
-    bonds_value: Decimal = Decimal('0')
-    etf_value: Decimal = Decimal('0')
-    mutual_funds_value: Decimal = Decimal('0')
-    cash_value: Decimal = Decimal('0')
-    other_value: Decimal = Decimal('0')
+    stocks_value: Decimal = Decimal("0")
+    bonds_value: Decimal = Decimal("0")
+    etf_value: Decimal = Decimal("0")
+    mutual_funds_value: Decimal = Decimal("0")
+    cash_value: Decimal = Decimal("0")
+    other_value: Decimal = Decimal("0")
 
     # Enhanced breakdowns
     category_breakdown: Optional[CategoryBreakdown] = None

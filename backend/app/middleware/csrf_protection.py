@@ -93,8 +93,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
             elif csrf_cookie != csrf_header:
                 logger.warning(
-                    f"CSRF validation failed: Token mismatch | "
-                    f"path={path} | method={method}"
+                    f"CSRF validation failed: Token mismatch | " f"path={path} | method={method}"
                 )
 
                 # In development, just log warning but allow request

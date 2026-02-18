@@ -13,14 +13,52 @@ class PasswordValidationService:
     # Common passwords to block (top 100 most common)
     # In production, this should be a much larger list or use Have I Been Pwned API
     COMMON_PASSWORDS = {
-        "password", "123456", "123456789", "12345678", "12345", "1234567",
-        "password1", "12345678910", "qwerty", "abc123", "111111", "123123",
-        "password123", "1234567890", "000000", "qwerty123", "1q2w3e4r",
-        "admin", "letmein", "welcome", "monkey", "dragon", "master",
-        "sunshine", "princess", "football", "shadow", "michael", "jennifer",
-        "computer", "bailey", "harley", "whatever", "arsenal", "thomas",
-        "trustno1", "jordan", "password1234", "passw0rd", "superman",
-        "batman", "test123", "testing", "sample", "default", "admin123",
+        "password",
+        "123456",
+        "123456789",
+        "12345678",
+        "12345",
+        "1234567",
+        "password1",
+        "12345678910",
+        "qwerty",
+        "abc123",
+        "111111",
+        "123123",
+        "password123",
+        "1234567890",
+        "000000",
+        "qwerty123",
+        "1q2w3e4r",
+        "admin",
+        "letmein",
+        "welcome",
+        "monkey",
+        "dragon",
+        "master",
+        "sunshine",
+        "princess",
+        "football",
+        "shadow",
+        "michael",
+        "jennifer",
+        "computer",
+        "bailey",
+        "harley",
+        "whatever",
+        "arsenal",
+        "thomas",
+        "trustno1",
+        "jordan",
+        "password1234",
+        "passw0rd",
+        "superman",
+        "batman",
+        "test123",
+        "testing",
+        "sample",
+        "default",
+        "admin123",
     }
 
     @staticmethod
@@ -49,15 +87,15 @@ class PasswordValidationService:
             errors.append("Password must be at least 12 characters long")
 
         # Check for uppercase letter
-        if not re.search(r'[A-Z]', password):
+        if not re.search(r"[A-Z]", password):
             errors.append("Password must contain at least one uppercase letter")
 
         # Check for lowercase letter
-        if not re.search(r'[a-z]', password):
+        if not re.search(r"[a-z]", password):
             errors.append("Password must contain at least one lowercase letter")
 
         # Check for digit
-        if not re.search(r'\d', password):
+        if not re.search(r"\d", password):
             errors.append("Password must contain at least one digit")
 
         # Check for special character
@@ -69,11 +107,14 @@ class PasswordValidationService:
             errors.append("Password is too common. Please choose a more unique password")
 
         # Check for sequential characters (e.g., "12345", "abcde")
-        if re.search(r'(?:0123|1234|2345|3456|4567|5678|6789|7890|abcd|bcde|cdef|defg|efgh|fghi|ghij)', password.lower()):
+        if re.search(
+            r"(?:0123|1234|2345|3456|4567|5678|6789|7890|abcd|bcde|cdef|defg|efgh|fghi|ghij)",
+            password.lower(),
+        ):
             errors.append("Password contains sequential characters")
 
         # Check for repeated characters (e.g., "aaaaaa", "111111")
-        if re.search(r'(.)\1{5,}', password):
+        if re.search(r"(.)\1{5,}", password):
             errors.append("Password contains too many repeated characters")
 
         is_valid = len(errors) == 0
@@ -97,7 +138,7 @@ class PasswordValidationService:
         """
         try:
             # Hash password with SHA-1
-            sha1_hash = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
+            sha1_hash = hashlib.sha1(password.encode("utf-8")).hexdigest().upper()
 
             # Split hash: first 5 chars sent to API, rest checked locally
             hash_prefix = sha1_hash[:5]
@@ -107,7 +148,7 @@ class PasswordValidationService:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(
                     f"https://api.pwnedpasswords.com/range/{hash_prefix}",
-                    headers={"User-Agent": "NestEgg-PasswordChecker"}
+                    headers={"User-Agent": "NestEgg-PasswordChecker"},
                 )
 
             if response.status_code != 200:
@@ -119,7 +160,7 @@ class PasswordValidationService:
             # Parse response: each line is "SUFFIX:COUNT"
             hashes = response.text.splitlines()
             for hash_line in hashes:
-                parts = hash_line.split(':')
+                parts = hash_line.split(":")
                 if len(parts) == 2:
                     returned_suffix, count = parts
                     if returned_suffix == hash_suffix:
@@ -158,7 +199,9 @@ class PasswordValidationService:
         is_breached = False
         breach_count = None
         if check_breach:
-            is_breached, breach_count = await PasswordValidationService.check_password_breach(password)
+            is_breached, breach_count = await PasswordValidationService.check_password_breach(
+                password
+            )
             if is_breached:
                 errors.append(
                     f"This password has been exposed in data breaches "
@@ -171,7 +214,7 @@ class PasswordValidationService:
                 detail={
                     "message": "Password does not meet security requirements",
                     "errors": errors,
-                }
+                },
             )
 
     @staticmethod
@@ -193,7 +236,7 @@ class PasswordValidationService:
                 detail={
                     "message": "Password does not meet security requirements",
                     "errors": errors,
-                }
+                },
             )
 
 

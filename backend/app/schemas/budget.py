@@ -25,10 +25,6 @@ class BudgetBase(BaseModel):
 
 class BudgetCreate(BudgetBase):
     """Schema for creating a budget."""
-
-    pass
-
-
 class BudgetUpdate(BaseModel):
     """Schema for updating a budget."""
 

@@ -10,7 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.database import get_db
-from app.core.security import create_access_token, create_refresh_token, decode_token, verify_password, hash_password
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    verify_password,
+    hash_password,
+)
 from app.crud.user import organization_crud, refresh_token_crud, user_crud
 from app.dependencies import get_current_user
 from app.models.user import User
@@ -54,9 +60,7 @@ async def create_auth_response(
         TokenResponse with access token, refresh token, and user data
     """
     # Generate tokens
-    access_token = create_access_token(
-        data={"sub": str(user.id), "email": user.email}
-    )
+    access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
     refresh_token_str, jti, expires_at = create_refresh_token(str(user.id))
 
     # Store refresh token hash
@@ -165,7 +169,7 @@ async def login(
             )
 
         # Check if account is locked (backward compatible - fields may not exist yet)
-        locked_until = getattr(user, 'locked_until', None)
+        locked_until = getattr(user, "locked_until", None)
         if locked_until and locked_until > utc_now():
             minutes_remaining = int((locked_until - utc_now()).total_seconds() / 60)
             logger.warning(f"Login failed: Account locked - {redact_email(data.email)}")
@@ -176,7 +180,7 @@ async def login(
 
         # If lockout period has expired, reset failed attempts
         if locked_until and locked_until <= utc_now():
-            if hasattr(user, 'failed_login_attempts'):
+            if hasattr(user, "failed_login_attempts"):
                 user.failed_login_attempts = 0
                 user.locked_until = None
                 await db.commit()
@@ -188,14 +192,18 @@ async def login(
             logger.warning(f"Login failed: Incorrect password for {redact_email(data.email)}")
 
             # Increment failed login attempts (if field exists)
-            if hasattr(user, 'failed_login_attempts'):
+            if hasattr(user, "failed_login_attempts"):
                 user.failed_login_attempts += 1
 
                 # Lock account if too many failed attempts
                 if user.failed_login_attempts >= settings.MAX_LOGIN_ATTEMPTS:
-                    user.locked_until = utc_now() + timedelta(minutes=settings.ACCOUNT_LOCKOUT_MINUTES)
+                    user.locked_until = utc_now() + timedelta(
+                        minutes=settings.ACCOUNT_LOCKOUT_MINUTES
+                    )
                     await db.commit()
-                    logger.warning(f"Account locked for {settings.ACCOUNT_LOCKOUT_MINUTES} minutes: {redact_email(data.email)}")
+                    logger.warning(
+                        f"Account locked for {settings.ACCOUNT_LOCKOUT_MINUTES} minutes: {redact_email(data.email)}"
+                    )
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="Account locked due to too many failed login attempts. Try again in 30 minutes.",
@@ -211,7 +219,7 @@ async def login(
         logger.info("Password verified")
 
         # Reset failed login attempts on successful login (if fields exist)
-        if hasattr(user, 'failed_login_attempts'):
+        if hasattr(user, "failed_login_attempts"):
             user.failed_login_attempts = 0
             user.locked_until = None
 
@@ -242,7 +250,7 @@ async def login(
         logger.error(f"Login error for {redact_email(data.email)}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during login"
+            detail="An error occurred during login",
         )
 
 
@@ -293,7 +301,9 @@ async def refresh_access_token(
         if not refresh_token:
             # Only log token details in DEBUG mode to prevent token leakage
             if settings.DEBUG:
-                logger.warning(f"Token refresh failed: Token not found in database (jti: {jti[:10]}...)")
+                logger.warning(
+                    f"Token refresh failed: Token not found in database (jti: {jti[:10]}...)"
+                )
             else:
                 logger.warning("Token refresh failed: Token not found in database")
             raise HTTPException(
@@ -302,14 +312,18 @@ async def refresh_access_token(
             )
 
         if refresh_token.is_revoked:
-            logger.warning(f"Token refresh failed: Token has been revoked (user_id: {refresh_token.user_id})")
+            logger.warning(
+                f"Token refresh failed: Token has been revoked (user_id: {refresh_token.user_id})"
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has been revoked",
             )
 
         if refresh_token.is_expired:
-            logger.warning(f"Token refresh failed: Token has expired (user_id: {refresh_token.user_id}, expired_at: {refresh_token.expires_at})")
+            logger.warning(
+                f"Token refresh failed: Token has expired (user_id: {refresh_token.user_id}, expired_at: {refresh_token.expires_at})"
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has expired",
@@ -318,7 +332,9 @@ async def refresh_access_token(
         # Get user
         user = await user_crud.get_by_id(db, refresh_token.user_id)
         if not user or not user.is_active:
-            logger.warning(f"Token refresh failed: User not found or inactive (user_id: {refresh_token.user_id})")
+            logger.warning(
+                f"Token refresh failed: User not found or inactive (user_id: {refresh_token.user_id})"
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found or inactive",
@@ -405,7 +421,9 @@ async def debug_check_refresh_token(
 
         # Check if token is in database
         token_hash = hashlib.sha256(jti.encode()).hexdigest() if jti else None
-        db_token = await refresh_token_crud.get_by_token_hash(db, token_hash) if token_hash else None
+        db_token = (
+            await refresh_token_crud.get_by_token_hash(db, token_hash) if token_hash else None
+        )
 
         return {
             "decode_success": True,
@@ -417,11 +435,15 @@ async def debug_check_refresh_token(
             },
             "token_hash_prefix": token_hash[:16] if token_hash else None,
             "in_database": db_token is not None,
-            "db_token_info": {
-                "expired": db_token.is_expired if db_token else None,
-                "revoked": db_token.is_revoked if db_token else None,
-                "expires_at": str(db_token.expires_at) if db_token else None,
-            } if db_token else None,
+            "db_token_info": (
+                {
+                    "expired": db_token.is_expired if db_token else None,
+                    "revoked": db_token.is_revoked if db_token else None,
+                    "expires_at": str(db_token.expires_at) if db_token else None,
+                }
+                if db_token
+                else None
+            ),
         }
     except Exception as e:
         return {

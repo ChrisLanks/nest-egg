@@ -12,6 +12,7 @@ from app.utils.datetime_utils import utc_now_lambda
 
 class NotificationType(str, enum.Enum):
     """Type of notification."""
+
     SYNC_FAILED = "sync_failed"
     REAUTH_REQUIRED = "reauth_required"
     SYNC_STALE = "sync_stale"
@@ -23,6 +24,7 @@ class NotificationType(str, enum.Enum):
 
 class NotificationPriority(str, enum.Enum):
     """Priority level of notification."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -50,7 +52,9 @@ class Notification(Base):
 
     # Notification details
     type = Column(SQLEnum(NotificationType), nullable=False, index=True)
-    priority = Column(SQLEnum(NotificationPriority), default=NotificationPriority.MEDIUM, nullable=False)
+    priority = Column(
+        SQLEnum(NotificationPriority), default=NotificationPriority.MEDIUM, nullable=False
+    )
     title = Column(String(255), nullable=False)
     message = Column(Text, nullable=False)
 

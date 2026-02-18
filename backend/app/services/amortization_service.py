@@ -1,7 +1,7 @@
 """Service for amortization calculations and debt payoff math."""
 
 import math
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import List, Dict, Optional
 
@@ -11,9 +11,7 @@ class AmortizationService:
 
     @staticmethod
     def calculate_monthly_payment(
-        principal: Decimal,
-        annual_rate: Decimal,
-        term_months: int
+        principal: Decimal, annual_rate: Decimal, term_months: int
     ) -> Decimal:
         """
         Calculate monthly payment using standard amortization formula.
@@ -49,13 +47,13 @@ class AmortizationService:
 
         monthly_payment = principal * (numerator / denominator)
 
-        return monthly_payment.quantize(Decimal('0.01'))
+        return monthly_payment.quantize(Decimal("0.01"))
 
     @staticmethod
     def calculate_credit_card_minimum(
         balance: Decimal,
         minimum_percentage: Decimal = Decimal("2.0"),
-        minimum_floor: Decimal = Decimal("25.00")
+        minimum_floor: Decimal = Decimal("25.00"),
     ) -> Decimal:
         """
         Calculate credit card minimum payment.
@@ -73,14 +71,12 @@ class AmortizationService:
         if balance <= 0:
             return Decimal(0)
 
-        percentage_payment = (balance * minimum_percentage / Decimal(100))
-        return max(percentage_payment, minimum_floor).quantize(Decimal('0.01'))
+        percentage_payment = balance * minimum_percentage / Decimal(100)
+        return max(percentage_payment, minimum_floor).quantize(Decimal("0.01"))
 
     @staticmethod
     def calculate_payoff_months(
-        balance: Decimal,
-        annual_rate: Decimal,
-        monthly_payment: Decimal
+        balance: Decimal, annual_rate: Decimal, monthly_payment: Decimal
     ) -> int:
         """
         Calculate months to pay off debt.
@@ -125,7 +121,7 @@ class AmortizationService:
         annual_rate: Decimal,
         monthly_payment: Decimal,
         start_date: Optional[date] = None,
-        max_months: int = 360
+        max_months: int = 360,
     ) -> List[Dict]:
         """
         Generate month-by-month amortization schedule.
@@ -150,11 +146,11 @@ class AmortizationService:
 
         monthly_rate = annual_rate / Decimal(100) / Decimal(12)
 
-        while remaining_balance > Decimal('0.01') and month_num < max_months:
+        while remaining_balance > Decimal("0.01") and month_num < max_months:
             month_num += 1
 
             # Calculate interest for this month
-            interest_payment = (remaining_balance * monthly_rate).quantize(Decimal('0.01'))
+            interest_payment = (remaining_balance * monthly_rate).quantize(Decimal("0.01"))
 
             # Principal payment is remainder
             principal_payment = monthly_payment - interest_payment
@@ -167,16 +163,18 @@ class AmortizationService:
                 total_payment = monthly_payment
 
             remaining_balance -= principal_payment
-            remaining_balance = remaining_balance.quantize(Decimal('0.01'))
+            remaining_balance = remaining_balance.quantize(Decimal("0.01"))
 
-            schedule.append({
-                "month": month_num,
-                "date": current_date.isoformat(),
-                "payment": float(total_payment),
-                "principal": float(principal_payment),
-                "interest": float(interest_payment),
-                "balance": float(max(remaining_balance, Decimal(0))),
-            })
+            schedule.append(
+                {
+                    "month": month_num,
+                    "date": current_date.isoformat(),
+                    "payment": float(total_payment),
+                    "principal": float(principal_payment),
+                    "interest": float(interest_payment),
+                    "balance": float(max(remaining_balance, Decimal(0))),
+                }
+            )
 
             # Move to next month
             if current_date.month == 12:
@@ -189,16 +187,14 @@ class AmortizationService:
                     current_date = date(current_date.year, current_date.month + 1, 28)
 
             # Stop if balance is paid off
-            if remaining_balance <= Decimal('0.01'):
+            if remaining_balance <= Decimal("0.01"):
                 break
 
         return schedule
 
     @staticmethod
     def calculate_total_interest(
-        principal: Decimal,
-        annual_rate: Decimal,
-        monthly_payment: Decimal
+        principal: Decimal, annual_rate: Decimal, monthly_payment: Decimal
     ) -> Decimal:
         """
         Calculate total interest paid over life of loan.
@@ -221,4 +217,4 @@ class AmortizationService:
         total_paid = monthly_payment * Decimal(months)
         total_interest = total_paid - principal
 
-        return total_interest.quantize(Decimal('0.01'))
+        return total_interest.quantize(Decimal("0.01"))

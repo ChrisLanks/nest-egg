@@ -24,6 +24,7 @@ rate_limit_service = get_rate_limit_service()
 
 class ApplyRuleRequest(BaseModel):
     """Request to apply a rule to transactions."""
+
     transaction_ids: Optional[List[str]] = None  # If None, applies to all transactions
 
 
@@ -279,9 +280,7 @@ async def preview_rule(
 
     # Get all transactions for this organization
     result = await db.execute(
-        select(Transaction).where(
-            Transaction.organization_id == current_user.organization_id
-        )
+        select(Transaction).where(Transaction.organization_id == current_user.organization_id)
     )
     transactions = result.scalars().all()
 
@@ -360,42 +359,44 @@ async def test_rule(
             changes = []
             for action in temp_rule.actions:
                 if action.action_type.value == "set_category":
-                    changes.append({
-                        "field": "category",
-                        "from": transaction.category_primary,
-                        "to": action.action_value
-                    })
+                    changes.append(
+                        {
+                            "field": "category",
+                            "from": transaction.category_primary,
+                            "to": action.action_value,
+                        }
+                    )
                 elif action.action_type.value == "set_merchant":
-                    changes.append({
-                        "field": "merchant",
-                        "from": transaction.merchant_name,
-                        "to": action.action_value
-                    })
+                    changes.append(
+                        {
+                            "field": "merchant",
+                            "from": transaction.merchant_name,
+                            "to": action.action_value,
+                        }
+                    )
                 elif action.action_type.value == "add_label":
-                    changes.append({
-                        "field": "label",
-                        "action": "add",
-                        "label_id": action.action_value
-                    })
+                    changes.append(
+                        {"field": "label", "action": "add", "label_id": action.action_value}
+                    )
                 elif action.action_type.value == "remove_label":
-                    changes.append({
-                        "field": "label",
-                        "action": "remove",
-                        "label_id": action.action_value
-                    })
+                    changes.append(
+                        {"field": "label", "action": "remove", "label_id": action.action_value}
+                    )
 
-            matching_transactions.append({
-                "id": str(transaction.id),
-                "date": transaction.date.isoformat() if transaction.date else None,
-                "merchant": transaction.merchant_name,
-                "amount": float(transaction.amount),
-                "category": transaction.category_primary,
-                "changes": changes,
-            })
+            matching_transactions.append(
+                {
+                    "id": str(transaction.id),
+                    "date": transaction.date.isoformat() if transaction.date else None,
+                    "merchant": transaction.merchant_name,
+                    "amount": float(transaction.amount),
+                    "category": transaction.category_primary,
+                    "changes": changes,
+                }
+            )
 
     return {
         "matching_count": len(matching_transactions),
         "matching_transactions": matching_transactions[:50],  # Limit to 50 for response size
         "total_tested": len(transactions),
-        "message": f"Rule would match {len(matching_transactions)} of {len(transactions)} tested transactions"
+        "message": f"Rule would match {len(matching_transactions)} of {len(transactions)} tested transactions",
     }

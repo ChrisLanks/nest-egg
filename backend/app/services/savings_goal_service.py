@@ -54,9 +54,7 @@ class SavingsGoalService:
         is_completed: Optional[bool] = None,
     ) -> List[SavingsGoal]:
         """Get all savings goals for organization."""
-        query = select(SavingsGoal).where(
-            SavingsGoal.organization_id == user.organization_id
-        )
+        query = select(SavingsGoal).where(SavingsGoal.organization_id == user.organization_id)
 
         if is_completed is not None:
             query = query.where(SavingsGoal.is_completed == is_completed)
@@ -96,7 +94,7 @@ class SavingsGoalService:
             return None
 
         # Track if amount changed to check for completion
-        old_amount = goal.current_amount
+        goal.current_amount
 
         for key, value in kwargs.items():
             if hasattr(goal, key):
@@ -197,7 +195,9 @@ class SavingsGoalService:
             return None
 
         # Calculate progress percentage
-        progress_pct = (goal.current_amount / goal.target_amount * 100) if goal.target_amount > 0 else 0
+        progress_pct = (
+            (goal.current_amount / goal.target_amount * 100) if goal.target_amount > 0 else 0
+        )
 
         # Calculate remaining amount
         remaining = goal.target_amount - goal.current_amount

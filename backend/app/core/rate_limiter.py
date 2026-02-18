@@ -44,16 +44,12 @@ class RateLimiter:
         minute_ago = now - 60
 
         # Remove calls older than 1 minute (sliding window)
-        self.calls[key] = [
-            timestamp for timestamp in self.calls[key]
-            if timestamp > minute_ago
-        ]
+        self.calls[key] = [timestamp for timestamp in self.calls[key] if timestamp > minute_ago]
 
         # Check if limit exceeded
         if len(self.calls[key]) >= self.calls_per_minute:
             logger.warning(
-                f"Rate limit exceeded for {key}: "
-                f"{len(self.calls[key])} calls in last minute"
+                f"Rate limit exceeded for {key}: " f"{len(self.calls[key])} calls in last minute"
             )
             return False
 
@@ -98,9 +94,7 @@ class RateLimiter:
         for key in keys_to_delete:
             del self.calls[key]
 
-        logger.info(
-            f"Rate limiter cleanup: removed {len(keys_to_delete)} inactive keys"
-        )
+        logger.info(f"Rate limiter cleanup: removed {len(keys_to_delete)} inactive keys")
 
 
 # Global rate limiters for different endpoint types
@@ -109,9 +103,7 @@ api_limiter = RateLimiter(calls_per_minute=1000)  # General API endpoints
 
 
 def check_rate_limit(
-    user_id: str,
-    limiter: Optional[RateLimiter] = None,
-    endpoint: str = "api"
+    user_id: str, limiter: Optional[RateLimiter] = None, endpoint: str = "api"
 ) -> None:
     """
     Check rate limit and raise HTTPException if exceeded.
@@ -132,8 +124,7 @@ def check_rate_limit(
     if not limiter.is_allowed(key):
         remaining = limiter.get_remaining_calls(key)
         logger.warning(
-            f"Rate limit exceeded for user {user_id} on {endpoint}. "
-            f"Remaining: {remaining}"
+            f"Rate limit exceeded for user {user_id} on {endpoint}. " f"Remaining: {remaining}"
         )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -142,7 +133,7 @@ def check_rate_limit(
                 "message": f"Too many requests. Maximum {limiter.calls_per_minute} requests per minute.",
                 "retry_after": 60,  # seconds
                 "remaining_calls": remaining,
-            }
+            },
         )
 
     # Log rate limit status for monitoring

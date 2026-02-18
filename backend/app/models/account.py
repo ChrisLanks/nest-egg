@@ -1,10 +1,20 @@
 """Account and Plaid item models."""
 
 import uuid
-from typing import Optional
 import enum
 
-from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, Numeric, Text, Integer, Enum as SQLEnum
+from sqlalchemy import (
+    Column,
+    String,
+    Boolean,
+    DateTime,
+    Date,
+    ForeignKey,
+    Numeric,
+    Text,
+    Integer,
+    Enum as SQLEnum,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -14,12 +24,14 @@ from app.utils.datetime_utils import utc_now_lambda
 
 class AccountCategory(str, enum.Enum):
     """Financial category classification for account types."""
+
     ASSET = "asset"
     DEBT = "debt"
 
 
 class PropertyType(str, enum.Enum):
     """Property classification for real estate accounts."""
+
     PERSONAL_RESIDENCE = "personal_residence"
     INVESTMENT = "investment"
     VACATION_HOME = "vacation_home"
@@ -27,6 +39,7 @@ class PropertyType(str, enum.Enum):
 
 class AccountType(str, enum.Enum):
     """Account types with automatic asset/debt classification."""
+
     # Cash & Checking
     CHECKING = "checking"
     SAVINGS = "savings"
@@ -97,6 +110,7 @@ class AccountType(str, enum.Enum):
 
 class AccountSource(str, enum.Enum):
     """Account data sources."""
+
     PLAID = "plaid"
     TELLER = "teller"
     MX = "mx"
@@ -109,8 +123,15 @@ class TellerEnrollment(Base):
     __tablename__ = "teller_enrollments"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    organization_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
 
     # Teller identifiers
     enrollment_id = Column(String(255), unique=True, nullable=False, index=True)
@@ -134,7 +155,9 @@ class TellerEnrollment(Base):
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
 
     # Relationships
-    accounts = relationship("Account", back_populates="teller_enrollment", cascade="all, delete-orphan")
+    accounts = relationship(
+        "Account", back_populates="teller_enrollment", cascade="all, delete-orphan"
+    )
 
     def get_decrypted_access_token(self) -> str:
         """Get the decrypted access token."""
@@ -150,8 +173,15 @@ class PlaidItem(Base):
     __tablename__ = "plaid_items"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    organization_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
 
     # Plaid identifiers
     item_id = Column(String(255), unique=True, nullable=False, index=True)
@@ -211,10 +241,27 @@ class Account(Base):
     __tablename__ = "accounts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    plaid_item_id = Column(UUID(as_uuid=True), ForeignKey("plaid_items.id", ondelete="CASCADE"), nullable=True, index=True)
-    teller_enrollment_id = Column(UUID(as_uuid=True), ForeignKey("teller_enrollments.id", ondelete="CASCADE"), nullable=True, index=True)
+    organization_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    plaid_item_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("plaid_items.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    teller_enrollment_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("teller_enrollments.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
 
     # Account identification
     name = Column(String(255), nullable=False)
@@ -225,7 +272,9 @@ class Account(Base):
     # External identifiers
     external_account_id = Column(String(255), nullable=True, index=True)  # Plaid account_id
     mask = Column(String(10), nullable=True)  # Last 4 digits
-    plaid_item_hash = Column(String(64), nullable=True, index=True)  # SHA256 hash for duplicate detection
+    plaid_item_hash = Column(
+        String(64), nullable=True, index=True
+    )  # SHA256 hash for duplicate detection
 
     # Institution
     institution_name = Column(String(255), nullable=True)
@@ -241,7 +290,9 @@ class Account(Base):
     # Status
     is_active = Column(Boolean, default=True, nullable=False, index=True)
     is_manual = Column(Boolean, default=False, nullable=False)
-    exclude_from_cash_flow = Column(Boolean, default=False, nullable=False)  # Exclude transactions from budgets/trends to prevent double-counting
+    exclude_from_cash_flow = Column(
+        Boolean, default=False, nullable=False
+    )  # Exclude transactions from budgets/trends to prevent double-counting
 
     # Debt/Loan fields (for debt payoff planning)
     interest_rate = Column(Numeric(5, 2), nullable=True)  # Annual interest rate (APR) as percentage
@@ -260,5 +311,7 @@ class Account(Base):
     # Relationships
     plaid_item = relationship("PlaidItem", back_populates="accounts")
     teller_enrollment = relationship("TellerEnrollment", back_populates="accounts")
-    transactions = relationship("Transaction", back_populates="account", cascade="all, delete-orphan")
+    transactions = relationship(
+        "Transaction", back_populates="account", cascade="all, delete-orphan"
+    )
     holdings = relationship("Holding", back_populates="account", cascade="all, delete-orphan")

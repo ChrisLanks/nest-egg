@@ -9,11 +9,7 @@ try:
     from app.config import settings
 
     # Create Redis client
-    redis_client = redis.from_url(
-        settings.REDIS_URL,
-        encoding="utf-8",
-        decode_responses=True
-    )
+    redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
 except Exception as e:
     logging.warning(f"Redis not available: {e}")
     redis_client = None

@@ -32,24 +32,24 @@ from app.workers.tasks import holdings_tasks  # noqa: F401
 
 # Beat schedule (periodic tasks)
 celery_app.conf.beat_schedule = {
-    'check-budget-alerts-daily': {
-        'task': 'check_budget_alerts',
-        'schedule': crontab(hour=0, minute=0),  # Midnight daily
+    "check-budget-alerts-daily": {
+        "task": "check_budget_alerts",
+        "schedule": crontab(hour=0, minute=0),  # Midnight daily
     },
-    'detect-recurring-patterns': {
-        'task': 'detect_recurring_patterns',
-        'schedule': crontab(hour=2, minute=0, day_of_week=1),  # Monday 2am
+    "detect-recurring-patterns": {
+        "task": "detect_recurring_patterns",
+        "schedule": crontab(hour=2, minute=0, day_of_week=1),  # Monday 2am
     },
-    'check-cash-flow-forecast': {
-        'task': 'check_cash_flow_forecast',
-        'schedule': crontab(hour=6, minute=30),  # 6:30am daily
+    "check-cash-flow-forecast": {
+        "task": "check_cash_flow_forecast",
+        "schedule": crontab(hour=6, minute=30),  # 6:30am daily
     },
-    'update-holdings-prices': {
-        'task': 'update_holdings_prices',
-        'schedule': crontab(hour=18, minute=0),  # 6:00 PM EST daily (after market close)
+    "update-holdings-prices": {
+        "task": "update_holdings_prices",
+        "schedule": crontab(hour=18, minute=0),  # 6:00 PM EST daily (after market close)
     },
-    'capture-daily-holdings-snapshot': {
-        'task': 'capture_daily_holdings_snapshot',
-        'schedule': crontab(hour=23, minute=59),  # 11:59 PM daily to capture end-of-day values
+    "capture-daily-holdings-snapshot": {
+        "task": "capture_daily_holdings_snapshot",
+        "schedule": crontab(hour=23, minute=59),  # 11:59 PM daily to capture end-of-day values
     },
 }

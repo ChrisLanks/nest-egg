@@ -13,7 +13,7 @@ from app.dependencies import (
     get_current_user,
     verify_household_member,
     get_user_accounts,
-    get_all_household_accounts
+    get_all_household_accounts,
 )
 from app.models.user import User
 from app.models.report_template import ReportTemplate
@@ -26,8 +26,10 @@ deduplication_service = DeduplicationService()
 
 # Pydantic schemas
 
+
 class ReportTemplateCreate(BaseModel):
     """Schema for creating a report template."""
+
     name: str
     description: Optional[str] = None
     report_type: str
@@ -37,6 +39,7 @@ class ReportTemplateCreate(BaseModel):
 
 class ReportTemplateUpdate(BaseModel):
     """Schema for updating a report template."""
+
     name: Optional[str] = None
     description: Optional[str] = None
     config: Optional[Dict[str, Any]] = None
@@ -45,6 +48,7 @@ class ReportTemplateUpdate(BaseModel):
 
 class ReportTemplateResponse(BaseModel):
     """Schema for report template response."""
+
     id: str
     organization_id: str
     name: str
@@ -62,10 +66,12 @@ class ReportTemplateResponse(BaseModel):
 
 class ExecuteReportRequest(BaseModel):
     """Schema for executing a report."""
+
     config: Dict[str, Any]
 
 
 # Endpoints
+
 
 @router.get("/templates", response_model=List[ReportTemplateResponse])
 async def list_report_templates(
@@ -83,9 +89,9 @@ async def list_report_templates(
             and_(
                 ReportTemplate.organization_id == current_user.organization_id,
                 (
-                    (ReportTemplate.created_by_user_id == current_user.id) |
-                    (ReportTemplate.is_shared == True)
-                )
+                    (ReportTemplate.created_by_user_id == current_user.id)
+                    | (ReportTemplate.is_shared.is_(True))
+                ),
             )
         )
         .order_by(ReportTemplate.updated_at.desc())
@@ -160,7 +166,7 @@ async def get_report_template(
         select(ReportTemplate).where(
             and_(
                 ReportTemplate.id == template_id,
-                ReportTemplate.organization_id == current_user.organization_id
+                ReportTemplate.organization_id == current_user.organization_id,
             )
         )
     )
@@ -202,7 +208,7 @@ async def update_report_template(
         select(ReportTemplate).where(
             and_(
                 ReportTemplate.id == template_id,
-                ReportTemplate.organization_id == current_user.organization_id
+                ReportTemplate.organization_id == current_user.organization_id,
             )
         )
     )
@@ -256,7 +262,7 @@ async def delete_report_template(
         select(ReportTemplate).where(
             and_(
                 ReportTemplate.id == template_id,
-                ReportTemplate.organization_id == current_user.organization_id
+                ReportTemplate.organization_id == current_user.organization_id,
             )
         )
     )
@@ -321,7 +327,7 @@ async def execute_saved_report(
         select(ReportTemplate).where(
             and_(
                 ReportTemplate.id == template_id,
-                ReportTemplate.organization_id == current_user.organization_id
+                ReportTemplate.organization_id == current_user.organization_id,
             )
         )
     )
@@ -360,7 +366,7 @@ async def execute_saved_report(
             "id": str(template.id),
             "name": template.name,
             "description": template.description,
-        }
+        },
     }
 
 
@@ -395,9 +401,7 @@ async def export_report_csv(
         raise HTTPException(status_code=404, detail=str(e))
 
     # Load template for filename
-    result = await db.execute(
-        select(ReportTemplate).where(ReportTemplate.id == template_id)
-    )
+    result = await db.execute(select(ReportTemplate).where(ReportTemplate.id == template_id))
     template = result.scalar_one_or_none()
 
     filename = f"{template.name.lower().replace(' ', '_')}_report.csv" if template else "report.csv"
@@ -405,7 +409,5 @@ async def export_report_csv(
     return Response(
         content=csv_data,
         media_type="text/csv",
-        headers={
-            "Content-Disposition": f"attachment; filename={filename}"
-        }
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )

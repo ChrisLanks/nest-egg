@@ -1,10 +1,18 @@
 """Rule models for automated transaction categorization."""
 
 import uuid
-from typing import Optional
 import enum
 
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer, Text, Enum as SQLEnum, JSON
+from sqlalchemy import (
+    Column,
+    String,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Text,
+    Enum as SQLEnum,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -14,12 +22,14 @@ from app.utils.datetime_utils import utc_now_lambda
 
 class RuleMatchType(str, enum.Enum):
     """How multiple conditions should be evaluated."""
+
     ALL = "all"  # All conditions must match (AND)
     ANY = "any"  # Any condition can match (OR)
 
 
 class RuleApplyTo(str, enum.Enum):
     """Which transactions should the rule apply to."""
+
     NEW_ONLY = "new_only"  # Only future transactions
     EXISTING_ONLY = "existing_only"  # Only past transactions
     BOTH = "both"  # All transactions
@@ -28,6 +38,7 @@ class RuleApplyTo(str, enum.Enum):
 
 class ConditionField(str, enum.Enum):
     """Fields that can be matched in conditions."""
+
     MERCHANT_NAME = "merchant_name"
     AMOUNT = "amount"
     AMOUNT_EXACT = "amount_exact"
@@ -45,6 +56,7 @@ class ConditionField(str, enum.Enum):
 
 class ConditionOperator(str, enum.Enum):
     """Operators for condition matching."""
+
     EQUALS = "equals"
     CONTAINS = "contains"
     STARTS_WITH = "starts_with"
@@ -57,6 +69,7 @@ class ConditionOperator(str, enum.Enum):
 
 class ActionType(str, enum.Enum):
     """Types of actions that can be performed."""
+
     SET_CATEGORY = "set_category"
     ADD_LABEL = "add_label"
     REMOVE_LABEL = "remove_label"
@@ -69,7 +82,12 @@ class Rule(Base):
     __tablename__ = "rules"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    organization_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     # Rule metadata
     name = Column(String(255), nullable=False)
@@ -102,7 +120,9 @@ class RuleCondition(Base):
     __tablename__ = "rule_conditions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    rule_id = Column(UUID(as_uuid=True), ForeignKey("rules.id", ondelete="CASCADE"), nullable=False, index=True)
+    rule_id = Column(
+        UUID(as_uuid=True), ForeignKey("rules.id", ondelete="CASCADE"), nullable=False, index=True
+    )
 
     # Condition configuration
     field = Column(SQLEnum(ConditionField), nullable=False)
@@ -125,7 +145,9 @@ class RuleAction(Base):
     __tablename__ = "rule_actions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    rule_id = Column(UUID(as_uuid=True), ForeignKey("rules.id", ondelete="CASCADE"), nullable=False, index=True)
+    rule_id = Column(
+        UUID(as_uuid=True), ForeignKey("rules.id", ondelete="CASCADE"), nullable=False, index=True
+    )
 
     # Action configuration
     action_type = Column(SQLEnum(ActionType), nullable=False)

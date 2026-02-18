@@ -29,10 +29,7 @@ class DeduplicationService:
 
     @staticmethod
     def calculate_manual_account_hash(
-        account_type: AccountType,
-        institution_name: Optional[str],
-        mask: Optional[str],
-        name: str
+        account_type: AccountType, institution_name: Optional[str], mask: Optional[str], name: str
     ) -> str:
         """Generate deterministic hash for manual account identification.
 
@@ -84,10 +81,9 @@ class DeduplicationService:
         # Plaid accounts
         if account.account_source == AccountSource.PLAID and account.external_account_id:
             # Use plaid_item.item_id if available, otherwise use plaid_item_id
-            if account.plaid_item and hasattr(account.plaid_item, 'item_id'):
+            if account.plaid_item and hasattr(account.plaid_item, "item_id"):
                 return DeduplicationService.calculate_plaid_hash(
-                    account.plaid_item.item_id,
-                    account.external_account_id
+                    account.plaid_item.item_id, account.external_account_id
                 )
             # Fallback: use existing plaid_item_hash if set
             return account.plaid_item_hash
@@ -95,19 +91,12 @@ class DeduplicationService:
         # Manual accounts
         elif account.is_manual:
             return DeduplicationService.calculate_manual_account_hash(
-                account.account_type,
-                account.institution_name,
-                account.mask,
-                account.name
+                account.account_type, account.institution_name, account.mask, account.name
             )
 
         return None
 
-    async def find_duplicate_accounts(
-        self,
-        db: AsyncSession,
-        organization_id: UUID
-    ) -> dict:
+    async def find_duplicate_accounts(self, db: AsyncSession, organization_id: UUID) -> dict:
         """Find accounts with same hash (same underlying account added by multiple users).
 
         Args:
@@ -119,10 +108,7 @@ class DeduplicationService:
         """
         result = await db.execute(
             select(Account.plaid_item_hash, func.array_agg(Account.id))
-            .where(
-                Account.organization_id == organization_id,
-                Account.plaid_item_hash.isnot(None)
-            )
+            .where(Account.organization_id == organization_id, Account.plaid_item_hash.isnot(None))
             .group_by(Account.plaid_item_hash)
             .having(func.count(Account.id) > 1)
         )
@@ -160,11 +146,7 @@ class DeduplicationService:
 
         return unique_accounts
 
-    async def get_duplicate_groups(
-        self,
-        db: AsyncSession,
-        organization_id: UUID
-    ) -> List[dict]:
+    async def get_duplicate_groups(self, db: AsyncSession, organization_id: UUID) -> List[dict]:
         """Get detailed information about duplicate account groups.
 
         Args:
@@ -179,25 +161,25 @@ class DeduplicationService:
         groups = []
         for hash_value, account_ids in duplicates.items():
             # Fetch full account objects
-            result = await db.execute(
-                select(Account).where(Account.id.in_(account_ids))
-            )
+            result = await db.execute(select(Account).where(Account.id.in_(account_ids)))
             accounts = result.scalars().all()
 
-            groups.append({
-                'hash': hash_value,
-                'count': len(accounts),
-                'accounts': [
-                    {
-                        'id': acc.id,
-                        'name': acc.name,
-                        'user_id': acc.user_id,
-                        'institution_name': acc.institution_name,
-                        'mask': acc.mask,
-                    }
-                    for acc in accounts
-                ]
-            })
+            groups.append(
+                {
+                    "hash": hash_value,
+                    "count": len(accounts),
+                    "accounts": [
+                        {
+                            "id": acc.id,
+                            "name": acc.name,
+                            "user_id": acc.user_id,
+                            "institution_name": acc.institution_name,
+                            "mask": acc.mask,
+                        }
+                        for acc in accounts
+                    ],
+                }
+            )
 
         return groups
 

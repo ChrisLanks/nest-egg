@@ -2,7 +2,6 @@
 
 import logging
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 from app.workers.celery_app import celery_app
 from app.core.database import async_session_factory
@@ -20,6 +19,7 @@ def check_budget_alerts_task():
     Runs daily at midnight.
     """
     import asyncio
+
     asyncio.run(_check_budget_alerts_async())
 
 
@@ -32,7 +32,7 @@ async def _check_budget_alerts_async():
                 select(User.organization_id)
                 .distinct()
                 .join(Budget, User.organization_id == Budget.organization_id)
-                .where(Budget.is_active == True)
+                .where(Budget.is_active.is_(True))
             )
             org_ids = [row[0] for row in result.all()]
 
@@ -42,9 +42,7 @@ async def _check_budget_alerts_async():
             for org_id in org_ids:
                 # Get any user from org for auth context
                 user_result = await db.execute(
-                    select(User)
-                    .where(User.organization_id == org_id)
-                    .limit(1)
+                    select(User).where(User.organization_id == org_id).limit(1)
                 )
                 user = user_result.scalar_one_or_none()
 

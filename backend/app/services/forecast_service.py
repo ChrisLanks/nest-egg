@@ -40,9 +40,7 @@ class ForecastService:
             List of daily forecast data points
         """
         # Get current account balances (exclude cash flow exclusions)
-        current_balance = await ForecastService._get_total_balance(
-            db, organization_id, user_id
-        )
+        current_balance = await ForecastService._get_total_balance(db, organization_id, user_id)
 
         # Get recurring transactions
         user = User(organization_id=organization_id)
@@ -55,10 +53,7 @@ class ForecastService:
             # Need to join with accounts to filter by user
             user_accounts_result = await db.execute(
                 select(Account.id).where(
-                    and_(
-                        Account.organization_id == organization_id,
-                        Account.user_id == user_id
-                    )
+                    and_(Account.organization_id == organization_id, Account.user_id == user_id)
                 )
             )
             user_account_ids = [row[0] for row in user_accounts_result.all()]
@@ -67,9 +62,7 @@ class ForecastService:
         # Project future occurrences
         future_transactions = []
         for pattern in recurring:
-            occurrences = ForecastService._calculate_future_occurrences(
-                pattern, days_ahead
-            )
+            occurrences = ForecastService._calculate_future_occurrences(pattern, days_ahead)
             future_transactions.extend(occurrences)
 
         # Calculate daily running balance
@@ -81,27 +74,24 @@ class ForecastService:
             forecast_date = start_date + timedelta(days=day_offset)
 
             # Sum transactions for this day
-            day_transactions = [
-                t for t in future_transactions
-                if t['date'] == forecast_date
-            ]
-            day_change = sum(t['amount'] for t in day_transactions)
+            day_transactions = [t for t in future_transactions if t["date"] == forecast_date]
+            day_change = sum(t["amount"] for t in day_transactions)
             running_balance += day_change
 
-            forecast.append({
-                'date': forecast_date.isoformat(),
-                'projected_balance': float(running_balance),
-                'day_change': float(day_change),
-                'transaction_count': len(day_transactions),
-            })
+            forecast.append(
+                {
+                    "date": forecast_date.isoformat(),
+                    "projected_balance": float(running_balance),
+                    "day_change": float(day_change),
+                    "transaction_count": len(day_transactions),
+                }
+            )
 
         return forecast
 
     @staticmethod
     async def _get_total_balance(
-        db: AsyncSession,
-        organization_id: UUID,
-        user_id: Optional[UUID] = None
+        db: AsyncSession, organization_id: UUID, user_id: Optional[UUID] = None
     ) -> Decimal:
         """
         Get total current balance across all accounts.
@@ -111,7 +101,7 @@ class ForecastService:
         query = select(func.sum(Account.current_balance)).where(
             and_(
                 Account.organization_id == organization_id,
-                Account.exclude_from_cash_flow == False,
+                Account.exclude_from_cash_flow.is_(False),
             )
         )
 
@@ -123,10 +113,7 @@ class ForecastService:
         return Decimal(total) if total else Decimal(0)
 
     @staticmethod
-    def _calculate_future_occurrences(
-        pattern: RecurringTransaction,
-        days_ahead: int
-    ) -> List[Dict]:
+    def _calculate_future_occurrences(pattern: RecurringTransaction, days_ahead: int) -> List[Dict]:
         """
         Generate future transaction occurrences based on frequency.
 
@@ -154,11 +141,13 @@ class ForecastService:
 
         # Generate occurrences until end_date
         while current_date <= end_date:
-            occurrences.append({
-                'date': current_date,
-                'amount': pattern.average_amount,
-                'merchant': pattern.merchant_name,
-            })
+            occurrences.append(
+                {
+                    "date": current_date,
+                    "amount": pattern.average_amount,
+                    "merchant": pattern.merchant_name,
+                }
+            )
             current_date += timedelta(days=interval_days)
 
         return occurrences
@@ -187,7 +176,7 @@ class ForecastService:
 
         # Check for negative balance
         for day in forecast:
-            if day['projected_balance'] < 0:
+            if day["projected_balance"] < 0:
                 # Create high-priority notification
                 await NotificationService.create_notification(
                     db=db,

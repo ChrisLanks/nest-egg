@@ -5,13 +5,12 @@ from uuid import UUID
 from decimal import Decimal
 from datetime import timedelta
 
-from sqlalchemy import select, and_, or_, delete as sql_delete
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Transaction
 from app.models.transaction_merge import TransactionMerge
 from app.models.user import User
-from app.utils.datetime_utils import utc_now
 
 
 class TransactionMergeService:
@@ -195,9 +194,9 @@ class TransactionMergeService:
         """
         # Get all transactions for organization
         result = await db.execute(
-            select(Transaction).where(
-                Transaction.organization_id == user.organization_id
-            ).order_by(Transaction.date.desc())
+            select(Transaction)
+            .where(Transaction.organization_id == user.organization_id)
+            .order_by(Transaction.date.desc())
         )
         transactions = list(result.scalars().all())
 

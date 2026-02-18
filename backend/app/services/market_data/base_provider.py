@@ -78,7 +78,6 @@ class MarketDataProvider(ABC):
             ValueError: If symbol not found
             Exception: If API error
         """
-        pass
 
     @abstractmethod
     async def get_quotes_batch(self, symbols: List[str]) -> Dict[str, QuoteData]:
@@ -91,15 +90,10 @@ class MarketDataProvider(ABC):
         Returns:
             Dict mapping symbol to QuoteData
         """
-        pass
 
     @abstractmethod
     async def get_historical_prices(
-        self,
-        symbol: str,
-        start_date: date,
-        end_date: date,
-        interval: str = "1d"
+        self, symbol: str, start_date: date, end_date: date, interval: str = "1d"
     ) -> List[HistoricalPrice]:
         """
         Get historical price data.
@@ -113,7 +107,6 @@ class MarketDataProvider(ABC):
         Returns:
             List of HistoricalPrice objects
         """
-        pass
 
     @abstractmethod
     async def search_symbol(self, query: str) -> List[SearchResult]:
@@ -126,12 +119,10 @@ class MarketDataProvider(ABC):
         Returns:
             List of SearchResult objects
         """
-        pass
 
     @abstractmethod
     def supports_realtime(self) -> bool:
         """Whether this provider supports real-time data."""
-        pass
 
     @abstractmethod
     def get_rate_limits(self) -> Dict[str, int]:
@@ -141,9 +132,7 @@ class MarketDataProvider(ABC):
         Returns:
             Dict with 'calls_per_minute', 'calls_per_day', etc.
         """
-        pass
 
     @abstractmethod
     def get_provider_name(self) -> str:
         """Get human-readable provider name."""
-        pass

@@ -35,7 +35,7 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                     status_code=413,
                     content={
                         "detail": f"Request body too large. Maximum size is {self.max_request_size / (1024*1024):.1f}MB"
-                    }
+                    },
                 )
 
         response: Response = await call_next(request)

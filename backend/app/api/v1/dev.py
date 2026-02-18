@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timedelta, date
+from datetime import timedelta, date
 from decimal import Decimal
 import uuid
 import hashlib
@@ -11,14 +11,16 @@ from app.core.database import get_db
 from app.config import settings
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.models.account import Account, PlaidItem, AccountType, AccountSource
+from app.models.account import Account, AccountType, AccountSource
 from app.models.transaction import Transaction
 from app.services.category_service import get_category_id_for_plaid_category
 
 router = APIRouter()
 
 
-async def generate_deduplication_hash(account_id: uuid.UUID, date_val: date, amount: Decimal, merchant: str) -> str:
+async def generate_deduplication_hash(
+    account_id: uuid.UUID, date_val: date, amount: Decimal, merchant: str
+) -> str:
     """Generate deduplication hash for transaction."""
     hash_input = f"{account_id}|{date_val.isoformat()}|{abs(amount):.2f}|{merchant.lower().strip()}"
     return hashlib.sha256(hash_input.encode()).hexdigest()[:16]
@@ -31,7 +33,7 @@ async def debug_transactions(
 ):
     """Debug endpoint to see transactions and accounts."""
     # Only allow in development/staging environments
-    if settings.ENVIRONMENT == 'production':
+    if settings.ENVIRONMENT == "production":
         raise HTTPException(status_code=404, detail="Not found")
 
     from sqlalchemy import select, func
@@ -111,29 +113,74 @@ async def seed_mock_data_internal(db: AsyncSession, user: User) -> dict:
 
     # Mock transactions
     checking_txns = [
-        {"days_ago": 1, "amount": -45.32, "merchant": "Whole Foods Market", "category": "Food and Drink"},
+        {
+            "days_ago": 1,
+            "amount": -45.32,
+            "merchant": "Whole Foods Market",
+            "category": "Food and Drink",
+        },
         {"days_ago": 2, "amount": -12.50, "merchant": "Starbucks", "category": "Food and Drink"},
         {"days_ago": 3, "amount": -89.99, "merchant": "Shell Gas Station", "category": "Travel"},
         {"days_ago": 4, "amount": -156.78, "merchant": "Target", "category": "Shops"},
-        {"days_ago": 5, "amount": 3500.00, "merchant": "Direct Deposit Salary", "category": "Income"},
+        {
+            "days_ago": 5,
+            "amount": 3500.00,
+            "merchant": "Direct Deposit Salary",
+            "category": "Income",
+        },
         {"days_ago": 6, "amount": -67.43, "merchant": "Amazon.com", "category": "Shops"},
-        {"days_ago": 7, "amount": -125.00, "merchant": "Electric Company", "category": "Bills and Utilities"},
+        {
+            "days_ago": 7,
+            "amount": -125.00,
+            "merchant": "Electric Company",
+            "category": "Bills and Utilities",
+        },
         {"days_ago": 10, "amount": -45.00, "merchant": "Netflix", "category": "Recreation"},
         {"days_ago": 12, "amount": -89.99, "merchant": "Spotify", "category": "Recreation"},
-        {"days_ago": 15, "amount": -1250.00, "merchant": "Rent Payment", "category": "Bills and Utilities"},
-        {"days_ago": 18, "amount": -78.90, "merchant": "Verizon Wireless", "category": "Bills and Utilities"},
+        {
+            "days_ago": 15,
+            "amount": -1250.00,
+            "merchant": "Rent Payment",
+            "category": "Bills and Utilities",
+        },
+        {
+            "days_ago": 18,
+            "amount": -78.90,
+            "merchant": "Verizon Wireless",
+            "category": "Bills and Utilities",
+        },
         {"days_ago": 20, "amount": -234.56, "merchant": "Costco", "category": "Shops"},
         {"days_ago": 22, "amount": -45.00, "merchant": "Planet Fitness", "category": "Recreation"},
         {"days_ago": 25, "amount": -189.99, "merchant": "Best Buy", "category": "Shops"},
         {"days_ago": 28, "amount": -67.50, "merchant": "Chipotle", "category": "Food and Drink"},
-        {"days_ago": 30, "amount": 3500.00, "merchant": "Direct Deposit Salary", "category": "Income"},
-        {"days_ago": 35, "amount": -1250.00, "merchant": "Rent Payment", "category": "Bills and Utilities"},
+        {
+            "days_ago": 30,
+            "amount": 3500.00,
+            "merchant": "Direct Deposit Salary",
+            "category": "Income",
+        },
+        {
+            "days_ago": 35,
+            "amount": -1250.00,
+            "merchant": "Rent Payment",
+            "category": "Bills and Utilities",
+        },
         {"days_ago": 38, "amount": -156.78, "merchant": "Safeway", "category": "Food and Drink"},
         {"days_ago": 40, "amount": -89.50, "merchant": "Uber", "category": "Travel"},
         {"days_ago": 42, "amount": -234.90, "merchant": "Home Depot", "category": "Shops"},
         {"days_ago": 45, "amount": -67.80, "merchant": "CVS Pharmacy", "category": "Health"},
-        {"days_ago": 48, "amount": -125.00, "merchant": "Comcast", "category": "Bills and Utilities"},
-        {"days_ago": 50, "amount": -45.67, "merchant": "Panera Bread", "category": "Food and Drink"},
+        {
+            "days_ago": 48,
+            "amount": -125.00,
+            "merchant": "Comcast",
+            "category": "Bills and Utilities",
+        },
+        {
+            "days_ago": 50,
+            "amount": -45.67,
+            "merchant": "Panera Bread",
+            "category": "Food and Drink",
+        },
         {"days_ago": 52, "amount": -234.00, "merchant": "Apple Store", "category": "Shops"},
         {"days_ago": 55, "amount": -78.90, "merchant": "AT&T", "category": "Bills and Utilities"},
     ]
@@ -181,7 +228,7 @@ async def seed_mock_data(
 ):
     """Seed mock transaction data for the current user."""
     # Only allow in development/staging environments
-    if settings.ENVIRONMENT == 'production':
+    if settings.ENVIRONMENT == "production":
         raise HTTPException(status_code=404, detail="Not found")
 
     result = await seed_mock_data_internal(db, current_user)

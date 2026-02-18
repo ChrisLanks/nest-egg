@@ -1,7 +1,6 @@
 """Rule engine for evaluating and applying rules to transactions."""
 
 import re
-from decimal import Decimal
 from typing import List
 from datetime import datetime
 from sqlalchemy import select
@@ -47,15 +46,21 @@ class RuleEngine:
         elif condition.field == ConditionField.YEAR:
             field_value = transaction.date.year if transaction.date else None
         elif condition.field == ConditionField.DAY_OF_WEEK:
-            field_value = transaction.date.weekday() if transaction.date else None  # 0=Monday, 6=Sunday
+            field_value = (
+                transaction.date.weekday() if transaction.date else None
+            )  # 0=Monday, 6=Sunday
         # Account-based conditions
         elif condition.field == ConditionField.ACCOUNT_ID:
             field_value = str(transaction.account_id)
         elif condition.field == ConditionField.ACCOUNT_TYPE:
             # Need to load account to get account_type
             # For now, we'll skip this check if account isn't loaded
-            if hasattr(transaction, 'account') and transaction.account:
-                field_value = transaction.account.account_type.value if transaction.account.account_type else ""
+            if hasattr(transaction, "account") and transaction.account:
+                field_value = (
+                    transaction.account.account_type.value
+                    if transaction.account.account_type
+                    else ""
+                )
             else:
                 return False
         else:
@@ -92,7 +97,8 @@ class RuleEngine:
 
             try:
                 # Parse condition value as date
-                from datetime import date
+                pass
+
                 if isinstance(condition.value, str):
                     condition_date = datetime.fromisoformat(condition.value).date()
                 else:
@@ -116,7 +122,11 @@ class RuleEngine:
                 return False
 
         # Handle numeric date fields (month, year, day_of_week)
-        if condition.field in [ConditionField.MONTH, ConditionField.YEAR, ConditionField.DAY_OF_WEEK]:
+        if condition.field in [
+            ConditionField.MONTH,
+            ConditionField.YEAR,
+            ConditionField.DAY_OF_WEEK,
+        ]:
             if field_value is None:
                 return False
 
@@ -147,7 +157,7 @@ class RuleEngine:
                 return field_value == condition_value
             # CONTAINS can match multiple account IDs (comma-separated)
             elif condition.operator == ConditionOperator.CONTAINS:
-                account_ids = [acc_id.strip() for acc_id in condition_value.split(',')]
+                account_ids = [acc_id.strip() for acc_id in condition_value.split(",")]
                 return field_value in account_ids
 
         # Handle string comparisons
@@ -178,14 +188,12 @@ class RuleEngine:
         if rule.match_type == RuleMatchType.ALL:
             # All conditions must match (AND)
             return all(
-                self.evaluate_condition(transaction, condition)
-                for condition in rule.conditions
+                self.evaluate_condition(transaction, condition) for condition in rule.conditions
             )
         else:
             # Any condition can match (OR)
             return any(
-                self.evaluate_condition(transaction, condition)
-                for condition in rule.conditions
+                self.evaluate_condition(transaction, condition) for condition in rule.conditions
             )
 
     async def apply_action(
@@ -203,9 +211,7 @@ class RuleEngine:
 
             elif action.action_type == ActionType.ADD_LABEL:
                 # Check if label exists
-                result = await self.db.execute(
-                    select(Label).where(Label.id == action.action_value)
-                )
+                result = await self.db.execute(select(Label).where(Label.id == action.action_value))
                 label = result.scalar_one_or_none()
                 if not label:
                     return False
@@ -250,9 +256,7 @@ class RuleEngine:
 
         return False
 
-    async def apply_rule_to_transaction(
-        self, transaction: Transaction, rule: Rule
-    ) -> bool:
+    async def apply_rule_to_transaction(self, transaction: Transaction, rule: Rule) -> bool:
         """Apply a rule to a single transaction if it matches."""
         if not rule.is_active:
             return False
@@ -273,9 +277,7 @@ class RuleEngine:
     ) -> int:
         """Apply a rule to multiple transactions. Returns count of affected transactions."""
         # Build query for transactions
-        query = select(Transaction).where(
-            Transaction.organization_id == rule.organization_id
-        )
+        query = select(Transaction).where(Transaction.organization_id == rule.organization_id)
 
         # Filter by transaction IDs if provided
         if transaction_ids:
@@ -294,14 +296,13 @@ class RuleEngine:
         if count > 0:
             rule.times_applied += count
             from datetime import datetime
+
             rule.last_applied_at = datetime.utcnow()
 
         await self.db.commit()
         return count
 
-    async def apply_all_rules_to_transaction(
-        self, transaction: Transaction
-    ) -> List[str]:
+    async def apply_all_rules_to_transaction(self, transaction: Transaction) -> List[str]:
         """Apply all active rules to a transaction. Returns list of rule IDs that were applied."""
         # Get all active rules for this organization, ordered by priority
         result = await self.db.execute(
@@ -309,7 +310,7 @@ class RuleEngine:
             .options(joinedload(Rule.conditions), joinedload(Rule.actions))
             .where(
                 Rule.organization_id == transaction.organization_id,
-                Rule.is_active == True,
+                Rule.is_active.is_(True),
             )
             .order_by(Rule.priority.desc(), Rule.created_at)
         )

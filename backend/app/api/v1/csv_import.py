@@ -9,9 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.csv_import import (
-    CSVPreviewRequest,
     CSVPreviewResponse,
-    CSVImportRequest,
     CSVImportResponse,
 )
 from app.services.csv_import_service import csv_import_service
@@ -36,27 +34,23 @@ def validate_csv_file(file: UploadFile) -> None:
         raise HTTPException(status_code=400, detail="Filename is required")
 
     filename_lower = file.filename.lower()
-    if not filename_lower.endswith('.csv'):
-        raise HTTPException(
-            status_code=400,
-            detail="Only CSV files are allowed (.csv extension)"
-        )
+    if not filename_lower.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files are allowed (.csv extension)")
 
     # Sanitize filename to prevent path traversal
     sanitized_name = input_sanitization_service.sanitize_filename(file.filename)
     if sanitized_name != file.filename:
         raise HTTPException(
-            status_code=400,
-            detail="Invalid filename. Filename contains unsafe characters"
+            status_code=400, detail="Invalid filename. Filename contains unsafe characters"
         )
 
     # Check content type (allow both text/csv and application/vnd.ms-excel)
     if file.content_type:
-        allowed_types = ['text/csv', 'application/vnd.ms-excel', 'application/csv']
+        allowed_types = ["text/csv", "application/vnd.ms-excel", "application/csv"]
         if file.content_type not in allowed_types:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid content type: {file.content_type}. Expected CSV file"
+                detail=f"Invalid content type: {file.content_type}. Expected CSV file",
             )
 
     # File size check is handled by RequestSizeLimitMiddleware (10MB limit)
