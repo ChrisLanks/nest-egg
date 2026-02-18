@@ -166,6 +166,17 @@ export const InvestmentsPage = () => {
     localStorage.setItem('hiddenAccounts', JSON.stringify(hiddenAccountIds));
   }, [hiddenAccountIds]);
 
+  // Selected tab index (persisted to localStorage)
+  const [selectedTabIndex, setSelectedTabIndex] = useState<number>(() => {
+    const saved = localStorage.getItem('investmentsTabIndex');
+    return saved ? parseInt(saved, 10) : 0;
+  });
+
+  // Save selected tab index to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('investmentsTabIndex', selectedTabIndex.toString());
+  }, [selectedTabIndex]);
+
   // Helper to convert string numbers to actual numbers in treemap data
   const convertTreemapNode = (node: any): TreemapNode => {
     return {
@@ -833,7 +844,12 @@ export const InvestmentsPage = () => {
         {/* Investment Analysis Tabs */}
         <Card>
           <CardBody>
-            <Tabs variant="enclosed" colorScheme="brand">
+            <Tabs
+              variant="enclosed"
+              colorScheme="brand"
+              index={selectedTabIndex}
+              onChange={setSelectedTabIndex}
+            >
               <TabList>
                 <Tab>Asset Allocation</Tab>
                 <Tab>Sector Breakdown</Tab>
