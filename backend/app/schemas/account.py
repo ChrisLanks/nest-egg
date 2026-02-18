@@ -100,4 +100,3 @@ class AccountSummary(BaseModel):
     last_error_message: Optional[str] = None
     needs_reauth: Optional[bool] = None
 
-    model_config = {"from_attributes": True}

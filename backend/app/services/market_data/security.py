@@ -278,4 +278,3 @@ def validate_quote_response(raw_data: dict, symbol: str) -> ValidatedQuoteData:
 
     except Exception as e:
         logger.error(f"Quote validation failed for {symbol}: {e}", exc_info=True)
-        raise PriceValidationError(f"Invalid quote data for {symbol}: {str(e)}")

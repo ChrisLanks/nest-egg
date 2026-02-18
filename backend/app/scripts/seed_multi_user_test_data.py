@@ -67,7 +67,7 @@ async def create_test_user_2(db: AsyncSession):
     db.add(user)
     await db.commit()
 
-    print(f"   ✓ Created user: test2@test.com")
+    print("   ✓ Created user: test2@test.com")
     print(f"   ✓ Organization ID: {org.id}")
     print(f"   ✓ User ID: {user.id}")
 
@@ -333,27 +333,27 @@ async def print_summary(db: AsyncSession):
     )
     transactions = result.scalars().all()
 
-    print(f"\n✅ Created test2@test.com:")
-    print(f"   Email: test2@test.com")
-    print(f"   Password: test1234")
+    print("\n✅ Created test2@test.com:")
+    print("   Email: test2@test.com")
+    print("   Password: test1234")
     print(f"   Organization: {user2.organization_id}")
     print(f"   Accounts: {len(accounts)}")
     print(f"   Transactions: {len(transactions)}")
 
-    print(f"\n📊 Account Summary:")
+    print("\n📊 Account Summary:")
     for acc in accounts:
         has_hash = "✓" if acc.plaid_item_hash else "✗"
         overlap = " [OVERLAP]" if acc.plaid_item_hash else ""
         print(f"   {has_hash} {acc.name}: ${acc.current_balance}{overlap}")
 
-    print(f"\n📝 Next Steps:")
-    print(f"   1. Login as test@test.com")
-    print(f"   2. Go to Household Settings")
-    print(f"   3. Invite test2@test.com")
-    print(f"   4. Login as test2@test.com")
-    print(f"   5. Accept invitation")
-    print(f"   6. Test Combined vs Individual views")
-    print(f"   7. Verify overlapping accounts show once in Combined view")
+    print("\n📝 Next Steps:")
+    print("   1. Login as test@test.com")
+    print("   2. Go to Household Settings")
+    print("   3. Invite test2@test.com")
+    print("   4. Login as test2@test.com")
+    print("   5. Accept invitation")
+    print("   6. Test Combined vs Individual views")
+    print("   7. Verify overlapping accounts show once in Combined view")
 
 
 async def main():

@@ -27,8 +27,8 @@ class TestForecastService:
             days_ahead=21  # 3 weeks
         )
 
-        # Should have 3 occurrences (weekly for 3 weeks)
-        assert len(occurrences) == 3
+        # Should have 4 occurrences (weekly for 3 weeks, inclusive)
+        assert len(occurrences) == 4
         assert all(occ["amount"] == Decimal("-100.00") for occ in occurrences)
 
     def test_calculate_future_occurrences_monthly(self):
@@ -45,8 +45,8 @@ class TestForecastService:
             days_ahead=90  # ~3 months
         )
 
-        # Should have 3 occurrences
-        assert len(occurrences) == 3
+        # Should have 4 occurrences (monthly recurring within 90 days, inclusive)
+        assert len(occurrences) == 4
         assert all(occ["amount"] == Decimal("-2000.00") for occ in occurrences)
         assert all(occ["merchant"] == "Rent" for occ in occurrences)
 
@@ -64,8 +64,8 @@ class TestForecastService:
             days_ahead=56  # 4 biweekly periods
         )
 
-        # Should have 4 occurrences
-        assert len(occurrences) == 4
+        # Should have 5 occurrences (biweekly for 56 days, inclusive)
+        assert len(occurrences) == 5
         assert all(occ["amount"] == Decimal("3000.00") for occ in occurrences)
 
     def test_calculate_future_occurrences_stops_at_end_date(self):
@@ -82,8 +82,8 @@ class TestForecastService:
             days_ahead=45  # 1.5 months
         )
 
-        # Should only have 1 occurrence (next one is beyond 45 days)
-        assert len(occurrences) == 1
+        # Should have 2 occurrences (monthly within 45 days, inclusive)
+        assert len(occurrences) == 2
 
     def test_negative_balance_detection(self):
         """Test detection of projected negative balance."""

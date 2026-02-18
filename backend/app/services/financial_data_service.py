@@ -144,7 +144,7 @@ class FinancialDataService:
         """
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                url = f"https://finnhub.io/api/v1/stock/profile2"
+                url = "https://finnhub.io/api/v1/stock/profile2"
                 params = {
                     "symbol": ticker,
                     "token": self.finnhub_key,
