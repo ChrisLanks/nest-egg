@@ -44,7 +44,7 @@ import {
   TabPanel,
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { FiChevronDown, FiChevronUp, FiFilter } from 'react-icons/fi';
 import api from '../services/api';
 import { useUserView } from '../contexts/UserViewContext';
@@ -186,6 +186,45 @@ export const InvestmentsPage = () => {
       return response.data;
     },
   });
+
+  // Track if we've initialized default hidden accounts
+  const hasInitializedDefaults = useRef(false);
+
+  // Set default hidden accounts on first load (hide property and vehicles)
+  useEffect(() => {
+    if (allAccounts && !hasInitializedDefaults.current) {
+      const savedState = localStorage.getItem('hiddenAccounts');
+      const savedMigrationFlag = localStorage.getItem('hiddenAccounts_migratedV1');
+
+      // Get non-investment property and vehicle account IDs to hide
+      // Hide: personal residences, vacation homes, and vehicles
+      // Show: investment properties (they're investments!)
+      const nonInvestmentAssets = allAccounts
+        .filter((account: any) => {
+          // Hide all vehicles
+          if (account.account_type === 'vehicle') return true;
+
+          // For properties, only hide personal residences and vacation homes
+          if (account.account_type === 'property') {
+            return account.property_type === 'personal_residence' ||
+                   account.property_type === 'vacation_home';
+          }
+
+          return false;
+        })
+        .map((account: any) => account.id);
+
+      // If no saved preferences, or if we haven't migrated yet, apply the new default
+      if (!savedState || !savedMigrationFlag) {
+        if (nonInvestmentAssets.length > 0) {
+          setHiddenAccountIds(nonInvestmentAssets);
+          localStorage.setItem('hiddenAccounts_migratedV1', 'true');
+        }
+      }
+
+      hasInitializedDefaults.current = true;
+    }
+  }, [allAccounts]);
 
   // Fetch portfolio summary
   const { data: rawPortfolio, isLoading } = useQuery<PortfolioSummary>({
