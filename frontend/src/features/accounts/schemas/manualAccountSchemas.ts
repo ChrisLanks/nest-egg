@@ -77,6 +77,7 @@ export const basicManualAccountSchema = z.object({
   ]),
   balance: z.number().or(z.string().transform((val) => parseFloat(val))),
   account_number_last4: z.string().max(4).optional(),
+  include_in_networth: z.boolean().optional(),
 });
 
 export type BasicManualAccountFormData = z.infer<typeof basicManualAccountSchema>;

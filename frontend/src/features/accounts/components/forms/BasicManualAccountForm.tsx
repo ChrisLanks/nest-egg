@@ -14,6 +14,9 @@ import {
   Button,
   HStack,
   Text,
+  Switch,
+  FormHelperText,
+  Divider,
 } from '@chakra-ui/react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -33,6 +36,9 @@ interface BasicManualAccountFormProps {
   isLoading?: boolean;
 }
 
+// Account types where include_in_networth defaults to false and the toggle is shown
+const NETWORTH_TOGGLE_TYPES: AccountType[] = [ACCOUNT_TYPES.COLLECTIBLES, ACCOUNT_TYPES.OTHER, ACCOUNT_TYPES.MANUAL];
+
 export const BasicManualAccountForm = ({
   defaultAccountType,
   onSubmit,
@@ -43,13 +49,18 @@ export const BasicManualAccountForm = ({
     register,
     handleSubmit,
     control,
+    watch,
     formState: { errors },
   } = useForm<BasicManualAccountFormData>({
     resolver: zodResolver(basicManualAccountSchema),
     defaultValues: {
       account_type: defaultAccountType as any,
+      include_in_networth: NETWORTH_TOGGLE_TYPES.includes(defaultAccountType) ? false : undefined,
     },
   });
+
+  const accountType = watch('account_type');
+  const showNetworthToggle = NETWORTH_TOGGLE_TYPES.includes(accountType as AccountType);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
@@ -99,7 +110,6 @@ export const BasicManualAccountForm = ({
             <option value={ACCOUNT_TYPES.STUDENT_LOAN}>Student Loan</option>
             <option value={ACCOUNT_TYPES.MORTGAGE}>Mortgage</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_529}>529 Plan</option>
-            <option value={ACCOUNT_TYPES.HSA}>HSA</option>
             <option value={ACCOUNT_TYPES.PENSION}>Pension</option>
             <option value={ACCOUNT_TYPES.COLLECTIBLES}>Collectibles</option>
             <option value={ACCOUNT_TYPES.MANUAL}>Other</option>
@@ -138,6 +148,36 @@ export const BasicManualAccountForm = ({
           />
           <FormErrorMessage>{errors.account_number_last4?.message}</FormErrorMessage>
         </FormControl>
+
+        {showNetworthToggle && (
+          <>
+            <Divider />
+            <FormControl>
+              <HStack justify="space-between" align="center">
+                <FormLabel htmlFor="include-in-networth" mb="0">
+                  Include in Net Worth
+                </FormLabel>
+                <Controller
+                  name="include_in_networth"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id="include-in-networth"
+                      isChecked={field.value ?? false}
+                      onChange={field.onChange}
+                      colorScheme="blue"
+                    />
+                  )}
+                />
+              </HStack>
+              <FormHelperText>
+                {accountType === ACCOUNT_TYPES.COLLECTIBLES
+                  ? 'Collectibles are excluded from net worth by default since their value can be uncertain. Enable this to include them.'
+                  : 'This account is excluded from net worth by default. Enable this to include it in your net worth calculations.'}
+              </FormHelperText>
+            </FormControl>
+          </>
+        )}
 
         <HStack justify="flex-end" spacing={3} pt={4}>
           <Button variant="ghost" onClick={onBack}>

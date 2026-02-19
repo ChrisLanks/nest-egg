@@ -413,6 +413,105 @@ class TestCreateManualAccount:
                 assert result.exclude_from_cash_flow is True
 
     @pytest.mark.asyncio
+    async def test_collectibles_defaults_include_in_networth_to_none(
+        self, mock_db, mock_user
+    ):
+        """Collectibles without include_in_networth should store None (excluded by default in calculations)."""
+        account_data = ManualAccountCreate(
+            name="My Art Collection",
+            account_type=AccountType.COLLECTIBLES,
+            account_source=AccountSource.MANUAL,
+            balance=Decimal("5000.00"),
+        )
+
+        with patch(
+            "app.api.v1.accounts.deduplication_service.calculate_manual_account_hash",
+            return_value="hash",
+        ):
+            result = await create_manual_account(
+                account_data=account_data,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            assert result.include_in_networth is None
+
+    @pytest.mark.asyncio
+    async def test_collectibles_include_in_networth_false_is_stored(
+        self, mock_db, mock_user
+    ):
+        """Collectibles with include_in_networth=False should store False explicitly."""
+        account_data = ManualAccountCreate(
+            name="My Art Collection",
+            account_type=AccountType.COLLECTIBLES,
+            account_source=AccountSource.MANUAL,
+            balance=Decimal("5000.00"),
+            include_in_networth=False,
+        )
+
+        with patch(
+            "app.api.v1.accounts.deduplication_service.calculate_manual_account_hash",
+            return_value="hash",
+        ):
+            result = await create_manual_account(
+                account_data=account_data,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            assert result.include_in_networth is False
+
+    @pytest.mark.asyncio
+    async def test_collectibles_include_in_networth_true_is_stored(
+        self, mock_db, mock_user
+    ):
+        """User can opt collectibles into net worth by setting include_in_networth=True."""
+        account_data = ManualAccountCreate(
+            name="My Watch Collection",
+            account_type=AccountType.COLLECTIBLES,
+            account_source=AccountSource.MANUAL,
+            balance=Decimal("25000.00"),
+            include_in_networth=True,
+        )
+
+        with patch(
+            "app.api.v1.accounts.deduplication_service.calculate_manual_account_hash",
+            return_value="hash",
+        ):
+            result = await create_manual_account(
+                account_data=account_data,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            assert result.include_in_networth is True
+
+    @pytest.mark.asyncio
+    async def test_other_account_include_in_networth_false_is_stored(
+        self, mock_db, mock_user
+    ):
+        """Other/manual accounts with include_in_networth=False should store False."""
+        account_data = ManualAccountCreate(
+            name="Miscellaneous Assets",
+            account_type=AccountType.OTHER,
+            account_source=AccountSource.MANUAL,
+            balance=Decimal("1000.00"),
+            include_in_networth=False,
+        )
+
+        with patch(
+            "app.api.v1.accounts.deduplication_service.calculate_manual_account_hash",
+            return_value="hash",
+        ):
+            result = await create_manual_account(
+                account_data=account_data,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            assert result.include_in_networth is False
+
+    @pytest.mark.asyncio
     async def test_creates_holdings_for_investment_accounts(
         self, mock_db, mock_user
     ):
