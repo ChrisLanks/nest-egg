@@ -144,13 +144,23 @@ class ForecastService:
         total = Decimal(0)
         today = date.today()
 
+        # Account types that default to excluded from net worth when include_in_networth is None
+        EXCLUDED_BY_DEFAULT = {
+            AccountType.VEHICLE,
+            AccountType.COLLECTIBLES,
+            AccountType.OTHER,
+            AccountType.MANUAL,
+        }
+
         for account in accounts:
             # Check if account should be included
             include = account.include_in_networth
             if include is None:
                 # Auto-determine
-                if account.account_type == AccountType.PRIVATE_EQUITY:
-                    include = account.company_status and account.company_status.value == 'public'
+                if account.account_type in EXCLUDED_BY_DEFAULT:
+                    include = False
+                elif account.account_type == AccountType.PRIVATE_EQUITY:
+                    include = bool(account.company_status and account.company_status.value == 'public')
                 else:
                     include = True
 

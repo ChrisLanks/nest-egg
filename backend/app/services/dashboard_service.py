@@ -55,17 +55,36 @@ class DashboardService:
 
         Returns True if:
         - include_in_networth is explicitly True
-        - include_in_networth is None and company_status is public (auto-include)
-        - include_in_networth is None and account is not private equity (default include)
+        - include_in_networth is None and account is a standard financial account
+
+        Returns False if:
+        - include_in_networth is explicitly False
+        - include_in_networth is None and account type defaults to excluded:
+          - VEHICLE (depreciating asset, opt-in for classics)
+          - PRIVATE_EQUITY (illiquid, opt-in for public company equity)
+          - COLLECTIBLES (uncertain value, opt-in)
+          - OTHER / MANUAL (unknown type, opt-in)
         """
         if account.include_in_networth is not None:
             return account.include_in_networth
 
         # Auto-determine based on account type
         from app.models.account import AccountType
+
+        # Account types that default to excluded from net worth
+        EXCLUDED_BY_DEFAULT = {
+            AccountType.VEHICLE,
+            AccountType.COLLECTIBLES,
+            AccountType.OTHER,
+            AccountType.MANUAL,
+        }
+
+        if account.account_type in EXCLUDED_BY_DEFAULT:
+            return False
+
         if account.account_type == AccountType.PRIVATE_EQUITY:
             # Private equity: default to excluding unless public
-            return account.company_status and account.company_status.value == 'public'
+            return bool(account.company_status and account.company_status.value == 'public')
 
         # All other accounts: default to including
         return True
