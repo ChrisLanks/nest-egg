@@ -22,6 +22,7 @@ import {
   IconButton,
   Tooltip,
 } from "@chakra-ui/react";
+
 import {
   AddIcon,
   ChevronDownIcon,
@@ -36,7 +37,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuthStore } from "../features/auth/stores/authStore";
 import { useLogout } from "../features/auth/hooks/useAuth";
 import api from "../services/api";
@@ -73,6 +74,79 @@ interface NavItemProps {
   isActive: boolean;
   onClick: () => void;
 }
+
+interface NavDropdownProps {
+  label: string;
+  items: { label: string; path: string }[];
+  currentPath: string;
+  onNavigate: (path: string) => void;
+}
+
+const NavDropdown = ({ label, items, currentPath, onNavigate }: NavDropdownProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const isActive = items.some((item) => currentPath === item.path);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [isOpen]);
+
+  return (
+    <Box position="relative" ref={ref}>
+      <Button
+        rightIcon={<ChevronDownIcon />}
+        variant={isActive ? "solid" : "ghost"}
+        colorScheme={isActive ? "brand" : "gray"}
+        size="sm"
+        fontWeight={isActive ? "semibold" : "medium"}
+        onClick={() => setIsOpen((prev) => !prev)}
+      >
+        {label}
+      </Button>
+      {isOpen && (
+        <Box
+          position="absolute"
+          top="calc(100% + 4px)"
+          left={0}
+          bg="white"
+          borderWidth={1}
+          borderColor="gray.200"
+          borderRadius="md"
+          boxShadow="md"
+          zIndex={200}
+          minW="180px"
+          py={1}
+        >
+          {items.map((item) => (
+            <Box
+              key={item.path}
+              px={3}
+              py={2}
+              cursor="pointer"
+              fontWeight={currentPath === item.path ? "semibold" : "normal"}
+              bg={currentPath === item.path ? "brand.50" : "transparent"}
+              _hover={{ bg: currentPath === item.path ? "brand.100" : "gray.50" }}
+              fontSize="sm"
+              onClick={() => {
+                onNavigate(item.path);
+                setIsOpen(false);
+              }}
+            >
+              {item.label}
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+};
 
 const TopNavItem = ({
   label,
@@ -265,26 +339,6 @@ export const Layout = () => {
     isOpen: isAddAccountOpen,
     onOpen: onAddAccountOpen,
     onClose: onAddAccountClose,
-  } = useDisclosure();
-  const {
-    isOpen: isPlanningOpen,
-    onOpen: onPlanningOpen,
-    onClose: onPlanningClose,
-  } = useDisclosure();
-  const {
-    isOpen: isAnalyticsOpen,
-    onOpen: onAnalyticsOpen,
-    onClose: onAnalyticsClose,
-  } = useDisclosure();
-  const {
-    isOpen: isTransactionsOpen,
-    onOpen: onTransactionsOpen,
-    onClose: onTransactionsClose,
-  } = useDisclosure();
-  const {
-    isOpen: isProfileOpen,
-    onOpen: onProfileOpen,
-    onClose: onProfileClose,
   } = useDisclosure();
 
   const [collapsedSections, setCollapsedSections] = useState<
@@ -564,168 +618,28 @@ export const Layout = () => {
               />
 
               {/* Planning & Goals Dropdown */}
-              <Menu isOpen={isPlanningOpen} onClose={onPlanningClose}>
-                <MenuButton
-                  as={Button}
-                  rightIcon={<ChevronDownIcon />}
-                  variant={
-                    planningMenuItems.some(
-                      (item) => location.pathname === item.path,
-                    )
-                      ? "solid"
-                      : "ghost"
-                  }
-                  colorScheme={
-                    planningMenuItems.some(
-                      (item) => location.pathname === item.path,
-                    )
-                      ? "brand"
-                      : "gray"
-                  }
-                  size="sm"
-                  fontWeight={
-                    planningMenuItems.some(
-                      (item) => location.pathname === item.path,
-                    )
-                      ? "semibold"
-                      : "medium"
-                  }
-                  onClick={isPlanningOpen ? onPlanningClose : onPlanningOpen}
-                >
-                  Planning & Goals
-                </MenuButton>
-                <MenuList>
-                  {planningMenuItems.map((item) => (
-                    <MenuItem
-                      key={item.path}
-                      onClick={() => {
-                        onPlanningClose();
-                        navigateWithParams(item.path);
-                      }}
-                      fontWeight={
-                        location.pathname === item.path ? "semibold" : "normal"
-                      }
-                      bg={
-                        location.pathname === item.path
-                          ? "brand.50"
-                          : "transparent"
-                      }
-                    >
-                      {item.label}
-                    </MenuItem>
-                  ))}
-                </MenuList>
-              </Menu>
+              <NavDropdown
+                label="Planning & Goals"
+                items={planningMenuItems}
+                currentPath={location.pathname}
+                onNavigate={navigateWithParams}
+              />
 
               {/* Analytics Dropdown */}
-              <Menu isOpen={isAnalyticsOpen} onClose={onAnalyticsClose}>
-                <MenuButton
-                  as={Button}
-                  rightIcon={<ChevronDownIcon />}
-                  variant={
-                    analyticsMenuItems.some(
-                      (item) => location.pathname === item.path,
-                    )
-                      ? "solid"
-                      : "ghost"
-                  }
-                  colorScheme={
-                    analyticsMenuItems.some(
-                      (item) => location.pathname === item.path,
-                    )
-                      ? "brand"
-                      : "gray"
-                  }
-                  size="sm"
-                  fontWeight={
-                    analyticsMenuItems.some(
-                      (item) => location.pathname === item.path,
-                    )
-                      ? "semibold"
-                      : "medium"
-                  }
-                  onClick={isAnalyticsOpen ? onAnalyticsClose : onAnalyticsOpen}
-                >
-                  Analytics
-                </MenuButton>
-                <MenuList>
-                  {analyticsMenuItems.map((item) => (
-                    <MenuItem
-                      key={item.path}
-                      onClick={() => {
-                        onAnalyticsClose();
-                        navigateWithParams(item.path);
-                      }}
-                      fontWeight={
-                        location.pathname === item.path ? "semibold" : "normal"
-                      }
-                      bg={
-                        location.pathname === item.path
-                          ? "brand.50"
-                          : "transparent"
-                      }
-                    >
-                      {item.label}
-                    </MenuItem>
-                  ))}
-                </MenuList>
-              </Menu>
+              <NavDropdown
+                label="Analytics"
+                items={analyticsMenuItems}
+                currentPath={location.pathname}
+                onNavigate={navigateWithParams}
+              />
 
               {/* Transactions Dropdown */}
-              <Menu isOpen={isTransactionsOpen} onClose={onTransactionsClose}>
-                <MenuButton
-                  as={Button}
-                  rightIcon={<ChevronDownIcon />}
-                  variant={
-                    transactionsMenuItems.some(
-                      (item) => location.pathname === item.path,
-                    )
-                      ? "solid"
-                      : "ghost"
-                  }
-                  colorScheme={
-                    transactionsMenuItems.some(
-                      (item) => location.pathname === item.path,
-                    )
-                      ? "brand"
-                      : "gray"
-                  }
-                  size="sm"
-                  fontWeight={
-                    transactionsMenuItems.some(
-                      (item) => location.pathname === item.path,
-                    )
-                      ? "semibold"
-                      : "medium"
-                  }
-                  onClick={
-                    isTransactionsOpen ? onTransactionsClose : onTransactionsOpen
-                  }
-                >
-                  Transactions
-                </MenuButton>
-                <MenuList>
-                  {transactionsMenuItems.map((item) => (
-                    <MenuItem
-                      key={item.path}
-                      onClick={() => {
-                        onTransactionsClose();
-                        navigateWithParams(item.path);
-                      }}
-                      fontWeight={
-                        location.pathname === item.path ? "semibold" : "normal"
-                      }
-                      bg={
-                        location.pathname === item.path
-                          ? "brand.50"
-                          : "transparent"
-                      }
-                    >
-                      {item.label}
-                    </MenuItem>
-                  ))}
-                </MenuList>
-              </Menu>
+              <NavDropdown
+                label="Transactions"
+                items={transactionsMenuItems}
+                currentPath={location.pathname}
+                onNavigate={navigateWithParams}
+              />
 
               {/* Investments */}
               <TopNavItem
@@ -750,13 +664,12 @@ export const Layout = () => {
             </Box>
             <NotificationBell />
 
-            <Menu isOpen={isProfileOpen} onClose={onProfileClose}>
+            <Menu>
               <MenuButton
                 as={Button}
                 rightIcon={<ChevronDownIcon />}
                 variant="ghost"
                 size="sm"
-                onClick={isProfileOpen ? onProfileClose : onProfileOpen}
               >
                 <HStack spacing={2}>
                   <Avatar
@@ -777,28 +690,19 @@ export const Layout = () => {
               <MenuList>
                 <MenuItem
                   icon={<FiUsers />}
-                  onClick={() => {
-                    onProfileClose();
-                    navigateWithParams("/household");
-                  }}
+                  onClick={() => navigateWithParams("/household")}
                 >
                   Household Settings
                 </MenuItem>
                 <MenuItem
                   icon={<FiSettings />}
-                  onClick={() => {
-                    onProfileClose();
-                    navigateWithParams("/preferences");
-                  }}
+                  onClick={() => navigateWithParams("/preferences")}
                 >
                   Preferences
                 </MenuItem>
                 <MenuItem
                   icon={<FiLogOut />}
-                  onClick={() => {
-                    onProfileClose();
-                    handleLogout();
-                  }}
+                  onClick={handleLogout}
                   color="red.600"
                 >
                   Logout
