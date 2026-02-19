@@ -78,6 +78,10 @@ export const basicManualAccountSchema = z.object({
   balance: z.number().or(z.string().transform((val) => parseFloat(val))),
   account_number_last4: z.string().max(4).optional(),
   include_in_networth: z.boolean().optional(),
+  // Loan/mortgage fields
+  interest_rate: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
+  loan_term_months: z.number().or(z.string().transform((val) => parseInt(val))).optional(),
+  origination_date: z.string().optional(),
 });
 
 export type BasicManualAccountFormData = z.infer<typeof basicManualAccountSchema>;

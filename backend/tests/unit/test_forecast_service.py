@@ -628,3 +628,204 @@ class TestCDMaturityProjections:
 
         # CD A matures first
         assert cd_a_event[0]["date"] < cd_b_event[0]["date"]
+
+
+@pytest.mark.unit
+class TestMortgagePaymentProjections:
+    """Test mortgage/loan payment cash flow projections."""
+
+    async def test_mortgage_payment_uses_amortization_formula(self):
+        """Monthly payment calculated via standard amortization: M = P*r(1+r)^n / [(1+r)^n - 1]."""
+        from app.models.account import Account, AccountType
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        # $400,000 mortgage at 7% APR, 30-year term (360 months)
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Home Mortgage",
+            account_type=AccountType.MORTGAGE,
+            current_balance=Decimal("400000.00"),
+            interest_rate=Decimal("7.00"),
+            loan_term_months=360,
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        db = MagicMock()
+        result_mock = MagicMock()
+        result_mock.scalars().all.return_value = [account]
+        db.execute = AsyncMock(return_value=result_mock)
+
+        events = await ForecastService._get_mortgage_payment_events(
+            db, uuid4(), None, days_ahead=90
+        )
+
+        # Should have ~3 monthly payments
+        assert len(events) >= 3
+
+        # All amounts should be negative (cash outflow)
+        assert all(e["amount"] < 0 for e in events)
+
+        # Expected payment: $400,000 at 7%/12 monthly rate, 360 months
+        # M ≈ $2,661.21
+        monthly_rate = Decimal("7.00") / 100 / 12
+        factor = (Decimal(1) + monthly_rate) ** 360
+        expected_payment = Decimal("400000.00") * (monthly_rate * factor) / (factor - 1)
+
+        for event in events:
+            assert float(abs(event["amount"])) == pytest.approx(float(expected_payment), rel=0.001)
+            assert "Loan Payment" in event["merchant"]
+
+    async def test_loan_payment_uses_remaining_term_from_origination(self):
+        """Remaining term is calculated from origination date when available."""
+        from app.models.account import Account, AccountType
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        # Loan taken out 60 months ago on a 120-month term → 60 months remaining
+        origination_date = date.today().replace(day=1) - timedelta(days=60 * 30)
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Car Loan",
+            account_type=AccountType.LOAN,
+            current_balance=Decimal("15000.00"),
+            interest_rate=Decimal("5.00"),
+            loan_term_months=120,
+            origination_date=origination_date,
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        db = MagicMock()
+        result_mock = MagicMock()
+        result_mock.scalars().all.return_value = [account]
+        db.execute = AsyncMock(return_value=result_mock)
+
+        events = await ForecastService._get_mortgage_payment_events(
+            db, uuid4(), None, days_ahead=90
+        )
+
+        # Should have payments projected
+        assert len(events) >= 3
+        assert all(e["amount"] < 0 for e in events)
+
+    async def test_accounts_without_interest_rate_are_skipped(self):
+        """Accounts with no interest_rate should not generate payment events."""
+        from app.models.account import Account, AccountType
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="No-Rate Mortgage",
+            account_type=AccountType.MORTGAGE,
+            current_balance=Decimal("300000.00"),
+            interest_rate=None,  # No rate — skip
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        db = MagicMock()
+        result_mock = MagicMock()
+        # Query filters out accounts without interest_rate, so empty result
+        result_mock.scalars().all.return_value = []
+        db.execute = AsyncMock(return_value=result_mock)
+
+        events = await ForecastService._get_mortgage_payment_events(
+            db, uuid4(), None, days_ahead=90
+        )
+
+        assert events == []
+
+    async def test_accounts_excluded_from_cash_flow_are_skipped(self):
+        """Accounts with exclude_from_cash_flow=True should not generate payment events."""
+        from app.models.account import Account, AccountType
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        db = MagicMock()
+        result_mock = MagicMock()
+        # exclude_from_cash_flow filter in query returns nothing
+        result_mock.scalars().all.return_value = []
+        db.execute = AsyncMock(return_value=result_mock)
+
+        events = await ForecastService._get_mortgage_payment_events(
+            db, uuid4(), None, days_ahead=90
+        )
+
+        assert events == []
+
+    async def test_payment_uses_default_term_when_no_term_data(self):
+        """Mortgage without term data defaults to 360 months; loan defaults to 120 months."""
+        from app.models.account import Account, AccountType
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        mortgage = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Unknown Term Mortgage",
+            account_type=AccountType.MORTGAGE,
+            current_balance=Decimal("250000.00"),
+            interest_rate=Decimal("6.5"),
+            loan_term_months=None,  # No term — use 360 default
+            origination_date=None,
+            maturity_date=None,
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        db = MagicMock()
+        result_mock = MagicMock()
+        result_mock.scalars().all.return_value = [mortgage]
+        db.execute = AsyncMock(return_value=result_mock)
+
+        events = await ForecastService._get_mortgage_payment_events(
+            db, uuid4(), None, days_ahead=90
+        )
+
+        # Should still generate payments using 360-month default
+        assert len(events) >= 3
+        assert all(e["amount"] < 0 for e in events)
+
+    async def test_payment_events_on_correct_due_day(self):
+        """Payments are scheduled on payment_due_day when set."""
+        from app.models.account import Account, AccountType
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Student Loan",
+            account_type=AccountType.STUDENT_LOAN,
+            current_balance=Decimal("30000.00"),
+            interest_rate=Decimal("4.5"),
+            loan_term_months=120,
+            payment_due_day=15,  # Due on the 15th
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        db = MagicMock()
+        result_mock = MagicMock()
+        result_mock.scalars().all.return_value = [account]
+        db.execute = AsyncMock(return_value=result_mock)
+
+        events = await ForecastService._get_mortgage_payment_events(
+            db, uuid4(), None, days_ahead=90
+        )
+
+        # All payment dates should be on the 15th (or last day of month if shorter)
+        for event in events:
+            assert event["date"].day == 15

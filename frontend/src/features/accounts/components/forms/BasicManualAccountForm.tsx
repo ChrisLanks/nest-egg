@@ -17,7 +17,10 @@ import {
   Switch,
   FormHelperText,
   Divider,
+  InputGroup,
+  InputRightAddon,
 } from '@chakra-ui/react';
+import { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowBackIcon } from '@chakra-ui/icons';
@@ -39,12 +42,18 @@ interface BasicManualAccountFormProps {
 // Account types where include_in_networth defaults to false and the toggle is shown
 const NETWORTH_TOGGLE_TYPES: AccountType[] = [ACCOUNT_TYPES.COLLECTIBLES, ACCOUNT_TYPES.OTHER, ACCOUNT_TYPES.MANUAL];
 
+// Account types that show loan detail fields
+const LOAN_TYPES: AccountType[] = [ACCOUNT_TYPES.MORTGAGE, ACCOUNT_TYPES.LOAN, ACCOUNT_TYPES.STUDENT_LOAN];
+
 export const BasicManualAccountForm = ({
   defaultAccountType,
   onSubmit,
   onBack,
   isLoading,
 }: BasicManualAccountFormProps) => {
+  // Loan term is shown to the user in years but stored as months in the schema
+  const [loanTermYears, setLoanTermYears] = useState('');
+
   const {
     register,
     handleSubmit,
@@ -61,9 +70,18 @@ export const BasicManualAccountForm = ({
 
   const accountType = watch('account_type');
   const showNetworthToggle = NETWORTH_TOGGLE_TYPES.includes(accountType as AccountType);
+  const showLoanFields = LOAN_TYPES.includes(accountType as AccountType);
+
+  const handleFormSubmit = (data: BasicManualAccountFormData) => {
+    const submitData = {
+      ...data,
+      loan_term_months: loanTermYears ? Math.round(parseFloat(loanTermYears) * 12) : undefined,
+    };
+    onSubmit(submitData);
+  };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
+    <form onSubmit={handleSubmit(handleFormSubmit)}>
       <VStack spacing={6} align="stretch">
         <HStack>
           <Button
@@ -148,6 +166,71 @@ export const BasicManualAccountForm = ({
           />
           <FormErrorMessage>{errors.account_number_last4?.message}</FormErrorMessage>
         </FormControl>
+
+        {showLoanFields && (
+          <>
+            <Divider />
+            <Text fontWeight="semibold" fontSize="sm" color="gray.600">
+              Loan Details
+            </Text>
+
+            {/* Interest Rate */}
+            <FormControl isInvalid={!!errors.interest_rate}>
+              <FormLabel>Interest Rate (Optional)</FormLabel>
+              <Controller
+                name="interest_rate"
+                control={control}
+                render={({ field: { onChange, value, ...field } }) => (
+                  <InputGroup>
+                    <NumberInput
+                      {...field}
+                      value={value ?? ''}
+                      onChange={(valueString) => onChange(valueString ? parseFloat(valueString) : undefined)}
+                      precision={3}
+                      step={0.125}
+                      min={0}
+                      max={100}
+                      w="full"
+                    >
+                      <NumberInputField placeholder="e.g., 6.75" />
+                    </NumberInput>
+                    <InputRightAddon>%</InputRightAddon>
+                  </InputGroup>
+                )}
+              />
+              <FormHelperText>Annual interest rate (APR)</FormHelperText>
+              <FormErrorMessage>{errors.interest_rate?.message}</FormErrorMessage>
+            </FormControl>
+
+            {/* Loan Term */}
+            <FormControl>
+              <FormLabel>Loan Term (Optional)</FormLabel>
+              <InputGroup>
+                <NumberInput
+                  value={loanTermYears}
+                  onChange={setLoanTermYears}
+                  precision={1}
+                  step={1}
+                  min={1}
+                  max={50}
+                  w="full"
+                >
+                  <NumberInputField placeholder="e.g., 30" />
+                </NumberInput>
+                <InputRightAddon>years</InputRightAddon>
+              </InputGroup>
+              <FormHelperText>Common terms: 30, 20, 15, or 10 years</FormHelperText>
+            </FormControl>
+
+            {/* Origination Date */}
+            <FormControl isInvalid={!!errors.origination_date}>
+              <FormLabel>Loan Start Date (Optional)</FormLabel>
+              <Input type="date" {...register('origination_date')} />
+              <FormHelperText>When you took out the loan</FormHelperText>
+              <FormErrorMessage>{errors.origination_date?.message}</FormErrorMessage>
+            </FormControl>
+          </>
+        )}
 
         {showNetworthToggle && (
           <>

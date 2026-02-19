@@ -83,6 +83,12 @@ class ForecastService:
         )
         future_transactions.extend(cd_maturity_events)
 
+        # Add future mortgage/loan payment events
+        mortgage_events = await ForecastService._get_mortgage_payment_events(
+            db, organization_id, user_id, days_ahead
+        )
+        future_transactions.extend(mortgage_events)
+
         # Calculate daily running balance
         forecast = []
         running_balance = current_balance
@@ -515,6 +521,98 @@ class ForecastService:
             })
 
         return cd_events
+
+    @staticmethod
+    async def _get_mortgage_payment_events(
+        db: AsyncSession, organization_id: UUID, user_id: Optional[UUID], days_ahead: int
+    ) -> List[Dict]:
+        """
+        Calculate monthly mortgage/loan payments and project as cash outflows.
+
+        Uses standard amortization formula: M = P[r(1+r)^n] / [(1+r)^n - 1]
+        where P = current balance, r = monthly rate, n = remaining months.
+
+        Only runs for accounts with interest_rate set and exclude_from_cash_flow = False.
+        """
+        import calendar
+        from app.models.account import AccountType
+
+        loan_types = [AccountType.MORTGAGE, AccountType.LOAN, AccountType.STUDENT_LOAN]
+
+        conditions = [
+            Account.organization_id == organization_id,
+            Account.is_active.is_(True),
+            Account.account_type.in_(loan_types),
+            Account.interest_rate.isnot(None),
+            Account.interest_rate > 0,
+            Account.exclude_from_cash_flow.is_(False),
+        ]
+
+        if user_id:
+            conditions.append(Account.user_id == user_id)
+
+        result = await db.execute(select(Account).where(and_(*conditions)))
+        accounts = result.scalars().all()
+
+        payment_events = []
+        today = date.today()
+        end_date = today + timedelta(days=days_ahead)
+
+        for account in accounts:
+            balance = account.current_balance or Decimal(0)
+            if balance <= 0:
+                continue
+
+            monthly_rate = account.interest_rate / Decimal(100) / Decimal(12)
+
+            # Determine remaining months
+            if account.loan_term_months and account.origination_date:
+                months_elapsed = (
+                    (today.year - account.origination_date.year) * 12
+                    + (today.month - account.origination_date.month)
+                )
+                remaining_months = max(1, account.loan_term_months - months_elapsed)
+            elif account.maturity_date:
+                remaining_months = max(
+                    1,
+                    (account.maturity_date.year - today.year) * 12
+                    + (account.maturity_date.month - today.month),
+                )
+            elif account.loan_term_months:
+                remaining_months = account.loan_term_months
+            else:
+                # No term data — use conservative defaults
+                remaining_months = 360 if account.account_type == AccountType.MORTGAGE else 120
+
+            # Amortization formula: M = P * r(1+r)^n / [(1+r)^n - 1]
+            factor = (Decimal(1) + monthly_rate) ** remaining_months
+            monthly_payment = balance * (monthly_rate * factor) / (factor - Decimal(1))
+
+            payment_day = account.payment_due_day or 1
+
+            # Generate one payment per month within the forecast window
+            current_month = today.replace(day=1)
+            while current_month <= end_date:
+                last_day = calendar.monthrange(current_month.year, current_month.month)[1]
+                pay_day = min(payment_day, last_day)
+                payment_date = current_month.replace(day=pay_day)
+
+                if today <= payment_date <= end_date:
+                    payment_events.append(
+                        {
+                            "date": payment_date,
+                            "amount": -monthly_payment,  # Negative = cash outflow
+                            "merchant": f"{account.name} - Loan Payment",
+                        }
+                    )
+
+                # Advance to next month
+                if current_month.month == 12:
+                    current_month = current_month.replace(year=current_month.year + 1, month=1)
+                else:
+                    current_month = current_month.replace(month=current_month.month + 1)
+
+        return payment_events
 
     @staticmethod
     async def check_negative_balance_alert(

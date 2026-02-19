@@ -64,12 +64,19 @@ interface Account {
   exclude_from_cash_flow: boolean;
   plaid_item_hash: string | null;
   plaid_item_id: string | null;
+  // Loan/mortgage fields
+  interest_rate: number | null;
+  loan_term_months: number | null;
+  origination_date: string | null;
+  minimum_payment: number | null;
   // Sync status
   last_synced_at: string | null;
   last_error_code: string | null;
   last_error_message: string | null;
   needs_reauth: boolean | null;
 }
+
+const LOAN_ACCOUNT_TYPES = ['mortgage', 'loan', 'student_loan'];
 
 const accountTypeLabels: Record<string, string> = {
   checking: 'Checking',
@@ -106,6 +113,10 @@ export const AccountDetailPage = () => {
   const [vehicleValue, setVehicleValue] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
+  // Loan detail editing state
+  const [loanInterestRate, setLoanInterestRate] = useState('');
+  const [loanTermYears, setLoanTermYears] = useState('');
+  const [loanOriginationDate, setLoanOriginationDate] = useState('');
 
   // Fetch account details
   const { data: account, isLoading } = useQuery<Account>({
@@ -145,7 +156,7 @@ export const AccountDetailPage = () => {
 
   // Update account mutation
   const updateAccountMutation = useMutation({
-    mutationFn: async (data: { name?: string; account_type?: string; is_active?: boolean; exclude_from_cash_flow?: boolean }) => {
+    mutationFn: async (data: { name?: string; account_type?: string; is_active?: boolean; exclude_from_cash_flow?: boolean; interest_rate?: number | null; loan_term_months?: number | null; origination_date?: string | null }) => {
       const response = await api.patch(`/accounts/${accountId}`, data);
       return response.data;
     },
@@ -360,6 +371,32 @@ export const AccountDetailPage = () => {
 
     if (Object.keys(updates).length > 0) {
       updateVehicleMutation.mutate(updates);
+    }
+  };
+
+  const handleSaveLoanDetails = () => {
+    const updates: { interest_rate?: number | null; loan_term_months?: number | null; origination_date?: string | null } = {};
+
+    if (loanInterestRate !== '') {
+      const rate = parseFloat(loanInterestRate);
+      if (!isNaN(rate) && rate >= 0) updates.interest_rate = rate;
+    }
+    if (loanTermYears !== '') {
+      const years = parseFloat(loanTermYears);
+      if (!isNaN(years) && years > 0) updates.loan_term_months = Math.round(years * 12);
+    }
+    if (loanOriginationDate !== '') {
+      updates.origination_date = loanOriginationDate;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      updateAccountMutation.mutate(updates, {
+        onSuccess: () => {
+          setLoanInterestRate('');
+          setLoanTermYears('');
+          setLoanOriginationDate('');
+        },
+      });
     }
   };
 
@@ -744,6 +781,115 @@ export const AccountDetailPage = () => {
                       isDisabled={!vehicleMileage && !vehicleValue}
                     >
                       Save Updates
+                    </Button>
+                  </>
+                )}
+              </VStack>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Loan Details Section - For mortgage/loan/student_loan accounts */}
+        {LOAN_ACCOUNT_TYPES.includes(account.account_type) && (
+          <Card>
+            <CardBody>
+              <Heading size="md" mb={1}>
+                Loan Details
+              </Heading>
+              <Text fontSize="sm" color="gray.500" mb={4}>
+                {account.account_source !== 'manual'
+                  ? 'Your bank may not provide these details. Enter them manually to enable cash flow projections and debt payoff planning.'
+                  : 'Used for cash flow projections and debt payoff planning.'}
+              </Text>
+              <VStack spacing={4} align="stretch">
+                {/* Current values display */}
+                {(account.interest_rate || account.loan_term_months || account.origination_date) && (
+                  <>
+                    <HStack spacing={6} wrap="wrap">
+                      {account.interest_rate != null && (
+                        <Box>
+                          <Text fontSize="xs" color="gray.500">Interest Rate</Text>
+                          <Text fontWeight="semibold">{account.interest_rate}%</Text>
+                        </Box>
+                      )}
+                      {account.loan_term_months != null && (
+                        <Box>
+                          <Text fontSize="xs" color="gray.500">Loan Term</Text>
+                          <Text fontWeight="semibold">
+                            {account.loan_term_months >= 12
+                              ? `${Math.round(account.loan_term_months / 12)} years`
+                              : `${account.loan_term_months} months`}
+                          </Text>
+                        </Box>
+                      )}
+                      {account.origination_date && (
+                        <Box>
+                          <Text fontSize="xs" color="gray.500">Loan Start</Text>
+                          <Text fontWeight="semibold">
+                            {new Date(account.origination_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                          </Text>
+                        </Box>
+                      )}
+                    </HStack>
+                    <Divider />
+                  </>
+                )}
+
+                {!canEditAccount ? (
+                  <Text fontSize="sm" color="gray.600">
+                    Loan details can only be updated by the account owner.
+                  </Text>
+                ) : (
+                  <>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Interest Rate (%)</FormLabel>
+                      <NumberInput
+                        value={loanInterestRate}
+                        onChange={setLoanInterestRate}
+                        precision={3}
+                        step={0.125}
+                        min={0}
+                        max={100}
+                        size="sm"
+                      >
+                        <NumberInputField placeholder={account.interest_rate != null ? String(account.interest_rate) : 'e.g., 6.75'} />
+                      </NumberInput>
+                    </FormControl>
+
+                    <FormControl>
+                      <FormLabel fontSize="sm">Loan Term (years)</FormLabel>
+                      <NumberInput
+                        value={loanTermYears}
+                        onChange={setLoanTermYears}
+                        precision={1}
+                        step={1}
+                        min={1}
+                        max={50}
+                        size="sm"
+                      >
+                        <NumberInputField placeholder={account.loan_term_months != null ? String(Math.round(account.loan_term_months / 12)) : 'e.g., 30'} />
+                      </NumberInput>
+                    </FormControl>
+
+                    <FormControl>
+                      <FormLabel fontSize="sm">Loan Start Date</FormLabel>
+                      <Input
+                        type="date"
+                        size="sm"
+                        value={loanOriginationDate}
+                        onChange={(e) => setLoanOriginationDate(e.target.value)}
+                        placeholder={account.origination_date ?? undefined}
+                      />
+                    </FormControl>
+
+                    <Button
+                      colorScheme="brand"
+                      size="sm"
+                      onClick={handleSaveLoanDetails}
+                      isLoading={updateAccountMutation.isPending}
+                      isDisabled={!loanInterestRate && !loanTermYears && !loanOriginationDate}
+                    >
+                      Save Loan Details
                     </Button>
                   </>
                 )}
