@@ -157,6 +157,7 @@ export const vehicleAccountSchema = z.object({
   mileage: z.number().or(z.string().transform((val) => parseInt(val, 10))).optional(),
   value: z.number().or(z.string().transform((val) => parseFloat(val))).refine((val) => val > 0, 'Value must be greater than 0'),
   loan_balance: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
+  include_in_networth: z.boolean().optional(),
 });
 
 export type VehicleAccountFormData = z.infer<typeof vehicleAccountSchema>;

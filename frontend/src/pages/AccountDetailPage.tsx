@@ -62,6 +62,7 @@ interface Account {
   mask: string | null;
   is_active: boolean;
   exclude_from_cash_flow: boolean;
+  include_in_networth: boolean | null;
   plaid_item_hash: string | null;
   plaid_item_id: string | null;
   // Loan/mortgage fields
@@ -156,7 +157,7 @@ export const AccountDetailPage = () => {
 
   // Update account mutation
   const updateAccountMutation = useMutation({
-    mutationFn: async (data: { name?: string; account_type?: string; is_active?: boolean; exclude_from_cash_flow?: boolean; interest_rate?: number | null; loan_term_months?: number | null; origination_date?: string | null }) => {
+    mutationFn: async (data: { name?: string; account_type?: string; is_active?: boolean; exclude_from_cash_flow?: boolean; include_in_networth?: boolean | null; interest_rate?: number | null; loan_term_months?: number | null; origination_date?: string | null }) => {
       const response = await api.patch(`/accounts/${accountId}`, data);
       return response.data;
     },
@@ -344,6 +345,12 @@ export const AccountDetailPage = () => {
   const handleToggleExcludeFromCashFlow = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (account) {
       updateAccountMutation.mutate({ exclude_from_cash_flow: e.target.checked });
+    }
+  };
+
+  const handleToggleIncludeInNetworth = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (account) {
+      updateAccountMutation.mutate({ include_in_networth: e.target.checked });
     }
   };
 
@@ -728,6 +735,33 @@ export const AccountDetailPage = () => {
                     {account.mask ? `${parseInt(account.mask).toLocaleString()} miles` : 'Not set'}
                   </Text>
                 </Box>
+
+                <Divider />
+
+                {/* Investment toggle */}
+                <FormControl>
+                  <HStack justify="space-between" align="center">
+                    <FormLabel htmlFor="vehicle-networth-toggle" mb="0" fontSize="sm">
+                      Count as Investment in Net Worth
+                    </FormLabel>
+                    <Tooltip
+                      label={!canEditAccount ? "You can only edit your own accounts" : ""}
+                      placement="top"
+                      isDisabled={canEditAccount}
+                    >
+                      <Switch
+                        id="vehicle-networth-toggle"
+                        isChecked={account.include_in_networth ?? false}
+                        onChange={handleToggleIncludeInNetworth}
+                        colorScheme="blue"
+                        isDisabled={!canEditAccount}
+                      />
+                    </Tooltip>
+                  </HStack>
+                  <Text fontSize="xs" color="gray.500" mt={1}>
+                    Enable for classic or collectible vehicles you consider an investment.
+                  </Text>
+                </FormControl>
 
                 <Divider />
 

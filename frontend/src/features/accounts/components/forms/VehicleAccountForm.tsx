@@ -15,6 +15,9 @@ import {
   Text,
   Link,
   Box,
+  Switch,
+  FormHelperText,
+  Divider,
 } from '@chakra-ui/react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -43,6 +46,9 @@ export const VehicleAccountForm = ({
     formState: { errors },
   } = useForm<VehicleAccountFormData>({
     resolver: zodResolver(vehicleAccountSchema),
+    defaultValues: {
+      include_in_networth: false,
+    },
   });
 
   const value = watch('value');
@@ -225,6 +231,31 @@ export const VehicleAccountForm = ({
             )}
           </Box>
         )}
+
+        <Divider />
+
+        <FormControl>
+          <HStack justify="space-between" align="center">
+            <FormLabel htmlFor="vehicle-include-networth" mb="0">
+              Count as Investment in Net Worth
+            </FormLabel>
+            <Controller
+              name="include_in_networth"
+              control={control}
+              render={({ field }) => (
+                <Switch
+                  id="vehicle-include-networth"
+                  isChecked={field.value ?? false}
+                  onChange={field.onChange}
+                  colorScheme="blue"
+                />
+              )}
+            />
+          </HStack>
+          <FormHelperText>
+            Vehicles typically depreciate and are excluded from net worth by default. Enable this for classic or collectible vehicles you consider an investment.
+          </FormHelperText>
+        </FormControl>
 
         <HStack justify="flex-end" spacing={3} pt={4}>
           <Button variant="ghost" onClick={onBack}>

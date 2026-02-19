@@ -268,6 +268,7 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
       balance: data.value,
       institution: `${data.year} ${data.make} ${data.model}`,
       account_number_last4: data.mileage?.toString() || undefined,
+      include_in_networth: data.include_in_networth,
     } as any);
   };
 
