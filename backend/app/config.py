@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     TELLER_ENV: str = "sandbox"  # sandbox, production
     TELLER_WEBHOOK_SECRET: str = ""
     TELLER_ENABLED: bool = True
+    TELLER_CERT_PATH: str = ""  # Path to Teller-issued mTLS certificate (.pem) - required for API calls
 
     # Market Data Provider (for investment prices)
     MARKET_DATA_PROVIDER: str = "yahoo_finance"  # yahoo_finance, alpha_vantage, finnhub

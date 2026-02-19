@@ -40,15 +40,22 @@ class TellerService:
     async def _make_request(
         self, method: str, path: str, access_token: Optional[str] = None, **kwargs
     ) -> Dict:
-        """Make authenticated request to Teller API."""
+        """Make authenticated request to Teller API.
+
+        Teller requires mTLS (mutual TLS) — the client certificate authenticates
+        the application, while the access token identifies the user's enrollment.
+        """
         headers = {
             "Content-Type": "application/json",
         }
 
-        # Use access_token if provided, otherwise use app credentials
+        # Access token as Basic Auth username (empty password), per Teller spec
         auth = (access_token or self.api_key, "")
 
-        async with httpx.AsyncClient() as client:
+        # mTLS client certificate — required by Teller for all API calls
+        cert = settings.TELLER_CERT_PATH if settings.TELLER_CERT_PATH else None
+
+        async with httpx.AsyncClient(cert=cert) as client:
             response = await client.request(
                 method=method,
                 url=f"{self.base_url}{path}",
