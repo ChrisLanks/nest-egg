@@ -4,9 +4,7 @@ import pytest
 from decimal import Decimal
 from datetime import date
 
-# TransactionService class doesn't exist - these tests are outdated
-# Skip entire test class until service is refactored/created
-pytestmark = pytest.mark.skip(reason="TransactionService class does not exist - tests outdated")
+from app.services.transaction_service import TransactionService
 
 
 @pytest.mark.unit

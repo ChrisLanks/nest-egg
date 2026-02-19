@@ -316,6 +316,7 @@ class LabelResponse(BaseModel):
     name: str
     color: Optional[str] = None
     is_income: bool
+    parent_label_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
 

@@ -91,11 +91,23 @@ async def create_label(
             detail="Cannot create label named 'Transfer' - this is a reserved system label",
         )
 
+    # Validate parent if provided
+    if label_data.parent_label_id is not None:
+        await hierarchy_validation_service.validate_parent(
+            label_data.parent_label_id,
+            current_user.organization_id,
+            db,
+            Label,
+            parent_field_name="parent_label_id",
+            entity_name="label",
+        )
+
     label = Label(
         organization_id=current_user.organization_id,
         name=label_data.name,
         color=label_data.color,
         is_income=label_data.is_income,
+        parent_label_id=label_data.parent_label_id,
     )
     db.add(label)
     await db.commit()

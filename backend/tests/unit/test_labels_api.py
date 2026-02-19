@@ -26,19 +26,13 @@ from app.schemas.transaction import LabelCreate, LabelUpdate
 
 @pytest.mark.unit
 class TestGetLabelDepth:
-    """Test get_label_depth helper function.
-
-    NOTE: The Label model does not have a parent_label_id column.
-    The get_label_depth function references Label.parent_label_id which does not
-    exist in the current model, so these tests are skipped.
-    """
+    """Test get_label_depth helper function."""
 
     @pytest.fixture
     def mock_db(self):
         return AsyncMock()
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Label model does not have parent_label_id column")
     async def test_returns_zero_for_root_label(self, mock_db):
         """Should return 0 for label with no parent."""
         label_id = uuid4()
@@ -52,7 +46,6 @@ class TestGetLabelDepth:
         assert depth == 0
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Label model does not have parent_label_id column")
     async def test_returns_one_for_child_label(self, mock_db):
         """Should return 1 for label with one parent."""
         label_id = uuid4()
@@ -71,7 +64,6 @@ class TestGetLabelDepth:
         assert depth == 1
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Label model does not have parent_label_id column")
     async def test_returns_two_for_grandchild_label(self, mock_db):
         """Should return 2 for label with grandparent."""
         label_id = uuid4()
@@ -234,7 +226,6 @@ class TestCreateLabel:
         assert exc_info.value.status_code == 400
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="LabelCreate does not support parent_label_id; Label model has no hierarchy")
     async def test_validates_parent_when_provided(
         self, mock_db, mock_user
     ):
@@ -244,10 +235,12 @@ class TestCreateLabel:
             name="Subcategory",
             color="#00FF00",
             is_income=False,
+            parent_label_id=parent_id,
         )
 
         with patch(
             "app.api.v1.labels.hierarchy_validation_service.validate_parent",
+            new_callable=AsyncMock,
             return_value=None,
         ) as mock_validate:
             await create_label(
@@ -257,7 +250,7 @@ class TestCreateLabel:
             )
 
             mock_validate.assert_called_once_with(
-                None,
+                parent_id,
                 mock_user.organization_id,
                 mock_db,
                 Label,
@@ -376,7 +369,6 @@ class TestUpdateLabel:
         assert "own parent" in exc_info.value.detail
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Label model does not have parent_label_id column; hierarchy not supported")
     async def test_prevents_parent_when_has_children(
         self, mock_db, mock_user, mock_label
     ):
@@ -407,7 +399,6 @@ class TestUpdateLabel:
         assert "already has children" in exc_info.value.detail
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Label model does not have parent_label_id column; hierarchy not supported")
     async def test_allows_parent_when_no_children(
         self, mock_db, mock_user, mock_label
     ):
@@ -428,7 +419,7 @@ class TestUpdateLabel:
 
         with patch(
             "app.api.v1.labels.hierarchy_validation_service.validate_parent",
-            return_value=None,
+            new_callable=AsyncMock,
         ):
             result = await update_label(
                 label_id=label_id,

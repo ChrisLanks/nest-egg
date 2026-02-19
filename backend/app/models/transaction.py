@@ -4,7 +4,7 @@ import uuid
 
 from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, Numeric, Text, Index
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 from app.core.database import Base
 from app.utils.datetime_utils import utc_now_lambda
@@ -136,6 +136,14 @@ class Label(Base):
     name = Column(String(100), nullable=False)
     color = Column(String(7), nullable=True)  # Hex color code
 
+    # Hierarchy (optional parent label for grouping)
+    parent_label_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("labels.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Type flags
     is_income = Column(Boolean, default=False, nullable=False)
     is_system = Column(Boolean, default=False, nullable=False)  # System-created labels
@@ -148,6 +156,7 @@ class Label(Base):
     transactions = relationship(
         "TransactionLabel", back_populates="label", cascade="all, delete-orphan"
     )
+    children = relationship("Label", backref=backref("parent", remote_side="Label.id"), lazy="select")
 
     __table_args__ = (Index("ix_labels_org_name", "organization_id", "name", unique=True),)
 
