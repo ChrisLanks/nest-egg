@@ -37,6 +37,30 @@ class PropertyType(str, enum.Enum):
     VACATION_HOME = "vacation_home"
 
 
+class GrantType(str, enum.Enum):
+    """Grant type for private equity/stock options."""
+
+    ISO = "iso"  # Incentive Stock Option
+    NSO = "nso"  # Non-Qualified Stock Option
+    RSU = "rsu"  # Restricted Stock Unit
+    RSA = "rsa"  # Restricted Stock Award
+
+
+class CompanyStatus(str, enum.Enum):
+    """Company status for private equity."""
+
+    PRIVATE = "private"
+    PUBLIC = "public"
+
+
+class ValuationMethod(str, enum.Enum):
+    """Valuation method for private equity."""
+
+    FMV_409A = "409a"  # Fair Market Value (409A valuation)
+    PREFERRED_PRICE = "preferred"  # Last round preferred price
+    CUSTOM_PRICE = "custom"  # Custom price
+
+
 class AccountType(str, enum.Enum):
     """Account types with automatic asset/debt classification."""
 
@@ -64,6 +88,7 @@ class AccountType(str, enum.Enum):
     # Alternative Investments
     CRYPTO = "crypto"
     PRIVATE_EQUITY = "private_equity"
+    PRIVATE_DEBT = "private_debt"  # Private credit funds or loans you've made
     COLLECTIBLES = "collectibles"
     PRECIOUS_METALS = "precious_metals"
 
@@ -303,6 +328,19 @@ class Account(Base):
     origination_date = Column(Date, nullable=True)  # Date loan was originated
     maturity_date = Column(Date, nullable=True)  # Date loan matures/ends
     loan_term_months = Column(Integer, nullable=True)  # Total loan term in months
+
+    # Private Debt fields (for private credit funds or loans made)
+    principal_amount = Column(Numeric(15, 2), nullable=True)  # Original principal amount
+
+    # Private Equity fields (for RSUs, stock options, company equity)
+    grant_type = Column(SQLEnum(GrantType), nullable=True)  # ISO, NSO, RSU, RSA
+    grant_date = Column(Date, nullable=True)  # Date equity was granted
+    quantity = Column(Numeric(15, 4), nullable=True)  # Number of shares/options
+    strike_price = Column(Numeric(15, 4), nullable=True)  # Exercise price (for options)
+    vesting_schedule = Column(Text, nullable=True)  # e.g., "4-year, 1-year cliff"
+    share_price = Column(Numeric(15, 4), nullable=True)  # Current estimated price per share
+    company_status = Column(SQLEnum(CompanyStatus), nullable=True)  # Private or Public
+    valuation_method = Column(SQLEnum(ValuationMethod), nullable=True)  # 409a, Preferred, Custom
 
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)

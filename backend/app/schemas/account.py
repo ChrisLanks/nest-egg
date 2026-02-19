@@ -1,13 +1,20 @@
 """Account schemas."""
 
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from typing import Optional, List
 from uuid import UUID
 
 from pydantic import BaseModel
 
-from app.models.account import AccountType, AccountSource, PropertyType
+from app.models.account import (
+    AccountType,
+    AccountSource,
+    PropertyType,
+    GrantType,
+    CompanyStatus,
+    ValuationMethod,
+)
 
 
 class AccountBase(BaseModel):
@@ -47,6 +54,29 @@ class ManualAccountCreate(BaseModel):
     account_number_last4: Optional[str] = None
     holdings: Optional[List[HoldingData]] = None  # For investment accounts
 
+    # Debt/Loan fields
+    interest_rate: Optional[Decimal] = None
+    interest_rate_type: Optional[str] = None  # 'FIXED' or 'VARIABLE'
+    minimum_payment: Optional[Decimal] = None
+    payment_due_day: Optional[int] = None
+    original_amount: Optional[Decimal] = None
+    origination_date: Optional[date] = None
+    maturity_date: Optional[date] = None
+    loan_term_months: Optional[int] = None
+
+    # Private Debt fields
+    principal_amount: Optional[Decimal] = None
+
+    # Private Equity fields
+    grant_type: Optional[GrantType] = None
+    grant_date: Optional[date] = None
+    quantity: Optional[Decimal] = None  # Number of shares/options
+    strike_price: Optional[Decimal] = None  # Exercise price
+    vesting_schedule: Optional[str] = None  # e.g., "4-year, 1-year cliff"
+    share_price: Optional[Decimal] = None  # Current estimated price per share
+    company_status: Optional[CompanyStatus] = None
+    valuation_method: Optional[ValuationMethod] = None
+
 
 class AccountUpdate(BaseModel):
     """Account update schema."""
@@ -56,6 +86,29 @@ class AccountUpdate(BaseModel):
     current_balance: Optional[Decimal] = None
     mask: Optional[str] = None
     exclude_from_cash_flow: Optional[bool] = None
+
+    # Debt/Loan fields
+    interest_rate: Optional[Decimal] = None
+    interest_rate_type: Optional[str] = None
+    minimum_payment: Optional[Decimal] = None
+    payment_due_day: Optional[int] = None
+    original_amount: Optional[Decimal] = None
+    origination_date: Optional[date] = None
+    maturity_date: Optional[date] = None
+    loan_term_months: Optional[int] = None
+
+    # Private Debt fields
+    principal_amount: Optional[Decimal] = None
+
+    # Private Equity fields
+    grant_type: Optional[GrantType] = None
+    grant_date: Optional[date] = None
+    quantity: Optional[Decimal] = None
+    strike_price: Optional[Decimal] = None
+    vesting_schedule: Optional[str] = None
+    share_price: Optional[Decimal] = None
+    company_status: Optional[CompanyStatus] = None
+    valuation_method: Optional[ValuationMethod] = None
 
 
 class Account(AccountBase):
@@ -76,6 +129,29 @@ class Account(AccountBase):
     exclude_from_cash_flow: bool
     created_at: datetime
     updated_at: datetime
+
+    # Debt/Loan fields
+    interest_rate: Optional[Decimal] = None
+    interest_rate_type: Optional[str] = None
+    minimum_payment: Optional[Decimal] = None
+    payment_due_day: Optional[int] = None
+    original_amount: Optional[Decimal] = None
+    origination_date: Optional[date] = None
+    maturity_date: Optional[date] = None
+    loan_term_months: Optional[int] = None
+
+    # Private Debt fields
+    principal_amount: Optional[Decimal] = None
+
+    # Private Equity fields
+    grant_type: Optional[GrantType] = None
+    grant_date: Optional[date] = None
+    quantity: Optional[Decimal] = None
+    strike_price: Optional[Decimal] = None
+    vesting_schedule: Optional[str] = None
+    share_price: Optional[Decimal] = None
+    company_status: Optional[CompanyStatus] = None
+    valuation_method: Optional[ValuationMethod] = None
 
     model_config = {"from_attributes": True}
 
