@@ -61,6 +61,15 @@ class ValuationMethod(str, enum.Enum):
     CUSTOM_PRICE = "custom"  # Custom price
 
 
+class CompoundingFrequency(str, enum.Enum):
+    """Compounding frequency for CDs and interest-bearing accounts."""
+
+    DAILY = "daily"
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    AT_MATURITY = "at_maturity"  # Simple interest paid at maturity
+
+
 class AccountType(str, enum.Enum):
     """Account types with automatic asset/debt classification."""
 
@@ -328,6 +337,7 @@ class Account(Base):
     origination_date = Column(Date, nullable=True)  # Date loan was originated
     maturity_date = Column(Date, nullable=True)  # Date loan matures/ends
     loan_term_months = Column(Integer, nullable=True)  # Total loan term in months
+    compounding_frequency = Column(SQLEnum(CompoundingFrequency), nullable=True)  # How interest compounds (for CDs)
 
     # Private Debt fields (for private credit funds or loans made)
     principal_amount = Column(Numeric(15, 2), nullable=True)  # Original principal amount
@@ -342,6 +352,11 @@ class Account(Base):
     company_status = Column(SQLEnum(CompanyStatus), nullable=True)  # Private or Public
     valuation_method = Column(SQLEnum(ValuationMethod), nullable=True)  # 409a, Preferred, Custom
     include_in_networth = Column(Boolean, default=None, nullable=True)  # None = auto (public=true, private=false)
+
+    # Business Equity fields (for business ownership)
+    company_valuation = Column(Numeric(15, 2), nullable=True)  # Total company valuation
+    ownership_percentage = Column(Numeric(5, 2), nullable=True)  # Percentage ownership (0-100)
+    equity_value = Column(Numeric(15, 2), nullable=True)  # Direct equity value (alternative to valuation + percentage)
 
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)

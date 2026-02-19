@@ -92,8 +92,14 @@ export const PrivateDebtAccountForm = ({
           <Controller
             name="balance"
             control={control}
-            render={({ field }) => (
-              <NumberInput {...field} onChange={(_, val) => field.onChange(val)} min={0} precision={2}>
+            render={({ field: { onChange, value, ...field } }) => (
+              <NumberInput
+                {...field}
+                value={value as number}
+                onChange={(valueString) => onChange(parseFloat(valueString) || 0)}
+                min={0}
+                precision={2}
+              >
                 <NumberInputField placeholder="e.g., 50000.00" />
               </NumberInput>
             )}
@@ -108,8 +114,14 @@ export const PrivateDebtAccountForm = ({
           <Controller
             name="principal_amount"
             control={control}
-            render={({ field }) => (
-              <NumberInput {...field} onChange={(_, val) => field.onChange(val)} min={0} precision={2}>
+            render={({ field: { onChange, value, ...field } }) => (
+              <NumberInput
+                {...field}
+                value={value as number}
+                onChange={(valueString) => onChange(parseFloat(valueString) || 0)}
+                min={0}
+                precision={2}
+              >
                 <NumberInputField placeholder="e.g., 50000.00" />
               </NumberInput>
             )}
@@ -124,8 +136,15 @@ export const PrivateDebtAccountForm = ({
           <Controller
             name="interest_rate"
             control={control}
-            render={({ field }) => (
-              <NumberInput {...field} onChange={(_, val) => field.onChange(val)} min={0} max={100} precision={2}>
+            render={({ field: { onChange, value, ...field } }) => (
+              <NumberInput
+                {...field}
+                value={value as number}
+                onChange={(valueString) => onChange(parseFloat(valueString) || 0)}
+                min={0}
+                max={100}
+                precision={2}
+              >
                 <NumberInputField placeholder="e.g., 5.5" />
               </NumberInput>
             )}

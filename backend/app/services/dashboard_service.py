@@ -74,11 +74,28 @@ class DashboardService:
         """
         Calculate the current value of an account.
 
+        For Business Equity accounts, calculates from valuation + percentage or uses direct value.
         For Private Equity accounts with vesting schedules, only counts vested equity.
         For all other accounts, returns current_balance.
         """
         from app.models.account import AccountType
         import json
+
+        # Handle Business Equity accounts
+        if account.account_type == AccountType.BUSINESS_EQUITY:
+            # If direct equity value is provided, use it
+            if account.equity_value:
+                return account.equity_value
+            # If company valuation is provided
+            elif account.company_valuation:
+                # If ownership percentage is also provided, calculate proportional value
+                if account.ownership_percentage:
+                    return (account.company_valuation * account.ownership_percentage) / Decimal(100)
+                # If no percentage provided, assume 100% ownership (use full valuation)
+                else:
+                    return account.company_valuation
+            # Fallback to current_balance
+            return account.current_balance or Decimal(0)
 
         # For non-private-equity accounts, just return the balance
         if account.account_type != AccountType.PRIVATE_EQUITY:

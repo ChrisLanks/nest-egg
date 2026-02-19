@@ -92,9 +92,16 @@ export const BasicManualAccountForm = ({
           <Select {...register('account_type')}>
             <option value={ACCOUNT_TYPES.CHECKING}>Checking</option>
             <option value={ACCOUNT_TYPES.SAVINGS}>Savings</option>
+            <option value={ACCOUNT_TYPES.MONEY_MARKET}>Money Market</option>
+            <option value={ACCOUNT_TYPES.CD}>CD</option>
             <option value={ACCOUNT_TYPES.CREDIT_CARD}>Credit Card</option>
             <option value={ACCOUNT_TYPES.LOAN}>Loan</option>
+            <option value={ACCOUNT_TYPES.STUDENT_LOAN}>Student Loan</option>
             <option value={ACCOUNT_TYPES.MORTGAGE}>Mortgage</option>
+            <option value={ACCOUNT_TYPES.RETIREMENT_529}>529 Plan</option>
+            <option value={ACCOUNT_TYPES.HSA}>HSA</option>
+            <option value={ACCOUNT_TYPES.PENSION}>Pension</option>
+            <option value={ACCOUNT_TYPES.COLLECTIBLES}>Collectibles</option>
             <option value={ACCOUNT_TYPES.MANUAL}>Other</option>
           </Select>
           <FormErrorMessage>{errors.account_type?.message}</FormErrorMessage>

@@ -87,7 +87,7 @@ export const ContributionForm = ({
       case ContributionType.SHARES:
         return 'Enter number of shares acquired each period';
       case ContributionType.PERCENTAGE_GROWTH:
-        return 'Enter annual growth/interest rate as a percentage';
+        return 'Enter annual growth/interest rate as a percentage (e.g., 0.1% for low-yield accounts)';
       default:
         return '';
     }
@@ -126,10 +126,10 @@ export const ContributionForm = ({
                 {...field}
                 value={value}
                 onChange={(valueString) => onChange(parseFloat(valueString) || 0)}
-                precision={contributionType === ContributionType.PERCENTAGE_GROWTH ? 2 : (contributionType === ContributionType.SHARES ? 4 : 2)}
-                step={contributionType === ContributionType.FIXED_AMOUNT ? 100 : (contributionType === ContributionType.PERCENTAGE_GROWTH ? 0.1 : 1)}
+                precision={contributionType === ContributionType.PERCENTAGE_GROWTH ? 3 : (contributionType === ContributionType.SHARES ? 4 : 2)}
+                step={contributionType === ContributionType.FIXED_AMOUNT ? 100 : (contributionType === ContributionType.PERCENTAGE_GROWTH ? 0.01 : 1)}
               >
-                <NumberInputField placeholder={contributionType === ContributionType.FIXED_AMOUNT ? '500' : (contributionType === ContributionType.SHARES ? '10.5' : '7.0')} />
+                <NumberInputField placeholder={contributionType === ContributionType.FIXED_AMOUNT ? '500' : (contributionType === ContributionType.SHARES ? '10.5' : '0.1')} />
               </NumberInput>
             )}
           />

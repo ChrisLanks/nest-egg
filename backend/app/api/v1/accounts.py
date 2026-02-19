@@ -212,6 +212,7 @@ async def create_manual_account(
         origination_date=account_data.origination_date,
         maturity_date=account_data.maturity_date,
         loan_term_months=account_data.loan_term_months,
+        compounding_frequency=account_data.compounding_frequency,
         # Private Debt fields
         principal_amount=account_data.principal_amount,
         # Private Equity fields
@@ -224,6 +225,10 @@ async def create_manual_account(
         company_status=account_data.company_status,
         valuation_method=account_data.valuation_method,
         include_in_networth=account_data.include_in_networth,
+        # Business Equity fields
+        company_valuation=account_data.company_valuation,
+        ownership_percentage=account_data.ownership_percentage,
+        equity_value=account_data.equity_value,
     )
 
     db.add(account)
@@ -343,6 +348,8 @@ async def update_account(
         account.maturity_date = account_data.maturity_date
     if account_data.loan_term_months is not None:
         account.loan_term_months = account_data.loan_term_months
+    if account_data.compounding_frequency is not None:
+        account.compounding_frequency = account_data.compounding_frequency
 
     # Update Private Debt fields
     if account_data.principal_amount is not None:
@@ -367,6 +374,14 @@ async def update_account(
         account.valuation_method = account_data.valuation_method
     if account_data.include_in_networth is not None:
         account.include_in_networth = account_data.include_in_networth
+
+    # Update Business Equity fields
+    if account_data.company_valuation is not None:
+        account.company_valuation = account_data.company_valuation
+    if account_data.ownership_percentage is not None:
+        account.ownership_percentage = account_data.ownership_percentage
+    if account_data.equity_value is not None:
+        account.equity_value = account_data.equity_value
 
     await db.commit()
     await db.refresh(account)

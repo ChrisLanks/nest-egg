@@ -23,7 +23,10 @@ import {
   Th,
   Td,
   Divider,
+  Switch,
+  FormHelperText,
 } from '@chakra-ui/react';
+import { useState } from 'react';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowBackIcon, AddIcon, DeleteIcon } from '@chakra-ui/icons';
@@ -48,11 +51,15 @@ export const InvestmentAccountForm = ({
   onBack,
   isLoading,
 }: InvestmentAccountFormProps) => {
+  // Track individual holdings or just balance
+  const [trackHoldings, setTrackHoldings] = useState(true);
+
   const {
     register,
     handleSubmit,
     control,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<InvestmentAccountFormData>({
     resolver: zodResolver(investmentAccountSchema),
@@ -69,15 +76,37 @@ export const InvestmentAccountForm = ({
 
   const holdings = watch('holdings');
 
-  // Calculate total value
+  // Calculate total value from holdings
   const totalValue = holdings?.reduce((sum, holding) => {
     const shares = Number(holding.shares) || 0;
     const price = Number(holding.price_per_share) || 0;
     return sum + shares * price;
   }, 0) || 0;
 
+  // Toggle between holdings and balance mode
+  const handleTrackHoldingsToggle = (checked: boolean) => {
+    setTrackHoldings(checked);
+    if (!checked) {
+      // Clear holdings when switching to balance mode
+      setValue('holdings', []);
+    } else {
+      // Initialize with one empty holding when switching to holdings mode
+      setValue('holdings', [{ ticker: '', shares: 0, price_per_share: 0 }]);
+      setValue('balance', undefined);
+    }
+  };
+
   const handleFormSubmit = (data: InvestmentAccountFormData) => {
-    onSubmit(data);
+    // Clean up data based on mode
+    if (trackHoldings) {
+      // Remove balance field if tracking holdings
+      const { balance, ...holdingsData } = data;
+      onSubmit(holdingsData);
+    } else {
+      // Remove holdings field if using balance mode
+      const { holdings, ...balanceData } = data;
+      onSubmit(balanceData);
+    }
   };
 
   return (
@@ -123,6 +152,7 @@ export const InvestmentAccountForm = ({
             <option value={ACCOUNT_TYPES.RETIREMENT_401K}>401(k)</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_IRA}>IRA</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_ROTH}>Roth IRA</option>
+            <option value={ACCOUNT_TYPES.RETIREMENT_529}>529 Plan</option>
             <option value={ACCOUNT_TYPES.HSA}>HSA</option>
           </Select>
           <FormErrorMessage>{errors.account_type?.message}</FormErrorMessage>
@@ -130,29 +160,49 @@ export const InvestmentAccountForm = ({
 
         <Divider />
 
-        <Box>
-          <HStack justify="space-between" mb={3}>
-            <Text fontSize="md" fontWeight="semibold">
-              Holdings
-            </Text>
-            <Button
-              size="sm"
-              leftIcon={<AddIcon />}
-              onClick={() => append({ ticker: '', shares: 0, price_per_share: 0 })}
-              variant="outline"
-              colorScheme="brand"
-            >
-              Add Holding
-            </Button>
-          </HStack>
+        {/* Toggle between holdings and balance mode */}
+        <FormControl display="flex" alignItems="center">
+          <FormLabel htmlFor="track-holdings" mb="0">
+            Track individual holdings
+          </FormLabel>
+          <Switch
+            id="track-holdings"
+            isChecked={trackHoldings}
+            onChange={(e) => handleTrackHoldingsToggle(e.target.checked)}
+            colorScheme="brand"
+          />
+          <FormHelperText ml={3} mb="0">
+            {trackHoldings
+              ? 'You can add individual stocks, funds, etc.'
+              : 'Just track the total account balance'}
+          </FormHelperText>
+        </FormControl>
+
+        {trackHoldings ? (
+          // Holdings Mode
+          <Box>
+            <HStack justify="space-between" mb={3}>
+              <Text fontSize="md" fontWeight="semibold">
+                Holdings
+              </Text>
+              <Button
+                size="sm"
+                leftIcon={<AddIcon />}
+                onClick={() => append({ ticker: '', shares: 0, price_per_share: 0 })}
+                variant="outline"
+                colorScheme="brand"
+              >
+                Add Holding
+              </Button>
+            </HStack>
 
           <Box overflowX="auto">
             <Table size="sm" variant="simple">
               <Thead>
                 <Tr>
-                  <Th>Ticker</Th>
-                  <Th>Shares</Th>
-                  <Th>Price/Share</Th>
+                  <Th>{defaultAccountType === ACCOUNT_TYPES.CRYPTO ? 'Symbol' : 'Ticker'}</Th>
+                  <Th>{defaultAccountType === ACCOUNT_TYPES.CRYPTO ? 'Quantity' : 'Shares'}</Th>
+                  <Th>{defaultAccountType === ACCOUNT_TYPES.CRYPTO ? 'Price' : 'Price/Share'}</Th>
                   <Th isNumeric>Total Value</Th>
                   <Th></Th>
                 </Tr>
@@ -169,7 +219,7 @@ export const InvestmentAccountForm = ({
                         <FormControl isInvalid={!!errors.holdings?.[index]?.ticker} size="sm">
                           <Input
                             {...register(`holdings.${index}.ticker` as const)}
-                            placeholder="AAPL"
+                            placeholder={defaultAccountType === ACCOUNT_TYPES.CRYPTO ? "BTC" : "AAPL"}
                             size="sm"
                             textTransform="uppercase"
                           />
@@ -189,7 +239,7 @@ export const InvestmentAccountForm = ({
                                 step={0.01}
                                 size="sm"
                               >
-                                <NumberInputField placeholder="100" />
+                                <NumberInputField placeholder={defaultAccountType === ACCOUNT_TYPES.CRYPTO ? "0.5" : "100"} />
                               </NumberInput>
                             )}
                           />
@@ -209,7 +259,7 @@ export const InvestmentAccountForm = ({
                                 step={0.01}
                                 size="sm"
                               >
-                                <NumberInputField placeholder="185.50" />
+                                <NumberInputField placeholder={defaultAccountType === ACCOUNT_TYPES.CRYPTO ? "65000.00" : "185.50"} />
                               </NumberInput>
                             )}
                           />
@@ -239,25 +289,50 @@ export const InvestmentAccountForm = ({
             </Table>
           </Box>
 
-          {errors.holdings && (
-            <Text color="red.500" fontSize="sm" mt={2}>
-              {errors.holdings.message}
-            </Text>
-          )}
-
-          <Box mt={4} p={3} bg="gray.50" borderRadius="md">
-            <HStack justify="space-between">
-              <Text fontWeight="semibold">Total Portfolio Value:</Text>
-              <Text fontSize="lg" fontWeight="bold" color="brand.600">
-                ${totalValue.toFixed(2)}
+            {errors.holdings && (
+              <Text color="red.500" fontSize="sm" mt={2}>
+                {errors.holdings.message}
               </Text>
-            </HStack>
-          </Box>
+            )}
 
-          <Text fontSize="xs" color="gray.600" mt={2}>
-            💡 Tip: You can manually enter stock prices or look them up on Yahoo Finance or Google
-          </Text>
-        </Box>
+            <Box mt={4} p={3} bg="gray.50" borderRadius="md">
+              <HStack justify="space-between">
+                <Text fontWeight="semibold">Total Portfolio Value:</Text>
+                <Text fontSize="lg" fontWeight="bold" color="brand.600">
+                  ${totalValue.toFixed(2)}
+                </Text>
+              </HStack>
+            </Box>
+
+            <Text fontSize="xs" color="gray.600" mt={2}>
+              💡 Tip: You can manually enter stock prices or look them up on Yahoo Finance or Google
+            </Text>
+          </Box>
+        ) : (
+          // Balance Only Mode
+          <FormControl isInvalid={!!errors.balance}>
+            <FormLabel>Account Balance</FormLabel>
+            <Controller
+              name="balance"
+              control={control}
+              render={({ field: { onChange, value, ...field } }) => (
+                <NumberInput
+                  {...field}
+                  value={value as number}
+                  onChange={(valueString) => onChange(parseFloat(valueString) || 0)}
+                  precision={2}
+                  step={100}
+                >
+                  <NumberInputField placeholder="e.g., 25000.00" />
+                </NumberInput>
+              )}
+            />
+            <FormHelperText>
+              Enter the total current balance of your account
+            </FormHelperText>
+            <FormErrorMessage>{errors.balance?.message}</FormErrorMessage>
+          </FormControl>
+        )}
 
         <FormControl isInvalid={!!errors.account_number_last4}>
           <FormLabel>Account Number Last 4 Digits (Optional)</FormLabel>

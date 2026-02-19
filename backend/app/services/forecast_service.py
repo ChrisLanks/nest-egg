@@ -71,6 +71,18 @@ class ForecastService:
         )
         future_transactions.extend(vesting_events)
 
+        # Add future private debt events (interest income and principal repayment)
+        private_debt_events = await ForecastService._get_future_private_debt_events(
+            db, organization_id, user_id, days_ahead
+        )
+        future_transactions.extend(private_debt_events)
+
+        # Add future CD maturity events
+        cd_maturity_events = await ForecastService._get_future_cd_maturity_events(
+            db, organization_id, user_id, days_ahead
+        )
+        future_transactions.extend(cd_maturity_events)
+
         # Calculate daily running balance
         forecast = []
         running_balance = current_balance
@@ -140,7 +152,24 @@ class ForecastService:
                 continue
 
             # Calculate account value
-            if account.account_type == AccountType.PRIVATE_EQUITY and account.vesting_schedule:
+            # Handle Business Equity accounts
+            if account.account_type == AccountType.BUSINESS_EQUITY:
+                # If direct equity value is provided, use it
+                if account.equity_value:
+                    total += account.equity_value
+                # If company valuation is provided
+                elif account.company_valuation:
+                    # If ownership percentage is also provided, calculate proportional value
+                    if account.ownership_percentage:
+                        total += (account.company_valuation * account.ownership_percentage) / Decimal(100)
+                    # If no percentage provided, assume 100% ownership (use full valuation)
+                    else:
+                        total += account.company_valuation
+                # Fallback to current_balance
+                else:
+                    total += account.current_balance or Decimal(0)
+            # Handle Private Equity with vesting schedule
+            elif account.account_type == AccountType.PRIVATE_EQUITY and account.vesting_schedule:
                 # Calculate vested value
                 try:
                     milestones = json.loads(account.vesting_schedule)
@@ -302,6 +331,190 @@ class ForecastService:
                 continue
 
         return vesting_events
+
+    @staticmethod
+    async def _get_future_private_debt_events(
+        db: AsyncSession, organization_id: UUID, user_id: Optional[UUID], days_ahead: int
+    ) -> List[Dict]:
+        """
+        Extract future cash flow events from Private Debt accounts.
+
+        Projects:
+        1. Monthly interest income (based on interest_rate and principal_amount)
+        2. Principal repayment on maturity_date
+
+        Args:
+            db: Database session
+            organization_id: Organization ID
+            user_id: Optional user ID for filtering
+            days_ahead: Number of days to forecast
+
+        Returns:
+            List of future private debt events as transaction-like dictionaries
+        """
+        from datetime import datetime
+        from app.models.account import AccountType
+
+        # Query Private Debt accounts
+        conditions = [
+            Account.organization_id == organization_id,
+            Account.is_active.is_(True),
+            Account.account_type == AccountType.PRIVATE_DEBT,
+        ]
+
+        if user_id:
+            conditions.append(Account.user_id == user_id)
+
+        result = await db.execute(select(Account).where(and_(*conditions)))
+        accounts = result.scalars().all()
+
+        debt_events = []
+        today = date.today()
+        end_date = today + timedelta(days=days_ahead)
+
+        for account in accounts:
+            principal_amount = account.principal_amount or Decimal(0)
+            interest_rate = account.interest_rate or Decimal(0)
+
+            # Skip if no principal amount
+            if principal_amount <= 0:
+                continue
+
+            # Calculate monthly interest income (if interest rate is provided)
+            if interest_rate > 0:
+                # Monthly interest = principal * (annual_rate / 100) / 12
+                monthly_interest = principal_amount * (interest_rate / Decimal(100)) / Decimal(12)
+
+                # Generate monthly interest payments within forecast window
+                current_month = today.replace(day=1)  # Start of current month
+                if current_month < today:
+                    # Move to next month if we're past the 1st
+                    if current_month.month == 12:
+                        current_month = current_month.replace(year=current_month.year + 1, month=1)
+                    else:
+                        current_month = current_month.replace(month=current_month.month + 1)
+
+                while current_month <= end_date:
+                    debt_events.append({
+                        'date': current_month,
+                        'amount': monthly_interest,  # Positive since it's income
+                        'merchant': f"{account.name} - Interest Income",
+                    })
+
+                    # Move to next month
+                    if current_month.month == 12:
+                        current_month = current_month.replace(year=current_month.year + 1, month=1)
+                    else:
+                        current_month = current_month.replace(month=current_month.month + 1)
+
+            # Add principal repayment on maturity date (if within forecast window)
+            if account.maturity_date:
+                maturity_date = account.maturity_date
+                if today < maturity_date <= end_date:
+                    debt_events.append({
+                        'date': maturity_date,
+                        'amount': principal_amount,  # Positive since you're receiving repayment
+                        'merchant': f"{account.name} - Principal Repayment",
+                    })
+
+        return debt_events
+
+    @staticmethod
+    async def _get_future_cd_maturity_events(
+        db: AsyncSession, organization_id: UUID, user_id: Optional[UUID], days_ahead: int
+    ) -> List[Dict]:
+        """
+        Extract future CD maturity events.
+
+        When a CD matures, the full value (principal + accrued interest) becomes liquid.
+        Projects the maturity value based on interest rate and compounding frequency.
+
+        Args:
+            db: Database session
+            organization_id: Organization ID
+            user_id: Optional user ID for filtering
+            days_ahead: Number of days to forecast
+
+        Returns:
+            List of future CD maturity events as transaction-like dictionaries
+        """
+        from datetime import datetime
+        from app.models.account import AccountType
+        from decimal import Decimal as D
+        from math import pow
+
+        # Query CD accounts
+        conditions = [
+            Account.organization_id == organization_id,
+            Account.is_active.is_(True),
+            Account.account_type == AccountType.CD,
+            Account.maturity_date.isnot(None),
+        ]
+
+        if user_id:
+            conditions.append(Account.user_id == user_id)
+
+        result = await db.execute(select(Account).where(and_(*conditions)))
+        accounts = result.scalars().all()
+
+        cd_events = []
+        today = date.today()
+        end_date = today + timedelta(days=days_ahead)
+
+        for account in accounts:
+            maturity_date = account.maturity_date
+            if not maturity_date or not (today < maturity_date <= end_date):
+                continue
+
+            # Calculate maturity value
+            principal = account.original_amount or account.current_balance or D(0)
+            if principal <= 0:
+                continue
+
+            interest_rate = account.interest_rate or D(0)
+
+            # If no interest rate or compounding, use current balance
+            if interest_rate == 0 or not account.compounding_frequency:
+                maturity_value = principal
+            else:
+                # Calculate accrued interest based on compounding frequency
+                origination_date = account.origination_date or today
+                days_held = (maturity_date - origination_date).days
+                years_held = D(days_held) / D(365)
+
+                rate_decimal = interest_rate / D(100)
+
+                # Determine compounding periods per year
+                if account.compounding_frequency.value == 'daily':
+                    n = D(365)
+                elif account.compounding_frequency.value == 'monthly':
+                    n = D(12)
+                elif account.compounding_frequency.value == 'quarterly':
+                    n = D(4)
+                else:  # at_maturity (simple interest)
+                    maturity_value = principal * (D(1) + rate_decimal * years_held)
+                    cd_events.append({
+                        'date': maturity_date,
+                        'amount': maturity_value,
+                        'merchant': f"{account.name} - CD Maturity",
+                    })
+                    continue
+
+                # Compound interest formula: A = P(1 + r/n)^(nt)
+                try:
+                    compounding_factor = float((D(1) + rate_decimal / n) ** (n * years_held))
+                    maturity_value = principal * D(str(compounding_factor))
+                except (ValueError, OverflowError):
+                    # Fallback to simple interest if calculation fails
+                    maturity_value = principal * (D(1) + rate_decimal * years_held)
+
+            cd_events.append({
+                'date': maturity_date,
+                'amount': maturity_value,
+                'merchant': f"{account.name} - CD Maturity",
+            })
+
+        return cd_events
 
     @staticmethod
     async def check_negative_balance_alert(

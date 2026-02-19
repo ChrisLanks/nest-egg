@@ -182,7 +182,7 @@ export const ContributionsManager = ({ accountId, accountName }: ContributionsMa
     if (type === 'fixed_amount') {
       return `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     } else if (type === 'percentage_growth') {
-      return `${amount}%`;
+      return `${amount.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 3 })}%`;
     } else {
       return amount.toLocaleString();
     }

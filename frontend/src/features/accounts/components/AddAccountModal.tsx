@@ -2,7 +2,33 @@
  * Main modal for adding accounts with multi-step wizard
  */
 
-import { useState } from 'react';
+import { useState, Component } from 'react';
+import type { ReactNode } from 'react';
+
+class FormErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 24, color: 'red', background: '#fff0f0', borderRadius: 8 }}>
+          <strong>Form error:</strong>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, marginTop: 8 }}>
+            {this.state.error.message}
+            {'\n\n'}
+            {this.state.error.stack}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import {
   Modal,
   ModalOverlay,
@@ -23,6 +49,9 @@ import { PropertyAccountForm } from './forms/PropertyAccountForm';
 import { VehicleAccountForm } from './forms/VehicleAccountForm';
 import { PrivateEquityAccountForm } from './forms/PrivateEquityAccountForm';
 import { PrivateDebtAccountForm } from './forms/PrivateDebtAccountForm';
+import { CDAccountForm } from './forms/CDAccountForm';
+import { BusinessEquityAccountForm } from './forms/BusinessEquityAccountForm';
+import { BondAccountForm } from './forms/BondAccountForm';
 import { BankLinkStep, type BankProvider } from './BankLinkStep';
 import type {
   BasicManualAccountFormData,
@@ -45,6 +74,9 @@ type WizardStep =
   | 'manual_form_vehicle'
   | 'manual_form_private_equity'
   | 'manual_form_private_debt'
+  | 'manual_form_cd'
+  | 'manual_form_bond'
+  | 'manual_form_business_equity'
   | 'success';
 
 interface AddAccountModalProps {
@@ -102,11 +134,32 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
     else if (type === 'private_debt') {
       setCurrentStep('manual_form_private_debt');
     }
+    // Handle CD
+    else if (type === 'cd') {
+      setCurrentStep('manual_form_cd');
+    }
+    // Handle Business Equity
+    else if (type === 'business_equity') {
+      setCurrentStep('manual_form_business_equity');
+    }
+    // Handle Bond
+    else if (type === 'bond') {
+      setCurrentStep('manual_form_bond');
+    }
+    // Handle Collectibles (use basic form with 'other' type, no holdings)
+    else if (type === 'collectibles') {
+      setCurrentStep('manual_form_basic');
+    }
+    // Handle HSA, Pension (balance-only accounts, no holdings)
+    else if (type === 'hsa' || type === 'pension') {
+      setCurrentStep('manual_form_basic');
+    }
     // Handle other account types
     else if (category === 'basic') {
       setCurrentStep('manual_form_basic');
     } else if (category === 'investment' || category === 'alternative' || category === 'securities' || category === 'insurance' || category === 'business') {
       // All investment-related categories use the investment form
+      // Supports both holdings mode (detailed tracking) and balance-only mode
       setCurrentStep('manual_form_investment');
     } else if (category === 'property') {
       if (type === 'property') {
@@ -184,7 +237,7 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
 
   const handleInvestmentAccountSubmit = (data: InvestmentAccountFormData) => {
     // Calculate total balance from holdings
-    const balance = data.holdings.reduce((sum, holding) => {
+    const balance = (data.holdings ?? []).reduce((sum, holding) => {
       return sum + (holding.shares * holding.price_per_share);
     }, 0);
 
@@ -222,6 +275,18 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
     createManualAccountMutation.mutate(data);
   };
 
+  const handleCDAccountSubmit = (data: any) => {
+    createManualAccountMutation.mutate(data);
+  };
+
+  const handleBusinessEquityAccountSubmit = (data: any) => {
+    createManualAccountMutation.mutate(data);
+  };
+
+  const handleBondAccountSubmit = (data: any) => {
+    createManualAccountMutation.mutate(data);
+  };
+
   // Get modal title based on current step
   const getModalTitle = () => {
     switch (currentStep) {
@@ -235,6 +300,9 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
       case 'manual_form_vehicle':
       case 'manual_form_private_equity':
       case 'manual_form_private_debt':
+      case 'manual_form_cd':
+      case 'manual_form_business_equity':
+      case 'manual_form_bond':
         return selectedAccountType ? `Add ${formatAccountType(selectedAccountType)} Account` : 'Account Details';
       case 'bank_link':
         const providerName = selectedProvider === 'plaid' ? 'Plaid' : selectedProvider === 'teller' ? 'Teller' : 'Bank';
@@ -255,6 +323,7 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
         <ModalHeader>{getModalTitle()}</ModalHeader>
         <ModalCloseButton />
         <ModalBody pb={6}>
+          <FormErrorBoundary>
           {/* Step 1: Source Selection */}
           {currentStep === 'source_selection' && (
             <SourceSelectionStep onSelectSource={handleSelectSource} />
@@ -271,6 +340,7 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
           {/* Step 3: Basic Manual Account Form */}
           {currentStep === 'manual_form_basic' && selectedAccountType && (
             <BasicManualAccountForm
+              key={selectedAccountType}
               defaultAccountType={selectedAccountType}
               onSubmit={handleBasicManualAccountSubmit}
               onBack={handleBackToTypeSelection}
@@ -298,6 +368,7 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
           {/* Investment Account Form */}
           {currentStep === 'manual_form_investment' && selectedAccountType && (
             <InvestmentAccountForm
+              key={selectedAccountType}
               defaultAccountType={selectedAccountType}
               onSubmit={handleInvestmentAccountSubmit}
               onBack={handleBackToTypeSelection}
@@ -340,6 +411,34 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
               isLoading={createManualAccountMutation.isPending}
             />
           )}
+
+          {/* CD Account Form */}
+          {currentStep === 'manual_form_cd' && (
+            <CDAccountForm
+              onSubmit={handleCDAccountSubmit}
+              onBack={handleBackToTypeSelection}
+              isLoading={createManualAccountMutation.isPending}
+            />
+          )}
+
+          {/* Business Equity Account Form */}
+          {currentStep === 'manual_form_business_equity' && (
+            <BusinessEquityAccountForm
+              onSubmit={handleBusinessEquityAccountSubmit}
+              onBack={handleBackToTypeSelection}
+              isLoading={createManualAccountMutation.isPending}
+            />
+          )}
+
+          {/* Bond Account Form */}
+          {currentStep === 'manual_form_bond' && (
+            <BondAccountForm
+              onSubmit={handleBondAccountSubmit}
+              onBack={handleBackToTypeSelection}
+              isLoading={createManualAccountMutation.isPending}
+            />
+          )}
+          </FormErrorBoundary>
         </ModalBody>
       </ModalContent>
     </Modal>

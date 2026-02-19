@@ -56,7 +56,7 @@ export const ACCOUNT_TYPES = {
 
 export type AccountType = typeof ACCOUNT_TYPES[keyof typeof ACCOUNT_TYPES];
 
-// Basic manual account schema (checking, savings, loans, etc.)
+// Basic manual account schema (checking, savings, loans, retirement accounts without holdings, etc.)
 export const basicManualAccountSchema = z.object({
   name: z.string().min(1, 'Account name is required'),
   institution: z.string().optional(),
@@ -69,6 +69,10 @@ export const basicManualAccountSchema = z.object({
     ACCOUNT_TYPES.LOAN,
     ACCOUNT_TYPES.STUDENT_LOAN,
     ACCOUNT_TYPES.MORTGAGE,
+    ACCOUNT_TYPES.RETIREMENT_529,  // 529 plans typically track balance only
+    ACCOUNT_TYPES.HSA,  // HSA can track balance without holdings
+    ACCOUNT_TYPES.PENSION,  // Pension plans typically just track balance
+    ACCOUNT_TYPES.COLLECTIBLES,  // Collectibles track total value only
     ACCOUNT_TYPES.MANUAL,
     ACCOUNT_TYPES.OTHER,
   ]),
@@ -88,6 +92,9 @@ export const holdingSchema = z.object({
 export type HoldingFormData = z.infer<typeof holdingSchema>;
 
 // Investment account schema
+// Supports two modes:
+// 1. With holdings (for detailed tracking)
+// 2. Balance only (for accounts like 529, HSA, Pension where holdings aren't always tracked)
 export const investmentAccountSchema = z.object({
   name: z.string().min(1, 'Account name is required'),
   institution: z.string().optional(),
@@ -109,9 +116,19 @@ export const investmentAccountSchema = z.object({
     ACCOUNT_TYPES.STOCK_OPTIONS,
     ACCOUNT_TYPES.BUSINESS_EQUITY,
   ]),
-  holdings: z.array(holdingSchema).min(1, 'At least one holding is required'),
+  holdings: z.array(holdingSchema).optional(), // Optional - can provide holdings OR balance
+  balance: z.number().or(z.string().transform((val) => parseFloat(val))).optional(), // Optional balance for accounts without holdings
   account_number_last4: z.string().max(4).optional(),
-});
+}).refine(
+  (data) => {
+    // Must have either holdings OR balance
+    return (data.holdings && data.holdings.length > 0) || (data.balance !== undefined && data.balance !== null);
+  },
+  {
+    message: 'Must provide either holdings or a total balance',
+    path: ['holdings'],
+  }
+);
 
 export type InvestmentAccountFormData = z.infer<typeof investmentAccountSchema>;
 

@@ -52,6 +52,7 @@ class SQLiteJSONB(TypeDecorator):
 pg_dialect.JSONB = SQLiteJSONB
 
 import asyncio
+from decimal import Decimal
 from typing import AsyncGenerator, Generator
 from uuid import uuid4
 
@@ -61,14 +62,15 @@ from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
 from app.main import app
 from app.models.user import User, Organization
 from app.core.security import hash_password, create_access_token
 
-# Test database URL (use in-memory SQLite for fast tests)
+# Test database URL — use StaticPool so in-memory SQLite shares one connection
+# (NullPool creates a new connection per call, losing all tables each time)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 @event.listens_for(Engine, "connect")
@@ -92,12 +94,28 @@ def event_loop() -> Generator:
 async def test_engine():
     """Create a test database engine."""
     # Import all models to ensure they're registered with Base.metadata
-    from app.models import user, account, transaction, budget, savings_goal, rule, holding  # noqa: F401
+    from app.models import (  # noqa: F401
+        user,
+        account,
+        transaction,
+        budget,
+        savings_goal,
+        rule,
+        holding,
+        contribution,
+        mfa,
+        notification,
+        portfolio_snapshot,
+        recurring_transaction,
+        report_template,
+        transaction_merge,
+    )
 
     engine = create_async_engine(
         TEST_DATABASE_URL,
         echo=False,
-        poolclass=NullPool,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
 
     async with engine.begin() as conn:
@@ -123,6 +141,12 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
         yield session
         await session.rollback()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def db(db_session: AsyncSession) -> AsyncSession:
+    """Alias for db_session to match test function signatures."""
+    return db_session
 
 
 @pytest.fixture(scope="function")
@@ -185,6 +209,26 @@ async def test_user(db_session: AsyncSession, test_organization: Organization) -
     await db_session.commit()
     await db_session.refresh(user)
     return user
+
+
+@pytest_asyncio.fixture
+async def test_account(db_session: AsyncSession, test_user: User):
+    """Create a test account."""
+    from app.models.account import Account, AccountType
+
+    account = Account(
+        id=uuid4(),
+        organization_id=test_user.organization_id,
+        user_id=test_user.id,
+        name="Test Checking Account",
+        account_type=AccountType.CHECKING,
+        current_balance=Decimal("1000.00"),
+        is_active=True,
+    )
+    db_session.add(account)
+    await db_session.commit()
+    await db_session.refresh(account)
+    return account
 
 
 @pytest.fixture

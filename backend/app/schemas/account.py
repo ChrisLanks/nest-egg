@@ -14,6 +14,7 @@ from app.models.account import (
     GrantType,
     CompanyStatus,
     ValuationMethod,
+    CompoundingFrequency,
 )
 
 
@@ -63,6 +64,7 @@ class ManualAccountCreate(BaseModel):
     origination_date: Optional[date] = None
     maturity_date: Optional[date] = None
     loan_term_months: Optional[int] = None
+    compounding_frequency: Optional[CompoundingFrequency] = None  # For CD accounts
 
     # Private Debt fields
     principal_amount: Optional[Decimal] = None
@@ -77,6 +79,11 @@ class ManualAccountCreate(BaseModel):
     company_status: Optional[CompanyStatus] = None
     valuation_method: Optional[ValuationMethod] = None
     include_in_networth: Optional[bool] = None  # None = auto (public=true, private=false)
+
+    # Business Equity fields
+    company_valuation: Optional[Decimal] = None  # Total company valuation
+    ownership_percentage: Optional[Decimal] = None  # Percentage ownership (0-100)
+    equity_value: Optional[Decimal] = None  # Direct equity value
 
 
 class AccountUpdate(BaseModel):
@@ -97,6 +104,7 @@ class AccountUpdate(BaseModel):
     origination_date: Optional[date] = None
     maturity_date: Optional[date] = None
     loan_term_months: Optional[int] = None
+    compounding_frequency: Optional[CompoundingFrequency] = None  # For CD accounts
 
     # Private Debt fields
     principal_amount: Optional[Decimal] = None
@@ -111,6 +119,11 @@ class AccountUpdate(BaseModel):
     company_status: Optional[CompanyStatus] = None
     valuation_method: Optional[ValuationMethod] = None
     include_in_networth: Optional[bool] = None
+
+    # Business Equity fields
+    company_valuation: Optional[Decimal] = None
+    ownership_percentage: Optional[Decimal] = None
+    equity_value: Optional[Decimal] = None
 
 
 class Account(AccountBase):
@@ -141,6 +154,7 @@ class Account(AccountBase):
     origination_date: Optional[date] = None
     maturity_date: Optional[date] = None
     loan_term_months: Optional[int] = None
+    compounding_frequency: Optional[CompoundingFrequency] = None  # For CD accounts
 
     # Private Debt fields
     principal_amount: Optional[Decimal] = None
