@@ -40,10 +40,13 @@ interface BasicManualAccountFormProps {
 }
 
 // Account types where include_in_networth defaults to false and the toggle is shown
-const NETWORTH_TOGGLE_TYPES: AccountType[] = [ACCOUNT_TYPES.COLLECTIBLES, ACCOUNT_TYPES.OTHER, ACCOUNT_TYPES.MANUAL];
+const NETWORTH_TOGGLE_TYPES: AccountType[] = [ACCOUNT_TYPES.COLLECTIBLES, ACCOUNT_TYPES.OTHER, ACCOUNT_TYPES.MANUAL, ACCOUNT_TYPES.PENSION];
 
 // Account types that show loan detail fields
 const LOAN_TYPES: AccountType[] = [ACCOUNT_TYPES.MORTGAGE, ACCOUNT_TYPES.LOAN, ACCOUNT_TYPES.STUDENT_LOAN];
+
+// Account types that show pension/annuity income fields
+const INCOME_TYPES: AccountType[] = [ACCOUNT_TYPES.PENSION, ACCOUNT_TYPES.ANNUITY];
 
 export const BasicManualAccountForm = ({
   defaultAccountType,
@@ -71,6 +74,8 @@ export const BasicManualAccountForm = ({
   const accountType = watch('account_type');
   const showNetworthToggle = NETWORTH_TOGGLE_TYPES.includes(accountType as AccountType);
   const showLoanFields = LOAN_TYPES.includes(accountType as AccountType);
+  const showIncomeFields = INCOME_TYPES.includes(accountType as AccountType);
+  const showCreditCardFields = accountType === ACCOUNT_TYPES.CREDIT_CARD;
 
   const handleFormSubmit = (data: BasicManualAccountFormData) => {
     const submitData = {
@@ -129,6 +134,7 @@ export const BasicManualAccountForm = ({
             <option value={ACCOUNT_TYPES.MORTGAGE}>Mortgage</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_529}>529 Plan</option>
             <option value={ACCOUNT_TYPES.PENSION}>Pension</option>
+            <option value={ACCOUNT_TYPES.ANNUITY}>Annuity</option>
             <option value={ACCOUNT_TYPES.COLLECTIBLES}>Collectibles</option>
             <option value={ACCOUNT_TYPES.MANUAL}>Other</option>
           </Select>
@@ -232,6 +238,104 @@ export const BasicManualAccountForm = ({
           </>
         )}
 
+        {/* Credit Card Details */}
+        {showCreditCardFields && (
+          <>
+            <Divider />
+            <Text fontWeight="semibold" fontSize="sm" color="gray.600">
+              Credit Card Details (Optional)
+            </Text>
+
+            <FormControl isInvalid={!!errors.credit_limit}>
+              <FormLabel>Credit Limit</FormLabel>
+              <Controller
+                name="credit_limit"
+                control={control}
+                render={({ field: { onChange, value, ...field } }) => (
+                  <NumberInput
+                    {...field}
+                    value={value ?? ''}
+                    onChange={(valueString) => onChange(valueString ? parseFloat(valueString) : undefined)}
+                    precision={2}
+                    min={0}
+                  >
+                    <NumberInputField placeholder="e.g., 10000" />
+                  </NumberInput>
+                )}
+              />
+              <FormHelperText>Your card's total credit limit</FormHelperText>
+              <FormErrorMessage>{errors.credit_limit?.message}</FormErrorMessage>
+            </FormControl>
+
+            <FormControl isInvalid={!!errors.minimum_payment}>
+              <FormLabel>Minimum Payment</FormLabel>
+              <Controller
+                name="minimum_payment"
+                control={control}
+                render={({ field: { onChange, value, ...field } }) => (
+                  <NumberInput
+                    {...field}
+                    value={value ?? ''}
+                    onChange={(valueString) => onChange(valueString ? parseFloat(valueString) : undefined)}
+                    precision={2}
+                    min={0}
+                  >
+                    <NumberInputField placeholder="e.g., 25" />
+                  </NumberInput>
+                )}
+              />
+              <FormHelperText>Minimum monthly payment amount</FormHelperText>
+              <FormErrorMessage>{errors.minimum_payment?.message}</FormErrorMessage>
+            </FormControl>
+          </>
+        )}
+
+        {/* Pension / Annuity Income Details */}
+        {showIncomeFields && (
+          <>
+            <Divider />
+            <Text fontWeight="semibold" fontSize="sm" color="gray.600">
+              {accountType === ACCOUNT_TYPES.PENSION ? 'Pension Income Details (Optional)' : 'Annuity Income Details (Optional)'}
+            </Text>
+
+            <FormControl isInvalid={!!errors.monthly_benefit}>
+              <FormLabel>Monthly Benefit Amount</FormLabel>
+              <Controller
+                name="monthly_benefit"
+                control={control}
+                render={({ field: { onChange, value, ...field } }) => (
+                  <NumberInput
+                    {...field}
+                    value={value ?? ''}
+                    onChange={(valueString) => onChange(valueString ? parseFloat(valueString) : undefined)}
+                    precision={2}
+                    min={0}
+                  >
+                    <NumberInputField placeholder="e.g., 2500" />
+                  </NumberInput>
+                )}
+              />
+              <FormHelperText>
+                {accountType === ACCOUNT_TYPES.PENSION
+                  ? 'Monthly pension payment you receive (or expect to receive)'
+                  : 'Monthly annuity income payment'}
+              </FormHelperText>
+              <FormErrorMessage>{errors.monthly_benefit?.message}</FormErrorMessage>
+            </FormControl>
+
+            <FormControl isInvalid={!!errors.benefit_start_date}>
+              <FormLabel>Benefit Start Date (Optional)</FormLabel>
+              <Input type="date" {...register('benefit_start_date')} />
+              <FormHelperText>
+                {accountType === ACCOUNT_TYPES.PENSION
+                  ? 'When pension payments begin (leave blank if already receiving)'
+                  : 'When annuity payments begin'}
+              </FormHelperText>
+              <FormErrorMessage>{errors.benefit_start_date?.message}</FormErrorMessage>
+            </FormControl>
+          </>
+        )}
+
         {showNetworthToggle && (
           <>
             <Divider />
@@ -256,6 +360,8 @@ export const BasicManualAccountForm = ({
               <FormHelperText>
                 {accountType === ACCOUNT_TYPES.COLLECTIBLES
                   ? 'Collectibles are excluded from net worth by default since their value can be uncertain. Enable this to include them.'
+                  : accountType === ACCOUNT_TYPES.PENSION
+                  ? 'Pensions are excluded from net worth by default since they represent future income, not a liquid asset. Enable this if your plan provides a lump-sum equivalent value.'
                   : 'This account is excluded from net worth by default. Enable this to include it in your net worth calculations.'}
               </FormHelperText>
             </FormControl>

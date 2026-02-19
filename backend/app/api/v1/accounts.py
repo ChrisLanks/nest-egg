@@ -225,6 +225,11 @@ async def create_manual_account(
         company_status=account_data.company_status,
         valuation_method=account_data.valuation_method,
         include_in_networth=account_data.include_in_networth,
+        # Pension / Annuity income fields
+        monthly_benefit=account_data.monthly_benefit,
+        benefit_start_date=account_data.benefit_start_date,
+        # Credit card fields
+        limit=account_data.credit_limit,
         # Business Equity fields
         company_valuation=account_data.company_valuation,
         ownership_percentage=account_data.ownership_percentage,
@@ -374,6 +379,16 @@ async def update_account(
         account.valuation_method = account_data.valuation_method
     if account_data.include_in_networth is not None:
         account.include_in_networth = account_data.include_in_networth
+
+    # Update Pension / Annuity income fields
+    if account_data.monthly_benefit is not None:
+        account.monthly_benefit = account_data.monthly_benefit
+    if account_data.benefit_start_date is not None:
+        account.benefit_start_date = account_data.benefit_start_date
+
+    # Update credit card limit
+    if account_data.credit_limit is not None:
+        account.limit = account_data.credit_limit
 
     # Update Business Equity fields
     if account_data.company_valuation is not None:

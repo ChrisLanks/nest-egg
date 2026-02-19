@@ -80,6 +80,13 @@ class ManualAccountCreate(BaseModel):
     valuation_method: Optional[ValuationMethod] = None
     include_in_networth: Optional[bool] = None  # None = auto (public=true, private=false)
 
+    # Pension / Annuity income fields
+    monthly_benefit: Optional[Decimal] = None   # Monthly income amount
+    benefit_start_date: Optional[date] = None   # When payments begin
+
+    # Credit card fields
+    credit_limit: Optional[Decimal] = None      # Credit limit (stored as `limit` on Account)
+
     # Business Equity fields
     company_valuation: Optional[Decimal] = None  # Total company valuation
     ownership_percentage: Optional[Decimal] = None  # Percentage ownership (0-100)
@@ -119,6 +126,13 @@ class AccountUpdate(BaseModel):
     company_status: Optional[CompanyStatus] = None
     valuation_method: Optional[ValuationMethod] = None
     include_in_networth: Optional[bool] = None
+
+    # Pension / Annuity income fields
+    monthly_benefit: Optional[Decimal] = None
+    benefit_start_date: Optional[date] = None
+
+    # Credit card fields
+    credit_limit: Optional[Decimal] = None
 
     # Business Equity fields
     company_valuation: Optional[Decimal] = None
@@ -169,6 +183,15 @@ class Account(AccountBase):
     company_status: Optional[CompanyStatus] = None
     valuation_method: Optional[ValuationMethod] = None
     include_in_networth: Optional[bool] = None
+
+    # Pension / Annuity income fields
+    monthly_benefit: Optional[Decimal] = None
+    benefit_start_date: Optional[date] = None
+
+    # Business Equity fields
+    company_valuation: Optional[Decimal] = None
+    ownership_percentage: Optional[Decimal] = None
+    equity_value: Optional[Decimal] = None
 
     model_config = {"from_attributes": True}
 

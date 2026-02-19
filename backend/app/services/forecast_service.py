@@ -89,6 +89,18 @@ class ForecastService:
         )
         future_transactions.extend(mortgage_events)
 
+        # Add future bond coupon payments
+        bond_events = await ForecastService._get_bond_coupon_events(
+            db, organization_id, user_id, days_ahead
+        )
+        future_transactions.extend(bond_events)
+
+        # Add future pension/annuity income payments
+        income_events = await ForecastService._get_pension_annuity_income_events(
+            db, organization_id, user_id, days_ahead
+        )
+        future_transactions.extend(income_events)
+
         # Calculate daily running balance
         forecast = []
         running_balance = current_balance
@@ -665,3 +677,154 @@ class ForecastService:
                 return day
 
         return None
+
+    @staticmethod
+    async def _get_bond_coupon_events(
+        db: AsyncSession, organization_id: UUID, user_id: Optional[UUID], days_ahead: int
+    ) -> List[Dict]:
+        """
+        Project future bond coupon payments.
+
+        Bonds pay periodic interest (coupon) based on face value and coupon rate.
+        Defaults to semi-annual frequency (most common for US bonds).
+        Also projects principal repayment at maturity if within the forecast window.
+        """
+        from app.models.account import AccountType
+
+        conditions = [
+            Account.organization_id == organization_id,
+            Account.is_active.is_(True),
+            Account.account_type == AccountType.BOND,
+            Account.interest_rate.isnot(None),
+            Account.exclude_from_cash_flow.is_(False),
+        ]
+
+        if user_id:
+            conditions.append(Account.user_id == user_id)
+
+        result = await db.execute(select(Account).where(and_(*conditions)))
+        accounts = result.scalars().all()
+
+        events = []
+        today = date.today()
+        end_date = today + timedelta(days=days_ahead)
+
+        for account in accounts:
+            # Skip bonds that have already matured
+            if account.maturity_date and account.maturity_date < today:
+                continue
+
+            # Principal (face value) for coupon calculation
+            principal = account.original_amount or account.current_balance
+            if not principal or principal <= 0:
+                continue
+
+            coupon_rate = account.interest_rate / Decimal("100")  # Annual rate as decimal
+
+            # Determine coupon frequency from compounding_frequency if set;
+            # otherwise default to semi-annual (industry standard for US bonds)
+            freq_map = {
+                "daily": 365,
+                "monthly": 12,
+                "quarterly": 4,
+                "at_maturity": 1,
+            }
+            if account.compounding_frequency:
+                payments_per_year = freq_map.get(account.compounding_frequency.value, 2)
+            else:
+                payments_per_year = 2  # Semi-annual
+
+            interval_days = 365 // payments_per_year
+            coupon_amount = principal * coupon_rate / Decimal(str(payments_per_year))
+
+            # Find the first upcoming payment date
+            # Work forward from origination date (or today) in payment intervals
+            next_date = account.origination_date or today
+            while next_date <= today:
+                next_date += timedelta(days=interval_days)
+
+            effective_end = (
+                min(end_date, account.maturity_date) if account.maturity_date else end_date
+            )
+
+            while next_date <= effective_end:
+                events.append({
+                    "date": next_date,
+                    "amount": coupon_amount,
+                    "merchant": f"{account.name} Coupon",
+                })
+                next_date += timedelta(days=interval_days)
+
+            # Add principal repayment at maturity if within forecast window
+            if account.maturity_date and today < account.maturity_date <= end_date:
+                events.append({
+                    "date": account.maturity_date,
+                    "amount": principal,
+                    "merchant": f"{account.name} Maturity",
+                })
+
+        return events
+
+    @staticmethod
+    async def _get_pension_annuity_income_events(
+        db: AsyncSession, organization_id: UUID, user_id: Optional[UUID], days_ahead: int
+    ) -> List[Dict]:
+        """
+        Project future pension and annuity income payments.
+
+        Uses the monthly_benefit and benefit_start_date fields set by the user.
+        Only generates events once the benefit_start_date has been reached.
+        """
+        from app.models.account import AccountType
+
+        conditions = [
+            Account.organization_id == organization_id,
+            Account.is_active.is_(True),
+            Account.account_type.in_([AccountType.PENSION, AccountType.ANNUITY]),
+            Account.monthly_benefit.isnot(None),
+            Account.monthly_benefit > 0,
+            Account.exclude_from_cash_flow.is_(False),
+        ]
+
+        if user_id:
+            conditions.append(Account.user_id == user_id)
+
+        result = await db.execute(select(Account).where(and_(*conditions)))
+        accounts = result.scalars().all()
+
+        events = []
+        today = date.today()
+        end_date = today + timedelta(days=days_ahead)
+
+        for account in accounts:
+            # Payments begin on benefit_start_date (or immediately if not set)
+            payout_start = account.benefit_start_date or today
+            if payout_start > end_date:
+                continue  # Payments haven't started within the forecast window
+
+            # Payment day-of-month matches benefit_start_date (clamped to 28 for safety)
+            payment_day = min(payout_start.day, 28)
+
+            # Find the first payment date >= max(payout_start, today)
+            effective_start = max(payout_start, today)
+            next_date = effective_start.replace(day=payment_day)
+            if next_date < effective_start:
+                # Advance one month
+                if next_date.month == 12:
+                    next_date = next_date.replace(year=next_date.year + 1, month=1)
+                else:
+                    next_date = next_date.replace(month=next_date.month + 1)
+
+            while next_date <= end_date:
+                events.append({
+                    "date": next_date,
+                    "amount": account.monthly_benefit,
+                    "merchant": f"{account.name} Income",
+                })
+                # Advance one month
+                if next_date.month == 12:
+                    next_date = next_date.replace(year=next_date.year + 1, month=1)
+                else:
+                    next_date = next_date.replace(month=next_date.month + 1)
+
+        return events

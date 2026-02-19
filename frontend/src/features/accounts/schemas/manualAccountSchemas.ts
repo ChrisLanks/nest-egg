@@ -71,6 +71,7 @@ export const basicManualAccountSchema = z.object({
     ACCOUNT_TYPES.MORTGAGE,
     ACCOUNT_TYPES.RETIREMENT_529,  // 529 plans typically track balance only
     ACCOUNT_TYPES.PENSION,  // Pension plans typically just track balance
+    ACCOUNT_TYPES.ANNUITY,  // Annuity contracts
     ACCOUNT_TYPES.COLLECTIBLES,  // Collectibles track total value only
     ACCOUNT_TYPES.MANUAL,
     ACCOUNT_TYPES.OTHER,
@@ -82,6 +83,12 @@ export const basicManualAccountSchema = z.object({
   interest_rate: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
   loan_term_months: z.number().or(z.string().transform((val) => parseInt(val))).optional(),
   origination_date: z.string().optional(),
+  // Credit card fields
+  credit_limit: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
+  minimum_payment: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
+  // Pension / Annuity income fields
+  monthly_benefit: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
+  benefit_start_date: z.string().optional(),
 });
 
 export type BasicManualAccountFormData = z.infer<typeof basicManualAccountSchema>;
@@ -171,15 +178,15 @@ export const vestingMilestoneSchema = z.object({
 
 export type VestingMilestone = z.infer<typeof vestingMilestoneSchema>;
 
-// Private Equity account schema
+// Private Equity / Stock Options account schema (shared form)
 export const privateEquityAccountSchema = z.object({
   name: z.string().min(1, 'Company name is required'),
   institution: z.string().optional(),
-  account_type: z.literal(ACCOUNT_TYPES.PRIVATE_EQUITY),
+  account_type: z.enum([ACCOUNT_TYPES.PRIVATE_EQUITY, ACCOUNT_TYPES.STOCK_OPTIONS]),
   balance: z.number().or(z.string().transform((val) => parseFloat(val))),
 
-  // Private Equity specific fields
-  grant_type: z.enum(['iso', 'nso', 'rsu', 'rsa']).optional(),
+  // Equity-specific fields
+  grant_type: z.enum(['iso', 'nso', 'rsu', 'rsa', 'profit_interest']).optional(),
   grant_date: z.string().optional(), // ISO date string
   quantity: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
   strike_price: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),

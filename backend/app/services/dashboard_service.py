@@ -73,10 +73,11 @@ class DashboardService:
 
         # Account types that default to excluded from net worth
         EXCLUDED_BY_DEFAULT = {
-            AccountType.VEHICLE,
-            AccountType.COLLECTIBLES,
-            AccountType.OTHER,
-            AccountType.MANUAL,
+            AccountType.VEHICLE,       # Depreciating asset; opt-in for classics
+            AccountType.COLLECTIBLES,  # Uncertain value; opt-in
+            AccountType.OTHER,         # Unknown type; opt-in
+            AccountType.MANUAL,        # Unknown type; opt-in
+            AccountType.PENSION,       # Future income promise, not a liquid asset; opt-in
         }
 
         if account.account_type in EXCLUDED_BY_DEFAULT:

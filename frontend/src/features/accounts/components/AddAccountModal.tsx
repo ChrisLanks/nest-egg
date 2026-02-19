@@ -126,8 +126,8 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
     setSelectedAccountType(type);
     setSelectedCategory(category);
 
-    // Handle Private Equity
-    if (type === 'private_equity') {
+    // Handle Private Equity and Stock Options (share the same detailed form)
+    if (type === 'private_equity' || type === 'stock_options') {
       setCurrentStep('manual_form_private_equity');
     }
     // Handle Private Debt
@@ -154,8 +154,8 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
     else if (type === 'hsa') {
       setCurrentStep('manual_form_investment');
     }
-    // Handle Pension (balance-only, no holdings)
-    else if (type === 'pension') {
+    // Handle Pension and Annuity (balance + income fields, no holdings)
+    else if (type === 'pension' || type === 'annuity') {
       setCurrentStep('manual_form_basic');
     }
     // Handle other account types
@@ -399,12 +399,13 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
             />
           )}
 
-          {/* Private Equity Account Form */}
+          {/* Private Equity / Stock Options Account Form */}
           {currentStep === 'manual_form_private_equity' && (
             <PrivateEquityAccountForm
               onSubmit={handlePrivateEquityAccountSubmit}
               onBack={handleBackToTypeSelection}
               isLoading={createManualAccountMutation.isPending}
+              defaultAccountType={selectedAccountType === 'stock_options' ? 'stock_options' : 'private_equity'}
             />
           )}
 

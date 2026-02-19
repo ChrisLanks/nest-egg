@@ -44,6 +44,7 @@ class GrantType(str, enum.Enum):
     NSO = "nso"  # Non-Qualified Stock Option
     RSU = "rsu"  # Restricted Stock Unit
     RSA = "rsa"  # Restricted Stock Award
+    PROFIT_INTEREST = "profit_interest"  # LLC Profits Interest (membership units)
 
 
 class CompanyStatus(str, enum.Enum):
@@ -352,6 +353,10 @@ class Account(Base):
     company_status = Column(SQLEnum(CompanyStatus), nullable=True)  # Private or Public
     valuation_method = Column(SQLEnum(ValuationMethod), nullable=True)  # 409a, Preferred, Custom
     include_in_networth = Column(Boolean, default=None, nullable=True)  # None = auto (public=true, private=false)
+
+    # Pension / Annuity income fields
+    monthly_benefit = Column(Numeric(10, 2), nullable=True)   # Monthly income when in payout phase
+    benefit_start_date = Column(Date, nullable=True)           # Date payments begin
 
     # Business Equity fields (for business ownership)
     company_valuation = Column(Numeric(15, 2), nullable=True)  # Total company valuation

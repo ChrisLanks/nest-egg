@@ -30,12 +30,14 @@ interface PrivateEquityAccountFormProps {
   onSubmit: (data: PrivateEquityAccountFormData) => void;
   onBack: () => void;
   isLoading?: boolean;
+  defaultAccountType?: 'private_equity' | 'stock_options';
 }
 
 export const PrivateEquityAccountForm = ({
   onSubmit,
   onBack,
   isLoading,
+  defaultAccountType = 'private_equity',
 }: PrivateEquityAccountFormProps) => {
   console.log('[PrivateEquityAccountForm] Component mounted');
 
@@ -48,7 +50,7 @@ export const PrivateEquityAccountForm = ({
   } = useForm<PrivateEquityAccountFormData>({
     resolver: zodResolver(privateEquityAccountSchema),
     defaultValues: {
-      account_type: 'private_equity' as const,
+      account_type: defaultAccountType,
       name: '',
       company_status: 'private',
       balance: 0,
@@ -102,7 +104,7 @@ export const PrivateEquityAccountForm = ({
         </HStack>
 
         <Text fontSize="lg" fontWeight="bold">
-          Add Private Equity Account
+          {defaultAccountType === 'stock_options' ? 'Add Stock Options' : 'Add Private Equity Account'}
         </Text>
 
         {/* Company Name */}
@@ -141,6 +143,7 @@ export const PrivateEquityAccountForm = ({
             <option value="nso">NSO (Non-Qualified Stock Option)</option>
             <option value="rsu">RSU (Restricted Stock Unit)</option>
             <option value="rsa">RSA (Restricted Stock Award)</option>
+            <option value="profit_interest">Profits Interest (LLC Units)</option>
           </Select>
           <FormErrorMessage>{errors.grant_type?.message}</FormErrorMessage>
         </FormControl>
