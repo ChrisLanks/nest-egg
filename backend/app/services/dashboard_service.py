@@ -32,7 +32,13 @@ class DashboardService:
 
         total = Decimal(0)
         for account in accounts:
-            balance = account.current_balance or Decimal(0)
+            # Check if account should be included in net worth
+            include = self._should_include_in_networth(account)
+            if not include:
+                continue
+
+            # Calculate account value (may be vested equity for private equity accounts)
+            balance = self._calculate_account_value(account)
 
             # Use account type's category property to determine how to handle balance
             if account.account_type.is_asset:
@@ -42,6 +48,78 @@ class DashboardService:
                 total -= abs(balance)
 
         return total
+
+    def _should_include_in_networth(self, account: Account) -> bool:
+        """
+        Determine if account should be included in net worth calculation.
+
+        Returns True if:
+        - include_in_networth is explicitly True
+        - include_in_networth is None and company_status is public (auto-include)
+        - include_in_networth is None and account is not private equity (default include)
+        """
+        if account.include_in_networth is not None:
+            return account.include_in_networth
+
+        # Auto-determine based on account type
+        from app.models.account import AccountType
+        if account.account_type == AccountType.PRIVATE_EQUITY:
+            # Private equity: default to excluding unless public
+            return account.company_status and account.company_status.value == 'public'
+
+        # All other accounts: default to including
+        return True
+
+    def _calculate_account_value(self, account: Account) -> Decimal:
+        """
+        Calculate the current value of an account.
+
+        For Private Equity accounts with vesting schedules, only counts vested equity.
+        For all other accounts, returns current_balance.
+        """
+        from app.models.account import AccountType
+        import json
+
+        # For non-private-equity accounts, just return the balance
+        if account.account_type != AccountType.PRIVATE_EQUITY:
+            return account.current_balance or Decimal(0)
+
+        # Private equity without vesting schedule: return full balance
+        if not account.vesting_schedule:
+            return account.current_balance or Decimal(0)
+
+        # Parse vesting schedule and calculate vested amount
+        try:
+            vesting_milestones = json.loads(account.vesting_schedule)
+            if not isinstance(vesting_milestones, list):
+                return account.current_balance or Decimal(0)
+
+            today = date.today()
+            vested_quantity = Decimal(0)
+
+            for milestone in vesting_milestones:
+                vest_date_str = milestone.get('date')
+                quantity = milestone.get('quantity', 0)
+
+                if not vest_date_str:
+                    continue
+
+                try:
+                    vest_date = datetime.strptime(vest_date_str, '%Y-%m-%d').date()
+                    if vest_date <= today:
+                        vested_quantity += Decimal(str(quantity))
+                except (ValueError, TypeError):
+                    continue
+
+            # Calculate value: vested_quantity * share_price
+            share_price = account.share_price or Decimal(0)
+            vested_value = vested_quantity * share_price
+
+            return vested_value
+
+        except (json.JSONDecodeError, TypeError):
+            # If vesting schedule is malformed, return full balance as fallback
+            return account.current_balance or Decimal(0)
 
     async def get_total_assets(
         self, organization_id: str, account_ids: Optional[List[UUID]] = None
@@ -54,15 +132,13 @@ class DashboardService:
         result = await self.db.execute(select(Account).where(and_(*conditions)))
         accounts = result.scalars().all()
 
-        # Filter for asset accounts using category property
-        return sum(
-            (
-                account.current_balance or Decimal(0)
-                for account in accounts
-                if account.account_type.is_asset
-            ),
-            Decimal(0),
-        )
+        # Filter for asset accounts using category property and respect include_in_networth
+        total = Decimal(0)
+        for account in accounts:
+            if account.account_type.is_asset and self._should_include_in_networth(account):
+                total += self._calculate_account_value(account)
+
+        return total
 
     async def get_total_debts(
         self, organization_id: str, account_ids: Optional[List[UUID]] = None
