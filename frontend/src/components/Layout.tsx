@@ -266,6 +266,26 @@ export const Layout = () => {
     onOpen: onAddAccountOpen,
     onClose: onAddAccountClose,
   } = useDisclosure();
+  const {
+    isOpen: isPlanningOpen,
+    onOpen: onPlanningOpen,
+    onClose: onPlanningClose,
+  } = useDisclosure();
+  const {
+    isOpen: isAnalyticsOpen,
+    onOpen: onAnalyticsOpen,
+    onClose: onAnalyticsClose,
+  } = useDisclosure();
+  const {
+    isOpen: isTransactionsOpen,
+    onOpen: onTransactionsOpen,
+    onClose: onTransactionsClose,
+  } = useDisclosure();
+  const {
+    isOpen: isProfileOpen,
+    onOpen: onProfileOpen,
+    onClose: onProfileClose,
+  } = useDisclosure();
 
   const [collapsedSections, setCollapsedSections] = useState<
     Record<string, boolean>
@@ -544,174 +564,167 @@ export const Layout = () => {
               />
 
               {/* Planning & Goals Dropdown */}
-              <Menu>
-                {({ onClose }) => (
-                  <>
-                    <MenuButton
-                      as={Button}
-                      rightIcon={<ChevronDownIcon />}
-                      variant={
-                        planningMenuItems.some(
-                          (item) => location.pathname === item.path,
-                        )
-                          ? "solid"
-                          : "ghost"
-                      }
-                      colorScheme={
-                        planningMenuItems.some(
-                          (item) => location.pathname === item.path,
-                        )
-                          ? "brand"
-                          : "gray"
-                      }
-                      size="sm"
+              <Menu isOpen={isPlanningOpen} onClose={onPlanningClose}>
+                <MenuButton
+                  as={Button}
+                  rightIcon={<ChevronDownIcon />}
+                  variant={
+                    planningMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "solid"
+                      : "ghost"
+                  }
+                  colorScheme={
+                    planningMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "brand"
+                      : "gray"
+                  }
+                  size="sm"
+                  fontWeight={
+                    planningMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "semibold"
+                      : "medium"
+                  }
+                  onClick={isPlanningOpen ? onPlanningClose : onPlanningOpen}
+                >
+                  Planning & Goals
+                </MenuButton>
+                <MenuList>
+                  {planningMenuItems.map((item) => (
+                    <MenuItem
+                      key={item.path}
+                      onClick={() => {
+                        onPlanningClose();
+                        navigateWithParams(item.path);
+                      }}
                       fontWeight={
-                        planningMenuItems.some(
-                          (item) => location.pathname === item.path,
-                        )
-                          ? "semibold"
-                          : "medium"
+                        location.pathname === item.path ? "semibold" : "normal"
+                      }
+                      bg={
+                        location.pathname === item.path
+                          ? "brand.50"
+                          : "transparent"
                       }
                     >
-                      Planning & Goals
-                    </MenuButton>
-                    <MenuList>
-                      {planningMenuItems.map((item) => (
-                        <MenuItem
-                          key={item.path}
-                          onClick={() => {
-                            onClose();
-                            setTimeout(() => navigateWithParams(item.path), 0);
-                          }}
-                          fontWeight={
-                            location.pathname === item.path ? "semibold" : "normal"
-                          }
-                          bg={
-                            location.pathname === item.path
-                              ? "brand.50"
-                              : "transparent"
-                          }
-                        >
-                          {item.label}
-                        </MenuItem>
-                      ))}
-                    </MenuList>
-                  </>
-                )}
+                      {item.label}
+                    </MenuItem>
+                  ))}
+                </MenuList>
               </Menu>
 
               {/* Analytics Dropdown */}
-              <Menu>
-                {({ onClose }) => (
-                  <>
-                    <MenuButton
-                      as={Button}
-                      rightIcon={<ChevronDownIcon />}
-                      variant={
-                        analyticsMenuItems.some(
-                          (item) => location.pathname === item.path,
-                        )
-                          ? "solid"
-                          : "ghost"
-                      }
-                      colorScheme={
-                        analyticsMenuItems.some(
-                          (item) => location.pathname === item.path,
-                        )
-                          ? "brand"
-                          : "gray"
-                      }
-                      size="sm"
+              <Menu isOpen={isAnalyticsOpen} onClose={onAnalyticsClose}>
+                <MenuButton
+                  as={Button}
+                  rightIcon={<ChevronDownIcon />}
+                  variant={
+                    analyticsMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "solid"
+                      : "ghost"
+                  }
+                  colorScheme={
+                    analyticsMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "brand"
+                      : "gray"
+                  }
+                  size="sm"
+                  fontWeight={
+                    analyticsMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "semibold"
+                      : "medium"
+                  }
+                  onClick={isAnalyticsOpen ? onAnalyticsClose : onAnalyticsOpen}
+                >
+                  Analytics
+                </MenuButton>
+                <MenuList>
+                  {analyticsMenuItems.map((item) => (
+                    <MenuItem
+                      key={item.path}
+                      onClick={() => {
+                        onAnalyticsClose();
+                        navigateWithParams(item.path);
+                      }}
                       fontWeight={
-                        analyticsMenuItems.some(
-                          (item) => location.pathname === item.path,
-                        )
-                          ? "semibold"
-                          : "medium"
+                        location.pathname === item.path ? "semibold" : "normal"
+                      }
+                      bg={
+                        location.pathname === item.path
+                          ? "brand.50"
+                          : "transparent"
                       }
                     >
-                      Analytics
-                    </MenuButton>
-                    <MenuList>
-                      {analyticsMenuItems.map((item) => (
-                        <MenuItem
-                          key={item.path}
-                          onClick={() => {
-                            onClose();
-                            setTimeout(() => navigateWithParams(item.path), 0);
-                          }}
-                          fontWeight={
-                            location.pathname === item.path ? "semibold" : "normal"
-                          }
-                          bg={
-                            location.pathname === item.path
-                              ? "brand.50"
-                              : "transparent"
-                          }
-                        >
-                          {item.label}
-                        </MenuItem>
-                      ))}
-                    </MenuList>
-                  </>
-                )}
+                      {item.label}
+                    </MenuItem>
+                  ))}
+                </MenuList>
               </Menu>
 
               {/* Transactions Dropdown */}
-              <Menu>
-                {({ onClose }) => (
-                  <>
-                    <MenuButton
-                      as={Button}
-                      rightIcon={<ChevronDownIcon />}
-                      variant={
-                        transactionsMenuItems.some(
-                          (item) => location.pathname === item.path,
-                        )
-                          ? "solid"
-                          : "ghost"
-                      }
-                      colorScheme={
-                        transactionsMenuItems.some(
-                          (item) => location.pathname === item.path,
-                        )
-                          ? "brand"
-                          : "gray"
-                      }
-                      size="sm"
+              <Menu isOpen={isTransactionsOpen} onClose={onTransactionsClose}>
+                <MenuButton
+                  as={Button}
+                  rightIcon={<ChevronDownIcon />}
+                  variant={
+                    transactionsMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "solid"
+                      : "ghost"
+                  }
+                  colorScheme={
+                    transactionsMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "brand"
+                      : "gray"
+                  }
+                  size="sm"
+                  fontWeight={
+                    transactionsMenuItems.some(
+                      (item) => location.pathname === item.path,
+                    )
+                      ? "semibold"
+                      : "medium"
+                  }
+                  onClick={
+                    isTransactionsOpen ? onTransactionsClose : onTransactionsOpen
+                  }
+                >
+                  Transactions
+                </MenuButton>
+                <MenuList>
+                  {transactionsMenuItems.map((item) => (
+                    <MenuItem
+                      key={item.path}
+                      onClick={() => {
+                        onTransactionsClose();
+                        navigateWithParams(item.path);
+                      }}
                       fontWeight={
-                        transactionsMenuItems.some(
-                          (item) => location.pathname === item.path,
-                        )
-                          ? "semibold"
-                          : "medium"
+                        location.pathname === item.path ? "semibold" : "normal"
+                      }
+                      bg={
+                        location.pathname === item.path
+                          ? "brand.50"
+                          : "transparent"
                       }
                     >
-                      Transactions
-                    </MenuButton>
-                    <MenuList>
-                      {transactionsMenuItems.map((item) => (
-                        <MenuItem
-                          key={item.path}
-                          onClick={() => {
-                            onClose();
-                            setTimeout(() => navigateWithParams(item.path), 0);
-                          }}
-                          fontWeight={
-                            location.pathname === item.path ? "semibold" : "normal"
-                          }
-                          bg={
-                            location.pathname === item.path
-                              ? "brand.50"
-                              : "transparent"
-                          }
-                        >
-                          {item.label}
-                        </MenuItem>
-                      ))}
-                    </MenuList>
-                  </>
-                )}
+                      {item.label}
+                    </MenuItem>
+                  ))}
+                </MenuList>
               </Menu>
 
               {/* Investments */}
@@ -737,63 +750,60 @@ export const Layout = () => {
             </Box>
             <NotificationBell />
 
-            <Menu>
-              {({ onClose }) => (
-                <>
-                  <MenuButton
-                    as={Button}
-                    rightIcon={<ChevronDownIcon />}
-                    variant="ghost"
+            <Menu isOpen={isProfileOpen} onClose={onProfileClose}>
+              <MenuButton
+                as={Button}
+                rightIcon={<ChevronDownIcon />}
+                variant="ghost"
+                size="sm"
+                onClick={isProfileOpen ? onProfileClose : onProfileOpen}
+              >
+                <HStack spacing={2}>
+                  <Avatar
                     size="sm"
-                  >
-                    <HStack spacing={2}>
-                      <Avatar
-                        size="sm"
-                        name={`${user?.first_name} ${user?.last_name}`}
-                        bg="brand.500"
-                      />
-                      <VStack align="start" spacing={0}>
-                        <Text fontSize="sm" fontWeight="medium">
-                          {user?.first_name} {user?.last_name}
-                        </Text>
-                        <Text fontSize="xs" color="gray.600">
-                          {user?.email}
-                        </Text>
-                      </VStack>
-                    </HStack>
-                  </MenuButton>
-                  <MenuList>
-                    <MenuItem
-                      icon={<FiUsers />}
-                      onClick={() => {
-                        onClose();
-                        setTimeout(() => navigateWithParams("/household"), 0);
-                      }}
-                    >
-                      Household Settings
-                    </MenuItem>
-                    <MenuItem
-                      icon={<FiSettings />}
-                      onClick={() => {
-                        onClose();
-                        setTimeout(() => navigateWithParams("/preferences"), 0);
-                      }}
-                    >
-                      Preferences
-                    </MenuItem>
-                    <MenuItem
-                      icon={<FiLogOut />}
-                      onClick={() => {
-                        onClose();
-                        setTimeout(() => handleLogout(), 0);
-                      }}
-                      color="red.600"
-                    >
-                      Logout
-                    </MenuItem>
-                  </MenuList>
-                </>
-              )}
+                    name={`${user?.first_name} ${user?.last_name}`}
+                    bg="brand.500"
+                  />
+                  <VStack align="start" spacing={0}>
+                    <Text fontSize="sm" fontWeight="medium">
+                      {user?.first_name} {user?.last_name}
+                    </Text>
+                    <Text fontSize="xs" color="gray.600">
+                      {user?.email}
+                    </Text>
+                  </VStack>
+                </HStack>
+              </MenuButton>
+              <MenuList>
+                <MenuItem
+                  icon={<FiUsers />}
+                  onClick={() => {
+                    onProfileClose();
+                    navigateWithParams("/household");
+                  }}
+                >
+                  Household Settings
+                </MenuItem>
+                <MenuItem
+                  icon={<FiSettings />}
+                  onClick={() => {
+                    onProfileClose();
+                    navigateWithParams("/preferences");
+                  }}
+                >
+                  Preferences
+                </MenuItem>
+                <MenuItem
+                  icon={<FiLogOut />}
+                  onClick={() => {
+                    onProfileClose();
+                    handleLogout();
+                  }}
+                  color="red.600"
+                >
+                  Logout
+                </MenuItem>
+              </MenuList>
             </Menu>
           </HStack>
         </HStack>
