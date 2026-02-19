@@ -172,7 +172,14 @@ export const IncomeExpensesPage = () => {
     console.log('[DRILL-DOWN STATE CHANGE] Expense:', expenseDrillDown);
   }, [expenseDrillDown]);
 
-  const [groupBy, setGroupBy] = useState<'category' | 'label' | 'merchant' | 'account'>('category');
+  const [groupBy, setGroupBy] = useState<'category' | 'label' | 'merchant' | 'account'>(() => {
+    // Try to restore from localStorage
+    const saved = localStorage.getItem('income-expenses-group-by');
+    if (saved && ['category', 'label', 'merchant', 'account'].includes(saved)) {
+      return saved as 'category' | 'label' | 'merchant' | 'account';
+    }
+    return 'category';
+  });
   const [hiddenItems, setHiddenItems] = useState<Set<string>>(new Set());
   const [selectedTab, setSelectedTab] = useState(0); // 0 = Combined, 1 = Income, 2 = Expenses
   const [incomeLegendExpanded, setIncomeLegendExpanded] = useState(false);
@@ -240,6 +247,12 @@ export const IncomeExpensesPage = () => {
   const handleDateRangeChange = (newRange: DateRange) => {
     setDateRange(newRange);
     localStorage.setItem('income-expenses-date-range', JSON.stringify(newRange));
+  };
+
+  // Wrapper to save groupBy changes to localStorage
+  const handleGroupByChange = (newGroupBy: 'category' | 'label' | 'merchant' | 'account') => {
+    setGroupBy(newGroupBy);
+    localStorage.setItem('income-expenses-group-by', newGroupBy);
   };
 
   // Reset drill-down states when groupBy changes
@@ -463,6 +476,12 @@ export const IncomeExpensesPage = () => {
   const incomeTransactions = useMemo(() => {
     if (!allIncomeTransactions) return [];
 
+    console.log('[INCOME TRANSACTIONS FILTER]', {
+      totalTransactions: allIncomeTransactions.length,
+      incomeDrillDown,
+      groupBy,
+    });
+
     let filtered = allIncomeTransactions;
 
     // Filter out transactions with hidden categories/labels
@@ -506,7 +525,13 @@ export const IncomeExpensesPage = () => {
 
     // Filter by merchant if drilling down to that level
     if (incomeDrillDown.merchant) {
+      console.log('[INCOME MERCHANT FILTER]', {
+        merchant: incomeDrillDown.merchant,
+        beforeFilter: filtered.length,
+        uniqueMerchants: [...new Set(filtered.map(t => t.merchant_name))],
+      });
       filtered = filtered.filter(t => t.merchant_name === incomeDrillDown.merchant);
+      console.log('[INCOME MERCHANT FILTER] After filter:', filtered.length);
     }
 
     return filtered;
@@ -764,13 +789,19 @@ export const IncomeExpensesPage = () => {
   const incomeTransactionBreakdown = useMemo(() => {
     if (!incomeTransactions) return [];
 
-    const total = incomeTransactions.reduce((sum, t) => sum + t.amount, 0);
+    const total = incomeTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+    console.log('[INCOME TRANSACTION BREAKDOWN]', {
+      transactionCount: incomeTransactions.length,
+      total,
+      sampleAmounts: incomeTransactions.slice(0, 3).map(t => ({ merchant: t.merchant_name, amount: t.amount, type: typeof t.amount })),
+    });
 
     return incomeTransactions.map(t => ({
       category: `${t.merchant_name} - ${formatDate(t.date)}`,
-      amount: t.amount,
+      amount: Number(t.amount || 0),
       count: 1,
-      percentage: (t.amount / total) * 100,
+      percentage: total > 0 ? (Number(t.amount || 0) / total) * 100 : 0,
       transaction: t,
     }));
   }, [incomeTransactions]);
@@ -778,13 +809,13 @@ export const IncomeExpensesPage = () => {
   const expenseTransactionBreakdown = useMemo(() => {
     if (!expenseTransactions) return [];
 
-    const total = expenseTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    const total = expenseTransactions.reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0);
 
     return expenseTransactions.map(t => ({
       category: `${t.merchant_name} - ${formatDate(t.date)}`,
-      amount: Math.abs(t.amount),
+      amount: Math.abs(Number(t.amount || 0)),
       count: 1,
-      percentage: (Math.abs(t.amount) / total) * 100,
+      percentage: total > 0 ? (Math.abs(Number(t.amount || 0)) / total) * 100 : 0,
       transaction: t,
     }));
   }, [expenseTransactions]);
@@ -1285,28 +1316,28 @@ export const IncomeExpensesPage = () => {
           <ButtonGroup size="sm" isAttached variant="outline">
             <Button
               colorScheme={groupBy === 'category' ? 'brand' : 'gray'}
-              onClick={() => setGroupBy('category')}
+              onClick={() => handleGroupByChange('category')}
               bg={groupBy === 'category' ? 'brand.50' : 'white'}
             >
               Category
             </Button>
             <Button
               colorScheme={groupBy === 'label' ? 'brand' : 'gray'}
-              onClick={() => setGroupBy('label')}
+              onClick={() => handleGroupByChange('label')}
               bg={groupBy === 'label' ? 'brand.50' : 'white'}
             >
               Labels
             </Button>
             <Button
               colorScheme={groupBy === 'merchant' ? 'brand' : 'gray'}
-              onClick={() => setGroupBy('merchant')}
+              onClick={() => handleGroupByChange('merchant')}
               bg={groupBy === 'merchant' ? 'brand.50' : 'white'}
             >
               Merchant
             </Button>
             <Button
               colorScheme={groupBy === 'account' ? 'brand' : 'gray'}
-              onClick={() => setGroupBy('account')}
+              onClick={() => handleGroupByChange('account')}
               bg={groupBy === 'account' ? 'brand.50' : 'white'}
             >
               Account
@@ -1467,7 +1498,7 @@ export const IncomeExpensesPage = () => {
                     {/* Side by side categories */}
                     <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6} w="full">
                       {/* Income Section */}
-                      {summary && filteredSummary && filteredSummary.income_categories.length > 0 && (
+                      {summary && filteredSummary && filteredSummary.income_categories.length > 0 ? (
                         <VStack align="stretch" spacing={4}>
                           <HStack justify="space-between">
                             <Heading size="sm">
@@ -1536,6 +1567,14 @@ export const IncomeExpensesPage = () => {
                               filteredSummaryCount: filteredSummary?.income_categories?.length || 0,
                             });
 
+                            console.log('[INCOME CHART - RENDERING]', {
+                              level: incomeDrillDown.level,
+                              groupBy,
+                              merchant: incomeDrillDown.merchant,
+                              transactionCount: incomeTransactions?.length || 0,
+                              breakdownCount: incomeTransactionBreakdown?.length || 0,
+                            });
+
                             if (incomeDrillDown.level === 'categories') {
                               return renderChart(filteredSummary?.income_categories || [], 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded);
                             } else if (incomeDrillDown.level === 'merchants') {
@@ -1573,10 +1612,21 @@ export const IncomeExpensesPage = () => {
                             {renderTransactionTable(incomeTransactions, 'income', incomeSortField, incomeSortDirection)}
                           </Box>
                         </VStack>
+                      ) : (
+                        <Card>
+                          <CardBody textAlign="center" py={8}>
+                            <Text color="gray.600" fontWeight="semibold">
+                              No income for the selected date range
+                            </Text>
+                            <Text color="gray.500" fontSize="sm" mt={1}>
+                              Try selecting a different date range
+                            </Text>
+                          </CardBody>
+                        </Card>
                       )}
 
                       {/* Expense Section */}
-                      {summary && filteredSummary && filteredSummary.expense_categories.length > 0 && (
+                      {summary && filteredSummary && filteredSummary.expense_categories.length > 0 ? (
                         <VStack align="stretch" spacing={4}>
                           <HStack justify="space-between">
                             <Heading size="sm">
@@ -1682,6 +1732,17 @@ export const IncomeExpensesPage = () => {
                             {renderTransactionTable(expenseTransactions, 'expense', expenseSortField, expenseSortDirection)}
                           </Box>
                         </VStack>
+                      ) : (
+                        <Card>
+                          <CardBody textAlign="center" py={8}>
+                            <Text color="gray.600" fontWeight="semibold">
+                              No expenses for the selected date range
+                            </Text>
+                            <Text color="gray.500" fontSize="sm" mt={1}>
+                              Try selecting a different date range
+                            </Text>
+                          </CardBody>
+                        </Card>
                       )}
                     </SimpleGrid>
                   </VStack>
@@ -1870,7 +1931,16 @@ export const IncomeExpensesPage = () => {
                         </Box>
                       </>
                     ) : (
-                      <Text color="gray.500">No income transactions found</Text>
+                      <Card>
+                        <CardBody textAlign="center" py={12}>
+                          <Text color="gray.600" fontSize="lg" fontWeight="semibold">
+                            No income for the selected date range
+                          </Text>
+                          <Text color="gray.500" mt={2}>
+                            Try selecting a different date range or check if income transactions have been imported
+                          </Text>
+                        </CardBody>
+                      </Card>
                     )}
                   </VStack>
                 </TabPanel>
@@ -2058,7 +2128,16 @@ export const IncomeExpensesPage = () => {
                         </Box>
                       </>
                     ) : (
-                      <Text color="gray.500">No expense transactions found</Text>
+                      <Card>
+                        <CardBody textAlign="center" py={12}>
+                          <Text color="gray.600" fontSize="lg" fontWeight="semibold">
+                            No expenses for the selected date range
+                          </Text>
+                          <Text color="gray.500" mt={2}>
+                            Try selecting a different date range or check if expense transactions have been imported
+                          </Text>
+                        </CardBody>
+                      </Card>
                     )}
                   </VStack>
                 </TabPanel>
