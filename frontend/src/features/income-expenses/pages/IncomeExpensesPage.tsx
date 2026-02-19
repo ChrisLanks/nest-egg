@@ -89,6 +89,7 @@ interface DrillDownState {
   level: DrillDownLevel;
   category?: string;
   parentCategory?: string; // For hierarchical categories (parent > child)
+  accountId?: string; // For account grouping: account UUID
   merchant?: string;
 }
 
@@ -332,10 +333,11 @@ export const IncomeExpensesPage = () => {
 
   // Fetch merchant breakdown when drilling down
   const { data: incomeMerchants } = useQuery({
-    queryKey: ['income-merchants', dateRange.start, dateRange.end, incomeDrillDown.category, groupBy, selectedUserId],
+    queryKey: ['income-merchants', dateRange.start, dateRange.end, incomeDrillDown.category, incomeDrillDown.accountId, groupBy, selectedUserId],
     queryFn: async () => {
       let endpoint = '/income-expenses/merchants';
       let paramName = 'category';
+      let paramValue = incomeDrillDown.category || '';
 
       if (groupBy === 'label') {
         endpoint = '/income-expenses/label-merchants';
@@ -343,13 +345,14 @@ export const IncomeExpensesPage = () => {
       } else if (groupBy === 'account') {
         endpoint = '/income-expenses/account-merchants';
         paramName = 'account_id';
+        paramValue = incomeDrillDown.accountId || '';
       }
 
       const params = new URLSearchParams({
         start_date: dateRange.start,
         end_date: dateRange.end,
         transaction_type: 'income',
-        [paramName]: incomeDrillDown.category || '',
+        [paramName]: paramValue,
       });
       if (selectedUserId) {
         params.append('user_id', selectedUserId);
@@ -358,14 +361,15 @@ export const IncomeExpensesPage = () => {
       const response = await api.get<CategoryBreakdown[]>(`${endpoint}?${params.toString()}`);
       return response.data;
     },
-    enabled: incomeDrillDown.level === 'merchants' && !!incomeDrillDown.category,
+    enabled: incomeDrillDown.level === 'merchants' && (groupBy === 'account' ? !!incomeDrillDown.accountId : !!incomeDrillDown.category),
   });
 
   const { data: expenseMerchants } = useQuery({
-    queryKey: ['expense-merchants', dateRange.start, dateRange.end, expenseDrillDown.category, groupBy, selectedUserId],
+    queryKey: ['expense-merchants', dateRange.start, dateRange.end, expenseDrillDown.category, expenseDrillDown.accountId, groupBy, selectedUserId],
     queryFn: async () => {
       let endpoint = '/income-expenses/merchants';
       let paramName = 'category';
+      let paramValue = expenseDrillDown.category || '';
 
       if (groupBy === 'label') {
         endpoint = '/income-expenses/label-merchants';
@@ -373,13 +377,14 @@ export const IncomeExpensesPage = () => {
       } else if (groupBy === 'account') {
         endpoint = '/income-expenses/account-merchants';
         paramName = 'account_id';
+        paramValue = expenseDrillDown.accountId || '';
       }
 
       const params = new URLSearchParams({
         start_date: dateRange.start,
         end_date: dateRange.end,
         transaction_type: 'expense',
-        [paramName]: expenseDrillDown.category || '',
+        [paramName]: paramValue,
       });
       if (selectedUserId) {
         params.append('user_id', selectedUserId);
@@ -388,7 +393,7 @@ export const IncomeExpensesPage = () => {
       const response = await api.get<CategoryBreakdown[]>(`${endpoint}?${params.toString()}`);
       return response.data;
     },
-    enabled: expenseDrillDown.level === 'merchants' && !!expenseDrillDown.category,
+    enabled: expenseDrillDown.level === 'merchants' && (groupBy === 'account' ? !!expenseDrillDown.accountId : !!expenseDrillDown.category),
   });
 
   // Fetch ALL transactions for the date range (with infinite loading)
@@ -477,7 +482,7 @@ export const IncomeExpensesPage = () => {
       }
     }
 
-    // Filter by category/label if drilling down
+    // Filter by category/label/account if drilling down
     if (incomeDrillDown.category) {
       if (groupBy === 'label') {
         // Filter by label - check if transaction has the label
@@ -487,6 +492,11 @@ export const IncomeExpensesPage = () => {
           filtered = filtered.filter(t =>
             t.labels?.some(label => label.name === incomeDrillDown.category)
           );
+        }
+      } else if (groupBy === 'account') {
+        // Filter by account ID
+        if (incomeDrillDown.accountId) {
+          filtered = filtered.filter(t => t.account_id === incomeDrillDown.accountId);
         }
       } else {
         // Filter by category
@@ -524,7 +534,7 @@ export const IncomeExpensesPage = () => {
       }
     }
 
-    // Filter by category/label if drilling down
+    // Filter by category/label/account if drilling down
     if (expenseDrillDown.category) {
       if (groupBy === 'label') {
         // Filter by label - check if transaction has the label
@@ -534,6 +544,11 @@ export const IncomeExpensesPage = () => {
           filtered = filtered.filter(t =>
             t.labels?.some(label => label.name === expenseDrillDown.category)
           );
+        }
+      } else if (groupBy === 'account') {
+        // Filter by account ID
+        if (expenseDrillDown.accountId) {
+          filtered = filtered.filter(t => t.account_id === expenseDrillDown.accountId);
         }
       } else {
         // Filter by category
@@ -814,6 +829,22 @@ export const IncomeExpensesPage = () => {
     }
   };
 
+  const handleAccountClick = (accountName: string, accountId: string, type: 'income' | 'expense') => {
+    console.log('[ACCOUNT CLICK]', {
+      accountName,
+      accountId,
+      type,
+      groupBy,
+    });
+
+    // For account grouping: drill down to show merchants within this account
+    if (type === 'income') {
+      setIncomeDrillDown({ level: 'merchants', category: accountName, accountId });
+    } else {
+      setExpenseDrillDown({ level: 'merchants', category: accountName, accountId });
+    }
+  };
+
   const handleBreadcrumbClick = (type: 'income' | 'expense', level: DrillDownLevel) => {
     console.log('[BREADCRUMB CLICK]', {
       type,
@@ -960,6 +991,9 @@ export const IncomeExpensesPage = () => {
                   // In merchant grouping mode, top-level items are merchants, not categories
                   if (groupBy === 'merchant') {
                     handleMerchantClick(entry.category, type);
+                  } else if (groupBy === 'account') {
+                    // In account grouping mode, top-level items are accounts
+                    handleAccountClick(entry.category, entry.id, type);
                   } else {
                     handleCategoryClick(entry.category, type, entry.has_children);
                   }
@@ -1030,6 +1064,9 @@ export const IncomeExpensesPage = () => {
                                   // In merchant grouping mode, top-level items are merchants, not categories
                                   if (groupBy === 'merchant') {
                                     handleMerchantClick(data.category, type);
+                                  } else if (groupBy === 'account') {
+                                    // In account grouping mode, top-level items are accounts
+                                    handleAccountClick(data.category, data.id, type);
                                   } else {
                                     handleCategoryClick(data.category, type, data.has_children);
                                   }

@@ -71,6 +71,7 @@ class CategoryBreakdown(BaseModel):
     count: int
     percentage: float
     has_children: bool = False  # Whether this category has child categories
+    id: Optional[str] = None  # For account grouping: account UUID
 
 
 class IncomeExpenseSummary(BaseModel):
@@ -1354,7 +1355,7 @@ async def get_account_summary(
         percentage = (amount / total_income * 100) if total_income > 0 else 0
         income_categories.append(
             CategoryBreakdown(
-                category=row.name, amount=amount, count=row.count, percentage=percentage
+                category=row.name, amount=amount, count=row.count, percentage=percentage, id=str(row.id)
             )
         )
 
@@ -1390,7 +1391,7 @@ async def get_account_summary(
         percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
         expense_categories.append(
             CategoryBreakdown(
-                category=row.name, amount=amount, count=row.count, percentage=percentage
+                category=row.name, amount=amount, count=row.count, percentage=percentage, id=str(row.id)
             )
         )
 
