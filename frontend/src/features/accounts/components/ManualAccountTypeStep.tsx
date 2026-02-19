@@ -155,8 +155,15 @@ const accountTypeOptions: AccountTypeOption[] = [
   {
     type: ACCOUNT_TYPES.PRIVATE_EQUITY,
     label: 'Private Equity',
-    description: 'Private equity investment',
+    description: 'Company equity, RSUs, and stock options',
     icon: FiBriefcase,
+    category: 'alternative',
+  },
+  {
+    type: ACCOUNT_TYPES.PRIVATE_DEBT,
+    label: 'Private Debt',
+    description: 'Private credit funds and loans made',
+    icon: FiFileText,
     category: 'alternative',
   },
   {

@@ -21,12 +21,16 @@ import { BasicManualAccountForm } from './forms/BasicManualAccountForm';
 import { InvestmentAccountForm } from './forms/InvestmentAccountForm';
 import { PropertyAccountForm } from './forms/PropertyAccountForm';
 import { VehicleAccountForm } from './forms/VehicleAccountForm';
+import { PrivateEquityAccountForm } from './forms/PrivateEquityAccountForm';
+import { PrivateDebtAccountForm } from './forms/PrivateDebtAccountForm';
 import { BankLinkStep, type BankProvider } from './BankLinkStep';
 import type {
   BasicManualAccountFormData,
   InvestmentAccountFormData,
   PropertyAccountFormData,
   VehicleAccountFormData,
+  PrivateEquityAccountFormData,
+  PrivateDebtAccountFormData,
   AccountType,
 } from '../schemas/manualAccountSchemas';
 
@@ -39,6 +43,8 @@ type WizardStep =
   | 'manual_form_investment'
   | 'manual_form_property'
   | 'manual_form_vehicle'
+  | 'manual_form_private_equity'
+  | 'manual_form_private_debt'
   | 'success';
 
 interface AddAccountModalProps {
@@ -88,7 +94,16 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
     setSelectedAccountType(type);
     setSelectedCategory(category);
 
-    if (category === 'basic') {
+    // Handle Private Equity
+    if (type === 'private_equity') {
+      setCurrentStep('manual_form_private_equity');
+    }
+    // Handle Private Debt
+    else if (type === 'private_debt') {
+      setCurrentStep('manual_form_private_debt');
+    }
+    // Handle other account types
+    else if (category === 'basic') {
       setCurrentStep('manual_form_basic');
     } else if (category === 'investment' || category === 'alternative' || category === 'securities' || category === 'insurance' || category === 'business') {
       // All investment-related categories use the investment form
@@ -122,7 +137,7 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
 
   // Create manual account mutation
   const createManualAccountMutation = useMutation({
-    mutationFn: async (data: BasicManualAccountFormData | InvestmentAccountFormData | PropertyAccountFormData | VehicleAccountFormData) => {
+    mutationFn: async (data: BasicManualAccountFormData | InvestmentAccountFormData | PropertyAccountFormData | VehicleAccountFormData | PrivateEquityAccountFormData | PrivateDebtAccountFormData) => {
       const response = await api.post('/accounts/manual', {
         ...data,
         account_source: 'manual',
@@ -199,6 +214,14 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
     } as any);
   };
 
+  const handlePrivateEquityAccountSubmit = (data: PrivateEquityAccountFormData) => {
+    createManualAccountMutation.mutate(data);
+  };
+
+  const handlePrivateDebtAccountSubmit = (data: PrivateDebtAccountFormData) => {
+    createManualAccountMutation.mutate(data);
+  };
+
   // Get modal title based on current step
   const getModalTitle = () => {
     switch (currentStep) {
@@ -210,6 +233,8 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
       case 'manual_form_investment':
       case 'manual_form_property':
       case 'manual_form_vehicle':
+      case 'manual_form_private_equity':
+      case 'manual_form_private_debt':
         return selectedAccountType ? `Add ${formatAccountType(selectedAccountType)} Account` : 'Account Details';
       case 'bank_link':
         const providerName = selectedProvider === 'plaid' ? 'Plaid' : selectedProvider === 'teller' ? 'Teller' : 'Bank';
@@ -293,6 +318,24 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
           {currentStep === 'manual_form_vehicle' && (
             <VehicleAccountForm
               onSubmit={handleVehicleAccountSubmit}
+              onBack={handleBackToTypeSelection}
+              isLoading={createManualAccountMutation.isPending}
+            />
+          )}
+
+          {/* Private Equity Account Form */}
+          {currentStep === 'manual_form_private_equity' && (
+            <PrivateEquityAccountForm
+              onSubmit={handlePrivateEquityAccountSubmit}
+              onBack={handleBackToTypeSelection}
+              isLoading={createManualAccountMutation.isPending}
+            />
+          )}
+
+          {/* Private Debt Account Form */}
+          {currentStep === 'manual_form_private_debt' && (
+            <PrivateDebtAccountForm
+              onSubmit={handlePrivateDebtAccountSubmit}
               onBack={handleBackToTypeSelection}
               isLoading={createManualAccountMutation.isPending}
             />

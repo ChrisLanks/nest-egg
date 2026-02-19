@@ -30,6 +30,7 @@ export const ACCOUNT_TYPES = {
   // Alternative Investments
   CRYPTO: 'crypto',
   PRIVATE_EQUITY: 'private_equity',
+  PRIVATE_DEBT: 'private_debt',
   COLLECTIBLES: 'collectibles',
   PRECIOUS_METALS: 'precious_metals',
 
@@ -138,3 +139,38 @@ export const vehicleAccountSchema = z.object({
 });
 
 export type VehicleAccountFormData = z.infer<typeof vehicleAccountSchema>;
+
+// Private Equity account schema
+export const privateEquityAccountSchema = z.object({
+  name: z.string().min(1, 'Company name is required'),
+  institution: z.string().optional(),
+  account_type: z.literal(ACCOUNT_TYPES.PRIVATE_EQUITY),
+  balance: z.number().or(z.string().transform((val) => parseFloat(val))),
+
+  // Private Equity specific fields
+  grant_type: z.enum(['iso', 'nso', 'rsu', 'rsa']).optional(),
+  grant_date: z.string().optional(), // ISO date string
+  quantity: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
+  strike_price: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
+  vesting_schedule: z.string().optional(),
+  share_price: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
+  company_status: z.enum(['private', 'public']).default('private'),
+  valuation_method: z.enum(['409a', 'preferred', 'custom']).optional(),
+});
+
+export type PrivateEquityAccountFormData = z.infer<typeof privateEquityAccountSchema>;
+
+// Private Debt account schema
+export const privateDebtAccountSchema = z.object({
+  name: z.string().min(1, 'Investment name is required'),
+  institution: z.string().optional(),
+  account_type: z.literal(ACCOUNT_TYPES.PRIVATE_DEBT),
+  balance: z.number().or(z.string().transform((val) => parseFloat(val))),
+
+  // Private Debt specific fields
+  principal_amount: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
+  interest_rate: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
+  maturity_date: z.string().optional(), // ISO date string
+});
+
+export type PrivateDebtAccountFormData = z.infer<typeof privateDebtAccountSchema>;

@@ -194,6 +194,7 @@ async def create_manual_account(
         user_id=current_user.id,
         name=account_data.name,
         account_type=account_data.account_type,
+        property_type=account_data.property_type,
         account_source=account_data.account_source,
         institution_name=account_data.institution,
         mask=account_data.account_number_last4,
@@ -202,6 +203,26 @@ async def create_manual_account(
         is_manual=True,
         is_active=True,
         exclude_from_cash_flow=exclude_from_cash_flow,
+        # Debt/Loan fields
+        interest_rate=account_data.interest_rate,
+        interest_rate_type=account_data.interest_rate_type,
+        minimum_payment=account_data.minimum_payment,
+        payment_due_day=account_data.payment_due_day,
+        original_amount=account_data.original_amount,
+        origination_date=account_data.origination_date,
+        maturity_date=account_data.maturity_date,
+        loan_term_months=account_data.loan_term_months,
+        # Private Debt fields
+        principal_amount=account_data.principal_amount,
+        # Private Equity fields
+        grant_type=account_data.grant_type,
+        grant_date=account_data.grant_date,
+        quantity=account_data.quantity,
+        strike_price=account_data.strike_price,
+        vesting_schedule=account_data.vesting_schedule,
+        share_price=account_data.share_price,
+        company_status=account_data.company_status,
+        valuation_method=account_data.valuation_method,
     )
 
     db.add(account)
@@ -292,7 +313,7 @@ async def update_account(
     db: AsyncSession = Depends(get_db),
 ):
     """Update account details."""
-    # Update fields
+    # Update basic fields
     if account_data.name is not None:
         account.name = account_data.name
     if account_data.is_active is not None:
@@ -303,6 +324,46 @@ async def update_account(
         account.mask = account_data.mask
     if account_data.exclude_from_cash_flow is not None:
         account.exclude_from_cash_flow = account_data.exclude_from_cash_flow
+
+    # Update Debt/Loan fields
+    if account_data.interest_rate is not None:
+        account.interest_rate = account_data.interest_rate
+    if account_data.interest_rate_type is not None:
+        account.interest_rate_type = account_data.interest_rate_type
+    if account_data.minimum_payment is not None:
+        account.minimum_payment = account_data.minimum_payment
+    if account_data.payment_due_day is not None:
+        account.payment_due_day = account_data.payment_due_day
+    if account_data.original_amount is not None:
+        account.original_amount = account_data.original_amount
+    if account_data.origination_date is not None:
+        account.origination_date = account_data.origination_date
+    if account_data.maturity_date is not None:
+        account.maturity_date = account_data.maturity_date
+    if account_data.loan_term_months is not None:
+        account.loan_term_months = account_data.loan_term_months
+
+    # Update Private Debt fields
+    if account_data.principal_amount is not None:
+        account.principal_amount = account_data.principal_amount
+
+    # Update Private Equity fields
+    if account_data.grant_type is not None:
+        account.grant_type = account_data.grant_type
+    if account_data.grant_date is not None:
+        account.grant_date = account_data.grant_date
+    if account_data.quantity is not None:
+        account.quantity = account_data.quantity
+    if account_data.strike_price is not None:
+        account.strike_price = account_data.strike_price
+    if account_data.vesting_schedule is not None:
+        account.vesting_schedule = account_data.vesting_schedule
+    if account_data.share_price is not None:
+        account.share_price = account_data.share_price
+    if account_data.company_status is not None:
+        account.company_status = account_data.company_status
+    if account_data.valuation_method is not None:
+        account.valuation_method = account_data.valuation_method
 
     await db.commit()
     await db.refresh(account)

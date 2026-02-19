@@ -22,15 +22,27 @@ def upgrade() -> None:
     # Add new enum values to accounttype
     op.execute("ALTER TYPE accounttype ADD VALUE IF NOT EXISTS 'private_debt'")
 
-    # Create new enum types
+    # Create new enum types (with IF NOT EXISTS check)
     op.execute("""
-        CREATE TYPE granttype AS ENUM ('iso', 'nso', 'rsu', 'rsa')
+        DO $$ BEGIN
+            CREATE TYPE granttype AS ENUM ('iso', 'nso', 'rsu', 'rsa');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
     """)
     op.execute("""
-        CREATE TYPE companystatus AS ENUM ('private', 'public')
+        DO $$ BEGIN
+            CREATE TYPE companystatus AS ENUM ('private', 'public');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
     """)
     op.execute("""
-        CREATE TYPE valuationmethod AS ENUM ('409a', 'preferred', 'custom')
+        DO $$ BEGIN
+            CREATE TYPE valuationmethod AS ENUM ('409a', 'preferred', 'custom');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
     """)
 
     # Add Private Debt field
