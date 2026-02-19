@@ -53,13 +53,11 @@ class TestCategoryService:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_get_category_id_for_plaid_category_cross_org(self, db, test_user):
+    async def test_get_category_id_for_plaid_category_cross_org(self, db, test_user, second_organization):
         """Should not return categories from other organizations."""
-        other_org_id = uuid4()
-
         # Create category in other org
         other_category = Category(
-            organization_id=other_org_id,
+            organization_id=second_organization.id,
             name="Other Org Category",
             plaid_category_name="Shopping",
         )

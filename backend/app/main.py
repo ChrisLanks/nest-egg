@@ -190,6 +190,23 @@ app.add_middleware(AuditLogMiddleware)
 # Add exception handler for validation errors
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from decimal import Decimal
+import json
+
+
+def _make_json_serializable(obj):
+    """Recursively convert non-JSON-serializable types to serializable ones."""
+    if isinstance(obj, dict):
+        return {k: _make_json_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_make_json_serializable(i) for i in obj]
+    if isinstance(obj, Decimal):
+        return float(obj)
+    if isinstance(obj, type):
+        return str(obj)
+    if isinstance(obj, Exception):
+        return str(obj)
+    return obj
 
 
 @app.exception_handler(RequestValidationError)
@@ -197,9 +214,10 @@ async def validation_exception_handler(request, exc):
     print(f"❌ Validation error: {exc}")
     print(f"❌ Error details: {exc.errors()}")
     print(f"❌ Request URL: {request.url}")
+    errors = _make_json_serializable(exc.errors())
     return JSONResponse(
         status_code=422,
-        content={"detail": exc.errors()},
+        content={"detail": errors},
     )
 
 

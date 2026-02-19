@@ -4,7 +4,7 @@ from datetime import timedelta
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification, NotificationType, NotificationPriority
@@ -108,9 +108,14 @@ class NotificationService:
         if not include_read:
             query = query.where(Notification.is_read.is_(False))
 
-        query = query.order_by(Notification.priority.desc(), Notification.created_at.desc()).limit(
-            limit
+        priority_order = case(
+            (Notification.priority == NotificationPriority.URGENT, 0),
+            (Notification.priority == NotificationPriority.HIGH, 1),
+            (Notification.priority == NotificationPriority.MEDIUM, 2),
+            (Notification.priority == NotificationPriority.LOW, 3),
+            else_=4,
         )
+        query = query.order_by(priority_order, Notification.created_at.desc()).limit(limit)
 
         result = await db.execute(query)
         return list(result.scalars().all())

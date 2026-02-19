@@ -16,7 +16,7 @@ from app.api.v1.rules import (
     delete_rule,
     apply_rule,
     preview_rule,
-    test_rule,
+    test_rule as rule_test_endpoint,
     ApplyRuleRequest,
     router,
 )
@@ -738,7 +738,7 @@ class TestTestRule:
             # Only transaction1 matches
             mock_engine.matches_rule.side_effect = [True, False]
 
-            result = await test_rule(
+            result = await rule_test_endpoint(
                 rule_data=rule_create_data,
                 current_user=mock_user,
                 db=mock_db,
@@ -770,7 +770,7 @@ class TestTestRule:
             mock_engine = MockEngine.return_value
             mock_engine.matches_rule.return_value = True
 
-            result = await test_rule(
+            result = await rule_test_endpoint(
                 rule_data=rule_create_data,
                 current_user=mock_user,
                 db=mock_db,
@@ -806,7 +806,7 @@ class TestTestRule:
             mock_engine = MockEngine.return_value
             mock_engine.matches_rule.return_value = True
 
-            result = await test_rule(
+            result = await rule_test_endpoint(
                 rule_data=rule_create_data,
                 current_user=mock_user,
                 db=mock_db,

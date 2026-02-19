@@ -24,6 +24,7 @@ from app.schemas.transaction import (
     TransactionListResponse,
     TransactionUpdate,
     CategorySummary,
+    TransactionCreate,
 )
 from app.services.input_sanitization_service import input_sanitization_service
 
@@ -80,6 +81,102 @@ def decode_cursor(cursor: str) -> tuple:
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid cursor: {str(e)}")
+
+
+@router.post("/", response_model=TransactionDetail, status_code=200)
+async def create_transaction(
+    transaction_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new transaction manually."""
+    from uuid import uuid4 as _uuid4
+
+    # Validate account belongs to organization
+    account_id = transaction_data.get("account_id")
+    if not account_id:
+        raise HTTPException(status_code=400, detail="account_id is required")
+
+    account_result = await db.execute(
+        select(Account).where(
+            Account.id == account_id,
+            Account.organization_id == current_user.organization_id,
+        )
+    )
+    account = account_result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # Parse date
+    txn_date = transaction_data.get("date")
+    if isinstance(txn_date, str):
+        try:
+            txn_date = datetime.strptime(txn_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+
+    from decimal import Decimal as _Decimal
+    amount = _Decimal(str(transaction_data.get("amount", "0")))
+
+    txn = Transaction(
+        organization_id=current_user.organization_id,
+        account_id=account_id,
+        date=txn_date,
+        amount=amount,
+        merchant_name=transaction_data.get("merchant_name"),
+        description=transaction_data.get("description"),
+        category_id=transaction_data.get("category_id"),
+        category_primary=transaction_data.get("category_primary"),
+        category_detailed=transaction_data.get("category_detailed"),
+        is_pending=transaction_data.get("is_pending", False),
+        is_transfer=transaction_data.get("is_transfer", False),
+        deduplication_hash=transaction_data.get("deduplication_hash") or str(_uuid4()),
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn)
+
+    # Load related data
+    result = await db.execute(
+        select(Transaction)
+        .options(joinedload(Transaction.account))
+        .options(joinedload(Transaction.category).joinedload(Category.parent))
+        .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
+        .where(Transaction.id == txn.id)
+    )
+    txn = result.unique().scalar_one()
+    transaction_labels = [tl.label for tl in txn.labels if tl.label]
+
+    category_summary = None
+    if txn.category:
+        category_summary = CategorySummary(
+            id=txn.category.id,
+            name=txn.category.name,
+            color=txn.category.color,
+            parent_id=txn.category.parent_category_id,
+            parent_name=txn.category.parent.name if txn.category.parent else None,
+        )
+
+    return TransactionDetail(
+        id=txn.id,
+        organization_id=txn.organization_id,
+        account_id=txn.account_id,
+        external_transaction_id=txn.external_transaction_id,
+        date=txn.date,
+        amount=txn.amount,
+        merchant_name=txn.merchant_name,
+        description=txn.description,
+        category_primary=txn.category_primary,
+        category_detailed=txn.category_detailed,
+        is_pending=txn.is_pending,
+        is_transfer=txn.is_transfer,
+        created_at=txn.created_at,
+        updated_at=txn.updated_at,
+        account_name=txn.account.name if txn.account else None,
+        account_mask=txn.account.mask if txn.account else None,
+        category=category_summary,
+        labels=transaction_labels,
+    )
 
 
 @router.get("/", response_model=TransactionListResponse)

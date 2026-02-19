@@ -16,6 +16,7 @@ class NotificationType(str, enum.Enum):
     SYNC_FAILED = "sync_failed"
     REAUTH_REQUIRED = "reauth_required"
     SYNC_STALE = "sync_stale"
+    ACCOUNT_CONNECTED = "account_connected"
     ACCOUNT_ERROR = "account_error"
     BUDGET_ALERT = "budget_alert"
     TRANSACTION_DUPLICATE = "transaction_duplicate"

@@ -76,13 +76,22 @@ class TestCategoryHierarchicalGrouping:
             Mock(name="Groceries", parent_name="Food"),
         ]
 
+        # Mock per-category has_children checks: one find + one count per unique category
+        # Unique categories in results: "Food"
+        food_cat_result = Mock()
+        food_cat_id = uuid4()
+        food_cat_result.scalar_one_or_none.return_value = food_cat_id
+        food_children_count_result = Mock()
+        food_children_count_result.scalar.return_value = 2  # Food has children
+
         mock_db.execute.side_effect = [
-            accounts_result,  # Account query
-            income_total,  # Total income
+            income_total,  # Total income (accounts already patched via get_all_household_accounts)
             expense_total,  # Total expenses
             debug_result,  # Debug categories
             income_cats_result,  # Income categories
             expense_cats_result,  # Expense categories
+            food_cat_result,  # Find "Food" category by name
+            food_children_count_result,  # Count children of "Food"
         ]
 
         with patch("app.api.v1.income_expenses.get_all_household_accounts") as mock_accounts:
@@ -145,13 +154,20 @@ class TestCategoryHierarchicalGrouping:
             Mock(name="Restaurants", parent_name="Food"),
         ]
 
+        # Mock per-category has_children checks for "Food"
+        food_cat_result = Mock()
+        food_cat_result.scalar_one_or_none.return_value = uuid4()
+        food_children_count_result = Mock()
+        food_children_count_result.scalar.return_value = 1  # Food has children
+
         mock_db.execute.side_effect = [
-            accounts_result,
-            income_total,
+            income_total,  # Total income (accounts already patched via get_all_household_accounts)
             expense_total,
             debug_result,
             income_cats_result,
             expense_cats_result,
+            food_cat_result,  # Find "Food" category by name
+            food_children_count_result,  # Count children of "Food"
         ]
 
         with patch("app.api.v1.income_expenses.get_all_household_accounts") as mock_accounts:
@@ -203,13 +219,27 @@ class TestCategoryHierarchicalGrouping:
             Mock(name="Utilities", parent_name=None),
         ]
 
+        # Mock per-category has_children checks: "Salary" and "Utilities" (no children)
+        salary_cat_result = Mock()
+        salary_cat_result.scalar_one_or_none.return_value = uuid4()
+        salary_children_count_result = Mock()
+        salary_children_count_result.scalar.return_value = 0  # No children
+
+        utilities_cat_result = Mock()
+        utilities_cat_result.scalar_one_or_none.return_value = uuid4()
+        utilities_children_count_result = Mock()
+        utilities_children_count_result.scalar.return_value = 0  # No children
+
         mock_db.execute.side_effect = [
-            accounts_result,
-            income_total,
+            income_total,  # Total income (accounts already patched via get_all_household_accounts)
             expense_total,
             debug_result,
             income_cats_result,
             expense_cats_result,
+            salary_cat_result,  # Find "Salary" category
+            salary_children_count_result,  # Count children of "Salary"
+            utilities_cat_result,  # Find "Utilities" category
+            utilities_children_count_result,  # Count children of "Utilities"
         ]
 
         with patch("app.api.v1.income_expenses.get_all_household_accounts") as mock_accounts:
@@ -260,13 +290,22 @@ class TestCategoryHierarchicalGrouping:
         debug_result = Mock()
         debug_result.all.return_value = []
 
+        # Mock per-category has_children checks: 4 unique categories, none found in DB
+        def make_not_found_result():
+            r = Mock()
+            r.scalar_one_or_none.return_value = None
+            return r
+
         mock_db.execute.side_effect = [
-            accounts_result,
-            income_total,
+            income_total,  # Total income (accounts already patched via get_all_household_accounts)
             expense_total,
             debug_result,
             income_cats_result,
             expense_cats_result,
+            make_not_found_result(),  # "Category A" not found in DB
+            make_not_found_result(),  # "Category B" not found in DB
+            make_not_found_result(),  # "Category X" not found in DB
+            make_not_found_result(),  # "Category Y" not found in DB
         ]
 
         with patch("app.api.v1.income_expenses.get_all_household_accounts") as mock_accounts:
@@ -319,9 +358,9 @@ class TestCategoryHierarchicalGrouping:
         debug_result = Mock()
         debug_result.all.return_value = []
 
+        # No categories → no per-category has_children checks needed
         mock_db.execute.side_effect = [
-            accounts_result,
-            income_total,
+            income_total,  # Total income (accounts already patched via get_all_household_accounts)
             expense_total,
             debug_result,
             income_cats_result,
@@ -392,38 +431,62 @@ class TestCategoryDrillDown:
         food_category.parent_category_id = None
         category_result.scalar_one_or_none.return_value = food_category
 
-        # Mock child categories query
+        # Mock child categories query (uses scalars().all())
+        restaurants_cat = Mock(spec=Category)
+        restaurants_cat.id = uuid4()
+        restaurants_cat.name = "Restaurants"
+        groceries_cat = Mock(spec=Category)
+        groceries_cat.id = uuid4()
+        groceries_cat.name = "Groceries"
+
         children_result = Mock()
-        children_result.all.return_value = [
-            (uuid4(), "Restaurants"),
-            (uuid4(), "Groceries"),
+        children_result.scalars.return_value.all.return_value = [
+            restaurants_cat,
+            groceries_cat,
         ]
 
-        # Mock income aggregation
-        income_result = Mock()
-        income_result.__iter__ = lambda self: iter([
-            Mock(category_name="Restaurants", category_id=uuid4(), total=800, count=10, has_children=False),
-            Mock(category_name="Groceries", category_id=uuid4(), total=1200, count=15, has_children=False),
-        ])
+        # Mock parent income total
+        income_total_result = Mock()
+        income_total_result.scalar.return_value = 2000
 
-        # Mock expense aggregation
-        expense_result = Mock()
-        expense_result.__iter__ = lambda self: iter([
-            Mock(category_name="Restaurants", category_id=uuid4(), total=-900, count=12, has_children=False),
-            Mock(category_name="Groceries", category_id=uuid4(), total=-1100, count=14, has_children=False),
-        ])
+        # Mock parent expense total
+        expense_total_result = Mock()
+        expense_total_result.scalar.return_value = -2000
 
-        # Mock merchants query
-        merchants_result = Mock()
-        merchants_result.__iter__ = lambda self: iter([])
+        # Mock income children breakdown (fields: .name, .total, .count)
+        # Note: 'name' is special in Mock (use configure_mock or set attr after creation)
+        income_row_1 = Mock()
+        income_row_1.name = "Restaurants"
+        income_row_1.total = 800
+        income_row_1.count = 10
+        income_row_2 = Mock()
+        income_row_2.name = "Groceries"
+        income_row_2.total = 1200
+        income_row_2.count = 15
+
+        income_children_result = Mock()
+        income_children_result.__iter__ = lambda self: iter([income_row_1, income_row_2])
+
+        # Mock expense children breakdown (fields: .name, .total, .count)
+        expense_row_1 = Mock()
+        expense_row_1.name = "Restaurants"
+        expense_row_1.total = -900
+        expense_row_1.count = 12
+        expense_row_2 = Mock()
+        expense_row_2.name = "Groceries"
+        expense_row_2.total = -1100
+        expense_row_2.count = 14
+
+        expense_children_result = Mock()
+        expense_children_result.__iter__ = lambda self: iter([expense_row_1, expense_row_2])
 
         mock_db.execute.side_effect = [
-            accounts_result,  # Get accounts
-            category_result,  # Find parent category
-            children_result,  # Get children
-            income_result,  # Income by children
-            expense_result,  # Expenses by children
-            merchants_result,  # Merchants (empty for category drill-down)
+            category_result,   # Find parent category (accounts already patched)
+            children_result,   # Get children
+            income_total_result,   # Parent income total
+            expense_total_result,  # Parent expense total
+            income_children_result,   # Income by children
+            expense_children_result,  # Expenses by children
         ]
 
         with patch("app.api.v1.income_expenses.get_all_household_accounts") as mock_accounts:
@@ -432,7 +495,7 @@ class TestCategoryDrillDown:
             ]
 
             result = await get_category_drill_down(
-                category=parent_category,
+                parent_category=parent_category,
                 start_date=date_range["start_date"],
                 end_date=date_range["end_date"],
                 user_id=None,
@@ -470,29 +533,28 @@ class TestCategoryDrillDown:
         restaurants_category.parent_category_id = uuid4()  # Has parent (Food)
         category_result.scalar_one_or_none.return_value = restaurants_category
 
-        # Mock child categories query (no children - leaf category)
+        # Mock child categories query (no children - leaf category, uses scalars().all())
         children_result = Mock()
-        children_result.all.return_value = []
+        children_result.scalars.return_value.all.return_value = []
 
-        # Mock merchants for leaf category
-        income_merchants = Mock()
-        income_merchants.__iter__ = lambda self: iter([
-            Mock(merchant_name="McDonald's", total=50, count=2),
-            Mock(merchant_name="Chipotle", total=75, count=3),
-        ])
+        # Leaf category: income and expense use one_or_none()
+        income_row = Mock()
+        income_row.total = Decimal("125.00")
+        income_row.count = 5
+        income_result = Mock()
+        income_result.one_or_none.return_value = income_row
 
-        expense_merchants = Mock()
-        expense_merchants.__iter__ = lambda self: iter([
-            Mock(merchant_name="Starbucks", total=-120, count=10),
-            Mock(merchant_name="Subway", total=-80, count=5),
-        ])
+        expense_row = Mock()
+        expense_row.total = Decimal("-200.00")
+        expense_row.count = 15
+        expense_result = Mock()
+        expense_result.one_or_none.return_value = expense_row
 
         mock_db.execute.side_effect = [
-            accounts_result,
-            category_result,
-            children_result,  # No children
-            income_merchants,  # Income by merchants
-            expense_merchants,  # Expenses by merchants
+            category_result,   # Find category (accounts already patched)
+            children_result,   # No children
+            income_result,     # Income for leaf
+            expense_result,    # Expenses for leaf
         ]
 
         with patch("app.api.v1.income_expenses.get_all_household_accounts") as mock_accounts:
@@ -501,7 +563,7 @@ class TestCategoryDrillDown:
             ]
 
             result = await get_category_drill_down(
-                category=leaf_category,
+                parent_category=leaf_category,
                 start_date=date_range["start_date"],
                 end_date=date_range["end_date"],
                 user_id=None,
@@ -509,10 +571,10 @@ class TestCategoryDrillDown:
                 db=mock_db,
             )
 
-        # Should return merchants, not categories
-        assert len(result.income_categories) == 2
-        assert any(c.category == "McDonald's" for c in result.income_categories)
-        assert any(c.category == "Chipotle" for c in result.income_categories)
+        # For leaf category, function returns single breakdown for the leaf itself
+        assert len(result.income_categories) == 1
+        assert result.income_categories[0].category == leaf_category
+        assert result.expense_categories[0].category == leaf_category
 
     @pytest.mark.asyncio
     async def test_handles_provider_category_without_custom_mapping(
@@ -531,22 +593,23 @@ class TestCategoryDrillDown:
         category_result = Mock()
         category_result.scalar_one_or_none.return_value = None
 
-        # Mock merchants for provider category
-        income_merchants = Mock()
-        income_merchants.__iter__ = lambda self: iter([
-            Mock(merchant_name="Restaurant A", total=100, count=5),
-        ])
+        # Provider category not found: income/expense use one_or_none()
+        income_row = Mock()
+        income_row.total = Decimal("100.00")
+        income_row.count = 5
+        income_result = Mock()
+        income_result.one_or_none.return_value = income_row
 
-        expense_merchants = Mock()
-        expense_merchants.__iter__ = lambda self: iter([
-            Mock(merchant_name="Restaurant B", total=-150, count=7),
-        ])
+        expense_row = Mock()
+        expense_row.total = Decimal("-150.00")
+        expense_row.count = 7
+        expense_result = Mock()
+        expense_result.one_or_none.return_value = expense_row
 
         mock_db.execute.side_effect = [
-            accounts_result,
-            category_result,  # Category not found
-            income_merchants,
-            expense_merchants,
+            category_result,  # Category not found (accounts already patched)
+            income_result,
+            expense_result,
         ]
 
         with patch("app.api.v1.income_expenses.get_all_household_accounts") as mock_accounts:
@@ -555,7 +618,7 @@ class TestCategoryDrillDown:
             ]
 
             result = await get_category_drill_down(
-                category=provider_category,
+                parent_category=provider_category,
                 start_date=date_range["start_date"],
                 end_date=date_range["end_date"],
                 user_id=None,
@@ -563,6 +626,6 @@ class TestCategoryDrillDown:
                 db=mock_db,
             )
 
-        # Should return merchants directly
+        # Should return single entry for the provider category itself
         assert len(result.income_categories) == 1
-        assert result.income_categories[0].category == "Restaurant A"
+        assert result.income_categories[0].category == provider_category

@@ -5,6 +5,7 @@ from fastapi import status
 from unittest.mock import AsyncMock, patch, MagicMock
 from decimal import Decimal
 from datetime import date
+from uuid import uuid4
 
 from app.models.account import TellerEnrollment, Account, AccountSource, AccountType
 from app.services.teller_service import TellerService
@@ -40,14 +41,17 @@ class TestTellerService:
 
     async def test_sync_accounts_creates_new_accounts(self, db, test_user):
         """Should create new accounts from Teller API."""
+        from app.services.encryption_service import get_encryption_service
+
         service = TellerService()
+        encrypted_token = get_encryption_service().encrypt_token("test_token")
 
         # Create enrollment
         enrollment = TellerEnrollment(
             organization_id=test_user.organization_id,
             user_id=test_user.id,
             enrollment_id="enr_test",
-            access_token="encrypted_token",
+            access_token=encrypted_token,
             institution_name="Test Bank",
         )
         db.add(enrollment)
@@ -86,14 +90,17 @@ class TestTellerService:
 
     async def test_sync_accounts_updates_existing_balances(self, db, test_user):
         """Should update balances for existing accounts."""
+        from app.services.encryption_service import get_encryption_service
+
         service = TellerService()
+        encrypted_token = get_encryption_service().encrypt_token("test_token")
 
         # Create enrollment
         enrollment = TellerEnrollment(
             organization_id=test_user.organization_id,
             user_id=test_user.id,
             enrollment_id="enr_test",
-            access_token="encrypted_token",
+            access_token=encrypted_token,
         )
         db.add(enrollment)
         await db.commit()
@@ -133,14 +140,17 @@ class TestTellerService:
 
     async def test_sync_transactions_creates_new_transactions(self, db, test_user, test_account):
         """Should create new transactions from Teller API."""
+        from app.services.encryption_service import get_encryption_service
+
         service = TellerService()
+        encrypted_token = get_encryption_service().encrypt_token("test_token")
 
         # Create Teller enrollment and link to account
         enrollment = TellerEnrollment(
             organization_id=test_user.organization_id,
             user_id=test_user.id,
             enrollment_id="enr_test",
-            access_token="encrypted_token",
+            access_token=encrypted_token,
         )
         db.add(enrollment)
         await db.commit()
@@ -186,15 +196,17 @@ class TestTellerService:
     async def test_sync_transactions_deduplication(self, db, test_user, test_account):
         """Should not create duplicate transactions."""
         from app.models.transaction import Transaction
+        from app.services.encryption_service import get_encryption_service
 
         service = TellerService()
+        encrypted_token = get_encryption_service().encrypt_token("test_token")
 
         # Create enrollment and link
         enrollment = TellerEnrollment(
             organization_id=test_user.organization_id,
             user_id=test_user.id,
             enrollment_id="enr_test",
-            access_token="encrypted_token",
+            access_token=encrypted_token,
         )
         db.add(enrollment)
         await db.commit()
@@ -204,7 +216,7 @@ class TestTellerService:
         test_account.external_account_id = "acc_123"
         await db.commit()
 
-        # Create existing transaction
+        # Create existing transaction with deduplication_hash
         existing_txn = Transaction(
             organization_id=test_user.organization_id,
             account_id=test_account.id,
@@ -212,6 +224,7 @@ class TestTellerService:
             date=date(2024, 1, 15),
             amount=Decimal("-50.00"),
             merchant_name="Starbucks",
+            deduplication_hash=str(uuid4()),
         )
         db.add(existing_txn)
         await db.commit()
@@ -266,13 +279,18 @@ class TestTellerService:
 class TestTellerWebhookHandling:
     """Test suite for Teller webhook endpoints."""
 
-    async def test_webhook_requires_rate_limiting(self, client):
+    async def test_webhook_requires_rate_limiting(self, async_client):
         """Should enforce rate limiting on webhook endpoint."""
+        from app.services.rate_limit_service import rate_limit_service
+
         webhook_data = {"event": "enrollment.connected", "payload": {"enrollment_id": "enr_test"}}
+
+        # Reset rate limit before test to ensure clean state
+        await rate_limit_service.reset_rate_limit("127.0.0.1", "/api/v1/teller/webhook")
 
         # Make more requests than rate limit allows (20/minute)
         for i in range(25):
-            response = await client.post("/api/v1/teller/webhook", json=webhook_data)
+            response = await async_client.post("/api/v1/teller/webhook", json=webhook_data)
 
             if i < 20:
                 # First 20 should succeed (or fail for other reasons)
@@ -282,7 +300,7 @@ class TestTellerWebhookHandling:
                 assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
                 break
 
-    async def test_webhook_enrollment_connected(self, client, db, test_user):
+    async def test_webhook_enrollment_connected(self, async_client, db, test_user):
         """Should handle enrollment.connected webhook."""
         # Create enrollment
         enrollment = TellerEnrollment(
@@ -300,14 +318,15 @@ class TestTellerWebhookHandling:
             "payload": {"enrollment_id": "enr_test123"},
         }
 
-        response = await client.post("/api/v1/teller/webhook", json=webhook_data)
+        with patch("app.services.rate_limit_service.RateLimitService.check_rate_limit", new_callable=AsyncMock):
+            response = await async_client.post("/api/v1/teller/webhook", json=webhook_data)
 
         # Should acknowledge webhook
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["status"] == "acknowledged"
 
     async def test_webhook_transaction_posted_triggers_sync(
-        self, client, db, test_user, test_account
+        self, async_client, db, test_user, test_account
     ):
         """Should trigger transaction sync on transaction.posted webhook."""
         # Create enrollment
@@ -331,25 +350,27 @@ class TestTellerWebhookHandling:
             "payload": {"enrollment_id": "enr_test", "account_id": "acc_123"},
         }
 
-        with patch("app.api.v1.teller.get_teller_service") as mock_service:
+        with patch("app.services.rate_limit_service.RateLimitService.check_rate_limit", new_callable=AsyncMock), \
+             patch("app.services.teller_service.get_teller_service") as mock_get_service:
             mock_teller = AsyncMock()
-            mock_service.return_value = mock_teller
+            mock_get_service.return_value = mock_teller
 
-            response = await client.post("/api/v1/teller/webhook", json=webhook_data)
+            response = await async_client.post("/api/v1/teller/webhook", json=webhook_data)
 
             # Should trigger sync
             assert response.status_code == status.HTTP_200_OK
             # Verify sync was called
             mock_teller.sync_transactions.assert_called_once()
 
-    async def test_webhook_unknown_enrollment_returns_not_found(self, client):
+    async def test_webhook_unknown_enrollment_returns_not_found(self, async_client):
         """Should handle webhook for unknown enrollment gracefully."""
         webhook_data = {
             "event": "enrollment.connected",
             "payload": {"enrollment_id": "nonexistent"},
         }
 
-        response = await client.post("/api/v1/teller/webhook", json=webhook_data)
+        with patch("app.services.rate_limit_service.RateLimitService.check_rate_limit", new_callable=AsyncMock):
+            response = await async_client.post("/api/v1/teller/webhook", json=webhook_data)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()

@@ -39,17 +39,42 @@ async def get_label_depth(label_id: UUID, db: AsyncSession) -> int:
 
 @router.get("/", response_model=List[LabelResponse])
 async def list_labels(
+    is_income: Optional[bool] = Query(None, description="Filter by income/expense type"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List all labels for the current user's organization."""
-    result = await db.execute(
+    query = (
         select(Label)
         .where(Label.organization_id == current_user.organization_id)
         .order_by(Label.name)
     )
+    if is_income is not None:
+        query = query.where(Label.is_income == is_income)
+    result = await db.execute(query)
     labels = result.scalars().all()
     return labels
+
+
+@router.get("/{label_id}", response_model=LabelResponse)
+async def get_label(
+    label_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a specific label by ID."""
+    result = await db.execute(
+        select(Label).where(
+            Label.id == label_id,
+            Label.organization_id == current_user.organization_id,
+        )
+    )
+    label = result.scalar_one_or_none()
+
+    if not label:
+        raise HTTPException(status_code=404, detail="Label not found")
+
+    return label
 
 
 @router.post("/", response_model=LabelResponse, status_code=201)
@@ -66,22 +91,11 @@ async def create_label(
             detail="Cannot create label named 'Transfer' - this is a reserved system label",
         )
 
-    # Validate parent if provided
-    await hierarchy_validation_service.validate_parent(
-        label_data.parent_label_id,
-        current_user.organization_id,
-        db,
-        Label,
-        parent_field_name="parent_label_id",
-        entity_name="label",
-    )
-
     label = Label(
         organization_id=current_user.organization_id,
         name=label_data.name,
         color=label_data.color,
         is_income=label_data.is_income,
-        parent_label_id=label_data.parent_label_id,
     )
     db.add(label)
     await db.commit()

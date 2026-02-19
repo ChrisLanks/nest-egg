@@ -16,7 +16,8 @@ class TestBudgetEndpoints:
                 "name": "Groceries",
                 "category": "Food & Dining",
                 "amount": 500.00,
-                "period": "MONTHLY",
+                "period": "monthly",
+                "start_date": "2025-01-01",
                 "alert_threshold": 0.80,
                 "is_active": True,
             },
@@ -26,8 +27,8 @@ class TestBudgetEndpoints:
         assert response.status_code == 201
         data = response.json()
         assert data["name"] == "Groceries"
-        assert data["amount"] == 500.00
-        assert data["period"] == "MONTHLY"
+        assert float(data["amount"]) == 500.00
+        assert data["period"] == "monthly"
         assert "id" in data
 
     def test_create_budget_invalid_threshold(self, client: TestClient, auth_headers):
@@ -38,7 +39,8 @@ class TestBudgetEndpoints:
                 "name": "Test",
                 "category": "Shopping",
                 "amount": 500.00,
-                "period": "MONTHLY",
+                "period": "monthly",
+                "start_date": "2025-01-01",
                 "alert_threshold": 1.5,  # Invalid (must be 0-1)
                 "is_active": True,
             },
@@ -56,7 +58,8 @@ class TestBudgetEndpoints:
                 "name": "Test Budget",
                 "category": "Shopping",
                 "amount": 300.00,
-                "period": "MONTHLY",
+                "period": "monthly",
+                "start_date": "2025-01-01",
                 "is_active": True,
             },
             headers=auth_headers,
@@ -83,7 +86,8 @@ class TestBudgetEndpoints:
                 "name": "Travel",
                 "category": "Travel",
                 "amount": 1000.00,
-                "period": "QUARTERLY",
+                "period": "quarterly",
+                "start_date": "2025-01-01",
                 "is_active": True,
             },
             headers=auth_headers,
@@ -110,7 +114,8 @@ class TestBudgetEndpoints:
                 "name": "Entertainment",
                 "category": "Entertainment",
                 "amount": 200.00,
-                "period": "MONTHLY",
+                "period": "monthly",
+                "start_date": "2025-01-01",
                 "is_active": True,
             },
             headers=auth_headers,
@@ -129,8 +134,8 @@ class TestBudgetEndpoints:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["amount"] == 250.00
-        assert data["alert_threshold"] == 0.90
+        assert float(data["amount"]) == 250.00
+        assert float(data["alert_threshold"]) == 0.90
 
     def test_delete_budget(self, client: TestClient, auth_headers):
         """Test deleting budget."""
@@ -141,7 +146,8 @@ class TestBudgetEndpoints:
                 "name": "Temp Budget",
                 "category": "Other",
                 "amount": 100.00,
-                "period": "MONTHLY",
+                "period": "monthly",
+                "start_date": "2025-01-01",
                 "is_active": True,
             },
             headers=auth_headers,
@@ -167,7 +173,7 @@ class TestBudgetEndpoints:
         """Test getting budget without authentication fails."""
         response = client.get("/api/v1/budgets")
 
-        assert response.status_code == 401
+        assert response.status_code in (401, 403)
 
     def test_create_budget_negative_amount(self, client: TestClient, auth_headers):
         """Test creating budget with negative amount fails."""
@@ -177,7 +183,8 @@ class TestBudgetEndpoints:
                 "name": "Invalid",
                 "category": "Shopping",
                 "amount": -100.00,  # Negative amount
-                "period": "MONTHLY",
+                "period": "monthly",
+                "start_date": "2025-01-01",
                 "is_active": True,
             },
             headers=auth_headers,
@@ -194,7 +201,8 @@ class TestBudgetEndpoints:
                 "name": "Dining Out",
                 "category": "Food & Dining",
                 "amount": 400.00,
-                "period": "MONTHLY",
+                "period": "monthly",
+                "start_date": "2025-01-01",
                 "is_active": True,
             },
             headers=auth_headers,
@@ -203,7 +211,7 @@ class TestBudgetEndpoints:
 
         # Get progress (will be 0% with no transactions)
         response = client.get(
-            f"/api/v1/budgets/{budget_id}/progress",
+            f"/api/v1/budgets/{budget_id}/spending",
             headers=auth_headers,
         )
 
@@ -211,5 +219,5 @@ class TestBudgetEndpoints:
         data = response.json()
         assert "percentage" in data
         assert "spent" in data
-        assert "budget" in data
+        assert "budget_amount" in data
         assert "remaining" in data

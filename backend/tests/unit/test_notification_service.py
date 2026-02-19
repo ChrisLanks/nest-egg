@@ -308,19 +308,18 @@ class TestNotificationService:
         assert notifications[0].id == notification.id
 
     @pytest.mark.asyncio
-    async def test_get_user_notifications_excludes_other_users(self, db, test_user):
+    async def test_get_user_notifications_excludes_other_users(self, db, test_user, second_user):
         """Should not return notifications for other users."""
         service = NotificationService()
-        other_user_id = uuid4()
 
-        # Create notification for other user
+        # Create notification for other user (same org, different user)
         await service.create_notification(
             db=db,
             organization_id=test_user.organization_id,
             type=NotificationType.LARGE_TRANSACTION,
             title="Other User",
             message="Not for test_user",
-            user_id=other_user_id,
+            user_id=second_user.id,
         )
 
         notifications = await service.get_user_notifications(
@@ -428,15 +427,14 @@ class TestNotificationService:
         assert abs((updated.read_at - utc_now()).total_seconds()) < 10
 
     @pytest.mark.asyncio
-    async def test_mark_as_read_cross_org_blocked(self, db, test_user):
+    async def test_mark_as_read_cross_org_blocked(self, db, test_user, second_organization):
         """Should not allow marking notifications from other orgs."""
         service = NotificationService()
-        other_org_id = uuid4()
 
         # Create notification in other org
         notification = await service.create_notification(
             db=db,
-            organization_id=other_org_id,
+            organization_id=second_organization.id,
             type=NotificationType.BUDGET_ALERT,
             title="Other Org",
             message="Other Org",
@@ -480,14 +478,13 @@ class TestNotificationService:
         assert updated.dismissed_at is not None
 
     @pytest.mark.asyncio
-    async def test_mark_as_dismissed_cross_org_blocked(self, db, test_user):
+    async def test_mark_as_dismissed_cross_org_blocked(self, db, test_user, second_organization):
         """Should not allow dismissing notifications from other orgs."""
         service = NotificationService()
-        other_org_id = uuid4()
 
         notification = await service.create_notification(
             db=db,
-            organization_id=other_org_id,
+            organization_id=second_organization.id,
             type=NotificationType.BUDGET_ALERT,
             title="Other Org",
             message="Other Org",
@@ -536,10 +533,9 @@ class TestNotificationService:
             assert notification.read_at is not None
 
     @pytest.mark.asyncio
-    async def test_mark_all_as_read_user_specific_only(self, db, test_user):
+    async def test_mark_all_as_read_user_specific_only(self, db, test_user, second_user):
         """Should only mark user's notifications as read."""
         service = NotificationService()
-        other_user_id = uuid4()
 
         # Create notification for test_user
         await service.create_notification(
@@ -551,14 +547,14 @@ class TestNotificationService:
             user_id=test_user.id,
         )
 
-        # Create notification for other user
+        # Create notification for other user (different org since same-org users can see org-wide)
         other_notification = await service.create_notification(
             db=db,
             organization_id=test_user.organization_id,
             type=NotificationType.BUDGET_ALERT,
             title="Other User",
             message="Other",
-            user_id=other_user_id,
+            user_id=second_user.id,
         )
 
         # Create org-wide notification

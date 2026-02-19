@@ -231,6 +231,40 @@ async def test_account(db_session: AsyncSession, test_user: User):
     return account
 
 
+@pytest_asyncio.fixture
+async def second_organization(db_session: AsyncSession) -> Organization:
+    """Create a second test organization for cross-org isolation tests."""
+    org = Organization(
+        id=uuid4(),
+        name="Other Organization",
+    )
+    db_session.add(org)
+    await db_session.commit()
+    await db_session.refresh(org)
+    return org
+
+
+@pytest_asyncio.fixture
+async def second_user(db_session: AsyncSession, second_organization: Organization) -> User:
+    """Create a second test user in a different organization for isolation tests."""
+    user = User(
+        id=uuid4(),
+        email="other@example.com",
+        password_hash=hash_password("password123"),
+        organization_id=second_organization.id,
+        is_org_admin=False,
+        is_active=True,
+        first_name="Other",
+        last_name="User",
+        failed_login_attempts=0,
+        locked_until=None,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
 @pytest.fixture
 def auth_headers(test_user: User) -> dict:
     """Create authentication headers with access token."""
@@ -318,18 +352,18 @@ def sample_rule_data() -> dict:
         "name": "Auto-categorize Coffee",
         "is_active": True,
         "priority": 1,
-        "match_type": "ALL",
-        "apply_to": "NEW_ONLY",
+        "match_type": "all",
+        "apply_to": "new_only",
         "conditions": [
             {
-                "field": "MERCHANT_NAME",
-                "operator": "CONTAINS",
+                "field": "merchant_name",
+                "operator": "contains",
                 "value": "starbucks",
             }
         ],
         "actions": [
             {
-                "action_type": "SET_CATEGORY",
+                "action_type": "set_category",
                 "action_value": "Coffee & Tea",
             }
         ],

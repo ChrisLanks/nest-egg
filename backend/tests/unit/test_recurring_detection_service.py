@@ -87,13 +87,15 @@ class TestRecurringDetectionService:
         """Should return None for irregular dates."""
         service = RecurringDetectionService()
 
-        # Irregular dates
+        # Irregular dates with avg gap ~50 days (falls in no frequency bucket)
         dates = [
             date(2024, 1, 1),
-            date(2024, 1, 10),
-            date(2024, 2, 5),
-            date(2024, 3, 20),
+            date(2024, 1, 20),   # 19 days
+            date(2024, 3, 15),   # 55 days
+            date(2024, 5, 20),   # 66 days
         ]
+        # avg gap = (19 + 55 + 66) / 3 = 140/3 = 46.7 days
+        # Does not match any frequency bucket (falls between monthly 25-35 and quarterly 85-95)
 
         frequency = service._calculate_frequency(dates)
         assert frequency is None
@@ -186,8 +188,8 @@ class TestRecurringDetectionService:
         """Should detect simple recurring pattern."""
         service = RecurringDetectionService()
 
-        # Create monthly recurring transactions
-        base_date = date(2024, 1, 1)
+        # Create monthly recurring transactions (within 180-day lookback window)
+        base_date = date.today() - timedelta(days=120)
         for i in range(4):
             txn = Transaction(
                 organization_id=test_user.organization_id,
@@ -195,6 +197,7 @@ class TestRecurringDetectionService:
                 date=base_date + timedelta(days=30 * i),
                 amount=Decimal("-50.00"),
                 merchant_name="Netflix",
+                deduplication_hash=str(uuid4()),
             )
             db_session.add(txn)
         await db_session.commit()
@@ -223,6 +226,7 @@ class TestRecurringDetectionService:
                 date=date(2024, 1, 1) + timedelta(days=30 * i),
                 amount=Decimal("-50.00"),
                 merchant_name="Rare Merchant",
+                deduplication_hash=str(uuid4()),
             )
             db_session.add(txn)
         await db_session.commit()
@@ -238,14 +242,16 @@ class TestRecurringDetectionService:
         """Should update existing pattern with new data."""
         service = RecurringDetectionService()
 
-        # Create transactions
+        # Create transactions (within 180-day lookback window)
+        base_date = date.today() - timedelta(days=150)
         for i in range(3):
             txn = Transaction(
                 organization_id=test_user.organization_id,
                 account_id=test_account.id,
-                date=date(2024, 1, 1) + timedelta(days=30 * i),
+                date=base_date + timedelta(days=30 * i),
                 amount=Decimal("-50.00"),
                 merchant_name="Spotify",
+                deduplication_hash=str(uuid4()),
             )
             db_session.add(txn)
         await db_session.commit()
@@ -259,9 +265,10 @@ class TestRecurringDetectionService:
             txn = Transaction(
                 organization_id=test_user.organization_id,
                 account_id=test_account.id,
-                date=date(2024, 1, 1) + timedelta(days=30 * i),
+                date=base_date + timedelta(days=30 * i),
                 amount=Decimal("-50.00"),
                 merchant_name="Spotify",
+                deduplication_hash=str(uuid4()),
             )
             db_session.add(txn)
         await db_session.commit()
@@ -294,6 +301,7 @@ class TestRecurringDetectionService:
                 date=d,
                 amount=Decimal("-50.00"),
                 merchant_name="Irregular Store",
+                deduplication_hash=str(uuid4()),
             )
             db_session.add(txn)
         await db_session.commit()
@@ -324,6 +332,7 @@ class TestRecurringDetectionService:
                 date=base_date + timedelta(days=30 * i),
                 amount=Decimal("-50.00"),
                 merchant_name="Monthly Service",
+                deduplication_hash=str(uuid4()),
             )
             db_session.add(txn)
         await db_session.commit()
@@ -344,7 +353,7 @@ class TestRecurringDetectionService:
         service = RecurringDetectionService()
 
         pattern = await service.create_manual_recurring(
-            db_session=db,
+            db=db_session,
             user=test_user,
             merchant_name="Rent",
             account_id=test_account.id,
@@ -415,7 +424,7 @@ class TestRecurringDetectionService:
 
         # Update
         updated = await service.update_recurring_transaction(
-            db,
+            db_session,
             pattern.id,
             test_user,
             merchant_name="Updated Name",
@@ -428,29 +437,29 @@ class TestRecurringDetectionService:
 
     @pytest.mark.asyncio
     async def test_update_recurring_transaction_cross_org_blocked(
-        self, db_session, test_user, test_account
+        self, db_session, test_user, test_account, second_organization
     ):
         """Should not allow updating patterns from other orgs."""
         service = RecurringDetectionService()
 
         # Create pattern in other org
-        other_org_id = uuid4()
         other_pattern = RecurringTransaction(
             id=uuid4(),
-            organization_id=other_org_id,
+            organization_id=second_organization.id,
             account_id=test_account.id,
             merchant_name="Other Org Pattern",
             frequency=RecurringFrequency.MONTHLY,
             average_amount=Decimal("100"),
             confidence_score=Decimal("1.00"),
             occurrence_count=1,
+            first_occurrence=date.today(),
         )
         db_session.add(other_pattern)
         await db_session.commit()
 
         # Try to update
         updated = await service.update_recurring_transaction(
-            db, other_pattern.id, test_user, merchant_name="Hacked"
+            db_session, other_pattern.id, test_user, merchant_name="Hacked"
         )
 
         assert updated is None
@@ -477,22 +486,22 @@ class TestRecurringDetectionService:
 
     @pytest.mark.asyncio
     async def test_delete_recurring_transaction_cross_org_blocked(
-        self, db_session, test_user, test_account
+        self, db_session, test_user, test_account, second_organization
     ):
         """Should not allow deleting patterns from other orgs."""
         service = RecurringDetectionService()
 
         # Create pattern in other org
-        other_org_id = uuid4()
         other_pattern = RecurringTransaction(
             id=uuid4(),
-            organization_id=other_org_id,
+            organization_id=second_organization.id,
             account_id=test_account.id,
             merchant_name="Other Org",
             frequency=RecurringFrequency.MONTHLY,
             average_amount=Decimal("100"),
             confidence_score=Decimal("1.00"),
             occurrence_count=1,
+            first_occurrence=date.today(),
         )
         db_session.add(other_pattern)
         await db_session.commit()
@@ -508,7 +517,7 @@ class TestRecurringDetectionService:
 
         # Create bill due in 2 days
         upcoming = await service.create_manual_recurring(
-            db,
+            db_session,
             test_user,
             "Upcoming Bill",
             test_account.id,
@@ -522,7 +531,7 @@ class TestRecurringDetectionService:
 
         # Create bill far in future
         far_future = await service.create_manual_recurring(
-            db,
+            db_session,
             test_user,
             "Far Future",
             test_account.id,
@@ -549,7 +558,7 @@ class TestRecurringDetectionService:
 
         # Create overdue bill
         overdue = await service.create_manual_recurring(
-            db,
+            db_session,
             test_user,
             "Overdue",
             test_account.id,
@@ -576,7 +585,7 @@ class TestRecurringDetectionService:
 
         # Create monthly subscription
         monthly_sub = await service.create_manual_recurring(
-            db,
+            db_session,
             test_user,
             "Netflix",
             test_account.id,
@@ -588,7 +597,7 @@ class TestRecurringDetectionService:
 
         # Create yearly subscription
         yearly_sub = await service.create_manual_recurring(
-            db,
+            db_session,
             test_user,
             "Prime",
             test_account.id,
@@ -600,7 +609,7 @@ class TestRecurringDetectionService:
 
         # Create weekly pattern (not a subscription)
         weekly = await service.create_manual_recurring(
-            db,
+            db_session,
             test_user,
             "Grocery",
             test_account.id,
@@ -625,7 +634,7 @@ class TestRecurringDetectionService:
 
         # High confidence subscription
         high_conf = await service.create_manual_recurring(
-            db,
+            db_session,
             test_user,
             "High Confidence",
             test_account.id,
@@ -637,7 +646,7 @@ class TestRecurringDetectionService:
 
         # Low confidence subscription
         low_conf = await service.create_manual_recurring(
-            db,
+            db_session,
             test_user,
             "Low Confidence",
             test_account.id,
@@ -660,7 +669,7 @@ class TestRecurringDetectionService:
 
         # Monthly subscription: $10
         monthly = await service.create_manual_recurring(
-            db,
+            db_session,
             test_user,
             "Monthly",
             test_account.id,
@@ -672,7 +681,7 @@ class TestRecurringDetectionService:
 
         # Yearly subscription: $120 ($10/month)
         yearly = await service.create_manual_recurring(
-            db,
+            db_session,
             test_user,
             "Yearly",
             test_account.id,
