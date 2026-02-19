@@ -70,6 +70,7 @@ class CategoryBreakdown(BaseModel):
     amount: float
     count: int
     percentage: float
+    has_children: bool = False  # Whether this category has child categories
 
 
 class IncomeExpenseSummary(BaseModel):
@@ -160,20 +161,33 @@ async def get_income_expense_summary(
     from app.models.transaction import Category
     from sqlalchemy.orm import aliased
 
-    # Alias for parent category
+    # Aliases for category matching
     ParentCategory = aliased(Category)
+    CategoryByName = aliased(Category)  # Match provider category by name
+    ParentByName = aliased(Category)     # Parent of matched category
 
     # Build category name expression:
-    # - If transaction has custom category with parent, use parent name
-    # - If transaction has custom category without parent (root), use category name
-    # - Otherwise use provider category (category_primary)
+    # Priority:
+    # 1. If transaction has custom category_id with parent → use parent name
+    # 2. If transaction has custom category_id without parent → use category name
+    # 3. If provider category matches a category name with parent → use parent name
+    # 4. Otherwise → use provider category as-is
     category_name_expr = func.coalesce(
-        ParentCategory.name,  # Try parent name first
-        Category.name,  # Then try category name
-        Transaction.category_primary  # Finally fall back to provider category
+        ParentCategory.name,  # Parent of custom category
+        Category.name,        # Custom category name
+        ParentByName.name,    # Parent of matched provider category
+        Transaction.category_primary  # Fallback to provider category
     ).label("category_name")
 
     logger.info(f"[CATEGORY GROUPING] Querying income categories - org: {current_user.organization_id}, accounts: {len(account_ids)}, date range: {start_date} to {end_date}")
+
+    # Debug: Check what categories exist
+    debug_cats = await db.execute(
+        select(Category.name, Category.parent_category_id, ParentCategory.name.label("parent_name"))
+        .outerjoin(ParentCategory, Category.parent_category_id == ParentCategory.id)
+        .where(Category.organization_id == current_user.organization_id)
+    )
+    logger.info(f"[CATEGORY GROUPING] Available categories: {[(r.name, r.parent_name) for r in debug_cats.all()]}")
 
     income_categories_result = await db.execute(
         select(
@@ -185,6 +199,14 @@ async def get_income_expense_summary(
         .join(Account)
         .outerjoin(Category, Transaction.category_id == Category.id)
         .outerjoin(ParentCategory, Category.parent_category_id == ParentCategory.id)
+        .outerjoin(
+            CategoryByName,
+            and_(
+                Transaction.category_primary == CategoryByName.name,
+                CategoryByName.organization_id == current_user.organization_id
+            )
+        )
+        .outerjoin(ParentByName, CategoryByName.parent_category_id == ParentByName.id)
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
@@ -227,6 +249,14 @@ async def get_income_expense_summary(
         .join(Account)
         .outerjoin(Category, Transaction.category_id == Category.id)
         .outerjoin(ParentCategory, Category.parent_category_id == ParentCategory.id)
+        .outerjoin(
+            CategoryByName,
+            and_(
+                Transaction.category_primary == CategoryByName.name,
+                CategoryByName.organization_id == current_user.organization_id
+            )
+        )
+        .outerjoin(ParentByName, CategoryByName.parent_category_id == ParentByName.id)
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
@@ -256,6 +286,40 @@ async def get_income_expense_summary(
         )
 
     logger.info(f"[CATEGORY GROUPING] Found {len(expense_categories)} expense categories: {[c.category for c in expense_categories]}")
+
+    # Check which categories have children (for hierarchical drill-down)
+    all_category_names = set(c.category for c in income_categories + expense_categories)
+    categories_with_children = set()
+
+    for cat_name in all_category_names:
+        # Check if this category exists in our database and has children
+        cat_result = await db.execute(
+            select(Category.id)
+            .where(
+                Category.organization_id == current_user.organization_id,
+                Category.name == cat_name
+            )
+        )
+        cat = cat_result.scalar_one_or_none()
+
+        if cat:
+            # Check if it has children
+            children_result = await db.execute(
+                select(func.count(Category.id))
+                .where(
+                    Category.organization_id == current_user.organization_id,
+                    Category.parent_category_id == cat
+                )
+            )
+            child_count = children_result.scalar()
+            if child_count > 0:
+                categories_with_children.add(cat_name)
+
+    # Update has_children flag
+    for cat in income_categories:
+        cat.has_children = cat.category in categories_with_children
+    for cat in expense_categories:
+        cat.has_children = cat.category in categories_with_children
 
     return IncomeExpenseSummary(
         total_income=total_income,
@@ -448,13 +512,14 @@ async def get_category_drill_down(
 
     # Has children - return child breakdown
     child_ids = [cat.id for cat in child_cats]
+    child_names = [cat.name for cat in child_cats]
 
     # Get totals for parent (including children)
+    # Match by category_primary to get accurate totals
     parent_income_result = await db.execute(
         select(func.sum(Transaction.amount))
         .select_from(Transaction)
         .join(Account)
-        .join(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
@@ -464,7 +529,7 @@ async def get_category_drill_down(
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0,
-            (Category.id == parent_cat.id) | (Category.parent_category_id == parent_cat.id)
+            Transaction.category_primary.in_(child_names)
         )
     )
     total_income = float(parent_income_result.scalar() or 0)
@@ -473,7 +538,6 @@ async def get_category_drill_down(
         select(func.sum(Transaction.amount))
         .select_from(Transaction)
         .join(Account)
-        .join(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
@@ -483,7 +547,7 @@ async def get_category_drill_down(
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0,
-            (Category.id == parent_cat.id) | (Category.parent_category_id == parent_cat.id)
+            Transaction.category_primary.in_(child_names)
         )
     )
     total_expenses = abs(float(parent_expense_result.scalar() or 0))
@@ -491,13 +555,12 @@ async def get_category_drill_down(
     # Get child category breakdown
     income_children_result = await db.execute(
         select(
-            Category.name,
+            Transaction.category_primary.label("name"),
             func.sum(Transaction.amount).label("total"),
             func.count(Transaction.id).label("count")
         )
         .select_from(Transaction)
         .join(Account)
-        .join(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
@@ -507,9 +570,9 @@ async def get_category_drill_down(
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount > 0,
-            Category.id.in_(child_ids)
+            Transaction.category_primary.in_(child_names)
         )
-        .group_by(Category.name)
+        .group_by(Transaction.category_primary)
         .order_by(func.sum(Transaction.amount).desc())
     )
 
@@ -528,13 +591,12 @@ async def get_category_drill_down(
 
     expense_children_result = await db.execute(
         select(
-            Category.name,
+            Transaction.category_primary.label("name"),
             func.sum(Transaction.amount).label("total"),
             func.count(Transaction.id).label("count")
         )
         .select_from(Transaction)
         .join(Account)
-        .join(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.organization_id == current_user.organization_id,
             Account.is_active.is_(True),
@@ -544,9 +606,9 @@ async def get_category_drill_down(
             Transaction.date >= start_date,
             Transaction.date <= end_date,
             Transaction.amount < 0,
-            Category.id.in_(child_ids)
+            Transaction.category_primary.in_(child_names)
         )
-        .group_by(Category.name)
+        .group_by(Transaction.category_primary)
         .order_by(func.sum(Transaction.amount).asc())
     )
 

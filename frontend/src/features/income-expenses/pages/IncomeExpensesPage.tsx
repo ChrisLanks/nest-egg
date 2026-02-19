@@ -64,6 +64,7 @@ interface CategoryBreakdown {
   amount: number;
   count: number;
   percentage: number;
+  has_children?: boolean;
 }
 
 interface IncomeExpenseSummary {
@@ -87,6 +88,7 @@ type DrillDownLevel = 'categories' | 'merchants' | 'transactions';
 interface DrillDownState {
   level: DrillDownLevel;
   category?: string;
+  parentCategory?: string; // For hierarchical categories (parent > child)
   merchant?: string;
 }
 
@@ -159,6 +161,15 @@ export const IncomeExpensesPage = () => {
   const [incomeSortDirection, setIncomeSortDirection] = useState<SortDirection>('desc');
   const [expenseSortField, setExpenseSortField] = useState<SortField>('date');
   const [expenseSortDirection, setExpenseSortDirection] = useState<SortDirection>('desc');
+
+  // Debug logging for drill-down state changes
+  useEffect(() => {
+    console.log('[DRILL-DOWN STATE CHANGE] Income:', incomeDrillDown);
+  }, [incomeDrillDown]);
+
+  useEffect(() => {
+    console.log('[DRILL-DOWN STATE CHANGE] Expense:', expenseDrillDown);
+  }, [expenseDrillDown]);
 
   const [groupBy, setGroupBy] = useState<'category' | 'label' | 'merchant' | 'account'>('category');
   const [hiddenItems, setHiddenItems] = useState<Set<string>>(new Set());
@@ -290,11 +301,34 @@ export const IncomeExpensesPage = () => {
         params.append('user_id', selectedUserId);
       }
 
-      const response = await api.get<IncomeExpenseSummary>(`/income-expenses/category-drill-down?${params.toString()}`);
-      return response.data;
+      try {
+        const response = await api.get<IncomeExpenseSummary>(`/income-expenses/category-drill-down?${params.toString()}`);
+        console.log('[CATEGORY DRILL-DOWN] Fetched data for parent:', parentCategory, {
+          income_categories: response.data.income_categories,
+          expense_categories: response.data.expense_categories
+        });
+        return response.data;
+      } catch (error) {
+        console.error('[CATEGORY DRILL-DOWN] Error fetching drill-down:', error);
+        return null;
+      }
     },
-    enabled: groupBy === 'category' && (!!incomeDrillDown.category || !!expenseDrillDown.category) && incomeDrillDown.level === 'merchants' && expenseDrillDown.level === 'merchants',
+    enabled: groupBy === 'category' && (
+      (incomeDrillDown.level === 'merchants' && !!incomeDrillDown.category) ||
+      (expenseDrillDown.level === 'merchants' && !!expenseDrillDown.category)
+    ),
   });
+
+  // Debug log when categoryDrillDown data changes
+  useEffect(() => {
+    console.log('[CATEGORY DRILL-DOWN DATA CHANGE]', {
+      hasCategoryDrillDown: !!categoryDrillDown,
+      incomeCategories: categoryDrillDown?.income_categories?.length || 0,
+      expenseCategories: categoryDrillDown?.expense_categories?.length || 0,
+      incomeData: categoryDrillDown?.income_categories,
+      expenseData: categoryDrillDown?.expense_categories,
+    });
+  }, [categoryDrillDown]);
 
   // Fetch merchant breakdown when drilling down
   const { data: incomeMerchants } = useQuery({
@@ -324,7 +358,7 @@ export const IncomeExpensesPage = () => {
       const response = await api.get<CategoryBreakdown[]>(`${endpoint}?${params.toString()}`);
       return response.data;
     },
-    enabled: (incomeDrillDown.level === 'merchants' || incomeDrillDown.level === 'transactions') && groupBy !== 'category',
+    enabled: incomeDrillDown.level === 'merchants' && !!incomeDrillDown.category,
   });
 
   const { data: expenseMerchants } = useQuery({
@@ -354,7 +388,7 @@ export const IncomeExpensesPage = () => {
       const response = await api.get<CategoryBreakdown[]>(`${endpoint}?${params.toString()}`);
       return response.data;
     },
-    enabled: (expenseDrillDown.level === 'merchants' || expenseDrillDown.level === 'transactions') && groupBy !== 'category',
+    enabled: expenseDrillDown.level === 'merchants' && !!expenseDrillDown.category,
   });
 
   // Fetch ALL transactions for the date range (with infinite loading)
@@ -740,11 +774,35 @@ export const IncomeExpensesPage = () => {
     }));
   }, [expenseTransactions]);
 
-  const handleCategoryClick = (category: string, type: 'income' | 'expense') => {
+  const handleCategoryClick = (category: string, type: 'income' | 'expense', has_children?: boolean) => {
+    console.log('[CATEGORY CLICK]', {
+      category,
+      type,
+      has_children,
+      groupBy,
+      currentLevel: type === 'income' ? incomeDrillDown.level : expenseDrillDown.level
+    });
+
+    // When in category grouping mode:
+    // - If category has children → drill down to show child categories
+    // - If no children → show merchants
+    // - If already at merchants level viewing child categories → preserve parent category
     if (type === 'income') {
-      setIncomeDrillDown({ level: 'merchants', category });
+      const currentState = incomeDrillDown;
+      // If we're at merchants level and clicking a child category, preserve the current category as parent
+      if (currentState.level === 'merchants' && currentState.category) {
+        setIncomeDrillDown({ level: 'merchants', category, parentCategory: currentState.category });
+      } else {
+        setIncomeDrillDown({ level: 'merchants', category });
+      }
     } else {
-      setExpenseDrillDown({ level: 'merchants', category });
+      const currentState = expenseDrillDown;
+      // If we're at merchants level and clicking a child category, preserve the current category as parent
+      if (currentState.level === 'merchants' && currentState.category) {
+        setExpenseDrillDown({ level: 'merchants', category, parentCategory: currentState.category });
+      } else {
+        setExpenseDrillDown({ level: 'merchants', category });
+      }
     }
   };
 
@@ -757,17 +815,26 @@ export const IncomeExpensesPage = () => {
   };
 
   const handleBreadcrumbClick = (type: 'income' | 'expense', level: DrillDownLevel) => {
+    console.log('[BREADCRUMB CLICK]', {
+      type,
+      level,
+      currentState: type === 'income' ? incomeDrillDown : expenseDrillDown,
+      groupBy
+    });
+
     if (type === 'income') {
       if (level === 'categories') {
         setIncomeDrillDown({ level: 'categories' });
       } else if (level === 'merchants') {
-        setIncomeDrillDown(prev => ({ level: 'merchants', category: prev.category }));
+        // Preserve parentCategory when going back to merchants level
+        setIncomeDrillDown(prev => ({ level: 'merchants', category: prev.category, parentCategory: prev.parentCategory }));
       }
     } else {
       if (level === 'categories') {
         setExpenseDrillDown({ level: 'categories' });
       } else if (level === 'merchants') {
-        setExpenseDrillDown(prev => ({ level: 'merchants', category: prev.category }));
+        // Preserve parentCategory when going back to merchants level
+        setExpenseDrillDown(prev => ({ level: 'merchants', category: prev.category, parentCategory: prev.parentCategory }));
       }
     }
   };
@@ -867,6 +934,15 @@ export const IncomeExpensesPage = () => {
     legendExpanded: boolean,
     setLegendExpanded: (expanded: boolean) => void
   ) => {
+    // Handle empty data
+    if (!data || data.length === 0) {
+      return (
+        <Box textAlign="center" py={10}>
+          <Text color="gray.500">No data to display</Text>
+        </Box>
+      );
+    }
+
     if (chartType === 'pie') {
       return (
         <ResponsiveContainer width="100%" height={380}>
@@ -881,9 +957,21 @@ export const IncomeExpensesPage = () => {
               label={(entry) => formatCurrency(entry.amount)}
               onClick={(entry) => {
                 if (drillDown.level === 'categories') {
-                  handleCategoryClick(entry.category, type);
+                  // In merchant grouping mode, top-level items are merchants, not categories
+                  if (groupBy === 'merchant') {
+                    handleMerchantClick(entry.category, type);
+                  } else {
+                    handleCategoryClick(entry.category, type, entry.has_children);
+                  }
                 } else if (drillDown.level === 'merchants') {
-                  handleMerchantClick(entry.category, type);
+                  // Check if this is a child category or a merchant based on metadata
+                  if ((entry as any)._isCategoryData) {
+                    // This is a child category, update the category for merchant drill-down
+                    handleCategoryClick(entry.category, type, entry.has_children);
+                  } else if ((entry as any)._isMerchantData) {
+                    // This is a merchant, drill down to transactions
+                    handleMerchantClick(entry.category, type);
+                  }
                 } else if (drillDown.level === 'transactions' && entry.transaction) {
                   handleTransactionClick(entry.transaction);
                 }
@@ -906,7 +994,7 @@ export const IncomeExpensesPage = () => {
                         {formatCurrency(data.amount)}
                       </Text>
                       <Text fontSize="sm" color="gray.600">
-                        {data.percentage.toFixed(1)}%
+                        {(data.percentage || 0).toFixed(1)}%
                       </Text>
                     </Box>
                   );
@@ -939,9 +1027,19 @@ export const IncomeExpensesPage = () => {
                               _hover={{ bg: 'gray.100' }}
                               onClick={() => {
                                 if (drillDown.level === 'categories') {
-                                  handleCategoryClick(data.category, type);
+                                  // In merchant grouping mode, top-level items are merchants, not categories
+                                  if (groupBy === 'merchant') {
+                                    handleMerchantClick(data.category, type);
+                                  } else {
+                                    handleCategoryClick(data.category, type, data.has_children);
+                                  }
                                 } else if (drillDown.level === 'merchants') {
-                                  handleMerchantClick(data.category, type);
+                                  // Check if this is a child category or a merchant based on metadata
+                                  if ((data as any)._isCategoryData) {
+                                    handleCategoryClick(data.category, type, data.has_children);
+                                  } else if ((data as any)._isMerchantData) {
+                                    handleMerchantClick(data.category, type);
+                                  }
                                 } else if (drillDown.level === 'transactions' && data.transaction) {
                                   handleTransactionClick(data.transaction);
                                 }
@@ -987,9 +1085,16 @@ export const IncomeExpensesPage = () => {
               dataKey="amount"
               onClick={(entry) => {
                 if (drillDown.level === 'categories') {
-                  handleCategoryClick(entry.category, type);
+                  handleCategoryClick(entry.category, type, entry.has_children);
                 } else if (drillDown.level === 'merchants') {
-                  handleMerchantClick(entry.category, type);
+                  // Check if this is a child category or a merchant based on metadata
+                  if ((entry as any)._isCategoryData) {
+                    // This is a child category, update the category for merchant drill-down
+                    handleCategoryClick(entry.category, type, entry.has_children);
+                  } else if ((entry as any)._isMerchantData) {
+                    // This is a merchant, drill down to transactions
+                    handleMerchantClick(entry.category, type);
+                  }
                 } else if (drillDown.level === 'transactions' && entry.transaction) {
                   handleTransactionClick(entry.transaction);
                 }
@@ -1349,6 +1454,20 @@ export const IncomeExpensesPage = () => {
                                 {groupBy === 'label' ? 'All Labels' : groupBy === 'merchant' ? 'All Merchants' : groupBy === 'account' ? 'All Accounts' : 'All Categories'}
                               </BreadcrumbLink>
                             </BreadcrumbItem>
+                            {incomeDrillDown.parentCategory && (
+                              <BreadcrumbItem>
+                                <BreadcrumbLink
+                                  onClick={() => {
+                                    // Go back to parent category level
+                                    setIncomeDrillDown({ level: 'merchants', category: incomeDrillDown.parentCategory });
+                                  }}
+                                  color="gray.600"
+                                  fontWeight="normal"
+                                >
+                                  {incomeDrillDown.parentCategory}
+                                </BreadcrumbLink>
+                              </BreadcrumbItem>
+                            )}
                             {incomeDrillDown.category && (
                               <BreadcrumbItem>
                                 <BreadcrumbLink
@@ -1368,12 +1487,47 @@ export const IncomeExpensesPage = () => {
                               </BreadcrumbItem>
                             )}
                           </Breadcrumb>
-                          {incomeDrillDown.level === 'categories'
-                            ? renderChart(filteredSummary?.income_categories || [], 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
-                            : incomeDrillDown.level === 'merchants' && (groupBy === 'category' ? categoryDrillDown?.income_categories : incomeMerchants)
-                            ? renderChart(groupBy === 'category' ? (categoryDrillDown?.income_categories || []) : (incomeMerchants || []), 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
-                            : renderChart(incomeTransactionBreakdown, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded)
-                          }
+                          {(() => {
+                            console.log('[INCOME CHART RENDER]', {
+                              level: incomeDrillDown.level,
+                              groupBy,
+                              category: incomeDrillDown.category,
+                              hasCategoryDrillDown: !!categoryDrillDown,
+                              categoryDrillDownData: categoryDrillDown?.income_categories?.length || 0,
+                              hasMerchants: !!incomeMerchants,
+                              merchantsCount: incomeMerchants?.length || 0,
+                              filteredSummaryCount: filteredSummary?.income_categories?.length || 0,
+                            });
+
+                            if (incomeDrillDown.level === 'categories') {
+                              return renderChart(filteredSummary?.income_categories || [], 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded);
+                            } else if (incomeDrillDown.level === 'merchants') {
+                              // For category grouping: try child categories first, fall back to merchants if no children
+                              let data;
+                              let isShowingCategories = false;
+                              if (groupBy === 'category') {
+                                const childCategories = categoryDrillDown?.income_categories || [];
+                                // If no child categories, fall back to merchants (leaf category)
+                                if (childCategories.length > 0) {
+                                  // Mark as categories by adding a metadata property
+                                  data = childCategories.map(cat => ({ ...cat, _isCategoryData: true }));
+                                  isShowingCategories = true;
+                                } else {
+                                  // Mark as merchants by NOT having the metadata property
+                                  data = (incomeMerchants || []).map(merch => ({ ...merch, _isMerchantData: true }));
+                                  isShowingCategories = false;
+                                }
+                              } else {
+                                data = (incomeMerchants || []).map(merch => ({ ...merch, _isMerchantData: true }));
+                                isShowingCategories = false;
+                              }
+                              console.log('[INCOME CHART RENDER] Rendering', isShowingCategories ? 'child categories' : 'merchants', 'with data:', data.length, 'items');
+
+                              return renderChart(data, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded);
+                            } else {
+                              return renderChart(incomeTransactionBreakdown, 'income', incomeChartType, incomeDrillDown, incomeLegendExpanded, setIncomeLegendExpanded);
+                            }
+                          })()}
                           <Box>
                             <Heading size="xs" mb={3} color="gray.600">
                               Transactions {incomeDrillDown.category && `in ${incomeDrillDown.category}`}
@@ -1409,6 +1563,20 @@ export const IncomeExpensesPage = () => {
                                 {groupBy === 'label' ? 'All Labels' : groupBy === 'merchant' ? 'All Merchants' : groupBy === 'account' ? 'All Accounts' : 'All Categories'}
                               </BreadcrumbLink>
                             </BreadcrumbItem>
+                            {expenseDrillDown.parentCategory && (
+                              <BreadcrumbItem>
+                                <BreadcrumbLink
+                                  onClick={() => {
+                                    // Go back to parent category level
+                                    setExpenseDrillDown({ level: 'merchants', category: expenseDrillDown.parentCategory });
+                                  }}
+                                  color="gray.600"
+                                  fontWeight="normal"
+                                >
+                                  {expenseDrillDown.parentCategory}
+                                </BreadcrumbLink>
+                              </BreadcrumbItem>
+                            )}
                             {expenseDrillDown.category && (
                               <BreadcrumbItem>
                                 <BreadcrumbLink
@@ -1428,12 +1596,47 @@ export const IncomeExpensesPage = () => {
                               </BreadcrumbItem>
                             )}
                           </Breadcrumb>
-                          {expenseDrillDown.level === 'categories'
-                            ? renderChart(filteredSummary?.expense_categories || [], 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
-                            : expenseDrillDown.level === 'merchants' && (groupBy === 'category' ? categoryDrillDown?.expense_categories : expenseMerchants)
-                            ? renderChart(groupBy === 'category' ? (categoryDrillDown?.expense_categories || []) : (expenseMerchants || []), 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
-                            : renderChart(expenseTransactionBreakdown, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded)
-                          }
+                          {(() => {
+                            console.log('[EXPENSE CHART RENDER]', {
+                              level: expenseDrillDown.level,
+                              groupBy,
+                              category: expenseDrillDown.category,
+                              hasCategoryDrillDown: !!categoryDrillDown,
+                              categoryDrillDownData: categoryDrillDown?.expense_categories?.length || 0,
+                              hasMerchants: !!expenseMerchants,
+                              merchantsCount: expenseMerchants?.length || 0,
+                              filteredSummaryCount: filteredSummary?.expense_categories?.length || 0,
+                            });
+
+                            if (expenseDrillDown.level === 'categories') {
+                              return renderChart(filteredSummary?.expense_categories || [], 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded);
+                            } else if (expenseDrillDown.level === 'merchants') {
+                              // For category grouping: try child categories first, fall back to merchants if no children
+                              let data;
+                              let isShowingCategories = false;
+                              if (groupBy === 'category') {
+                                const childCategories = categoryDrillDown?.expense_categories || [];
+                                // If no child categories, fall back to merchants (leaf category)
+                                if (childCategories.length > 0) {
+                                  // Mark as categories by adding a metadata property
+                                  data = childCategories.map(cat => ({ ...cat, _isCategoryData: true }));
+                                  isShowingCategories = true;
+                                } else {
+                                  // Mark as merchants by NOT having the metadata property
+                                  data = (expenseMerchants || []).map(merch => ({ ...merch, _isMerchantData: true }));
+                                  isShowingCategories = false;
+                                }
+                              } else {
+                                data = (expenseMerchants || []).map(merch => ({ ...merch, _isMerchantData: true }));
+                                isShowingCategories = false;
+                              }
+                              console.log('[EXPENSE CHART RENDER] Rendering', isShowingCategories ? 'child categories' : 'merchants', 'with data:', data.length, 'items');
+
+                              return renderChart(data, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded);
+                            } else {
+                              return renderChart(expenseTransactionBreakdown, 'expense', expenseChartType, expenseDrillDown, expenseLegendExpanded, setExpenseLegendExpanded);
+                            }
+                          })()}
                           <Box>
                             <Heading size="xs" mb={3} color="gray.600">
                               Transactions {expenseDrillDown.category && `in ${expenseDrillDown.category}`}
@@ -1580,6 +1783,20 @@ export const IncomeExpensesPage = () => {
                               All Categories
                             </BreadcrumbLink>
                           </BreadcrumbItem>
+                          {incomeDrillDown.parentCategory && (
+                            <BreadcrumbItem>
+                              <BreadcrumbLink
+                                onClick={() => {
+                                  // Go back to parent category level
+                                  setIncomeDrillDown({ level: 'merchants', category: incomeDrillDown.parentCategory });
+                                }}
+                                color="gray.600"
+                                fontWeight="normal"
+                              >
+                                {incomeDrillDown.parentCategory}
+                              </BreadcrumbLink>
+                            </BreadcrumbItem>
+                          )}
                           {incomeDrillDown.category && (
                             <BreadcrumbItem>
                               <BreadcrumbLink
@@ -1754,6 +1971,20 @@ export const IncomeExpensesPage = () => {
                               All Categories
                             </BreadcrumbLink>
                           </BreadcrumbItem>
+                          {expenseDrillDown.parentCategory && (
+                            <BreadcrumbItem>
+                              <BreadcrumbLink
+                                onClick={() => {
+                                  // Go back to parent category level
+                                  setExpenseDrillDown({ level: 'merchants', category: expenseDrillDown.parentCategory });
+                                }}
+                                color="gray.600"
+                                fontWeight="normal"
+                              >
+                                {expenseDrillDown.parentCategory}
+                              </BreadcrumbLink>
+                            </BreadcrumbItem>
+                          )}
                           {expenseDrillDown.category && (
                             <BreadcrumbItem>
                               <BreadcrumbLink
