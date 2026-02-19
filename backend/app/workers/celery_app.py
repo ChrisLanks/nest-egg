@@ -25,6 +25,7 @@ celery_app.conf.update(
 )
 
 # Import tasks here as they're created
+from app.workers.tasks import auth_tasks  # noqa: F401
 from app.workers.tasks import budget_tasks  # noqa: F401
 from app.workers.tasks import recurring_tasks  # noqa: F401
 from app.workers.tasks import forecast_tasks  # noqa: F401
@@ -32,6 +33,10 @@ from app.workers.tasks import holdings_tasks  # noqa: F401
 
 # Beat schedule (periodic tasks)
 celery_app.conf.beat_schedule = {
+    "cleanup-expired-refresh-tokens": {
+        "task": "cleanup_expired_refresh_tokens",
+        "schedule": crontab(hour=3, minute=0),  # 3am daily
+    },
     "check-budget-alerts-daily": {
         "task": "check_budget_alerts",
         "schedule": crontab(hour=0, minute=0),  # Midnight daily

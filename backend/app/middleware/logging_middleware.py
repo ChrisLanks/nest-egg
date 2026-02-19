@@ -1,4 +1,10 @@
-"""Request logging middleware for FastAPI."""
+"""Request logging middleware for FastAPI.
+
+DEPRECATED: This file is superseded by app.middleware.request_logging, which is
+the active implementation registered in main.py. This file is retained only because
+its unit tests (test_logging_middleware.py) import it directly. Do not register
+RequestLoggingMiddleware from this module in main.py.
+"""
 
 import time
 import logging
