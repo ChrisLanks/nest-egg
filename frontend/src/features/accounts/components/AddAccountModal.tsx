@@ -150,8 +150,12 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
     else if (type === 'collectibles') {
       setCurrentStep('manual_form_basic');
     }
-    // Handle HSA, Pension (balance-only accounts, no holdings)
-    else if (type === 'hsa' || type === 'pension') {
+    // Handle HSA (can track holdings like a brokerage account)
+    else if (type === 'hsa') {
+      setCurrentStep('manual_form_investment');
+    }
+    // Handle Pension (balance-only, no holdings)
+    else if (type === 'pension') {
       setCurrentStep('manual_form_basic');
     }
     // Handle other account types

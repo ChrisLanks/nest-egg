@@ -11,5 +11,6 @@
     "editor.tabSize": 4
   },
   "python.testing.pytestEnabled": true,
-  "python.testing.pytestArgs": ["backend/tests", "-v"]
+  "python.testing.pytestArgs": ["backend/tests", "-v"],
+  "claudeCode.allowDangerouslySkipPermissions": true
 }

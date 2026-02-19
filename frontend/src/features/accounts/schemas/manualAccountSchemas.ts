@@ -70,7 +70,6 @@ export const basicManualAccountSchema = z.object({
     ACCOUNT_TYPES.STUDENT_LOAN,
     ACCOUNT_TYPES.MORTGAGE,
     ACCOUNT_TYPES.RETIREMENT_529,  // 529 plans typically track balance only
-    ACCOUNT_TYPES.HSA,  // HSA can track balance without holdings
     ACCOUNT_TYPES.PENSION,  // Pension plans typically just track balance
     ACCOUNT_TYPES.COLLECTIBLES,  // Collectibles track total value only
     ACCOUNT_TYPES.MANUAL,
