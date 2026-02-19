@@ -223,6 +223,7 @@ async def create_manual_account(
         share_price=account_data.share_price,
         company_status=account_data.company_status,
         valuation_method=account_data.valuation_method,
+        include_in_networth=account_data.include_in_networth,
     )
 
     db.add(account)
@@ -364,6 +365,8 @@ async def update_account(
         account.company_status = account_data.company_status
     if account_data.valuation_method is not None:
         account.valuation_method = account_data.valuation_method
+    if account_data.include_in_networth is not None:
+        account.include_in_networth = account_data.include_in_networth
 
     await db.commit()
     await db.refresh(account)

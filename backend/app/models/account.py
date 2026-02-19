@@ -337,10 +337,11 @@ class Account(Base):
     grant_date = Column(Date, nullable=True)  # Date equity was granted
     quantity = Column(Numeric(15, 4), nullable=True)  # Number of shares/options
     strike_price = Column(Numeric(15, 4), nullable=True)  # Exercise price (for options)
-    vesting_schedule = Column(Text, nullable=True)  # e.g., "4-year, 1-year cliff"
+    vesting_schedule = Column(Text, nullable=True)  # JSON: [{"date": "2024-01-01", "quantity": 250, "notes": ""}]
     share_price = Column(Numeric(15, 4), nullable=True)  # Current estimated price per share
     company_status = Column(SQLEnum(CompanyStatus), nullable=True)  # Private or Public
     valuation_method = Column(SQLEnum(ValuationMethod), nullable=True)  # 409a, Preferred, Custom
+    include_in_networth = Column(Boolean, default=None, nullable=True)  # None = auto (public=true, private=false)
 
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)

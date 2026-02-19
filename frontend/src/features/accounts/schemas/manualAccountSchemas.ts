@@ -140,6 +140,15 @@ export const vehicleAccountSchema = z.object({
 
 export type VehicleAccountFormData = z.infer<typeof vehicleAccountSchema>;
 
+// Vesting milestone schema
+export const vestingMilestoneSchema = z.object({
+  date: z.string(), // ISO date string
+  quantity: z.number().or(z.string().transform((val) => parseFloat(val))),
+  notes: z.string().optional(),
+});
+
+export type VestingMilestone = z.infer<typeof vestingMilestoneSchema>;
+
 // Private Equity account schema
 export const privateEquityAccountSchema = z.object({
   name: z.string().min(1, 'Company name is required'),
@@ -152,10 +161,11 @@ export const privateEquityAccountSchema = z.object({
   grant_date: z.string().optional(), // ISO date string
   quantity: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
   strike_price: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
-  vesting_schedule: z.string().optional(),
+  vesting_schedule: z.array(vestingMilestoneSchema).optional(), // Array of vesting milestones
   share_price: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
   company_status: z.enum(['private', 'public']).default('private'),
   valuation_method: z.enum(['409a', 'preferred', 'custom']).optional(),
+  include_in_networth: z.boolean().optional(), // Defaults based on company_status
 });
 
 export type PrivateEquityAccountFormData = z.infer<typeof privateEquityAccountSchema>;

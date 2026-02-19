@@ -72,10 +72,11 @@ class ManualAccountCreate(BaseModel):
     grant_date: Optional[date] = None
     quantity: Optional[Decimal] = None  # Number of shares/options
     strike_price: Optional[Decimal] = None  # Exercise price
-    vesting_schedule: Optional[str] = None  # e.g., "4-year, 1-year cliff"
+    vesting_schedule: Optional[str] = None  # JSON array: [{"date": "2024-01-01", "quantity": 250}]
     share_price: Optional[Decimal] = None  # Current estimated price per share
     company_status: Optional[CompanyStatus] = None
     valuation_method: Optional[ValuationMethod] = None
+    include_in_networth: Optional[bool] = None  # None = auto (public=true, private=false)
 
 
 class AccountUpdate(BaseModel):
@@ -109,6 +110,7 @@ class AccountUpdate(BaseModel):
     share_price: Optional[Decimal] = None
     company_status: Optional[CompanyStatus] = None
     valuation_method: Optional[ValuationMethod] = None
+    include_in_networth: Optional[bool] = None
 
 
 class Account(AccountBase):
@@ -152,6 +154,7 @@ class Account(AccountBase):
     share_price: Optional[Decimal] = None
     company_status: Optional[CompanyStatus] = None
     valuation_method: Optional[ValuationMethod] = None
+    include_in_networth: Optional[bool] = None
 
     model_config = {"from_attributes": True}
 
