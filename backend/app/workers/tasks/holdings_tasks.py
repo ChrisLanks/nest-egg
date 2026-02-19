@@ -1,5 +1,6 @@
-"""Celery tasks for holdings snapshots."""
+"""Celery tasks for holdings snapshots and metadata enrichment."""
 
+import asyncio
 import logging
 from sqlalchemy import select
 from datetime import date
@@ -10,6 +11,96 @@ from app.models.user import User
 from app.services.snapshot_service import snapshot_service
 
 logger = logging.getLogger(__name__)
+
+
+@celery_app.task(name="enrich_holdings_metadata")
+def enrich_holdings_metadata_task():
+    """
+    Enrich holdings with classification metadata from market data provider.
+
+    Fetches sector, industry, asset_type, asset_class, market_cap, country,
+    and name for every unique ticker and writes them back to the database.
+    Only overwrites a field if the provider returned a non-null value, so
+    manually set values are preserved when the API has no data.
+
+    Runs daily at 7:00 PM EST (one hour after the price update).
+    """
+    asyncio.run(_enrich_metadata_async())
+
+
+async def _enrich_metadata_async():
+    """Async implementation of holdings metadata enrichment."""
+    from app.models.holding import Holding
+    from app.services.market_data import get_market_data_provider
+    from sqlalchemy import update
+    from datetime import datetime
+
+    async with async_session_factory() as db:
+        try:
+            # Get all holdings that have a ticker
+            result = await db.execute(select(Holding).where(Holding.ticker.isnot(None)))
+            holdings = result.scalars().all()
+
+            if not holdings:
+                logger.info("No holdings to enrich")
+                return
+
+            # Work per unique ticker so we only call the API once per symbol
+            tickers = list({h.ticker.upper() for h in holdings})
+            logger.info(f"Enriching metadata for {len(tickers)} unique tickers")
+
+            market_data = get_market_data_provider()
+            enriched_count = 0
+            failed_count = 0
+
+            for ticker in tickers:
+                try:
+                    metadata = await market_data.get_holding_metadata(ticker)
+
+                    # Build update dict — only include fields the API returned a value for
+                    updates: dict = {"updated_at": datetime.utcnow()}
+                    if metadata.name is not None:
+                        updates["name"] = metadata.name
+                    if metadata.asset_type is not None:
+                        updates["asset_type"] = metadata.asset_type
+                    if metadata.asset_class is not None:
+                        updates["asset_class"] = metadata.asset_class
+                    if metadata.market_cap is not None:
+                        updates["market_cap"] = metadata.market_cap
+                    if metadata.sector is not None:
+                        updates["sector"] = metadata.sector
+                    if metadata.industry is not None:
+                        updates["industry"] = metadata.industry
+                    if metadata.country is not None:
+                        updates["country"] = metadata.country
+
+                    if len(updates) > 1:  # More than just updated_at
+                        await db.execute(
+                            update(Holding)
+                            .where(Holding.ticker == ticker)
+                            .values(**updates)
+                        )
+                        enriched_count += 1
+                        logger.debug(f"Enriched {ticker}: {list(updates.keys())}")
+                    else:
+                        logger.debug(f"No metadata returned for {ticker}")
+
+                except Exception as e:
+                    logger.error(f"Error enriching metadata for {ticker}: {e}")
+                    failed_count += 1
+
+            await db.commit()
+
+            logger.info(
+                f"Holdings metadata enrichment complete. "
+                f"Enriched: {enriched_count}, Failed: {failed_count}, "
+                f"Total tickers: {len(tickers)} "
+                f"(Provider: {market_data.get_provider_name()})"
+            )
+
+        except Exception as e:
+            logger.error(f"Error in holdings metadata enrichment task: {str(e)}", exc_info=True)
+            raise
 
 
 @celery_app.task(name="capture_daily_holdings_snapshot")

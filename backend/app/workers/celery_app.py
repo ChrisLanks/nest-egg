@@ -53,6 +53,10 @@ celery_app.conf.beat_schedule = {
         "task": "update_holdings_prices",
         "schedule": crontab(hour=18, minute=0),  # 6:00 PM EST daily (after market close)
     },
+    "enrich-holdings-metadata": {
+        "task": "enrich_holdings_metadata",
+        "schedule": crontab(hour=19, minute=0),  # 7:00 PM EST daily (after price update)
+    },
     "capture-daily-holdings-snapshot": {
         "task": "capture_daily_holdings_snapshot",
         "schedule": crontab(hour=23, minute=59),  # 11:59 PM daily to capture end-of-day values

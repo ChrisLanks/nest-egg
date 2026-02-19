@@ -56,6 +56,19 @@ class SearchResult(BaseModel):
     currency: Optional[str] = None
 
 
+class HoldingMetadata(BaseModel):
+    """Classification metadata for a holding, used to enrich asset allocation data."""
+
+    symbol: str
+    name: Optional[str] = None
+    asset_type: Optional[str] = None   # 'stock', 'etf', 'mutual_fund', 'crypto', 'other'
+    asset_class: Optional[str] = None  # 'domestic', 'international'
+    market_cap: Optional[str] = None   # 'large', 'mid', 'small' (equities only)
+    sector: Optional[str] = None       # e.g. 'Technology', 'Healthcare'
+    industry: Optional[str] = None     # e.g. 'Software', 'Biotechnology'
+    country: Optional[str] = None      # e.g. 'United States', 'Germany'
+
+
 class MarketDataProvider(ABC):
     """
     Abstract base class for market data providers.
@@ -136,3 +149,18 @@ class MarketDataProvider(ABC):
     @abstractmethod
     def get_provider_name(self) -> str:
         """Get human-readable provider name."""
+
+    async def get_holding_metadata(self, symbol: str) -> HoldingMetadata:
+        """
+        Get classification metadata for a holding (sector, asset type, market cap, etc.).
+
+        Default implementation returns an empty metadata object. Providers that support
+        this data should override this method.
+
+        Args:
+            symbol: Ticker symbol (e.g., "AAPL", "VTI")
+
+        Returns:
+            HoldingMetadata with classification fields populated where available.
+        """
+        return HoldingMetadata(symbol=symbol)

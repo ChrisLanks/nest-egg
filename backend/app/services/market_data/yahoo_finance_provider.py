@@ -23,6 +23,7 @@ from .base_provider import (
     MarketDataProvider,
     QuoteData,
     HistoricalPrice,
+    HoldingMetadata,
     SearchResult,
 )
 from .security import (
@@ -357,6 +358,71 @@ class YahooFinanceProvider(MarketDataProvider):
             logger.debug(f"Symbol search failed for {query}: {e}")
 
         return []
+
+    async def get_holding_metadata(self, symbol: str) -> HoldingMetadata:
+        """
+        Fetch classification metadata for a holding from Yahoo Finance.
+
+        Populates: asset_type, asset_class, market_cap, sector, industry, country, name.
+        Fields that Yahoo Finance doesn't return are left as None (preserving any
+        existing manual values on the holding).
+        """
+        try:
+            symbol = validate_symbol(symbol)
+        except SymbolValidationError as e:
+            logger.warning(f"Symbol validation failed for metadata fetch: {e}")
+            return HoldingMetadata(symbol=symbol)
+
+        try:
+            ticker = await asyncio.wait_for(
+                asyncio.to_thread(yf.Ticker, symbol), timeout=REQUEST_TIMEOUT
+            )
+            info = await asyncio.wait_for(
+                asyncio.to_thread(lambda: ticker.info), timeout=REQUEST_TIMEOUT
+            )
+        except Exception as e:
+            logger.warning(f"Failed to fetch metadata for {symbol}: {e}")
+            return HoldingMetadata(symbol=symbol)
+
+        # Asset type from quoteType
+        quote_type = (info.get("quoteType") or "").upper()
+        asset_type_map = {
+            "EQUITY": "stock",
+            "ETF": "etf",
+            "MUTUALFUND": "mutual_fund",
+            "CRYPTOCURRENCY": "crypto",
+        }
+        asset_type = asset_type_map.get(quote_type, "other") if quote_type else None
+
+        # Asset class from country
+        country = info.get("country")
+        if country:
+            asset_class = "domestic" if country == "United States" else "international"
+        else:
+            asset_class = None
+
+        # Market cap classification (equities and ETFs only)
+        market_cap_value = info.get("marketCap")
+        if market_cap_value and asset_type in ("stock", "etf"):
+            if market_cap_value >= 10_000_000_000:
+                market_cap = "large"
+            elif market_cap_value >= 2_000_000_000:
+                market_cap = "mid"
+            else:
+                market_cap = "small"
+        else:
+            market_cap = None
+
+        return HoldingMetadata(
+            symbol=symbol,
+            name=info.get("longName") or info.get("shortName"),
+            asset_type=asset_type,
+            asset_class=asset_class,
+            market_cap=market_cap,
+            sector=info.get("sector"),
+            industry=info.get("industry"),
+            country=country,
+        )
 
     def supports_realtime(self) -> bool:
         """Yahoo Finance provides near-real-time (15-20 min delay for some)."""
