@@ -49,6 +49,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRightIcon, ChevronUpIcon, ChevronDownIcon } from '@chakra-ui/icons';
 import { IoBarChart, IoPieChart } from 'react-icons/io5';
+import { FiInbox } from 'react-icons/fi';
 import api from '../../../services/api';
 import { useUserView } from '../../../contexts/UserViewContext';
 import { DateRangePicker } from '../../../components/DateRangePicker';
@@ -1613,16 +1614,22 @@ export const IncomeExpensesPage = () => {
                           </Box>
                         </VStack>
                       ) : (
-                        <Card>
-                          <CardBody textAlign="center" py={8}>
-                            <Text color="gray.600" fontWeight="semibold">
-                              No income for the selected date range
-                            </Text>
-                            <Text color="gray.500" fontSize="sm" mt={1}>
-                              Try selecting a different date range
-                            </Text>
-                          </CardBody>
-                        </Card>
+                        <VStack align="stretch" spacing={4}>
+                          <Heading size="sm">
+                            {groupBy === 'label' ? 'Income by Label' : groupBy === 'merchant' ? 'Income by Merchant' : groupBy === 'account' ? 'Income by Account' : 'Income by Category'}
+                          </Heading>
+                          <Card>
+                            <CardBody textAlign="center" py={12}>
+                              <Box as={FiInbox} size="48px" mx="auto" mb={4} color="gray.400" />
+                              <Text color="gray.600" fontWeight="semibold" fontSize="lg" mb={2}>
+                                No income data
+                              </Text>
+                              <Text color="gray.500" fontSize="sm">
+                                No income transactions found for the selected date range
+                              </Text>
+                            </CardBody>
+                          </Card>
+                        </VStack>
                       )}
 
                       {/* Expense Section */}
@@ -1733,16 +1740,22 @@ export const IncomeExpensesPage = () => {
                           </Box>
                         </VStack>
                       ) : (
-                        <Card>
-                          <CardBody textAlign="center" py={8}>
-                            <Text color="gray.600" fontWeight="semibold">
-                              No expenses for the selected date range
-                            </Text>
-                            <Text color="gray.500" fontSize="sm" mt={1}>
-                              Try selecting a different date range
-                            </Text>
-                          </CardBody>
-                        </Card>
+                        <VStack align="stretch" spacing={4}>
+                          <Heading size="sm">
+                            {groupBy === 'label' ? 'Expenses by Label' : groupBy === 'merchant' ? 'Expenses by Merchant' : groupBy === 'account' ? 'Expenses by Account' : 'Expenses by Category'}
+                          </Heading>
+                          <Card>
+                            <CardBody textAlign="center" py={12}>
+                              <Box as={FiInbox} size="48px" mx="auto" mb={4} color="gray.400" />
+                              <Text color="gray.600" fontWeight="semibold" fontSize="lg" mb={2}>
+                                No expense data
+                              </Text>
+                              <Text color="gray.500" fontSize="sm">
+                                No expense transactions found for the selected date range
+                              </Text>
+                            </CardBody>
+                          </Card>
+                        </VStack>
                       )}
                     </SimpleGrid>
                   </VStack>
@@ -1931,16 +1944,24 @@ export const IncomeExpensesPage = () => {
                         </Box>
                       </>
                     ) : (
-                      <Card>
-                        <CardBody textAlign="center" py={12}>
-                          <Text color="gray.600" fontSize="lg" fontWeight="semibold">
-                            No income for the selected date range
-                          </Text>
-                          <Text color="gray.500" mt={2}>
-                            Try selecting a different date range or check if income transactions have been imported
-                          </Text>
-                        </CardBody>
-                      </Card>
+                      <>
+                        <HStack justify="space-between">
+                          <Heading size="md">
+                            {groupBy === 'label' ? 'Income by Label' : groupBy === 'merchant' ? 'Income by Merchant' : groupBy === 'account' ? 'Income by Account' : 'Income by Category'}
+                          </Heading>
+                        </HStack>
+                        <Card>
+                          <CardBody textAlign="center" py={16}>
+                            <Box as={FiInbox} size="64px" mx="auto" mb={6} color="gray.300" />
+                            <Text color="gray.600" fontSize="xl" fontWeight="semibold" mb={3}>
+                              No income data
+                            </Text>
+                            <Text color="gray.500" maxW="md" mx="auto">
+                              No income transactions found for the selected date range. Try selecting a different date range or check if income transactions have been imported.
+                            </Text>
+                          </CardBody>
+                        </Card>
+                      </>
                     )}
                   </VStack>
                 </TabPanel>
@@ -2128,16 +2149,24 @@ export const IncomeExpensesPage = () => {
                         </Box>
                       </>
                     ) : (
-                      <Card>
-                        <CardBody textAlign="center" py={12}>
-                          <Text color="gray.600" fontSize="lg" fontWeight="semibold">
-                            No expenses for the selected date range
-                          </Text>
-                          <Text color="gray.500" mt={2}>
-                            Try selecting a different date range or check if expense transactions have been imported
-                          </Text>
-                        </CardBody>
-                      </Card>
+                      <>
+                        <HStack justify="space-between">
+                          <Heading size="md">
+                            {groupBy === 'label' ? 'Expenses by Label' : groupBy === 'merchant' ? 'Expenses by Merchant' : groupBy === 'account' ? 'Expenses by Account' : 'Expenses by Category'}
+                          </Heading>
+                        </HStack>
+                        <Card>
+                          <CardBody textAlign="center" py={16}>
+                            <Box as={FiInbox} size="64px" mx="auto" mb={6} color="gray.300" />
+                            <Text color="gray.600" fontSize="xl" fontWeight="semibold" mb={3}>
+                              No expense data
+                            </Text>
+                            <Text color="gray.500" maxW="md" mx="auto">
+                              No expense transactions found for the selected date range. Try selecting a different date range or check if expense transactions have been imported.
+                            </Text>
+                          </CardBody>
+                        </Card>
+                      </>
                     )}
                   </VStack>
                 </TabPanel>
