@@ -91,10 +91,10 @@ async def register(
     Creates both an organization and the first user (admin) in a single transaction.
     Rate limited to 3 registrations per 10 minutes per IP to prevent abuse.
     """
-    # Rate limit: 3 registration attempts per 10 minutes per IP
+    # Rate limit: 10 registration attempts per 10 minutes per IP
     await rate_limit_service.check_rate_limit(
         request=request,
-        max_requests=3,
+        max_requests=10,
         window_seconds=600,  # 10 minutes
     )
 
