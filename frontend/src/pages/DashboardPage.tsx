@@ -15,7 +15,7 @@ import {
   Text,
   useDisclosure,
 } from '@chakra-ui/react';
-import { EditIcon } from '@chakra-ui/icons';
+import { AddIcon, EditIcon } from '@chakra-ui/icons';
 import { useAuthStore } from '../features/auth/stores/authStore';
 import { DashboardGrid } from '../features/dashboard/DashboardGrid';
 import { AddWidgetDrawer } from '../features/dashboard/AddWidgetDrawer';
@@ -58,6 +58,16 @@ export const DashboardPage = () => {
           </Button>
         ) : (
           <HStack flexShrink={0}>
+            <Button
+              leftIcon={<AddIcon />}
+              variant="outline"
+              colorScheme="brand"
+              size="sm"
+              onClick={onOpen}
+              isDisabled={isSaving}
+            >
+              Add Widget
+            </Button>
             <Button
               colorScheme="brand"
               size="sm"
