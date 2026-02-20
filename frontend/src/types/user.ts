@@ -12,6 +12,7 @@ export interface User {
   is_active: boolean;
   is_org_admin: boolean;
   email_verified: boolean;
+  dashboard_layout?: Array<{ id: string; span: 1 | 2 }> | null;
   last_login_at: string | null;
   created_at: string;
   updated_at: string;

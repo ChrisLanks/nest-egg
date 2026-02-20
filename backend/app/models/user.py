@@ -11,6 +11,7 @@ from sqlalchemy import (
     Enum as SQLEnum,
     ForeignKey,
     Integer,
+    JSON,
     String,
     UniqueConstraint,
 )
@@ -96,6 +97,9 @@ class User(Base):
     locked_until = Column(
         DateTime, nullable=True
     )  # Account locked until this time (NULL = not locked)
+
+    # Customizable dashboard layout — list of {id, span} objects; NULL = default layout
+    dashboard_layout = Column(JSON, nullable=True)
 
     last_login_at = Column(DateTime)
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)

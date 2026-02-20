@@ -1,606 +1,91 @@
 /**
- * Dashboard page with financial overview
+ * Dashboard page — thin shell that delegates to the customizable widget grid.
+ *
+ * All chart/data logic lives in individual widget components under
+ * src/features/dashboard/widgets/. Layout persistence is handled by
+ * the useWidgetLayout hook.
  */
 
 import {
   Box,
+  Button,
   Container,
   Heading,
-  Text,
-  VStack,
   HStack,
-  Card,
-  CardBody,
-  Stat,
-  StatLabel,
-  StatNumber,
-  StatHelpText,
-  StatArrow,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
-  Badge,
-  Spinner,
-  Center,
-  SimpleGrid,
-  Divider,
-  Button,
-  ButtonGroup,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  ModalCloseButton,
-  FormControl,
-  FormLabel,
-  Input,
+  Text,
   useDisclosure,
 } from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
+import { EditIcon } from '@chakra-ui/icons';
 import { useAuthStore } from '../features/auth/stores/authStore';
-import { useUserView } from '../contexts/UserViewContext';
-import api from '../services/api';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { useState, useMemo } from 'react';
-import { InsightsCard } from '../components/InsightsCard';
-import { ForecastChart } from '../components/ForecastChart';
-import { DashboardSkeleton } from '../components/LoadingSkeleton';
-
-interface DashboardData {
-  summary: {
-    net_worth: number;
-    total_assets: number;
-    total_debts: number;
-    monthly_spending: number;
-    monthly_income: number;
-    monthly_net: number;
-  };
-  recent_transactions: Array<{
-    id: string;
-    date: string;
-    amount: number;
-    merchant_name: string;
-    category_primary: string;
-    is_pending: boolean;
-  }>;
-  top_expenses: Array<{
-    category: string;
-    total: number;
-    count: number;
-  }>;
-  account_balances: Array<{
-    id: string;
-    name: string;
-    type: string;
-    balance: number;
-    institution: string;
-  }>;
-  cash_flow_trend: Array<{
-    month: string;
-    income: number;
-    expenses: number;
-    net: number;
-  }>;
-}
-
-interface HistoricalSnapshot {
-  id: string;
-  snapshot_date: string;
-  total_value: number;
-  total_cost_basis: number | null;
-  total_gain_loss: number | null;
-}
+import { DashboardGrid } from '../features/dashboard/DashboardGrid';
+import { AddWidgetDrawer } from '../features/dashboard/AddWidgetDrawer';
+import { useWidgetLayout } from '../features/dashboard/useWidgetLayout';
+import { WIDGET_REGISTRY } from '../features/dashboard/widgetRegistry';
+import type { LayoutItem } from '../features/dashboard/types';
 
 export const DashboardPage = () => {
   const { user } = useAuthStore();
-  const { selectedUserId } = useUserView();
-
-  // Initialize state from localStorage
-  const [timeRange, setTimeRange] = useState<'1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM'>(() => {
-    const saved = localStorage.getItem('dashboard-timeRange');
-    return (saved as '1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM') || '1Y';
-  });
-  const [customStartDate, setCustomStartDate] = useState<string>(() => {
-    return localStorage.getItem('dashboard-customStartDate') || '';
-  });
-  const [customEndDate, setCustomEndDate] = useState<string>(() => {
-    return localStorage.getItem('dashboard-customEndDate') || '';
-  });
+  const { layout, isEditing, isSaving, startEditing, saveLayout, cancelEditing, setPendingLayout } =
+    useWidgetLayout();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  const { data: dashboardData, isLoading } = useQuery({
-    queryKey: ['dashboard', selectedUserId],
-    queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
-      const response = await api.get<DashboardData>('/dashboard/', { params });
-      return response.data;
-    },
-  });
-
-  // Fetch historical net worth data
-  const { data: historicalData, isLoading: isLoadingHistorical, isFetching } = useQuery({
-    queryKey: ['historical-net-worth', timeRange, customStartDate, customEndDate],
-    queryFn: async () => {
-      const now = new Date();
-      let startDate: Date;
-      let endDate: Date | null = null;
-
-      switch (timeRange) {
-        case '1M':
-          startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-          break;
-        case '3M':
-          startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
-          break;
-        case '6M':
-          startDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
-          break;
-        case '1Y':
-          startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-          break;
-        case 'ALL':
-          startDate = new Date(now.getFullYear() - 10, 0, 1); // 10 years ago
-          break;
-        case 'CUSTOM':
-          if (!customStartDate) {
-            startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-          } else {
-            startDate = new Date(customStartDate);
-          }
-          if (customEndDate) {
-            endDate = new Date(customEndDate);
-          }
-          break;
-        default:
-          startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-      }
-
-      const params: any = {
-        start_date: startDate.toISOString().split('T')[0],
-      };
-
-      if (endDate) {
-        params.end_date = endDate.toISOString().split('T')[0];
-      }
-
-      const response = await api.get<HistoricalSnapshot[]>('/holdings/historical', { params });
-      return response.data;
-    },
-  });
-
-  // Sort account balances by balance (descending)
-  const sortedAccountBalances = useMemo(() => {
-    if (!dashboardData?.account_balances) return [];
-    return [...dashboardData.account_balances].sort((a, b) => b.balance - a.balance);
-  }, [dashboardData?.account_balances]);
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
+  const handleAddWidget = (widgetId: string) => {
+    const def = WIDGET_REGISTRY[widgetId];
+    if (!def) return;
+    const newItem: LayoutItem = { id: widgetId, span: def.defaultSpan };
+    setPendingLayout([...layout, newItem]);
   };
-
-  const formatDate = (dateStr: string) => {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    return new Date(year, month - 1, day).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  if (isLoading) {
-    return <DashboardSkeleton />;
-  }
-
-  const summary = dashboardData?.summary;
-  const monthlyNet = (summary?.monthly_net || 0);
-  const netWorth = summary?.net_worth || 0;
 
   return (
     <Container maxW="container.xl" py={8}>
-      <VStack spacing={8} align="stretch">
-        {/* Header */}
+      <HStack justify="space-between" mb={8} align="start">
         <Box>
           <Heading size="lg">Welcome back, {user?.first_name || 'User'}!</Heading>
-          <Text color="gray.600" mt={2}>
+          <Text color="gray.600" mt={1}>
             Here's your financial overview
           </Text>
         </Box>
 
-        {/* Summary Cards */}
-        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
-          <Card>
-            <CardBody>
-              <Stat>
-                <StatLabel>Net Worth</StatLabel>
-                <StatNumber color={netWorth >= 0 ? 'green.600' : 'red.600'}>
-                  {formatCurrency(netWorth)}
-                </StatNumber>
-                <StatHelpText>Assets - Debts</StatHelpText>
-              </Stat>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardBody>
-              <Stat>
-                <StatLabel>Total Assets</StatLabel>
-                <StatNumber>{formatCurrency(summary?.total_assets || 0)}</StatNumber>
-                <StatHelpText>Checking, Savings, Investments</StatHelpText>
-              </Stat>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardBody>
-              <Stat>
-                <StatLabel>Total Debts</StatLabel>
-                <StatNumber color="red.600">
-                  {formatCurrency(summary?.total_debts || 0)}
-                </StatNumber>
-                <StatHelpText>Credit Cards, Loans</StatHelpText>
-              </Stat>
-            </CardBody>
-          </Card>
-        </SimpleGrid>
-
-        {/* Income vs Expenses */}
-        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-          <Card>
-            <CardBody>
-              <Stat>
-                <StatLabel>Monthly Income</StatLabel>
-                <StatNumber color="green.600">
-                  {formatCurrency(summary?.monthly_income || 0)}
-                </StatNumber>
-                <StatHelpText>This month</StatHelpText>
-              </Stat>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardBody>
-              <Stat>
-                <StatLabel>Monthly Spending</StatLabel>
-                <StatNumber color="red.600">
-                  {formatCurrency(summary?.monthly_spending || 0)}
-                </StatNumber>
-                <StatHelpText>
-                  Net:
-                  <Text
-                    as="span"
-                    ml={2}
-                    color={monthlyNet >= 0 ? 'green.600' : 'red.600'}
-                    fontWeight="bold"
-                  >
-                    {formatCurrency(monthlyNet)}
-                  </Text>
-                </StatHelpText>
-              </Stat>
-            </CardBody>
-          </Card>
-        </SimpleGrid>
-
-        {/* Spending Insights */}
-        <InsightsCard />
-
-        {/* Net Worth Over Time Chart */}
-        {historicalData && historicalData.length > 0 && (
-          <Card>
-            <CardBody position="relative">
-              {isFetching && (
-                <Box
-                  position="absolute"
-                  top={0}
-                  left={0}
-                  right={0}
-                  bottom={0}
-                  bg="whiteAlpha.800"
-                  zIndex={1}
-                  display="flex"
-                  alignItems="center"
-                  justifyContent="center"
-                >
-                  <Spinner size="lg" color="brand.500" />
-                </Box>
-              )}
-              <HStack justify="space-between" mb={4}>
-                <Heading size="md">Net Worth Over Time</Heading>
-                <ButtonGroup size="sm" isAttached variant="outline">
-                  <Button
-                    onClick={() => {
-                      setTimeRange('1M');
-                      localStorage.setItem('dashboard-timeRange', '1M');
-                    }}
-                    colorScheme={timeRange === '1M' ? 'brand' : 'gray'}
-                  >
-                    1M
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setTimeRange('3M');
-                      localStorage.setItem('dashboard-timeRange', '3M');
-                    }}
-                    colorScheme={timeRange === '3M' ? 'brand' : 'gray'}
-                  >
-                    3M
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setTimeRange('6M');
-                      localStorage.setItem('dashboard-timeRange', '6M');
-                    }}
-                    colorScheme={timeRange === '6M' ? 'brand' : 'gray'}
-                  >
-                    6M
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setTimeRange('1Y');
-                      localStorage.setItem('dashboard-timeRange', '1Y');
-                    }}
-                    colorScheme={timeRange === '1Y' ? 'brand' : 'gray'}
-                  >
-                    1Y
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setTimeRange('ALL');
-                      localStorage.setItem('dashboard-timeRange', 'ALL');
-                    }}
-                    colorScheme={timeRange === 'ALL' ? 'brand' : 'gray'}
-                  >
-                    ALL
-                  </Button>
-                  <Button
-                    onClick={onOpen}
-                    colorScheme={timeRange === 'CUSTOM' ? 'brand' : 'gray'}
-                  >
-                    Custom
-                  </Button>
-                </ButtonGroup>
-              </HStack>
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart
-                  data={historicalData.map((snapshot) => ({
-                    date: new Date(snapshot.snapshot_date).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                    }),
-                    value: Number(snapshot.total_value),
-                  }))}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip
-                    formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc' }}
-                  />
-                  <Legend />
-                  <defs>
-                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3182CE" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#3182CE" stopOpacity={0.1}/>
-                    </linearGradient>
-                  </defs>
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#3182CE"
-                    strokeWidth={2}
-                    fill="url(#colorValue)"
-                    name="Net Worth"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardBody>
-          </Card>
-        )}
-
-        {/* Cash Flow Trend Chart */}
-        {dashboardData?.cash_flow_trend && dashboardData.cash_flow_trend.length > 0 && (
-          <Card>
-            <CardBody>
-              <Heading size="md" mb={4}>
-                Cash Flow Trend
-              </Heading>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={dashboardData.cash_flow_trend}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip
-                    formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc' }}
-                  />
-                  <Legend />
-                  <Bar dataKey="income" fill="#48BB78" name="Income" />
-                  <Bar dataKey="expenses" fill="#F56565" name="Expenses" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardBody>
-          </Card>
-        )}
-
-        {/* Cash Flow Forecast */}
-        <ForecastChart />
-
-        {/* Top Expenses and Recent Transactions */}
-        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-          {/* Top Expense Categories */}
-          {dashboardData?.top_expenses && dashboardData.top_expenses.length > 0 && (
-            <Card>
-              <CardBody>
-                <Heading size="md" mb={4}>
-                  Top Expense Categories
-                </Heading>
-                <VStack align="stretch" spacing={3}>
-                  {dashboardData.top_expenses.map((expense, index) => (
-                    <Box key={index}>
-                      <HStack justify="space-between" mb={1}>
-                        <Text fontWeight="medium">{expense.category}</Text>
-                        <Text fontWeight="bold" color="red.600">
-                          {formatCurrency(expense.total)}
-                        </Text>
-                      </HStack>
-                      <Text fontSize="sm" color="gray.600">
-                        {expense.count} transaction{expense.count !== 1 ? 's' : ''}
-                      </Text>
-                      {index < dashboardData.top_expenses.length - 1 && <Divider mt={3} />}
-                    </Box>
-                  ))}
-                </VStack>
-              </CardBody>
-            </Card>
-          )}
-
-          {/* Recent Transactions */}
-          {dashboardData?.recent_transactions && dashboardData.recent_transactions.length > 0 && (
-            <Card>
-              <CardBody>
-                <Heading size="md" mb={4}>
-                  Recent Transactions
-                </Heading>
-                <VStack align="stretch" spacing={3}>
-                  {dashboardData.recent_transactions.map((txn) => (
-                    <Box key={txn.id}>
-                      <HStack justify="space-between" mb={1}>
-                        <VStack align="start" spacing={0}>
-                          <Text fontWeight="medium">{txn.merchant_name || 'Unknown'}</Text>
-                          <HStack spacing={2}>
-                            <Text fontSize="sm" color="gray.600">
-                              {formatDate(txn.date)}
-                            </Text>
-                            {txn.is_pending && (
-                              <Badge colorScheme="orange" size="sm">
-                                Pending
-                              </Badge>
-                            )}
-                          </HStack>
-                        </VStack>
-                        <Text
-                          fontWeight="bold"
-                          color={txn.amount >= 0 ? 'green.600' : 'red.600'}
-                        >
-                          {txn.amount >= 0 ? '+' : ''}
-                          {formatCurrency(txn.amount)}
-                        </Text>
-                      </HStack>
-                      {txn.category_primary && (
-                        <Badge colorScheme="blue" size="sm">
-                          {txn.category_primary}
-                        </Badge>
-                      )}
-                    </Box>
-                  ))}
-                </VStack>
-              </CardBody>
-            </Card>
-          )}
-        </SimpleGrid>
-
-        {/* Account Balances */}
-        {sortedAccountBalances.length > 0 && (
-          <Card>
-            <CardBody>
-              <Heading size="md" mb={4}>
-                Account Balances
-              </Heading>
-              <Table variant="simple" size="sm">
-                <Thead>
-                  <Tr>
-                    <Th>Account</Th>
-                    <Th>Type</Th>
-                    <Th>Institution</Th>
-                    <Th isNumeric>Balance</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {sortedAccountBalances.map((account) => (
-                    <Tr key={account.id}>
-                      <Td fontWeight="medium">{account.name}</Td>
-                      <Td>
-                        <Badge>{account.type.replace('_', ' ')}</Badge>
-                      </Td>
-                      <Td color="gray.600">{account.institution || 'Manual'}</Td>
-                      <Td isNumeric fontWeight="bold">
-                        {formatCurrency(account.balance)}
-                      </Td>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </Table>
-            </CardBody>
-          </Card>
-        )}
-      </VStack>
-
-      {/* Custom Date Range Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="md">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Select Custom Date Range</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody pb={6}>
-            <VStack spacing={4}>
-              <FormControl>
-                <FormLabel>Start Date</FormLabel>
-                <Input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => {
-                    setCustomStartDate(e.target.value);
-                    localStorage.setItem('dashboard-customStartDate', e.target.value);
-                  }}
-                />
-              </FormControl>
-              <FormControl>
-                <FormLabel>End Date (Optional)</FormLabel>
-                <Input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => {
-                    setCustomEndDate(e.target.value);
-                    localStorage.setItem('dashboard-customEndDate', e.target.value);
-                  }}
-                />
-              </FormControl>
-            </VStack>
-          </ModalBody>
-          <ModalFooter>
+        {!isEditing ? (
+          <Button
+            leftIcon={<EditIcon />}
+            variant="ghost"
+            size="sm"
+            onClick={startEditing}
+            flexShrink={0}
+          >
+            Customize
+          </Button>
+        ) : (
+          <HStack flexShrink={0}>
             <Button
               colorScheme="brand"
-              mr={3}
-              onClick={() => {
-                // Save to localStorage
-                localStorage.setItem('dashboard-timeRange', 'CUSTOM');
-                localStorage.setItem('dashboard-customStartDate', customStartDate);
-                localStorage.setItem('dashboard-customEndDate', customEndDate);
-
-                // Update state (query will automatically refetch due to queryKey dependency)
-                setTimeRange('CUSTOM');
-
-                onClose();
-              }}
-              isDisabled={!customStartDate}
+              size="sm"
+              onClick={saveLayout}
+              isLoading={isSaving}
             >
-              Apply
+              Done
             </Button>
-            <Button variant="ghost" onClick={onClose}>
+            <Button variant="ghost" size="sm" onClick={cancelEditing} isDisabled={isSaving}>
               Cancel
             </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          </HStack>
+        )}
+      </HStack>
+
+      <DashboardGrid
+        layout={layout}
+        isEditing={isEditing}
+        onLayoutChange={setPendingLayout}
+        onAddWidget={onOpen}
+      />
+
+      <AddWidgetDrawer
+        isOpen={isOpen}
+        onClose={onClose}
+        currentLayout={layout}
+        onAdd={handleAddWidget}
+      />
     </Container>
   );
 };

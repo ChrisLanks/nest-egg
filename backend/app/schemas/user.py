@@ -1,7 +1,7 @@
 """User Pydantic schemas."""
 
 from datetime import date, datetime
-from typing import Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
@@ -32,6 +32,7 @@ class UserUpdate(BaseModel):
     birth_day: Optional[int] = Field(None, ge=1, le=31)
     birth_month: Optional[int] = Field(None, ge=1, le=12)
     birth_year: Optional[int] = Field(None, ge=1900, le=2100)
+    dashboard_layout: Optional[List[Any]] = None
 
     @model_validator(mode="after")
     def validate_birthday(self) -> "UserUpdate":
@@ -52,6 +53,7 @@ class UserInDB(UserBase):
     is_active: bool
     is_org_admin: bool
     email_verified: bool
+    dashboard_layout: Optional[List[Any]] = None
     last_login_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime

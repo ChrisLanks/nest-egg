@@ -1,10 +1,10 @@
 """Settings API endpoints for user profile and organization preferences."""
 
-from typing import Optional
+from typing import Any, List, Optional
 from uuid import UUID
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,8 +33,15 @@ class UserProfileResponse(BaseModel):
     birth_month: Optional[int] = None
     birth_year: Optional[int] = None
     is_org_admin: bool
+    dashboard_layout: Optional[List[Any]] = None
 
     model_config = {"from_attributes": True}
+
+
+class DashboardLayoutUpdate(BaseModel):
+    """Request body for updating dashboard widget layout."""
+
+    layout: List[Any]  # list of {id: str, span: 1|2} objects
 
 
 class ChangePasswordRequest(BaseModel):
@@ -75,6 +82,7 @@ async def get_user_profile(
         birth_month=current_user.birthdate.month if current_user.birthdate else None,
         birth_year=current_user.birthdate.year if current_user.birthdate else None,
         is_org_admin=current_user.is_org_admin,
+        dashboard_layout=current_user.dashboard_layout,
     )
 
 
@@ -137,7 +145,20 @@ async def update_user_profile(
         birth_month=current_user.birthdate.month if current_user.birthdate else None,
         birth_year=current_user.birthdate.year if current_user.birthdate else None,
         is_org_admin=current_user.is_org_admin,
+        dashboard_layout=current_user.dashboard_layout,
     )
+
+
+@router.put("/dashboard-layout", status_code=204)
+async def update_dashboard_layout(
+    body: DashboardLayoutUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save the user's customized dashboard widget layout."""
+    current_user.dashboard_layout = body.layout
+    await db.commit()
+    return Response(status_code=204)
 
 
 @router.post("/profile/change-password")
