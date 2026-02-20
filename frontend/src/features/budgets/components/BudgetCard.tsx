@@ -25,6 +25,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Budget } from '../../../types/budget';
 import { BudgetPeriod } from '../../../types/budget';
 import { budgetsApi } from '../../../api/budgets';
+import { labelsApi } from '../../../api/labels';
 
 interface BudgetCardProps {
   budget: Budget;
@@ -40,6 +41,16 @@ export default function BudgetCard({ budget, onEdit }: BudgetCardProps) {
     queryKey: ['budgets', budget.id, 'spending'],
     queryFn: () => budgetsApi.getSpending(budget.id),
   });
+
+  // Fetch labels to resolve label name (uses shared cache, no extra network call)
+  const { data: allLabels = [] } = useQuery({
+    queryKey: ['labels'],
+    queryFn: () => labelsApi.getAll(),
+    enabled: !!budget.label_id,
+  });
+  const labelName = budget.label_id
+    ? allLabels.find((l) => l.id === budget.label_id)?.name ?? null
+    : null;
 
   // Delete mutation
   const deleteMutation = useMutation({
@@ -96,6 +107,11 @@ export default function BudgetCard({ budget, onEdit }: BudgetCardProps) {
               <Badge colorScheme="blue" size="sm">
                 {formatPeriod(budget.period)}
               </Badge>
+              {labelName && (
+                <Badge colorScheme="purple" size="sm">
+                  {labelName}
+                </Badge>
+              )}
               {!budget.is_active && (
                 <Badge colorScheme="gray" size="sm">
                   Inactive

@@ -56,6 +56,14 @@ class Budget(Base):
         index=True,
     )
 
+    # Label filtering (optional - mutually exclusive with category_id)
+    label_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("labels.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
     # Date range
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # Null = ongoing
@@ -77,6 +85,7 @@ class Budget(Base):
 
     # Relationships
     category = relationship("Category", back_populates="budgets")
+    label = relationship("Label")
 
     __table_args__ = (
         Index("ix_budgets_org_active", "organization_id", "is_active"),

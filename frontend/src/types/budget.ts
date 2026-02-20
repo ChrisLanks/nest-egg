@@ -17,6 +17,7 @@ export interface Budget {
   start_date: string;
   end_date: string | null;
   category_id: string | null;
+  label_id: string | null;
   rollover_unused: boolean;
   alert_threshold: number;
   is_active: boolean;
@@ -31,6 +32,7 @@ export interface BudgetCreate {
   start_date: string;
   end_date?: string | null;
   category_id?: string | null;
+  label_id?: string | null;
   rollover_unused?: boolean;
   alert_threshold?: number;
 }
@@ -42,6 +44,7 @@ export interface BudgetUpdate {
   start_date?: string;
   end_date?: string | null;
   category_id?: string | null;
+  label_id?: string | null;
   rollover_unused?: boolean;
   alert_threshold?: number;
   is_active?: boolean;

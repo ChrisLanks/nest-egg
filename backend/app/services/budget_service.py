@@ -9,7 +9,7 @@ from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import Budget, BudgetPeriod
-from app.models.transaction import Transaction, Category
+from app.models.transaction import Transaction, Category, TransactionLabel
 from app.models.user import Organization, User
 from app.models.notification import NotificationType, NotificationPriority
 from app.services.notification_service import NotificationService
@@ -122,6 +122,7 @@ class BudgetService:
         period: BudgetPeriod,
         start_date: date,
         category_id: Optional[UUID] = None,
+        label_id: Optional[UUID] = None,
         end_date: Optional[date] = None,
         rollover_unused: bool = False,
         alert_threshold: Decimal = Decimal("0.80"),
@@ -135,6 +136,7 @@ class BudgetService:
             start_date=start_date,
             end_date=end_date,
             category_id=category_id,
+            label_id=label_id,
             rollover_unused=rollover_unused,
             alert_threshold=alert_threshold,
         )
@@ -288,6 +290,16 @@ class BudgetService:
                 query = query.where(or_(*conditions))
             else:
                 query = query.where(Transaction.category_id == budget.category_id)
+
+        # Filter by label if budget is label-specific
+        if budget.label_id:
+            query = query.join(
+                TransactionLabel,
+                and_(
+                    TransactionLabel.transaction_id == Transaction.id,
+                    TransactionLabel.label_id == budget.label_id,
+                ),
+            )
 
         result = await db.execute(query)
         spent = abs(result.scalar() or Decimal("0.00"))

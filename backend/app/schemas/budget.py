@@ -19,6 +19,7 @@ class BudgetBase(BaseModel):
     start_date: date
     end_date: Optional[date] = None
     category_id: Optional[UUID] = None
+    label_id: Optional[UUID] = None
     rollover_unused: bool = False
     alert_threshold: Decimal = Field(default=Decimal("0.80"), ge=0, le=1)
 
@@ -36,6 +37,7 @@ class BudgetUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     category_id: Optional[UUID] = None
+    label_id: Optional[UUID] = None
     rollover_unused: Optional[bool] = None
     alert_threshold: Optional[Decimal] = Field(None, ge=0, le=1)
     is_active: Optional[bool] = None

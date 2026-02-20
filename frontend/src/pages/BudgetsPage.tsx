@@ -15,6 +15,7 @@ import {
   Center,
   Badge,
   Tooltip,
+  ButtonGroup,
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
 import { FiLock, FiDollarSign } from 'react-icons/fi';
@@ -27,9 +28,12 @@ import BudgetForm from '../features/budgets/components/BudgetForm';
 import { useUserView } from '../contexts/UserViewContext';
 import { EmptyState } from '../components/EmptyState';
 
+type FilterTab = 'all' | 'category' | 'label';
+
 export default function BudgetsPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
+  const [filterTab, setFilterTab] = useState<FilterTab>('all');
   const { canEdit, isOtherUserView } = useUserView();
 
   // Get all budgets
@@ -53,8 +57,21 @@ export default function BudgetsPage() {
     onClose();
   };
 
-  const activeBudgets = budgets.filter(b => b.is_active);
-  const inactiveBudgets = budgets.filter(b => !b.is_active);
+  // Apply filter tab
+  const filterBudgets = (list: Budget[]) => {
+    if (filterTab === 'category') return list.filter(b => !!b.category_id);
+    if (filterTab === 'label') return list.filter(b => !!b.label_id);
+    return list;
+  };
+
+  const activeBudgets = filterBudgets(budgets.filter(b => b.is_active));
+  const inactiveBudgets = filterBudgets(budgets.filter(b => !b.is_active));
+
+  // Count for filter badges
+  const categoryCount = budgets.filter(b => !!b.category_id).length;
+  const labelCount = budgets.filter(b => !!b.label_id).length;
+
+  const filteredEmpty = activeBudgets.length === 0 && inactiveBudgets.length === 0;
 
   return (
     <Box p={8}>
@@ -83,6 +100,42 @@ export default function BudgetsPage() {
           </Tooltip>
         </HStack>
 
+        {/* Filter tabs */}
+        {!isLoading && budgets.length > 0 && (
+          <ButtonGroup size="sm" isAttached variant="outline">
+            <Button
+              colorScheme={filterTab === 'all' ? 'blue' : 'gray'}
+              variant={filterTab === 'all' ? 'solid' : 'outline'}
+              onClick={() => setFilterTab('all')}
+            >
+              All{' '}
+              <Badge ml={1} colorScheme={filterTab === 'all' ? 'blue' : 'gray'}>
+                {budgets.length}
+              </Badge>
+            </Button>
+            <Button
+              colorScheme={filterTab === 'category' ? 'blue' : 'gray'}
+              variant={filterTab === 'category' ? 'solid' : 'outline'}
+              onClick={() => setFilterTab('category')}
+            >
+              By Category{' '}
+              <Badge ml={1} colorScheme={filterTab === 'category' ? 'blue' : 'gray'}>
+                {categoryCount}
+              </Badge>
+            </Button>
+            <Button
+              colorScheme={filterTab === 'label' ? 'blue' : 'gray'}
+              variant={filterTab === 'label' ? 'solid' : 'outline'}
+              onClick={() => setFilterTab('label')}
+            >
+              By Label{' '}
+              <Badge ml={1} colorScheme={filterTab === 'label' ? 'blue' : 'gray'}>
+                {labelCount}
+              </Badge>
+            </Button>
+          </ButtonGroup>
+        )}
+
         {/* Loading state */}
         {isLoading && (
           <Center py={12}>
@@ -90,7 +143,7 @@ export default function BudgetsPage() {
           </Center>
         )}
 
-        {/* Empty state */}
+        {/* Empty state — no budgets at all */}
         {!isLoading && budgets.length === 0 && (
           <EmptyState
             icon={FiDollarSign}
@@ -100,6 +153,15 @@ export default function BudgetsPage() {
             onAction={handleCreate}
             showAction={!isOtherUserView}
           />
+        )}
+
+        {/* Empty state — filter returns nothing */}
+        {!isLoading && budgets.length > 0 && filteredEmpty && (
+          <Center py={8}>
+            <Text color="gray.500">
+              No budgets match the selected filter.
+            </Text>
+          </Center>
         )}
 
         {/* Active budgets */}
