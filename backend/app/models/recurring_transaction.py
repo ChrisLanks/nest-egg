@@ -31,6 +31,7 @@ class RecurringFrequency(str, enum.Enum):
     MONTHLY = "monthly"
     QUARTERLY = "quarterly"
     YEARLY = "yearly"
+    ON_DEMAND = "on_demand"  # Irregular / as-needed (e.g. oil delivery, contractor)
 
 
 class RecurringTransaction(Base):
@@ -55,7 +56,7 @@ class RecurringTransaction(Base):
     # Pattern details
     merchant_name = Column(String(255), nullable=False, index=True)
     description_pattern = Column(String(500), nullable=True)  # Regex or pattern for matching
-    frequency = Column(SQLEnum(RecurringFrequency), nullable=False)
+    frequency = Column(SQLEnum(RecurringFrequency, native_enum=False), nullable=False)
     average_amount = Column(Numeric(15, 2), nullable=False)
     amount_variance = Column(
         Numeric(15, 2), default=Decimal("5.00"), nullable=False
@@ -64,6 +65,11 @@ class RecurringTransaction(Base):
     # Category assignment (auto-apply to matched transactions)
     category_id = Column(
         UUID(as_uuid=True), ForeignKey("categories.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Label to auto-apply to matching transactions (nullable — no labeling if unset)
+    label_id = Column(
+        UUID(as_uuid=True), ForeignKey("labels.id", ondelete="SET NULL"), nullable=True
     )
 
     # Detection
@@ -78,6 +84,8 @@ class RecurringTransaction(Base):
 
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
+    is_archived = Column(Boolean, default=False, nullable=False)  # User-archived (still visible in archive tab)
+    is_no_longer_found = Column(Boolean, default=False, nullable=False)  # Auto-only: not seen in latest detection run
 
     # Bill Reminder fields
     is_bill = Column(Boolean, default=False, nullable=False)  # Mark as a bill requiring reminders
@@ -92,6 +100,7 @@ class RecurringTransaction(Base):
     # Relationships
     account = relationship("Account")
     category = relationship("Category")
+    label = relationship("Label")
 
     __table_args__ = (
         Index("ix_recurring_org_merchant", "organization_id", "merchant_name"),

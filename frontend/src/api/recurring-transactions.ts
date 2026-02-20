@@ -63,6 +63,27 @@ export const recurringTransactionsApi = {
   },
 
   /**
+   * Apply this bill's label to matching transactions (retroactively)
+   */
+  applyLabel: async (
+    recurringId: string,
+    retroactive: boolean = true
+  ): Promise<{ applied_count: number; label_id: string }> => {
+    const { data } = await api.post(`/recurring-transactions/${recurringId}/apply-label`, {
+      retroactive,
+    });
+    return data;
+  },
+
+  /**
+   * Preview how many transactions match this bill's merchant + account
+   */
+  previewLabel: async (recurringId: string): Promise<{ matching_transactions: number }> => {
+    const { data } = await api.get(`/recurring-transactions/${recurringId}/preview-label`);
+    return data;
+  },
+
+  /**
    * Get upcoming bills
    */
   getUpcomingBills: async (daysAhead: number = 30): Promise<UpcomingBill[]> => {

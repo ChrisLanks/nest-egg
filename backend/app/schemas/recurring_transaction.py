@@ -16,11 +16,12 @@ class RecurringTransactionBase(BaseModel):
     merchant_name: str
     account_id: UUID
     frequency: RecurringFrequency
-    average_amount: Decimal = Field(gt=0)
+    average_amount: Decimal = Field(ge=0)
     amount_variance: Decimal = Field(default=Decimal("5.00"), ge=0)
     category_id: Optional[UUID] = None
     is_bill: bool = False
     reminder_days_before: int = Field(default=3, ge=0, le=30)
+    label_id: Optional[UUID] = None
 
 
 class RecurringTransactionCreate(RecurringTransactionBase):
@@ -32,12 +33,14 @@ class RecurringTransactionUpdate(BaseModel):
 
     merchant_name: Optional[str] = None
     frequency: Optional[RecurringFrequency] = None
-    average_amount: Optional[Decimal] = Field(None, gt=0)
+    average_amount: Optional[Decimal] = Field(None, ge=0)
     amount_variance: Optional[Decimal] = Field(None, ge=0)
     category_id: Optional[UUID] = None
     is_active: Optional[bool] = None
+    is_archived: Optional[bool] = None
     is_bill: Optional[bool] = None
     reminder_days_before: Optional[int] = Field(None, ge=0, le=30)
+    label_id: Optional[UUID] = None
 
 
 class RecurringTransactionResponse(RecurringTransactionBase):
@@ -53,6 +56,9 @@ class RecurringTransactionResponse(RecurringTransactionBase):
     next_expected_date: Optional[date]
     occurrence_count: int
     is_active: bool
+    is_archived: bool
+    is_no_longer_found: bool
+    label_id: Optional[UUID]
     created_at: datetime
     updated_at: datetime
 

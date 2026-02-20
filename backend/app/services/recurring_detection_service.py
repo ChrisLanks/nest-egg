@@ -10,7 +10,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, Label, TransactionLabel
 from app.models.user import User
 from app.utils.datetime_utils import utc_now
 
@@ -205,6 +205,7 @@ class RecurringDetectionService:
                 existing.last_occurrence = sorted_dates[-1]
                 existing.next_expected_date = next_expected
                 existing.occurrence_count = len(txns)
+                existing.is_no_longer_found = False  # Re-found — clear the flag
                 existing.updated_at = utc_now()
                 patterns.append(existing)
             else:
@@ -226,6 +227,38 @@ class RecurringDetectionService:
                 db.add(pattern)
                 patterns.append(pattern)
 
+        # Ensure "Recurring Bill" label exists and label all matched transactions
+        recurring_bill_label = await RecurringDetectionService.ensure_recurring_bill_label(
+            db, user.organization_id
+        )
+        for pattern in patterns:
+            if pattern.label_id is None:
+                pattern.label_id = recurring_bill_label.id
+            await RecurringDetectionService.apply_label_to_matching_transactions(
+                db,
+                organization_id=user.organization_id,
+                merchant_name=pattern.merchant_name,
+                account_id=pattern.account_id,
+                label_id=pattern.label_id,
+            )
+
+        # Mark auto-detected patterns not seen in this run as "no longer found"
+        detected_keys = {(merchant_name, str(account_id)) for (merchant_name, account_id) in grouped.keys()}
+        all_auto_result = await db.execute(
+            select(RecurringTransaction).where(
+                and_(
+                    RecurringTransaction.organization_id == user.organization_id,
+                    RecurringTransaction.is_user_created.is_(False),
+                    RecurringTransaction.is_archived.is_(False),
+                )
+            )
+        )
+        for auto_pattern in all_auto_result.scalars().all():
+            key = (auto_pattern.merchant_name, str(auto_pattern.account_id))
+            if key not in detected_keys:
+                auto_pattern.is_no_longer_found = True
+                auto_pattern.updated_at = utc_now()
+
         await db.commit()
 
         # Refresh all patterns
@@ -246,6 +279,7 @@ class RecurringDetectionService:
         amount_variance: Decimal = Decimal("5.00"),
         is_bill: bool = False,
         reminder_days_before: int = 3,
+        label_id: Optional[UUID] = None,
     ) -> RecurringTransaction:
         """Create a manually defined recurring transaction."""
         pattern = RecurringTransaction(
@@ -262,6 +296,7 @@ class RecurringDetectionService:
             occurrence_count=1,
             is_bill=is_bill,
             reminder_days_before=reminder_days_before,
+            label_id=label_id,
         )
 
         db.add(pattern)
@@ -479,6 +514,103 @@ class RecurringDetectionService:
             "monthly_cost": float(monthly_total),
             "yearly_cost": float(monthly_total * 12),
         }
+
+
+    # ── Label helpers ────────────────────────────────────────────────────────
+
+    @staticmethod
+    async def ensure_recurring_bill_label(db: AsyncSession, organization_id: UUID) -> Label:
+        """
+        Return the org's 'Recurring Bill' label, creating it if it doesn't exist.
+        """
+        result = await db.execute(
+            select(Label).where(
+                and_(
+                    Label.organization_id == organization_id,
+                    Label.name == "Recurring Bill",
+                )
+            )
+        )
+        label = result.scalar_one_or_none()
+        if label is None:
+            label = Label(
+                organization_id=organization_id,
+                name="Recurring Bill",
+                color="#3182CE",  # Chakra blue.500
+                is_system=False,
+            )
+            db.add(label)
+            await db.flush()  # get the id without committing
+        return label
+
+    @staticmethod
+    async def apply_label_to_matching_transactions(
+        db: AsyncSession,
+        organization_id: UUID,
+        merchant_name: str,
+        account_id: UUID,
+        label_id: UUID,
+    ) -> int:
+        """
+        Apply a label to all transactions matching the given merchant + account.
+        Skips transactions that already have the label.
+        Returns the count of newly labelled transactions.
+        """
+        result = await db.execute(
+            select(Transaction).where(
+                and_(
+                    Transaction.organization_id == organization_id,
+                    Transaction.account_id == account_id,
+                    Transaction.merchant_name == merchant_name,
+                )
+            )
+        )
+        transactions = result.scalars().all()
+
+        # Collect existing labelled transaction ids to avoid duplicates
+        if not transactions:
+            return 0
+
+        txn_ids = [t.id for t in transactions]
+        existing_result = await db.execute(
+            select(TransactionLabel.transaction_id).where(
+                and_(
+                    TransactionLabel.transaction_id.in_(txn_ids),
+                    TransactionLabel.label_id == label_id,
+                )
+            )
+        )
+        already_labelled = set(existing_result.scalars().all())
+
+        count = 0
+        for txn in transactions:
+            if txn.id not in already_labelled:
+                db.add(TransactionLabel(
+                    transaction_id=txn.id,
+                    label_id=label_id,
+                ))
+                count += 1
+
+        return count
+
+    @staticmethod
+    async def count_matching_transactions(
+        db: AsyncSession,
+        organization_id: UUID,
+        merchant_name: str,
+        account_id: UUID,
+    ) -> int:
+        """Count transactions matching the given merchant + account (for UI preview)."""
+        result = await db.execute(
+            select(Transaction).where(
+                and_(
+                    Transaction.organization_id == organization_id,
+                    Transaction.account_id == account_id,
+                    Transaction.merchant_name == merchant_name,
+                )
+            )
+        )
+        return len(result.scalars().all())
 
 
 recurring_detection_service = RecurringDetectionService()

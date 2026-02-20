@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from app.services.recurring_detection_service import RecurringDetectionService
 from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, Label, TransactionLabel
 
 
 class TestRecurringDetectionService:
@@ -716,3 +716,298 @@ class TestRecurringDetectionService:
 
         assert recurring_detection_service is not None
         assert isinstance(recurring_detection_service, RecurringDetectionService)
+
+    # ── ON_DEMAND frequency ───────────────────────────────────────────────────
+
+    def test_on_demand_in_frequency_enum(self):
+        """ON_DEMAND should be a valid RecurringFrequency value."""
+        assert RecurringFrequency.ON_DEMAND == "on_demand"
+        assert "on_demand" in [f.value for f in RecurringFrequency]
+
+    @pytest.mark.asyncio
+    async def test_create_manual_recurring_on_demand(self, db_session, test_user, test_account):
+        """ON_DEMAND manual bill should be created with no next_expected_date."""
+        service = RecurringDetectionService()
+
+        pattern = await service.create_manual_recurring(
+            db=db_session,
+            user=test_user,
+            merchant_name="Oil Delivery",
+            account_id=test_account.id,
+            frequency=RecurringFrequency.ON_DEMAND,
+            average_amount=Decimal("250.00"),
+            is_bill=True,
+        )
+
+        assert pattern.id is not None
+        assert pattern.frequency == RecurringFrequency.ON_DEMAND
+        assert pattern.next_expected_date is None  # ON_DEMAND has no schedule
+        assert pattern.merchant_name == "Oil Delivery"
+        assert pattern.is_user_created is True
+
+    @pytest.mark.asyncio
+    async def test_create_manual_recurring_zero_amount(self, db_session, test_user, test_account):
+        """Should allow zero average_amount (unknown/variable cost)."""
+        service = RecurringDetectionService()
+
+        pattern = await service.create_manual_recurring(
+            db=db_session,
+            user=test_user,
+            merchant_name="Variable Bill",
+            account_id=test_account.id,
+            frequency=RecurringFrequency.ON_DEMAND,
+            average_amount=Decimal("0"),
+        )
+
+        assert pattern.id is not None
+        assert pattern.average_amount == Decimal("0")
+
+    # ── label_id on create ────────────────────────────────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_create_manual_recurring_with_label_id(self, db_session, test_user, test_account):
+        """Should persist label_id when provided at creation time."""
+        service = RecurringDetectionService()
+
+        label = Label(
+            organization_id=test_user.organization_id,
+            name="My Label",
+            color="#FF0000",
+        )
+        db_session.add(label)
+        await db_session.flush()
+
+        pattern = await service.create_manual_recurring(
+            db=db_session,
+            user=test_user,
+            merchant_name="Tagged Bill",
+            account_id=test_account.id,
+            frequency=RecurringFrequency.MONTHLY,
+            average_amount=Decimal("99.00"),
+            label_id=label.id,
+        )
+
+        assert pattern.label_id == label.id
+
+    # ── is_archived / is_no_longer_found ─────────────────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_archive_pattern(self, db_session, test_user, test_account):
+        """Archiving a pattern should set is_archived=True on the record."""
+        service = RecurringDetectionService()
+
+        pattern = await service.create_manual_recurring(
+            db_session, test_user, "Old Gym", test_account.id,
+            RecurringFrequency.MONTHLY, Decimal("50"),
+        )
+        assert pattern.is_archived is False
+
+        updated = await service.update_recurring_transaction(
+            db_session, pattern.id, test_user, is_archived=True
+        )
+
+        assert updated is not None
+        assert updated.is_archived is True
+
+        # All patterns should still include it (is_archived is a display flag, not a delete)
+        all_patterns = await service.get_recurring_transactions(db_session, test_user)
+        archived = next((p for p in all_patterns if p.merchant_name == "Old Gym"), None)
+        assert archived is not None
+        assert archived.is_archived is True
+
+    @pytest.mark.asyncio
+    async def test_detect_marks_no_longer_found(self, db_session, test_user, test_account):
+        """Auto-detected patterns absent from latest run should be marked is_no_longer_found."""
+        service = RecurringDetectionService()
+
+        # Insert a stale auto-detected pattern that won't appear in any transaction run
+        stale = RecurringTransaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            merchant_name="Defunct Service",
+            frequency=RecurringFrequency.MONTHLY,
+            average_amount=Decimal("9.99"),
+            confidence_score=Decimal("0.85"),
+            occurrence_count=3,
+            first_occurrence=date.today() - timedelta(days=90),
+            last_occurrence=date.today() - timedelta(days=30),
+            is_user_created=False,
+            is_no_longer_found=False,
+        )
+        db_session.add(stale)
+        await db_session.commit()
+
+        # Run detection with no matching transactions — stale pattern should be flagged
+        await service.detect_recurring_patterns(db_session, test_user, min_occurrences=3)
+
+        all_patterns = await service.get_recurring_transactions(db_session, test_user)
+        stale_pattern = next(
+            (p for p in all_patterns if p.merchant_name == "Defunct Service"), None
+        )
+        assert stale_pattern is not None
+        assert stale_pattern.is_no_longer_found is True
+
+    @pytest.mark.asyncio
+    async def test_detect_clears_no_longer_found_on_reappearance(
+        self, db_session, test_user, test_account
+    ):
+        """Re-detected pattern should have is_no_longer_found cleared."""
+        service = RecurringDetectionService()
+
+        # Create transactions within lookback window
+        base_date = date.today() - timedelta(days=120)
+        for i in range(4):
+            txn = Transaction(
+                organization_id=test_user.organization_id,
+                account_id=test_account.id,
+                date=base_date + timedelta(days=30 * i),
+                amount=Decimal("-15.99"),
+                merchant_name="Reappearing Sub",
+                deduplication_hash=str(uuid4()),
+            )
+            db_session.add(txn)
+
+        # Pre-existing pattern marked as no_longer_found
+        existing = RecurringTransaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            merchant_name="Reappearing Sub",
+            frequency=RecurringFrequency.MONTHLY,
+            average_amount=Decimal("15.99"),
+            confidence_score=Decimal("0.80"),
+            occurrence_count=2,
+            first_occurrence=base_date,
+            is_user_created=False,
+            is_no_longer_found=True,  # Was previously missing
+        )
+        db_session.add(existing)
+        await db_session.commit()
+
+        patterns = await service.detect_recurring_patterns(db_session, test_user, min_occurrences=3)
+
+        found = next((p for p in patterns if p.merchant_name == "Reappearing Sub"), None)
+        assert found is not None
+        assert found.is_no_longer_found is False
+
+    @pytest.mark.asyncio
+    async def test_detect_does_not_mark_manual_bills_as_no_longer_found(
+        self, db_session, test_user, test_account
+    ):
+        """Manually created patterns should never be flagged is_no_longer_found."""
+        service = RecurringDetectionService()
+
+        manual = await service.create_manual_recurring(
+            db_session, test_user, "Manual Oil",
+            test_account.id, RecurringFrequency.ON_DEMAND, Decimal("300"),
+        )
+        assert manual.is_user_created is True
+
+        # Run detection with no matching transactions
+        await service.detect_recurring_patterns(db_session, test_user, min_occurrences=3)
+
+        all_patterns = await service.get_recurring_transactions(db_session, test_user)
+        manual_pattern = next(
+            (p for p in all_patterns if p.merchant_name == "Manual Oil"), None
+        )
+        assert manual_pattern is not None
+        assert manual_pattern.is_no_longer_found is False  # Manual bills are never auto-flagged
+
+    # ── Label helpers ─────────────────────────────────────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_ensure_recurring_bill_label_creates_once(self, db_session, test_user):
+        """ensure_recurring_bill_label should be idempotent."""
+        label1 = await RecurringDetectionService.ensure_recurring_bill_label(
+            db_session, test_user.organization_id
+        )
+        await db_session.flush()
+
+        label2 = await RecurringDetectionService.ensure_recurring_bill_label(
+            db_session, test_user.organization_id
+        )
+        await db_session.flush()
+
+        assert label1.id == label2.id
+        assert label1.name == "Recurring Bill"
+
+    @pytest.mark.asyncio
+    async def test_apply_label_to_matching_transactions(self, db_session, test_user, test_account):
+        """apply_label_to_matching_transactions should label matching txns once."""
+        # Create transactions matching a merchant
+        for _ in range(3):
+            txn = Transaction(
+                organization_id=test_user.organization_id,
+                account_id=test_account.id,
+                date=date.today(),
+                amount=Decimal("-100.00"),
+                merchant_name="Hess Oil",
+                deduplication_hash=str(uuid4()),
+            )
+            db_session.add(txn)
+
+        # Unrelated transaction
+        db_session.add(Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=date.today(),
+            amount=Decimal("-20.00"),
+            merchant_name="Other Merchant",
+            deduplication_hash=str(uuid4()),
+        ))
+
+        label = await RecurringDetectionService.ensure_recurring_bill_label(
+            db_session, test_user.organization_id
+        )
+        await db_session.flush()
+
+        applied = await RecurringDetectionService.apply_label_to_matching_transactions(
+            db_session,
+            organization_id=test_user.organization_id,
+            merchant_name="Hess Oil",
+            account_id=test_account.id,
+            label_id=label.id,
+        )
+        await db_session.commit()
+
+        assert applied == 3
+
+        # Second call should apply 0 (already labelled)
+        applied_again = await RecurringDetectionService.apply_label_to_matching_transactions(
+            db_session,
+            organization_id=test_user.organization_id,
+            merchant_name="Hess Oil",
+            account_id=test_account.id,
+            label_id=label.id,
+        )
+        assert applied_again == 0
+
+    @pytest.mark.asyncio
+    async def test_count_matching_transactions(self, db_session, test_user, test_account):
+        """count_matching_transactions should return correct count."""
+        for _ in range(5):
+            db_session.add(Transaction(
+                organization_id=test_user.organization_id,
+                account_id=test_account.id,
+                date=date.today(),
+                amount=Decimal("-50.00"),
+                merchant_name="Countable Merchant",
+                deduplication_hash=str(uuid4()),
+            ))
+        await db_session.commit()
+
+        count = await RecurringDetectionService.count_matching_transactions(
+            db_session,
+            organization_id=test_user.organization_id,
+            merchant_name="Countable Merchant",
+            account_id=test_account.id,
+        )
+        assert count == 5
+
+        # Different merchant should return 0
+        zero = await RecurringDetectionService.count_matching_transactions(
+            db_session,
+            organization_id=test_user.organization_id,
+            merchant_name="No Such Merchant",
+            account_id=test_account.id,
+        )
+        assert zero == 0

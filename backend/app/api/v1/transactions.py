@@ -345,6 +345,26 @@ async def list_transactions(
     )
 
 
+@router.get("/merchants")
+async def get_merchant_names(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all distinct merchant names for the org (filtered client-side)."""
+    result = await db.execute(
+        select(Transaction.merchant_name)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Transaction.merchant_name.isnot(None),
+            Transaction.merchant_name != "",
+        )
+        .distinct()
+        .order_by(Transaction.merchant_name)
+        .limit(500)
+    )
+    return {"merchants": [row[0] for row in result.all()]}
+
+
 @router.get("/{transaction_id}", response_model=TransactionDetail)
 async def get_transaction(
     transaction_id: UUID,

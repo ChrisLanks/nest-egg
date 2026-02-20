@@ -8,6 +8,7 @@ export enum RecurringFrequency {
   MONTHLY = 'monthly',
   QUARTERLY = 'quarterly',
   YEARLY = 'yearly',
+  ON_DEMAND = 'on_demand',
 }
 
 export interface RecurringTransaction {
@@ -27,6 +28,9 @@ export interface RecurringTransaction {
   next_expected_date: string | null;
   occurrence_count: number;
   is_active: boolean;
+  is_archived: boolean;
+  is_no_longer_found: boolean;
+  label_id: string | null;
   is_bill: boolean;
   reminder_days_before: number;
   created_at: string;
@@ -51,6 +55,8 @@ export interface RecurringTransactionUpdate {
   amount_variance?: number;
   category_id?: string | null;
   is_active?: boolean;
+  is_archived?: boolean;
+  label_id?: string | null;
   is_bill?: boolean;
   reminder_days_before?: number;
 }

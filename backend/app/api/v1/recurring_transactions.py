@@ -19,7 +19,7 @@ from app.schemas.recurring_transaction import (
     RecurringTransactionResponse,
     UpcomingBillResponse,
 )
-from app.services.recurring_detection_service import recurring_detection_service
+from app.services.recurring_detection_service import recurring_detection_service, RecurringDetectionService
 
 router = APIRouter()
 
@@ -45,6 +45,11 @@ def _expand_occurrences(
         return []
 
     freq = pattern.frequency
+
+    # ON_DEMAND has no predictable schedule — skip calendar expansion
+    if freq == RecurringFrequency.ON_DEMAND:
+        return []
+
     occurrences: list[date] = []
 
     # Walk backward from anchor to find the first occurrence >= start
@@ -207,6 +212,85 @@ async def get_calendar(
 
     entries.sort(key=lambda e: e.date)
     return entries
+
+
+class ApplyLabelRequest(BaseModel):
+    retroactive: bool = True
+
+
+@router.post("/{recurring_id}/apply-label")
+async def apply_label_to_recurring(
+    recurring_id: UUID,
+    body: ApplyLabelRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Apply this bill's label to matching transactions.
+    Creates the 'Recurring Bill' label for the org if one isn't set on the pattern.
+    """
+    result = await db.execute(
+        select(RecurringTransaction).where(
+            and_(
+                RecurringTransaction.id == recurring_id,
+                RecurringTransaction.organization_id == current_user.organization_id,
+            )
+        )
+    )
+    pattern = result.scalar_one_or_none()
+    if not pattern:
+        raise HTTPException(status_code=404, detail="Recurring pattern not found")
+
+    # Ensure a label is assigned
+    if pattern.label_id is None:
+        label = await RecurringDetectionService.ensure_recurring_bill_label(
+            db, current_user.organization_id
+        )
+        pattern.label_id = label.id
+        from app.utils.datetime_utils import utc_now
+        pattern.updated_at = utc_now()
+
+    applied = 0
+    if body.retroactive:
+        applied = await RecurringDetectionService.apply_label_to_matching_transactions(
+            db,
+            organization_id=current_user.organization_id,
+            merchant_name=pattern.merchant_name,
+            account_id=pattern.account_id,
+            label_id=pattern.label_id,
+        )
+
+    await db.commit()
+    await db.refresh(pattern)
+    return {"applied_count": applied, "label_id": str(pattern.label_id)}
+
+
+@router.get("/{recurring_id}/preview-label")
+async def preview_label_matches(
+    recurring_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return count of transactions that would be labelled for this recurring pattern."""
+    result = await db.execute(
+        select(RecurringTransaction).where(
+            and_(
+                RecurringTransaction.id == recurring_id,
+                RecurringTransaction.organization_id == current_user.organization_id,
+            )
+        )
+    )
+    pattern = result.scalar_one_or_none()
+    if not pattern:
+        raise HTTPException(status_code=404, detail="Recurring pattern not found")
+
+    count = await RecurringDetectionService.count_matching_transactions(
+        db,
+        organization_id=current_user.organization_id,
+        merchant_name=pattern.merchant_name,
+        account_id=pattern.account_id,
+    )
+    return {"matching_transactions": count}
 
 
 @router.get("/bills/upcoming", response_model=List[UpcomingBillResponse])
