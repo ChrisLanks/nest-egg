@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -23,6 +23,7 @@ class SavingsGoalCreate(SavingsGoalBase):
     """Schema for creating a savings goal."""
 
     current_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
+    auto_sync: bool = False
 
 
 class SavingsGoalUpdate(BaseModel):
@@ -35,6 +36,7 @@ class SavingsGoalUpdate(BaseModel):
     start_date: Optional[date] = None
     target_date: Optional[date] = None
     account_id: Optional[UUID] = None
+    auto_sync: Optional[bool] = None
 
 
 class SavingsGoalResponse(SavingsGoalBase):
@@ -43,8 +45,12 @@ class SavingsGoalResponse(SavingsGoalBase):
     id: UUID
     organization_id: UUID
     current_amount: Decimal
+    auto_sync: bool
+    priority: Optional[int]
     is_completed: bool
     completed_at: Optional[datetime]
+    is_funded: bool
+    funded_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
 
@@ -66,3 +72,15 @@ class SavingsGoalProgressResponse(BaseModel):
     monthly_required: Optional[Decimal]
     on_track: Optional[bool]
     is_completed: bool
+
+
+class AutoSyncRequest(BaseModel):
+    """Request body for auto-syncing all goals from linked accounts."""
+
+    method: Literal["waterfall", "proportional"] = "waterfall"
+
+
+class ReorderRequest(BaseModel):
+    """Request body for reordering goals."""
+
+    goal_ids: List[UUID]

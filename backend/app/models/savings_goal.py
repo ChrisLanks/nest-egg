@@ -3,7 +3,7 @@
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, Numeric, Text, Index
+from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, Numeric, Text, Index, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -42,9 +42,15 @@ class SavingsGoal(Base):
         index=True,
     )
 
+    # Auto-sync and priority
+    auto_sync = Column(Boolean, default=False, nullable=False)
+    priority = Column(Integer, nullable=True)
+
     # Status
     is_completed = Column(Boolean, default=False, nullable=False)
     completed_at = Column(DateTime, nullable=True)
+    is_funded = Column(Boolean, default=False, nullable=False)
+    funded_at = Column(DateTime, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
@@ -53,4 +59,7 @@ class SavingsGoal(Base):
     # Relationships
     account = relationship("Account")
 
-    __table_args__ = (Index("ix_savings_goals_org_active", "organization_id", "is_completed"),)
+    __table_args__ = (
+        Index("ix_savings_goals_org_active", "organization_id", "is_completed"),
+        Index("ix_savings_goals_priority", "organization_id", "priority"),
+    )

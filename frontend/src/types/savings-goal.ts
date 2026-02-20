@@ -12,8 +12,12 @@ export interface SavingsGoal {
   start_date: string;
   target_date: string | null;
   account_id: string | null;
+  auto_sync: boolean;
+  priority: number | null;
   is_completed: boolean;
   completed_at: string | null;
+  is_funded: boolean;
+  funded_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -26,6 +30,7 @@ export interface SavingsGoalCreate {
   start_date: string;
   target_date?: string | null;
   account_id?: string | null;
+  auto_sync?: boolean;
 }
 
 export interface SavingsGoalUpdate {
@@ -36,6 +41,7 @@ export interface SavingsGoalUpdate {
   start_date?: string;
   target_date?: string | null;
   account_id?: string | null;
+  auto_sync?: boolean;
 }
 
 export interface SavingsGoalProgress {

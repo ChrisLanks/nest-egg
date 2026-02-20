@@ -1,15 +1,16 @@
 """Service for managing savings goals."""
 
+from collections import defaultdict
 from datetime import date
 from decimal import Decimal
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.savings_goal import SavingsGoal
 from app.models.account import Account
+from app.models.savings_goal import SavingsGoal
 from app.models.user import User
 from app.utils.datetime_utils import utc_now
 
@@ -28,8 +29,22 @@ class SavingsGoalService:
         target_date: Optional[date] = None,
         account_id: Optional[UUID] = None,
         current_amount: Decimal = Decimal("0.00"),
+        auto_sync: bool = False,
     ) -> SavingsGoal:
-        """Create a new savings goal."""
+        """Create a new savings goal, assigning it the lowest priority."""
+        # Assign priority = number of existing active goals + 1
+        count_result = await db.execute(
+            select(func.count(SavingsGoal.id)).where(
+                and_(
+                    SavingsGoal.organization_id == user.organization_id,
+                    SavingsGoal.is_completed == False,  # noqa: E712
+                    SavingsGoal.is_funded == False,  # noqa: E712
+                )
+            )
+        )
+        active_count = count_result.scalar() or 0
+        priority = active_count + 1
+
         goal = SavingsGoal(
             organization_id=user.organization_id,
             name=name,
@@ -39,6 +54,8 @@ class SavingsGoalService:
             start_date=start_date,
             target_date=target_date,
             account_id=account_id,
+            auto_sync=auto_sync,
+            priority=priority,
         )
 
         db.add(goal)
@@ -53,13 +70,25 @@ class SavingsGoalService:
         user: User,
         is_completed: Optional[bool] = None,
     ) -> List[SavingsGoal]:
-        """Get all savings goals for organization."""
+        """Get all savings goals for organization, ordered by priority."""
         query = select(SavingsGoal).where(SavingsGoal.organization_id == user.organization_id)
 
         if is_completed is not None:
-            query = query.where(SavingsGoal.is_completed == is_completed)
+            if is_completed:
+                # Completed = reached target OR funded
+                query = query.where(
+                    or_(SavingsGoal.is_completed == True, SavingsGoal.is_funded == True)  # noqa: E712
+                )
+            else:
+                # Active = not completed AND not funded
+                query = query.where(
+                    and_(
+                        SavingsGoal.is_completed == False,  # noqa: E712
+                        SavingsGoal.is_funded == False,  # noqa: E712
+                    )
+                )
 
-        query = query.order_by(SavingsGoal.target_date.asc().nullslast())
+        query = query.order_by(SavingsGoal.priority.asc().nullslast(), SavingsGoal.target_date.asc().nullslast())
 
         result = await db.execute(query)
         return list(result.scalars().all())
@@ -93,22 +122,24 @@ class SavingsGoalService:
         if not goal:
             return None
 
-        # Track if amount changed to check for completion
-        goal.current_amount
-
         for key, value in kwargs.items():
             if hasattr(goal, key):
                 setattr(goal, key, value)
 
-        # Auto-mark as completed if target reached
-        if goal.current_amount >= goal.target_amount and not goal.is_completed:
-            goal.is_completed = True
-            goal.completed_at = utc_now()
+        # If account_id is cleared, disable auto_sync
+        if goal.account_id is None:
+            goal.auto_sync = False
 
-        # Unmark completion if amount drops below target
-        if goal.current_amount < goal.target_amount and goal.is_completed:
-            goal.is_completed = False
-            goal.completed_at = None
+        # Auto-mark as completed if target reached (only for non-funded goals)
+        if not goal.is_funded:
+            if goal.current_amount >= goal.target_amount and not goal.is_completed:
+                goal.is_completed = True
+                goal.completed_at = utc_now()
+
+            # Unmark completion if amount drops below target
+            if goal.current_amount < goal.target_amount and goal.is_completed:
+                goal.is_completed = False
+                goal.completed_at = None
 
         goal.updated_at = utc_now()
 
@@ -163,11 +194,10 @@ class SavingsGoalService:
         if not account:
             return None
 
-        # Update current amount
         goal.current_amount = account.current_balance
 
-        # Check for completion
-        if goal.current_amount >= goal.target_amount and not goal.is_completed:
+        # Check for completion (only for non-funded goals)
+        if not goal.is_funded and goal.current_amount >= goal.target_amount and not goal.is_completed:
             goal.is_completed = True
             goal.completed_at = utc_now()
 
@@ -177,6 +207,161 @@ class SavingsGoalService:
         await db.refresh(goal)
 
         return goal
+
+    @staticmethod
+    async def fund_goal(
+        db: AsyncSession,
+        goal_id: UUID,
+        user: User,
+        method: str = "waterfall",
+    ) -> Optional[SavingsGoal]:
+        """
+        Mark a goal as funded (money has been spent on the goal).
+
+        After funding, auto-sync remaining goals so their allocations are updated.
+        """
+        goal = await SavingsGoalService.get_goal(db, goal_id, user)
+        if not goal:
+            return None
+
+        goal.is_funded = True
+        goal.funded_at = utc_now()
+        goal.updated_at = utc_now()
+
+        await db.commit()
+        await db.refresh(goal)
+
+        # Recalculate remaining auto-sync goals now that this one is excluded
+        await SavingsGoalService.auto_sync_goals(db, user, method)
+
+        return goal
+
+    @staticmethod
+    async def auto_sync_goals(
+        db: AsyncSession,
+        user: User,
+        method: str = "waterfall",
+    ) -> List[SavingsGoal]:
+        """
+        Sync all active auto-sync goals from their linked accounts.
+
+        When multiple goals share an account, balance is allocated according to method:
+        - waterfall: goals in priority order each claim up to their target
+        - proportional: balance split proportionally by target amounts
+        """
+        # Get all active auto-sync goals with an account linked, ordered by priority
+        result = await db.execute(
+            select(SavingsGoal).where(
+                and_(
+                    SavingsGoal.organization_id == user.organization_id,
+                    SavingsGoal.is_completed == False,  # noqa: E712
+                    SavingsGoal.is_funded == False,  # noqa: E712
+                    SavingsGoal.auto_sync == True,  # noqa: E712
+                    SavingsGoal.account_id.is_not(None),
+                )
+            ).order_by(SavingsGoal.priority.asc().nullslast())
+        )
+        goals = list(result.scalars().all())
+
+        if not goals:
+            return []
+
+        # Collect unique account IDs and fetch balances in one query
+        account_ids = list({g.account_id for g in goals})
+        acc_result = await db.execute(
+            select(Account).where(
+                and_(
+                    Account.id.in_(account_ids),
+                    Account.organization_id == user.organization_id,
+                )
+            )
+        )
+        accounts = {acc.id: acc for acc in acc_result.scalars().all()}
+
+        # Group goals by account_id (preserving priority order)
+        goals_by_account: Dict[UUID, List[SavingsGoal]] = defaultdict(list)
+        for goal in goals:
+            goals_by_account[goal.account_id].append(goal)
+
+        # Allocate balance per account
+        updated_goals: List[SavingsGoal] = []
+        for account_id, account_goals in goals_by_account.items():
+            account = accounts.get(account_id)
+            if not account:
+                continue
+
+            balance = account.current_balance
+
+            if method == "waterfall":
+                remaining = balance
+                for goal in account_goals:  # already sorted by priority
+                    allocated = min(remaining, goal.target_amount)
+                    goal.current_amount = max(Decimal("0"), allocated)
+                    remaining = max(Decimal("0"), remaining - allocated)
+                    updated_goals.append(goal)
+            else:  # proportional
+                total_target = sum(g.target_amount for g in account_goals)
+                for goal in account_goals:
+                    if total_target > 0:
+                        share = goal.target_amount / total_target
+                        allocated = min(balance * share, goal.target_amount)
+                    else:
+                        allocated = Decimal("0")
+                    goal.current_amount = max(Decimal("0"), allocated)
+                    updated_goals.append(goal)
+
+        # Check auto-completion for each updated goal
+        now = utc_now()
+        for goal in updated_goals:
+            if goal.current_amount >= goal.target_amount and not goal.is_completed:
+                goal.is_completed = True
+                goal.completed_at = now
+            elif goal.current_amount < goal.target_amount and goal.is_completed:
+                goal.is_completed = False
+                goal.completed_at = None
+            goal.updated_at = now
+
+        await db.commit()
+        for goal in updated_goals:
+            await db.refresh(goal)
+
+        return updated_goals
+
+    @staticmethod
+    async def reorder_goals(
+        db: AsyncSession,
+        user: User,
+        goal_ids: List[UUID],
+    ) -> bool:
+        """
+        Update priority for goals based on the provided order.
+
+        goal_ids is the desired order (first = highest priority = 1).
+        Only goals belonging to the org are updated.
+        """
+        if not goal_ids:
+            return True
+
+        # Fetch all matching goals in one query
+        result = await db.execute(
+            select(SavingsGoal).where(
+                and_(
+                    SavingsGoal.id.in_(goal_ids),
+                    SavingsGoal.organization_id == user.organization_id,
+                )
+            )
+        )
+        goals = {g.id: g for g in result.scalars().all()}
+
+        now = utc_now()
+        for position, goal_id in enumerate(goal_ids, start=1):
+            goal = goals.get(goal_id)
+            if goal:
+                goal.priority = position
+                goal.updated_at = now
+
+        await db.commit()
+        return True
 
     @staticmethod
     async def get_goal_progress(

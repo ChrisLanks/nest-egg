@@ -19,9 +19,9 @@ import {
   MenuItem,
   useToast,
   Box,
-  Button,
 } from '@chakra-ui/react';
 import { EditIcon, DeleteIcon, SettingsIcon, RepeatIcon, CheckCircleIcon } from '@chakra-ui/icons';
+import { FiMove, FiCheckSquare } from 'react-icons/fi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SavingsGoal } from '../../../types/savings-goal';
 import { savingsGoalsApi } from '../../../api/savings-goals';
@@ -29,9 +29,20 @@ import { savingsGoalsApi } from '../../../api/savings-goals';
 interface GoalCardProps {
   goal: SavingsGoal;
   onEdit: (goal: SavingsGoal) => void;
+  showFundButton?: boolean;
+  dragHandleListeners?: Record<string, unknown>;
+  dragHandleAttributes?: Record<string, unknown>;
+  method?: 'waterfall' | 'proportional';
 }
 
-export default function GoalCard({ goal, onEdit }: GoalCardProps) {
+export default function GoalCard({
+  goal,
+  onEdit,
+  showFundButton,
+  dragHandleListeners,
+  dragHandleAttributes,
+  method = 'waterfall',
+}: GoalCardProps) {
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -67,8 +78,29 @@ export default function GoalCard({ goal, onEdit }: GoalCardProps) {
     },
   });
 
-  const percentage = progress?.progress_percentage ?? 0;
+  // Fund mutation
+  const fundMutation = useMutation({
+    mutationFn: () => savingsGoalsApi.fund(goal.id, method),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      toast({
+        title: 'Goal marked as funded',
+        description: 'Remaining goals have been recalculated.',
+        status: 'success',
+        duration: 4000,
+      });
+    },
+    onError: () => {
+      toast({ title: 'Failed to fund goal', status: 'error', duration: 3000 });
+    },
+  });
+
+  const percentage = progress?.progress_percentage ?? (
+    goal.target_amount > 0 ? (goal.current_amount / goal.target_amount) * 100 : 0
+  );
+
   const getProgressColor = () => {
+    if (goal.is_funded) return 'purple';
     if (goal.is_completed) return 'green';
     if (progress?.on_track === false) return 'orange';
     return 'blue';
@@ -85,48 +117,78 @@ export default function GoalCard({ goal, onEdit }: GoalCardProps) {
     <Card>
       <CardHeader pb={2}>
         <HStack justify="space-between">
-          <VStack align="start" spacing={1}>
-            <HStack>
-              <Heading size="md">{goal.name}</Heading>
-              {goal.is_completed && <CheckCircleIcon color="green.500" />}
+          <VStack align="start" spacing={1} flex={1} minW={0}>
+            <HStack flexWrap="wrap">
+              <Heading size="md" noOfLines={1}>{goal.name}</Heading>
+              {goal.is_funded && <Badge colorScheme="purple">Funded</Badge>}
+              {goal.is_completed && !goal.is_funded && <CheckCircleIcon color="green.500" />}
+              {goal.auto_sync && (
+                <RepeatIcon
+                  color="blue.400"
+                  boxSize={3.5}
+                  title="Auto-syncs from account"
+                />
+              )}
             </HStack>
             {goal.description && (
-              <Text fontSize="sm" color="gray.600">
+              <Text fontSize="sm" color="gray.600" noOfLines={1}>
                 {goal.description}
               </Text>
             )}
           </VStack>
 
-          <Menu>
-            <MenuButton
-              as={IconButton}
-              icon={<SettingsIcon />}
-              variant="ghost"
-              size="sm"
-            />
-            <MenuList>
-              {goal.account_id && (
-                <MenuItem
-                  icon={<RepeatIcon />}
-                  onClick={() => syncMutation.mutate()}
-                  isDisabled={syncMutation.isPending}
-                >
-                  Sync from Account
+          <HStack spacing={1} flexShrink={0}>
+            {dragHandleListeners && (
+              <IconButton
+                icon={<FiMove />}
+                aria-label="Drag to reorder"
+                variant="ghost"
+                size="sm"
+                cursor="grab"
+                {...(dragHandleListeners as object)}
+                {...(dragHandleAttributes as object)}
+              />
+            )}
+            <Menu>
+              <MenuButton
+                as={IconButton}
+                icon={<SettingsIcon />}
+                variant="ghost"
+                size="sm"
+              />
+              <MenuList>
+                {showFundButton && !goal.is_funded && (
+                  <MenuItem
+                    icon={<FiCheckSquare />}
+                    onClick={() => fundMutation.mutate()}
+                    isDisabled={fundMutation.isPending}
+                  >
+                    Mark as Funded
+                  </MenuItem>
+                )}
+                {goal.account_id && !goal.auto_sync && (
+                  <MenuItem
+                    icon={<RepeatIcon />}
+                    onClick={() => syncMutation.mutate()}
+                    isDisabled={syncMutation.isPending}
+                  >
+                    Sync from Account
+                  </MenuItem>
+                )}
+                <MenuItem icon={<EditIcon />} onClick={() => onEdit(goal)}>
+                  Edit
                 </MenuItem>
-              )}
-              <MenuItem icon={<EditIcon />} onClick={() => onEdit(goal)}>
-                Edit
-              </MenuItem>
-              <MenuItem
-                icon={<DeleteIcon />}
-                onClick={() => deleteMutation.mutate()}
-                isDisabled={deleteMutation.isPending}
-                color="red.600"
-              >
-                Delete
-              </MenuItem>
-            </MenuList>
-          </Menu>
+                <MenuItem
+                  icon={<DeleteIcon />}
+                  onClick={() => deleteMutation.mutate()}
+                  isDisabled={deleteMutation.isPending}
+                  color="red.600"
+                >
+                  Delete
+                </MenuItem>
+              </MenuList>
+            </Menu>
+          </HStack>
         </HStack>
       </CardHeader>
 
@@ -139,7 +201,7 @@ export default function GoalCard({ goal, onEdit }: GoalCardProps) {
                 {formatCurrency(goal.current_amount)} of {formatCurrency(goal.target_amount)}
               </Text>
               <Text fontSize="sm" color={getProgressColor()}>
-                {percentage.toFixed(1)}%
+                {Math.min(percentage, 100).toFixed(1)}%
               </Text>
             </HStack>
             <Progress
@@ -186,8 +248,8 @@ export default function GoalCard({ goal, onEdit }: GoalCardProps) {
             </HStack>
           )}
 
-          {/* On track indicator */}
-          {progress && progress.on_track !== null && !goal.is_completed && (
+          {/* Status badges */}
+          {!goal.is_funded && progress && progress.on_track !== null && !goal.is_completed && (
             <Badge
               colorScheme={progress.on_track ? 'green' : 'orange'}
               alignSelf="flex-start"

@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.savings_goal import (
+    AutoSyncRequest,
+    ReorderRequest,
     SavingsGoalCreate,
     SavingsGoalUpdate,
     SavingsGoalResponse,
@@ -48,6 +50,46 @@ async def list_goals(
     )
     return goals
 
+
+# --- Collection-level routes must come BEFORE /{goal_id} to avoid path conflicts ---
+
+@router.post("/auto-sync", response_model=List[SavingsGoalResponse])
+async def auto_sync_goals(
+    request: AutoSyncRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Sync all active auto-sync goals from their linked accounts.
+
+    Allocation method controls how balance is split when multiple goals
+    share the same account:
+    - waterfall: priority order, each goal claims up to its target
+    - proportional: balance split proportionally by target amounts
+    """
+    updated = await savings_goal_service.auto_sync_goals(
+        db=db,
+        user=current_user,
+        method=request.method,
+    )
+    return updated
+
+
+@router.put("/reorder", status_code=204)
+async def reorder_goals(
+    request: ReorderRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reorder goals by updating their priority based on the provided order."""
+    await savings_goal_service.reorder_goals(
+        db=db,
+        user=current_user,
+        goal_ids=request.goal_ids,
+    )
+
+
+# --- Per-goal routes ---
 
 @router.get("/{goal_id}", response_model=SavingsGoalResponse)
 async def get_goal(
@@ -106,7 +148,7 @@ async def delete_goal(
         raise HTTPException(status_code=404, detail="Savings goal not found")
 
 
-@router.post("/{goal_id}/sync")
+@router.post("/{goal_id}/sync", response_model=SavingsGoalResponse)
 async def sync_goal_from_account(
     goal_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -124,6 +166,33 @@ async def sync_goal_from_account(
             status_code=404,
             detail="Savings goal not found or no account linked",
         )
+
+    return goal
+
+
+@router.post("/{goal_id}/fund", response_model=SavingsGoalResponse)
+async def fund_goal(
+    goal_id: UUID,
+    request: AutoSyncRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Mark a goal as funded (money has been used for the goal).
+
+    The goal moves to the completed section. Remaining active auto-sync
+    goals are recalculated so the funded goal's account balance is
+    redistributed to remaining goals.
+    """
+    goal = await savings_goal_service.fund_goal(
+        db=db,
+        goal_id=goal_id,
+        user=current_user,
+        method=request.method,
+    )
+
+    if not goal:
+        raise HTTPException(status_code=404, detail="Savings goal not found")
 
     return goal
 

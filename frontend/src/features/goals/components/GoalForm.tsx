@@ -2,6 +2,7 @@
  * Savings goal form for creating/editing goals
  */
 
+import { useEffect } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -13,15 +14,18 @@ import {
   Button,
   FormControl,
   FormLabel,
+  FormHelperText,
   Input,
   Select,
   VStack,
+  HStack,
   NumberInput,
   NumberInputField,
   Textarea,
+  Switch,
   useToast,
 } from '@chakra-ui/react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useWatch } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SavingsGoal, SavingsGoalCreate } from '../../../types/savings-goal';
 import { savingsGoalsApi } from '../../../api/savings-goals';
@@ -38,7 +42,7 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
   const queryClient = useQueryClient();
   const isEditing = !!goal;
 
-  const { register, handleSubmit, control, formState: { errors, isSubmitting } } = useForm<SavingsGoalCreate>({
+  const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting } } = useForm<SavingsGoalCreate>({
     defaultValues: goal ? {
       name: goal.name,
       description: goal.description ?? undefined,
@@ -47,11 +51,23 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
       start_date: goal.start_date,
       target_date: goal.target_date ?? undefined,
       account_id: goal.account_id ?? undefined,
+      auto_sync: goal.auto_sync,
     } : {
       current_amount: 0,
       start_date: new Date().toISOString().split('T')[0],
+      auto_sync: false,
     },
   });
+
+  // Watch account_id to conditionally show auto_sync toggle
+  const watchedAccountId = useWatch({ control, name: 'account_id' });
+
+  // Reset auto_sync when account is cleared
+  useEffect(() => {
+    if (!watchedAccountId) {
+      setValue('auto_sync', false);
+    }
+  }, [watchedAccountId, setValue]);
 
   // Get accounts for dropdown
   const { data: accounts = [] } = useQuery({
@@ -159,6 +175,25 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
                   ))}
                 </Select>
               </FormControl>
+
+              {/* Auto-sync toggle — only shown when an account is linked */}
+              {watchedAccountId && (
+                <FormControl>
+                  <HStack justify="space-between">
+                    <FormLabel mb={0}>Auto-sync from account balance</FormLabel>
+                    <Controller
+                      name="auto_sync"
+                      control={control}
+                      render={({ field: { value, onChange } }) => (
+                        <Switch isChecked={!!value} onChange={onChange} colorScheme="blue" />
+                      )}
+                    />
+                  </HStack>
+                  <FormHelperText>
+                    When enabled, this goal's current amount is updated automatically from the linked account on page load.
+                  </FormHelperText>
+                </FormControl>
+              )}
 
               {/* Start Date */}
               <FormControl isRequired>

@@ -59,6 +59,29 @@ export const savingsGoalsApi = {
   },
 
   /**
+   * Mark a goal as funded (money has been spent on the goal)
+   */
+  fund: async (goalId: string, method: 'waterfall' | 'proportional' = 'waterfall'): Promise<SavingsGoal> => {
+    const { data } = await api.post<SavingsGoal>(`/savings-goals/${goalId}/fund`, { method });
+    return data;
+  },
+
+  /**
+   * Sync all active auto-sync goals from their linked accounts
+   */
+  autoSync: async (method: 'waterfall' | 'proportional' = 'waterfall'): Promise<SavingsGoal[]> => {
+    const { data } = await api.post<SavingsGoal[]>('/savings-goals/auto-sync', { method });
+    return data;
+  },
+
+  /**
+   * Reorder goals by updating their priority
+   */
+  reorder: async (goalIds: string[]): Promise<void> => {
+    await api.put('/savings-goals/reorder', { goal_ids: goalIds });
+  },
+
+  /**
    * Get goal progress metrics
    */
   getProgress: async (goalId: string): Promise<SavingsGoalProgress> => {
