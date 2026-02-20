@@ -1,5 +1,7 @@
 """Authentication Pydantic schemas."""
 
+from typing import Optional
+
 from pydantic import BaseModel, EmailStr, Field
 
 from app.schemas.user import User
@@ -15,7 +17,8 @@ class RegisterRequest(BaseModel):
         description="Password must be at least 12 characters and include uppercase, lowercase, digit, and special character",
     )
     first_name: str = Field(..., min_length=1)
-    last_name: str = Field(..., min_length=1)
+    last_name: Optional[str] = None
+    display_name: Optional[str] = None
     organization_name: str = Field("My Household", min_length=1, max_length=255)
 
 

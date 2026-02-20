@@ -137,6 +137,7 @@ class TestRegisterEndpoint:
         mock_data.organization_name = "New Org"
         mock_data.first_name = "New"
         mock_data.last_name = "User"
+        mock_data.display_name = None
 
         mock_org = Mock(spec=Organization)
         mock_org.id = uuid4()
@@ -169,6 +170,7 @@ class TestRegisterEndpoint:
         mock_data.organization_name = "New Org"
         mock_data.first_name = "Admin"
         mock_data.last_name = "User"
+        mock_data.display_name = None
 
         mock_org = Mock(spec=Organization)
         mock_org.id = uuid4()
@@ -245,6 +247,70 @@ class TestRegisterEndpoint:
 
                                     call_kwargs = mock_org_create.call_args.kwargs
                                     assert call_kwargs["name"] == "Smith Family Trust"
+
+    @pytest.mark.asyncio
+    async def test_register_stores_display_name_when_provided(self):
+        """display_name provided at registration should be saved on the user."""
+        from app.api.v1.auth import register
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_data = Mock()
+        mock_data.email = "alex@example.com"
+        mock_data.password = "SecurePass123!"
+        mock_data.organization_name = "My Household"
+        mock_data.first_name = "Alex"
+        mock_data.last_name = None
+        mock_data.display_name = "Lex"
+
+        mock_org = Mock(spec=Organization)
+        mock_org.id = uuid4()
+        mock_user = Mock(spec=User)
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
+                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
+                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)):
+                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)) as mock_create:
+                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+                                with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
+                                    await register(mock_request, mock_data, mock_db)
+
+                                    call_kwargs = mock_create.call_args.kwargs
+                                    assert call_kwargs.get("display_name") == "Lex"
+
+    @pytest.mark.asyncio
+    async def test_register_works_without_last_name(self):
+        """last_name is optional — registration must succeed when omitted."""
+        from app.api.v1.auth import register
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_data = Mock()
+        mock_data.email = "solo@example.com"
+        mock_data.password = "SecurePass123!"
+        mock_data.organization_name = "My Household"
+        mock_data.first_name = "Solo"
+        mock_data.last_name = None
+        mock_data.display_name = None
+
+        mock_org = Mock(spec=Organization)
+        mock_org.id = uuid4()
+        mock_user = Mock(spec=User)
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
+                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
+                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)):
+                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)) as mock_create:
+                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+                                with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
+                                    await register(mock_request, mock_data, mock_db)
+
+                                    call_kwargs = mock_create.call_args.kwargs
+                                    assert call_kwargs.get("last_name") is None
+                                    # org name derived from first_name when default used
+                                    assert mock_create.called
 
 
 @pytest.mark.unit

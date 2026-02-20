@@ -149,7 +149,7 @@ const UserMenu = ({
   onNavigate,
   onLogout,
 }: {
-  user: { first_name?: string; last_name?: string; email?: string } | null;
+  user: { first_name?: string; last_name?: string; display_name?: string; email?: string } | null;
   onNavigate: (path: string) => void;
   onLogout: () => void;
 }) => {
@@ -188,7 +188,7 @@ const UserMenu = ({
           />
           <VStack align="start" spacing={0}>
             <Text fontSize="sm" fontWeight="medium">
-              {user?.first_name} {user?.last_name}
+              {user?.display_name || `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim() || user?.email}
             </Text>
             <Text fontSize="xs" color="gray.600">
               {user?.email}

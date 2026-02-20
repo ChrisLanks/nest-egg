@@ -8,6 +8,7 @@ export interface User {
   email: string;
   first_name: string | null;
   last_name: string | null;
+  display_name: string | null;
   is_active: boolean;
   is_org_admin: boolean;
   email_verified: boolean;

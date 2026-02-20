@@ -27,7 +27,8 @@ const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   first_name: z.string().min(1, 'First name is required'),
-  last_name: z.string().min(1, 'Last name is required'),
+  last_name: z.string().optional(),
+  display_name: z.string().optional(),
 });
 
 type RegisterFormData = z.infer<typeof registerSchema>;
@@ -103,10 +104,14 @@ export const RegisterPage = () => {
                   <FormErrorMessage>{errors.first_name?.message}</FormErrorMessage>
                 </FormControl>
 
-                <FormControl isInvalid={!!errors.last_name}>
-                  <FormLabel>Last Name</FormLabel>
+                <FormControl>
+                  <FormLabel>Last Name <Text as="span" color="gray.400" fontSize="sm">(optional)</Text></FormLabel>
                   <Input placeholder="Doe" {...register('last_name')} />
-                  <FormErrorMessage>{errors.last_name?.message}</FormErrorMessage>
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel>Display Name <Text as="span" color="gray.400" fontSize="sm">(optional)</Text></FormLabel>
+                  <Input placeholder="How you'd like to appear" {...register('display_name')} />
                 </FormControl>
 
                 <Button

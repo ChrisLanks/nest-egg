@@ -35,6 +35,7 @@ class UserCRUD:
         organization_id: UUID,
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
+        display_name: Optional[str] = None,
         is_org_admin: bool = False,
     ) -> User:
         """Create a new user."""
@@ -44,6 +45,7 @@ class UserCRUD:
             organization_id=organization_id,
             first_name=first_name,
             last_name=last_name,
+            display_name=display_name,
             is_org_admin=is_org_admin,
         )
         db.add(user)
