@@ -23,7 +23,6 @@ import {
   StatLabel,
   StatNumber,
   StatHelpText,
-  StatArrow,
   Badge,
   Table,
   Thead,
@@ -42,7 +41,7 @@ import {
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
-import { FiInfo } from 'react-icons/fi';
+import { FiInfo, FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
 import api from '../../../services/api';
 import { useUserView } from '../../../contexts/UserViewContext';
 
@@ -495,7 +494,10 @@ export const RothConversionAnalyzer: React.FC = () => {
                       </Td>
                       <Td isNumeric>
                         <HStack justify="flex-end" spacing={1}>
-                          <StatArrow type={isPaidOff ? 'increase' : 'decrease'} />
+                          <Icon
+                            as={isPaidOff ? FiTrendingUp : FiTrendingDown}
+                            color={isPaidOff ? 'green.600' : 'red.600'}
+                          />
                           <Text color={isPaidOff ? 'green.700' : 'red.600'}>
                             {formatCurrencyPrecise(Math.abs(row.net))}
                           </Text>
