@@ -17,6 +17,7 @@ import {
   ModalHeader,
   ModalOverlay,
   Spinner,
+  Text,
   useDisclosure,
   VStack,
 } from '@chakra-ui/react';
@@ -33,6 +34,7 @@ import {
   YAxis,
 } from 'recharts';
 import api from '../../../services/api';
+import { useUserView } from '../../../contexts/UserViewContext';
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-US', {
@@ -45,6 +47,7 @@ const formatCurrency = (amount: number) =>
 type TimeRange = '1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM';
 
 export const NetWorthChartWidget: React.FC = () => {
+  const { selectedUserId } = useUserView();
   const [timeRange, setTimeRange] = useState<TimeRange>(() => {
     const saved = localStorage.getItem('dashboard-timeRange');
     return (saved as TimeRange) || '1Y';
@@ -57,7 +60,16 @@ export const NetWorthChartWidget: React.FC = () => {
   );
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  const { data: historicalData, isFetching } = useQuery({
+  const { data: dashboardData } = useQuery({
+    queryKey: ['dashboard', selectedUserId],
+    queryFn: async () => {
+      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const response = await api.get('/dashboard/', { params });
+      return response.data;
+    },
+  });
+
+  const { data: historicalData, isFetching, isLoading } = useQuery({
     queryKey: ['historical-net-worth', timeRange, customStartDate, customEndDate],
     queryFn: async () => {
       const now = new Date();
@@ -105,17 +117,31 @@ export const NetWorthChartWidget: React.FC = () => {
     localStorage.setItem('dashboard-timeRange', range);
   };
 
-  if (!historicalData || historicalData.length === 0) return null;
+  const rawHistory: { snapshot_date: string; total_value: number }[] = historicalData ?? [];
+  const currentNetWorth: number | undefined = dashboardData?.summary?.net_worth;
 
-  const chartData = historicalData.map((s: { snapshot_date: string; total_value: number }) => ({
-    date: new Date(s.snapshot_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    value: Number(s.total_value),
-  }));
+  const chartData =
+    rawHistory.length > 0
+      ? rawHistory.map((s) => ({
+          date: new Date(s.snapshot_date).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+          }),
+          value: Number(s.total_value),
+        }))
+      : currentNetWorth !== undefined
+        ? [
+            {
+              date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+              value: currentNetWorth,
+            },
+          ]
+        : [];
 
   return (
     <Card>
       <CardBody position="relative">
-        {isFetching && (
+        {(isLoading || isFetching) && (
           <Box
             position="absolute"
             top={0}
@@ -145,32 +171,38 @@ export const NetWorthChartWidget: React.FC = () => {
           </ButtonGroup>
         </HStack>
 
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
-            <YAxis />
-            <Tooltip
-              formatter={(v: number) => formatCurrency(v)}
-              contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc' }}
-            />
-            <Legend />
-            <defs>
-              <linearGradient id="colorNetWorth" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3182CE" stopOpacity={0.8} />
-                <stop offset="95%" stopColor="#3182CE" stopOpacity={0.1} />
-              </linearGradient>
-            </defs>
-            <Area
-              type="monotone"
-              dataKey="value"
-              stroke="#3182CE"
-              strokeWidth={2}
-              fill="url(#colorNetWorth)"
-              name="Net Worth"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        {!isLoading && chartData.length === 0 ? (
+          <Box height={300} display="flex" alignItems="center" justifyContent="center">
+            <Text color="gray.500">No net worth data yet.</Text>
+          </Box>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip
+                formatter={(v: number) => formatCurrency(v)}
+                contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc' }}
+              />
+              <Legend />
+              <defs>
+                <linearGradient id="colorNetWorth" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3182CE" stopOpacity={0.8} />
+                  <stop offset="95%" stopColor="#3182CE" stopOpacity={0.1} />
+                </linearGradient>
+              </defs>
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="#3182CE"
+                strokeWidth={2}
+                fill="url(#colorNetWorth)"
+                name="Net Worth"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </CardBody>
 
       <Modal isOpen={isOpen} onClose={onClose} size="md">
