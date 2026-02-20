@@ -99,7 +99,9 @@ async def register(
     )
 
     # Validate password strength and check for breaches
-    await password_validation_service.validate_and_raise_async(data.password, check_breach=True)
+    await password_validation_service.validate_and_raise_async(
+        data.password, check_breach=not data.skip_breach_check
+    )
 
     # Check if user already exists
     existing_user = await user_crud.get_by_email(db, data.email)

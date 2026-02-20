@@ -3,6 +3,9 @@
  */
 
 import {
+  Alert,
+  AlertIcon,
+  AlertDescription,
   Box,
   Button,
   Container,
@@ -35,6 +38,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { useRegister } from '../hooks/useAuth';
+import { useState, useEffect } from 'react';
 
 const currentYear = new Date().getFullYear();
 
@@ -65,15 +69,38 @@ const registerSchema = z.object({
 
 type RegisterFormData = z.infer<typeof registerSchema>;
 
+const parseErrorDetail = (error: any): { description: string; breachError: string | null } => {
+  const detail = error?.response?.data?.detail;
+  if (!detail) return { description: 'An error occurred', breachError: null };
+
+  if (typeof detail === 'string') return { description: detail, breachError: null };
+
+  if (detail && typeof detail === 'object') {
+    const errors: string[] = Array.isArray(detail.errors) ? detail.errors : [];
+    const breach = errors.find((e: string) => e.includes('data breaches')) ?? null;
+    const otherErrors = errors.filter((e: string) => !e.includes('data breaches'));
+
+    const description = otherErrors.length > 0
+      ? `${detail.message}: ${otherErrors.join('; ')}`
+      : detail.message || detail.error || 'An error occurred';
+
+    return { description, breachError: breach };
+  }
+
+  return { description: 'An error occurred', breachError: null };
+};
+
 export const RegisterPage = () => {
   const toast = useToast();
   const registerMutation = useRegister();
+  const [breachError, setBreachError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
     setValue,
     watch,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -81,15 +108,25 @@ export const RegisterPage = () => {
 
   const watchedMonth = watch('birth_month');
   const watchedYear = watch('birth_year');
+  const watchedPassword = watch('password');
   const maxDay = getDaysInMonth(watchedYear, watchedMonth);
 
-  const onSubmit = async (data: RegisterFormData) => {
-    // Strip undefined optional fields so they're omitted from the request body
+  // Clear breach warning when user changes their password
+  useEffect(() => {
+    setBreachError(null);
+  }, [watchedPassword]);
+
+  const submitData = async (data: RegisterFormData, skipBreachCheck = false) => {
     const payload = Object.fromEntries(
       Object.entries(data).filter(([, v]) => v !== undefined)
-    ) as RegisterFormData;
+    );
+    await registerMutation.mutateAsync({ ...payload, skip_breach_check: skipBreachCheck } as any);
+  };
+
+  const onSubmit = async (data: RegisterFormData) => {
+    setBreachError(null);
     try {
-      await registerMutation.mutateAsync(payload);
+      await submitData(data);
       toast({
         title: 'Registration successful',
         description: 'Welcome to Nest Egg!',
@@ -97,19 +134,39 @@ export const RegisterPage = () => {
         duration: 3000,
       });
     } catch (error: any) {
-      const detail = error?.response?.data?.detail;
-      let description = 'An error occurred';
-      if (typeof detail === 'string') {
-        description = detail;
-      } else if (detail && typeof detail === 'object') {
-        if (detail.message && Array.isArray(detail.errors) && detail.errors.length > 0) {
-          description = `${detail.message}: ${detail.errors.join('; ')}`;
-        } else if (detail.message) {
-          description = detail.message;
-        } else if (detail.error) {
-          description = detail.error;
-        }
+      const { description, breachError: breach } = parseErrorDetail(error);
+      setBreachError(breach);
+      if (description && description !== 'An error occurred') {
+        toast({
+          title: 'Registration failed',
+          description,
+          status: 'error',
+          duration: 7000,
+        });
+      } else if (!breach) {
+        toast({
+          title: 'Registration failed',
+          description: 'An error occurred',
+          status: 'error',
+          duration: 7000,
+        });
       }
+    }
+  };
+
+  const handleContinueAnyway = async () => {
+    setBreachError(null);
+    const data = getValues();
+    try {
+      await submitData(data, true);
+      toast({
+        title: 'Registration successful',
+        description: 'Welcome to Nest Egg!',
+        status: 'success',
+        duration: 3000,
+      });
+    } catch (error: any) {
+      const { description } = parseErrorDetail(error);
       toast({
         title: 'Registration failed',
         description,
@@ -155,6 +212,26 @@ export const RegisterPage = () => {
                   </FormHelperText>
                   <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
                 </FormControl>
+
+                {/* Breach warning — only appears after a server-side breach check failure */}
+                {breachError && (
+                  <Alert status="warning" borderRadius="md" flexDirection="column" alignItems="flex-start" gap={2}>
+                    <Box display="flex" alignItems="flex-start" gap={2}>
+                      <AlertIcon mt={0.5} flexShrink={0} />
+                      <AlertDescription fontSize="sm">{breachError}</AlertDescription>
+                    </Box>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      colorScheme="orange"
+                      ml={6}
+                      isLoading={registerMutation.isPending}
+                      onClick={handleContinueAnyway}
+                    >
+                      Continue anyway (insecure)
+                    </Button>
+                  </Alert>
+                )}
 
                 <FormControl isInvalid={!!errors.display_name}>
                   <FormLabel>Name</FormLabel>
