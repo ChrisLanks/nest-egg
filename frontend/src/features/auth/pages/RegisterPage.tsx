@@ -69,31 +69,33 @@ const registerSchema = z.object({
 
 type RegisterFormData = z.infer<typeof registerSchema>;
 
-const parseErrorDetail = (error: any): { description: string; breachError: string | null } => {
+const parseErrorDetail = (error: any): { description: string; passwordSecurityError: string | null } => {
   const detail = error?.response?.data?.detail;
-  if (!detail) return { description: 'An error occurred', breachError: null };
+  if (!detail) return { description: 'An error occurred', passwordSecurityError: null };
 
-  if (typeof detail === 'string') return { description: detail, breachError: null };
+  if (typeof detail === 'string') return { description: detail, passwordSecurityError: null };
 
   if (detail && typeof detail === 'object') {
-    const errors: string[] = Array.isArray(detail.errors) ? detail.errors : [];
-    const breach = errors.find((e: string) => e.includes('data breaches')) ?? null;
-    const otherErrors = errors.filter((e: string) => !e.includes('data breaches'));
+    // Password security errors: {message: "Password does not meet...", errors: [...]}
+    if (detail.message?.includes('security requirements') && Array.isArray(detail.errors)) {
+      const summary = detail.errors.join('; ');
+      return {
+        description: '',
+        passwordSecurityError: summary,
+      };
+    }
 
-    const description = otherErrors.length > 0
-      ? `${detail.message}: ${otherErrors.join('; ')}`
-      : detail.message || detail.error || 'An error occurred';
-
-    return { description, breachError: breach };
+    const description = detail.message || detail.error || 'An error occurred';
+    return { description, passwordSecurityError: null };
   }
 
-  return { description: 'An error occurred', breachError: null };
+  return { description: 'An error occurred', passwordSecurityError: null };
 };
 
 export const RegisterPage = () => {
   const toast = useToast();
   const registerMutation = useRegister();
-  const [breachError, setBreachError] = useState<string | null>(null);
+  const [passwordSecurityError, setPasswordSecurityError] = useState<string | null>(null);
 
   const {
     register,
@@ -111,20 +113,20 @@ export const RegisterPage = () => {
   const watchedPassword = watch('password');
   const maxDay = getDaysInMonth(watchedYear, watchedMonth);
 
-  // Clear breach warning when user changes their password
+  // Clear security warning when user changes their password
   useEffect(() => {
-    setBreachError(null);
+    setPasswordSecurityError(null);
   }, [watchedPassword]);
 
-  const submitData = async (data: RegisterFormData, skipBreachCheck = false) => {
+  const submitData = async (data: RegisterFormData, skipValidation = false) => {
     const payload = Object.fromEntries(
       Object.entries(data).filter(([, v]) => v !== undefined)
     );
-    await registerMutation.mutateAsync({ ...payload, skip_breach_check: skipBreachCheck } as any);
+    await registerMutation.mutateAsync({ ...payload, skip_password_validation: skipValidation } as any);
   };
 
   const onSubmit = async (data: RegisterFormData) => {
-    setBreachError(null);
+    setPasswordSecurityError(null);
     try {
       await submitData(data);
       toast({
@@ -134,19 +136,12 @@ export const RegisterPage = () => {
         duration: 3000,
       });
     } catch (error: any) {
-      const { description, breachError: breach } = parseErrorDetail(error);
-      setBreachError(breach);
-      if (description && description !== 'An error occurred') {
+      const { description, passwordSecurityError: secErr } = parseErrorDetail(error);
+      setPasswordSecurityError(secErr);
+      if (description) {
         toast({
           title: 'Registration failed',
           description,
-          status: 'error',
-          duration: 7000,
-        });
-      } else if (!breach) {
-        toast({
-          title: 'Registration failed',
-          description: 'An error occurred',
           status: 'error',
           duration: 7000,
         });
@@ -155,7 +150,7 @@ export const RegisterPage = () => {
   };
 
   const handleContinueAnyway = async () => {
-    setBreachError(null);
+    setPasswordSecurityError(null);
     const data = getValues();
     try {
       await submitData(data, true);
@@ -169,7 +164,7 @@ export const RegisterPage = () => {
       const { description } = parseErrorDetail(error);
       toast({
         title: 'Registration failed',
-        description,
+        description: description || 'An error occurred',
         status: 'error',
         duration: 7000,
       });
@@ -213,12 +208,12 @@ export const RegisterPage = () => {
                   <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
                 </FormControl>
 
-                {/* Breach warning — only appears after a server-side breach check failure */}
-                {breachError && (
+                {/* Security warning — appears when server-side password checks fail */}
+                {passwordSecurityError && (
                   <Alert status="warning" borderRadius="md" flexDirection="column" alignItems="flex-start" gap={2}>
                     <Box display="flex" alignItems="flex-start" gap={2}>
                       <AlertIcon mt={0.5} flexShrink={0} />
-                      <AlertDescription fontSize="sm">{breachError}</AlertDescription>
+                      <AlertDescription fontSize="sm">{passwordSecurityError}</AlertDescription>
                     </Box>
                     <Button
                       size="sm"

@@ -24,7 +24,7 @@ class RegisterRequest(BaseModel):
     birth_day: Optional[int] = Field(None, ge=1, le=31)
     birth_month: Optional[int] = Field(None, ge=1, le=12)
     birth_year: Optional[int] = Field(None, ge=1900, le=2100)
-    skip_breach_check: bool = Field(False, description="Skip the breach check — user accepts the risk")
+    skip_password_validation: bool = Field(False, description="Skip all server-side password security checks — user accepts the risk")
 
     @model_validator(mode="after")
     def validate_birthday(self) -> "RegisterRequest":
