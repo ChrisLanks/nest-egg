@@ -667,7 +667,7 @@ export const AccountsPage = () => {
                         <VStack align="start" spacing={1}>
                           <HStack>
                             <Text fontWeight="medium">{account.name}</Text>
-                            {userMap.get(account.user_id) && (
+                            {(users?.length ?? 0) > 1 && userMap.get(account.user_id) && (
                               <Badge colorScheme="purple" fontSize="xs">
                                 {userMap.get(account.user_id)?.full_name || userMap.get(account.user_id)?.email}
                               </Badge>
