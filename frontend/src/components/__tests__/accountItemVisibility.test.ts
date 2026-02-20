@@ -131,3 +131,45 @@ describe('computeShowBadges', () => {
     expect(computeShowBadges(true, false, true)).toBe(false);
   });
 });
+
+// ── AccountsPage — owner badge visibility ─────────────────────────────────────
+//
+// mirrors: (users?.length ?? 0) > 1 && userMap.get(account.user_id)
+//
+// The purple owner badge in the accounts table is only shown when the
+// household has more than one member AND the account owner exists in the map.
+
+const computeShowOwnerBadge = (
+  users: unknown[] | null | undefined,
+  ownerInMap: boolean,
+): boolean => (users?.length ?? 0) > 1 && ownerInMap;
+
+describe('computeShowOwnerBadge (AccountsPage)', () => {
+  it('hides badge for a single-member household even if owner is in map', () => {
+    expect(computeShowOwnerBadge([{ id: 'u1' }], true)).toBe(false);
+  });
+
+  it('shows badge for a two-member household when owner is in map', () => {
+    expect(computeShowOwnerBadge([{ id: 'u1' }, { id: 'u2' }], true)).toBe(true);
+  });
+
+  it('shows badge for three or more members when owner is in map', () => {
+    expect(computeShowOwnerBadge([{}, {}, {}], true)).toBe(true);
+  });
+
+  it('hides badge when owner is not found in the map (multi-member household)', () => {
+    expect(computeShowOwnerBadge([{ id: 'u1' }, { id: 'u2' }], false)).toBe(false);
+  });
+
+  it('hides badge when users list is empty', () => {
+    expect(computeShowOwnerBadge([], true)).toBe(false);
+  });
+
+  it('hides badge when users is undefined (still loading)', () => {
+    expect(computeShowOwnerBadge(undefined, true)).toBe(false);
+  });
+
+  it('hides badge when users is null', () => {
+    expect(computeShowOwnerBadge(null, true)).toBe(false);
+  });
+});
