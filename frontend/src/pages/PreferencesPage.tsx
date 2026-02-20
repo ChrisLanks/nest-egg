@@ -111,9 +111,10 @@ export default function PreferencesPage() {
       } else if (Array.isArray(detail)) {
         description = detail[0]?.msg || 'Validation error';
       } else if (detail && typeof detail === 'object') {
-        if (detail.message) title = detail.message;
         const errors: string[] = Array.isArray(detail.errors) ? detail.errors : [];
         if (errors.length > 0) {
+          // Password validation error: message is a human-readable title, errors are the reasons
+          if (detail.message) title = detail.message;
           description = (
             <VStack align="start" spacing={1} mt={1}>
               {errors.map((msg: string, i: number) => (
@@ -121,8 +122,9 @@ export default function PreferencesPage() {
               ))}
             </VStack>
           );
-        } else if (detail.message) {
-          description = detail.message;
+        } else {
+          // Rate limit, auth errors, etc.: keep generic title, show message as description
+          description = detail.message || detail.error || 'An error occurred';
         }
       }
       toast({ title, description, status: 'error', duration: 8000 });

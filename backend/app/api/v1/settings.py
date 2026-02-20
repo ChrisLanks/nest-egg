@@ -139,12 +139,13 @@ async def change_password(
 ):
     """
     Change user's password with strength validation.
-    Rate limited to 5 password changes per hour to prevent abuse.
+    Rate limited to 10 password changes per hour to allow for legitimate
+    retries (wrong current password, validation failures) while preventing abuse.
     """
-    # Rate limit: 5 password changes per hour per IP
+    # Rate limit: 10 password changes per hour per IP
     await rate_limit_service.check_rate_limit(
         request=http_request,
-        max_requests=5,
+        max_requests=10,
         window_seconds=3600,  # 1 hour
     )
 
