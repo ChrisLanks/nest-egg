@@ -27,6 +27,7 @@ interface AddHoldingModalProps {
   onClose: () => void;
   accountId: string;
   accountName: string;
+  isCrypto?: boolean;
 }
 
 export const AddHoldingModal = ({
@@ -34,6 +35,7 @@ export const AddHoldingModal = ({
   onClose,
   accountId,
   accountName,
+  isCrypto = false,
 }: AddHoldingModalProps) => {
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -85,47 +87,51 @@ export const AddHoldingModal = ({
     <Modal isOpen={isOpen} onClose={onClose}>
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>Add Holding — {accountName}</ModalHeader>
+        <ModalHeader>{isCrypto ? 'Add Coin' : 'Add Holding'} — {accountName}</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <VStack spacing={4}>
             <FormControl isRequired>
-              <FormLabel fontSize="sm">Ticker Symbol</FormLabel>
+              <FormLabel fontSize="sm">
+                {isCrypto ? 'Symbol (e.g. BTC-USD)' : 'Ticker Symbol'}
+              </FormLabel>
               <Input
                 size="sm"
                 value={ticker}
                 onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                placeholder="e.g., AAPL, VTI, BND"
+                placeholder={isCrypto ? 'e.g., BTC-USD, ETH-USD' : 'e.g., AAPL, VTI, BND'}
                 maxLength={10}
               />
             </FormControl>
 
             <FormControl>
-              <FormLabel fontSize="sm">Name (optional)</FormLabel>
+              <FormLabel fontSize="sm">{isCrypto ? 'Coin Name (optional)' : 'Name (optional)'}</FormLabel>
               <Input
                 size="sm"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Vanguard Total Market ETF"
+                placeholder={isCrypto ? 'e.g., Bitcoin' : 'e.g., Vanguard Total Market ETF'}
                 maxLength={100}
               />
             </FormControl>
 
             <FormControl isRequired>
-              <FormLabel fontSize="sm">Shares</FormLabel>
+              <FormLabel fontSize="sm">{isCrypto ? 'Number of Coins' : 'Shares'}</FormLabel>
               <NumberInput
                 value={shares}
                 onChange={setShares}
                 min={0.000001}
-                precision={6}
+                precision={8}
                 size="sm"
               >
-                <NumberInputField placeholder="0.000000" />
+                <NumberInputField placeholder="0.00000000" />
               </NumberInput>
             </FormControl>
 
             <FormControl>
-              <FormLabel fontSize="sm">Cost Basis per Share (optional)</FormLabel>
+              <FormLabel fontSize="sm">
+                {isCrypto ? 'Cost per Coin (optional)' : 'Cost Basis per Share (optional)'}
+              </FormLabel>
               <HStack>
                 <Text fontSize="sm">$</Text>
                 <NumberInput
@@ -140,22 +146,25 @@ export const AddHoldingModal = ({
               </HStack>
             </FormControl>
 
-            <FormControl>
-              <FormLabel fontSize="sm">Asset Type (optional)</FormLabel>
-              <Select
-                size="sm"
-                value={assetType}
-                onChange={(e) => setAssetType(e.target.value)}
-                placeholder="Select type"
-              >
-                <option value="stock">Stock</option>
-                <option value="etf">ETF</option>
-                <option value="mutual_fund">Mutual Fund</option>
-                <option value="bond">Bond</option>
-                <option value="cash">Cash</option>
-                <option value="other">Other</option>
-              </Select>
-            </FormControl>
+            {!isCrypto && (
+              <FormControl>
+                <FormLabel fontSize="sm">Asset Type (optional)</FormLabel>
+                <Select
+                  size="sm"
+                  value={assetType}
+                  onChange={(e) => setAssetType(e.target.value)}
+                  placeholder="Select type"
+                >
+                  <option value="stock">Stock</option>
+                  <option value="etf">ETF</option>
+                  <option value="mutual_fund">Mutual Fund</option>
+                  <option value="bond">Bond</option>
+                  <option value="cash">Cash</option>
+                  <option value="crypto">Crypto</option>
+                  <option value="other">Other</option>
+                </Select>
+              </FormControl>
+            )}
           </VStack>
         </ModalBody>
 
@@ -174,7 +183,7 @@ export const AddHoldingModal = ({
             isLoading={mutation.isPending}
             isDisabled={!ticker || !shares}
           >
-            Add Holding
+            {isCrypto ? 'Add Coin' : 'Add Holding'}
           </Button>
         </ModalFooter>
       </ModalContent>

@@ -98,10 +98,10 @@ const CONTRIBUTION_ACCOUNT_TYPES = [
 /** Debt account types — can update balance directly when manual. */
 const DEBT_ACCOUNT_TYPES = ['credit_card', 'loan', 'student_loan', 'mortgage'];
 
-/** Investment account types that support individual holdings. */
+/** Investment account types that support individual holdings (including crypto coins). */
 const HOLDINGS_ACCOUNT_TYPES = [
   'brokerage', 'retirement_401k', 'retirement_ira', 'retirement_roth',
-  'retirement_529', 'hsa',
+  'retirement_529', 'hsa', 'crypto',
 ];
 
 const accountTypeLabels: Record<string, string> = {
@@ -533,10 +533,13 @@ export const AccountDetailPage = () => {
   // Recurring contributions only make sense for investment/savings account types
   const showContributions =
     isManual && CONTRIBUTION_ACCOUNT_TYPES.includes(account.account_type);
-  // Show a simple balance update form for manual asset accounts that don't already
-  // have their own dedicated update section (vehicle has one)
+  // Show a balance update form for any manual account that doesn't already have its
+  // own dedicated balance section (vehicle has a vehicle section, debt has a debt
+  // section — everything else, including checking/savings/brokerage/crypto, shows this)
   const showUpdateBalance =
-    isManual && isAssetAccount && account.account_type !== 'vehicle';
+    isManual
+    && account.account_type !== 'vehicle'
+    && !DEBT_ACCOUNT_TYPES.includes(account.account_type);
   // Manual debt accounts can have their balance set directly
   const showDebtBalanceUpdate =
     isManual && DEBT_ACCOUNT_TYPES.includes(account.account_type);
@@ -1037,10 +1040,10 @@ export const AccountDetailPage = () => {
                 <Table variant="simple" size="sm">
                   <Thead>
                     <Tr>
-                      <Th>Ticker</Th>
+                      <Th>Symbol</Th>
                       <Th>Name</Th>
-                      <Th isNumeric>Shares</Th>
-                      <Th isNumeric>Cost Basis/Share</Th>
+                      <Th isNumeric>{account.account_type === 'crypto' ? 'Coins' : 'Shares'}</Th>
+                      <Th isNumeric>{account.account_type === 'crypto' ? 'Cost/Coin' : 'Cost Basis/Share'}</Th>
                       <Th isNumeric>Current Value</Th>
                       {canEditAccount && isManual && <Th />}
                     </Tr>
@@ -1140,25 +1143,31 @@ export const AccountDetailPage = () => {
           </Card>
         )}
 
-        {/* Update Balance Section - For manual asset accounts (property, collectibles, etc.) */}
+        {/* Update Balance Section - For all manual accounts except vehicle and debt */}
         {showUpdateBalance && (
           <Card>
             <CardBody>
               <Heading size="md" mb={1}>
-                Update Value
+                {isAssetAccount ? 'Update Value' : 'Update Balance'}
               </Heading>
               <Text fontSize="sm" color="gray.500" mb={4}>
-                Enter the current market value of this asset to keep your net worth up to date.
+                {isAssetAccount
+                  ? 'Enter the current market value of this asset to keep your net worth up to date.'
+                  : 'Set the current balance to keep your account accurate.'}
               </Text>
               <VStack spacing={4} align="stretch">
                 {!canEditAccount ? (
                   <Text fontSize="sm" color="gray.600">
-                    Value can only be updated by the account owner.
+                    {isAssetAccount
+                      ? 'Value can only be updated by the account owner.'
+                      : 'Balance can only be updated by the account owner.'}
                   </Text>
                 ) : (
                   <>
                     <FormControl>
-                      <FormLabel fontSize="sm">Current Value ($)</FormLabel>
+                      <FormLabel fontSize="sm">
+                        {isAssetAccount ? 'Current Value ($)' : 'Current Balance ($)'}
+                      </FormLabel>
                       <HStack>
                         <Text fontSize="sm">$</Text>
                         <NumberInput
@@ -1169,7 +1178,7 @@ export const AccountDetailPage = () => {
                           size="sm"
                         >
                           <NumberInputField
-                            placeholder={balance.toFixed(2)}
+                            placeholder={Math.abs(balance).toFixed(2)}
                           />
                         </NumberInput>
                       </HStack>
@@ -1181,7 +1190,7 @@ export const AccountDetailPage = () => {
                       isLoading={updateAccountMutation.isPending}
                       isDisabled={!manualBalance}
                     >
-                      Save Value
+                      {isAssetAccount ? 'Save Value' : 'Save Balance'}
                     </Button>
                   </>
                 )}
@@ -1334,6 +1343,7 @@ export const AccountDetailPage = () => {
         onClose={onAddHoldingClose}
         accountId={account.id}
         accountName={account.name}
+        isCrypto={account.account_type === 'crypto'}
       />
 
       {/* Delete Confirmation Dialog */}

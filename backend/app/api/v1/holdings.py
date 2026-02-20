@@ -1137,7 +1137,7 @@ async def create_holding(
         )
         raise HTTPException(status_code=404, detail="Account not found")
 
-    # Verify account is an investment type
+    # Verify account is an investment or crypto type
     if account.account_type not in [
         AccountType.BROKERAGE,
         AccountType.RETIREMENT_401K,
@@ -1145,6 +1145,7 @@ async def create_holding(
         AccountType.RETIREMENT_ROTH,
         AccountType.RETIREMENT_529,
         AccountType.HSA,
+        AccountType.CRYPTO,
     ]:
         logger.warning(
             "create_holding: invalid account type account_id=%s type=%s user_id=%s",
@@ -1153,7 +1154,7 @@ async def create_holding(
             current_user.id,
         )
         raise HTTPException(
-            status_code=400, detail="Holdings can only be added to investment accounts"
+            status_code=400, detail="Holdings can only be added to investment and crypto accounts"
         )
 
     # Calculate cost basis

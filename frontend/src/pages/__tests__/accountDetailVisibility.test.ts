@@ -32,7 +32,7 @@ const DEBT_ACCOUNT_TYPES = ['credit_card', 'loan', 'student_loan', 'mortgage'];
 
 const HOLDINGS_ACCOUNT_TYPES = [
   'brokerage', 'retirement_401k', 'retirement_ira', 'retirement_roth',
-  'retirement_529', 'hsa',
+  'retirement_529', 'hsa', 'crypto',
 ];
 
 // ── helpers mirroring AccountDetailPage expressions ───────────────────────────
@@ -45,7 +45,9 @@ const showContributions = (source: string, type: string) =>
   source === 'manual' && CONTRIBUTION_ACCOUNT_TYPES.includes(type);
 
 const showUpdateBalance = (source: string, type: string) =>
-  source === 'manual' && ASSET_ACCOUNT_TYPES.includes(type) && type !== 'vehicle';
+  source === 'manual'
+  && type !== 'vehicle'
+  && !DEBT_ACCOUNT_TYPES.includes(type);
 
 const showDebtBalanceUpdate = (source: string, type: string) =>
   source === 'manual' && DEBT_ACCOUNT_TYPES.includes(type);
@@ -211,9 +213,10 @@ describe('showContributions', () => {
   });
 });
 
-// ── showUpdateBalance (asset "Update Value") ──────────────────────────────────
+// ── showUpdateBalance (all manual accounts except vehicle + debt) ─────────────
 
 describe('showUpdateBalance', () => {
+  // asset types
   it('shows for manual property', () => {
     expect(showUpdateBalance('manual', 'property')).toBe(true);
   });
@@ -234,20 +237,50 @@ describe('showUpdateBalance', () => {
     expect(showUpdateBalance('manual', 'business_equity')).toBe(true);
   });
 
+  // non-asset manual accounts (expanded behavior)
+  it('shows for manual checking', () => {
+    expect(showUpdateBalance('manual', 'checking')).toBe(true);
+  });
+
+  it('shows for manual savings', () => {
+    expect(showUpdateBalance('manual', 'savings')).toBe(true);
+  });
+
+  it('shows for manual brokerage', () => {
+    expect(showUpdateBalance('manual', 'brokerage')).toBe(true);
+  });
+
+  it('shows for manual crypto', () => {
+    expect(showUpdateBalance('manual', 'crypto')).toBe(true);
+  });
+
+  it('shows for manual retirement_401k', () => {
+    expect(showUpdateBalance('manual', 'retirement_401k')).toBe(true);
+  });
+
+  // always hidden
   it('hides for manual vehicle (has its own dedicated section)', () => {
     expect(showUpdateBalance('manual', 'vehicle')).toBe(false);
   });
 
+  it('hides for manual credit_card (has debt section)', () => {
+    expect(showUpdateBalance('manual', 'credit_card')).toBe(false);
+  });
+
+  it('hides for manual mortgage (has debt section)', () => {
+    expect(showUpdateBalance('manual', 'mortgage')).toBe(false);
+  });
+
+  it('hides for manual loan (has debt section)', () => {
+    expect(showUpdateBalance('manual', 'loan')).toBe(false);
+  });
+
+  it('hides for plaid checking (balance synced automatically)', () => {
+    expect(showUpdateBalance('plaid', 'checking')).toBe(false);
+  });
+
   it('hides for plaid property (balance synced automatically)', () => {
     expect(showUpdateBalance('plaid', 'property')).toBe(false);
-  });
-
-  it('hides for manual checking (not an asset type)', () => {
-    expect(showUpdateBalance('manual', 'checking')).toBe(false);
-  });
-
-  it('hides for manual brokerage (not an asset type)', () => {
-    expect(showUpdateBalance('manual', 'brokerage')).toBe(false);
   });
 });
 
@@ -314,6 +347,10 @@ describe('showHoldings', () => {
     expect(showHoldings('hsa')).toBe(true);
   });
 
+  it('shows for crypto', () => {
+    expect(showHoldings('crypto')).toBe(true);
+  });
+
   it('hides for savings', () => {
     expect(showHoldings('savings')).toBe(false);
   });
@@ -324,10 +361,6 @@ describe('showHoldings', () => {
 
   it('hides for property (asset, not investable)', () => {
     expect(showHoldings('property')).toBe(false);
-  });
-
-  it('hides for crypto (balance-based, not share-based)', () => {
-    expect(showHoldings('crypto')).toBe(false);
   });
 
   it('hides for mortgage', () => {
@@ -386,10 +419,10 @@ describe('section mutual exclusivity', () => {
     expect(showHoldings('property')).toBe(false);
   });
 
-  it('brokerage/IRA: showTransactions + showContributions(manual) + showHoldings are true', () => {
+  it('brokerage (manual): showTransactions + showContributions + showUpdateBalance + showHoldings', () => {
     expect(showTransactions('brokerage')).toBe(true);
     expect(showContributions('manual', 'brokerage')).toBe(true);
-    expect(showUpdateBalance('manual', 'brokerage')).toBe(false);
+    expect(showUpdateBalance('manual', 'brokerage')).toBe(true);
     expect(showDebtBalanceUpdate('manual', 'brokerage')).toBe(false);
     expect(showHoldings('brokerage')).toBe(true);
   });
@@ -402,19 +435,35 @@ describe('section mutual exclusivity', () => {
     expect(showHoldings('credit_card')).toBe(false);
   });
 
-  it('checking: only showTransactions is true (plaid or manual)', () => {
+  it('checking (manual): showTransactions + showUpdateBalance are true', () => {
     expect(showTransactions('checking')).toBe(true);
     expect(showContributions('manual', 'checking')).toBe(false);
-    expect(showUpdateBalance('manual', 'checking')).toBe(false);
+    expect(showUpdateBalance('manual', 'checking')).toBe(true);
     expect(showDebtBalanceUpdate('manual', 'checking')).toBe(false);
     expect(showHoldings('checking')).toBe(false);
   });
 
-  it('retirement_529: showTransactions + showContributions(manual) + showHoldings', () => {
+  it('checking (plaid): only showTransactions is true', () => {
+    expect(showTransactions('checking')).toBe(true);
+    expect(showContributions('plaid', 'checking')).toBe(false);
+    expect(showUpdateBalance('plaid', 'checking')).toBe(false);
+    expect(showDebtBalanceUpdate('plaid', 'checking')).toBe(false);
+    expect(showHoldings('checking')).toBe(false);
+  });
+
+  it('crypto (manual): showTransactions + showUpdateBalance + showHoldings are true', () => {
+    expect(showTransactions('crypto')).toBe(true);
+    expect(showContributions('manual', 'crypto')).toBe(false);
+    expect(showUpdateBalance('manual', 'crypto')).toBe(true);
+    expect(showDebtBalanceUpdate('manual', 'crypto')).toBe(false);
+    expect(showHoldings('crypto')).toBe(true);
+  });
+
+  it('retirement_529 (manual): showTransactions + showContributions + showUpdateBalance + showHoldings', () => {
     expect(showTransactions('retirement_529')).toBe(true);
     expect(showContributions('manual', 'retirement_529')).toBe(true);
     expect(showHoldings('retirement_529')).toBe(true);
-    expect(showUpdateBalance('manual', 'retirement_529')).toBe(false);
+    expect(showUpdateBalance('manual', 'retirement_529')).toBe(true);
     expect(showDebtBalanceUpdate('manual', 'retirement_529')).toBe(false);
   });
 });
