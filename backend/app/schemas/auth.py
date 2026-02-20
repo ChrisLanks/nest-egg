@@ -20,6 +20,7 @@ class RegisterRequest(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     organization_name: str = Field("My Household", min_length=1, max_length=255)
+    birth_month: Optional[int] = Field(None, ge=1, le=12)
     birth_year: Optional[int] = Field(None, ge=1900, le=2100)
 
 

@@ -14,6 +14,8 @@ import {
   Input,
   NumberInput,
   NumberInputField,
+  Select,
+  SimpleGrid,
   Stack,
   Text,
   Link as ChakraLink,
@@ -32,13 +34,17 @@ const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   display_name: z.string().min(1, 'Name is required'),
+  birth_month: z.number().int().min(1).max(12).optional(),
   birth_year: z
     .number()
     .int()
     .min(1900, 'Enter a valid year')
     .max(currentYear, 'Enter a valid year')
     .optional(),
-});
+}).refine(
+  (data) => !(data.birth_month && !data.birth_year) && !(!data.birth_month && data.birth_year),
+  { message: 'Both month and year are required', path: ['birth_year'] }
+);
 
 type RegisterFormData = z.infer<typeof registerSchema>;
 
@@ -118,19 +124,31 @@ export const RegisterPage = () => {
                   <FormErrorMessage>{errors.display_name?.message}</FormErrorMessage>
                 </FormControl>
 
-                <FormControl isInvalid={!!errors.birth_year}>
-                  <FormLabel>Birth Year <Text as="span" color="gray.400" fontWeight="normal">(optional)</Text></FormLabel>
-                  <NumberInput
-                    min={1900}
-                    max={currentYear}
-                    onChange={(_, value) =>
-                      setValue('birth_year', isNaN(value) ? undefined : value, { shouldValidate: true })
-                    }
-                  >
-                    <NumberInputField placeholder="e.g. 1985" />
-                  </NumberInput>
+                <FormControl isInvalid={!!errors.birth_year || !!errors.birth_month}>
+                  <FormLabel>Birthday <Text as="span" color="gray.400" fontWeight="normal">(optional)</Text></FormLabel>
+                  <SimpleGrid columns={2} spacing={2}>
+                    <Select
+                      placeholder="Month"
+                      onChange={(e) =>
+                        setValue('birth_month', e.target.value ? parseInt(e.target.value) : undefined, { shouldValidate: true })
+                      }
+                    >
+                      {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => (
+                        <option key={i + 1} value={i + 1}>{m}</option>
+                      ))}
+                    </Select>
+                    <NumberInput
+                      min={1900}
+                      max={currentYear}
+                      onChange={(_, value) =>
+                        setValue('birth_year', isNaN(value) ? undefined : value, { shouldValidate: true })
+                      }
+                    >
+                      <NumberInputField placeholder="Year" />
+                    </NumberInput>
+                  </SimpleGrid>
                   <FormHelperText>Used for RMD calculations — can be set later in preferences.</FormHelperText>
-                  <FormErrorMessage>{errors.birth_year?.message}</FormErrorMessage>
+                  <FormErrorMessage>{errors.birth_year?.message || errors.birth_month?.message}</FormErrorMessage>
                 </FormControl>
 
                 <Button

@@ -9,9 +9,8 @@ import {
   Input,
   NumberInput,
   NumberInputField,
-  NumberInputStepper,
-  NumberIncrementStepper,
-  NumberDecrementStepper,
+  Select,
+  SimpleGrid,
   Stack,
   Text,
   useToast,
@@ -24,6 +23,7 @@ import api from '../services/api';
 interface UpdateProfileData {
   display_name?: string;
   email?: string;
+  birth_month?: number | null;
   birth_year?: number | null;
 }
 
@@ -41,6 +41,7 @@ export default function PreferencesPage() {
 
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
+  const [birthMonth, setBirthMonth] = useState<number | null>(null);
   const [birthYear, setBirthYear] = useState<number | null>(null);
 
   // Password state
@@ -57,6 +58,7 @@ export default function PreferencesPage() {
       // display_name is primary; fall back to first+last for existing users
       setDisplayName(data.display_name || `${data.first_name || ''} ${data.last_name || ''}`.trim() || '');
       setEmail(data.email || '');
+      setBirthMonth(data.birth_month || null);
       setBirthYear(data.birth_year || null);
       return data;
     },
@@ -135,6 +137,7 @@ export default function PreferencesPage() {
     updateProfileMutation.mutate({
       display_name: displayName,
       email: email,
+      birth_month: birthMonth,
       birth_year: birthYear,
     });
   };
@@ -203,19 +206,26 @@ export default function PreferencesPage() {
             </FormControl>
 
             <FormControl>
-              <FormLabel>Birth Year</FormLabel>
-              <NumberInput
-                value={birthYear || ''}
-                onChange={(_, value) => setBirthYear(isNaN(value) ? null : value)}
-                min={1900}
-                max={new Date().getFullYear()}
-              >
-                <NumberInputField placeholder="e.g., 1980" />
-                <NumberInputStepper>
-                  <NumberIncrementStepper />
-                  <NumberDecrementStepper />
-                </NumberInputStepper>
-              </NumberInput>
+              <FormLabel>Birthday</FormLabel>
+              <SimpleGrid columns={2} spacing={2}>
+                <Select
+                  placeholder="Month"
+                  value={birthMonth || ''}
+                  onChange={(e) => setBirthMonth(e.target.value ? parseInt(e.target.value) : null)}
+                >
+                  {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => (
+                    <option key={i + 1} value={i + 1}>{m}</option>
+                  ))}
+                </Select>
+                <NumberInput
+                  value={birthYear || ''}
+                  onChange={(_, value) => setBirthYear(isNaN(value) ? null : value)}
+                  min={1900}
+                  max={new Date().getFullYear()}
+                >
+                  <NumberInputField placeholder="Year" />
+                </NumberInput>
+              </SimpleGrid>
               <FormHelperText>
                 Used for RMD (Required Minimum Distribution) calculations. Leave blank to hide RMD.
               </FormHelperText>

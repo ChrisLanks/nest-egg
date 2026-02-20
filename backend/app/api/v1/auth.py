@@ -129,6 +129,7 @@ async def register(
         first_name=data.first_name,
         last_name=data.last_name,
         display_name=data.display_name,
+        birth_month=data.birth_month,
         birth_year=data.birth_year,
         is_org_admin=True,  # First user is always org admin
     )

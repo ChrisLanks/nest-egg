@@ -294,6 +294,7 @@ class TestRegisterEndpoint:
         mock_data.display_name = "Solo"
         mock_data.first_name = None
         mock_data.last_name = None
+        mock_data.birth_month = None
         mock_data.birth_year = None
 
         mock_org = Mock(spec=Organization)
@@ -316,8 +317,8 @@ class TestRegisterEndpoint:
                                     assert org_call_kwargs["name"] == "Solo's Household"
 
     @pytest.mark.asyncio
-    async def test_register_stores_birth_year_when_provided(self):
-        """birth_year provided at registration should be passed to user_crud.create()."""
+    async def test_register_stores_birthday_when_provided(self):
+        """birth_month + birth_year provided at registration should be passed to user_crud.create()."""
         from app.api.v1.auth import register
 
         mock_request = Mock()
@@ -329,6 +330,7 @@ class TestRegisterEndpoint:
         mock_data.display_name = "Young"
         mock_data.first_name = None
         mock_data.last_name = None
+        mock_data.birth_month = 6
         mock_data.birth_year = 1990
 
         mock_org = Mock(spec=Organization)
@@ -345,11 +347,12 @@ class TestRegisterEndpoint:
                                     await register(mock_request, mock_data, mock_db)
 
                                     call_kwargs = mock_create.call_args.kwargs
+                                    assert call_kwargs.get("birth_month") == 6
                                     assert call_kwargs.get("birth_year") == 1990
 
     @pytest.mark.asyncio
-    async def test_register_omits_birth_year_when_not_provided(self):
-        """birth_year is optional — None should be passed when omitted."""
+    async def test_register_omits_birthday_when_not_provided(self):
+        """birthday is optional — None should be passed for both fields when omitted."""
         from app.api.v1.auth import register
 
         mock_request = Mock()
@@ -361,6 +364,7 @@ class TestRegisterEndpoint:
         mock_data.display_name = "NoBday"
         mock_data.first_name = None
         mock_data.last_name = None
+        mock_data.birth_month = None
         mock_data.birth_year = None
 
         mock_org = Mock(spec=Organization)
@@ -377,15 +381,16 @@ class TestRegisterEndpoint:
                                     await register(mock_request, mock_data, mock_db)
 
                                     call_kwargs = mock_create.call_args.kwargs
+                                    assert call_kwargs.get("birth_month") is None
                                     assert call_kwargs.get("birth_year") is None
 
 
 @pytest.mark.unit
 class TestRegisterRequestSchema:
-    """Test RegisterRequest schema validation for birth_year."""
+    """Test RegisterRequest schema validation for birthday fields."""
 
-    def test_birth_year_optional_absent(self):
-        """birth_year omitted → None."""
+    def test_birthday_optional_absent(self):
+        """birth_month and birth_year omitted → both None."""
         from app.schemas.auth import RegisterRequest
 
         req = RegisterRequest(
@@ -393,18 +398,21 @@ class TestRegisterRequestSchema:
             password="SecurePass123!",
             display_name="Alice",
         )
+        assert req.birth_month is None
         assert req.birth_year is None
 
-    def test_birth_year_valid(self):
-        """Valid birth_year is accepted."""
+    def test_birthday_valid_with_month_and_year(self):
+        """Valid birth_month and birth_year are accepted."""
         from app.schemas.auth import RegisterRequest
 
         req = RegisterRequest(
             email="a@example.com",
             password="SecurePass123!",
             display_name="Alice",
+            birth_month=6,
             birth_year=1985,
         )
+        assert req.birth_month == 6
         assert req.birth_year == 1985
 
     def test_birth_year_too_low_rejected(self):
@@ -417,6 +425,7 @@ class TestRegisterRequestSchema:
                 email="a@example.com",
                 password="SecurePass123!",
                 display_name="Alice",
+                birth_month=1,
                 birth_year=1899,
             )
 
@@ -430,7 +439,36 @@ class TestRegisterRequestSchema:
                 email="a@example.com",
                 password="SecurePass123!",
                 display_name="Alice",
+                birth_month=1,
                 birth_year=2101,
+            )
+
+    def test_birth_month_too_low_rejected(self):
+        """birth_month < 1 is rejected."""
+        from app.schemas.auth import RegisterRequest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            RegisterRequest(
+                email="a@example.com",
+                password="SecurePass123!",
+                display_name="Alice",
+                birth_month=0,
+                birth_year=1990,
+            )
+
+    def test_birth_month_too_high_rejected(self):
+        """birth_month > 12 is rejected."""
+        from app.schemas.auth import RegisterRequest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            RegisterRequest(
+                email="a@example.com",
+                password="SecurePass123!",
+                display_name="Alice",
+                birth_month=13,
+                birth_year=1990,
             )
 
     def test_birth_year_boundary_1900_accepted(self):
@@ -441,6 +479,7 @@ class TestRegisterRequestSchema:
             email="a@example.com",
             password="SecurePass123!",
             display_name="Alice",
+            birth_month=1,
             birth_year=1900,
         )
         assert req.birth_year == 1900
@@ -453,18 +492,52 @@ class TestRegisterRequestSchema:
             email="a@example.com",
             password="SecurePass123!",
             display_name="Alice",
+            birth_month=12,
             birth_year=2100,
         )
         assert req.birth_year == 2100
 
 
 @pytest.mark.unit
-class TestUserCRUDBirthYear:
-    """Test user_crud.create() converts birth_year to birthdate correctly."""
+class TestUserCRUDBirthday:
+    """Test user_crud.create() converts birth_month + birth_year to birthdate correctly."""
 
     @pytest.mark.asyncio
-    async def test_create_sets_birthdate_from_birth_year(self):
-        """birth_year converts to date(year, 1, 1) stored on user."""
+    async def test_create_sets_birthdate_from_month_and_year(self):
+        """birth_month + birth_year converts to date(year, month, 1) stored on user."""
+        from app.crud.user import UserCRUD
+        from datetime import date
+
+        mock_db = AsyncMock()
+        mock_db.add = Mock()
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+
+        captured_user = None
+
+        def capture_add(user):
+            nonlocal captured_user
+            captured_user = user
+
+        mock_db.add.side_effect = capture_add
+
+        with patch("app.crud.user.hash_password", return_value="hashed"):
+            await UserCRUD.create(
+                db=mock_db,
+                email="test@example.com",
+                password="password",
+                organization_id=uuid4(),
+                display_name="Test",
+                birth_month=6,
+                birth_year=1990,
+            )
+
+        assert captured_user is not None
+        assert captured_user.birthdate == date(1990, 6, 1)
+
+    @pytest.mark.asyncio
+    async def test_create_sets_birthdate_from_year_only(self):
+        """birth_year without birth_month defaults to January (month=1)."""
         from app.crud.user import UserCRUD
         from datetime import date
 
@@ -495,8 +568,8 @@ class TestUserCRUDBirthYear:
         assert captured_user.birthdate == date(1990, 1, 1)
 
     @pytest.mark.asyncio
-    async def test_create_leaves_birthdate_none_when_birth_year_omitted(self):
-        """No birth_year → birthdate is None."""
+    async def test_create_leaves_birthdate_none_when_birthday_omitted(self):
+        """No birthday fields → birthdate is None."""
         from app.crud.user import UserCRUD
 
         mock_db = AsyncMock()

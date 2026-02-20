@@ -29,6 +29,7 @@ class UserProfileResponse(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     display_name: Optional[str] = None
+    birth_month: Optional[int] = None
     birth_year: Optional[int] = None
     is_org_admin: bool
 
@@ -69,6 +70,7 @@ async def get_user_profile(
         first_name=current_user.first_name,
         last_name=current_user.last_name,
         display_name=current_user.display_name,
+        birth_month=current_user.birthdate.month if current_user.birthdate else None,
         birth_year=current_user.birthdate.year if current_user.birthdate else None,
         is_org_admin=current_user.is_org_admin,
     )
@@ -100,11 +102,15 @@ async def update_user_profile(
     if update_data.display_name is not None:
         current_user.display_name = update_data.display_name
 
-    # Update birth year (convert to birthdate using January 1st)
-    if update_data.birth_year is not None:
+    # Update birthday (requires both month and year)
+    if update_data.birth_month is not None and update_data.birth_year is not None:
         if update_data.birth_year < 1900 or update_data.birth_year > 2100:
             raise HTTPException(status_code=400, detail="Invalid birth year")
-        current_user.birthdate = date(update_data.birth_year, 1, 1)
+        if update_data.birth_month < 1 or update_data.birth_month > 12:
+            raise HTTPException(status_code=400, detail="Invalid birth month")
+        current_user.birthdate = date(update_data.birth_year, update_data.birth_month, 1)
+    elif update_data.birth_month is not None or update_data.birth_year is not None:
+        raise HTTPException(status_code=400, detail="Both birth_month and birth_year must be provided together")
 
     # Email update requires additional verification (not implemented here)
     if update_data.email is not None and update_data.email != current_user.email:
@@ -125,6 +131,7 @@ async def update_user_profile(
         first_name=current_user.first_name,
         last_name=current_user.last_name,
         display_name=current_user.display_name,
+        birth_month=current_user.birthdate.month if current_user.birthdate else None,
         birth_year=current_user.birthdate.year if current_user.birthdate else None,
         is_org_admin=current_user.is_org_admin,
     )

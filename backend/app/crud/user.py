@@ -36,10 +36,17 @@ class UserCRUD:
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
         display_name: Optional[str] = None,
+        birth_month: Optional[int] = None,
         birth_year: Optional[int] = None,
         is_org_admin: bool = False,
     ) -> User:
         """Create a new user."""
+        if birth_year and birth_month:
+            birthdate = date(birth_year, birth_month, 1)
+        elif birth_year:
+            birthdate = date(birth_year, 1, 1)
+        else:
+            birthdate = None
         user = User(
             email=email,
             password_hash=hash_password(password),
@@ -47,7 +54,7 @@ class UserCRUD:
             first_name=first_name,
             last_name=last_name,
             display_name=display_name,
-            birthdate=date(birth_year, 1, 1) if birth_year else None,
+            birthdate=birthdate,
             is_org_admin=is_org_admin,
         )
         db.add(user)

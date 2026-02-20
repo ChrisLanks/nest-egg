@@ -8,6 +8,7 @@ export interface RegisterRequest {
   email: string;
   password: string;
   display_name: string;
+  birth_month?: number;
   birth_year?: number;
 }
 
