@@ -98,7 +98,7 @@ export const MerchantSelect = ({
 
   return (
     <FormControl isRequired={isRequired} ref={wrapperRef} position="relative">
-      <FormLabel>{label}</FormLabel>
+      {label && <FormLabel>{label}</FormLabel>}
       <Input
         size={size}
         value={inputValue}

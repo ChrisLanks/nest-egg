@@ -44,6 +44,7 @@ import {
 import api from '../services/api';
 import { ConditionValueInput } from './ConditionValueInput';
 import { ActionValueInput } from './ActionValueInput';
+import { FIELD_OPERATORS, resolveOperatorForField } from '../utils/ruleUtils';
 
 interface RuleBuilderModalProps {
   isOpen: boolean;
@@ -69,6 +70,8 @@ const OPERATOR_LABELS: Record<ConditionOperator, string> = {
   [ConditionOperator.BETWEEN]: 'Between',
   [ConditionOperator.REGEX]: 'Regex',
 };
+
+// FIELD_OPERATORS and resolveOperatorForField are imported from ../utils/ruleUtils
 
 export const RuleBuilderModal = ({
   isOpen,
@@ -160,7 +163,15 @@ export const RuleBuilderModal = ({
 
   const updateCondition = (index: number, updates: Partial<RuleCondition>) => {
     const newConditions = [...conditions];
-    newConditions[index] = { ...newConditions[index], ...updates };
+    const current = newConditions[index];
+    const merged = { ...current, ...updates };
+
+    // If the field changed, keep or reset the operator via the utility
+    if (updates.field && updates.field !== current.field) {
+      merged.operator = resolveOperatorForField(merged.operator, updates.field);
+    }
+
+    newConditions[index] = merged;
     setConditions(newConditions);
   };
 
@@ -331,9 +342,9 @@ export const RuleBuilderModal = ({
                             })
                           }
                         >
-                          {Object.entries(OPERATOR_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
+                          {FIELD_OPERATORS[condition.field].map((op) => (
+                            <option key={op} value={op}>
+                              {OPERATOR_LABELS[op]}
                             </option>
                           ))}
                         </Select>

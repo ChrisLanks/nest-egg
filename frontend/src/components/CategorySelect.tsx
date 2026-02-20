@@ -15,6 +15,7 @@ import {
 import { useState, useRef, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
+import { categoriesApi } from '../api/categories';
 
 interface CategorySelectProps {
   value: string;
@@ -37,28 +38,44 @@ export const CategorySelect = ({
   const [inputValue, setInputValue] = useState(value);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Fetch all unique categories from transactions
-  const { data: categories } = useQuery({
+  // Fetch registered categories (shared cache with BudgetForm)
+  const { data: registeredCategories = [] } = useQuery({
     queryKey: ['categories'],
+    queryFn: categoriesApi.getCategories,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch category names that appear in transactions
+  const { data: transactionCategoryNames = [] } = useQuery({
+    queryKey: ['transaction-category-names'],
     queryFn: async () => {
       const response = await api.get('/transactions', {
-        params: { page_size: 1000 }, // Get many to collect all categories
+        params: { page_size: 1000 },
       });
       const transactions = response.data.transactions;
-      const uniqueCategories = new Set<string>();
+      const uniqueNames = new Set<string>();
       transactions.forEach((txn: any) => {
         if (txn.category_primary) {
-          uniqueCategories.add(txn.category_primary);
+          uniqueNames.add(txn.category_primary);
         }
       });
-      return Array.from(uniqueCategories).sort();
+      return Array.from(uniqueNames);
     },
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
+
+  // Merge and deduplicate: registered category names + transaction-derived names
+  const categories = useMemo(() => {
+    const names = new Set<string>([
+      ...registeredCategories.map((c) => c.name),
+      ...transactionCategoryNames,
+    ]);
+    return Array.from(names).sort();
+  }, [registeredCategories, transactionCategoryNames]);
 
   // Filter categories based on input
   const filteredCategories = useMemo(() => {
-    if (!categories) return [];
+    if (!categories.length) return [];
     if (!inputValue.trim()) return categories;
 
     const searchTerm = inputValue.toLowerCase();
@@ -104,7 +121,7 @@ export const CategorySelect = ({
 
   return (
     <FormControl isRequired={isRequired} ref={wrapperRef} position="relative">
-      <FormLabel>{label}</FormLabel>
+      {label && <FormLabel>{label}</FormLabel>}
       <Input
         size={size}
         value={inputValue}
