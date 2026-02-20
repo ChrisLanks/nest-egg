@@ -78,17 +78,11 @@ export default function PreferencesPage() {
     },
     onError: (error: any) => {
       const detail = error.response?.data?.detail;
-      const description = typeof detail === 'string'
-        ? detail
-        : Array.isArray(detail)
-        ? detail[0]?.msg || 'Validation error'
-        : 'An error occurred';
-      toast({
-        title: 'Failed to update profile',
-        description,
-        status: 'error',
-        duration: 5000,
-      });
+      let description = 'An error occurred';
+      if (typeof detail === 'string') description = detail;
+      else if (Array.isArray(detail)) description = detail[0]?.msg || 'Validation error';
+      else if (detail?.message) description = detail.message;
+      toast({ title: 'Failed to update profile', description, status: 'error', duration: 5000 });
     },
   });
 
@@ -110,17 +104,28 @@ export default function PreferencesPage() {
     },
     onError: (error: any) => {
       const detail = error.response?.data?.detail;
-      const description = typeof detail === 'string'
-        ? detail
-        : Array.isArray(detail)
-        ? detail[0]?.msg || 'Validation error'
-        : 'An error occurred';
-      toast({
-        title: 'Failed to change password',
-        description,
-        status: 'error',
-        duration: 5000,
-      });
+      let title = 'Failed to change password';
+      let description: any = 'An error occurred';
+      if (typeof detail === 'string') {
+        description = detail;
+      } else if (Array.isArray(detail)) {
+        description = detail[0]?.msg || 'Validation error';
+      } else if (detail && typeof detail === 'object') {
+        if (detail.message) title = detail.message;
+        const errors: string[] = Array.isArray(detail.errors) ? detail.errors : [];
+        if (errors.length > 0) {
+          description = (
+            <VStack align="start" spacing={1} mt={1}>
+              {errors.map((msg: string, i: number) => (
+                <Text key={i} fontSize="sm">• {msg}</Text>
+              ))}
+            </VStack>
+          );
+        } else if (detail.message) {
+          description = detail.message;
+        }
+      }
+      toast({ title, description, status: 'error', duration: 8000 });
     },
   });
 
