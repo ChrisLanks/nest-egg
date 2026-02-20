@@ -19,6 +19,8 @@ EXEMPT_PATHS = [
     "/health",
     "/metrics",
     "/favicon.ico",
+    # Auth endpoints use their own per-endpoint Redis rate limits in auth.py
+    "/api/v1/auth/",
 ]
 
 

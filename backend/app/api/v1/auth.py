@@ -156,10 +156,10 @@ async def login(
     Returns access and refresh tokens.
     Rate limited to 5 attempts per minute per IP to prevent brute force attacks.
     """
-    # Rate limit: 5 login attempts per minute per IP
+    # Rate limit: 10 login attempts per minute per IP
     await rate_limit_service.check_rate_limit(
         request=request,
-        max_requests=5,
+        max_requests=10,
         window_seconds=60,
     )
 
