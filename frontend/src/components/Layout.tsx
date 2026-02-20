@@ -273,6 +273,7 @@ const TopNavItem = ({
 interface AccountItemProps {
   account: DedupedAccount;
   onAccountClick: (accountId: string) => void;
+  isMultiUser: boolean;
   currentUserId?: string;
   getUserColor: (userId: string) => string;
   getUserBgColor: (userId: string) => string | undefined;
@@ -285,6 +286,7 @@ interface AccountItemProps {
 const AccountItem = ({
   account,
   onAccountClick,
+  isMultiUser,
   currentUserId,
   getUserColor,
   getUserBgColor,
@@ -322,9 +324,9 @@ const AccountItem = ({
   const isNegative = balance < 0;
   const isOwnedByCurrentUser = account.owner_ids.includes(currentUserId || "");
 
-  // Get background color from primary owner (first in list)
+  // Get background color: owner color in multi-user view, subtle grey otherwise
   const primaryOwnerId = account.owner_ids[0];
-  const bgColor = isCombinedView ? getUserBgColor(primaryOwnerId) : undefined;
+  const bgColor = isCombinedView && isMultiUser ? getUserBgColor(primaryOwnerId) : "gray.50";
 
   // Check for sync errors
   const hasSyncError = account.last_error_code || account.needs_reauth;
@@ -338,12 +340,12 @@ const AccountItem = ({
       py={1.5}
       ml={5}
       bg={bgColor}
-      _hover={{ bg: bgColor ? bgColor : "gray.50", opacity: 0.8 }}
+      _hover={{ bg: bgColor, opacity: 0.8 }}
       cursor="pointer"
       borderRadius="md"
       transition="all 0.2s"
       onClick={() => onAccountClick(account.id)}
-      borderLeftWidth={isOwnedByCurrentUser ? 3 : 0}
+      borderLeftWidth={isOwnedByCurrentUser && isMultiUser ? 3 : 0}
       borderLeftColor="brand.500"
     >
       <VStack align="stretch" spacing={1}>
@@ -381,7 +383,7 @@ const AccountItem = ({
           <Text fontSize="2xs" color="gray.500">
             {formatLastUpdated(account.balance_as_of)}
           </Text>
-          {isCombinedView && membersLoaded && (
+          {isCombinedView && membersLoaded && isMultiUser && (
             <HStack spacing={1}>
               {account.owner_ids.map((ownerId) => (
                 <Tooltip
@@ -447,7 +449,14 @@ export const Layout = () => {
 
   const [collapsedSections, setCollapsedSections] = useState<
     Record<string, boolean>
-  >({});
+  >(() => {
+    try {
+      const stored = localStorage.getItem('nav-collapsed-sections');
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
 
   // Navigation helper that preserves query params
   const navigateWithParams = (path: string) => {
@@ -674,10 +683,13 @@ export const Layout = () => {
   };
 
   const toggleSection = (sectionName: string) => {
-    setCollapsedSections((prev) => ({
-      ...prev,
-      [sectionName]: !prev[sectionName],
-    }));
+    setCollapsedSections((prev) => {
+      const next = { ...prev, [sectionName]: !prev[sectionName] };
+      try {
+        localStorage.setItem('nav-collapsed-sections', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
   const formatCurrency = (amount: number) => {
@@ -964,6 +976,7 @@ export const Layout = () => {
                           <AccountItem
                             key={account.id}
                             account={account}
+                            isMultiUser={!!members && members.length > 1}
                             onAccountClick={handleAccountClick}
                             currentUserId={user?.id}
                             getUserColor={getUserColor}
