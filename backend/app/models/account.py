@@ -363,6 +363,17 @@ class Account(Base):
     ownership_percentage = Column(Numeric(5, 2), nullable=True)  # Percentage ownership (0-100)
     equity_value = Column(Numeric(15, 2), nullable=True)  # Direct equity value (alternative to valuation + percentage)
 
+    # Property auto-valuation fields (used with ATTOM API)
+    property_address = Column(String(255), nullable=True)   # Street address (e.g. "123 Main St")
+    property_zip = Column(String(10), nullable=True)        # ZIP / postal code
+
+    # Vehicle auto-valuation fields (used with MarketCheck API + NHTSA VIN decode)
+    vehicle_vin = Column(String(17), nullable=True)         # VIN for auto-decode + valuation
+    vehicle_mileage = Column(Integer, nullable=True)        # Current odometer for market value
+
+    # Auto-valuation metadata (property + vehicle)
+    last_auto_valued_at = Column(DateTime, nullable=True)   # When balance was last set by the API
+
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)

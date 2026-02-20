@@ -143,6 +143,19 @@ export const VehicleAccountForm = ({
           </FormControl>
         </HStack>
 
+        <FormControl>
+          <FormLabel>VIN <Text as="span" fontSize="xs" color="gray.500">(optional — enables auto-valuation)</Text></FormLabel>
+          <Input
+            {...register('vin')}
+            placeholder="e.g., 1HGBH41JXMN109186"
+            maxLength={17}
+            textTransform="uppercase"
+          />
+          <Text fontSize="xs" color="gray.500" mt={1}>
+            17-character Vehicle Identification Number. Enables automatic market value updates.
+          </Text>
+        </FormControl>
+
         <Box p={4} bg="blue.50" borderRadius="md" borderWidth={1} borderColor="blue.200">
           <Text fontSize="sm" color="blue.800" mb={2}>
             💡 <strong>Need help estimating your vehicle's value?</strong>

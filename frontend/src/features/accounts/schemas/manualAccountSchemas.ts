@@ -147,6 +147,7 @@ export type InvestmentAccountFormData = z.infer<typeof investmentAccountSchema>;
 export const propertyAccountSchema = z.object({
   name: z.string().min(1, 'Property name is required'),
   address: z.string().min(1, 'Address is required'),
+  zip_code: z.string().max(10).optional(),
   property_classification: z.enum(['personal_residence', 'investment', 'vacation_home']).default('personal_residence'),
   property_type: z.enum(['single_family', 'condo', 'townhouse', 'multi_family', 'other']).default('single_family'),
   value: z.number().or(z.string().transform((val) => parseFloat(val))).refine((val) => val > 0, 'Value must be greater than 0'),
@@ -162,6 +163,7 @@ export const vehicleAccountSchema = z.object({
   model: z.string().min(1, 'Model is required'),
   year: z.number().or(z.string().transform((val) => parseInt(val, 10))).refine((val) => val >= 1900 && val <= new Date().getFullYear() + 1, 'Invalid year'),
   mileage: z.number().or(z.string().transform((val) => parseInt(val, 10))).optional(),
+  vin: z.string().max(17).optional(),
   value: z.number().or(z.string().transform((val) => parseFloat(val))).refine((val) => val > 0, 'Value must be greater than 0'),
   loan_balance: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
   include_in_networth: z.boolean().optional(),

@@ -398,10 +398,165 @@ async def update_account(
     if account_data.equity_value is not None:
         account.equity_value = account_data.equity_value
 
+    # Property auto-valuation fields
+    if account_data.property_address is not None:
+        account.property_address = account_data.property_address
+    if account_data.property_zip is not None:
+        account.property_zip = account_data.property_zip
+
+    # Vehicle auto-valuation fields
+    if account_data.vehicle_vin is not None:
+        account.vehicle_vin = account_data.vehicle_vin.upper()
+    if account_data.vehicle_mileage is not None:
+        account.vehicle_mileage = account_data.vehicle_mileage
+
     await db.commit()
     await db.refresh(account)
 
     return account
+
+
+@router.get("/valuation-providers")
+async def get_valuation_providers(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Return the lists of configured valuation providers.
+
+    The frontend uses this to decide whether to show/hide the "Refresh
+    Valuation" button and, when multiple providers are available, render
+    a provider selector.
+
+    Response shape:
+        {
+            "property": ["rentcast", "attom"],   # zero or more
+            "vehicle":  ["marketcheck"]           # zero or more
+        }
+    """
+    from app.services.valuation_service import (
+        get_available_property_providers,
+        get_available_vehicle_providers,
+    )
+    return {
+        "property": get_available_property_providers(),
+        "vehicle": get_available_vehicle_providers(),
+    }
+
+
+@router.post("/{account_id}/refresh-valuation")
+async def refresh_account_valuation(
+    account_id: UUID,
+    provider: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Refresh the current_balance of a property or vehicle account via
+    the configured auto-valuation APIs.
+
+    Optional query param:
+        provider=rentcast|attom|marketcheck
+    When omitted, the first available configured provider is used.
+    """
+    from datetime import datetime, timezone
+    from app.services.valuation_service import (
+        get_property_value,
+        get_vehicle_value,
+        decode_vin_nhtsa,
+        get_available_property_providers,
+        get_available_vehicle_providers,
+    )
+    from fastapi import HTTPException
+
+    result = await db.execute(
+        select(Account).where(
+            Account.id == account_id,
+            Account.organization_id == current_user.organization_id,
+        )
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    valuation_result = None
+    vin_info = None
+
+    if account.account_type == AccountType.PROPERTY:
+        if not account.property_address or not account.property_zip:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Set property_address and property_zip on this account "
+                    "before requesting an auto-valuation."
+                ),
+            )
+        if not get_available_property_providers():
+            logger.warning(
+                "property_valuation: no provider configured — "
+                "set RENTCAST_API_KEY (free) or ATTOM_API_KEY"
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="Automatic property valuation is not available at this time.",
+            )
+        valuation_result = await get_property_value(
+            account.property_address, account.property_zip, provider=provider
+        )
+
+    elif account.account_type == AccountType.VEHICLE:
+        if account.vehicle_vin:
+            vin_info = await decode_vin_nhtsa(account.vehicle_vin)
+
+        if not get_available_vehicle_providers():
+            logger.warning(
+                "vehicle_valuation: no provider configured — set MARKETCHECK_API_KEY"
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="Automatic vehicle valuation is not available at this time.",
+            )
+        if not account.vehicle_vin:
+            raise HTTPException(
+                status_code=422,
+                detail="Set vehicle_vin on this account before requesting an auto-valuation.",
+            )
+        valuation_result = await get_vehicle_value(
+            account.vehicle_vin, account.vehicle_mileage, provider=provider
+        )
+
+    else:
+        raise HTTPException(
+            status_code=422,
+            detail="Auto-valuation is only supported for property and vehicle accounts.",
+        )
+
+    if valuation_result is None:
+        raise HTTPException(
+            status_code=502,
+            detail="The valuation provider did not return a value. Please try again later.",
+        )
+
+    now = datetime.now(timezone.utc)
+    await db.execute(
+        update(Account)
+        .where(Account.id == account_id)
+        .values(
+            current_balance=valuation_result.value,
+            last_auto_valued_at=now,
+            balance_as_of=now,
+        )
+    )
+    await db.commit()
+
+    return {
+        "id": str(account.id),
+        "new_value": float(valuation_result.value),
+        "provider": valuation_result.provider,
+        "low": float(valuation_result.low) if valuation_result.low else None,
+        "high": float(valuation_result.high) if valuation_result.high else None,
+        "last_auto_valued_at": now.isoformat(),
+        "vin_info": vin_info,
+    }
 
 
 @router.post("/bulk-delete")

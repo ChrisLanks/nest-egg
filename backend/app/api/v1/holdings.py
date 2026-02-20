@@ -1187,7 +1187,47 @@ async def create_holding(
         current_user.organization_id,
     )
 
+    # Immediately fetch current price in background (non-blocking)
+    import asyncio as _asyncio
+    _asyncio.create_task(_fetch_price_for_holding(holding.id, holding.ticker))
+
     return holding
+
+
+async def _fetch_price_for_holding(holding_id, ticker: str) -> None:
+    """
+    Background task: fetch and store the current price for a newly created holding.
+    Silently swallows errors so it never affects the create response.
+    """
+    from datetime import datetime, timezone
+    from sqlalchemy import update as sa_update
+    from app.core.database import async_session_factory
+    from app.services.market_data import get_market_data_provider
+
+    try:
+        market_data = get_market_data_provider()
+        quote = await market_data.get_quote(ticker)
+
+        async with async_session_factory() as db:
+            await db.execute(
+                sa_update(Holding)
+                .where(Holding.id == holding_id)
+                .values(
+                    current_price_per_share=quote.price,
+                    price_as_of=datetime.now(timezone.utc),
+                )
+            )
+            await db.commit()
+
+        import logging as _logging
+        _logging.getLogger(__name__).info(
+            "holding_price_fetch: ticker=%s price=%s", ticker, quote.price
+        )
+    except Exception as exc:
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "holding_price_fetch failed for ticker=%s (non-critical): %s", ticker, exc
+        )
 
 
 @router.patch("/{holding_id}", response_model=HoldingSchema)

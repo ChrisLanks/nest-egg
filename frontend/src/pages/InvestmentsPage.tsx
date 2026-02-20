@@ -3,10 +3,14 @@
  */
 
 import {
+  Alert,
+  AlertIcon,
   Box,
   Container,
   Heading,
+  Progress,
   Text,
+  Tooltip,
   VStack,
   HStack,
   Card,
@@ -28,6 +32,7 @@ import {
   StatArrow,
   Button,
   useDisclosure,
+  useToast,
   Checkbox,
   Stack,
   Divider,
@@ -43,9 +48,9 @@ import {
   Tab,
   TabPanel,
 } from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { FiChevronDown, FiChevronUp, FiFilter } from 'react-icons/fi';
+import { FiChevronDown, FiChevronUp, FiFilter, FiRefreshCw } from 'react-icons/fi';
 import api from '../services/api';
 import { useUserView } from '../contexts/UserViewContext';
 import { AssetAllocationTreemap } from '../features/investments/components/AssetAllocationTreemap';
@@ -154,6 +159,30 @@ export const InvestmentsPage = () => {
 
   // Style Box modal
   const { isOpen: isStyleBoxOpen, onOpen: onStyleBoxOpen, onClose: onStyleBoxClose } = useDisclosure();
+
+  const toast = useToast();
+  const queryClient = useQueryClient();
+
+  const refreshPricesMutation = useMutation({
+    mutationFn: async () => {
+      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const response = await api.post('/market-data/holdings/refresh-all', null, { params });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+      toast({
+        title: `Prices refreshed`,
+        description: `Updated ${data.updated} of ${data.total} holdings via ${data.provider}`,
+        status: 'success',
+        duration: 4000,
+        isClosable: true,
+      });
+    },
+    onError: () => {
+      toast({ title: 'Failed to refresh prices', status: 'error', duration: 3000 });
+    },
+  });
 
   // Hidden accounts state (persisted to localStorage)
   const [hiddenAccountIds, setHiddenAccountIds] = useState<string[]>(() => {
@@ -468,6 +497,35 @@ export const InvestmentsPage = () => {
     return sortedGroups;
   }, [allAccounts]);
 
+  // These useMemo hooks must stay ABOVE every early return (React rules of hooks).
+  const oldestPriceAsOf = useMemo(() => {
+    if (!portfolio) return null;
+    const dates = portfolio.holdings_by_ticker
+      .map((h) => h.price_as_of)
+      .filter(Boolean)
+      .map((d) => new Date(d!));
+    if (dates.length === 0) return null;
+    return dates.reduce((oldest, d) => (d < oldest ? d : oldest));
+  }, [portfolio]);
+
+  const priceAgeLabel = useMemo(() => {
+    if (!oldestPriceAsOf) return null;
+    const diffMs = Date.now() - oldestPriceAsOf.getTime();
+    const diffH = Math.floor(diffMs / 3_600_000);
+    if (diffH < 1) return 'Prices updated < 1h ago';
+    if (diffH < 24) return `Prices updated ${diffH}h ago`;
+    const diffD = Math.floor(diffH / 24);
+    return `Prices updated ${diffD}d ago`;
+  }, [oldestPriceAsOf]);
+
+  const holdingsWithFees = useMemo(
+    () =>
+      (portfolio?.holdings_by_ticker ?? [])
+        .filter((h) => h.expense_ratio !== null && h.annual_fee !== null)
+        .sort((a, b) => (b.expense_ratio ?? 0) - (a.expense_ratio ?? 0)),
+    [portfolio]
+  );
+
   if (isLoading) {
     return (
       <Center h="100vh">
@@ -499,12 +557,37 @@ export const InvestmentsPage = () => {
 
   const totalGainIsPositive = portfolio.total_gain_loss !== null && portfolio.total_gain_loss >= 0;
 
+  // --- Fee Analyzer helpers ---
+  // 30-year opportunity cost of fees assuming 7% market growth
+  const GROWTH_RATE = 0.07;
+  const YEARS = 30;
+  const FEE_DRAG_MULTIPLIER = ((Math.pow(1 + GROWTH_RATE, YEARS) - 1) / GROWTH_RATE); // ≈ 94.5
+  const HIGH_FEE_THRESHOLD = 0.005; // 0.5% expense ratio
+  const VANGUARD_BENCHMARK = 0.0005; // 0.05% — low-cost benchmark
+
+  const totalAnnualFees = portfolio.total_annual_fees ?? 0;
+  const feeDrag30yr = totalAnnualFees * FEE_DRAG_MULTIPLIER;
+  const weightedAvgER =
+    portfolio.total_value > 0
+      ? holdingsWithFees.reduce(
+          (sum, h) => sum + (h.expense_ratio ?? 0) * (h.current_total_value ?? 0),
+          0
+        ) / portfolio.total_value
+      : 0;
+  const benchmarkAnnualFees = portfolio.total_value * VANGUARD_BENCHMARK;
+  const feeSavingsPotential = Math.max(0, totalAnnualFees - benchmarkAnnualFees);
+
   return (
     <Container maxW="container.xl" py={8}>
       <VStack spacing={6} align="stretch">
         {/* Header with Date Filter and Category Toggles */}
         <HStack justify="space-between" align="flex-start">
-          <Heading size="lg">Investments</Heading>
+          <VStack align="flex-start" spacing={0}>
+            <Heading size="lg">Investments</Heading>
+            {priceAgeLabel && (
+              <Text fontSize="xs" color="gray.500">{priceAgeLabel}</Text>
+            )}
+          </VStack>
           <HStack spacing={4}>
             {/* Account Filter */}
             {allAccounts && allAccounts.length > 0 && (
@@ -585,6 +668,17 @@ export const InvestmentsPage = () => {
                 </MenuList>
               </Menu>
             )}
+            <Tooltip label="Fetch latest prices from Yahoo Finance">
+              <Button
+                leftIcon={<FiRefreshCw />}
+                size="sm"
+                variant="outline"
+                isLoading={refreshPricesMutation.isPending}
+                onClick={() => refreshPricesMutation.mutate()}
+              >
+                Refresh Prices
+              </Button>
+            </Tooltip>
           </HStack>
         </HStack>
 
@@ -857,6 +951,7 @@ export const InvestmentsPage = () => {
                 <Tab>Performance Trends</Tab>
                 <Tab>Risk Analysis</Tab>
                 <Tab>Holdings Detail</Tab>
+                <Tab>Fee Analyzer</Tab>
               </TabList>
 
               <TabPanels>
@@ -906,6 +1001,147 @@ export const InvestmentsPage = () => {
                   <HoldingsDetailTable
                     holdings={portfolio.holdings_by_ticker}
                   />
+                </TabPanel>
+
+                {/* Tab 7: Fee Analyzer */}
+                <TabPanel>
+                  {holdingsWithFees.length === 0 ? (
+                    <Alert status="info">
+                      <AlertIcon />
+                      No expense ratio data available yet. Metadata is enriched daily — check back
+                      after prices refresh.
+                    </Alert>
+                  ) : (
+                    <VStack spacing={6} align="stretch">
+                      {/* Summary stats */}
+                      <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
+                        <Card variant="outline">
+                          <CardBody py={3}>
+                            <Stat>
+                              <StatLabel fontSize="xs">Annual Fees</StatLabel>
+                              <StatNumber fontSize="lg" color="orange.600">
+                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalAnnualFees)}
+                              </StatNumber>
+                              <StatHelpText fontSize="xs">
+                                {(weightedAvgER * 100).toFixed(3)}% weighted avg ER
+                              </StatHelpText>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card variant="outline">
+                          <CardBody py={3}>
+                            <Stat>
+                              <StatLabel fontSize="xs">30-Year Fee Drag</StatLabel>
+                              <Tooltip label={`Opportunity cost of fees compounded at 7%/yr over 30 years (${FEE_DRAG_MULTIPLIER.toFixed(1)}× annual fees)`}>
+                                <StatNumber fontSize="lg" color="red.600">
+                                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(feeDrag30yr)}
+                                </StatNumber>
+                              </Tooltip>
+                              <StatHelpText fontSize="xs">vs investing those fees at 7%</StatHelpText>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card variant="outline">
+                          <CardBody py={3}>
+                            <Stat>
+                              <StatLabel fontSize="xs">Low-Cost Benchmark</StatLabel>
+                              <StatNumber fontSize="lg" color="green.600">
+                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(benchmarkAnnualFees)}
+                              </StatNumber>
+                              <StatHelpText fontSize="xs">0.05% ER (Vanguard avg)</StatHelpText>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card variant="outline">
+                          <CardBody py={3}>
+                            <Stat>
+                              <StatLabel fontSize="xs">Potential Savings</StatLabel>
+                              <StatNumber fontSize="lg" color={feeSavingsPotential > 0 ? 'blue.600' : 'green.600'}>
+                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(feeSavingsPotential)}
+                              </StatNumber>
+                              <StatHelpText fontSize="xs">
+                                {feeSavingsPotential > 0 ? 'vs switching to low-cost index funds' : 'Already low-cost!'}
+                              </StatHelpText>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                      </SimpleGrid>
+
+                      {/* High-cost warning */}
+                      {holdingsWithFees.some((h) => (h.expense_ratio ?? 0) > HIGH_FEE_THRESHOLD) && (
+                        <Alert status="warning">
+                          <AlertIcon />
+                          Some holdings have expense ratios above 0.5%. Consider low-cost index fund
+                          alternatives to reduce long-term drag.
+                        </Alert>
+                      )}
+
+                      {/* Per-holding fee table */}
+                      <Box overflowX="auto">
+                        <Table size="sm" variant="simple">
+                          <Thead>
+                            <Tr>
+                              <Th>Holding</Th>
+                              <Th isNumeric>Value</Th>
+                              <Th isNumeric>Expense Ratio</Th>
+                              <Th isNumeric>Annual Fee</Th>
+                              <Th isNumeric>30-Yr Drag</Th>
+                              <Th>Cost</Th>
+                            </Tr>
+                          </Thead>
+                          <Tbody>
+                            {holdingsWithFees.map((h) => {
+                              const er = h.expense_ratio ?? 0;
+                              const annualFee = h.annual_fee ?? 0;
+                              const drag = annualFee * FEE_DRAG_MULTIPLIER;
+                              const isHigh = er > HIGH_FEE_THRESHOLD;
+                              const isLow = er <= VANGUARD_BENCHMARK * 2;
+                              // Progress bar: 0% at 0 ER, 100% at 1%+ ER
+                              const progressVal = Math.min(er / 0.01, 1) * 100;
+                              return (
+                                <Tr key={h.ticker}>
+                                  <Td>
+                                    <VStack align="flex-start" spacing={0}>
+                                      <Text fontWeight="medium" fontSize="sm">{h.ticker}</Text>
+                                      {h.name && <Text fontSize="xs" color="gray.500" noOfLines={1}>{h.name}</Text>}
+                                    </VStack>
+                                  </Td>
+                                  <Td isNumeric fontSize="sm">
+                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(h.current_total_value ?? 0)}
+                                  </Td>
+                                  <Td isNumeric>
+                                    <VStack align="flex-end" spacing={1}>
+                                      <Text fontSize="sm">{(er * 100).toFixed(3)}%</Text>
+                                      <Progress
+                                        value={progressVal}
+                                        size="xs"
+                                        width="60px"
+                                        colorScheme={isHigh ? 'red' : isLow ? 'green' : 'yellow'}
+                                      />
+                                    </VStack>
+                                  </Td>
+                                  <Td isNumeric fontSize="sm" color="orange.600">
+                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(annualFee)}
+                                  </Td>
+                                  <Td isNumeric fontSize="sm" color="red.500">
+                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(drag)}
+                                  </Td>
+                                  <Td>
+                                    <Badge
+                                      colorScheme={isHigh ? 'red' : isLow ? 'green' : 'yellow'}
+                                      fontSize="xs"
+                                    >
+                                      {isHigh ? 'High' : isLow ? 'Low' : 'Moderate'}
+                                    </Badge>
+                                  </Td>
+                                </Tr>
+                              );
+                            })}
+                          </Tbody>
+                        </Table>
+                      </Box>
+                    </VStack>
+                  )}
                 </TabPanel>
               </TabPanels>
             </Tabs>

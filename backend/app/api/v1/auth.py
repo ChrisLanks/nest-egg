@@ -248,6 +248,10 @@ async def login(
         # Update last login
         await user_crud.update_last_login(db, user.id)
 
+        # Trigger background price refresh if holdings are stale (non-blocking)
+        import asyncio
+        asyncio.create_task(_maybe_refresh_prices_on_login(user.organization_id))
+
         logger.info("Generating tokens")
 
         # Generate tokens and create response
@@ -264,6 +268,78 @@ async def login(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during login",
         )
+
+
+async def _maybe_refresh_prices_on_login(organization_id) -> None:
+    """
+    Background task: refresh holding prices if stale (> 6 hours old).
+
+    Runs fire-and-forget after a successful login so the user sees
+    up-to-date prices on their next portfolio load without waiting.
+    Silently swallows errors so it never affects the login response.
+    """
+    import uuid
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select
+    from app.core.database import async_session_factory
+    from app.models.holding import Holding
+    from app.services.market_data import get_market_data_provider
+
+    STALE_AFTER_HOURS = 6
+
+    try:
+        async with async_session_factory() as db:
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=STALE_AFTER_HOURS)
+            # Check whether any holding in this org has a stale (or missing) price
+            result = await db.execute(
+                select(Holding.id).where(
+                    Holding.organization_id == organization_id,
+                    (Holding.price_as_of.is_(None)) | (Holding.price_as_of < cutoff),
+                ).limit(1)
+            )
+            if result.scalar_one_or_none() is None:
+                logger.debug("Holdings prices are fresh; skipping login-triggered refresh")
+                return
+
+            # Fetch all holdings for a batch update
+            result = await db.execute(
+                select(Holding).where(Holding.organization_id == organization_id)
+            )
+            holdings = result.scalars().all()
+            if not holdings:
+                return
+
+            symbols = list({h.ticker for h in holdings if h.ticker})
+            if not symbols:
+                return
+
+            market_data = get_market_data_provider()
+            quotes = await market_data.get_quotes_batch(symbols)
+
+            from sqlalchemy import update as sa_update
+            updated = 0
+            now = datetime.now(timezone.utc)
+            for h in holdings:
+                if h.ticker and h.ticker in quotes:
+                    q = quotes[h.ticker]
+                    await db.execute(
+                        sa_update(Holding)
+                        .where(Holding.id == h.id)
+                        .values(current_price_per_share=q.price, price_as_of=now)
+                    )
+                    updated += 1
+
+            await db.commit()
+            logger.info(
+                "login_price_refresh: org=%s updated=%d total=%d provider=%s",
+                organization_id,
+                updated,
+                len(holdings),
+                market_data.get_provider_name(),
+            )
+    except Exception as exc:
+        # Never crash the login response due to a background refresh failure
+        logger.warning("login_price_refresh failed (non-critical): %s", exc)
 
 
 @router.post("/refresh", response_model=AccessTokenResponse)

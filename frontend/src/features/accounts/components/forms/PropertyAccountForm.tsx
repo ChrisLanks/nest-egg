@@ -81,14 +81,26 @@ export const PropertyAccountForm = ({
           <FormErrorMessage>{errors.name?.message}</FormErrorMessage>
         </FormControl>
 
-        <FormControl isInvalid={!!errors.address}>
-          <FormLabel>Address</FormLabel>
-          <Input
-            {...register('address')}
-            placeholder="e.g., 123 Main St, San Francisco, CA 94102"
-          />
-          <FormErrorMessage>{errors.address?.message}</FormErrorMessage>
-        </FormControl>
+        <HStack spacing={4} align="start">
+          <FormControl isInvalid={!!errors.address} flex={2}>
+            <FormLabel>Street Address</FormLabel>
+            <Input
+              {...register('address')}
+              placeholder="e.g., 123 Main St"
+            />
+            <FormErrorMessage>{errors.address?.message}</FormErrorMessage>
+          </FormControl>
+
+          <FormControl isInvalid={!!errors.zip_code} flex={1}>
+            <FormLabel>ZIP Code <Text as="span" fontSize="xs" color="gray.500">(optional)</Text></FormLabel>
+            <Input
+              {...register('zip_code')}
+              placeholder="e.g., 94102"
+              maxLength={10}
+            />
+            <FormErrorMessage>{errors.zip_code?.message}</FormErrorMessage>
+          </FormControl>
+        </HStack>
 
         <FormControl isInvalid={!!errors.property_classification}>
           <FormLabel>Property Classification</FormLabel>

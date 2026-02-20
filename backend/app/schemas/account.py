@@ -92,6 +92,14 @@ class ManualAccountCreate(BaseModel):
     ownership_percentage: Optional[Decimal] = None  # Percentage ownership (0-100)
     equity_value: Optional[Decimal] = None  # Direct equity value
 
+    # Property auto-valuation fields
+    property_address: Optional[str] = None
+    property_zip: Optional[str] = None
+
+    # Vehicle auto-valuation fields
+    vehicle_vin: Optional[str] = None
+    vehicle_mileage: Optional[int] = None
+
 
 class AccountUpdate(BaseModel):
     """Account update schema."""
@@ -138,6 +146,14 @@ class AccountUpdate(BaseModel):
     company_valuation: Optional[Decimal] = None
     ownership_percentage: Optional[Decimal] = None
     equity_value: Optional[Decimal] = None
+
+    # Property auto-valuation
+    property_address: Optional[str] = None
+    property_zip: Optional[str] = None
+
+    # Vehicle auto-valuation
+    vehicle_vin: Optional[str] = None
+    vehicle_mileage: Optional[int] = None
 
 
 class Account(AccountBase):
@@ -192,6 +208,17 @@ class Account(AccountBase):
     company_valuation: Optional[Decimal] = None
     ownership_percentage: Optional[Decimal] = None
     equity_value: Optional[Decimal] = None
+
+    # Property auto-valuation
+    property_address: Optional[str] = None
+    property_zip: Optional[str] = None
+
+    # Vehicle auto-valuation
+    vehicle_vin: Optional[str] = None
+    vehicle_mileage: Optional[int] = None
+
+    # Auto-valuation metadata
+    last_auto_valued_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 

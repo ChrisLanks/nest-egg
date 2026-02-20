@@ -73,6 +73,13 @@ interface Account {
   loan_term_months: number | null;
   origination_date: string | null;
   minimum_payment: number | null;
+  // Property auto-valuation fields
+  property_address: string | null;
+  property_zip: string | null;
+  // Vehicle auto-valuation fields
+  vehicle_vin: string | null;
+  vehicle_mileage: number | null;
+  last_auto_valued_at: string | null;
   // Sync status
   last_synced_at: string | null;
   last_error_code: string | null;
@@ -139,6 +146,9 @@ export const AccountDetailPage = () => {
   const [transactionsCursor, setTransactionsCursor] = useState<string | null>(null);
   const [vehicleMileage, setVehicleMileage] = useState('');
   const [vehicleValue, setVehicleValue] = useState('');
+  const [vehicleVin, setVehicleVin] = useState('');
+  const [propertyAddress, setPropertyAddress] = useState('');
+  const [propertyZip, setPropertyZip] = useState('');
   const [manualBalance, setManualBalance] = useState('');
   const [debtBalance, setDebtBalance] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
@@ -156,6 +166,24 @@ export const AccountDetailPage = () => {
       return response.data;
     },
   });
+
+  const isPropertyOrVehicle = account?.account_type === 'property' || account?.account_type === 'vehicle';
+
+  // Fetch available valuation providers (only for property/vehicle accounts)
+  const { data: valuationProviders } = useQuery<{ property: string[]; vehicle: string[] }>({
+    queryKey: ['valuation-providers'],
+    queryFn: async () => {
+      const response = await api.get('/accounts/valuation-providers');
+      return response.data;
+    },
+    enabled: isPropertyOrVehicle,
+    staleTime: 5 * 60 * 1000, // provider config changes rarely
+  });
+
+  const availableProviders = account?.account_type === 'property'
+    ? (valuationProviders?.property ?? [])
+    : (valuationProviders?.vehicle ?? []);
+  const [selectedProvider, setSelectedProvider] = useState<string>('');
 
   // Fetch all accounts to check if this account is shared (only in combined view)
   const { data: allAccounts } = useQuery<Account[]>({
@@ -250,15 +278,11 @@ export const AccountDetailPage = () => {
 
   // Update vehicle details mutation
   const updateVehicleMutation = useMutation({
-    mutationFn: async (data: { mileage?: number; balance?: number }) => {
+    mutationFn: async (data: { mileage?: number; balance?: number; vin?: string }) => {
       const payload: any = {};
-      if (data.mileage !== undefined) {
-        // Store mileage in mask field for now
-        payload.mask = data.mileage.toString();
-      }
-      if (data.balance !== undefined) {
-        payload.current_balance = data.balance;
-      }
+      if (data.mileage !== undefined) payload.vehicle_mileage = data.mileage;
+      if (data.vin !== undefined) payload.vehicle_vin = data.vin.toUpperCase();
+      if (data.balance !== undefined) payload.current_balance = data.balance;
       const response = await api.patch(`/accounts/${accountId}`, payload);
       return response.data;
     },
@@ -272,6 +296,7 @@ export const AccountDetailPage = () => {
       });
       setVehicleMileage('');
       setVehicleValue('');
+      setVehicleVin('');
     },
     onError: (error: any) => {
       toast({
@@ -279,6 +304,40 @@ export const AccountDetailPage = () => {
         description: error.response?.data?.detail || 'An error occurred',
         status: 'error',
         duration: 5000,
+      });
+    },
+  });
+
+  // Refresh auto-valuation mutation (property + vehicle)
+  const refreshValuationMutation = useMutation({
+    mutationFn: async () => {
+      const params = selectedProvider ? `?provider=${selectedProvider}` : '';
+      const response = await api.post(`/accounts/${accountId}/refresh-valuation${params}`);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['account', accountId] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      const fmt = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
+      const rangeStr = data.low && data.high ? ` (range ${fmt(data.low)} – ${fmt(data.high)})` : '';
+      const vinInfo = data.vin_info ? ` · ${data.vin_info.year} ${data.vin_info.make} ${data.vin_info.model}` : '';
+      const providerLabel = data.provider ? ` via ${data.provider}` : '';
+      toast({
+        title: 'Valuation refreshed',
+        description: `Updated to ${fmt(data.new_value)}${rangeStr}${vinInfo}${providerLabel}`,
+        status: 'success',
+        duration: 5000,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Valuation refresh failed',
+        description: error.response?.data?.detail || 'An error occurred',
+        status: 'error',
+        duration: 7000,
+        isClosable: true,
       });
     },
   });
@@ -414,24 +473,38 @@ export const AccountDetailPage = () => {
   };
 
   const handleUpdateVehicle = () => {
-    const updates: { mileage?: number; balance?: number } = {};
+    const updates: { mileage?: number; balance?: number; vin?: string } = {};
 
     if (vehicleMileage) {
       const mileage = parseInt(vehicleMileage);
-      if (!isNaN(mileage) && mileage >= 0) {
-        updates.mileage = mileage;
-      }
+      if (!isNaN(mileage) && mileage >= 0) updates.mileage = mileage;
     }
 
     if (vehicleValue) {
       const value = parseFloat(vehicleValue);
-      if (!isNaN(value) && value >= 0) {
-        updates.balance = value;
-      }
+      if (!isNaN(value) && value >= 0) updates.balance = value;
+    }
+
+    if (vehicleVin.trim()) {
+      updates.vin = vehicleVin.trim();
     }
 
     if (Object.keys(updates).length > 0) {
       updateVehicleMutation.mutate(updates);
+    }
+  };
+
+  const handleUpdatePropertyDetails = () => {
+    const payload: any = {};
+    if (propertyAddress.trim()) payload.property_address = propertyAddress.trim();
+    if (propertyZip.trim()) payload.property_zip = propertyZip.trim();
+    if (Object.keys(payload).length > 0) {
+      updateAccountMutation.mutate(payload, {
+        onSuccess: () => {
+          setPropertyAddress('');
+          setPropertyZip('');
+        },
+      });
     }
   };
 
@@ -808,19 +881,69 @@ export const AccountDetailPage = () => {
         {account.account_type === 'vehicle' && (
           <Card>
             <CardBody>
-              <Heading size="md" mb={4}>
-                Vehicle Details
-              </Heading>
+              <HStack justify="space-between" mb={4}>
+                <Heading size="md">Vehicle Details</Heading>
+                {canEditAccount && (
+                  <HStack spacing={2}>
+                    {availableProviders.length > 1 && (
+                      <Select
+                        size="sm"
+                        value={selectedProvider}
+                        onChange={(e) => setSelectedProvider(e.target.value)}
+                        w="auto"
+                      >
+                        <option value="">Auto-select</option>
+                        {availableProviders.map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </Select>
+                    )}
+                    <Tooltip
+                      label={
+                        !account.vehicle_vin ? 'Add VIN below to enable auto-valuation'
+                        : availableProviders.length === 0 ? 'No valuation provider configured'
+                        : 'Fetch current market value'
+                      }
+                      placement="top"
+                    >
+                      <Button
+                        size="sm"
+                        leftIcon={<FiRefreshCw />}
+                        variant="outline"
+                        onClick={() => refreshValuationMutation.mutate()}
+                        isLoading={refreshValuationMutation.isPending}
+                        isDisabled={!account.vehicle_vin || availableProviders.length === 0}
+                      >
+                        Refresh Valuation
+                      </Button>
+                    </Tooltip>
+                  </HStack>
+                )}
+              </HStack>
               <VStack spacing={4} align="stretch">
-                {/* Current Mileage Display */}
-                <Box>
-                  <Text fontSize="sm" fontWeight="medium" color="gray.600">
-                    Current Mileage
-                  </Text>
-                  <Text fontSize="lg" fontWeight="semibold">
-                    {account.mask ? `${parseInt(account.mask).toLocaleString()} miles` : 'Not set'}
-                  </Text>
-                </Box>
+                {/* Current info display */}
+                <HStack spacing={6} wrap="wrap">
+                  <Box>
+                    <Text fontSize="xs" color="gray.500">Current Mileage</Text>
+                    <Text fontWeight="semibold">
+                      {account.vehicle_mileage != null ? `${account.vehicle_mileage.toLocaleString()} miles` : 'Not set'}
+                    </Text>
+                  </Box>
+                  <Box>
+                    <Text fontSize="xs" color="gray.500">VIN</Text>
+                    <Text fontWeight="semibold" fontFamily="mono" fontSize="sm">
+                      {account.vehicle_vin ?? 'Not set'}
+                    </Text>
+                  </Box>
+                  {account.last_auto_valued_at && (
+                    <Box>
+                      <Text fontSize="xs" color="gray.500">Last Auto-Valued</Text>
+                      <Text fontWeight="semibold" fontSize="sm">
+                        {formatLastSynced(account.last_auto_valued_at)}
+                      </Text>
+                    </Box>
+                  )}
+                </HStack>
 
                 <Divider />
 
@@ -857,6 +980,22 @@ export const AccountDetailPage = () => {
                   </Text>
                 ) : (
                   <>
+                    {/* Update VIN */}
+                    <FormControl>
+                      <FormLabel fontSize="sm">VIN (for auto-valuation)</FormLabel>
+                      <Input
+                        value={vehicleVin}
+                        onChange={(e) => setVehicleVin(e.target.value.toUpperCase())}
+                        placeholder={account.vehicle_vin ?? 'e.g., 1HGBH41JXMN109186'}
+                        maxLength={17}
+                        size="sm"
+                        fontFamily="mono"
+                      />
+                      <Text fontSize="xs" color="gray.500" mt={1}>
+                        17-character VIN enables automatic market value updates via MarketCheck API.
+                      </Text>
+                    </FormControl>
+
                     {/* Update Mileage */}
                     <FormControl>
                       <FormLabel fontSize="sm">Update Mileage</FormLabel>
@@ -867,7 +1006,7 @@ export const AccountDetailPage = () => {
                           min={0}
                           size="sm"
                         >
-                          <NumberInputField placeholder="Enter new mileage" />
+                          <NumberInputField placeholder={account.vehicle_mileage != null ? String(account.vehicle_mileage) : 'Enter mileage'} />
                         </NumberInput>
                         <Text fontSize="sm" color="gray.600">
                           miles
@@ -898,10 +1037,121 @@ export const AccountDetailPage = () => {
                       size="sm"
                       onClick={handleUpdateVehicle}
                       isLoading={updateVehicleMutation.isPending}
-                      isDisabled={!vehicleMileage && !vehicleValue}
+                      isDisabled={!vehicleMileage && !vehicleValue && !vehicleVin.trim()}
                     >
                       Save Updates
                     </Button>
+                  </>
+                )}
+              </VStack>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Property Details Section - Only for property accounts */}
+        {account.account_type === 'property' && (
+          <Card>
+            <CardBody>
+              <HStack justify="space-between" mb={4}>
+                <Heading size="md">Property Details</Heading>
+                {canEditAccount && (
+                  <HStack spacing={2}>
+                    {availableProviders.length > 1 && (
+                      <Select
+                        size="sm"
+                        value={selectedProvider}
+                        onChange={(e) => setSelectedProvider(e.target.value)}
+                        w="auto"
+                      >
+                        <option value="">Auto-select</option>
+                        {availableProviders.map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </Select>
+                    )}
+                    <Tooltip
+                      label={
+                        !account.property_address || !account.property_zip ? 'Add address and ZIP below to enable auto-valuation'
+                        : availableProviders.length === 0 ? 'No valuation provider configured'
+                        : 'Fetch current estimated value'
+                      }
+                      placement="top"
+                    >
+                      <Button
+                        size="sm"
+                        leftIcon={<FiRefreshCw />}
+                        variant="outline"
+                        onClick={() => refreshValuationMutation.mutate()}
+                        isLoading={refreshValuationMutation.isPending}
+                        isDisabled={!account.property_address || !account.property_zip || availableProviders.length === 0}
+                      >
+                        Refresh Valuation
+                      </Button>
+                    </Tooltip>
+                  </HStack>
+                )}
+              </HStack>
+              <VStack spacing={4} align="stretch">
+                {/* Current info display */}
+                <HStack spacing={6} wrap="wrap">
+                  <Box>
+                    <Text fontSize="xs" color="gray.500">Address</Text>
+                    <Text fontWeight="semibold" fontSize="sm">
+                      {account.property_address
+                        ? `${account.property_address}${account.property_zip ? `, ${account.property_zip}` : ''}`
+                        : 'Not set'}
+                    </Text>
+                  </Box>
+                  {account.last_auto_valued_at && (
+                    <Box>
+                      <Text fontSize="xs" color="gray.500">Last Auto-Valued</Text>
+                      <Text fontWeight="semibold" fontSize="sm">
+                        {formatLastSynced(account.last_auto_valued_at)}
+                      </Text>
+                    </Box>
+                  )}
+                </HStack>
+
+                {!canEditAccount ? (
+                  <Text fontSize="sm" color="gray.600">
+                    Property details can only be updated by the account owner.
+                  </Text>
+                ) : (
+                  <>
+                    <Divider />
+                    <HStack spacing={4} align="start">
+                      <FormControl flex={2}>
+                        <FormLabel fontSize="sm">Street Address</FormLabel>
+                        <Input
+                          value={propertyAddress}
+                          onChange={(e) => setPropertyAddress(e.target.value)}
+                          placeholder={account.property_address ?? 'e.g., 123 Main St'}
+                          size="sm"
+                        />
+                      </FormControl>
+                      <FormControl flex={1}>
+                        <FormLabel fontSize="sm">ZIP Code</FormLabel>
+                        <Input
+                          value={propertyZip}
+                          onChange={(e) => setPropertyZip(e.target.value)}
+                          placeholder={account.property_zip ?? 'e.g., 94102'}
+                          maxLength={10}
+                          size="sm"
+                        />
+                      </FormControl>
+                    </HStack>
+                    <Button
+                      colorScheme="brand"
+                      size="sm"
+                      onClick={handleUpdatePropertyDetails}
+                      isLoading={updateAccountMutation.isPending}
+                      isDisabled={!propertyAddress.trim() && !propertyZip.trim()}
+                    >
+                      Save Property Details
+                    </Button>
+                    <Text fontSize="xs" color="gray.500">
+                      Address and ZIP are used to fetch automated property valuations.
+                    </Text>
                   </>
                 )}
               </VStack>

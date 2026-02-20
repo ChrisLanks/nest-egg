@@ -127,7 +127,12 @@ Scheduled tasks for hands-free operation:
 
 ### 🏠 **Manual Assets & Accounts**
 - **Manual Account Types**: Savings, Checking, Investment, Retirement, Loan, Mortgage, Credit Card, Other
-- **Property Tracking**: Track real estate, vehicles, and other assets
+- **Property Tracking**: Track real estate with address, mortgage balance, and equity calculation
+- **Vehicle Tracking**: Track vehicles with VIN, mileage, loan balance, and equity calculation
+- **Auto-Valuation**: Automatically refresh property and vehicle market values via third-party APIs
+  - Property: RentCast (free), ATTOM (paid), or Zillow via RapidAPI (not recommended, see below)
+  - Vehicle: MarketCheck (VIN-based) + NHTSA VIN decode (always free)
+  - Multiple providers: UI shows a selector when more than one key is configured
 - **Manual Balance Updates**: Update account balances directly
 - **Investment Holdings**: Manually add stocks, ETFs, bonds, etc.
 
@@ -223,6 +228,33 @@ Date, Merchant, Amount, Category, Description
 
 # Deduplication: Automatic via transaction_hash
 # Existing transactions skipped, new ones added
+```
+
+#### Property & Vehicle Auto-Valuation
+
+Set one or more provider keys in `.env` to enable the "Refresh Valuation" button on property and vehicle accounts. No key = manual-only updates.
+
+**Property providers** (pick one or more — UI shows a selector when multiple are configured):
+
+| Provider | Key | Cost | Notes |
+|---|---|---|---|
+| **RentCast** ✅ | `RENTCAST_API_KEY` | Free (50 calls/month) | **Recommended.** Official API, permanent free tier. Sign up: [rentcast.io](https://app.rentcast.io/app/api-access) |
+| ATTOM | `ATTOM_API_KEY` | Paid (30-day trial) | Sign up: [attomdata.com](https://api.gateway.attomdata.com) |
+| Zillow ⚠️ | `ZILLOW_RAPIDAPI_KEY` | ~$10/month (RapidAPI) | **Not recommended.** Zillow's official API is MLS-partner-only. This uses an unofficial third-party scraper wrapper on RapidAPI (`zillow-com1.p.rapidapi.com`). May violate Zillow's Terms of Service. Sign up: [rapidapi.com/apimaker/api/zillow-com1](https://rapidapi.com/apimaker/api/zillow-com1) |
+
+**Vehicle providers:**
+
+| Provider | Key | Cost | Notes |
+|---|---|---|---|
+| MarketCheck | `MARKETCHECK_API_KEY` | Paid | VIN-based used-car valuations. Sign up: [marketcheck.com](https://www.marketcheck.com) |
+| NHTSA | — | Free (always on) | VIN decode only (year/make/model, no price). No key needed. |
+
+```bash
+# .env example
+RENTCAST_API_KEY=your_rentcast_key          # Recommended for property
+ATTOM_API_KEY=your_attom_key               # Optional additional property provider
+ZILLOW_RAPIDAPI_KEY=your_rapidapi_key      # Not recommended (unofficial wrapper)
+MARKETCHECK_API_KEY=your_marketcheck_key   # For vehicle valuation
 ```
 
 ## 🚀 Technology Stack

@@ -258,6 +258,8 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
       property_type: data.property_classification as any,  // Map classification to backend property_type
       balance: data.value,
       institution: data.address,
+      property_address: data.address,
+      property_zip: data.zip_code,
     } as any);
   };
 
@@ -267,7 +269,8 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
       account_type: 'vehicle' as any,
       balance: data.value,
       institution: `${data.year} ${data.make} ${data.model}`,
-      account_number_last4: data.mileage?.toString() || undefined,
+      vehicle_mileage: data.mileage,
+      vehicle_vin: data.vin ? data.vin.toUpperCase() : undefined,
       include_in_networth: data.include_in_networth,
     } as any);
   };

@@ -50,6 +50,34 @@ class Settings(BaseSettings):
     MARKET_DATA_PROVIDER: str = "yahoo_finance"  # yahoo_finance, alpha_vantage, finnhub
     ALPHA_VANTAGE_API_KEY: Optional[str] = None  # Free: 500 calls/day, 25/min
     FINNHUB_API_KEY: Optional[str] = None  # Free: 60 calls/min
+    # How long before holdings prices are considered stale (login + daily task throttle)
+    PRICE_REFRESH_COOLDOWN_HOURS: int = 6
+
+    # ── Property Auto-Valuation ──────────────────────────────────────────────
+    # Set one or more provider keys to enable the "Refresh Valuation" button.
+    # When multiple are set, the UI lets the user choose; the first configured
+    # provider is used when none is specified explicitly.
+
+    # RentCast (rentcast.io) — RECOMMENDED
+    # Free tier: 50 calls/month (permanent, no credit card required).
+    # Sign up: https://app.rentcast.io/app/api-access
+    RENTCAST_API_KEY: Optional[str] = None  # Header: X-Api-Key
+
+    # ATTOM Data Solutions (attomdata.com)
+    # Paid (30-day trial). Sign up: https://api.gateway.attomdata.com
+    ATTOM_API_KEY: Optional[str] = None  # Header: apikey
+
+    # Zillow via RapidAPI (NOT RECOMMENDED)
+    # Zillow's official Zestimate API is deprecated for general developers (MLS partners only).
+    # This uses an unofficial third-party RapidAPI wrapper that scrapes Zillow's site.
+    # ⚠ Using this may violate Zillow's Terms of Service. Use at your own risk.
+    # Sign up: https://rapidapi.com/apimaker/api/zillow-com1
+    ZILLOW_RAPIDAPI_KEY: Optional[str] = None  # Header: X-RapidAPI-Key
+
+    # ── Vehicle Auto-Valuation ───────────────────────────────────────────────
+    # MarketCheck (marketcheck.com) — KBB-comparable used-car valuations via VIN.
+    # NHTSA (nhtsa.dot.gov) is always used for free VIN decode (year/make/model).
+    MARKETCHECK_API_KEY: Optional[str] = None  # Query param: api_key
 
     # Celery
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"

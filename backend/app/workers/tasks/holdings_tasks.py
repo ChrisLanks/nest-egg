@@ -182,61 +182,78 @@ def update_holdings_prices_task():
 
 
 async def _update_prices_async():
-    """Async implementation of holdings price update."""
-    from app.models.account import Holding
+    """
+    Async implementation of holdings price update.
+
+    Smart throttle: skips holdings whose price was refreshed within the last
+    6 hours (e.g. by a user login).  This prevents Yahoo Finance from being
+    hammered twice a day for active users while still covering orgs whose
+    members haven't logged in.
+    """
+    from app.models.holding import Holding
     from app.services.market_data import get_market_data_provider
     from sqlalchemy import update
-    from datetime import datetime
+    from datetime import datetime, timezone, timedelta
+
+    STALE_AFTER_HOURS = 6
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=STALE_AFTER_HOURS)
 
     async with async_session_factory() as db:
         try:
-            # Get all holdings with symbols
-            result = await db.execute(select(Holding).where(Holding.symbol.isnot(None)))
+            # Only fetch holdings whose price is stale or has never been fetched
+            result = await db.execute(
+                select(Holding).where(
+                    Holding.ticker.isnot(None),
+                    (Holding.price_as_of.is_(None)) | (Holding.price_as_of < cutoff),
+                )
+            )
             holdings = result.scalars().all()
 
             if not holdings:
-                logger.info("No holdings to update")
+                logger.info("All holdings prices are fresh — skipping daily update")
                 return
 
-            # Get unique symbols
-            symbols = list(set(h.symbol for h in holdings))
+            # Get unique tickers
+            tickers = list({h.ticker for h in holdings if h.ticker})
             logger.info(
-                f"Updating prices for {len(symbols)} unique symbols across {len(holdings)} holdings"
+                f"Updating prices for {len(tickers)} stale tickers across {len(holdings)} holdings"
             )
 
             # Batch fetch quotes from market data provider
             market_data = get_market_data_provider()
-            quotes = await market_data.get_quotes_batch(symbols)
+            quotes = await market_data.get_quotes_batch(tickers)
 
             # Update holdings
             updated_count = 0
-            failed_count = 0
+            skipped_count = 0
+            now = datetime.now(timezone.utc)
 
             for holding in holdings:
-                if holding.symbol in quotes:
+                if holding.ticker in quotes:
                     try:
-                        quote = quotes[holding.symbol]
+                        quote = quotes[holding.ticker]
                         await db.execute(
                             update(Holding)
                             .where(Holding.id == holding.id)
                             .values(
-                                current_price=quote.price,
-                                last_price_update=datetime.utcnow(),
+                                current_price_per_share=quote.price,
+                                price_as_of=now,
                             )
                         )
                         updated_count += 1
                     except Exception as e:
-                        logger.error(f"Error updating holding {holding.id} ({holding.symbol}): {e}")
-                        failed_count += 1
+                        logger.error(
+                            f"Error updating holding {holding.id} ({holding.ticker}): {e}"
+                        )
                 else:
-                    logger.warning(f"No quote available for {holding.symbol}")
-                    failed_count += 1
+                    logger.warning(f"No quote available for {holding.ticker}")
+                    skipped_count += 1
 
             await db.commit()
 
             logger.info(
                 f"Holdings price update complete. "
-                f"Updated: {updated_count}, Failed: {failed_count}, Total: {len(holdings)} "
+                f"Updated: {updated_count}, Skipped: {skipped_count}, Total: {len(holdings)} "
                 f"(Provider: {market_data.get_provider_name()})"
             )
 
