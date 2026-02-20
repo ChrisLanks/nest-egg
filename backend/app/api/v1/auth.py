@@ -109,10 +109,15 @@ async def register(
             detail="Email already registered",
         )
 
-    # Create organization
+    # Create organization — use provided name or derive from user's first name
+    org_name = (
+        data.organization_name
+        if data.organization_name != "My Household"
+        else f"{data.first_name}'s Household"
+    )
     organization = await organization_crud.create(
         db=db,
-        name=data.organization_name,
+        name=org_name,
     )
 
     # Create user (first user is org admin)

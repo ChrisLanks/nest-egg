@@ -16,7 +16,7 @@ class RegisterRequest(BaseModel):
     )
     first_name: str = Field(..., min_length=1)
     last_name: str = Field(..., min_length=1)
-    organization_name: str = Field(..., min_length=1, max_length=255)
+    organization_name: str = Field("My Household", min_length=1, max_length=255)
 
 
 class LoginRequest(BaseModel):

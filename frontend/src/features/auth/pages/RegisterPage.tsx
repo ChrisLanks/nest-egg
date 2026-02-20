@@ -28,7 +28,6 @@ const registerSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
   first_name: z.string().min(1, 'First name is required'),
   last_name: z.string().min(1, 'Last name is required'),
-  organization_name: z.string().min(1, 'Organization name is required'),
 });
 
 type RegisterFormData = z.infer<typeof registerSchema>;
@@ -108,17 +107,6 @@ export const RegisterPage = () => {
                   <FormLabel>Last Name</FormLabel>
                   <Input placeholder="Doe" {...register('last_name')} />
                   <FormErrorMessage>{errors.last_name?.message}</FormErrorMessage>
-                </FormControl>
-
-                <FormControl isInvalid={!!errors.organization_name}>
-                  <FormLabel>Organization Name</FormLabel>
-                  <Input
-                    placeholder="My Family or Business Name"
-                    {...register('organization_name')}
-                  />
-                  <FormErrorMessage>
-                    {errors.organization_name?.message}
-                  </FormErrorMessage>
                 </FormControl>
 
                 <Button
