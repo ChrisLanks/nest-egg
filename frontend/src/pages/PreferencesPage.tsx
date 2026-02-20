@@ -77,9 +77,15 @@ export default function PreferencesPage() {
       });
     },
     onError: (error: any) => {
+      const detail = error.response?.data?.detail;
+      const description = typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+        ? detail[0]?.msg || 'Validation error'
+        : 'An error occurred';
       toast({
         title: 'Failed to update profile',
-        description: error.response?.data?.detail || 'An error occurred',
+        description,
         status: 'error',
         duration: 5000,
       });
@@ -103,9 +109,15 @@ export default function PreferencesPage() {
       });
     },
     onError: (error: any) => {
+      const detail = error.response?.data?.detail;
+      const description = typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+        ? detail[0]?.msg || 'Validation error'
+        : 'An error occurred';
       toast({
         title: 'Failed to change password',
-        description: error.response?.data?.detail || 'An error occurred',
+        description,
         status: 'error',
         duration: 5000,
       });
@@ -130,9 +142,9 @@ export default function PreferencesPage() {
       return;
     }
 
-    if (newPassword.length < 8) {
+    if (newPassword.length < 12) {
       toast({
-        title: 'Password must be at least 8 characters',
+        title: 'Password must be at least 12 characters',
         status: 'error',
         duration: 3000,
       });
@@ -237,7 +249,7 @@ export default function PreferencesPage() {
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Enter new password"
               />
-              <FormHelperText>Must be at least 8 characters</FormHelperText>
+              <FormHelperText>Must be at least 12 characters</FormHelperText>
             </FormControl>
 
             <FormControl>
