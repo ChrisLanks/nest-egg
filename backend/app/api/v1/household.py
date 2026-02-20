@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -88,11 +88,11 @@ async def invite_member(
 
     # Check household size limit
     result = await db.execute(
-        select(User).where(
+        select(func.count()).select_from(User).where(
             User.organization_id == current_user.organization_id, User.is_active.is_(True)
         )
     )
-    member_count = len(result.scalars().all())
+    member_count = result.scalar_one()
 
     if member_count >= MAX_HOUSEHOLD_MEMBERS:
         raise HTTPException(

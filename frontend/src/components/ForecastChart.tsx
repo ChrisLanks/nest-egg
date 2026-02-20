@@ -43,7 +43,7 @@ interface ForecastDataPoint {
 export const ForecastChart = () => {
   const [timeRange, setTimeRange] = useState<30 | 60 | 90>(90);
 
-  const { data: forecast, isLoading } = useQuery({
+  const { data: forecast, isLoading, isError } = useQuery({
     queryKey: ['cash-flow-forecast', timeRange],
     queryFn: async () => {
       const response = await api.get<ForecastDataPoint[]>('/dashboard/forecast', {
@@ -86,6 +86,19 @@ export const ForecastChart = () => {
           <Center py={8}>
             <Spinner size="lg" color="brand.500" />
           </Center>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardBody>
+          <Alert status="error" borderRadius="md">
+            <AlertIcon />
+            <Text fontSize="sm">Unable to load cash flow forecast.</Text>
+          </Alert>
         </CardBody>
       </Card>
     );

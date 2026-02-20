@@ -82,7 +82,7 @@ export const BondAccountForm = ({ onSubmit, onBack, isLoading }: BondAccountForm
   };
 
   // Calculate premium/discount
-  const premiumDiscount = currentValue && principal ? ((Number(currentValue) - Number(principal)) / Number(principal)) * 100 : 0;
+  const premiumDiscount = currentValue != null && principal != null && principal > 0 ? ((Number(currentValue) - Number(principal)) / Number(principal)) * 100 : 0;
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)}>

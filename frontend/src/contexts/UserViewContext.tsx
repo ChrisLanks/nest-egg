@@ -5,7 +5,7 @@
  * Allows switching between "Combined", "Self", and other household members.
  */
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../features/auth/stores/authStore';
 
@@ -37,10 +37,8 @@ export const UserViewProvider = ({ children }: { children: ReactNode }) => {
   // Sync with URL on mount and when URL changes
   useEffect(() => {
     const urlUserId = searchParams.get('user');
-    if (urlUserId !== selectedUserId) {
-      setSelectedUserIdState(urlUserId);
-    }
-  }, [searchParams, selectedUserId]);
+    setSelectedUserIdState(urlUserId);
+  }, [searchParams]);
 
   // Update URL when selection changes
   const setSelectedUserId = (userId: string | null) => {
@@ -55,21 +53,17 @@ export const UserViewProvider = ({ children }: { children: ReactNode }) => {
     setSearchParams(newParams, { replace: true });
   };
 
-  const isSelfView = selectedUserId === user?.id;
-  const isCombinedView = selectedUserId === null;
-  const isOtherUserView = selectedUserId !== null && selectedUserId !== user?.id;
-  const canEdit = isSelfView || isCombinedView; // Can edit own data or combined view
+  const contextValue = useMemo(() => {
+    const isSelfView = selectedUserId === user?.id;
+    const isCombinedView = selectedUserId === null;
+    const isOtherUserView = selectedUserId !== null && selectedUserId !== user?.id;
+    const canEdit = isSelfView || isCombinedView;
+    return { selectedUserId, setSelectedUserId, isSelfView, isCombinedView, isOtherUserView, canEdit };
+  }, [selectedUserId, user?.id, setSelectedUserId]);
 
   return (
     <UserViewContext.Provider
-      value={{
-        selectedUserId,
-        setSelectedUserId,
-        isSelfView,
-        isCombinedView,
-        isOtherUserView,
-        canEdit,
-      }}
+      value={contextValue}
     >
       {children}
     </UserViewContext.Provider>

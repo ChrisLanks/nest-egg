@@ -7,6 +7,8 @@ import {
   Text,
   Spinner,
   Center,
+  Alert,
+  AlertIcon,
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
@@ -23,7 +25,7 @@ interface SpendingInsight {
 }
 
 export const InsightsCard = () => {
-  const { data: insights, isLoading } = useQuery({
+  const { data: insights, isLoading, isError } = useQuery({
     queryKey: ['spending-insights'],
     queryFn: async () => {
       const response = await api.get<SpendingInsight[]>('/dashboard/insights');
@@ -38,6 +40,19 @@ export const InsightsCard = () => {
           <Center py={4}>
             <Spinner />
           </Center>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardBody>
+          <Alert status="error" borderRadius="md">
+            <AlertIcon />
+            <Text fontSize="sm">Unable to load spending insights.</Text>
+          </Alert>
         </CardBody>
       </Card>
     );

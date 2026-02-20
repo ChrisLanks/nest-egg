@@ -39,8 +39,6 @@ export const PrivateEquityAccountForm = ({
   isLoading,
   defaultAccountType = 'private_equity',
 }: PrivateEquityAccountFormProps) => {
-  console.log('[PrivateEquityAccountForm] Component mounted');
-
   const {
     register,
     handleSubmit,
@@ -62,15 +60,10 @@ export const PrivateEquityAccountForm = ({
   const sharePrice = watch('share_price');
   const companyStatus = watch('company_status');
 
-  console.log('[PrivateEquityAccountForm] Form initialized, errors:', errors);
-  console.log('[PrivateEquityAccountForm] Watched values:', { grantType, quantity, sharePrice, companyStatus });
-
   // Calculate estimated value
-  const estimatedValue = quantity && sharePrice ? Number(quantity) * Number(sharePrice) : 0;
+  const estimatedValue = quantity != null && sharePrice != null ? Number(quantity) * Number(sharePrice) : 0;
 
   const handleFormSubmit = (data: PrivateEquityAccountFormData) => {
-    console.log('[PrivateEquityAccountForm] Form submit, data:', data);
-
     // Convert vesting_schedule array to JSON string for backend
     const vestingScheduleJson = data.vesting_schedule && data.vesting_schedule.length > 0
       ? JSON.stringify(data.vesting_schedule)
@@ -85,7 +78,6 @@ export const PrivateEquityAccountForm = ({
         : (companyStatus === 'public'),
     };
 
-    console.log('[PrivateEquityAccountForm] Submitting data:', submitData);
     onSubmit(submitData);
   };
 
