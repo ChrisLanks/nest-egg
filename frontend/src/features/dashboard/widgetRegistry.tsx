@@ -13,6 +13,10 @@ import { AccountBalancesWidget } from './widgets/AccountBalancesWidget';
 import { SavingsGoalsWidget } from './widgets/SavingsGoalsWidget';
 import { BudgetsWidget } from './widgets/BudgetsWidget';
 import { DebtSummaryWidget } from './widgets/DebtSummaryWidget';
+import { UpcomingBillsWidget } from './widgets/UpcomingBillsWidget';
+import { SubscriptionsWidget } from './widgets/SubscriptionsWidget';
+import { InvestmentPerformanceWidget } from './widgets/InvestmentPerformanceWidget';
+import { AssetAllocationWidget } from './widgets/AssetAllocationWidget';
 import type { LayoutItem, WidgetDefinition } from './types';
 
 export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
@@ -92,6 +96,34 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     description: 'Total debt and a breakdown of your debt accounts.',
     defaultSpan: 1,
     component: DebtSummaryWidget,
+  },
+  'upcoming-bills': {
+    id: 'upcoming-bills',
+    title: 'Upcoming Bills',
+    description: 'Recurring bills due in the next 30 days, sorted by urgency.',
+    defaultSpan: 1,
+    component: UpcomingBillsWidget,
+  },
+  subscriptions: {
+    id: 'subscriptions',
+    title: 'Subscriptions',
+    description: 'Monthly recurring charges and total subscription cost.',
+    defaultSpan: 1,
+    component: SubscriptionsWidget,
+  },
+  'investment-performance': {
+    id: 'investment-performance',
+    title: 'Investment Performance',
+    description: 'Portfolio value, total return, and top holdings.',
+    defaultSpan: 2,
+    component: InvestmentPerformanceWidget,
+  },
+  'asset-allocation': {
+    id: 'asset-allocation',
+    title: 'Asset Allocation',
+    description: 'Donut chart breakdown of your investment portfolio by asset type.',
+    defaultSpan: 1,
+    component: AssetAllocationWidget,
   },
 };
 

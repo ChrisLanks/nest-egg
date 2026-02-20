@@ -67,6 +67,10 @@ describe('WIDGET_REGISTRY', () => {
       'savings-goals',
       'budgets',
       'debt-summary',
+      'upcoming-bills',
+      'subscriptions',
+      'investment-performance',
+      'asset-allocation',
     ];
     for (const id of expectedIds) {
       expect(WIDGET_REGISTRY[id], `missing widget "${id}"`).toBeDefined();
@@ -99,11 +103,15 @@ describe('DEFAULT_LAYOUT', () => {
     expect(unique.size).toBe(ids.length);
   });
 
-  it('new widgets (savings-goals, budgets, debt-summary) are NOT in the default layout', () => {
+  it('opt-in widgets are NOT in the default layout', () => {
     const ids = new Set(DEFAULT_LAYOUT.map((i) => i.id));
     expect(ids.has('savings-goals')).toBe(false);
     expect(ids.has('budgets')).toBe(false);
     expect(ids.has('debt-summary')).toBe(false);
+    expect(ids.has('upcoming-bills')).toBe(false);
+    expect(ids.has('subscriptions')).toBe(false);
+    expect(ids.has('investment-performance')).toBe(false);
+    expect(ids.has('asset-allocation')).toBe(false);
   });
 
   it('core widgets ARE in the default layout', () => {
