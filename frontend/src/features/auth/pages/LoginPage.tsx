@@ -81,7 +81,19 @@ export const LoginPage = () => {
         duration: 3000,
       });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Invalid credentials';
+      const detail = error?.response?.data?.detail;
+      let errorMessage = 'Invalid credentials';
+      if (typeof detail === 'string') {
+        errorMessage = detail;
+      } else if (detail && typeof detail === 'object') {
+        if (detail.message && Array.isArray(detail.errors) && detail.errors.length > 0) {
+          errorMessage = `${detail.message}: ${detail.errors.join('; ')}`;
+        } else if (detail.message) {
+          errorMessage = detail.message;
+        } else if (detail.error) {
+          errorMessage = detail.error;
+        }
+      }
       console.error('❌ Login failed:', {
         error,
         message: errorMessage,

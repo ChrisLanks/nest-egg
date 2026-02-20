@@ -97,11 +97,24 @@ export const RegisterPage = () => {
         duration: 3000,
       });
     } catch (error: any) {
+      const detail = error?.response?.data?.detail;
+      let description = 'An error occurred';
+      if (typeof detail === 'string') {
+        description = detail;
+      } else if (detail && typeof detail === 'object') {
+        if (detail.message && Array.isArray(detail.errors) && detail.errors.length > 0) {
+          description = `${detail.message}: ${detail.errors.join('; ')}`;
+        } else if (detail.message) {
+          description = detail.message;
+        } else if (detail.error) {
+          description = detail.error;
+        }
+      }
       toast({
         title: 'Registration failed',
-        description: error.response?.data?.detail || 'An error occurred',
+        description,
         status: 'error',
-        duration: 5000,
+        duration: 7000,
       });
     }
   };

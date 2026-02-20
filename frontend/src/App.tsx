@@ -16,6 +16,7 @@ import { LoginPage } from './features/auth/pages/LoginPage';
 import { RegisterPage } from './features/auth/pages/RegisterPage';
 import { ProtectedRoute } from './features/auth/components/ProtectedRoute';
 import { Layout } from './components/Layout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Lazy-loaded pages (code-split for performance)
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -51,6 +52,7 @@ function App() {
       <ChakraProvider theme={theme}>
         <BrowserRouter>
           <UserViewProvider>
+            <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>
               <Routes>
             {/* Public routes */}
@@ -91,6 +93,7 @@ function App() {
             <Route path="*" element={<Navigate to="/overview" replace />} />
               </Routes>
             </Suspense>
+            </ErrorBoundary>
           </UserViewProvider>
         </BrowserRouter>
       </ChakraProvider>
