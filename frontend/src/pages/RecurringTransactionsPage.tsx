@@ -54,7 +54,7 @@ import { FiLock, FiRepeat } from 'react-icons/fi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
 import { recurringTransactionsApi } from '../api/recurring-transactions';
-import { RecurringFrequency, RecurringTransaction } from '../types/recurring-transaction';
+import { RecurringFrequency, type RecurringTransaction } from '../types/recurring-transaction';
 import { useUserView } from '../contexts/UserViewContext';
 import { EmptyState } from '../components/EmptyState';
 
