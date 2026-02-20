@@ -1,6 +1,6 @@
 """CRUD operations for users."""
 
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 from uuid import UUID
 
@@ -36,6 +36,7 @@ class UserCRUD:
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
         display_name: Optional[str] = None,
+        birth_year: Optional[int] = None,
         is_org_admin: bool = False,
     ) -> User:
         """Create a new user."""
@@ -46,6 +47,7 @@ class UserCRUD:
             first_name=first_name,
             last_name=last_name,
             display_name=display_name,
+            birthdate=date(birth_year, 1, 1) if birth_year else None,
             is_org_admin=is_org_admin,
         )
         db.add(user)

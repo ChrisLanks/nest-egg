@@ -8,6 +8,7 @@ export interface RegisterRequest {
   email: string;
   password: string;
   display_name: string;
+  birth_year?: number;
 }
 
 export interface LoginRequest {

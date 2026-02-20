@@ -294,6 +294,7 @@ class TestRegisterEndpoint:
         mock_data.display_name = "Solo"
         mock_data.first_name = None
         mock_data.last_name = None
+        mock_data.birth_year = None
 
         mock_org = Mock(spec=Organization)
         mock_org.id = uuid4()
@@ -313,6 +314,215 @@ class TestRegisterEndpoint:
                                     # org name derived from display_name when default used
                                     org_call_kwargs = mock_org_create.call_args.kwargs
                                     assert org_call_kwargs["name"] == "Solo's Household"
+
+    @pytest.mark.asyncio
+    async def test_register_stores_birth_year_when_provided(self):
+        """birth_year provided at registration should be passed to user_crud.create()."""
+        from app.api.v1.auth import register
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_data = Mock()
+        mock_data.email = "young@example.com"
+        mock_data.password = "SecurePass123!"
+        mock_data.organization_name = "My Household"
+        mock_data.display_name = "Young"
+        mock_data.first_name = None
+        mock_data.last_name = None
+        mock_data.birth_year = 1990
+
+        mock_org = Mock(spec=Organization)
+        mock_org.id = uuid4()
+        mock_user = Mock(spec=User)
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
+                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
+                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)):
+                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)) as mock_create:
+                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+                                with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
+                                    await register(mock_request, mock_data, mock_db)
+
+                                    call_kwargs = mock_create.call_args.kwargs
+                                    assert call_kwargs.get("birth_year") == 1990
+
+    @pytest.mark.asyncio
+    async def test_register_omits_birth_year_when_not_provided(self):
+        """birth_year is optional — None should be passed when omitted."""
+        from app.api.v1.auth import register
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_data = Mock()
+        mock_data.email = "no_bday@example.com"
+        mock_data.password = "SecurePass123!"
+        mock_data.organization_name = "My Household"
+        mock_data.display_name = "NoBday"
+        mock_data.first_name = None
+        mock_data.last_name = None
+        mock_data.birth_year = None
+
+        mock_org = Mock(spec=Organization)
+        mock_org.id = uuid4()
+        mock_user = Mock(spec=User)
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
+                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
+                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)):
+                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)) as mock_create:
+                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+                                with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
+                                    await register(mock_request, mock_data, mock_db)
+
+                                    call_kwargs = mock_create.call_args.kwargs
+                                    assert call_kwargs.get("birth_year") is None
+
+
+@pytest.mark.unit
+class TestRegisterRequestSchema:
+    """Test RegisterRequest schema validation for birth_year."""
+
+    def test_birth_year_optional_absent(self):
+        """birth_year omitted → None."""
+        from app.schemas.auth import RegisterRequest
+
+        req = RegisterRequest(
+            email="a@example.com",
+            password="SecurePass123!",
+            display_name="Alice",
+        )
+        assert req.birth_year is None
+
+    def test_birth_year_valid(self):
+        """Valid birth_year is accepted."""
+        from app.schemas.auth import RegisterRequest
+
+        req = RegisterRequest(
+            email="a@example.com",
+            password="SecurePass123!",
+            display_name="Alice",
+            birth_year=1985,
+        )
+        assert req.birth_year == 1985
+
+    def test_birth_year_too_low_rejected(self):
+        """birth_year < 1900 is rejected."""
+        from app.schemas.auth import RegisterRequest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            RegisterRequest(
+                email="a@example.com",
+                password="SecurePass123!",
+                display_name="Alice",
+                birth_year=1899,
+            )
+
+    def test_birth_year_too_high_rejected(self):
+        """birth_year > 2100 is rejected."""
+        from app.schemas.auth import RegisterRequest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            RegisterRequest(
+                email="a@example.com",
+                password="SecurePass123!",
+                display_name="Alice",
+                birth_year=2101,
+            )
+
+    def test_birth_year_boundary_1900_accepted(self):
+        """Birth year 1900 (lower bound) is valid."""
+        from app.schemas.auth import RegisterRequest
+
+        req = RegisterRequest(
+            email="a@example.com",
+            password="SecurePass123!",
+            display_name="Alice",
+            birth_year=1900,
+        )
+        assert req.birth_year == 1900
+
+    def test_birth_year_boundary_2100_accepted(self):
+        """Birth year 2100 (upper bound) is valid."""
+        from app.schemas.auth import RegisterRequest
+
+        req = RegisterRequest(
+            email="a@example.com",
+            password="SecurePass123!",
+            display_name="Alice",
+            birth_year=2100,
+        )
+        assert req.birth_year == 2100
+
+
+@pytest.mark.unit
+class TestUserCRUDBirthYear:
+    """Test user_crud.create() converts birth_year to birthdate correctly."""
+
+    @pytest.mark.asyncio
+    async def test_create_sets_birthdate_from_birth_year(self):
+        """birth_year converts to date(year, 1, 1) stored on user."""
+        from app.crud.user import UserCRUD
+        from datetime import date
+
+        mock_db = AsyncMock()
+        mock_db.add = Mock()
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+
+        captured_user = None
+
+        def capture_add(user):
+            nonlocal captured_user
+            captured_user = user
+
+        mock_db.add.side_effect = capture_add
+
+        with patch("app.crud.user.hash_password", return_value="hashed"):
+            await UserCRUD.create(
+                db=mock_db,
+                email="test@example.com",
+                password="password",
+                organization_id=uuid4(),
+                display_name="Test",
+                birth_year=1990,
+            )
+
+        assert captured_user is not None
+        assert captured_user.birthdate == date(1990, 1, 1)
+
+    @pytest.mark.asyncio
+    async def test_create_leaves_birthdate_none_when_birth_year_omitted(self):
+        """No birth_year → birthdate is None."""
+        from app.crud.user import UserCRUD
+
+        mock_db = AsyncMock()
+        mock_db.add = Mock()
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+
+        captured_user = None
+
+        def capture_add(user):
+            nonlocal captured_user
+            captured_user = user
+
+        mock_db.add.side_effect = capture_add
+
+        with patch("app.crud.user.hash_password", return_value="hashed"):
+            await UserCRUD.create(
+                db=mock_db,
+                email="test@example.com",
+                password="password",
+                organization_id=uuid4(),
+                display_name="Test",
+            )
+
+        assert captured_user is not None
+        assert captured_user.birthdate is None
 
 
 @pytest.mark.unit

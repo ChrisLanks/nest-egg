@@ -9,8 +9,11 @@ import {
   FormControl,
   FormLabel,
   FormErrorMessage,
+  FormHelperText,
   Heading,
   Input,
+  NumberInput,
+  NumberInputField,
   Stack,
   Text,
   Link as ChakraLink,
@@ -23,10 +26,18 @@ import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { useRegister } from '../hooks/useAuth';
 
+const currentYear = new Date().getFullYear();
+
 const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   display_name: z.string().min(1, 'Name is required'),
+  birth_year: z
+    .number()
+    .int()
+    .min(1900, 'Enter a valid year')
+    .max(currentYear, 'Enter a valid year')
+    .optional(),
 });
 
 type RegisterFormData = z.infer<typeof registerSchema>;
@@ -38,14 +49,19 @@ export const RegisterPage = () => {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
   });
 
   const onSubmit = async (data: RegisterFormData) => {
+    // Strip undefined optional fields so they're omitted from the request body
+    const payload = Object.fromEntries(
+      Object.entries(data).filter(([, v]) => v !== undefined)
+    ) as RegisterFormData;
     try {
-      await registerMutation.mutateAsync(data);
+      await registerMutation.mutateAsync(payload);
       toast({
         title: 'Registration successful',
         description: 'Welcome to Nest Egg!',
@@ -100,6 +116,21 @@ export const RegisterPage = () => {
                   <FormLabel>Name</FormLabel>
                   <Input placeholder="How you'd like to appear" {...register('display_name')} />
                   <FormErrorMessage>{errors.display_name?.message}</FormErrorMessage>
+                </FormControl>
+
+                <FormControl isInvalid={!!errors.birth_year}>
+                  <FormLabel>Birth Year <Text as="span" color="gray.400" fontWeight="normal">(optional)</Text></FormLabel>
+                  <NumberInput
+                    min={1900}
+                    max={currentYear}
+                    onChange={(_, value) =>
+                      setValue('birth_year', isNaN(value) ? undefined : value, { shouldValidate: true })
+                    }
+                  >
+                    <NumberInputField placeholder="e.g. 1985" />
+                  </NumberInput>
+                  <FormHelperText>Used for RMD calculations — can be set later in preferences.</FormHelperText>
+                  <FormErrorMessage>{errors.birth_year?.message}</FormErrorMessage>
                 </FormControl>
 
                 <Button
