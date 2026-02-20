@@ -1135,6 +1135,7 @@ async def create_holding(
         AccountType.RETIREMENT_401K,
         AccountType.RETIREMENT_IRA,
         AccountType.RETIREMENT_ROTH,
+        AccountType.RETIREMENT_529,
         AccountType.HSA,
     ]:
         raise HTTPException(

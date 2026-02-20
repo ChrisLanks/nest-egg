@@ -40,7 +40,7 @@ import {
   IconButton,
   Tooltip,
 } from '@chakra-ui/react';
-import { FiEdit2, FiCheck, FiX, FiLock, FiRefreshCw } from 'react-icons/fi';
+import { FiEdit2, FiCheck, FiX, FiLock, FiRefreshCw, FiTrash2 } from 'react-icons/fi';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
@@ -49,6 +49,9 @@ import { useAuthStore } from '../features/auth/stores/authStore';
 import { useUserView } from '../contexts/UserViewContext';
 import type { Transaction } from '../types/transaction';
 import { ContributionsManager } from '../features/accounts/components/ContributionsManager';
+import { AddTransactionModal } from '../features/accounts/components/AddTransactionModal';
+import { AddHoldingModal } from '../features/accounts/components/AddHoldingModal';
+import { holdingsApi, type Holding } from '../api/holdings';
 
 interface Account {
   id: string;
@@ -89,8 +92,16 @@ const ASSET_ACCOUNT_TYPES = [
 /** Manual accounts that make sense to schedule recurring contributions for. */
 const CONTRIBUTION_ACCOUNT_TYPES = [
   'savings', 'brokerage', 'retirement_401k', 'retirement_ira',
-  'retirement_roth', 'retirement_403b', 'retirement_457b',
-  'retirement_simple_ira', 'retirement_sep_ira', 'hsa', 'fsa', 'four_twenty_nine',
+  'retirement_roth', 'retirement_529', 'hsa',
+];
+
+/** Debt account types — can update balance directly when manual. */
+const DEBT_ACCOUNT_TYPES = ['credit_card', 'loan', 'student_loan', 'mortgage'];
+
+/** Investment account types that support individual holdings. */
+const HOLDINGS_ACCOUNT_TYPES = [
+  'brokerage', 'retirement_401k', 'retirement_ira', 'retirement_roth',
+  'retirement_529', 'hsa',
 ];
 
 const accountTypeLabels: Record<string, string> = {
@@ -122,11 +133,14 @@ export const AccountDetailPage = () => {
   const selectedUserId = searchParams.get('user');
   const isCombinedView = !selectedUserId;
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+  const { isOpen: isAddTxnOpen, onOpen: onAddTxnOpen, onClose: onAddTxnClose } = useDisclosure();
+  const { isOpen: isAddHoldingOpen, onOpen: onAddHoldingOpen, onClose: onAddHoldingClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const [transactionsCursor, setTransactionsCursor] = useState<string | null>(null);
   const [vehicleMileage, setVehicleMileage] = useState('');
   const [vehicleValue, setVehicleValue] = useState('');
   const [manualBalance, setManualBalance] = useState('');
+  const [debtBalance, setDebtBalance] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
   // Loan detail editing state
@@ -168,6 +182,13 @@ export const AccountDetailPage = () => {
       return response.data;
     },
     enabled: !!accountId && !ASSET_ACCOUNT_TYPES.includes(account?.account_type ?? ''),
+  });
+
+  // Fetch holdings for investment accounts
+  const { data: accountHoldings } = useQuery<Holding[]>({
+    queryKey: ['holdings', accountId],
+    queryFn: () => holdingsApi.getAccountHoldings(accountId!),
+    enabled: !!accountId && HOLDINGS_ACCOUNT_TYPES.includes(account?.account_type ?? ''),
   });
 
   // Update account mutation
@@ -302,6 +323,24 @@ export const AccountDetailPage = () => {
     },
   });
 
+  // Delete holding mutation
+  const deleteHoldingMutation = useMutation({
+    mutationFn: (holdingId: string) => holdingsApi.deleteHolding(holdingId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['holdings', accountId] });
+      queryClient.invalidateQueries({ queryKey: ['portfolio-widget'] });
+      toast({ title: 'Holding removed', status: 'success', duration: 3000 });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to remove holding',
+        description: error.response?.data?.detail || 'An error occurred',
+        status: 'error',
+        duration: 5000,
+      });
+    },
+  });
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -431,6 +470,15 @@ export const AccountDetailPage = () => {
     }
   };
 
+  const handleUpdateDebtBalance = () => {
+    const value = parseFloat(debtBalance);
+    if (!isNaN(value) && value >= 0) {
+      updateAccountMutation.mutate({ current_balance: value }, {
+        onSuccess: () => setDebtBalance(''),
+      });
+    }
+  };
+
   const handleStartEditName = () => {
     if (account) {
       setEditedName(account.name);
@@ -487,18 +535,24 @@ export const AccountDetailPage = () => {
   const canEditAccount = canEdit && isOwner && !isSharedAccount;
 
   const isAssetAccount = ASSET_ACCOUNT_TYPES.includes(account.account_type);
+  const isManual = account.account_source === 'manual';
+
   // Asset accounts (property, vehicle, etc.) don't have transaction flows
   const showTransactions = !isAssetAccount;
   // Recurring contributions only make sense for investment/savings account types
   const showContributions =
-    account.account_source === 'manual' &&
-    CONTRIBUTION_ACCOUNT_TYPES.includes(account.account_type);
+    isManual && CONTRIBUTION_ACCOUNT_TYPES.includes(account.account_type);
   // Show a simple balance update form for manual asset accounts that don't already
   // have their own dedicated update section (vehicle has one)
   const showUpdateBalance =
-    account.account_source === 'manual' &&
-    isAssetAccount &&
-    account.account_type !== 'vehicle';
+    isManual && isAssetAccount && account.account_type !== 'vehicle';
+  // Manual debt accounts can have their balance set directly
+  const showDebtBalanceUpdate =
+    isManual && DEBT_ACCOUNT_TYPES.includes(account.account_type);
+  // Investment account types support individual holdings
+  const showHoldings = HOLDINGS_ACCOUNT_TYPES.includes(account.account_type);
+  // "Add Transaction" button in the transactions panel for manual non-asset accounts
+  const canAddTransaction = isManual && !isAssetAccount && canEditAccount;
 
   return (
     <Container maxW="container.lg" py={8}>
@@ -970,6 +1024,130 @@ export const AccountDetailPage = () => {
           </Card>
         )}
 
+        {/* Holdings Section - For investment account types (brokerage, IRA, 401k, HSA, 529) */}
+        {showHoldings && (
+          <Card>
+            <CardBody>
+              <HStack justify="space-between" mb={4}>
+                <Heading size="md">Holdings</Heading>
+                {canEditAccount && isManual && (
+                  <Button
+                    size="sm"
+                    colorScheme="brand"
+                    variant="outline"
+                    onClick={onAddHoldingOpen}
+                  >
+                    Add Holding
+                  </Button>
+                )}
+              </HStack>
+
+              {accountHoldings && accountHoldings.length > 0 ? (
+                <Table variant="simple" size="sm">
+                  <Thead>
+                    <Tr>
+                      <Th>Ticker</Th>
+                      <Th>Name</Th>
+                      <Th isNumeric>Shares</Th>
+                      <Th isNumeric>Cost Basis/Share</Th>
+                      <Th isNumeric>Current Value</Th>
+                      {canEditAccount && isManual && <Th />}
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {accountHoldings.map((h) => (
+                      <Tr key={h.id}>
+                        <Td fontWeight="bold">{h.ticker}</Td>
+                        <Td color="gray.600">{h.name || '—'}</Td>
+                        <Td isNumeric>{Number(h.shares).toLocaleString(undefined, { maximumFractionDigits: 6 })}</Td>
+                        <Td isNumeric>
+                          {h.cost_basis_per_share != null
+                            ? formatCurrency(Number(h.cost_basis_per_share))
+                            : '—'}
+                        </Td>
+                        <Td isNumeric fontWeight="medium">
+                          {h.current_value != null
+                            ? formatCurrency(Number(h.current_value))
+                            : '—'}
+                        </Td>
+                        {canEditAccount && isManual && (
+                          <Td>
+                            <Tooltip label="Remove holding" placement="top">
+                              <IconButton
+                                aria-label="Remove holding"
+                                icon={<FiTrash2 />}
+                                size="xs"
+                                variant="ghost"
+                                colorScheme="red"
+                                onClick={() => deleteHoldingMutation.mutate(h.id)}
+                                isLoading={deleteHoldingMutation.isPending}
+                              />
+                            </Tooltip>
+                          </Td>
+                        )}
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              ) : (
+                <Text color="gray.500" fontSize="sm" textAlign="center" py={6}>
+                  {isManual
+                    ? 'No holdings yet. Use "Add Holding" to record your positions.'
+                    : 'Holdings are synced from your brokerage.'}
+                </Text>
+              )}
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Update Balance for manual debt accounts */}
+        {showDebtBalanceUpdate && (
+          <Card>
+            <CardBody>
+              <Heading size="md" mb={1}>
+                Update Balance
+              </Heading>
+              <Text fontSize="sm" color="gray.500" mb={4}>
+                Set the current amount owed to keep your debt tracking accurate.
+              </Text>
+              <VStack spacing={4} align="stretch">
+                {!canEditAccount ? (
+                  <Text fontSize="sm" color="gray.600">
+                    Balance can only be updated by the account owner.
+                  </Text>
+                ) : (
+                  <>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Current Balance Owed ($)</FormLabel>
+                      <HStack>
+                        <Text fontSize="sm">$</Text>
+                        <NumberInput
+                          value={debtBalance}
+                          onChange={setDebtBalance}
+                          min={0}
+                          precision={2}
+                          size="sm"
+                        >
+                          <NumberInputField placeholder={Math.abs(balance).toFixed(2)} />
+                        </NumberInput>
+                      </HStack>
+                    </FormControl>
+                    <Button
+                      colorScheme="brand"
+                      size="sm"
+                      onClick={handleUpdateDebtBalance}
+                      isLoading={updateAccountMutation.isPending}
+                      isDisabled={!debtBalance}
+                    >
+                      Save Balance
+                    </Button>
+                  </>
+                )}
+              </VStack>
+            </CardBody>
+          </Card>
+        )}
+
         {/* Update Balance Section - For manual asset accounts (property, collectibles, etc.) */}
         {showUpdateBalance && (
           <Card>
@@ -1044,11 +1222,23 @@ export const AccountDetailPage = () => {
           <CardBody>
             <HStack justify="space-between" mb={4}>
               <Heading size="md">Transactions</Heading>
-              {transactionsData && transactionsData.total > 0 && (
-                <Text fontSize="sm" color="gray.600">
-                  Showing {transactionsData.transactions?.length || 0} of {transactionsData.total}
-                </Text>
-              )}
+              <HStack spacing={3}>
+                {canAddTransaction && (
+                  <Button
+                    size="sm"
+                    colorScheme="brand"
+                    variant="outline"
+                    onClick={onAddTxnOpen}
+                  >
+                    Add Transaction
+                  </Button>
+                )}
+                {transactionsData && transactionsData.total > 0 && (
+                  <Text fontSize="sm" color="gray.600">
+                    Showing {transactionsData.transactions?.length || 0} of {transactionsData.total}
+                  </Text>
+                )}
+              </HStack>
             </HStack>
 
             {transactionsLoading ? (
@@ -1137,6 +1327,22 @@ export const AccountDetailPage = () => {
           </CardBody>
         </Card>}
       </VStack>
+
+      {/* Add Transaction Modal */}
+      <AddTransactionModal
+        isOpen={isAddTxnOpen}
+        onClose={onAddTxnClose}
+        accountId={account.id}
+        accountName={account.name}
+      />
+
+      {/* Add Holding Modal */}
+      <AddHoldingModal
+        isOpen={isAddHoldingOpen}
+        onClose={onAddHoldingClose}
+        accountId={account.id}
+        accountName={account.name}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog
