@@ -461,20 +461,11 @@ export const AccountDetailPage = () => {
     }
   };
 
-  const handleUpdateBalance = () => {
-    const value = parseFloat(manualBalance);
+  const handleSaveBalance = (rawValue: string, clearInput: () => void) => {
+    const value = parseFloat(rawValue);
     if (!isNaN(value) && value >= 0) {
       updateAccountMutation.mutate({ current_balance: value }, {
-        onSuccess: () => setManualBalance(''),
-      });
-    }
-  };
-
-  const handleUpdateDebtBalance = () => {
-    const value = parseFloat(debtBalance);
-    if (!isNaN(value) && value >= 0) {
-      updateAccountMutation.mutate({ current_balance: value }, {
-        onSuccess: () => setDebtBalance(''),
+        onSuccess: clearInput,
       });
     }
   };
@@ -1080,7 +1071,8 @@ export const AccountDetailPage = () => {
                                 variant="ghost"
                                 colorScheme="red"
                                 onClick={() => deleteHoldingMutation.mutate(h.id)}
-                                isLoading={deleteHoldingMutation.isPending}
+                                isLoading={deleteHoldingMutation.isPending && deleteHoldingMutation.variables === h.id}
+                                isDisabled={deleteHoldingMutation.isPending && deleteHoldingMutation.variables !== h.id}
                               />
                             </Tooltip>
                           </Td>
@@ -1135,7 +1127,7 @@ export const AccountDetailPage = () => {
                     <Button
                       colorScheme="brand"
                       size="sm"
-                      onClick={handleUpdateDebtBalance}
+                      onClick={() => handleSaveBalance(debtBalance, () => setDebtBalance(''))}
                       isLoading={updateAccountMutation.isPending}
                       isDisabled={!debtBalance}
                     >
@@ -1185,7 +1177,7 @@ export const AccountDetailPage = () => {
                     <Button
                       colorScheme="brand"
                       size="sm"
-                      onClick={handleUpdateBalance}
+                      onClick={() => handleSaveBalance(manualBalance, () => setManualBalance(''))}
                       isLoading={updateAccountMutation.isPending}
                       isDisabled={!manualBalance}
                     >
@@ -1295,9 +1287,9 @@ export const AccountDetailPage = () => {
                             <Text
                               fontSize="sm"
                               fontWeight="semibold"
-                              color={isNegative ? 'red.600' : 'green.600'}
+                              color={isNegative ? 'green.600' : 'red.600'}
                             >
-                              {isNegative ? '-' : '+'}
+                              {isNegative ? '+' : '-'}
                               {formatCurrency(Math.abs(amount))}
                             </Text>
                           </Td>

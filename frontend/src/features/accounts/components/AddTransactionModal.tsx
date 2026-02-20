@@ -131,6 +131,7 @@ export const AddTransactionModal = ({
                 value={merchant}
                 onChange={(e) => setMerchant(e.target.value)}
                 placeholder="e.g., Amazon, Paycheck"
+                maxLength={100}
               />
             </FormControl>
 

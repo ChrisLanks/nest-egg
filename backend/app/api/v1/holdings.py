@@ -1117,6 +1117,9 @@ async def create_holding(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new holding."""
+    import logging
+
+    logger = logging.getLogger(__name__)
 
     # Verify account belongs to user's organization
     account_result = await db.execute(
@@ -1127,6 +1130,11 @@ async def create_holding(
     )
     account = account_result.scalar_one_or_none()
     if not account:
+        logger.warning(
+            "create_holding: account not found account_id=%s user_id=%s",
+            holding_data.account_id,
+            current_user.id,
+        )
         raise HTTPException(status_code=404, detail="Account not found")
 
     # Verify account is an investment type
@@ -1138,6 +1146,12 @@ async def create_holding(
         AccountType.RETIREMENT_529,
         AccountType.HSA,
     ]:
+        logger.warning(
+            "create_holding: invalid account type account_id=%s type=%s user_id=%s",
+            account.id,
+            account.account_type,
+            current_user.id,
+        )
         raise HTTPException(
             status_code=400, detail="Holdings can only be added to investment accounts"
         )
@@ -1162,6 +1176,15 @@ async def create_holding(
     db.add(holding)
     await db.commit()
     await db.refresh(holding)
+
+    logger.info(
+        "create_holding: ticker=%s shares=%s account_id=%s user_id=%s org_id=%s",
+        holding.ticker,
+        holding.shares,
+        account.id,
+        current_user.id,
+        current_user.organization_id,
+    )
 
     return holding
 
@@ -1219,6 +1242,9 @@ async def delete_holding(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a holding."""
+    import logging
+
+    logger = logging.getLogger(__name__)
 
     # Fetch holding
     result = await db.execute(
@@ -1230,6 +1256,13 @@ async def delete_holding(
     holding = result.scalar_one_or_none()
     if not holding:
         raise HTTPException(status_code=404, detail="Holding not found")
+
+    logger.info(
+        "delete_holding: ticker=%s account_id=%s user_id=%s",
+        holding.ticker,
+        holding.account_id,
+        current_user.id,
+    )
 
     await db.delete(holding)
     await db.commit()

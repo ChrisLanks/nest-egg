@@ -96,6 +96,7 @@ export const AddHoldingModal = ({
                 value={ticker}
                 onChange={(e) => setTicker(e.target.value.toUpperCase())}
                 placeholder="e.g., AAPL, VTI, BND"
+                maxLength={10}
               />
             </FormControl>
 
@@ -106,6 +107,7 @@ export const AddHoldingModal = ({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g., Vanguard Total Market ETF"
+                maxLength={100}
               />
             </FormControl>
 
