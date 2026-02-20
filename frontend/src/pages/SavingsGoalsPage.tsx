@@ -111,19 +111,21 @@ export default function SavingsGoalsPage() {
     queryFn: () => savingsGoalsApi.getAll(),
   });
 
-  // Auto-sync on page load (and when goal count or method changes)
+  // Key built from auto-sync goals' id+account_id pairs.
+  // Changes when a goal is added/removed, OR when its linked account is edited.
+  // After auto-sync updates current_amount the key stays the same → no infinite loop.
+  const autoSyncKey = goals
+    .filter(g => !g.is_completed && !g.is_funded && g.auto_sync && g.account_id)
+    .map(g => `${g.id}:${g.account_id}`)
+    .join(',');
+
   useEffect(() => {
-    const hasAutoSync = goals.some(
-      g => !g.is_completed && !g.is_funded && g.auto_sync && g.account_id
-    );
-    if (hasAutoSync) {
-      savingsGoalsApi
-        .autoSync(allocationMethod)
-        .then(() => queryClient.invalidateQueries({ queryKey: ['goals'] }))
-        .catch(() => {/* silently ignore — goals still display with last known values */});
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goals.length, allocationMethod]);
+    if (!autoSyncKey) return;
+    savingsGoalsApi
+      .autoSync(allocationMethod)
+      .then(() => queryClient.invalidateQueries({ queryKey: ['goals'] }))
+      .catch(() => {/* silently ignore — goals still display with last known values */});
+  }, [autoSyncKey, allocationMethod]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEdit = (goal: SavingsGoal) => {
     setSelectedGoal(goal);
@@ -317,8 +319,8 @@ export default function SavingsGoalsPage() {
         )}
       </VStack>
 
-      {/* Goal form modal */}
-      <GoalForm isOpen={isOpen} onClose={handleClose} goal={selectedGoal} />
+      {/* Goal form modal — key forces remount so defaultValues reset on each open */}
+      <GoalForm key={selectedGoal?.id ?? 'new'} isOpen={isOpen} onClose={handleClose} goal={selectedGoal} />
     </Box>
   );
 }

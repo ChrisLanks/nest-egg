@@ -16,11 +16,19 @@ from app.api.v1.savings_goals import (
     delete_goal,
     sync_goal_from_account,
     get_goal_progress,
+    auto_sync_goals,
+    reorder_goals,
+    fund_goal,
     router,
 )
 from app.models.user import User
 from app.models.savings_goal import SavingsGoal
-from app.schemas.savings_goal import SavingsGoalCreate, SavingsGoalUpdate
+from app.schemas.savings_goal import (
+    SavingsGoalCreate,
+    SavingsGoalUpdate,
+    AutoSyncRequest,
+    ReorderRequest,
+)
 
 
 @pytest.mark.unit
@@ -509,3 +517,236 @@ class TestGetGoalProgress:
                 )
 
             assert exc_info.value.status_code == 404
+
+
+@pytest.mark.unit
+class TestAutoSyncGoals:
+    """Test auto_sync_goals endpoint."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_returns_updated_goals(self, mock_db, mock_user):
+        """Should return list of goals updated from account balances."""
+        goal1 = Mock(spec=SavingsGoal)
+        goal1.id = uuid4()
+        goal1.current_amount = Decimal("2000.00")
+
+        goal2 = Mock(spec=SavingsGoal)
+        goal2.id = uuid4()
+        goal2.current_amount = Decimal("1000.00")
+
+        request = AutoSyncRequest(method="waterfall")
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.auto_sync_goals",
+            return_value=[goal1, goal2],
+        ) as mock_sync:
+            result = await auto_sync_goals(
+                request=request,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            assert len(result) == 2
+            mock_sync.assert_called_once_with(
+                db=mock_db,
+                user=mock_user,
+                method="waterfall",
+            )
+
+    @pytest.mark.asyncio
+    async def test_uses_proportional_method(self, mock_db, mock_user):
+        """Should pass proportional method to service."""
+        request = AutoSyncRequest(method="proportional")
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.auto_sync_goals",
+            return_value=[],
+        ) as mock_sync:
+            await auto_sync_goals(
+                request=request,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            mock_sync.assert_called_once_with(
+                db=mock_db,
+                user=mock_user,
+                method="proportional",
+            )
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_list_when_no_auto_sync_goals(self, mock_db, mock_user):
+        """Should return empty list when no auto-sync goals exist."""
+        request = AutoSyncRequest(method="waterfall")
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.auto_sync_goals",
+            return_value=[],
+        ):
+            result = await auto_sync_goals(
+                request=request,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            assert result == []
+
+
+@pytest.mark.unit
+class TestReorderGoals:
+    """Test reorder_goals endpoint."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_reorders_goals_successfully(self, mock_db, mock_user):
+        """Should reorder goals and return 204 (None)."""
+        id1, id2, id3 = uuid4(), uuid4(), uuid4()
+        request = ReorderRequest(goal_ids=[id1, id2, id3])
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.reorder_goals",
+            return_value=True,
+        ) as mock_reorder:
+            result = await reorder_goals(
+                request=request,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            assert result is None
+            mock_reorder.assert_called_once_with(
+                db=mock_db,
+                user=mock_user,
+                goal_ids=[id1, id2, id3],
+            )
+
+    @pytest.mark.asyncio
+    async def test_passes_ordered_ids_to_service(self, mock_db, mock_user):
+        """Should pass goal IDs in the exact order provided."""
+        id1, id2 = uuid4(), uuid4()
+        # Reversed order — user dragged id2 to top
+        request = ReorderRequest(goal_ids=[id2, id1])
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.reorder_goals",
+            return_value=True,
+        ) as mock_reorder:
+            await reorder_goals(
+                request=request,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            call_kwargs = mock_reorder.call_args.kwargs
+            assert call_kwargs["goal_ids"] == [id2, id1]
+
+
+@pytest.mark.unit
+class TestFundGoal:
+    """Test fund_goal endpoint."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_funds_goal_successfully(self, mock_db, mock_user):
+        """Should mark goal as funded and return updated goal."""
+        goal_id = uuid4()
+
+        funded_goal = Mock(spec=SavingsGoal)
+        funded_goal.id = goal_id
+        funded_goal.is_funded = True
+
+        request = AutoSyncRequest(method="waterfall")
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.fund_goal",
+            return_value=funded_goal,
+        ) as mock_fund:
+            result = await fund_goal(
+                goal_id=goal_id,
+                request=request,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            assert result.is_funded is True
+            mock_fund.assert_called_once_with(
+                db=mock_db,
+                goal_id=goal_id,
+                user=mock_user,
+                method="waterfall",
+            )
+
+    @pytest.mark.asyncio
+    async def test_raises_404_when_goal_not_found(self, mock_db, mock_user):
+        """Should raise 404 when goal doesn't exist."""
+        goal_id = uuid4()
+        request = AutoSyncRequest(method="waterfall")
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.fund_goal",
+            return_value=None,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await fund_goal(
+                    goal_id=goal_id,
+                    request=request,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+            assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_passes_method_to_service_for_reallocation(self, mock_db, mock_user):
+        """Should pass allocation method so remaining goals are recalculated correctly."""
+        goal_id = uuid4()
+        funded_goal = Mock(spec=SavingsGoal)
+        funded_goal.id = goal_id
+        funded_goal.is_funded = True
+
+        request = AutoSyncRequest(method="proportional")
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.fund_goal",
+            return_value=funded_goal,
+        ) as mock_fund:
+            await fund_goal(
+                goal_id=goal_id,
+                request=request,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            call_kwargs = mock_fund.call_args.kwargs
+            assert call_kwargs["method"] == "proportional"

@@ -62,12 +62,14 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
   // Watch account_id to conditionally show auto_sync toggle
   const watchedAccountId = useWatch({ control, name: 'account_id' });
 
-  // Reset auto_sync when account is cleared
+  // Auto-manage auto_sync based on account selection
   useEffect(() => {
     if (!watchedAccountId) {
       setValue('auto_sync', false);
+    } else if (!isEditing) {
+      setValue('auto_sync', true);
     }
-  }, [watchedAccountId, setValue]);
+  }, [watchedAccountId, isEditing, setValue]);
 
   // Get accounts for dropdown
   const { data: accounts = [] } = useQuery({
@@ -83,7 +85,11 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
       }
       return savingsGoalsApi.create(data);
     },
-    onSuccess: () => {
+    onSuccess: async (savedGoal) => {
+      if (savedGoal.auto_sync && savedGoal.account_id) {
+        const method = (localStorage.getItem('savingsGoalAllocMethod') as 'waterfall' | 'proportional') ?? 'waterfall';
+        await savingsGoalsApi.autoSync(method).catch(() => {});
+      }
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       toast({
         title: isEditing ? 'Goal updated' : 'Goal created',

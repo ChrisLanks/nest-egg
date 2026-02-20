@@ -21,12 +21,15 @@ import {
   Box,
   Checkbox,
   Tooltip,
+  Icon,
+  Divider,
 } from '@chakra-ui/react';
 import { EditIcon, DeleteIcon, SettingsIcon, RepeatIcon } from '@chakra-ui/icons';
-import { FiMove, FiCheckSquare } from 'react-icons/fi';
+import { FiMove, FiCheckSquare, FiLink, FiRefreshCw } from 'react-icons/fi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SavingsGoal } from '../../../types/savings-goal';
 import { savingsGoalsApi } from '../../../api/savings-goals';
+import { accountsApi } from '../../../api/accounts';
 
 interface GoalCardProps {
   goal: SavingsGoal;
@@ -53,6 +56,13 @@ export default function GoalCard({
     queryKey: ['goals', goal.id, 'progress'],
     queryFn: () => savingsGoalsApi.getProgress(goal.id),
   });
+
+  // Get accounts (served from cache — same query key used in GoalForm)
+  const { data: accounts = [] } = useQuery({
+    queryKey: ['accounts'],
+    queryFn: accountsApi.getAccounts,
+  });
+  const linkedAccount = goal.account_id ? accounts.find(a => a.id === goal.account_id) : null;
 
   // Delete mutation
   const deleteMutation = useMutation({
@@ -147,13 +157,6 @@ export default function GoalCard({
             <HStack flexWrap="wrap">
               <Heading size="md" noOfLines={1}>{goal.name}</Heading>
               {goal.is_funded && <Badge colorScheme="purple">Funded</Badge>}
-              {goal.auto_sync && (
-                <RepeatIcon
-                  color="blue.400"
-                  boxSize={3.5}
-                  title="Auto-syncs from account"
-                />
-              )}
             </HStack>
             {goal.description && (
               <Text fontSize="sm" color="gray.600" noOfLines={1}>
@@ -289,6 +292,25 @@ export default function GoalCard({
             <Text fontSize="xs" color="gray.500">
               Target: {new Date(goal.target_date).toLocaleDateString()}
             </Text>
+          )}
+
+          {/* Account & auto-sync metadata */}
+          {linkedAccount && (
+            <>
+              <Divider />
+              <HStack spacing={5}>
+                <HStack spacing={1.5}>
+                  <Icon as={FiLink} boxSize={3} color="gray.400" />
+                  <Text fontSize="xs" color="gray.500">{linkedAccount.name}</Text>
+                </HStack>
+                <HStack spacing={1.5}>
+                  <Icon as={FiRefreshCw} boxSize={3} color={goal.auto_sync ? 'blue.400' : 'gray.300'} />
+                  <Text fontSize="xs" color={goal.auto_sync ? 'blue.500' : 'gray.400'}>
+                    Auto-sync {goal.auto_sync ? 'on' : 'off'}
+                  </Text>
+                </HStack>
+              </HStack>
+            </>
           )}
         </VStack>
       </CardBody>
