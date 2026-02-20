@@ -93,9 +93,9 @@ class TestInviteMember:
         """Should create household invitation."""
         request_data = InviteMemberRequest(email="newmember@example.com")
 
-        # Mock household size check (under limit)
+        # Mock household size check (under limit) - returns count via scalar_one()
         member_result = Mock()
-        member_result.scalars.return_value.all.return_value = [Mock(), Mock()]  # 2 members
+        member_result.scalar_one.return_value = 2  # 2 members, under limit
 
         # Mock existing user check (not found)
         existing_user_result = Mock()
@@ -136,10 +136,9 @@ class TestInviteMember:
         """Should reject invitation when household is at max capacity."""
         request_data = InviteMemberRequest(email="newmember@example.com")
 
-        # Mock household size check (at limit)
-        members = [Mock() for _ in range(MAX_HOUSEHOLD_MEMBERS)]
+        # Mock household size check (at limit) - returns count via scalar_one()
         member_result = Mock()
-        member_result.scalars.return_value.all.return_value = members
+        member_result.scalar_one.return_value = MAX_HOUSEHOLD_MEMBERS
         mock_db.execute.return_value = member_result
 
         with patch(
@@ -164,9 +163,9 @@ class TestInviteMember:
         """Should reject invitation for existing member."""
         request_data = InviteMemberRequest(email="existing@example.com")
 
-        # Mock household size check
+        # Mock household size check - returns count via scalar_one()
         member_result = Mock()
-        member_result.scalars.return_value.all.return_value = [Mock()]
+        member_result.scalar_one.return_value = 1
 
         # Mock existing user check (found)
         existing_user = Mock(spec=User)
@@ -197,9 +196,9 @@ class TestInviteMember:
         """Should reject when invitation already pending."""
         request_data = InviteMemberRequest(email="pending@example.com")
 
-        # Mock household size check
+        # Mock household size check - returns count via scalar_one()
         member_result = Mock()
-        member_result.scalars.return_value.all.return_value = [Mock()]
+        member_result.scalar_one.return_value = 1
 
         # Mock existing user check (not found)
         existing_user_result = Mock()
@@ -230,6 +229,95 @@ class TestInviteMember:
 
             assert exc_info.value.status_code == 400
             assert "already pending" in exc_info.value.detail
+
+
+    @pytest.mark.asyncio
+    async def test_member_count_uses_scalar_one_not_scalars_all(
+        self, mock_db, mock_user, mock_request
+    ):
+        """household size check should use scalar_one() (COUNT query), not scalars().all()."""
+        request_data = InviteMemberRequest(email="newmember@example.com")
+
+        # scalar_one() returns the count integer directly — if the code
+        # accidentally called scalars().all() it would get a Mock object,
+        # and the >= comparison with MAX_HOUSEHOLD_MEMBERS would raise TypeError.
+        count_result = Mock()
+        count_result.scalar_one.return_value = 1  # one member, under limit
+
+        existing_user_result = Mock()
+        existing_user_result.scalar_one_or_none.return_value = None
+
+        invitation_result = Mock()
+        invitation_result.scalar_one_or_none.return_value = None
+
+        mock_db.execute.side_effect = [count_result, existing_user_result, invitation_result]
+
+        with patch("app.api.v1.household.rate_limit_service.check_rate_limit", return_value=None):
+            with patch("app.api.v1.household.secrets.token_urlsafe", return_value="tok"):
+                result = await invite_member(
+                    request_data=request_data,
+                    http_request=mock_request,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+        # If scalar_one() was called, the result["email"] will be set correctly
+        assert result["email"] == "newmember@example.com"
+        # Verify scalar_one was called (not scalars().all())
+        count_result.scalar_one.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_allows_invite_when_one_below_limit(
+        self, mock_db, mock_user, mock_request
+    ):
+        """Should allow invite when member count is exactly one below MAX_HOUSEHOLD_MEMBERS."""
+        request_data = InviteMemberRequest(email="newmember@example.com")
+
+        count_result = Mock()
+        count_result.scalar_one.return_value = MAX_HOUSEHOLD_MEMBERS - 1
+
+        existing_user_result = Mock()
+        existing_user_result.scalar_one_or_none.return_value = None
+
+        invitation_result = Mock()
+        invitation_result.scalar_one_or_none.return_value = None
+
+        mock_db.execute.side_effect = [count_result, existing_user_result, invitation_result]
+
+        with patch("app.api.v1.household.rate_limit_service.check_rate_limit", return_value=None):
+            with patch("app.api.v1.household.secrets.token_urlsafe", return_value="tok"):
+                result = await invite_member(
+                    request_data=request_data,
+                    http_request=mock_request,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+        assert result["email"] == "newmember@example.com"
+
+    @pytest.mark.asyncio
+    async def test_rejects_exactly_at_limit(
+        self, mock_db, mock_user, mock_request
+    ):
+        """Should reject when count equals MAX_HOUSEHOLD_MEMBERS (boundary condition)."""
+        request_data = InviteMemberRequest(email="toomany@example.com")
+
+        count_result = Mock()
+        count_result.scalar_one.return_value = MAX_HOUSEHOLD_MEMBERS
+
+        mock_db.execute.return_value = count_result
+
+        with patch("app.api.v1.household.rate_limit_service.check_rate_limit", return_value=None):
+            with pytest.raises(HTTPException) as exc_info:
+                await invite_member(
+                    request_data=request_data,
+                    http_request=mock_request,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+        assert exc_info.value.status_code == 400
+        assert "cannot exceed" in exc_info.value.detail.lower()
 
 
 @pytest.mark.unit
