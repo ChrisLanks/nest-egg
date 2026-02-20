@@ -140,7 +140,7 @@ export default function GoalCard({
     <Card>
       <CardHeader pb={2}>
         <HStack justify="space-between">
-          <HStack spacing={3} flex={1} minW={0}>
+          <HStack spacing={3} flex={1} minW={0} align="flex-start">
             {!goal.is_funded && (
               <Tooltip label={goal.is_completed ? 'Mark as incomplete' : 'Mark as complete'} placement="top">
                 <Checkbox
@@ -158,11 +158,13 @@ export default function GoalCard({
               <Heading size="md" noOfLines={1}>{goal.name}</Heading>
               {goal.is_funded && <Badge colorScheme="purple">Funded</Badge>}
             </HStack>
-            {goal.description && (
-              <Text fontSize="sm" color="gray.600" noOfLines={1}>
-                {goal.description}
-              </Text>
-            )}
+            <Box minH="1.25rem">
+              {goal.description && (
+                <Text fontSize="sm" color="gray.600" noOfLines={1}>
+                  {goal.description}
+                </Text>
+              )}
+            </Box>
             </VStack>
           </HStack>
 
