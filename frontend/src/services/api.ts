@@ -28,9 +28,10 @@ export const api = axios.create({
   },
 });
 
-// Token refresh timer and flag
+// Token refresh timer and in-flight promise
 let refreshTimer: NodeJS.Timeout | null = null;
 let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
 
 // Decode JWT token to get expiration time
 const decodeToken = (token: string): { exp: number } | null => {
@@ -102,46 +103,49 @@ export const scheduleTokenRefresh = () => {
   }, timeUntilRefresh);
 };
 
-// Refresh token immediately
-const refreshTokenNow = async (): Promise<string | null> => {
-  // Prevent concurrent refresh attempts
-  if (isRefreshing) {
-    devLog('[Auth] Token refresh already in progress, waiting...');
-    // Wait a bit and return the token from storage (it should be updated by the in-flight request)
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return localStorage.getItem('access_token');
+// Refresh token immediately — all concurrent callers share the same in-flight promise
+const refreshTokenNow = (): Promise<string | null> => {
+  // If a refresh is already in progress, return the same promise so every
+  // caller gets the result once and no second network request is made.
+  if (isRefreshing && refreshPromise) {
+    devLog('[Auth] Token refresh already in progress, waiting for in-flight request...');
+    return refreshPromise;
   }
 
-  try {
-    isRefreshing = true;
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (!refreshToken) {
-      devError('[Auth] No refresh token available');
+  isRefreshing = true;
+  refreshPromise = (async (): Promise<string | null> => {
+    try {
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (!refreshToken) {
+        devError('[Auth] No refresh token available');
+        return null;
+      }
+
+      devLog('[Auth] Refreshing token...');
+      const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
+        refresh_token: refreshToken,
+      });
+
+      const { access_token } = response.data;
+
+      // Update both localStorage and Zustand store
+      useAuthStore.getState().setAccessToken(access_token);
+      devLog('[Auth] Token refreshed successfully and auth store updated');
+
+      return access_token;
+    } catch (error: any) {
+      const errorDetail = error?.response?.data?.detail || error.message || 'Unknown error';
+      devError('[Auth] Token refresh failed. Backend error:', errorDetail);
+      devError('[Auth] Full error:', error);
+      // Don't clear localStorage here - let the response interceptor handle it
       return null;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
     }
+  })();
 
-    devLog('[Auth] Refreshing token...');
-    const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-      refresh_token: refreshToken,
-    });
-
-    const { access_token } = response.data;
-
-    // Update both localStorage and Zustand store
-    useAuthStore.getState().setAccessToken(access_token);
-    devLog('[Auth] Token refreshed successfully and auth store updated');
-
-    // Schedule next refresh (handled by setAccessToken)
-    return access_token;
-  } catch (error: any) {
-    const errorDetail = error?.response?.data?.detail || error.message || 'Unknown error';
-    devError('[Auth] Token refresh failed. Backend error:', errorDetail);
-    devError('[Auth] Full error:', error);
-    // Don't clear localStorage here - let the response interceptor handle it
-    return null;
-  } finally {
-    isRefreshing = false;
-  }
+  return refreshPromise;
 };
 
 // Start token refresh on initial load if user is logged in

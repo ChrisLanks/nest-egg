@@ -29,6 +29,26 @@ const contributionSchema = z.object({
   start_date: z.string().min(1, 'Start date is required'),
   end_date: z.string().optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (data.contribution_type === ContributionType.PERCENTAGE_GROWTH && data.amount > 1000) {
+    ctx.addIssue({
+      path: ['amount'],
+      code: z.ZodIssueCode.too_big,
+      maximum: 1000,
+      type: 'number',
+      inclusive: true,
+      message: 'Growth rate cannot exceed 1000%',
+    });
+  } else if (data.contribution_type !== ContributionType.PERCENTAGE_GROWTH && data.amount > 100_000_000) {
+    ctx.addIssue({
+      path: ['amount'],
+      code: z.ZodIssueCode.too_big,
+      maximum: 100_000_000,
+      type: 'number',
+      inclusive: true,
+      message: 'Amount cannot exceed $100,000,000',
+    });
+  }
 });
 
 type ContributionFormData = z.infer<typeof contributionSchema>;

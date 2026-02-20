@@ -1,35 +1,39 @@
 """Account API endpoints."""
 
+import json
+import logging
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
-from sqlalchemy import select, delete, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from app.config import settings
 from app.core.database import get_db
 from app.dependencies import (
+    get_all_household_accounts,
     get_current_user,
+    get_user_accounts,
     get_verified_account,
     verify_household_member,
-    get_user_accounts,
-    get_all_household_accounts,
 )
-from app.models.user import User
 from app.models.account import Account, AccountType
 from app.models.holding import Holding
+from app.models.user import User
 from app.schemas.account import (
     Account as AccountSchema,
     AccountSummary,
-    ManualAccountCreate,
     AccountUpdate,
+    ManualAccountCreate,
 )
 from app.services.deduplication_service import DeduplicationService
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.rate_limit_service import rate_limit_service
-from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 _ALLOWED_VALUATION_PROVIDERS = {"rentcast", "attom", "marketcheck"}
 
@@ -223,7 +227,16 @@ async def create_manual_account(
         grant_date=account_data.grant_date,
         quantity=account_data.quantity,
         strike_price=account_data.strike_price,
-        vesting_schedule=account_data.vesting_schedule,
+        vesting_schedule=(
+            json.dumps(
+                [
+                    {"date": m.date.isoformat(), "quantity": float(m.quantity)}
+                    for m in account_data.vesting_schedule
+                ]
+            )
+            if account_data.vesting_schedule
+            else None
+        ),
         share_price=account_data.share_price,
         company_status=account_data.company_status,
         valuation_method=account_data.valuation_method,
@@ -373,7 +386,12 @@ async def update_account(
     if account_data.strike_price is not None:
         account.strike_price = account_data.strike_price
     if account_data.vesting_schedule is not None:
-        account.vesting_schedule = account_data.vesting_schedule
+        account.vesting_schedule = json.dumps(
+            [
+                {"date": m.date.isoformat(), "quantity": float(m.quantity)}
+                for m in account_data.vesting_schedule
+            ]
+        )
     if account_data.share_price is not None:
         account.share_price = account_data.share_price
     if account_data.company_status is not None:
@@ -440,6 +458,7 @@ async def get_valuation_providers(
         get_available_property_providers,
         get_available_vehicle_providers,
     )
+
     return {
         "property": get_available_property_providers(),
         "vehicle": get_available_vehicle_providers(),
@@ -514,9 +533,7 @@ async def refresh_account_valuation(
             vin_info = await decode_vin_nhtsa(account.vehicle_vin)
 
         if not get_available_vehicle_providers():
-            logger.warning(
-                "vehicle_valuation: no provider configured — set MARKETCHECK_API_KEY"
-            )
+            logger.warning("vehicle_valuation: no provider configured — set MARKETCHECK_API_KEY")
             raise HTTPException(
                 status_code=503,
                 detail="Automatic vehicle valuation is not available at this time.",

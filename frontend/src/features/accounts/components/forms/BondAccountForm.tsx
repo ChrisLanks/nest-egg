@@ -33,7 +33,11 @@ const bondAccountSchema = z.object({
   bond_type: z.enum(['corporate', 'municipal', 'treasury', 'i_bond', 'other']),
   principal: z.number().or(z.string().transform((val) => parseFloat(val))).refine((val) => val > 0, 'Principal must be greater than 0'),
   interest_rate: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
-  maturity_date: z.string().optional(),
+  maturity_date: z.string().optional().refine((val) => {
+    if (!val) return true;
+    const today = new Date().toISOString().split('T')[0];
+    return val >= today;
+  }, 'Maturity date must be today or in the future'),
   current_value: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
   notes: z.string().optional(),
 });

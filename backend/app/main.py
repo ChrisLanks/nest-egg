@@ -1,29 +1,63 @@
 """FastAPI main application."""
 
 from contextlib import asynccontextmanager
+from decimal import Decimal
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
 
+from app.api.v1 import (
+    accounts,
+    auth,
+    bank_linking,
+    budgets,
+    categories,
+    contributions,
+    csv_import,
+    dashboard,
+    debt_payoff,
+    dev,
+    enrichment,
+    holdings,
+    household,
+    income_expenses,
+    labels,
+    market_data,
+    monitoring,
+    notifications,
+    plaid,
+    recurring_transactions,
+    reports,
+    rules,
+    savings_goals,
+    subscriptions,
+    teller,
+    transaction_merges,
+    transaction_splits,
+    transactions,
+)
+from app.api.v1 import settings as settings_router
 from app.config import settings
 from app.core.database import close_db, init_db
 from app.core.logging_config import setup_logging
 from app.core.metrics import setup_metrics
-from app.services.snapshot_scheduler import snapshot_scheduler
-from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.middleware.request_size_limit import RequestSizeLimitMiddleware
+from app.middleware.csrf_protection import CSRFProtectionMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.request_logging import (
-    RequestLoggingMiddleware,
     AuditLogMiddleware,
+    RequestLoggingMiddleware,
     UserContextMiddleware,
 )
-from app.middleware.csrf_protection import CSRFProtectionMiddleware
+from app.middleware.request_size_limit import RequestSizeLimitMiddleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.services.secrets_validation_service import secrets_validation_service
+from app.services.snapshot_scheduler import snapshot_scheduler
 
 # Initialize Sentry for error tracking and monitoring (optional)
 try:
@@ -187,12 +221,6 @@ app.add_middleware(RequestLoggingMiddleware)
 # Audit logging - Track sensitive operations
 app.add_middleware(AuditLogMiddleware)
 
-# Add exception handler for validation errors
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-from decimal import Decimal
-import json
-
 
 def _make_json_serializable(obj):
     """Recursively convert non-JSON-serializable types to serializable ones."""
@@ -266,39 +294,6 @@ async def security_status():
     }
 
 
-# Import and include routers
-from app.api.v1 import (
-    auth,
-    accounts,
-    contributions,
-    transactions,
-    labels,
-    rules,
-    categories,
-    dev,
-    dashboard,
-    income_expenses,
-    plaid,
-    teller,
-    holdings,
-    enrichment,
-    notifications,
-    budgets,
-    savings_goals,
-    recurring_transactions,
-    transaction_splits,
-    transaction_merges,
-    csv_import,
-    household,
-    subscriptions,
-    reports,
-    debt_payoff,
-    monitoring,
-    bank_linking,
-    market_data,
-)
-from app.api.v1 import settings as settings_router
-
 app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["Monitoring"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(household.router, prefix="/api/v1", tags=["Household"])
@@ -319,9 +314,9 @@ app.include_router(
     income_expenses.router, prefix="/api/v1/income-expenses", tags=["Income vs Expenses"]
 )
 app.include_router(settings_router.router, prefix="/api/v1/settings", tags=["Settings"])
-app.include_router(dev.router, prefix="/api/v1/dev", tags=["Development"])
+if settings.ENVIRONMENT != "production":
+    app.include_router(dev.router, prefix="/api/v1/dev", tags=["Development"])
 
-# New feature routers
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])
 app.include_router(budgets.router, prefix="/api/v1/budgets", tags=["Budgets"])
 app.include_router(savings_goals.router, prefix="/api/v1/savings-goals", tags=["Savings Goals"])

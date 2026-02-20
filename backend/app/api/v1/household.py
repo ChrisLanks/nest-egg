@@ -88,9 +88,9 @@ async def invite_member(
 
     # Check household size limit
     result = await db.execute(
-        select(func.count()).select_from(User).where(
-            User.organization_id == current_user.organization_id, User.is_active.is_(True)
-        )
+        select(func.count())
+        .select_from(User)
+        .where(User.organization_id == current_user.organization_id, User.is_active.is_(True))
     )
     member_count = result.scalar_one()
 
@@ -310,9 +310,11 @@ async def accept_invitation(
         max_requests=5,
         window_seconds=60,
     )
-    # Get invitation
+    # Get invitation with row-level lock to prevent concurrent double-acceptance
     result = await db.execute(
-        select(HouseholdInvitation).where(HouseholdInvitation.invitation_code == invitation_code)
+        select(HouseholdInvitation)
+        .where(HouseholdInvitation.invitation_code == invitation_code)
+        .with_for_update()
     )
     invitation = result.scalar_one_or_none()
 

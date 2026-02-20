@@ -1,13 +1,14 @@
 """Service for cash flow forecasting."""
 
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Dict, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, and_
 from uuid import UUID
 
 from app.models.user import User
+from app.utils.datetime_utils import utc_now
 from app.models.account import Account
 from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
 from app.services.recurring_detection_service import RecurringDetectionService
@@ -154,7 +155,7 @@ class ForecastService:
         accounts = result.scalars().all()
 
         total = Decimal(0)
-        today = date.today()
+        today = utc_now().date()
 
         # Account types that default to excluded from net worth when include_in_networth is None
         EXCLUDED_BY_DEFAULT = {
@@ -172,7 +173,9 @@ class ForecastService:
                 if account.account_type in EXCLUDED_BY_DEFAULT:
                     include = False
                 elif account.account_type == AccountType.PRIVATE_EQUITY:
-                    include = bool(account.company_status and account.company_status.value == 'public')
+                    include = bool(
+                        account.company_status and account.company_status.value == "public"
+                    )
                 else:
                     include = True
 
@@ -189,7 +192,9 @@ class ForecastService:
                 elif account.company_valuation:
                     # If ownership percentage is also provided, calculate proportional value
                     if account.ownership_percentage:
-                        total += (account.company_valuation * account.ownership_percentage) / Decimal(100)
+                        total += (
+                            account.company_valuation * account.ownership_percentage
+                        ) / Decimal(100)
                     # If no percentage provided, assume 100% ownership (use full valuation)
                     else:
                         total += account.company_valuation
@@ -204,11 +209,11 @@ class ForecastService:
                     if isinstance(milestones, list):
                         vested_quantity = Decimal(0)
                         for milestone in milestones:
-                            vest_date_str = milestone.get('date')
-                            quantity = milestone.get('quantity', 0)
+                            vest_date_str = milestone.get("date")
+                            quantity = milestone.get("quantity", 0)
                             if vest_date_str:
                                 try:
-                                    vest_date = datetime.strptime(vest_date_str, '%Y-%m-%d').date()
+                                    vest_date = datetime.strptime(vest_date_str, "%Y-%m-%d").date()
                                     if vest_date <= today:
                                         vested_quantity += Decimal(str(quantity))
                                 except (ValueError, TypeError):
@@ -317,7 +322,7 @@ class ForecastService:
             include = account.include_in_networth
             if include is None:
                 # Auto-determine: include if public
-                include = account.company_status and account.company_status.value == 'public'
+                include = account.company_status and account.company_status.value == "public"
 
             if not include:
                 continue
@@ -333,24 +338,26 @@ class ForecastService:
                     continue  # Can't calculate value without share price
 
                 for milestone in milestones:
-                    vest_date_str = milestone.get('date')
-                    quantity = milestone.get('quantity', 0)
+                    vest_date_str = milestone.get("date")
+                    quantity = milestone.get("quantity", 0)
 
                     if not vest_date_str or not quantity:
                         continue
 
                     try:
-                        vest_date = datetime.strptime(vest_date_str, '%Y-%m-%d').date()
+                        vest_date = datetime.strptime(vest_date_str, "%Y-%m-%d").date()
 
                         # Only include future vesting events within forecast window
                         if today < vest_date <= end_date:
                             vest_value = Decimal(str(quantity)) * share_price
 
-                            vesting_events.append({
-                                'date': vest_date,
-                                'amount': vest_value,  # Positive since it's an asset increase
-                                'merchant': f"{account.name} - Vesting",
-                            })
+                            vesting_events.append(
+                                {
+                                    "date": vest_date,
+                                    "amount": vest_value,  # Positive since it's an asset increase
+                                    "merchant": f"{account.name} - Vesting",
+                                }
+                            )
 
                     except (ValueError, TypeError):
                         continue
@@ -380,7 +387,6 @@ class ForecastService:
         Returns:
             List of future private debt events as transaction-like dictionaries
         """
-        from datetime import datetime
         from app.models.account import AccountType
 
         # Query Private Debt accounts
@@ -423,11 +429,13 @@ class ForecastService:
                         current_month = current_month.replace(month=current_month.month + 1)
 
                 while current_month <= end_date:
-                    debt_events.append({
-                        'date': current_month,
-                        'amount': monthly_interest,  # Positive since it's income
-                        'merchant': f"{account.name} - Interest Income",
-                    })
+                    debt_events.append(
+                        {
+                            "date": current_month,
+                            "amount": monthly_interest,  # Positive since it's income
+                            "merchant": f"{account.name} - Interest Income",
+                        }
+                    )
 
                     # Move to next month
                     if current_month.month == 12:
@@ -439,11 +447,13 @@ class ForecastService:
             if account.maturity_date:
                 maturity_date = account.maturity_date
                 if today < maturity_date <= end_date:
-                    debt_events.append({
-                        'date': maturity_date,
-                        'amount': principal_amount,  # Positive since you're receiving repayment
-                        'merchant': f"{account.name} - Principal Repayment",
-                    })
+                    debt_events.append(
+                        {
+                            "date": maturity_date,
+                            "amount": principal_amount,  # Positive since you're receiving repayment
+                            "merchant": f"{account.name} - Principal Repayment",
+                        }
+                    )
 
         return debt_events
 
@@ -466,10 +476,8 @@ class ForecastService:
         Returns:
             List of future CD maturity events as transaction-like dictionaries
         """
-        from datetime import datetime
         from app.models.account import AccountType
         from decimal import Decimal as D
-        from math import pow
 
         # Query CD accounts
         conditions = [
@@ -513,34 +521,43 @@ class ForecastService:
                 rate_decimal = interest_rate / D(100)
 
                 # Determine compounding periods per year
-                if account.compounding_frequency.value == 'daily':
+                if account.compounding_frequency.value == "daily":
                     n = D(365)
-                elif account.compounding_frequency.value == 'monthly':
+                elif account.compounding_frequency.value == "monthly":
                     n = D(12)
-                elif account.compounding_frequency.value == 'quarterly':
+                elif account.compounding_frequency.value == "quarterly":
                     n = D(4)
                 else:  # at_maturity (simple interest)
                     maturity_value = principal * (D(1) + rate_decimal * years_held)
-                    cd_events.append({
-                        'date': maturity_date,
-                        'amount': maturity_value,
-                        'merchant': f"{account.name} - CD Maturity",
-                    })
+                    cd_events.append(
+                        {
+                            "date": maturity_date,
+                            "amount": maturity_value,
+                            "merchant": f"{account.name} - CD Maturity",
+                        }
+                    )
                     continue
 
                 # Compound interest formula: A = P(1 + r/n)^(nt)
+                # Stay in Decimal throughout to preserve precision for large balances
                 try:
-                    compounding_factor = float((D(1) + rate_decimal / n) ** (n * years_held))
-                    maturity_value = principal * D(str(compounding_factor))
-                except (ValueError, OverflowError):
+                    exponent = n * years_held
+                    # Decimal doesn't support fractional exponents natively; use integer
+                    # approximation (round to nearest month) for sufficient precision
+                    int_exponent = int(exponent.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+                    base = D(1) + rate_decimal / n
+                    maturity_value = principal * (base**int_exponent)
+                except (ValueError, OverflowError, ArithmeticError):
                     # Fallback to simple interest if calculation fails
                     maturity_value = principal * (D(1) + rate_decimal * years_held)
 
-            cd_events.append({
-                'date': maturity_date,
-                'amount': maturity_value,
-                'merchant': f"{account.name} - CD Maturity",
-            })
+            cd_events.append(
+                {
+                    "date": maturity_date,
+                    "amount": maturity_value,
+                    "merchant": f"{account.name} - CD Maturity",
+                }
+            )
 
         return cd_events
 
@@ -589,9 +606,8 @@ class ForecastService:
 
             # Determine remaining months
             if account.loan_term_months and account.origination_date:
-                months_elapsed = (
-                    (today.year - account.origination_date.year) * 12
-                    + (today.month - account.origination_date.month)
+                months_elapsed = (today.year - account.origination_date.year) * 12 + (
+                    today.month - account.origination_date.month
                 )
                 remaining_months = max(1, account.loan_term_months - months_elapsed)
             elif account.maturity_date:
@@ -748,20 +764,24 @@ class ForecastService:
             )
 
             while next_date <= effective_end:
-                events.append({
-                    "date": next_date,
-                    "amount": coupon_amount,
-                    "merchant": f"{account.name} Coupon",
-                })
+                events.append(
+                    {
+                        "date": next_date,
+                        "amount": coupon_amount,
+                        "merchant": f"{account.name} Coupon",
+                    }
+                )
                 next_date += timedelta(days=interval_days)
 
             # Add principal repayment at maturity if within forecast window
             if account.maturity_date and today < account.maturity_date <= end_date:
-                events.append({
-                    "date": account.maturity_date,
-                    "amount": principal,
-                    "merchant": f"{account.name} Maturity",
-                })
+                events.append(
+                    {
+                        "date": account.maturity_date,
+                        "amount": principal,
+                        "merchant": f"{account.name} Maturity",
+                    }
+                )
 
         return events
 
@@ -816,11 +836,13 @@ class ForecastService:
                     next_date = next_date.replace(month=next_date.month + 1)
 
             while next_date <= end_date:
-                events.append({
-                    "date": next_date,
-                    "amount": account.monthly_benefit,
-                    "merchant": f"{account.name} Income",
-                })
+                events.append(
+                    {
+                        "date": next_date,
+                        "amount": account.monthly_benefit,
+                        "merchant": f"{account.name} Income",
+                    }
+                )
                 # Advance one month
                 if next_date.month == 12:
                     next_date = next_date.replace(year=next_date.year + 1, month=1)

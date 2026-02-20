@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.account import (
     AccountType,
@@ -16,6 +16,13 @@ from app.models.account import (
     ValuationMethod,
     CompoundingFrequency,
 )
+
+
+class VestingMilestone(BaseModel):
+    """A single vesting event: date + quantity."""
+
+    date: date
+    quantity: Decimal = Field(ge=0)
 
 
 class AccountBase(BaseModel):
@@ -74,22 +81,26 @@ class ManualAccountCreate(BaseModel):
     grant_date: Optional[date] = None
     quantity: Optional[Decimal] = None  # Number of shares/options
     strike_price: Optional[Decimal] = None  # Exercise price
-    vesting_schedule: Optional[str] = None  # JSON array: [{"date": "2024-01-01", "quantity": 250}]
+    vesting_schedule: Optional[List[VestingMilestone]] = (
+        None  # Validated; serialized to JSON for storage
+    )
     share_price: Optional[Decimal] = None  # Current estimated price per share
     company_status: Optional[CompanyStatus] = None
     valuation_method: Optional[ValuationMethod] = None
     include_in_networth: Optional[bool] = None  # None = auto (public=true, private=false)
 
     # Pension / Annuity income fields
-    monthly_benefit: Optional[Decimal] = None   # Monthly income amount
-    benefit_start_date: Optional[date] = None   # When payments begin
+    monthly_benefit: Optional[Decimal] = None  # Monthly income amount
+    benefit_start_date: Optional[date] = None  # When payments begin
 
     # Credit card fields
-    credit_limit: Optional[Decimal] = None      # Credit limit (stored as `limit` on Account)
+    credit_limit: Optional[Decimal] = None  # Credit limit (stored as `limit` on Account)
 
     # Business Equity fields
     company_valuation: Optional[Decimal] = None  # Total company valuation
-    ownership_percentage: Optional[Decimal] = None  # Percentage ownership (0-100)
+    ownership_percentage: Optional[Decimal] = Field(
+        None, ge=0, le=100
+    )  # Percentage ownership (0-100)
     equity_value: Optional[Decimal] = None  # Direct equity value
 
     # Employer match fields (401k / 403b)

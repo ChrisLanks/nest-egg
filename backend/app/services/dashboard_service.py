@@ -10,6 +10,7 @@ from sqlalchemy.orm import joinedload
 
 from app.models.account import Account
 from app.models.transaction import Transaction, TransactionLabel
+from app.utils.datetime_utils import utc_now
 
 
 class DashboardService:
@@ -73,11 +74,11 @@ class DashboardService:
 
         # Account types that default to excluded from net worth
         EXCLUDED_BY_DEFAULT = {
-            AccountType.VEHICLE,       # Depreciating asset; opt-in for classics
+            AccountType.VEHICLE,  # Depreciating asset; opt-in for classics
             AccountType.COLLECTIBLES,  # Uncertain value; opt-in
-            AccountType.OTHER,         # Unknown type; opt-in
-            AccountType.MANUAL,        # Unknown type; opt-in
-            AccountType.PENSION,       # Future income promise, not a liquid asset; opt-in
+            AccountType.OTHER,  # Unknown type; opt-in
+            AccountType.MANUAL,  # Unknown type; opt-in
+            AccountType.PENSION,  # Future income promise, not a liquid asset; opt-in
         }
 
         if account.account_type in EXCLUDED_BY_DEFAULT:
@@ -85,7 +86,7 @@ class DashboardService:
 
         if account.account_type == AccountType.PRIVATE_EQUITY:
             # Private equity: default to excluding unless public
-            return bool(account.company_status and account.company_status.value == 'public')
+            return bool(account.company_status and account.company_status.value == "public")
 
         # All other accounts: default to including
         return True
@@ -131,18 +132,18 @@ class DashboardService:
             if not isinstance(vesting_milestones, list):
                 return account.current_balance or Decimal(0)
 
-            today = date.today()
+            today = utc_now().date()
             vested_quantity = Decimal(0)
 
             for milestone in vesting_milestones:
-                vest_date_str = milestone.get('date')
-                quantity = milestone.get('quantity', 0)
+                vest_date_str = milestone.get("date")
+                quantity = milestone.get("quantity", 0)
 
                 if not vest_date_str:
                     continue
 
                 try:
-                    vest_date = datetime.strptime(vest_date_str, '%Y-%m-%d').date()
+                    vest_date = datetime.strptime(vest_date_str, "%Y-%m-%d").date()
                     if vest_date <= today:
                         vested_quantity += Decimal(str(quantity))
                 except (ValueError, TypeError):
@@ -303,7 +304,7 @@ class DashboardService:
             categories.append(
                 {
                     "category": row.category_primary,
-                    "total": abs(float(row.total)),
+                    "total": abs(row.total),
                     "count": row.count,
                 }
             )
