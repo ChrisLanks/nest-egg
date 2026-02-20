@@ -99,7 +99,10 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
   });
 
   const onSubmit = (data: BudgetCreate) => {
-    mutation.mutate(data);
+    mutation.mutate({
+      ...data,
+      end_date: data.end_date || undefined,
+    });
   };
 
   const alertThreshold = watch('alert_threshold');
