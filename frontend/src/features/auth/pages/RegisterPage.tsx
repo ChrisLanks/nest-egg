@@ -22,6 +22,14 @@ import {
   useToast,
   VStack,
 } from '@chakra-ui/react';
+
+const getDaysInMonth = (year: number | undefined, month: number | undefined): number => {
+  if (!month) return 31;
+  // new Date(year, month, 0) gives last day of month (month is 1-indexed here)
+  // Use a non-leap reference year when year is unknown so Feb shows 28
+  const y = year ?? 2001;
+  return new Date(y, month, 0).getDate();
+};
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -60,10 +68,15 @@ export const RegisterPage = () => {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
   });
+
+  const watchedMonth = watch('birth_month');
+  const watchedYear = watch('birth_year');
+  const maxDay = getDaysInMonth(watchedYear, watchedMonth);
 
   const onSubmit = async (data: RegisterFormData) => {
     // Strip undefined optional fields so they're omitted from the request body
@@ -133,29 +146,42 @@ export const RegisterPage = () => {
                   <SimpleGrid columns={3} spacing={2}>
                     <Select
                       placeholder="Month"
-                      onChange={(e) =>
-                        setValue('birth_month', e.target.value ? parseInt(e.target.value) : undefined, { shouldValidate: true })
-                      }
+                      onChange={(e) => {
+                        const month = e.target.value ? parseInt(e.target.value) : undefined;
+                        setValue('birth_month', month, { shouldValidate: true });
+                        // Clear day if it's now out of range for the new month
+                        const currentDay = watch('birth_day');
+                        if (currentDay && month && currentDay > getDaysInMonth(watchedYear, month)) {
+                          setValue('birth_day', undefined, { shouldValidate: true });
+                        }
+                      }}
                     >
                       {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
                         <option key={i + 1} value={i + 1}>{m}</option>
                       ))}
                     </Select>
-                    <NumberInput
-                      min={1}
-                      max={31}
-                      onChange={(_, value) =>
-                        setValue('birth_day', isNaN(value) ? undefined : value, { shouldValidate: true })
+                    <Select
+                      placeholder="Day"
+                      onChange={(e) =>
+                        setValue('birth_day', e.target.value ? parseInt(e.target.value) : undefined, { shouldValidate: true })
                       }
                     >
-                      <NumberInputField placeholder="Day" />
-                    </NumberInput>
+                      {Array.from({ length: maxDay }, (_, i) => (
+                        <option key={i + 1} value={i + 1}>{i + 1}</option>
+                      ))}
+                    </Select>
                     <NumberInput
                       min={1900}
                       max={currentYear}
-                      onChange={(_, value) =>
-                        setValue('birth_year', isNaN(value) ? undefined : value, { shouldValidate: true })
-                      }
+                      onChange={(_, value) => {
+                        const year = isNaN(value) ? undefined : value;
+                        setValue('birth_year', year, { shouldValidate: true });
+                        // Clear day if Feb 29 becomes invalid (non-leap year)
+                        const currentDay = watch('birth_day');
+                        if (currentDay && watchedMonth && currentDay > getDaysInMonth(year, watchedMonth)) {
+                          setValue('birth_day', undefined, { shouldValidate: true });
+                        }
+                      }}
                     >
                       <NumberInputField placeholder="Year" />
                     </NumberInput>

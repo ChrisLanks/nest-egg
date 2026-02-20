@@ -535,6 +535,67 @@ class TestRegisterRequestSchema:
         )
         assert req.birth_year == 2100
 
+    def test_feb_30_rejected(self):
+        """Feb 30 is an impossible date and must be rejected."""
+        from app.schemas.auth import RegisterRequest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            RegisterRequest(
+                email="a@example.com",
+                password="SecurePass123!",
+                display_name="Alice",
+                birth_day=30,
+                birth_month=2,
+                birth_year=1990,
+            )
+
+    def test_feb_29_on_non_leap_year_rejected(self):
+        """Feb 29 on a non-leap year is rejected."""
+        from app.schemas.auth import RegisterRequest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            RegisterRequest(
+                email="a@example.com",
+                password="SecurePass123!",
+                display_name="Alice",
+                birth_day=29,
+                birth_month=2,
+                birth_year=1990,  # 1990 is not a leap year
+            )
+
+    def test_feb_29_on_leap_year_accepted(self):
+        """Feb 29 on a leap year is valid."""
+        from app.schemas.auth import RegisterRequest
+
+        req = RegisterRequest(
+            email="a@example.com",
+            password="SecurePass123!",
+            display_name="Alice",
+            birth_day=29,
+            birth_month=2,
+            birth_year=1992,  # 1992 is a leap year
+        )
+        assert req.birth_day == 29
+        assert req.birth_month == 2
+        assert req.birth_year == 1992
+
+    def test_apr_31_rejected(self):
+        """April 31 is an impossible date and must be rejected."""
+        from app.schemas.auth import RegisterRequest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            RegisterRequest(
+                email="a@example.com",
+                password="SecurePass123!",
+                display_name="Alice",
+                birth_day=31,
+                birth_month=4,
+                birth_year=1990,
+            )
+
 
 @pytest.mark.unit
 class TestUserCRUDBirthday:

@@ -1,4 +1,10 @@
 import { useState } from 'react';
+
+const getDaysInMonth = (year: number | null, month: number | null): number => {
+  if (!month) return 31;
+  const y = year ?? 2001; // use non-leap reference year when year is unknown
+  return new Date(y, month, 0).getDate();
+};
 import {
   Box,
   Button,
@@ -215,23 +221,38 @@ export default function PreferencesPage() {
                 <Select
                   placeholder="Month"
                   value={birthMonth || ''}
-                  onChange={(e) => setBirthMonth(e.target.value ? parseInt(e.target.value) : null)}
+                  onChange={(e) => {
+                    const month = e.target.value ? parseInt(e.target.value) : null;
+                    setBirthMonth(month);
+                    // Clear day if it's now out of range for the new month
+                    if (birthDay && month && birthDay > getDaysInMonth(birthYear, month)) {
+                      setBirthDay(null);
+                    }
+                  }}
                 >
                   {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
                     <option key={i + 1} value={i + 1}>{m}</option>
                   ))}
                 </Select>
-                <NumberInput
+                <Select
+                  placeholder="Day"
                   value={birthDay || ''}
-                  onChange={(_, value) => setBirthDay(isNaN(value) ? null : value)}
-                  min={1}
-                  max={31}
+                  onChange={(e) => setBirthDay(e.target.value ? parseInt(e.target.value) : null)}
                 >
-                  <NumberInputField placeholder="Day" />
-                </NumberInput>
+                  {Array.from({ length: getDaysInMonth(birthYear, birthMonth) }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>{i + 1}</option>
+                  ))}
+                </Select>
                 <NumberInput
                   value={birthYear || ''}
-                  onChange={(_, value) => setBirthYear(isNaN(value) ? null : value)}
+                  onChange={(_, value) => {
+                    const year = isNaN(value) ? null : value;
+                    setBirthYear(year);
+                    // Clear day if Feb 29 becomes invalid (non-leap year)
+                    if (birthDay && birthMonth && birthDay > getDaysInMonth(year, birthMonth)) {
+                      setBirthDay(null);
+                    }
+                  }}
                   min={1900}
                   max={new Date().getFullYear()}
                 >

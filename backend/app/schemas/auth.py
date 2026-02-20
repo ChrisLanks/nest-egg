@@ -1,8 +1,9 @@
 """Authentication Pydantic schemas."""
 
+from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 from app.schemas.user import User
 
@@ -23,6 +24,16 @@ class RegisterRequest(BaseModel):
     birth_day: Optional[int] = Field(None, ge=1, le=31)
     birth_month: Optional[int] = Field(None, ge=1, le=12)
     birth_year: Optional[int] = Field(None, ge=1900, le=2100)
+
+    @model_validator(mode="after")
+    def validate_birthday(self) -> "RegisterRequest":
+        """Validate that the combination of day/month/year forms a real calendar date."""
+        if self.birth_day is not None and self.birth_month is not None and self.birth_year is not None:
+            try:
+                date(self.birth_year, self.birth_month, self.birth_day)
+            except ValueError as exc:
+                raise ValueError(f"Invalid birthday: {exc}") from exc
+        return self
 
 
 class LoginRequest(BaseModel):
