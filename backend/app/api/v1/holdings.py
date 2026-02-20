@@ -1925,3 +1925,62 @@ async def get_rmd_summary(
             accounts=account_rmds,
             penalty_if_missed=penalty,
         )
+
+
+@router.get("/roth-analysis")
+async def get_roth_analysis(
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = requester's own accounts"
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return traditional IRA/401k balance data for Roth conversion analysis."""
+    from app.utils.rmd_calculator import calculate_rmd, calculate_age
+    from app.models.user import User as UserModel
+
+    # Traditional retirement accounts (Roth IRA does NOT appear here)
+    traditional_types = [AccountType.RETIREMENT_401K, AccountType.RETIREMENT_IRA]
+
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+        user_result = await db.execute(select(UserModel).where(UserModel.id == user_id))
+        target_user = user_result.scalar_one_or_none()
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+        target_user = current_user
+
+    traditional_accounts = [
+        acc for acc in accounts
+        if acc.account_type in traditional_types and acc.is_active
+    ]
+
+    traditional_balance = sum(
+        (acc.current_balance or Decimal("0")) for acc in traditional_accounts
+    )
+
+    # Projected RMD at age 73 using current balance as a baseline estimate
+    projected_rmd_at_73 = (
+        calculate_rmd(traditional_balance, 73) if traditional_balance > 0 else None
+    )
+
+    current_age: Optional[int] = None
+    if target_user and target_user.birthdate:
+        current_age = calculate_age(target_user.birthdate)
+
+    return {
+        "traditional_balance": float(traditional_balance),
+        "projected_rmd_at_73": float(projected_rmd_at_73) if projected_rmd_at_73 else None,
+        "current_age": current_age,
+        "accounts": [
+            {
+                "id": str(acc.id),
+                "name": acc.name,
+                "balance": float(acc.current_balance or 0),
+                "type": acc.account_type.value,
+            }
+            for acc in traditional_accounts
+        ],
+    }

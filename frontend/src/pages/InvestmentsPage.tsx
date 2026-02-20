@@ -61,6 +61,7 @@ import PerformanceTrendsChart from '../features/investments/components/Performan
 import RiskAnalysisPanel from '../features/investments/components/RiskAnalysisPanel';
 import StyleBoxModal from '../features/investments/components/StyleBoxModal';
 import { RMDAlert } from '../features/investments/components/RMDAlert';
+import { RothConversionAnalyzer } from '../features/investments/components/RothConversionAnalyzer';
 
 interface Holding {
   id: string;
@@ -952,6 +953,7 @@ export const InvestmentsPage = () => {
                 <Tab>Risk Analysis</Tab>
                 <Tab>Holdings Detail</Tab>
                 <Tab>Fee Analyzer</Tab>
+                <Tab>Roth Conversion</Tab>
               </TabList>
 
               <TabPanels>
@@ -1142,6 +1144,11 @@ export const InvestmentsPage = () => {
                       </Box>
                     </VStack>
                   )}
+                </TabPanel>
+
+                {/* Tab 8: Roth Conversion Analyzer */}
+                <TabPanel>
+                  <RothConversionAnalyzer />
                 </TabPanel>
               </TabPanels>
             </Tabs>

@@ -12,6 +12,7 @@ export interface SimulationParams {
   annualReturn: number; // Expected annual return (e.g., 7 for 7%)
   volatility: number; // Annual volatility/std deviation (e.g., 15 for 15%)
   inflationRate: number; // Annual inflation rate (e.g., 3 for 3%)
+  monthlyContribution?: number; // Optional: additional monthly savings added each year
 }
 
 export interface ProjectionResult {
@@ -56,7 +57,8 @@ function generateNormalReturn(mean: number, stdDev: number): number {
  * @returns Array of projection results for each year
  */
 export function runMonteCarloSimulation(params: SimulationParams): ProjectionResult[] {
-  const { currentValue, years, simulations, annualReturn, volatility, inflationRate } = params;
+  const { currentValue, years, simulations, annualReturn, volatility, inflationRate, monthlyContribution = 0 } = params;
+  const annualContribution = monthlyContribution * 12;
 
   // Convert percentages to decimals
   const returnDecimal = annualReturn / 100;
@@ -72,7 +74,8 @@ export function runMonteCarloSimulation(params: SimulationParams): ProjectionRes
     // Simulate year by year
     for (let year = 1; year <= years; year++) {
       const returnRate = generateNormalReturn(returnDecimal, volDecimal);
-      const newValue = path[year - 1] * (1 + returnRate);
+      // Apply return first, then add annual contributions
+      const newValue = path[year - 1] * (1 + returnRate) + annualContribution;
       path.push(newValue);
     }
 

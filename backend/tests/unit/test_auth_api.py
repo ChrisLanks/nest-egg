@@ -94,9 +94,13 @@ class TestRegisterEndpoint:
         mock_data = Mock()
         mock_data.password = "weak"
         mock_data.email = "test@example.com"
+        mock_data.skip_password_validation = False  # ensure validation runs
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()) as mock_validate:
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new_callable=AsyncMock,
+            ) as mock_validate:
                 mock_validate.side_effect = ValueError("Password too weak")
 
                 with pytest.raises(ValueError):

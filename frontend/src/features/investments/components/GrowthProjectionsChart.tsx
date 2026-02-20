@@ -49,9 +49,10 @@ import { runMonteCarloSimulation } from '../../../utils/monteCarloSimulation';
 
 interface GrowthProjectionsChartProps {
   currentValue: number;
+  monthlyContribution?: number;
 }
 
-export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartProps) => {
+export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }: GrowthProjectionsChartProps) => {
   // Simulation parameters with defaults
   const [annualReturn, setAnnualReturn] = useState(7);
   const [volatility, setVolatility] = useState(15);
@@ -68,8 +69,9 @@ export const GrowthProjectionsChart = ({ currentValue }: GrowthProjectionsChartP
       annualReturn,
       volatility,
       inflationRate,
+      monthlyContribution,
     });
-  }, [currentValue, years, annualReturn, volatility, inflationRate]);
+  }, [currentValue, years, annualReturn, volatility, inflationRate, monthlyContribution]);
 
   // Calculate summary statistics
   const summaryStats = useMemo(() => {

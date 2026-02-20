@@ -71,4 +71,22 @@ export const recurringTransactionsApi = {
     });
     return data;
   },
+
+  /**
+   * Get expanded calendar entries (all occurrences within N days)
+   */
+  getCalendar: async (days: number = 90): Promise<CalendarEntry[]> => {
+    const { data } = await api.get<CalendarEntry[]>('/recurring-transactions/calendar', {
+      params: { days },
+    });
+    return data;
+  },
 };
+
+export interface CalendarEntry {
+  date: string;          // ISO date string
+  merchant_name: string;
+  amount: number;
+  recurring_transaction_id: string;
+  frequency: string;
+}

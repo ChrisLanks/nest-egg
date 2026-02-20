@@ -284,9 +284,9 @@ class TestUpdateRule:
             description="Updated description",
         )
 
-        # Mock rule lookup
+        # Mock rule lookup (code calls result.unique().scalar_one_or_none())
         lookup_result = Mock()
-        lookup_result.scalar_one_or_none.return_value = mock_rule
+        lookup_result.unique.return_value.scalar_one_or_none.return_value = mock_rule
 
         # Mock final refresh with relationships
         refresh_result = Mock()
@@ -319,7 +319,7 @@ class TestUpdateRule:
         update_data = RuleUpdate(name="New Name")
 
         result = Mock()
-        result.scalar_one_or_none.return_value = None
+        result.unique.return_value.scalar_one_or_none.return_value = None
         mock_db.execute.return_value = result
 
         with patch(

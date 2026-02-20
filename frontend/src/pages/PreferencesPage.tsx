@@ -142,6 +142,30 @@ export default function PreferencesPage() {
     },
   });
 
+  // Export state
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const response = await api.get('/settings/export', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      const today = new Date().toISOString().slice(0, 10);
+      link.setAttribute('download', `nest-egg-export-${today}.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast({ title: 'Export downloaded', status: 'success', duration: 3000 });
+    } catch {
+      toast({ title: 'Export failed', status: 'error', duration: 3000 });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleUpdateProfile = () => {
     updateProfileMutation.mutate({
       display_name: displayName,
@@ -273,6 +297,25 @@ export default function PreferencesPage() {
               Save Profile
             </Button>
           </Stack>
+        </Box>
+
+        {/* Export Data Section */}
+        <Box bg="white" p={6} borderRadius="lg" boxShadow="sm">
+          <Heading size="md" mb={1}>
+            Export Data
+          </Heading>
+          <Text color="gray.600" fontSize="sm" mb={4}>
+            Download all your accounts, transactions, and holdings as a ZIP of CSV files.
+          </Text>
+          <Button
+            colorScheme="blue"
+            variant="outline"
+            onClick={handleExport}
+            isLoading={isExporting}
+            loadingText="Preparing export…"
+          >
+            Download CSV Export
+          </Button>
         </Box>
 
         {/* Change Password Section */}

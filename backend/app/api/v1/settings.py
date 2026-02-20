@@ -1,10 +1,14 @@
 """Settings API endpoints for user profile and organization preferences."""
 
-from typing import Any, List, Optional
+import csv
+import io
+import zipfile
+from typing import Any, List, Literal, Optional
 from uuid import UUID
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.core.security import hash_password, verify_password
+from app.models.account import Account
+from app.models.holding import Holding
+from app.models.transaction import Transaction
 from app.models.user import User, Organization
 from app.schemas.user import UserUpdate, OrganizationUpdate
 from app.services.password_validation_service import password_validation_service
@@ -258,4 +265,116 @@ async def update_organization_preferences(
         monthly_start_day=org.monthly_start_day,
         custom_month_end_day=org.custom_month_end_day,
         timezone=org.timezone,
+    )
+
+
+@router.get("/export")
+async def export_data(
+    http_request: Request,
+    format: Literal["csv"] = Query("csv"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Export all data as a ZIP archive containing CSV files.
+
+    Rate limited to 5 exports per hour.
+    """
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=5,
+        window_seconds=3600,
+    )
+
+    org_id = current_user.organization_id
+
+    # --- Fetch data ---
+    accounts_result = await db.execute(
+        select(Account).where(Account.organization_id == org_id).order_by(Account.name)
+    )
+    accounts = list(accounts_result.scalars().all())
+
+    txn_result = await db.execute(
+        select(Transaction)
+        .where(Transaction.organization_id == org_id)
+        .order_by(Transaction.date.desc())
+    )
+    transactions = list(txn_result.scalars().all())
+
+    # Build account name lookup
+    account_names = {str(a.id): a.name for a in accounts}
+
+    holdings_result = await db.execute(
+        select(Holding).where(Holding.organization_id == org_id).order_by(Holding.ticker)
+    )
+    holdings = list(holdings_result.scalars().all())
+
+    # --- Build in-memory ZIP ---
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+
+        # accounts.csv
+        acc_buf = io.StringIO()
+        acc_writer = csv.writer(acc_buf)
+        acc_writer.writerow([
+            "id", "name", "type", "institution", "balance",
+            "currency", "is_active", "created_at",
+        ])
+        for a in accounts:
+            acc_writer.writerow([
+                str(a.id), a.name,
+                a.account_type.value if a.account_type else "",
+                a.institution_name or "",
+                str(a.current_balance),
+                a.currency or "USD",
+                a.is_active,
+                a.created_at.date() if a.created_at else "",
+            ])
+        zf.writestr("accounts.csv", acc_buf.getvalue())
+
+        # transactions.csv
+        txn_buf = io.StringIO()
+        txn_writer = csv.writer(txn_buf)
+        txn_writer.writerow([
+            "id", "date", "merchant_name", "amount", "currency",
+            "category", "account", "notes", "is_manual",
+        ])
+        for t in transactions:
+            txn_writer.writerow([
+                str(t.id),
+                str(t.date),
+                t.merchant_name or "",
+                str(t.amount),
+                t.currency or "USD",
+                t.category_primary or "",
+                account_names.get(str(t.account_id), ""),
+                t.notes or "",
+                t.is_manual,
+            ])
+        zf.writestr("transactions.csv", txn_buf.getvalue())
+
+        # holdings.csv (only if any exist)
+        if holdings:
+            hld_buf = io.StringIO()
+            hld_writer = csv.writer(hld_buf)
+            hld_writer.writerow([
+                "ticker", "name", "shares", "cost_basis_per_share",
+                "current_price", "account",
+            ])
+            for h in holdings:
+                hld_writer.writerow([
+                    h.ticker, h.name or "",
+                    str(h.shares),
+                    str(h.cost_basis_per_share) if h.cost_basis_per_share else "",
+                    str(h.current_price) if h.current_price else "",
+                    account_names.get(str(h.account_id), ""),
+                ])
+            zf.writestr("holdings.csv", hld_buf.getvalue())
+
+    zip_buffer.seek(0)
+    filename = f"nest-egg-export-{date.today()}.zip"
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )

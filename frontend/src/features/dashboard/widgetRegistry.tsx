@@ -17,6 +17,7 @@ import { UpcomingBillsWidget } from './widgets/UpcomingBillsWidget';
 import { SubscriptionsWidget } from './widgets/SubscriptionsWidget';
 import { InvestmentPerformanceWidget } from './widgets/InvestmentPerformanceWidget';
 import { AssetAllocationWidget } from './widgets/AssetAllocationWidget';
+import { NetWorthProjectionWidget } from './widgets/NetWorthProjectionWidget';
 import type { LayoutItem, WidgetDefinition } from './types';
 
 export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
@@ -124,6 +125,13 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     description: 'Donut chart breakdown of your investment portfolio by asset type.',
     defaultSpan: 1,
     component: AssetAllocationWidget,
+  },
+  'net-worth-projection': {
+    id: 'net-worth-projection',
+    title: 'Net Worth Projection',
+    description: 'Monte Carlo projection of total net worth over 5–20 years, including monthly savings contributions.',
+    defaultSpan: 2,
+    component: NetWorthProjectionWidget,
   },
 };
 

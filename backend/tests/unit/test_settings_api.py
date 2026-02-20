@@ -294,6 +294,7 @@ def _make_user_with_birthdate(birthdate=None, *, is_org_admin: bool = False) -> 
     user.display_name = "Jane Doe"
     user.birthdate = birthdate
     user.is_org_admin = is_org_admin
+    user.dashboard_layout = None
     return user
 
 

@@ -363,6 +363,14 @@ class Account(Base):
     ownership_percentage = Column(Numeric(5, 2), nullable=True)  # Percentage ownership (0-100)
     equity_value = Column(Numeric(15, 2), nullable=True)  # Direct equity value (alternative to valuation + percentage)
 
+    # Employer 401k / 403b match fields
+    employer_match_percent = Column(Numeric(5, 2), nullable=True)   # e.g. 50 → employer matches 50% of contribution
+    employer_match_limit_percent = Column(Numeric(5, 2), nullable=True)  # e.g. 6 → on the first 6% of salary
+    annual_salary = Column(Numeric(15, 2), nullable=True)           # Used to calculate dollar value of match
+
+    # Interest accrual tracking (CD / savings / money_market)
+    last_interest_accrued_at = Column(Date, nullable=True)          # Date of last auto-accrual (prevents double-accrual)
+
     # Property auto-valuation fields (used with ATTOM API)
     property_address = Column(String(255), nullable=True)   # Street address (e.g. "123 Main St")
     property_zip = Column(String(10), nullable=True)        # ZIP / postal code

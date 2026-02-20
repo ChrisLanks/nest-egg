@@ -60,8 +60,8 @@ export const UpcomingBillsWidget: React.FC = () => {
       <CardBody>
         <HStack justify="space-between" mb={4}>
           <Heading size="md">Upcoming Bills</Heading>
-          <Link as={RouterLink} to="/recurring-transactions" fontSize="sm" color="brand.500">
-            View all →
+          <Link as={RouterLink} to="/bill-calendar" fontSize="sm" color="brand.500">
+            Calendar →
           </Link>
         </HStack>
 

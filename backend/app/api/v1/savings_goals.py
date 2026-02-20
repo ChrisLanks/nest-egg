@@ -1,9 +1,11 @@
 """Savings goals API endpoints."""
 
+from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
@@ -17,6 +19,14 @@ from app.schemas.savings_goal import (
     SavingsGoalProgressResponse,
 )
 from app.services.savings_goal_service import savings_goal_service
+
+
+class GoalTemplate(str, Enum):
+    emergency_fund = "emergency_fund"
+
+
+class GoalFromTemplateRequest(BaseModel):
+    template: GoalTemplate
 
 router = APIRouter()
 
@@ -52,6 +62,26 @@ async def list_goals(
 
 
 # --- Collection-level routes must come BEFORE /{goal_id} to avoid path conflicts ---
+
+@router.post("/from-template", response_model=SavingsGoalResponse, status_code=201)
+async def create_goal_from_template(
+    body: GoalFromTemplateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Create a savings goal from a built-in template.
+
+    Currently supported templates:
+    - **emergency_fund**: calculates target from avg monthly expenses × 6,
+      auto-links to the highest-balance checking/savings account.
+    """
+    if body.template == GoalTemplate.emergency_fund:
+        goal = await savings_goal_service.create_emergency_fund_goal(db=db, user=current_user)
+        return goal
+
+    raise HTTPException(status_code=400, detail=f"Unknown template: {body.template}")
+
 
 @router.post("/auto-sync", response_model=List[SavingsGoalResponse])
 async def auto_sync_goals(

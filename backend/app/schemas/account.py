@@ -92,6 +92,11 @@ class ManualAccountCreate(BaseModel):
     ownership_percentage: Optional[Decimal] = None  # Percentage ownership (0-100)
     equity_value: Optional[Decimal] = None  # Direct equity value
 
+    # Employer match fields (401k / 403b)
+    employer_match_percent: Optional[Decimal] = None
+    employer_match_limit_percent: Optional[Decimal] = None
+    annual_salary: Optional[Decimal] = None
+
     # Property auto-valuation fields
     property_address: Optional[str] = None
     property_zip: Optional[str] = None
@@ -146,6 +151,11 @@ class AccountUpdate(BaseModel):
     company_valuation: Optional[Decimal] = None
     ownership_percentage: Optional[Decimal] = None
     equity_value: Optional[Decimal] = None
+
+    # Employer match fields (401k / 403b)
+    employer_match_percent: Optional[Decimal] = None
+    employer_match_limit_percent: Optional[Decimal] = None
+    annual_salary: Optional[Decimal] = None
 
     # Property auto-valuation
     property_address: Optional[str] = None
@@ -209,6 +219,11 @@ class Account(AccountBase):
     ownership_percentage: Optional[Decimal] = None
     equity_value: Optional[Decimal] = None
 
+    # Employer match fields (401k / 403b)
+    employer_match_percent: Optional[Decimal] = None
+    employer_match_limit_percent: Optional[Decimal] = None
+    annual_salary: Optional[Decimal] = None
+
     # Property auto-valuation
     property_address: Optional[str] = None
     property_zip: Optional[str] = None
@@ -219,6 +234,9 @@ class Account(AccountBase):
 
     # Auto-valuation metadata
     last_auto_valued_at: Optional[datetime] = None
+
+    # Interest accrual tracking
+    last_interest_accrued_at: Optional[date] = None
 
     model_config = {"from_attributes": True}
 

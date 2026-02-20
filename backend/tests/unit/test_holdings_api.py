@@ -162,7 +162,7 @@ class TestCreateHolding:
             )
 
         assert exc_info.value.status_code == 400
-        assert "investment accounts" in exc_info.value.detail
+        assert "investment" in exc_info.value.detail
 
     @pytest.mark.asyncio
     async def test_creates_holding_for_retirement_529(

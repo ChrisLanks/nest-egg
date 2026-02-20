@@ -80,6 +80,10 @@ interface Account {
   vehicle_vin: string | null;
   vehicle_mileage: number | null;
   last_auto_valued_at: string | null;
+  // Employer match fields (401k / 403b)
+  employer_match_percent: number | null;
+  employer_match_limit_percent: number | null;
+  annual_salary: number | null;
   // Sync status
   last_synced_at: string | null;
   last_error_code: string | null;
@@ -157,6 +161,10 @@ export const AccountDetailPage = () => {
   const [loanInterestRate, setLoanInterestRate] = useState('');
   const [loanTermYears, setLoanTermYears] = useState('');
   const [loanOriginationDate, setLoanOriginationDate] = useState('');
+  // Employer match editing state
+  const [empMatchPct, setEmpMatchPct] = useState('');
+  const [empMatchLimitPct, setEmpMatchLimitPct] = useState('');
+  const [empAnnualSalary, setEmpAnnualSalary] = useState('');
 
   // Fetch account details
   const { data: account, isLoading } = useQuery<Account>({
@@ -221,7 +229,7 @@ export const AccountDetailPage = () => {
 
   // Update account mutation
   const updateAccountMutation = useMutation({
-    mutationFn: async (data: { name?: string; account_type?: string; is_active?: boolean; exclude_from_cash_flow?: boolean; include_in_networth?: boolean | null; interest_rate?: number | null; loan_term_months?: number | null; origination_date?: string | null; current_balance?: number }) => {
+    mutationFn: async (data: { name?: string; account_type?: string; is_active?: boolean; exclude_from_cash_flow?: boolean; include_in_networth?: boolean | null; interest_rate?: number | null; loan_term_months?: number | null; origination_date?: string | null; current_balance?: number; employer_match_percent?: number | null; employer_match_limit_percent?: number | null; annual_salary?: number | null; property_address?: string | null; property_zip?: string | null; vehicle_vin?: string | null; vehicle_mileage?: number | null }) => {
       const response = await api.patch(`/accounts/${accountId}`, data);
       return response.data;
     },
@@ -529,6 +537,35 @@ export const AccountDetailPage = () => {
           setLoanInterestRate('');
           setLoanTermYears('');
           setLoanOriginationDate('');
+        },
+      });
+    }
+  };
+
+  const handleSaveEmployerMatch = () => {
+    const updates: {
+      employer_match_percent?: number | null;
+      employer_match_limit_percent?: number | null;
+      annual_salary?: number | null;
+    } = {};
+    if (empMatchPct !== '') {
+      const v = parseFloat(empMatchPct);
+      if (!isNaN(v) && v >= 0) updates.employer_match_percent = v;
+    }
+    if (empMatchLimitPct !== '') {
+      const v = parseFloat(empMatchLimitPct);
+      if (!isNaN(v) && v >= 0) updates.employer_match_limit_percent = v;
+    }
+    if (empAnnualSalary !== '') {
+      const v = parseFloat(empAnnualSalary);
+      if (!isNaN(v) && v >= 0) updates.annual_salary = v;
+    }
+    if (Object.keys(updates).length > 0) {
+      updateAccountMutation.mutate(updates, {
+        onSuccess: () => {
+          setEmpMatchPct('');
+          setEmpMatchLimitPct('');
+          setEmpAnnualSalary('');
         },
       });
     }
@@ -1264,6 +1301,96 @@ export const AccountDetailPage = () => {
                   </>
                 )}
               </VStack>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Employer Match Section - For 401k / 403b accounts */}
+        {['retirement_401k', 'retirement_403b'].includes(account.account_type) && (
+          <Card>
+            <CardBody>
+              <Heading size="md" mb={1}>Employer Match</Heading>
+              <Text fontSize="sm" color="gray.600" mb={4}>
+                Track how much your employer contributes to see your true total retirement savings rate.
+              </Text>
+
+              {/* Current values display */}
+              {(account.employer_match_percent != null || account.employer_match_limit_percent != null || account.annual_salary != null) && (
+                <>
+                  <HStack spacing={6} wrap="wrap" mb={4}>
+                    {account.employer_match_percent != null && (
+                      <Box>
+                        <Text fontSize="xs" color="gray.500">Employer Matches</Text>
+                        <Text fontWeight="semibold">{account.employer_match_percent}% of your contribution</Text>
+                      </Box>
+                    )}
+                    {account.employer_match_limit_percent != null && (
+                      <Box>
+                        <Text fontSize="xs" color="gray.500">On First</Text>
+                        <Text fontWeight="semibold">{account.employer_match_limit_percent}% of salary</Text>
+                      </Box>
+                    )}
+                    {account.annual_salary != null && (
+                      <Box>
+                        <Text fontSize="xs" color="gray.500">Annual Salary</Text>
+                        <Text fontWeight="semibold">{formatCurrency(account.annual_salary)}</Text>
+                      </Box>
+                    )}
+                    {/* Computed annual employer contribution */}
+                    {account.employer_match_percent != null && account.employer_match_limit_percent != null && account.annual_salary != null && (() => {
+                      const matchablePct = Math.min(account.employer_match_limit_percent, account.employer_match_limit_percent);
+                      const annualMatch = (matchablePct / 100) * (account.employer_match_percent / 100) * account.annual_salary;
+                      const monthlyMatch = annualMatch / 12;
+                      return (
+                        <Box bg="green.50" px={3} py={2} borderRadius="md" borderWidth="1px" borderColor="green.200">
+                          <Text fontSize="xs" color="green.700">Employer Contributes</Text>
+                          <Text fontWeight="bold" color="green.700">
+                            {formatCurrency(annualMatch)}/yr &nbsp;·&nbsp; {formatCurrency(monthlyMatch)}/mo
+                          </Text>
+                        </Box>
+                      );
+                    })()}
+                  </HStack>
+                  <Divider mb={4} />
+                </>
+              )}
+
+              {!canEditAccount ? (
+                <Text fontSize="sm" color="gray.600">Employer match can only be updated by the account owner.</Text>
+              ) : (
+                <>
+                  <HStack spacing={4} align="end" wrap="wrap">
+                    <FormControl maxW="160px">
+                      <FormLabel fontSize="sm">Employer Match (%)</FormLabel>
+                      <NumberInput value={empMatchPct} onChange={setEmpMatchPct} min={0} max={200} precision={2} size="sm">
+                        <NumberInputField placeholder={account.employer_match_percent != null ? String(account.employer_match_percent) : 'e.g., 50'} />
+                      </NumberInput>
+                    </FormControl>
+                    <FormControl maxW="160px">
+                      <FormLabel fontSize="sm">Up to (% of salary)</FormLabel>
+                      <NumberInput value={empMatchLimitPct} onChange={setEmpMatchLimitPct} min={0} max={100} precision={2} size="sm">
+                        <NumberInputField placeholder={account.employer_match_limit_percent != null ? String(account.employer_match_limit_percent) : 'e.g., 6'} />
+                      </NumberInput>
+                    </FormControl>
+                    <FormControl maxW="200px">
+                      <FormLabel fontSize="sm">Annual Salary ($)</FormLabel>
+                      <NumberInput value={empAnnualSalary} onChange={setEmpAnnualSalary} min={0} precision={0} size="sm">
+                        <NumberInputField placeholder={account.annual_salary != null ? String(account.annual_salary) : 'e.g., 100000'} />
+                      </NumberInput>
+                    </FormControl>
+                  </HStack>
+                  <Button
+                    mt={4}
+                    size="sm"
+                    colorScheme="blue"
+                    onClick={handleSaveEmployerMatch}
+                    isLoading={updateAccountMutation.isPending}
+                    isDisabled={!empMatchPct && !empMatchLimitPct && !empAnnualSalary}
+                  >
+                    Save Match Details
+                  </Button>
+                </>
+              )}
             </CardBody>
           </Card>
         )}

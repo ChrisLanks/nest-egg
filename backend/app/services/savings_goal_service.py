@@ -1,7 +1,7 @@
 """Service for managing savings goals."""
 
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional
 from uuid import UUID
@@ -9,8 +9,9 @@ from uuid import UUID
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account
+from app.models.account import Account, AccountType
 from app.models.savings_goal import SavingsGoal
+from app.models.transaction import Transaction
 from app.models.user import User
 from app.utils.datetime_utils import utc_now
 
@@ -402,6 +403,69 @@ class SavingsGoalService:
             "on_track": on_track,
             "is_completed": goal.is_completed,
         }
+
+
+    @staticmethod
+    async def create_emergency_fund_goal(
+        db: AsyncSession,
+        user: User,
+    ) -> SavingsGoal:
+        """
+        Create an Emergency Fund goal pre-configured from spending history.
+
+        Target = average monthly expenses (last 6 months) × 6.
+        Auto-links to the liquid account (checking/savings) with the highest balance
+        and enables auto_sync if one is found.
+        """
+        # --- Calculate average monthly expenses over last 6 months ---
+        six_months_ago = date.today() - timedelta(days=182)
+
+        # Negative amounts = expenses (per transaction model convention)
+        expense_result = await db.execute(
+            select(func.sum(Transaction.amount)).where(
+                and_(
+                    Transaction.organization_id == user.organization_id,
+                    Transaction.amount < 0,
+                    Transaction.date >= six_months_ago,
+                )
+            )
+        )
+        total_expenses = expense_result.scalar() or Decimal("0")
+        avg_monthly_expenses = abs(total_expenses) / 6  # always positive
+
+        # Default to $3,000/month if no transaction history
+        if avg_monthly_expenses < Decimal("1"):
+            avg_monthly_expenses = Decimal("3000")
+
+        target = (avg_monthly_expenses * 6).quantize(Decimal("0.01"))
+
+        # --- Find best liquid account to link ---
+        liquid_result = await db.execute(
+            select(Account).where(
+                and_(
+                    Account.organization_id == user.organization_id,
+                    Account.account_type.in_([AccountType.CHECKING, AccountType.SAVINGS]),
+                    Account.is_active == True,  # noqa: E712
+                )
+            ).order_by(Account.current_balance.desc())
+        )
+        liquid_account = liquid_result.scalars().first()
+
+        description = (
+            f"6 months of expenses (~${avg_monthly_expenses:,.0f}/month average)"
+        )
+
+        return await SavingsGoalService.create_goal(
+            db=db,
+            user=user,
+            name="Emergency Fund",
+            description=description,
+            target_amount=target,
+            start_date=date.today(),
+            account_id=liquid_account.id if liquid_account else None,
+            auto_sync=bool(liquid_account),
+            current_amount=Decimal(liquid_account.current_balance) if liquid_account else Decimal("0"),
+        )
 
 
 savings_goal_service = SavingsGoalService()

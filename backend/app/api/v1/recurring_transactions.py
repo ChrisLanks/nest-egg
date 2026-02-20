@@ -1,12 +1,17 @@
 """Recurring transactions API endpoints."""
 
-from typing import List, Optional
+from datetime import date, timedelta
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from dateutil.relativedelta import relativedelta
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
+from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
 from app.models.user import User
 from app.schemas.recurring_transaction import (
     RecurringTransactionCreate,
@@ -17,6 +22,61 @@ from app.schemas.recurring_transaction import (
 from app.services.recurring_detection_service import recurring_detection_service
 
 router = APIRouter()
+
+
+class CalendarEntry(BaseModel):
+    """A single bill occurrence on the calendar."""
+
+    date: date
+    merchant_name: str
+    amount: float
+    recurring_transaction_id: str
+    frequency: str
+
+
+def _expand_occurrences(
+    pattern: RecurringTransaction,
+    start: date,
+    end: date,
+) -> list[date]:
+    """Generate all occurrence dates for a recurring pattern within [start, end]."""
+    anchor = pattern.next_expected_date
+    if not anchor:
+        return []
+
+    freq = pattern.frequency
+    occurrences: list[date] = []
+
+    # Walk backward from anchor to find the first occurrence >= start
+    # Then walk forward until > end
+    def _step(d: date, forward: bool = True) -> date:
+        delta = 1 if forward else -1
+        if freq == RecurringFrequency.WEEKLY:
+            return d + timedelta(weeks=delta)
+        if freq == RecurringFrequency.BIWEEKLY:
+            return d + timedelta(weeks=2 * delta)
+        if freq == RecurringFrequency.MONTHLY:
+            return d + relativedelta(months=delta)
+        if freq == RecurringFrequency.QUARTERLY:
+            return d + relativedelta(months=3 * delta)
+        # YEARLY
+        return d + relativedelta(years=delta)
+
+    # Walk backward from anchor until before start
+    first = anchor
+    while first > start:
+        first = _step(first, forward=False)
+    # Now first <= start, so step forward once to get first >= start
+    while first < start:
+        first = _step(first, forward=True)
+
+    # Walk forward collecting occurrences
+    current = first
+    while current <= end:
+        occurrences.append(current)
+        current = _step(current, forward=True)
+
+    return occurrences
 
 
 @router.post("/detect")
@@ -106,6 +166,47 @@ async def delete_recurring_transaction(
 
     if not success:
         raise HTTPException(status_code=404, detail="Recurring pattern not found")
+
+
+@router.get("/calendar", response_model=List[CalendarEntry])
+async def get_calendar(
+    days: int = Query(90, ge=1, le=365),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Expand all active recurring transactions into individual occurrences within
+    the next `days` days. Used by the bill calendar page.
+    """
+    today = date.today()
+    end = today + timedelta(days=days)
+
+    result = await db.execute(
+        select(RecurringTransaction).where(
+            and_(
+                RecurringTransaction.organization_id == current_user.organization_id,
+                RecurringTransaction.is_active.is_(True),
+                RecurringTransaction.next_expected_date.isnot(None),
+            )
+        )
+    )
+    patterns = list(result.scalars().all())
+
+    entries: list[CalendarEntry] = []
+    for pattern in patterns:
+        for occ_date in _expand_occurrences(pattern, today, end):
+            entries.append(
+                CalendarEntry(
+                    date=occ_date,
+                    merchant_name=pattern.merchant_name,
+                    amount=float(abs(pattern.average_amount)),
+                    recurring_transaction_id=str(pattern.id),
+                    frequency=pattern.frequency.value,
+                )
+            )
+
+    entries.sort(key=lambda e: e.date)
+    return entries
 
 
 @router.get("/bills/upcoming", response_model=List[UpcomingBillResponse])

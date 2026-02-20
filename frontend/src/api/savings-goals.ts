@@ -88,4 +88,12 @@ export const savingsGoalsApi = {
     const { data } = await api.get<SavingsGoalProgress>(`/savings-goals/${goalId}/progress`);
     return data;
   },
+
+  /**
+   * Create a goal from a built-in template (e.g. 'emergency_fund')
+   */
+  createFromTemplate: async (template: 'emergency_fund'): Promise<SavingsGoal> => {
+    const { data } = await api.post<SavingsGoal>('/savings-goals/from-template', { template });
+    return data;
+  },
 };

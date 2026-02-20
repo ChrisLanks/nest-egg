@@ -7,11 +7,15 @@ import {
   Box,
   Button,
   ButtonGroup,
+  Card,
+  CardBody,
   Heading,
   HStack,
+  Icon,
   Text,
   VStack,
   useDisclosure,
+  useToast,
   Spinner,
   Center,
   Badge,
@@ -29,8 +33,8 @@ import {
   AccordionIcon,
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
-import { FiLock, FiTarget } from 'react-icons/fi';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { FiLock, FiTarget, FiShield } from 'react-icons/fi';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
   closestCenter,
@@ -139,6 +143,7 @@ export default function SavingsGoalsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('priority');
   const { canEdit, isOtherUserView } = useUserView();
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   // Allocation method — persisted in localStorage
   const [allocationMethod, setAllocationMethod] = useState<'waterfall' | 'proportional'>(
@@ -197,6 +202,28 @@ export default function SavingsGoalsPage() {
   const activeGoals = goals.filter((g) => !g.is_completed && !g.is_funded);
   const completedGoals = goals.filter((g) => g.is_completed || g.is_funded);
   const hasAutoSyncGoals = activeGoals.some((g) => g.auto_sync && g.account_id);
+
+  // Emergency Fund quick-start — hide if one already exists
+  const hasEmergencyFundGoal = goals.some((g) =>
+    g.name.toLowerCase().includes('emergency')
+  );
+
+  const createFromTemplateMutation = useMutation({
+    mutationFn: () => savingsGoalsApi.createFromTemplate('emergency_fund'),
+    onSuccess: (goal) => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      toast({
+        title: 'Emergency Fund created',
+        description: `Target set to $${Number(goal.target_amount).toLocaleString()} — edit anytime to adjust.`,
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+    },
+    onError: () => {
+      toast({ title: 'Could not create goal', status: 'error', duration: 3000 });
+    },
+  });
 
   // Group active goals by account_id for the "By Account" view
   const goalsByAccount = (() => {
@@ -356,6 +383,35 @@ export default function SavingsGoalsPage() {
             onAction={handleCreate}
             showAction={!isOtherUserView}
           />
+        )}
+
+        {/* Emergency Fund quick-start card */}
+        {!goalsLoading && !isOtherUserView && canEdit && !hasEmergencyFundGoal && (
+          <Card variant="outline" borderColor="blue.200" bg="blue.50">
+            <CardBody>
+              <HStack justify="space-between" flexWrap="wrap" spacing={4}>
+                <HStack spacing={3}>
+                  <Icon as={FiShield} boxSize={6} color="blue.500" />
+                  <VStack align="start" spacing={0}>
+                    <Text fontWeight="semibold" color="blue.800">
+                      Emergency Fund
+                    </Text>
+                    <Text fontSize="sm" color="blue.600">
+                      Auto-calculates your 6-month target from spending history
+                    </Text>
+                  </VStack>
+                </HStack>
+                <Button
+                  colorScheme="blue"
+                  size="sm"
+                  onClick={() => createFromTemplateMutation.mutate()}
+                  isLoading={createFromTemplateMutation.isPending}
+                >
+                  Create Goal
+                </Button>
+              </HStack>
+            </CardBody>
+          </Card>
         )}
 
         {/* Goals tabs */}
