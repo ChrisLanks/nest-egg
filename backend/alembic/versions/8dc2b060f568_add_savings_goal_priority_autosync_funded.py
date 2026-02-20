@@ -1,7 +1,7 @@
 """Add priority, auto_sync, is_funded, funded_at to savings_goals
 
-Revision ID: a1b2c3d4e5f6
-Revises: fecf4db781a3
+Revision ID: 8dc2b060f568
+Revises: b243c5a21d21
 Create Date: 2026-02-19 00:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'a1b2c3d4e5f6'
-down_revision = 'fecf4db781a3'
+revision = '8dc2b060f568'
+down_revision = 'b243c5a21d21'
 branch_labels = None
 depends_on = None
 
