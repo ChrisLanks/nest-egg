@@ -272,3 +272,108 @@ describe('NetWorthChartWidget — chartData fallback', () => {
     expect(data[0].value).toBe(42000);
   });
 });
+
+// ── AccountBalancesWidget — sort logic ────────────────────────────────────────
+
+type SortKey = 'name' | 'type' | 'institution' | 'balance';
+type SortDir = 'asc' | 'desc';
+
+interface Account {
+  id: string;
+  name: string;
+  type: string;
+  institution: string | null;
+  balance: number;
+}
+
+const sortAccounts = (accounts: Account[], key: SortKey, dir: SortDir) =>
+  [...accounts].sort((a, b) => {
+    let cmp = 0;
+    if (key === 'balance') {
+      cmp = a.balance - b.balance;
+    } else if (key === 'name') {
+      cmp = a.name.localeCompare(b.name);
+    } else if (key === 'type') {
+      cmp = a.type.localeCompare(b.type);
+    } else if (key === 'institution') {
+      cmp = (a.institution || 'Manual').localeCompare(b.institution || 'Manual');
+    }
+    return dir === 'asc' ? cmp : -cmp;
+  });
+
+const nextSortDir = (currentKey: SortKey, clickedKey: SortKey, currentDir: SortDir): SortDir =>
+  clickedKey === currentKey ? (currentDir === 'asc' ? 'desc' : 'asc') : 'desc';
+
+const accounts: Account[] = [
+  { id: '1', name: 'Checking',    type: 'checking',    institution: 'Chase',   balance: 3000 },
+  { id: '2', name: 'Savings',     type: 'savings',     institution: 'Chase',   balance: 15000 },
+  { id: '3', name: 'Brokerage',   type: 'brokerage',   institution: 'Fidelity', balance: 80000 },
+  { id: '4', name: 'Credit Card', type: 'credit_card', institution: null,      balance: -2500 },
+  { id: '5', name: 'Mortgage',    type: 'mortgage',    institution: 'Wells Fargo', balance: -320000 },
+];
+
+describe('AccountBalancesWidget — sort by balance', () => {
+  it('defaults to descending (largest first)', () => {
+    const sorted = sortAccounts(accounts, 'balance', 'desc');
+    expect(sorted[0].balance).toBe(80000);
+    expect(sorted[sorted.length - 1].balance).toBe(-320000);
+  });
+
+  it('ascending puts most negative first', () => {
+    const sorted = sortAccounts(accounts, 'balance', 'asc');
+    expect(sorted[0].balance).toBe(-320000);
+    expect(sorted[sorted.length - 1].balance).toBe(80000);
+  });
+});
+
+describe('AccountBalancesWidget — sort by name', () => {
+  it('ascending is alphabetical A→Z', () => {
+    const sorted = sortAccounts(accounts, 'name', 'asc');
+    const names = sorted.map((a) => a.name);
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+  });
+
+  it('descending is reverse alphabetical Z→A', () => {
+    const sorted = sortAccounts(accounts, 'name', 'desc');
+    expect(sorted[0].name).toBe('Savings');
+    expect(sorted[sorted.length - 1].name).toBe('Brokerage');
+  });
+});
+
+describe('AccountBalancesWidget — sort by institution', () => {
+  it('null institution treated as "Manual"', () => {
+    const sorted = sortAccounts(accounts, 'institution', 'asc');
+    // Chase < Fidelity < Manual < Wells Fargo
+    const names = sorted.map((a) => a.institution || 'Manual');
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+  });
+});
+
+describe('AccountBalancesWidget — sort by type', () => {
+  it('ascending sorts type strings alphabetically', () => {
+    const sorted = sortAccounts(accounts, 'type', 'asc');
+    const types = sorted.map((a) => a.type);
+    expect(types).toEqual([...types].sort((a, b) => a.localeCompare(b)));
+  });
+});
+
+describe('AccountBalancesWidget — sort direction toggle', () => {
+  it('clicking the same column toggles asc → desc', () => {
+    expect(nextSortDir('balance', 'balance', 'asc')).toBe('desc');
+  });
+
+  it('clicking the same column toggles desc → asc', () => {
+    expect(nextSortDir('balance', 'balance', 'desc')).toBe('asc');
+  });
+
+  it('clicking a new column always defaults to desc', () => {
+    expect(nextSortDir('balance', 'name', 'asc')).toBe('desc');
+    expect(nextSortDir('name', 'institution', 'desc')).toBe('desc');
+  });
+
+  it('does not mutate original array', () => {
+    const original = [...accounts];
+    sortAccounts(accounts, 'balance', 'asc');
+    expect(accounts).toEqual(original);
+  });
+});
