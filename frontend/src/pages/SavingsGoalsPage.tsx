@@ -22,6 +22,11 @@ import {
   TabPanel,
   Tooltip,
   SimpleGrid,
+  Accordion,
+  AccordionItem,
+  AccordionButton,
+  AccordionPanel,
+  AccordionIcon,
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
 import { FiLock, FiTarget } from 'react-icons/fi';
@@ -39,7 +44,9 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { savingsGoalsApi } from '../api/savings-goals';
+import { accountsApi } from '../api/accounts';
 import type { SavingsGoal } from '../types/savings-goal';
+import type { Account } from '../types/account';
 import GoalCard from '../features/goals/components/GoalCard';
 import GoalForm from '../features/goals/components/GoalForm';
 import { useUserView } from '../contexts/UserViewContext';
@@ -86,12 +93,50 @@ function SortableGoalCard({ goal, onEdit, method }: SortableGoalCardProps) {
 }
 
 // ---------------------------------------------------------------------------
+// AccountGroup — collapsible accordion section for goals under one account
+// ---------------------------------------------------------------------------
+
+interface AccountGroupProps {
+  accountName: string;
+  goals: SavingsGoal[];
+  onEdit: (goal: SavingsGoal) => void;
+}
+
+function AccountGroup({ accountName, goals, onEdit }: AccountGroupProps) {
+  return (
+    <AccordionItem border="1px solid" borderColor="gray.200" borderRadius="md" overflow="hidden">
+      <AccordionButton bg="gray.50" _expanded={{ bg: 'blue.50' }} py={3} px={4}>
+        <HStack flex={1} textAlign="left" spacing={3}>
+          <Text fontWeight="semibold" fontSize="md">
+            {accountName}
+          </Text>
+          <Badge colorScheme="blue" size="sm">
+            {goals.length} {goals.length === 1 ? 'goal' : 'goals'}
+          </Badge>
+        </HStack>
+        <AccordionIcon />
+      </AccordionButton>
+      <AccordionPanel pb={4} pt={3} px={4}>
+        <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+          {goals.map((goal) => (
+            <GoalCard key={goal.id} goal={goal} onEdit={onEdit} showFundButton />
+          ))}
+        </SimpleGrid>
+      </AccordionPanel>
+    </AccordionItem>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SavingsGoalsPage
 // ---------------------------------------------------------------------------
+
+type ViewMode = 'priority' | 'account';
 
 export default function SavingsGoalsPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedGoal, setSelectedGoal] = useState<SavingsGoal | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('priority');
   const { canEdit, isOtherUserView } = useUserView();
   const queryClient = useQueryClient();
 
@@ -106,17 +151,24 @@ export default function SavingsGoalsPage() {
   };
 
   // Get all goals
-  const { data: goals = [], isLoading } = useQuery({
+  const { data: goals = [], isLoading: goalsLoading } = useQuery({
     queryKey: ['goals'],
     queryFn: () => savingsGoalsApi.getAll(),
   });
 
-  // Key built from auto-sync goals' id+account_id pairs.
-  // Changes when a goal is added/removed, OR when its linked account is edited.
-  // After auto-sync updates current_amount the key stays the same → no infinite loop.
+  // Get accounts for name lookup (shared cache — no extra network calls if already fetched)
+  const { data: accounts = [] } = useQuery({
+    queryKey: ['accounts'],
+    queryFn: () => accountsApi.getAccounts(),
+  });
+
+  // Build account lookup map: id → Account
+  const accountMap = new Map<string, Account>(accounts.map((a) => [a.id, a]));
+
+  // Key built from auto-sync goals' id+account_id pairs
   const autoSyncKey = goals
-    .filter(g => !g.is_completed && !g.is_funded && g.auto_sync && g.account_id)
-    .map(g => `${g.id}:${g.account_id}`)
+    .filter((g) => !g.is_completed && !g.is_funded && g.auto_sync && g.account_id)
+    .map((g) => `${g.id}:${g.account_id}`)
     .join(',');
 
   useEffect(() => {
@@ -142,27 +194,55 @@ export default function SavingsGoalsPage() {
     onClose();
   };
 
-  const activeGoals = goals.filter(g => !g.is_completed && !g.is_funded);
-  const completedGoals = goals.filter(g => g.is_completed || g.is_funded);
-  const hasAutoSyncGoals = activeGoals.some(g => g.auto_sync && g.account_id);
+  const activeGoals = goals.filter((g) => !g.is_completed && !g.is_funded);
+  const completedGoals = goals.filter((g) => g.is_completed || g.is_funded);
+  const hasAutoSyncGoals = activeGoals.some((g) => g.auto_sync && g.account_id);
 
-  // Drag-and-drop reorder
+  // Group active goals by account_id for the "By Account" view
+  const goalsByAccount = (() => {
+    const groups = new Map<string | null, SavingsGoal[]>();
+    for (const goal of activeGoals) {
+      const key = goal.account_id ?? null;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(goal);
+    }
+    return groups;
+  })();
+
+  // Sorted account entries (alphabetical by account name), unlinked always last
+  const linkedAccountEntries = Array.from(goalsByAccount.entries())
+    .filter(([id]) => id !== null)
+    .sort(([aId], [bId]) => {
+      const aName = accountMap.get(aId!)?.name ?? '';
+      const bName = accountMap.get(bId!)?.name ?? '';
+      return aName.localeCompare(bName);
+    }) as [string, SavingsGoal[]][];
+
+  const unlinkedGoals = goalsByAccount.get(null) ?? [];
+
+  // Number of accordion sections to open by default (all of them)
+  const defaultOpenIndices = Array.from(
+    { length: linkedAccountEntries.length + (unlinkedGoals.length > 0 ? 1 : 0) },
+    (_, i) => i
+  );
+
+  // Drag-and-drop reorder (priority view only)
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
       if (!over || active.id === over.id) return;
 
-      const oldIndex = activeGoals.findIndex(g => g.id === active.id);
-      const newIndex = activeGoals.findIndex(g => g.id === over.id);
+      const oldIndex = activeGoals.findIndex((g) => g.id === active.id);
+      const newIndex = activeGoals.findIndex((g) => g.id === over.id);
       if (oldIndex === -1 || newIndex === -1) return;
 
-      const newIds = arrayMove(activeGoals, oldIndex, newIndex).map(g => g.id);
+      const newIds = arrayMove(activeGoals, oldIndex, newIndex).map((g) => g.id);
 
       // Optimistic update
-      queryClient.setQueryData<SavingsGoal[]>(['goals'], old => {
+      queryClient.setQueryData<SavingsGoal[]>(['goals'], (old) => {
         if (!old) return old;
         const reordered = arrayMove(activeGoals, oldIndex, newIndex);
-        const rest = old.filter(g => g.is_completed || g.is_funded);
+        const rest = old.filter((g) => g.is_completed || g.is_funded);
         return [...reordered, ...rest];
       });
 
@@ -200,50 +280,74 @@ export default function SavingsGoalsPage() {
           </Tooltip>
         </HStack>
 
-        {/* Allocation method selector — shown when auto-sync goals exist */}
-        {hasAutoSyncGoals && (
-          <HStack>
-            <Text fontSize="sm" fontWeight="medium" color="gray.600">
-              Balance allocation:
-            </Text>
-            <ButtonGroup size="sm" isAttached variant="outline">
-              <Button
-                colorScheme={allocationMethod === 'waterfall' ? 'blue' : 'gray'}
-                variant={allocationMethod === 'waterfall' ? 'solid' : 'outline'}
-                onClick={() => handleMethodChange('waterfall')}
-              >
-                Priority Waterfall
-              </Button>
-              <Button
-                colorScheme={allocationMethod === 'proportional' ? 'blue' : 'gray'}
-                variant={allocationMethod === 'proportional' ? 'solid' : 'outline'}
-                onClick={() => handleMethodChange('proportional')}
-              >
-                Proportional
-              </Button>
-            </ButtonGroup>
-            <Tooltip
-              label={
-                allocationMethod === 'waterfall'
-                  ? 'Goal 1 claims its full target first, then Goal 2, and so on.'
-                  : 'Balance is split proportionally based on each goal\'s target amount.'
-              }
-              placement="right"
-            >
-              <Text fontSize="xs" color="gray.400" cursor="help">(?)</Text>
-            </Tooltip>
+        {/* Controls row — view toggle + allocation method */}
+        {!goalsLoading && goals.length > 0 && (
+          <HStack spacing={6} flexWrap="wrap">
+            {/* View mode toggle */}
+            <HStack spacing={2}>
+              <Text fontSize="sm" fontWeight="medium" color="gray.600">View:</Text>
+              <ButtonGroup size="sm" isAttached variant="outline">
+                <Button
+                  colorScheme={viewMode === 'priority' ? 'blue' : 'gray'}
+                  variant={viewMode === 'priority' ? 'solid' : 'outline'}
+                  onClick={() => setViewMode('priority')}
+                >
+                  Priority Order
+                </Button>
+                <Button
+                  colorScheme={viewMode === 'account' ? 'blue' : 'gray'}
+                  variant={viewMode === 'account' ? 'solid' : 'outline'}
+                  onClick={() => setViewMode('account')}
+                >
+                  By Account
+                </Button>
+              </ButtonGroup>
+            </HStack>
+
+            {/* Allocation method — shown when auto-sync goals exist */}
+            {hasAutoSyncGoals && (
+              <HStack spacing={2}>
+                <Text fontSize="sm" fontWeight="medium" color="gray.600">Balance allocation:</Text>
+                <ButtonGroup size="sm" isAttached variant="outline">
+                  <Button
+                    colorScheme={allocationMethod === 'waterfall' ? 'blue' : 'gray'}
+                    variant={allocationMethod === 'waterfall' ? 'solid' : 'outline'}
+                    onClick={() => handleMethodChange('waterfall')}
+                  >
+                    Priority Waterfall
+                  </Button>
+                  <Button
+                    colorScheme={allocationMethod === 'proportional' ? 'blue' : 'gray'}
+                    variant={allocationMethod === 'proportional' ? 'solid' : 'outline'}
+                    onClick={() => handleMethodChange('proportional')}
+                  >
+                    Proportional
+                  </Button>
+                </ButtonGroup>
+                <Tooltip
+                  label={
+                    allocationMethod === 'waterfall'
+                      ? 'Goal 1 claims its full target first, then Goal 2, and so on.'
+                      : "Balance is split proportionally based on each goal's target amount."
+                  }
+                  placement="right"
+                >
+                  <Text fontSize="xs" color="gray.400" cursor="help">(?)</Text>
+                </Tooltip>
+              </HStack>
+            )}
           </HStack>
         )}
 
         {/* Loading state */}
-        {isLoading && (
+        {goalsLoading && (
           <Center py={12}>
             <Spinner size="xl" />
           </Center>
         )}
 
         {/* Empty state */}
-        {!isLoading && goals.length === 0 && (
+        {!goalsLoading && goals.length === 0 && (
           <EmptyState
             icon={FiTarget}
             title={isOtherUserView ? "This user has no savings goals yet" : "No savings goals yet"}
@@ -255,7 +359,7 @@ export default function SavingsGoalsPage() {
         )}
 
         {/* Goals tabs */}
-        {!isLoading && goals.length > 0 && (
+        {!goalsLoading && goals.length > 0 && (
           <Tabs variant="enclosed" colorScheme="brand">
             <TabList>
               <Tab>
@@ -273,20 +377,21 @@ export default function SavingsGoalsPage() {
             </TabList>
 
             <TabPanels>
-              {/* Active goals — sortable vertical list */}
+              {/* Active goals */}
               <TabPanel>
                 {activeGoals.length === 0 ? (
                   <Center py={8}>
                     <Text color="gray.500">No active goals</Text>
                   </Center>
-                ) : (
+                ) : viewMode === 'priority' ? (
+                  /* Priority order — DnD sortable vertical list */
                   <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <SortableContext
-                      items={activeGoals.map(g => g.id)}
+                      items={activeGoals.map((g) => g.id)}
                       strategy={verticalListSortingStrategy}
                     >
                       <VStack align="stretch" spacing={4}>
-                        {activeGoals.map(goal => (
+                        {activeGoals.map((goal) => (
                           <SortableGoalCard
                             key={goal.id}
                             goal={goal}
@@ -297,6 +402,28 @@ export default function SavingsGoalsPage() {
                       </VStack>
                     </SortableContext>
                   </DndContext>
+                ) : (
+                  /* By Account — collapsible accordion groups */
+                  <Accordion allowMultiple defaultIndex={defaultOpenIndices}>
+                    <VStack align="stretch" spacing={3}>
+                      {linkedAccountEntries.map(([accountId, groupGoals]) => (
+                        <AccountGroup
+                          key={accountId}
+                          accountName={accountMap.get(accountId)?.name ?? 'Unknown Account'}
+                          goals={groupGoals}
+                          onEdit={handleEdit}
+                        />
+                      ))}
+                      {unlinkedGoals.length > 0 && (
+                        <AccountGroup
+                          key="unlinked"
+                          accountName="Not linked to an account"
+                          goals={unlinkedGoals}
+                          onEdit={handleEdit}
+                        />
+                      )}
+                    </VStack>
+                  </Accordion>
                 )}
               </TabPanel>
 
