@@ -61,7 +61,7 @@ export default function BudgetCard({ budget, onEdit }: BudgetCardProps) {
     },
   });
 
-  const percentage = spending?.percentage ?? 0;
+  const percentage = Number(spending?.percentage ?? 0);
   const getProgressColor = () => {
     if (percentage >= 100) return 'red';
     if (percentage >= budget.alert_threshold * 100) return 'orange';
