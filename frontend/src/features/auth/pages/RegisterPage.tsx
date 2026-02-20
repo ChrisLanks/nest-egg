@@ -34,6 +34,7 @@ const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   display_name: z.string().min(1, 'Name is required'),
+  birth_day: z.number().int().min(1).max(31).optional(),
   birth_month: z.number().int().min(1).max(12).optional(),
   birth_year: z
     .number()
@@ -42,8 +43,11 @@ const registerSchema = z.object({
     .max(currentYear, 'Enter a valid year')
     .optional(),
 }).refine(
-  (data) => !(data.birth_month && !data.birth_year) && !(!data.birth_month && data.birth_year),
-  { message: 'Both month and year are required', path: ['birth_year'] }
+  (data) => {
+    const set = [data.birth_day, data.birth_month, data.birth_year].filter(Boolean).length;
+    return set === 0 || set === 3;
+  },
+  { message: 'Provide day, month, and year — or leave all blank', path: ['birth_year'] }
 );
 
 type RegisterFormData = z.infer<typeof registerSchema>;
@@ -124,19 +128,28 @@ export const RegisterPage = () => {
                   <FormErrorMessage>{errors.display_name?.message}</FormErrorMessage>
                 </FormControl>
 
-                <FormControl isInvalid={!!errors.birth_year || !!errors.birth_month}>
+                <FormControl isInvalid={!!errors.birth_year || !!errors.birth_month || !!errors.birth_day}>
                   <FormLabel>Birthday <Text as="span" color="gray.400" fontWeight="normal">(optional)</Text></FormLabel>
-                  <SimpleGrid columns={2} spacing={2}>
+                  <SimpleGrid columns={3} spacing={2}>
                     <Select
                       placeholder="Month"
                       onChange={(e) =>
                         setValue('birth_month', e.target.value ? parseInt(e.target.value) : undefined, { shouldValidate: true })
                       }
                     >
-                      {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => (
+                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
                         <option key={i + 1} value={i + 1}>{m}</option>
                       ))}
                     </Select>
+                    <NumberInput
+                      min={1}
+                      max={31}
+                      onChange={(_, value) =>
+                        setValue('birth_day', isNaN(value) ? undefined : value, { shouldValidate: true })
+                      }
+                    >
+                      <NumberInputField placeholder="Day" />
+                    </NumberInput>
                     <NumberInput
                       min={1900}
                       max={currentYear}
@@ -147,8 +160,8 @@ export const RegisterPage = () => {
                       <NumberInputField placeholder="Year" />
                     </NumberInput>
                   </SimpleGrid>
-                  <FormHelperText>Used for RMD calculations — can be set later in preferences.</FormHelperText>
-                  <FormErrorMessage>{errors.birth_year?.message || errors.birth_month?.message}</FormErrorMessage>
+                  <FormHelperText>Used for retirement planning — can be set later in preferences.</FormHelperText>
+                  <FormErrorMessage>{errors.birth_year?.message || errors.birth_month?.message || errors.birth_day?.message}</FormErrorMessage>
                 </FormControl>
 
                 <Button

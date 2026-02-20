@@ -36,12 +36,15 @@ class UserCRUD:
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
         display_name: Optional[str] = None,
+        birth_day: Optional[int] = None,
         birth_month: Optional[int] = None,
         birth_year: Optional[int] = None,
         is_org_admin: bool = False,
     ) -> User:
         """Create a new user."""
-        if birth_year and birth_month:
+        if birth_year and birth_month and birth_day:
+            birthdate = date(birth_year, birth_month, birth_day)
+        elif birth_year and birth_month:
             birthdate = date(birth_year, birth_month, 1)
         elif birth_year:
             birthdate = date(birth_year, 1, 1)
