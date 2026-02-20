@@ -165,6 +165,27 @@ class TestCreateHolding:
         assert "investment accounts" in exc_info.value.detail
 
     @pytest.mark.asyncio
+    async def test_creates_holding_for_retirement_529(
+        self, mock_db, mock_user, holding_create_data
+    ):
+        """Should allow holdings on 529 accounts (college savings are investable)."""
+        account = Mock(spec=Account)
+        account.id = holding_create_data.account_id
+        account.account_type = AccountType.RETIREMENT_529
+        account.organization_id = mock_user.organization_id
+
+        account_result = Mock()
+        account_result.scalar_one_or_none.return_value = account
+        mock_db.execute.return_value = account_result
+
+        result = await create_holding(
+            holding_data=holding_create_data, current_user=mock_user, db=mock_db
+        )
+
+        assert result.ticker == "AAPL"
+        assert mock_db.add.called
+
+    @pytest.mark.asyncio
     async def test_normalizes_ticker_to_uppercase(
         self, mock_db, mock_user, holding_create_data
     ):
