@@ -446,6 +446,64 @@ class TestGetBudgetSpending:
             assert exc_info.value.status_code == 404
             assert "Budget not found" in exc_info.value.detail
 
+    def test_spending_response_percentage_is_decimal(self):
+        """BudgetSpendingResponse.percentage is Decimal, which JSON-serialises to a string.
+        The frontend must coerce it with Number() before calling .toFixed()."""
+        from app.schemas.budget import BudgetSpendingResponse
+        from datetime import date
+
+        response = BudgetSpendingResponse(
+            budget_amount=Decimal("500.00"),
+            spent=Decimal("350.00"),
+            remaining=Decimal("150.00"),
+            percentage=Decimal("70.00"),
+            period_start=date(2024, 2, 1),
+            period_end=date(2024, 2, 29),
+        )
+
+        assert isinstance(response.percentage, Decimal)
+
+        # Simulate what FastAPI does when it serialises the model to JSON:
+        # Pydantic serialises Decimal as a string, so the frontend receives "70.00"
+        serialised = response.model_dump(mode="json")
+        assert isinstance(serialised["percentage"], str), (
+            "percentage must serialise to a string in JSON — "
+            "frontend Number() coercion is required before calling .toFixed()"
+        )
+
+    @pytest.mark.asyncio
+    async def test_spending_percentage_within_valid_range(self, mock_db, mock_user):
+        """percentage field should be between 0 and >100 for overspent budgets."""
+        from datetime import date
+
+        budget_id = uuid4()
+
+        for pct, spent, remaining in [
+            (Decimal("0.00"), Decimal("0.00"), Decimal("500.00")),
+            (Decimal("50.00"), Decimal("250.00"), Decimal("250.00")),
+            (Decimal("110.00"), Decimal("550.00"), Decimal("-50.00")),  # overspent
+        ]:
+            spending_data = {
+                "budget_amount": Decimal("500.00"),
+                "spent": spent,
+                "remaining": remaining,
+                "percentage": pct,
+                "period_start": date(2024, 2, 1),
+                "period_end": date(2024, 2, 29),
+            }
+
+            with patch(
+                "app.api.v1.budgets.budget_service.get_budget_spending",
+                return_value=spending_data,
+            ):
+                result = await get_budget_spending(
+                    budget_id=budget_id,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+            assert result["percentage"] == pct
+
 
 @pytest.mark.unit
 class TestCheckBudgetAlerts:

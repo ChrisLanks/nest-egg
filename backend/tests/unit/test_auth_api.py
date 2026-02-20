@@ -596,6 +596,119 @@ class TestRegisterRequestSchema:
                 birth_year=1990,
             )
 
+    def test_skip_password_validation_defaults_to_false(self):
+        """skip_password_validation should default to False."""
+        from app.schemas.auth import RegisterRequest
+
+        req = RegisterRequest(
+            email="a@example.com",
+            password="SecurePass123!",
+            display_name="Alice",
+        )
+        assert req.skip_password_validation is False
+
+    def test_skip_password_validation_can_be_set_true(self):
+        """skip_password_validation=True should be accepted."""
+        from app.schemas.auth import RegisterRequest
+
+        req = RegisterRequest(
+            email="a@example.com",
+            password="SecurePass123!",
+            display_name="Alice",
+            skip_password_validation=True,
+        )
+        assert req.skip_password_validation is True
+
+
+@pytest.mark.unit
+class TestSkipPasswordValidation:
+    """Test skip_password_validation flag behaviour on register endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_skip_validation_true_bypasses_password_check(self):
+        """When skip_password_validation=True, validation service is NOT called."""
+        from app.api.v1.auth import register
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_data = Mock()
+        mock_data.email = "new@example.com"
+        mock_data.password = "bad"
+        mock_data.skip_password_validation = True
+        mock_data.organization_name = "My Household"
+        mock_data.display_name = "Alice"
+        mock_data.first_name = None
+        mock_data.last_name = None
+        mock_data.birth_day = None
+        mock_data.birth_month = None
+        mock_data.birth_year = None
+
+        mock_org = Mock(spec=Organization)
+        mock_org.id = uuid4()
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()) as mock_validate:
+                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
+                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)):
+                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)):
+                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+                                with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
+                                    await register(mock_request, mock_data, mock_db)
+
+                                    # Validation service must NOT be called when flag is set
+                                    mock_validate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skip_validation_false_still_validates_password(self):
+        """When skip_password_validation=False (default), validation service IS called."""
+        from app.api.v1.auth import register
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_data = Mock()
+        mock_data.email = "new@example.com"
+        mock_data.password = "SecurePass123!"
+        mock_data.skip_password_validation = False
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()) as mock_validate:
+                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
+                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=Mock(id=uuid4()))):
+                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=Mock(id=uuid4()))):
+                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+                                with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
+                                    await register(mock_request, mock_data, mock_db)
+
+                                    # Validation service MUST be called when flag is not set
+                                    mock_validate.assert_called_once_with(
+                                        mock_data.password, check_breach=True
+                                    )
+
+    @pytest.mark.asyncio
+    async def test_skip_validation_true_still_checks_duplicate_email(self):
+        """skip_password_validation bypasses password checks but still blocks duplicate emails."""
+        from app.api.v1.auth import register
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_data = Mock()
+        mock_data.email = "existing@example.com"
+        mock_data.password = "bad"
+        mock_data.skip_password_validation = True
+
+        existing_user = Mock(spec=User)
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
+                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=existing_user)):
+                    with pytest.raises(HTTPException) as exc_info:
+                        await register(mock_request, mock_data, mock_db)
+
+                    assert exc_info.value.status_code == 400
+                    assert "already registered" in exc_info.value.detail.lower()
+
 
 @pytest.mark.unit
 class TestUserCRUDBirthday:
