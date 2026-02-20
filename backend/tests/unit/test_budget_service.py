@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from app.services.budget_service import BudgetService
 from app.models.budget import Budget, BudgetPeriod
-from app.models.transaction import Transaction, Category
+from app.models.transaction import Transaction, Category, Label, TransactionLabel
 from app.models.notification import NotificationType
 
 
@@ -762,6 +762,165 @@ class TestBudgetService:
         # Should not create alert for inactive budget
         inactive_alerts = [a for a in alerts if a["budget"].id == budget.id]
         assert len(inactive_alerts) == 0
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_label_specific(self, db, test_user, test_account):
+        """Should only count transactions tagged with the budget's label."""
+        service = BudgetService()
+
+        label = Label(
+            organization_id=test_user.organization_id,
+            name="Dining Out",
+        )
+        db.add(label)
+        await db.commit()
+
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Dining Budget",
+            Decimal("200.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            label_id=label.id,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        # Transaction tagged with the budget label
+        labeled_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=3),
+            amount=Decimal("-80.00"),
+            merchant_name="Restaurant",
+            deduplication_hash=str(uuid4()),
+        )
+        # Unrelated transaction — should NOT be counted
+        unlabeled_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=3),
+            amount=Decimal("-50.00"),
+            merchant_name="Grocery",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add_all([labeled_txn, unlabeled_txn])
+        await db.commit()
+
+        # Apply label only to the first transaction
+        txn_label = TransactionLabel(
+            transaction_id=labeled_txn.id,
+            label_id=label.id,
+        )
+        db.add(txn_label)
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+
+        assert spending["spent"] == Decimal("80.00")
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_label_excludes_other_labels(
+        self, db, test_user, test_account
+    ):
+        """Transactions tagged with a different label should not count toward the budget."""
+        service = BudgetService()
+
+        budget_label = Label(
+            organization_id=test_user.organization_id,
+            name="Entertainment",
+        )
+        other_label = Label(
+            organization_id=test_user.organization_id,
+            name="Travel",
+        )
+        db.add_all([budget_label, other_label])
+        await db.commit()
+
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Entertainment Budget",
+            Decimal("300.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            label_id=budget_label.id,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        # Transaction tagged with the budget label
+        entertainment_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=2),
+            amount=Decimal("-60.00"),
+            merchant_name="Cinema",
+            deduplication_hash=str(uuid4()),
+        )
+        # Transaction tagged with a DIFFERENT label — should not count
+        travel_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=2),
+            amount=Decimal("-200.00"),
+            merchant_name="Airline",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add_all([entertainment_txn, travel_txn])
+        await db.commit()
+
+        db.add(TransactionLabel(transaction_id=entertainment_txn.id, label_id=budget_label.id))
+        db.add(TransactionLabel(transaction_id=travel_txn.id, label_id=other_label.id))
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+
+        assert spending["spent"] == Decimal("60.00")
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_label_no_tagged_transactions(
+        self, db, test_user, test_account
+    ):
+        """Label budget with no matching tagged transactions should show zero spending."""
+        service = BudgetService()
+
+        label = Label(
+            organization_id=test_user.organization_id,
+            name="Wellness",
+        )
+        db.add(label)
+        await db.commit()
+
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Wellness Budget",
+            Decimal("150.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            label_id=label.id,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        # Transaction exists but has no labels at all
+        unlabeled_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-40.00"),
+            merchant_name="Pharmacy",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add(unlabeled_txn)
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+
+        assert spending["spent"] == Decimal("0.00")
+        assert spending["remaining"] == Decimal("150.00")
 
     def test_singleton_instance(self):
         """Should provide singleton instance."""
