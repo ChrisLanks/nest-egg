@@ -183,7 +183,7 @@ const UserMenu = ({
         <HStack spacing={2}>
           <Avatar
             size="sm"
-            name={`${user?.first_name} ${user?.last_name}`}
+            name={user?.display_name || `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim() || user?.email}
             bg="brand.500"
           />
           <VStack align="start" spacing={0}>

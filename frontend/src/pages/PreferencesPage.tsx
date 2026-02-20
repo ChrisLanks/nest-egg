@@ -3,7 +3,6 @@ import {
   Box,
   Button,
   Container,
-  Divider,
   FormControl,
   FormLabel,
   Heading,
@@ -17,25 +16,12 @@ import {
   Text,
   useToast,
   VStack,
-  HStack,
   FormHelperText,
 } from '@chakra-ui/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 
-interface UserProfile {
-  id: string;
-  email: string;
-  first_name: string | null;
-  last_name: string | null;
-  display_name: string | null;
-  birth_year: number | null;
-  is_org_admin: boolean;
-}
-
 interface UpdateProfileData {
-  first_name?: string;
-  last_name?: string;
   display_name?: string;
   email?: string;
   birth_year?: number | null;
@@ -53,9 +39,6 @@ export default function PreferencesPage() {
   // Note: Preferences are always for the current logged-in user,
   // not the selected user view. This page shows YOUR settings.
 
-  // Profile state
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [birthYear, setBirthYear] = useState<number | null>(null);
@@ -66,14 +49,13 @@ export default function PreferencesPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   // Fetch user profile
-  const { isLoading: profileLoading } = useQuery<UserProfile>({
+  const { isLoading: profileLoading } = useQuery({
     queryKey: ['userProfile'],
     queryFn: async () => {
       const response = await api.get('/settings/profile');
       const data = response.data;
-      setFirstName(data.first_name || '');
-      setLastName(data.last_name || '');
-      setDisplayName(data.display_name || '');
+      // display_name is primary; fall back to first+last for existing users
+      setDisplayName(data.display_name || `${data.first_name || ''} ${data.last_name || ''}`.trim() || '');
       setEmail(data.email || '');
       setBirthYear(data.birth_year || null);
       return data;
@@ -132,8 +114,6 @@ export default function PreferencesPage() {
 
   const handleUpdateProfile = () => {
     updateProfileMutation.mutate({
-      first_name: firstName,
-      last_name: lastName,
       display_name: displayName,
       email: email,
       birth_year: birthYear,
@@ -184,35 +164,13 @@ export default function PreferencesPage() {
             User Profile
           </Heading>
           <Stack spacing={4}>
-            <HStack spacing={4}>
-              <FormControl>
-                <FormLabel>First Name</FormLabel>
-                <Input
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="First name"
-                />
-              </FormControl>
-              <FormControl>
-                <FormLabel>Last Name</FormLabel>
-                <Input
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  placeholder="Last name"
-                />
-              </FormControl>
-            </HStack>
-
             <FormControl>
-              <FormLabel>Display Name</FormLabel>
+              <FormLabel>Name</FormLabel>
               <Input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Display name (optional)"
+                placeholder="How you'd like to appear"
               />
-              <FormHelperText>
-                This name will be displayed throughout the app
-              </FormHelperText>
             </FormControl>
 
             <FormControl>

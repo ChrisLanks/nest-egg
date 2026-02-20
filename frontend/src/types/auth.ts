@@ -7,9 +7,7 @@ import type { User } from './user';
 export interface RegisterRequest {
   email: string;
   password: string;
-  first_name: string;
-  last_name?: string;
-  display_name?: string;
+  display_name: string;
 }
 
 export interface LoginRequest {

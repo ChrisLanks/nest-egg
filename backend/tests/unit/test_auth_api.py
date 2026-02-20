@@ -189,8 +189,8 @@ class TestRegisterEndpoint:
                                     assert call_kwargs.get("is_org_admin") is True
 
     @pytest.mark.asyncio
-    async def test_register_derives_org_name_from_first_name_when_default(self):
-        """When organization_name is the default 'My Household', use '{first_name}'s Household'."""
+    async def test_register_derives_org_name_from_display_name_when_default(self):
+        """When organization_name is the default 'My Household', use '{display_name}'s Household'."""
         from app.api.v1.auth import register
 
         mock_request = Mock()
@@ -199,8 +199,9 @@ class TestRegisterEndpoint:
         mock_data.email = "jane@example.com"
         mock_data.password = "SecurePass123!"
         mock_data.organization_name = "My Household"  # the schema default
-        mock_data.first_name = "Jane"
-        mock_data.last_name = "Smith"
+        mock_data.display_name = "Jane"
+        mock_data.first_name = None
+        mock_data.last_name = None
 
         mock_org = Mock(spec=Organization)
         mock_org.id = uuid4()
@@ -290,9 +291,9 @@ class TestRegisterEndpoint:
         mock_data.email = "solo@example.com"
         mock_data.password = "SecurePass123!"
         mock_data.organization_name = "My Household"
-        mock_data.first_name = "Solo"
+        mock_data.display_name = "Solo"
+        mock_data.first_name = None
         mock_data.last_name = None
-        mock_data.display_name = None
 
         mock_org = Mock(spec=Organization)
         mock_org.id = uuid4()
@@ -301,7 +302,7 @@ class TestRegisterEndpoint:
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
                 with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
-                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)):
+                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)) as mock_org_create:
                         with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)) as mock_create:
                             with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
                                 with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
@@ -309,8 +310,9 @@ class TestRegisterEndpoint:
 
                                     call_kwargs = mock_create.call_args.kwargs
                                     assert call_kwargs.get("last_name") is None
-                                    # org name derived from first_name when default used
-                                    assert mock_create.called
+                                    # org name derived from display_name when default used
+                                    org_call_kwargs = mock_org_create.call_args.kwargs
+                                    assert org_call_kwargs["name"] == "Solo's Household"
 
 
 @pytest.mark.unit

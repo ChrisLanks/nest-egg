@@ -26,9 +26,7 @@ import { useRegister } from '../hooks/useAuth';
 const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-  first_name: z.string().min(1, 'First name is required'),
-  last_name: z.string().optional(),
-  display_name: z.string().optional(),
+  display_name: z.string().min(1, 'Name is required'),
 });
 
 type RegisterFormData = z.infer<typeof registerSchema>;
@@ -98,20 +96,10 @@ export const RegisterPage = () => {
                   <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
                 </FormControl>
 
-                <FormControl isInvalid={!!errors.first_name}>
-                  <FormLabel>First Name</FormLabel>
-                  <Input placeholder="John" {...register('first_name')} />
-                  <FormErrorMessage>{errors.first_name?.message}</FormErrorMessage>
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel>Last Name <Text as="span" color="gray.400" fontSize="sm">(optional)</Text></FormLabel>
-                  <Input placeholder="Doe" {...register('last_name')} />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel>Display Name <Text as="span" color="gray.400" fontSize="sm">(optional)</Text></FormLabel>
+                <FormControl isInvalid={!!errors.display_name}>
+                  <FormLabel>Name</FormLabel>
                   <Input placeholder="How you'd like to appear" {...register('display_name')} />
+                  <FormErrorMessage>{errors.display_name?.message}</FormErrorMessage>
                 </FormControl>
 
                 <Button
