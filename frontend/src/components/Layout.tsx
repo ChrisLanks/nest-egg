@@ -13,10 +13,6 @@ import {
   Spinner,
   Center,
   useDisclosure,
-  Menu,
-  MenuButton,
-  MenuList,
-  MenuItem,
   Avatar,
   Collapse,
   IconButton,
@@ -142,6 +138,114 @@ const NavDropdown = ({ label, items, currentPath, onNavigate }: NavDropdownProps
               {item.label}
             </Box>
           ))}
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+const UserMenu = ({
+  user,
+  onNavigate,
+  onLogout,
+}: {
+  user: { first_name?: string; last_name?: string; email?: string } | null;
+  onNavigate: (path: string) => void;
+  onLogout: () => void;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [isOpen]);
+
+  const menuItems = [
+    { label: "Household Settings", icon: <FiUsers />, path: "/household" },
+    { label: "Preferences", icon: <FiSettings />, path: "/preferences" },
+  ];
+
+  return (
+    <Box position="relative" ref={ref}>
+      <Button
+        rightIcon={<ChevronDownIcon />}
+        variant="ghost"
+        size="sm"
+        onClick={() => setIsOpen((prev) => !prev)}
+      >
+        <HStack spacing={2}>
+          <Avatar
+            size="sm"
+            name={`${user?.first_name} ${user?.last_name}`}
+            bg="brand.500"
+          />
+          <VStack align="start" spacing={0}>
+            <Text fontSize="sm" fontWeight="medium">
+              {user?.first_name} {user?.last_name}
+            </Text>
+            <Text fontSize="xs" color="gray.600">
+              {user?.email}
+            </Text>
+          </VStack>
+        </HStack>
+      </Button>
+      {isOpen && (
+        <Box
+          position="absolute"
+          top="calc(100% + 4px)"
+          right={0}
+          bg="white"
+          borderWidth={1}
+          borderColor="gray.200"
+          borderRadius="md"
+          boxShadow="md"
+          zIndex={200}
+          minW="180px"
+          py={1}
+        >
+          {menuItems.map((item) => (
+            <Box
+              key={item.path}
+              px={3}
+              py={2}
+              cursor="pointer"
+              _hover={{ bg: "gray.50" }}
+              fontSize="sm"
+              onClick={() => {
+                onNavigate(item.path);
+                setIsOpen(false);
+              }}
+            >
+              <HStack spacing={2}>
+                {item.icon}
+                <Text>{item.label}</Text>
+              </HStack>
+            </Box>
+          ))}
+          <Box
+            px={3}
+            py={2}
+            cursor="pointer"
+            _hover={{ bg: "red.50" }}
+            fontSize="sm"
+            color="red.600"
+            onClick={() => {
+              onLogout();
+              setIsOpen(false);
+            }}
+          >
+            <HStack spacing={2}>
+              <FiLogOut />
+              <Text>Logout</Text>
+            </HStack>
+          </Box>
         </Box>
       )}
     </Box>
@@ -664,51 +768,11 @@ export const Layout = () => {
             </Box>
             <NotificationBell />
 
-            <Menu>
-              <MenuButton
-                as={Button}
-                rightIcon={<ChevronDownIcon />}
-                variant="ghost"
-                size="sm"
-              >
-                <HStack spacing={2}>
-                  <Avatar
-                    size="sm"
-                    name={`${user?.first_name} ${user?.last_name}`}
-                    bg="brand.500"
-                  />
-                  <VStack align="start" spacing={0}>
-                    <Text fontSize="sm" fontWeight="medium">
-                      {user?.first_name} {user?.last_name}
-                    </Text>
-                    <Text fontSize="xs" color="gray.600">
-                      {user?.email}
-                    </Text>
-                  </VStack>
-                </HStack>
-              </MenuButton>
-              <MenuList>
-                <MenuItem
-                  icon={<FiUsers />}
-                  onClick={() => navigateWithParams("/household")}
-                >
-                  Household Settings
-                </MenuItem>
-                <MenuItem
-                  icon={<FiSettings />}
-                  onClick={() => navigateWithParams("/preferences")}
-                >
-                  Preferences
-                </MenuItem>
-                <MenuItem
-                  icon={<FiLogOut />}
-                  onClick={handleLogout}
-                  color="red.600"
-                >
-                  Logout
-                </MenuItem>
-              </MenuList>
-            </Menu>
+            <UserMenu
+              user={user}
+              onNavigate={navigateWithParams}
+              onLogout={handleLogout}
+            />
           </HStack>
         </HStack>
       </Box>

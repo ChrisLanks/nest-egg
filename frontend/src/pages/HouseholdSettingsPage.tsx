@@ -28,7 +28,14 @@ import {
   ModalFooter,
   FormControl,
   FormLabel,
+  FormHelperText,
   Input,
+  NumberInput,
+  NumberInputField,
+  NumberInputStepper,
+  NumberIncrementStepper,
+  NumberDecrementStepper,
+  Stack,
   FormErrorMessage,
   useToast,
   Divider,
@@ -48,6 +55,7 @@ import { EmailIcon, DeleteIcon } from '@chakra-ui/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import api from '../services/api';
+import { useAuthStore } from '../features/auth/stores/authStore';
 
 interface HouseholdMember {
   id: string;
@@ -70,12 +78,21 @@ interface Invitation {
   invited_by_email: string;
 }
 
+interface OrganizationPreferences {
+  id: string;
+  name: string;
+  monthly_start_day: number;
+  timezone: string;
+}
+
 export const HouseholdSettingsPage: React.FC = () => {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [inviteEmail, setInviteEmail] = useState('');
   const [emailError, setEmailError] = useState('');
+  const { user } = useAuthStore();
+  const [monthlyStartDay, setMonthlyStartDay] = useState(1);
 
   // Fetch household members
   const { data: members, isLoading: loadingMembers } = useQuery<HouseholdMember[]>({
@@ -145,6 +162,46 @@ export const HouseholdSettingsPage: React.FC = () => {
       });
     },
   });
+
+  // Fetch org preferences
+  useQuery<OrganizationPreferences>({
+    queryKey: ['orgPreferences'],
+    queryFn: async () => {
+      const response = await api.get('/settings/organization');
+      const data = response.data;
+      setMonthlyStartDay(data.monthly_start_day || 1);
+      return data;
+    },
+    enabled: user?.is_org_admin === true,
+  });
+
+  // Update org preferences mutation
+  const updateOrgMutation = useMutation({
+    mutationFn: async (data: { monthly_start_day: number }) => {
+      const response = await api.patch('/settings/organization', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orgPreferences'] });
+      toast({
+        title: 'Preferences updated',
+        status: 'success',
+        duration: 3000,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to update preferences',
+        description: error.response?.data?.detail || 'An error occurred',
+        status: 'error',
+        duration: 5000,
+      });
+    },
+  });
+
+  const handleUpdateOrgPreferences = () => {
+    updateOrgMutation.mutate({ monthly_start_day: monthlyStartDay });
+  };
 
   // Cancel invitation mutation
   const cancelInvitationMutation = useMutation({
@@ -362,6 +419,47 @@ export const HouseholdSettingsPage: React.FC = () => {
                   </Tbody>
                 </Table>
               )}
+            </CardBody>
+          </Card>
+        )}
+        {/* Organization Preferences */}
+        {user?.is_org_admin && (
+          <Card>
+            <CardHeader>
+              <Heading size="md">Organization Preferences</Heading>
+            </CardHeader>
+            <CardBody>
+              <Stack spacing={4}>
+                <FormControl>
+                  <FormLabel>Monthly Start Day</FormLabel>
+                  <NumberInput
+                    value={monthlyStartDay}
+                    onChange={(_, value) => setMonthlyStartDay(value)}
+                    min={1}
+                    max={28}
+                    maxW="120px"
+                  >
+                    <NumberInputField />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                  <FormHelperText>
+                    Day of the month to start tracking (1-28). For example, set to 16 to
+                    track from the 16th of each month. Transactions, cash flow, and net worth
+                    calculations will be grouped monthly based on this day.
+                  </FormHelperText>
+                </FormControl>
+                <Button
+                  colorScheme="blue"
+                  onClick={handleUpdateOrgPreferences}
+                  isLoading={updateOrgMutation.isPending}
+                  alignSelf="flex-start"
+                >
+                  Save Preferences
+                </Button>
+              </Stack>
             </CardBody>
           </Card>
         )}

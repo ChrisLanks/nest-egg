@@ -33,26 +33,12 @@ interface UserProfile {
   is_org_admin: boolean;
 }
 
-interface OrganizationPreferences {
-  id: string;
-  name: string;
-  monthly_start_day: number;
-  custom_month_end_day: number;
-  timezone: string;
-}
-
 interface UpdateProfileData {
   first_name?: string;
   last_name?: string;
   display_name?: string;
   email?: string;
   birth_year?: number | null;
-}
-
-interface UpdateOrgData {
-  monthly_start_day?: number;
-  custom_month_end_day?: number;
-  timezone?: string;
 }
 
 interface ChangePasswordData {
@@ -79,11 +65,8 @@ export default function PreferencesPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Org preferences state
-  const [monthlyStartDay, setMonthlyStartDay] = useState(1);
-
   // Fetch user profile
-  const { data: profile, isLoading: profileLoading } = useQuery<UserProfile>({
+  const { isLoading: profileLoading } = useQuery<UserProfile>({
     queryKey: ['userProfile'],
     queryFn: async () => {
       const response = await api.get('/settings/profile');
@@ -93,17 +76,6 @@ export default function PreferencesPage() {
       setDisplayName(data.display_name || '');
       setEmail(data.email || '');
       setBirthYear(data.birth_year || null);
-      return data;
-    },
-  });
-
-  // Fetch org preferences
-  const { data: orgPrefs, isLoading: orgLoading } = useQuery<OrganizationPreferences>({
-    queryKey: ['orgPreferences'],
-    queryFn: async () => {
-      const response = await api.get('/settings/organization');
-      const data = response.data;
-      setMonthlyStartDay(data.monthly_start_day || 1);
       return data;
     },
   });
@@ -158,30 +130,6 @@ export default function PreferencesPage() {
     },
   });
 
-  // Update org preferences mutation
-  const updateOrgMutation = useMutation({
-    mutationFn: async (data: UpdateOrgData) => {
-      const response = await api.patch('/settings/organization', data);
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orgPreferences'] });
-      toast({
-        title: 'Preferences updated',
-        status: 'success',
-        duration: 3000,
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Failed to update preferences',
-        description: error.response?.data?.detail || 'An error occurred',
-        status: 'error',
-        duration: 5000,
-      });
-    },
-  });
-
   const handleUpdateProfile = () => {
     updateProfileMutation.mutate({
       first_name: firstName,
@@ -217,13 +165,7 @@ export default function PreferencesPage() {
     });
   };
 
-  const handleUpdateOrgPreferences = () => {
-    updateOrgMutation.mutate({
-      monthly_start_day: monthlyStartDay,
-    });
-  };
-
-  if (profileLoading || orgLoading) {
+  if (profileLoading) {
     return (
       <Container maxW="container.lg" py={8}>
         <Text>Loading...</Text>
@@ -361,45 +303,6 @@ export default function PreferencesPage() {
           </Stack>
         </Box>
 
-        {/* Organization Preferences Section */}
-        {profile?.is_org_admin && (
-          <Box bg="white" p={6} borderRadius="lg" boxShadow="sm">
-            <Heading size="md" mb={4}>
-              Organization Preferences
-            </Heading>
-            <Stack spacing={4}>
-              <FormControl>
-                <FormLabel>Monthly Start Day</FormLabel>
-                <NumberInput
-                  value={monthlyStartDay}
-                  onChange={(_, value) => setMonthlyStartDay(value)}
-                  min={1}
-                  max={28}
-                >
-                  <NumberInputField />
-                  <NumberInputStepper>
-                    <NumberIncrementStepper />
-                    <NumberDecrementStepper />
-                  </NumberInputStepper>
-                </NumberInput>
-                <FormHelperText>
-                  Day of the month to start tracking (1-28). For example, set to 16 to
-                  track from the 16th of each month. Transactions will be grouped
-                  monthly based on this day.
-                </FormHelperText>
-              </FormControl>
-
-              <Button
-                colorScheme="blue"
-                onClick={handleUpdateOrgPreferences}
-                isLoading={updateOrgMutation.isPending}
-                alignSelf="flex-start"
-              >
-                Save Preferences
-              </Button>
-            </Stack>
-          </Box>
-        )}
       </VStack>
     </Container>
   );
