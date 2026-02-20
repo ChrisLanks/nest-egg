@@ -79,6 +79,20 @@ interface Account {
 
 const LOAN_ACCOUNT_TYPES = ['mortgage', 'loan', 'student_loan'];
 
+/** Asset accounts track a value, not a transaction flow. */
+const ASSET_ACCOUNT_TYPES = [
+  'property', 'vehicle', 'collectibles', 'precious_metals',
+  'business_equity', 'private_equity', 'private_debt', 'bond',
+  'life_insurance_cash_value', 'pension', 'annuity',
+];
+
+/** Manual accounts that make sense to schedule recurring contributions for. */
+const CONTRIBUTION_ACCOUNT_TYPES = [
+  'savings', 'brokerage', 'retirement_401k', 'retirement_ira',
+  'retirement_roth', 'retirement_403b', 'retirement_457b',
+  'retirement_simple_ira', 'retirement_sep_ira', 'hsa', 'fsa', 'four_twenty_nine',
+];
+
 const accountTypeLabels: Record<string, string> = {
   checking: 'Checking',
   savings: 'Savings',
@@ -112,6 +126,7 @@ export const AccountDetailPage = () => {
   const [transactionsCursor, setTransactionsCursor] = useState<string | null>(null);
   const [vehicleMileage, setVehicleMileage] = useState('');
   const [vehicleValue, setVehicleValue] = useState('');
+  const [manualBalance, setManualBalance] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
   // Loan detail editing state
@@ -152,12 +167,12 @@ export const AccountDetailPage = () => {
       const response = await api.get(`/transactions/?${params.toString()}`);
       return response.data;
     },
-    enabled: !!accountId,
+    enabled: !!accountId && !ASSET_ACCOUNT_TYPES.includes(account?.account_type ?? ''),
   });
 
   // Update account mutation
   const updateAccountMutation = useMutation({
-    mutationFn: async (data: { name?: string; account_type?: string; is_active?: boolean; exclude_from_cash_flow?: boolean; include_in_networth?: boolean | null; interest_rate?: number | null; loan_term_months?: number | null; origination_date?: string | null }) => {
+    mutationFn: async (data: { name?: string; account_type?: string; is_active?: boolean; exclude_from_cash_flow?: boolean; include_in_networth?: boolean | null; interest_rate?: number | null; loan_term_months?: number | null; origination_date?: string | null; current_balance?: number }) => {
       const response = await api.patch(`/accounts/${accountId}`, data);
       return response.data;
     },
@@ -407,6 +422,15 @@ export const AccountDetailPage = () => {
     }
   };
 
+  const handleUpdateBalance = () => {
+    const value = parseFloat(manualBalance);
+    if (!isNaN(value) && value >= 0) {
+      updateAccountMutation.mutate({ current_balance: value }, {
+        onSuccess: () => setManualBalance(''),
+      });
+    }
+  };
+
   const handleStartEditName = () => {
     if (account) {
       setEditedName(account.name);
@@ -461,6 +485,20 @@ export const AccountDetailPage = () => {
   // 2. User doesn't own the account, OR
   // 3. Account is shared AND in combined view (multi accounts can only be edited in individual views)
   const canEditAccount = canEdit && isOwner && !isSharedAccount;
+
+  const isAssetAccount = ASSET_ACCOUNT_TYPES.includes(account.account_type);
+  // Asset accounts (property, vehicle, etc.) don't have transaction flows
+  const showTransactions = !isAssetAccount;
+  // Recurring contributions only make sense for investment/savings account types
+  const showContributions =
+    account.account_source === 'manual' &&
+    CONTRIBUTION_ACCOUNT_TYPES.includes(account.account_type);
+  // Show a simple balance update form for manual asset accounts that don't already
+  // have their own dedicated update section (vehicle has one)
+  const showUpdateBalance =
+    account.account_source === 'manual' &&
+    isAssetAccount &&
+    account.account_type !== 'vehicle';
 
   return (
     <Container maxW="container.lg" py={8}>
@@ -932,8 +970,58 @@ export const AccountDetailPage = () => {
           </Card>
         )}
 
-        {/* Recurring Contributions Section - Only for manual accounts */}
-        {account.account_source === 'manual' && (
+        {/* Update Balance Section - For manual asset accounts (property, collectibles, etc.) */}
+        {showUpdateBalance && (
+          <Card>
+            <CardBody>
+              <Heading size="md" mb={1}>
+                Update Value
+              </Heading>
+              <Text fontSize="sm" color="gray.500" mb={4}>
+                Enter the current market value of this asset to keep your net worth up to date.
+              </Text>
+              <VStack spacing={4} align="stretch">
+                {!canEditAccount ? (
+                  <Text fontSize="sm" color="gray.600">
+                    Value can only be updated by the account owner.
+                  </Text>
+                ) : (
+                  <>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Current Value ($)</FormLabel>
+                      <HStack>
+                        <Text fontSize="sm">$</Text>
+                        <NumberInput
+                          value={manualBalance}
+                          onChange={setManualBalance}
+                          min={0}
+                          precision={2}
+                          size="sm"
+                        >
+                          <NumberInputField
+                            placeholder={balance.toFixed(2)}
+                          />
+                        </NumberInput>
+                      </HStack>
+                    </FormControl>
+                    <Button
+                      colorScheme="brand"
+                      size="sm"
+                      onClick={handleUpdateBalance}
+                      isLoading={updateAccountMutation.isPending}
+                      isDisabled={!manualBalance}
+                    >
+                      Save Value
+                    </Button>
+                  </>
+                )}
+              </VStack>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Recurring Contributions Section - Only for investment/savings manual accounts */}
+        {showContributions && (
           <Card>
             <CardBody>
               {canEditAccount ? (
@@ -950,8 +1038,9 @@ export const AccountDetailPage = () => {
           </Card>
         )}
 
-        {/* Transactions Section */}
-        <Card>
+
+        {/* Transactions Section - hidden for asset accounts (property, vehicle, etc.) */}
+        {showTransactions && <Card>
           <CardBody>
             <HStack justify="space-between" mb={4}>
               <Heading size="md">Transactions</Heading>
@@ -1046,7 +1135,7 @@ export const AccountDetailPage = () => {
               </Text>
             )}
           </CardBody>
-        </Card>
+        </Card>}
       </VStack>
 
       {/* Delete Confirmation Dialog */}
