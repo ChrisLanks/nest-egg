@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.models.rule import (
     RuleMatchType,
@@ -30,6 +30,13 @@ class RuleActionCreate(BaseModel):
     action_type: ActionType
     action_value: str
 
+    @field_validator('action_value')
+    @classmethod
+    def action_value_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError('Action value cannot be empty')
+        return v
+
 
 class RuleCreate(BaseModel):
     """Rule creation schema."""
@@ -54,9 +61,11 @@ class RuleConditionResponse(RuleConditionCreate):
     model_config = {"from_attributes": True}
 
 
-class RuleActionResponse(RuleActionCreate):
+class RuleActionResponse(BaseModel):
     """Rule action response schema."""
 
+    action_type: ActionType
+    action_value: str
     id: UUID
     rule_id: UUID
     created_at: datetime

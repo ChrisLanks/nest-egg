@@ -4,9 +4,10 @@ import pytest
 from unittest.mock import Mock, AsyncMock, patch
 from uuid import uuid4
 from decimal import Decimal
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from app.api.v1.rules import (
     list_rules,
@@ -23,7 +24,7 @@ from app.api.v1.rules import (
 from app.models.user import User
 from app.models.rule import Rule, RuleCondition, RuleAction, RuleMatchType, RuleApplyTo, ConditionField, ConditionOperator, ActionType
 from app.models.transaction import Transaction
-from app.schemas.rule import RuleCreate, RuleUpdate, RuleConditionCreate, RuleActionCreate
+from app.schemas.rule import RuleCreate, RuleUpdate, RuleConditionCreate, RuleActionCreate, RuleActionResponse
 
 
 @pytest.mark.unit
@@ -814,3 +815,56 @@ class TestTestRule:
 
             assert result["matching_count"] == 100
             assert len(result["matching_transactions"]) == 50  # Capped at 50
+
+
+@pytest.mark.unit
+class TestRuleActionSchema:
+    """Test RuleActionCreate and RuleActionResponse schema validation."""
+
+    def test_action_value_empty_string_raises_validation_error(self):
+        """RuleActionCreate should reject empty action_value."""
+        with pytest.raises(ValidationError) as exc_info:
+            RuleActionCreate(
+                action_type=ActionType.SET_CATEGORY,
+                action_value="",
+            )
+        assert "Action value cannot be empty" in str(exc_info.value)
+
+    def test_action_value_whitespace_only_raises_validation_error(self):
+        """RuleActionCreate should reject whitespace-only action_value."""
+        with pytest.raises(ValidationError) as exc_info:
+            RuleActionCreate(
+                action_type=ActionType.SET_CATEGORY,
+                action_value="   ",
+            )
+        assert "Action value cannot be empty" in str(exc_info.value)
+
+    def test_action_value_valid_string_accepted(self):
+        """RuleActionCreate should accept a non-empty action_value."""
+        action = RuleActionCreate(
+            action_type=ActionType.SET_CATEGORY,
+            action_value="Groceries",
+        )
+        assert action.action_value == "Groceries"
+
+    def test_action_value_valid_for_all_action_types(self):
+        """Validator applies to every ActionType."""
+        for action_type in ActionType:
+            with pytest.raises(ValidationError):
+                RuleActionCreate(action_type=action_type, action_value="")
+
+    def test_response_schema_accepts_existing_empty_action_value(self):
+        """RuleActionResponse must NOT reject empty action_value.
+
+        The response schema is used to serialise existing DB rows that may
+        pre-date the validation rule.  If it raised on empty values the GET
+        /rules/ endpoint would 500 for those users.
+        """
+        response = RuleActionResponse(
+            id=uuid4(),
+            rule_id=uuid4(),
+            action_type=ActionType.SET_CATEGORY,
+            action_value="",
+            created_at=datetime.utcnow(),
+        )
+        assert response.action_value == ""

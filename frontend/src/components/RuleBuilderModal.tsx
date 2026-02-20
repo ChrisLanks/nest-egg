@@ -274,6 +274,15 @@ export const RuleBuilderModal = ({
       return;
     }
 
+    if (actions.some((a) => !a.action_value.trim())) {
+      toast({
+        title: 'All action values must be filled in',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
     const payload = {
       name,
       description: description || undefined,

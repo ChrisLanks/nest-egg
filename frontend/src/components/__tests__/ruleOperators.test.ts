@@ -157,3 +157,36 @@ describe('resolveOperatorForField', () => {
     expect(result).toBe(ConditionOperator.CONTAINS);
   });
 });
+
+// ── action value validation predicate ────────────────────────────────────────
+//
+// The RuleBuilderModal guards against empty action values before submitting.
+// The guard uses: actions.some(a => !a.action_value.trim())
+
+describe('action value submit guard', () => {
+  const hasEmptyValue = (actions: { action_value: string }[]) =>
+    actions.some((a) => !a.action_value.trim());
+
+  it('detects an action with an empty string value', () => {
+    expect(hasEmptyValue([{ action_value: '' }])).toBe(true);
+  });
+
+  it('detects an action with a whitespace-only value', () => {
+    expect(hasEmptyValue([{ action_value: '   ' }])).toBe(true);
+  });
+
+  it('passes when all actions have non-empty values', () => {
+    expect(
+      hasEmptyValue([
+        { action_value: 'Groceries' },
+        { action_value: 'Amazon' },
+      ])
+    ).toBe(false);
+  });
+
+  it('catches the first empty value in a mixed list', () => {
+    expect(
+      hasEmptyValue([{ action_value: 'Groceries' }, { action_value: '' }])
+    ).toBe(true);
+  });
+});
