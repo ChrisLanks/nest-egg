@@ -5,12 +5,12 @@ from decimal import Decimal
 from typing import List, Optional, Dict
 from uuid import UUID
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import Budget, BudgetPeriod
-from app.models.transaction import Transaction
-from app.models.user import User
+from app.models.transaction import Transaction, Category
+from app.models.user import Organization, User
 from app.models.notification import NotificationType, NotificationPriority
 from app.services.notification_service import NotificationService
 from app.utils.datetime_utils import utc_now
@@ -23,41 +23,93 @@ class BudgetService:
     def _get_period_dates(
         period: BudgetPeriod,
         reference_date: date = None,
+        monthly_start_day: int = 1,
     ) -> tuple[date, date]:
-        """Get start and end dates for a budget period."""
+        """Get start and end dates for a budget period.
+
+        monthly_start_day (1-28) is the household setting for when periods begin.
+        For example, start_day=15 means monthly periods run from the 15th of one
+        month through the 14th of the next.
+        """
         if reference_date is None:
             reference_date = date.today()
 
+        # Clamp to safe range (schema enforces 1-28; guard here too)
+        start_day = max(1, min(monthly_start_day, 28))
+
         if period == BudgetPeriod.MONTHLY:
-            start = reference_date.replace(day=1)
-            # Get last day of month
-            if start.month == 12:
-                end = start.replace(year=start.year + 1, month=1, day=1) - timedelta(days=1)
+            # Determine whether today is before or after the start_day this month
+            if reference_date.day >= start_day:
+                start = reference_date.replace(day=start_day)
             else:
-                end = start.replace(month=start.month + 1, day=1) - timedelta(days=1)
+                # Start is in the previous month
+                if reference_date.month == 1:
+                    start = reference_date.replace(year=reference_date.year - 1, month=12, day=start_day)
+                else:
+                    start = reference_date.replace(month=reference_date.month - 1, day=start_day)
+
+            # End is one day before the next start_day
+            if start.month == 12:
+                end = date(start.year + 1, 1, start_day) - timedelta(days=1)
+            else:
+                end = date(start.year, start.month + 1, start_day) - timedelta(days=1)
 
         elif period == BudgetPeriod.QUARTERLY:
-            # Get quarter (1-4)
-            quarter = (reference_date.month - 1) // 3 + 1
-            start_month = (quarter - 1) * 3 + 1
-            start = reference_date.replace(month=start_month, day=1)
+            # Quarter boundaries are the start_day of months 1, 4, 7, 10
+            quarter_start_months = [1, 4, 7, 10]
+            current_period = None
 
-            # End of quarter
-            end_month = start_month + 2
-            if end_month > 12:
-                end = start.replace(year=start.year + 1, month=end_month - 12, day=1)
-            else:
-                end = start.replace(month=end_month, day=1)
+            for i, month in enumerate(quarter_start_months):
+                try:
+                    q_start = date(reference_date.year, month, start_day)
+                except ValueError:
+                    q_start = date(reference_date.year, month, 28)
 
-            # Get last day
-            if end.month == 12:
-                end = end.replace(year=end.year + 1, month=1, day=1) - timedelta(days=1)
-            else:
-                end = end.replace(month=end.month + 1, day=1) - timedelta(days=1)
+                if i < 3:
+                    next_month = quarter_start_months[i + 1]
+                    try:
+                        next_q_start = date(reference_date.year, next_month, start_day)
+                    except ValueError:
+                        next_q_start = date(reference_date.year, next_month, 28)
+                else:
+                    try:
+                        next_q_start = date(reference_date.year + 1, 1, start_day)
+                    except ValueError:
+                        next_q_start = date(reference_date.year + 1, 1, 28)
+
+                if q_start <= reference_date < next_q_start:
+                    current_period = (q_start, next_q_start - timedelta(days=1))
+                    break
+
+            if current_period is None:
+                # reference_date falls before Q1 start (e.g. Jan 1-14 when start_day=15)
+                # → belongs to Q4 of the previous year
+                try:
+                    q_start = date(reference_date.year - 1, 10, start_day)
+                    next_q_start = date(reference_date.year, 1, start_day)
+                except ValueError:
+                    q_start = date(reference_date.year - 1, 10, 28)
+                    next_q_start = date(reference_date.year, 1, 28)
+                current_period = (q_start, next_q_start - timedelta(days=1))
+
+            start, end = current_period
 
         elif period == BudgetPeriod.YEARLY:
-            start = reference_date.replace(month=1, day=1)
-            end = reference_date.replace(month=12, day=31)
+            # Year runs from start_day of January to one day before the following year's start
+            try:
+                year_start = date(reference_date.year, 1, start_day)
+            except ValueError:
+                year_start = date(reference_date.year, 1, 28)
+
+            if reference_date < year_start:
+                start = date(reference_date.year - 1, 1, start_day)
+                end = year_start - timedelta(days=1)
+            else:
+                start = year_start
+                try:
+                    end = date(reference_date.year + 1, 1, start_day) - timedelta(days=1)
+                except ValueError:
+                    end = date(reference_date.year + 1, 1, 28) - timedelta(days=1)
 
         return start, end
 
@@ -186,7 +238,14 @@ class BudgetService:
 
         # Determine period dates
         if period_start is None or period_end is None:
-            period_start, period_end = BudgetService._get_period_dates(budget.period)
+            org_result = await db.execute(
+                select(Organization).where(Organization.id == user.organization_id)
+            )
+            org = org_result.scalar_one_or_none()
+            monthly_start_day = org.monthly_start_day if org else 1
+            period_start, period_end = BudgetService._get_period_dates(
+                budget.period, monthly_start_day=monthly_start_day
+            )
 
         # Build query for transactions
         query = select(func.sum(Transaction.amount)).where(
@@ -200,7 +259,35 @@ class BudgetService:
 
         # Filter by category if budget is category-specific
         if budget.category_id:
-            query = query.where(Transaction.category_id == budget.category_id)
+            # Load the category and all its children so that transactions assigned
+            # to a sub-category roll up into the parent budget.
+            cat_result = await db.execute(
+                select(Category).where(Category.id == budget.category_id)
+            )
+            category = cat_result.scalar_one_or_none()
+
+            if category:
+                children_result = await db.execute(
+                    select(Category).where(Category.parent_category_id == budget.category_id)
+                )
+                children = list(children_result.scalars().all())
+
+                # All category IDs in scope: parent + children
+                all_category_ids = [budget.category_id] + [c.id for c in children]
+
+                # Names to match against category_primary for provider-categorized
+                # transactions that have no category_id assigned yet.
+                all_names = set()
+                for cat in [category] + children:
+                    all_names.add((cat.plaid_category_name or cat.name).lower())
+
+                conditions = [Transaction.category_id.in_(all_category_ids)]
+                if all_names:
+                    conditions.append(func.lower(Transaction.category_primary).in_(all_names))
+
+                query = query.where(or_(*conditions))
+            else:
+                query = query.where(Transaction.category_id == budget.category_id)
 
         result = await db.execute(query)
         spent = abs(result.scalar() or Decimal("0.00"))

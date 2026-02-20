@@ -95,6 +95,66 @@ class TestBudgetService:
         assert start == date(2024, 1, 1)
         assert end == date(2024, 12, 31)
 
+    # --- monthly_start_day offset tests ---
+
+    def test_get_period_dates_monthly_offset_after_start_day(self):
+        """Monthly with start_day=15: today after the 15th → period starts this month."""
+        service = BudgetService()
+        # Feb 20 with start_day=15 → Feb 15 – Mar 14
+        ref_date = date(2026, 2, 20)
+        start, end = service._get_period_dates(BudgetPeriod.MONTHLY, ref_date, monthly_start_day=15)
+        assert start == date(2026, 2, 15)
+        assert end == date(2026, 3, 14)
+
+    def test_get_period_dates_monthly_offset_before_start_day(self):
+        """Monthly with start_day=15: today before the 15th → period started last month."""
+        service = BudgetService()
+        # Feb 10 with start_day=15 → Jan 15 – Feb 14
+        ref_date = date(2026, 2, 10)
+        start, end = service._get_period_dates(BudgetPeriod.MONTHLY, ref_date, monthly_start_day=15)
+        assert start == date(2026, 1, 15)
+        assert end == date(2026, 2, 14)
+
+    def test_get_period_dates_monthly_offset_january_rollback(self):
+        """Monthly with start_day=15: today before the 15th in January → wraps to prior December."""
+        service = BudgetService()
+        ref_date = date(2026, 1, 10)
+        start, end = service._get_period_dates(BudgetPeriod.MONTHLY, ref_date, monthly_start_day=15)
+        assert start == date(2025, 12, 15)
+        assert end == date(2026, 1, 14)
+
+    def test_get_period_dates_quarterly_offset(self):
+        """Quarterly with start_day=15: Q1 runs Jan 15 – Apr 14."""
+        service = BudgetService()
+        ref_date = date(2026, 2, 20)
+        start, end = service._get_period_dates(BudgetPeriod.QUARTERLY, ref_date, monthly_start_day=15)
+        assert start == date(2026, 1, 15)
+        assert end == date(2026, 4, 14)
+
+    def test_get_period_dates_quarterly_offset_before_q1_start(self):
+        """Quarterly with start_day=15: date before Jan 15 belongs to prior year's Q4."""
+        service = BudgetService()
+        ref_date = date(2026, 1, 10)
+        start, end = service._get_period_dates(BudgetPeriod.QUARTERLY, ref_date, monthly_start_day=15)
+        assert start == date(2025, 10, 15)
+        assert end == date(2026, 1, 14)
+
+    def test_get_period_dates_yearly_offset_after_start(self):
+        """Yearly with start_day=15: period runs Jan 15 of this year to Jan 14 of next."""
+        service = BudgetService()
+        ref_date = date(2026, 2, 20)
+        start, end = service._get_period_dates(BudgetPeriod.YEARLY, ref_date, monthly_start_day=15)
+        assert start == date(2026, 1, 15)
+        assert end == date(2027, 1, 14)
+
+    def test_get_period_dates_yearly_offset_before_start(self):
+        """Yearly with start_day=15: date before Jan 15 belongs to prior year's period."""
+        service = BudgetService()
+        ref_date = date(2026, 1, 10)
+        start, end = service._get_period_dates(BudgetPeriod.YEARLY, ref_date, monthly_start_day=15)
+        assert start == date(2025, 1, 15)
+        assert end == date(2026, 1, 14)
+
     @pytest.mark.asyncio
     async def test_create_budget(self, db_session, test_user):
         """Should create a new budget."""
@@ -405,6 +465,139 @@ class TestBudgetService:
 
         # Should only count food transaction
         assert spending["spent"] == Decimal("50.00")
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_child_categories_roll_up(self, db, test_user, test_account):
+        """Child category transactions should roll up into the parent budget."""
+        service = BudgetService()
+
+        parent = Category(organization_id=test_user.organization_id, name="Food")
+        db.add(parent)
+        await db.commit()
+
+        child = Category(
+            organization_id=test_user.organization_id,
+            name="Food and Drink",
+            parent_category_id=parent.id,
+        )
+        db.add(child)
+        await db.commit()
+
+        budget = await service.create_budget(
+            db, test_user, "Food Budget", Decimal("500.00"),
+            BudgetPeriod.MONTHLY, date.today(), category_id=parent.id,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        child_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-75.00"),
+            merchant_name="Restaurant",
+            category_id=child.id,
+            deduplication_hash=str(uuid4()),
+        )
+        parent_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=2),
+            amount=Decimal("-25.00"),
+            merchant_name="Grocery",
+            category_id=parent.id,
+            deduplication_hash=str(uuid4()),
+        )
+        db.add_all([child_txn, parent_txn])
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+
+        assert spending["spent"] == Decimal("100.00")
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_child_does_not_bleed_into_other_budget(self, db, test_user, test_account):
+        """A transaction in a child category should NOT count toward an unrelated budget."""
+        service = BudgetService()
+
+        parent = Category(organization_id=test_user.organization_id, name="Food2")
+        other = Category(organization_id=test_user.organization_id, name="Entertainment")
+        db.add_all([parent, other])
+        await db.commit()
+
+        child = Category(
+            organization_id=test_user.organization_id,
+            name="Food and Drink2",
+            parent_category_id=parent.id,
+        )
+        db.add(child)
+        await db.commit()
+
+        budget = await service.create_budget(
+            db, test_user, "Entertainment Budget", Decimal("200.00"),
+            BudgetPeriod.MONTHLY, date.today(), category_id=other.id,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        food_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-50.00"),
+            merchant_name="Restaurant",
+            category_id=child.id,
+            deduplication_hash=str(uuid4()),
+        )
+        db.add(food_txn)
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+        assert spending["spent"] == Decimal("0.00")
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_matches_category_primary(self, db, test_user, test_account):
+        """Provider-categorized transactions (category_primary set, no category_id) should match by name."""
+        service = BudgetService()
+
+        category = Category(organization_id=test_user.organization_id, name="Food and Drink")
+        db.add(category)
+        await db.commit()
+
+        budget = await service.create_budget(
+            db, test_user, "Food Budget", Decimal("300.00"),
+            BudgetPeriod.MONTHLY, date.today(), category_id=category.id,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        # Plaid-imported transaction: has category_primary but no category_id
+        provider_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-60.00"),
+            merchant_name="Cafe",
+            category_id=None,
+            category_primary="Food and Drink",
+            deduplication_hash=str(uuid4()),
+        )
+        # Unrelated provider transaction should not be counted
+        other_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-40.00"),
+            merchant_name="Gas",
+            category_id=None,
+            category_primary="Travel",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add_all([provider_txn, other_txn])
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+        assert spending["spent"] == Decimal("60.00")
 
     @pytest.mark.asyncio
     async def test_get_budget_spending_no_transactions(self, db, test_user):

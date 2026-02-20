@@ -27,6 +27,7 @@ import {
   HStack,
   Text,
 } from '@chakra-ui/react';
+import React, { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Budget, BudgetCreate } from '../../../types/budget';
@@ -45,7 +46,7 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
   const queryClient = useQueryClient();
   const isEditing = !!budget;
 
-  const { register, handleSubmit, control, watch, formState: { errors, isSubmitting } } = useForm<BudgetCreate>({
+  const { register, handleSubmit, control, watch, setValue, reset, formState: { errors, isSubmitting } } = useForm<BudgetCreate>({
     defaultValues: budget ? {
       name: budget.name,
       amount: budget.amount,
@@ -63,14 +64,56 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
     },
   });
 
-  // Get categories for dropdown (only custom categories with IDs)
+  // Tracks when a provider category (no UUID) is selected so we can auto-create it on save
+  const [providerCategoryName, setProviderCategoryName] = useState<string | null>(null);
+
+  // Reset form when the modal opens or the budget changes (defaultValues only applies on initial mount)
+  useEffect(() => {
+    if (isOpen) {
+      reset(budget ? {
+        name: budget.name,
+        amount: budget.amount,
+        period: budget.period,
+        start_date: budget.start_date,
+        end_date: budget.end_date ?? undefined,
+        category_id: budget.category_id ?? undefined,
+        rollover_unused: budget.rollover_unused,
+        alert_threshold: budget.alert_threshold,
+      } : {
+        period: BudgetPeriod.MONTHLY,
+        rollover_unused: false,
+        alert_threshold: 0.8,
+        start_date: new Date().toISOString().split('T')[0],
+      });
+      setProviderCategoryName(null);
+    }
+  }, [isOpen, budget]);
+
+  // All categories — both custom (with UUID) and provider (without UUID, from Plaid/Teller)
   const { data: allCategories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: categoriesApi.getCategories,
   });
 
-  // Filter to only categories with IDs (custom categories that can be linked to budgets)
-  const categories = allCategories.filter(cat => cat.id !== null);
+  // The current select value: UUID for custom categories, "provider::Name" for provider categories
+  const watchedCategoryId = watch('category_id');
+  const categorySelectValue = providerCategoryName
+    ? `provider::${providerCategoryName}`
+    : (watchedCategoryId ?? '');
+
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (!val) {
+      setValue('category_id', undefined);
+      setProviderCategoryName(null);
+    } else if (val.startsWith('provider::')) {
+      setValue('category_id', undefined);
+      setProviderCategoryName(val.slice(10));
+    } else {
+      setValue('category_id', val);
+      setProviderCategoryName(null);
+    }
+  };
 
   // Create/update mutation
   const mutation = useMutation({
@@ -98,9 +141,24 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
     },
   });
 
-  const onSubmit = (data: BudgetCreate) => {
+  const onSubmit = async (data: BudgetCreate) => {
+    let resolvedCategoryId = data.category_id;
+
+    // If a provider category (no UUID) was selected, create a custom category for it first
+    if (!resolvedCategoryId && providerCategoryName) {
+      try {
+        const newCat = await categoriesApi.create({ name: providerCategoryName });
+        resolvedCategoryId = newCat.id ?? undefined;
+        queryClient.invalidateQueries({ queryKey: ['categories'] });
+      } catch {
+        toast({ title: 'Failed to create category', status: 'error', duration: 3000 });
+        return;
+      }
+    }
+
     mutation.mutate({
       ...data,
+      category_id: resolvedCategoryId,
       end_date: data.end_date || undefined,
     });
   };
@@ -154,9 +212,13 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
               {/* Category */}
               <FormControl>
                 <FormLabel>Category (Optional)</FormLabel>
-                <Select {...register('category_id')} placeholder="All spending">
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
+                <Select value={categorySelectValue} onChange={handleCategoryChange}>
+                  <option value="">All spending</option>
+                  {allCategories.map((cat) => (
+                    <option
+                      key={cat.id ?? cat.name}
+                      value={cat.id ? cat.id : `provider::${cat.name}`}
+                    >
                       {cat.name}
                     </option>
                   ))}
