@@ -45,7 +45,7 @@ const registerSchema = z.object({
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
     .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
     .regex(/\d/, 'Password must contain at least one number')
-    .regex(/[!@#$%^&*(),.?":{}|<>_\-+=[\]\\;/`~]/, 'Password must contain at least one special character'),
+    .regex(/[!@#$%^&*(),.?":{}|<>_\-+=[\]\\;\/`~]/, 'Password must contain at least one special character'),
   display_name: z.string().min(1, 'Name is required'),
   birth_day: z.number().int().min(1).max(31).optional(),
   birth_month: z.number().int().min(1).max(12).optional(),
