@@ -89,6 +89,10 @@ export interface RuleCreate {
 export interface RuleUpdate {
   name?: string;
   description?: string;
+  match_type?: RuleMatchType;
+  apply_to?: RuleApplyTo;
   is_active?: boolean;
   priority?: number;
+  conditions?: Omit<RuleCondition, 'id' | 'rule_id' | 'created_at'>[];
+  actions?: Omit<RuleAction, 'id' | 'rule_id' | 'created_at'>[];
 }

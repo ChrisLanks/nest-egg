@@ -30,7 +30,7 @@ import {
 } from '@chakra-ui/react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DeleteIcon, ChevronDownIcon, ChevronUpIcon, AddIcon } from '@chakra-ui/icons';
+import { DeleteIcon, ChevronDownIcon, ChevronUpIcon, AddIcon, EditIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
 import { RuleBuilderModal } from '../components/RuleBuilderModal';
 import type { Rule } from '../types/rule';
@@ -64,6 +64,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 export const RulesPage = () => {
   const [isRuleBuilderOpen, setIsRuleBuilderOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<Rule | null>(null);
   const [expandedRule, setExpandedRule] = useState<string | null>(null);
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -262,6 +263,16 @@ export const RulesPage = () => {
                             />
                           </HStack>
                           <IconButton
+                            icon={<EditIcon />}
+                            aria-label="Edit rule"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setEditingRule(rule);
+                              setIsRuleBuilderOpen(true);
+                            }}
+                          />
+                          <IconButton
                             icon={<DeleteIcon />}
                             aria-label="Delete rule"
                             colorScheme="red"
@@ -349,7 +360,11 @@ export const RulesPage = () => {
 
         <RuleBuilderModal
           isOpen={isRuleBuilderOpen}
-          onClose={() => setIsRuleBuilderOpen(false)}
+          onClose={() => {
+            setIsRuleBuilderOpen(false);
+            setEditingRule(null);
+          }}
+          rule={editingRule ?? undefined}
         />
       </VStack>
     </Container>

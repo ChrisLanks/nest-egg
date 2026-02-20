@@ -96,9 +96,8 @@ async def create_rule(
         db.add(action)
 
     await db.commit()
-    await db.refresh(rule)
 
-    # Load relationships
+    # Reload with fresh relationships
     result = await db.execute(
         select(Rule)
         .options(joinedload(Rule.conditions), joinedload(Rule.actions))
@@ -151,28 +150,59 @@ async def update_rule(
     )
 
     result = await db.execute(
-        select(Rule).where(
+        select(Rule)
+        .options(joinedload(Rule.conditions), joinedload(Rule.actions))
+        .where(
             Rule.id == rule_id,
             Rule.organization_id == current_user.organization_id,
         )
     )
-    rule = result.scalar_one_or_none()
+    rule = result.unique().scalar_one_or_none()
 
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
 
-    # Update fields
+    # Update scalar fields
     if rule_data.name is not None:
         rule.name = rule_data.name
     if rule_data.description is not None:
         rule.description = rule_data.description
+    if rule_data.match_type is not None:
+        rule.match_type = rule_data.match_type
+    if rule_data.apply_to is not None:
+        rule.apply_to = rule_data.apply_to
     if rule_data.is_active is not None:
         rule.is_active = rule_data.is_active
     if rule_data.priority is not None:
         rule.priority = rule_data.priority
 
+    # Replace conditions if provided
+    if rule_data.conditions is not None:
+        for condition in list(rule.conditions):
+            await db.delete(condition)
+        await db.flush()
+        for c in rule_data.conditions:
+            db.add(RuleCondition(
+                rule_id=rule.id,
+                field=c.field,
+                operator=c.operator,
+                value=c.value,
+                value_max=c.value_max,
+            ))
+
+    # Replace actions if provided
+    if rule_data.actions is not None:
+        for action in list(rule.actions):
+            await db.delete(action)
+        await db.flush()
+        for a in rule_data.actions:
+            db.add(RuleAction(
+                rule_id=rule.id,
+                action_type=a.action_type,
+                action_value=a.action_value,
+            ))
+
     await db.commit()
-    await db.refresh(rule)
 
     # Load relationships
     result = await db.execute(

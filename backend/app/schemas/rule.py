@@ -90,5 +90,9 @@ class RuleUpdate(BaseModel):
 
     name: Optional[str] = None
     description: Optional[str] = None
+    match_type: Optional[RuleMatchType] = None
+    apply_to: Optional[RuleApplyTo] = None
     is_active: Optional[bool] = None
     priority: Optional[int] = None
+    conditions: Optional[List[RuleConditionCreate]] = None
+    actions: Optional[List[RuleActionCreate]] = None

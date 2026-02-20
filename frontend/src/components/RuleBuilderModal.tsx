@@ -37,6 +37,7 @@ import {
   ConditionField,
   ConditionOperator,
   ActionType,
+  type Rule,
   type RuleCondition,
   type RuleAction,
   type RuleCreate,
@@ -50,6 +51,8 @@ interface RuleBuilderModalProps {
   isOpen: boolean;
   onClose: () => void;
   prefilledTransaction?: Transaction;
+  /** Pass an existing rule to open the modal in edit mode. */
+  rule?: Rule;
 }
 
 const FIELD_LABELS: Record<ConditionField, string> = {
@@ -77,7 +80,9 @@ export const RuleBuilderModal = ({
   isOpen,
   onClose,
   prefilledTransaction,
+  rule,
 }: RuleBuilderModalProps) => {
+  const isEditing = !!rule;
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [matchType, setMatchType] = useState<RuleMatchType>(RuleMatchType.ALL);
@@ -87,6 +92,18 @@ export const RuleBuilderModal = ({
 
   const toast = useToast();
   const queryClient = useQueryClient();
+
+  // Pre-fill from existing rule (edit mode)
+  useEffect(() => {
+    if (rule && isOpen) {
+      setName(rule.name);
+      setDescription(rule.description ?? '');
+      setMatchType(rule.match_type);
+      setApplyTo(rule.apply_to);
+      setConditions(rule.conditions ?? []);
+      setActions(rule.actions ?? []);
+    }
+  }, [rule, isOpen]);
 
   // Pre-fill from transaction
   useEffect(() => {
@@ -134,6 +151,36 @@ export const RuleBuilderModal = ({
     onError: () => {
       toast({
         title: 'Failed to create rule',
+        status: 'error',
+        duration: 5000,
+      });
+    },
+  });
+
+  const updateRuleMutation = useMutation({
+    mutationFn: async (data: RuleCreate) => {
+      const response = await api.patch(`/rules/${rule!.id}`, {
+        name: data.name,
+        description: data.description,
+        match_type: data.match_type,
+        apply_to: data.apply_to,
+        conditions: data.conditions,
+        actions: data.actions,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Rule updated',
+        status: 'success',
+        duration: 3000,
+      });
+      queryClient.invalidateQueries({ queryKey: ['rules'] });
+      handleClose();
+    },
+    onError: () => {
+      toast({
+        title: 'Failed to update rule',
         status: 'error',
         duration: 5000,
       });
@@ -227,23 +274,29 @@ export const RuleBuilderModal = ({
       return;
     }
 
-    createRuleMutation.mutate({
+    const payload = {
       name,
       description: description || undefined,
       match_type: matchType,
       apply_to: applyTo,
-      priority: 0,
-      is_active: true,
+      priority: rule?.priority ?? 0,
+      is_active: rule?.is_active ?? true,
       conditions,
       actions,
-    });
+    };
+
+    if (isEditing) {
+      updateRuleMutation.mutate(payload);
+    } else {
+      createRuleMutation.mutate(payload);
+    }
   };
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} size="2xl" scrollBehavior="inside">
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>Create Rule</ModalHeader>
+        <ModalHeader>{isEditing ? 'Edit Rule' : 'Create Rule'}</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <VStack spacing={6} align="stretch">
@@ -492,9 +545,9 @@ export const RuleBuilderModal = ({
           <Button
             colorScheme="brand"
             onClick={handleSubmit}
-            isLoading={createRuleMutation.isPending}
+            isLoading={createRuleMutation.isPending || updateRuleMutation.isPending}
           >
-            Create Rule
+            {isEditing ? 'Update Rule' : 'Create Rule'}
           </Button>
         </ModalFooter>
       </ModalContent>
