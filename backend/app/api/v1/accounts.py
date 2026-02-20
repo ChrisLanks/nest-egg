@@ -27,8 +27,11 @@ from app.schemas.account import (
     AccountUpdate,
 )
 from app.services.deduplication_service import DeduplicationService
+from app.services.input_sanitization_service import input_sanitization_service
 from app.services.rate_limit_service import rate_limit_service
 from app.config import settings
+
+_ALLOWED_VALUATION_PROVIDERS = {"rentcast", "attom", "marketcheck"}
 
 
 class ProviderAvailability(BaseModel):
@@ -192,7 +195,7 @@ async def create_manual_account(
     account = Account(
         organization_id=current_user.organization_id,
         user_id=current_user.id,
-        name=account_data.name,
+        name=input_sanitization_service.sanitize_html(account_data.name),
         account_type=account_data.account_type,
         property_type=account_data.property_type,
         account_source=account_data.account_source,
@@ -326,7 +329,7 @@ async def update_account(
     """Update account details."""
     # Update basic fields
     if account_data.name is not None:
-        account.name = account_data.name
+        account.name = input_sanitization_service.sanitize_html(account_data.name)
     if account_data.is_active is not None:
         account.is_active = account_data.is_active
     if account_data.current_balance is not None:
@@ -468,6 +471,9 @@ async def refresh_account_valuation(
     )
     from fastapi import HTTPException
 
+    if provider is not None and provider not in _ALLOWED_VALUATION_PROVIDERS:
+        raise HTTPException(status_code=400, detail="Invalid provider")
+
     result = await db.execute(
         select(Account).where(
             Account.id == account_id,
@@ -539,7 +545,10 @@ async def refresh_account_valuation(
     now = datetime.now(timezone.utc)
     await db.execute(
         update(Account)
-        .where(Account.id == account_id)
+        .where(
+            Account.id == account_id,
+            Account.organization_id == current_user.organization_id,
+        )
         .values(
             current_balance=valuation_result.value,
             last_auto_valued_at=now,
@@ -562,10 +571,16 @@ async def refresh_account_valuation(
 @router.post("/bulk-delete")
 async def bulk_delete_accounts(
     account_ids: List[UUID],
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete multiple accounts at once. Only deletes accounts owned by the current user."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=60,
+    )
     # Only allow deletion of accounts owned by the current user
     result = await db.execute(
         delete(Account).where(

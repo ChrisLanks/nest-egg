@@ -81,23 +81,18 @@ export const LoginPage = () => {
         duration: 3000,
       });
     } catch (error: any) {
-      const detail = error?.response?.data?.detail;
-      let errorMessage = 'Invalid credentials';
-      if (typeof detail === 'string') {
-        errorMessage = detail;
-      } else if (detail && typeof detail === 'object') {
-        if (detail.message && Array.isArray(detail.errors) && detail.errors.length > 0) {
-          errorMessage = `${detail.message}: ${detail.errors.join('; ')}`;
-        } else if (detail.message) {
-          errorMessage = detail.message;
-        } else if (detail.error) {
-          errorMessage = detail.error;
-        }
+      const status = error?.response?.status;
+      // Map HTTP status codes to user-safe messages — never expose raw server detail
+      let errorMessage = 'Invalid email or password';
+      if (status === 423) {
+        errorMessage = 'Account temporarily locked due to too many failed attempts. Please try again later.';
+      } else if (status === 429) {
+        errorMessage = 'Too many login attempts. Please wait a moment and try again.';
+      } else if (status && status >= 500) {
+        errorMessage = 'Something went wrong on our end. Please try again.';
       }
       console.error('❌ Login failed:', {
-        error,
-        message: errorMessage,
-        status: error.response?.status,
+        status,
         data: error.response?.data,
       });
 

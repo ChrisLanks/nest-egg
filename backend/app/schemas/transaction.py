@@ -28,6 +28,15 @@ class TransactionCreate(TransactionBase):
     is_pending: bool = False
 
 
+class ManualTransactionCreate(TransactionBase):
+    """Schema for manually created transactions (no external IDs, no dedup hash)."""
+
+    account_id: UUID
+    category_id: Optional[UUID] = None
+    is_pending: bool = False
+    is_transfer: bool = False
+
+
 class TransactionUpdate(BaseModel):
     """Transaction update schema."""
 

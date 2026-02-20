@@ -749,9 +749,15 @@ class TestBulkDeleteAccounts:
         delete_result.rowcount = 3
         mock_db.execute.return_value = delete_result
 
-        result = await bulk_delete_accounts(
-            account_ids=account_ids, current_user=mock_user, db=mock_db
-        )
+        mock_request = Mock()
+        mock_request.client = Mock()
+        mock_request.client.host = "127.0.0.1"
+        mock_request.headers = {}
+
+        with patch("app.api.v1.accounts.rate_limit_service.check_rate_limit", return_value=None):
+            result = await bulk_delete_accounts(
+                account_ids=account_ids, http_request=mock_request, current_user=mock_user, db=mock_db
+            )
 
         assert result["deleted_count"] == 3
         assert mock_db.commit.called
@@ -766,8 +772,14 @@ class TestBulkDeleteAccounts:
         delete_result.rowcount = 0
         mock_db.execute.return_value = delete_result
 
-        result = await bulk_delete_accounts(
-            account_ids=account_ids, current_user=mock_user, db=mock_db
-        )
+        mock_request = Mock()
+        mock_request.client = Mock()
+        mock_request.client.host = "127.0.0.1"
+        mock_request.headers = {}
+
+        with patch("app.api.v1.accounts.rate_limit_service.check_rate_limit", return_value=None):
+            result = await bulk_delete_accounts(
+                account_ids=account_ids, http_request=mock_request, current_user=mock_user, db=mock_db
+            )
 
         assert result["deleted_count"] == 0

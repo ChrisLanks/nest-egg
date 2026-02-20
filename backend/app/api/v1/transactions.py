@@ -25,6 +25,7 @@ from app.schemas.transaction import (
     TransactionUpdate,
     CategorySummary,
     TransactionCreate,
+    ManualTransactionCreate,
 )
 from app.services.input_sanitization_service import input_sanitization_service
 
@@ -85,7 +86,7 @@ def decode_cursor(cursor: str) -> tuple:
 
 @router.post("/", response_model=TransactionDetail, status_code=200)
 async def create_transaction(
-    transaction_data: dict,
+    transaction_data: ManualTransactionCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -93,13 +94,9 @@ async def create_transaction(
     from uuid import uuid4 as _uuid4
 
     # Validate account belongs to organization
-    account_id = transaction_data.get("account_id")
-    if not account_id:
-        raise HTTPException(status_code=400, detail="account_id is required")
-
     account_result = await db.execute(
         select(Account).where(
-            Account.id == account_id,
+            Account.id == transaction_data.account_id,
             Account.organization_id == current_user.organization_id,
         )
     )
@@ -107,30 +104,19 @@ async def create_transaction(
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    # Parse date
-    txn_date = transaction_data.get("date")
-    if isinstance(txn_date, str):
-        try:
-            txn_date = datetime.strptime(txn_date, "%Y-%m-%d").date()
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
-
-    from decimal import Decimal as _Decimal
-    amount = _Decimal(str(transaction_data.get("amount", "0")))
-
     txn = Transaction(
         organization_id=current_user.organization_id,
-        account_id=account_id,
-        date=txn_date,
-        amount=amount,
-        merchant_name=transaction_data.get("merchant_name"),
-        description=transaction_data.get("description"),
-        category_id=transaction_data.get("category_id"),
-        category_primary=transaction_data.get("category_primary"),
-        category_detailed=transaction_data.get("category_detailed"),
-        is_pending=transaction_data.get("is_pending", False),
-        is_transfer=transaction_data.get("is_transfer", False),
-        deduplication_hash=transaction_data.get("deduplication_hash") or str(_uuid4()),
+        account_id=transaction_data.account_id,
+        date=transaction_data.date,
+        amount=transaction_data.amount,
+        merchant_name=input_sanitization_service.sanitize_html(transaction_data.merchant_name) if transaction_data.merchant_name else None,
+        description=input_sanitization_service.sanitize_html(transaction_data.description) if transaction_data.description else None,
+        category_id=transaction_data.category_id,
+        category_primary=transaction_data.category_primary,
+        category_detailed=transaction_data.category_detailed,
+        is_pending=transaction_data.is_pending,
+        is_transfer=transaction_data.is_transfer,
+        deduplication_hash=str(_uuid4()),
     )
     db.add(txn)
     await db.commit()

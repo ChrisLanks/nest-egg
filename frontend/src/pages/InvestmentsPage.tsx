@@ -187,8 +187,12 @@ export const InvestmentsPage = () => {
 
   // Hidden accounts state (persisted to localStorage)
   const [hiddenAccountIds, setHiddenAccountIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem('hiddenAccounts');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('hiddenAccounts');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   // Save hidden accounts to localStorage whenever it changes

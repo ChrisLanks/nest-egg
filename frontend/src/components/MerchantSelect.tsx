@@ -12,7 +12,7 @@ import {
   Text,
   useOutsideClick,
 } from '@chakra-ui/react';
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 
@@ -37,21 +37,12 @@ export const MerchantSelect = ({
   const [inputValue, setInputValue] = useState(value);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Fetch all unique merchants from transactions
+  // Fetch all unique merchant names via dedicated endpoint (up to 500, sorted)
   const { data: merchants } = useQuery({
     queryKey: ['merchants'],
     queryFn: async () => {
-      const response = await api.get('/transactions', {
-        params: { page_size: 1000 },
-      });
-      const transactions = response.data.transactions;
-      const uniqueMerchants = new Set<string>();
-      transactions.forEach((txn: any) => {
-        if (txn.merchant_name) {
-          uniqueMerchants.add(txn.merchant_name);
-        }
-      });
-      return Array.from(uniqueMerchants).sort();
+      const response = await api.get('/transactions/merchants');
+      return response.data.merchants as string[];
     },
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
@@ -91,8 +82,8 @@ export const MerchantSelect = ({
     setIsOpen(true);
   };
 
-  // Update input value when prop value changes
-  useMemo(() => {
+  // Sync controlled value into local input state
+  useEffect(() => {
     setInputValue(value);
   }, [value]);
 
