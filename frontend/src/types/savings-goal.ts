@@ -42,6 +42,7 @@ export interface SavingsGoalUpdate {
   target_date?: string | null;
   account_id?: string | null;
   auto_sync?: boolean;
+  is_completed?: boolean;
 }
 
 export interface SavingsGoalProgress {

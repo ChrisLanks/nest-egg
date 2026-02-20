@@ -37,6 +37,7 @@ class SavingsGoalUpdate(BaseModel):
     target_date: Optional[date] = None
     account_id: Optional[UUID] = None
     auto_sync: Optional[bool] = None
+    is_completed: Optional[bool] = None
 
 
 class SavingsGoalResponse(SavingsGoalBase):

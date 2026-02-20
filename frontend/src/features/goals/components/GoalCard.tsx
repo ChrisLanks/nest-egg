@@ -19,8 +19,10 @@ import {
   MenuItem,
   useToast,
   Box,
+  Checkbox,
+  Tooltip,
 } from '@chakra-ui/react';
-import { EditIcon, DeleteIcon, SettingsIcon, RepeatIcon, CheckCircleIcon } from '@chakra-ui/icons';
+import { EditIcon, DeleteIcon, SettingsIcon, RepeatIcon } from '@chakra-ui/icons';
 import { FiMove, FiCheckSquare } from 'react-icons/fi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SavingsGoal } from '../../../types/savings-goal';
@@ -78,6 +80,17 @@ export default function GoalCard({
     },
   });
 
+  // Complete/uncomplete mutation
+  const completeMutation = useMutation({
+    mutationFn: () => savingsGoalsApi.update(goal.id, { is_completed: !goal.is_completed }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+    },
+    onError: () => {
+      toast({ title: 'Failed to update goal', status: 'error', duration: 3000 });
+    },
+  });
+
   // Fund mutation
   const fundMutation = useMutation({
     mutationFn: () => savingsGoalsApi.fund(goal.id, method),
@@ -117,11 +130,23 @@ export default function GoalCard({
     <Card>
       <CardHeader pb={2}>
         <HStack justify="space-between">
-          <VStack align="start" spacing={1} flex={1} minW={0}>
+          <HStack spacing={3} flex={1} minW={0}>
+            {!goal.is_funded && (
+              <Tooltip label={goal.is_completed ? 'Mark as incomplete' : 'Mark as complete'} placement="top">
+                <Checkbox
+                  isChecked={goal.is_completed}
+                  onChange={() => completeMutation.mutate()}
+                  isDisabled={completeMutation.isPending}
+                  colorScheme="green"
+                  size="lg"
+                  flexShrink={0}
+                />
+              </Tooltip>
+            )}
+            <VStack align="start" spacing={1} minW={0}>
             <HStack flexWrap="wrap">
               <Heading size="md" noOfLines={1}>{goal.name}</Heading>
               {goal.is_funded && <Badge colorScheme="purple">Funded</Badge>}
-              {goal.is_completed && !goal.is_funded && <CheckCircleIcon color="green.500" />}
               {goal.auto_sync && (
                 <RepeatIcon
                   color="blue.400"
@@ -135,7 +160,8 @@ export default function GoalCard({
                 {goal.description}
               </Text>
             )}
-          </VStack>
+            </VStack>
+          </HStack>
 
           <HStack spacing={1} flexShrink={0}>
             {dragHandleListeners && (

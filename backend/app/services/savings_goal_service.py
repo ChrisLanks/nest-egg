@@ -130,15 +130,11 @@ class SavingsGoalService:
         if goal.account_id is None:
             goal.auto_sync = False
 
-        # Auto-mark as completed if target reached (only for non-funded goals)
-        if not goal.is_funded:
-            if goal.current_amount >= goal.target_amount and not goal.is_completed:
-                goal.is_completed = True
+        # Sync completed_at when is_completed is explicitly changed
+        if "is_completed" in kwargs:
+            if goal.is_completed and goal.completed_at is None:
                 goal.completed_at = utc_now()
-
-            # Unmark completion if amount drops below target
-            if goal.current_amount < goal.target_amount and goal.is_completed:
-                goal.is_completed = False
+            elif not goal.is_completed:
                 goal.completed_at = None
 
         goal.updated_at = utc_now()
@@ -195,12 +191,6 @@ class SavingsGoalService:
             return None
 
         goal.current_amount = account.current_balance
-
-        # Check for completion (only for non-funded goals)
-        if not goal.is_funded and goal.current_amount >= goal.target_amount and not goal.is_completed:
-            goal.is_completed = True
-            goal.completed_at = utc_now()
-
         goal.updated_at = utc_now()
 
         await db.commit()
@@ -310,15 +300,8 @@ class SavingsGoalService:
                     goal.current_amount = max(Decimal("0"), allocated)
                     updated_goals.append(goal)
 
-        # Check auto-completion for each updated goal
         now = utc_now()
         for goal in updated_goals:
-            if goal.current_amount >= goal.target_amount and not goal.is_completed:
-                goal.is_completed = True
-                goal.completed_at = now
-            elif goal.current_amount < goal.target_amount and goal.is_completed:
-                goal.is_completed = False
-                goal.completed_at = None
             goal.updated_at = now
 
         await db.commit()
