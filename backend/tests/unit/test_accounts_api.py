@@ -14,7 +14,9 @@ from app.api.v1.accounts import (
     bulk_update_visibility,
     update_account,
     bulk_delete_accounts,
+    refresh_account_valuation,
     BulkVisibilityUpdate,
+    _ALLOWED_VALUATION_PROVIDERS,
 )
 from app.models.user import User
 from app.models.account import Account, AccountType, AccountSource
@@ -783,3 +785,145 @@ class TestBulkDeleteAccounts:
             )
 
         assert result["deleted_count"] == 0
+
+
+@pytest.mark.unit
+class TestValuationProviderWhitelist:
+    """Test that refresh_account_valuation enforces the provider allowlist."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    def test_allowed_providers_constant(self):
+        """The allowlist must contain exactly the expected providers."""
+        assert _ALLOWED_VALUATION_PROVIDERS == {"rentcast", "attom", "marketcheck"}
+
+    @pytest.mark.asyncio
+    async def test_invalid_provider_raises_400(self, mock_db, mock_user):
+        """An unlisted provider string must raise HTTP 400."""
+        with pytest.raises(HTTPException) as exc_info:
+            await refresh_account_valuation(
+                account_id=uuid4(),
+                provider="evil_provider",
+                current_user=mock_user,
+                db=mock_db,
+            )
+        assert exc_info.value.status_code == 400
+        assert "Invalid provider" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_none_provider_passes_whitelist(self, mock_db, mock_user):
+        """provider=None (omitted) must not trigger the whitelist check."""
+        # After the whitelist check passes, the endpoint queries the DB.
+        # We just need the whitelist itself not to raise; the 404 from the
+        # missing account is fine.
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute.return_value = mock_result
+
+        with pytest.raises(HTTPException) as exc_info:
+            await refresh_account_valuation(
+                account_id=uuid4(),
+                provider=None,
+                current_user=mock_user,
+                db=mock_db,
+            )
+        # Should get 404 (account not found), NOT 400 (bad provider)
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_valid_provider_passes_whitelist(self, mock_db, mock_user):
+        """Each allowed provider must not trigger the whitelist rejection."""
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute.return_value = mock_result
+
+        for provider in ("rentcast", "attom", "marketcheck"):
+            with pytest.raises(HTTPException) as exc_info:
+                await refresh_account_valuation(
+                    account_id=uuid4(),
+                    provider=provider,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+            # 404 means the whitelist passed; 400 would mean it was rejected
+            assert exc_info.value.status_code == 404, (
+                f"Provider '{provider}' was incorrectly rejected"
+            )
+
+
+@pytest.mark.unit
+class TestAccountNameSanitization:
+    """Test that HTML is stripped from account names on create and update."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_create_strips_html_from_name(self, mock_db, mock_user):
+        """HTML tags in account name must be stripped on create."""
+        account_data = ManualAccountCreate(
+            name="<script>alert(1)</script>My Checking",
+            account_type=AccountType.CHECKING,
+            account_source=AccountSource.MANUAL,
+            balance=Decimal("1000.00"),
+        )
+
+        with patch(
+            "app.api.v1.accounts.deduplication_service.calculate_manual_account_hash",
+            return_value="hash",
+        ):
+            with patch(
+                "app.api.v1.accounts.input_sanitization_service.sanitize_html",
+                side_effect=lambda s: s.replace("<script>alert(1)</script>", ""),
+            ) as mock_sanitize:
+                result = await create_manual_account(
+                    account_data=account_data,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+        mock_sanitize.assert_called_once_with("<script>alert(1)</script>My Checking")
+        assert "<script>" not in result.name
+
+    @pytest.mark.asyncio
+    async def test_update_strips_html_from_name(self, mock_db):
+        """HTML tags in account name must be stripped on update."""
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.name = "Original"
+        account.is_active = True
+        account.current_balance = Decimal("1000.00")
+        account.mask = "1234"
+        account.exclude_from_cash_flow = False
+
+        update_data = AccountUpdate(name="<b>Bold</b> Name")
+
+        with patch(
+            "app.api.v1.accounts.input_sanitization_service.sanitize_html",
+            side_effect=lambda s: s.replace("<b>", "").replace("</b>", ""),
+        ) as mock_sanitize:
+            result = await update_account(
+                account_data=update_data,
+                account=account,
+                db=mock_db,
+            )
+
+        mock_sanitize.assert_called_once_with("<b>Bold</b> Name")
+        assert "<b>" not in result.name

@@ -18,6 +18,7 @@ class TestAuthEndpoints:
                 "password": "Xk9#mP2$vL7!qR4wZ",
                 "first_name": "New",
                 "last_name": "User",
+                "display_name": "New User",
                 "organization_name": "Test Org",
             },
         )
@@ -37,6 +38,7 @@ class TestAuthEndpoints:
                 "password": "Xk9#mP2$vL7!qR4wZ",
                 "first_name": "New",
                 "last_name": "User",
+                "display_name": "New User",
                 "organization_name": "Test Org",
             },
         )
@@ -53,6 +55,7 @@ class TestAuthEndpoints:
                 "password": "weak",
                 "first_name": "New",
                 "last_name": "User",
+                "display_name": "New User",
                 "organization_name": "Test Org",
             },
         )

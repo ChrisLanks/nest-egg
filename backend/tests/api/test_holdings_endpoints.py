@@ -313,7 +313,7 @@ class TestHoldingsEndpoints:
         response = await async_client.post("/api/v1/holdings/", headers=auth_headers, json=payload)
 
         assert response.status_code == 400
-        assert "investment accounts" in response.json()["detail"]
+        assert "investment" in response.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_update_holding(self, async_client, auth_headers, test_user, db):

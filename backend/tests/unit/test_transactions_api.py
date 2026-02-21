@@ -17,11 +17,12 @@ from app.api.v1.transactions import (
     update_transaction,
     add_label_to_transaction,
     remove_label_from_transaction,
+    create_transaction,
 )
 from app.models.transaction import Transaction, Label, TransactionLabel, Category
 from app.models.account import Account
 from app.models.user import User
-from app.schemas.transaction import TransactionUpdate
+from app.schemas.transaction import TransactionUpdate, ManualTransactionCreate
 
 
 @pytest.fixture
@@ -522,3 +523,150 @@ class TestTransactionLabels:
             )
 
         assert exc_info.value.status_code == 404
+
+
+@pytest.mark.unit
+class TestManualTransactionCreate:
+    """Test create_transaction uses ManualTransactionCreate schema and sanitizes inputs."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.mark.asyncio
+    async def test_rejects_unknown_account(self, mock_db, mock_user):
+        """Should raise 404 when account doesn't belong to the org."""
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute.return_value = mock_result
+
+        txn_data = ManualTransactionCreate(
+            account_id=uuid4(),
+            date=date.today(),
+            amount=Decimal("-50.00"),
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await create_transaction(
+                transaction_data=txn_data,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_sanitizes_merchant_name_html(self, mock_db, mock_user):
+        """HTML in merchant_name must be stripped before the transaction is saved."""
+        mock_account = Mock(spec=Account)
+        account_result = Mock()
+        account_result.scalar_one_or_none.return_value = mock_account
+        mock_db.execute.return_value = account_result
+
+        txn_data = ManualTransactionCreate(
+            account_id=uuid4(),
+            date=date.today(),
+            amount=Decimal("-25.00"),
+            merchant_name="<script>bad()</script>Starbucks",
+        )
+
+        with patch(
+            "app.api.v1.transactions.input_sanitization_service.sanitize_html",
+            side_effect=lambda s: s.replace("<script>bad()</script>", ""),
+        ) as mock_sanitize:
+            mock_db.refresh = AsyncMock()
+            refetch_result = Mock()
+            refetch_result.unique.return_value.scalar_one.return_value = Mock(
+                id=uuid4(),
+                date=date.today(),
+                amount=Decimal("-25.00"),
+                merchant_name="Starbucks",
+                description=None,
+                is_pending=False,
+                is_transfer=False,
+                category=None,
+                labels=[],
+                account=mock_account,
+            )
+            mock_db.execute.side_effect = [account_result, refetch_result]
+
+            try:
+                await create_transaction(
+                    transaction_data=txn_data,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+            except Exception:
+                pass  # Any exception after the sanitize call is fine
+
+        mock_sanitize.assert_any_call("<script>bad()</script>Starbucks")
+
+    @pytest.mark.asyncio
+    async def test_sanitizes_description_html(self, mock_db, mock_user):
+        """HTML in description must be stripped before saving."""
+        mock_account = Mock(spec=Account)
+        account_result = Mock()
+        account_result.scalar_one_or_none.return_value = mock_account
+        mock_db.execute.return_value = account_result
+
+        txn_data = ManualTransactionCreate(
+            account_id=uuid4(),
+            date=date.today(),
+            amount=Decimal("-10.00"),
+            description="<img src=x onerror=alert(1)>Coffee",
+        )
+
+        with patch(
+            "app.api.v1.transactions.input_sanitization_service.sanitize_html",
+            side_effect=lambda s: "Coffee",
+        ) as mock_sanitize:
+            mock_db.refresh = AsyncMock()
+            mock_db.execute.side_effect = [account_result, Mock()]
+            try:
+                await create_transaction(
+                    transaction_data=txn_data,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+            except Exception:
+                pass
+
+        mock_sanitize.assert_any_call("<img src=x onerror=alert(1)>Coffee")
+
+
+@pytest.mark.unit
+class TestManualTransactionCreateSchema:
+    """Validate the ManualTransactionCreate Pydantic schema fields."""
+
+    def test_requires_account_id_and_date(self):
+        """account_id and date are required."""
+        from pydantic import ValidationError as PydanticValidationError
+
+        with pytest.raises(PydanticValidationError):
+            ManualTransactionCreate(amount=Decimal("-5.00"))  # type: ignore[call-arg]
+
+    def test_defaults_is_pending_false(self):
+        schema = ManualTransactionCreate(
+            account_id=uuid4(),
+            date=date.today(),
+            amount=Decimal("-5.00"),
+        )
+        assert schema.is_pending is False
+
+    def test_defaults_is_transfer_false(self):
+        schema = ManualTransactionCreate(
+            account_id=uuid4(),
+            date=date.today(),
+            amount=Decimal("-5.00"),
+        )
+        assert schema.is_transfer is False
+
+    def test_optional_fields_default_none(self):
+        schema = ManualTransactionCreate(
+            account_id=uuid4(),
+            date=date.today(),
+            amount=Decimal("-5.00"),
+        )
+        assert schema.category_id is None
+        assert schema.merchant_name is None
+        assert schema.description is None
