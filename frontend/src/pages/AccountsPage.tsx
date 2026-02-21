@@ -77,6 +77,9 @@ interface User {
   id: string;
   email: string;
   full_name: string | null;
+  display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
 }
 
 export const AccountsPage = () => {
@@ -140,6 +143,25 @@ export const AccountsPage = () => {
     if (!users) return new Map<string, User>();
     return new Map(users.map(user => [user.id, user]));
   }, [users]);
+
+  // Same color palette as Layout.tsx household member colors
+  const userColorSchemes = ['blue', 'green', 'purple', 'orange', 'pink'];
+
+  const getUserColorScheme = (userId: string): string => {
+    if (!users) return 'blue';
+    const index = users.findIndex(u => u.id === userId);
+    return userColorSchemes[(index >= 0 ? index : 0) % userColorSchemes.length];
+  };
+
+  const getUserDisplayName = (user: User): string => {
+    if (user.display_name?.trim()) return user.display_name.trim();
+    if (user.first_name?.trim()) {
+      return user.last_name?.trim()
+        ? `${user.first_name.trim()} ${user.last_name.trim()}`
+        : user.first_name.trim();
+    }
+    return user.email.split('@')[0];
+  };
 
   // Check if current user can modify an account
   const canModifyAccount = (account: Account): boolean => {
@@ -668,8 +690,8 @@ export const AccountsPage = () => {
                           <HStack>
                             <Text fontWeight="medium">{account.name}</Text>
                             {(users?.length ?? 0) > 1 && userMap.get(account.user_id) && (
-                              <Badge colorScheme="purple" fontSize="xs">
-                                {userMap.get(account.user_id)?.full_name || userMap.get(account.user_id)?.email}
+                              <Badge colorScheme={getUserColorScheme(account.user_id)} fontSize="xs">
+                                {getUserDisplayName(userMap.get(account.user_id)!)}
                               </Badge>
                             )}
                           </HStack>
