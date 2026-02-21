@@ -68,6 +68,10 @@ class RateLimitService:
         if identifier == "unknown":
             return
 
+        # Skip rate limiting in development mode
+        if settings.ENVIRONMENT == "development":
+            return
+
         # Get Redis client
         redis_client = await self.get_redis()
 

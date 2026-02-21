@@ -7,13 +7,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select, func, update
+from sqlalchemy import delete, select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.database import get_db
 from app.dependencies import get_current_user, get_current_admin_user
-from app.models.user import User, HouseholdInvitation, InvitationStatus
+from app.models.user import User, HouseholdInvitation, InvitationStatus, Organization
 from app.services.email_service import email_service
 from app.services.rate_limit_service import get_rate_limit_service
 
@@ -116,20 +116,15 @@ async def invite_member(
             detail="User is already a member of this household",
         )
 
-    # Check for pending invitation
-    result = await db.execute(
-        select(HouseholdInvitation).where(
+    # Replace any existing pending invitation for this email (re-invite is allowed).
+    # Use a bulk DELETE to avoid lazy-loading the invitation's relationships.
+    await db.execute(
+        delete(HouseholdInvitation).where(
             HouseholdInvitation.email == request_data.email,
             HouseholdInvitation.organization_id == current_user.organization_id,
             HouseholdInvitation.status == InvitationStatus.PENDING,
         )
     )
-    existing_invitation = result.scalar_one_or_none()
-    if existing_invitation:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An invitation is already pending for this email",
-        )
 
     # Create invitation
     invitation = HouseholdInvitation(
@@ -146,12 +141,19 @@ async def invite_member(
 
     join_url = f"{settings.APP_BASE_URL}/accept-invite?code={invitation.invitation_code}"
 
+    # Get org name for email without triggering a lazy-load on the async session
+    org_result = await db.execute(
+        select(Organization).where(Organization.id == current_user.organization_id)
+    )
+    org = org_result.scalar_one_or_none()
+    org_name = org.name if org else "your household"
+
     # Send invitation email (non-blocking; still return 201 if email fails)
     await email_service.send_invitation_email(
         to_email=invitation.email,
         invitation_code=invitation.invitation_code,
         invited_by=current_user.display_name or current_user.email,
-        org_name=current_user.organization.name if current_user.organization else "your household",
+        org_name=org_name,
     )
 
     return {

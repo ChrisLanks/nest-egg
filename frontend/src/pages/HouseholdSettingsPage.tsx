@@ -44,7 +44,6 @@ import {
   Stack,
   FormErrorMessage,
   useToast,
-  Divider,
   Alert,
   AlertIcon,
   AlertTitle,
@@ -59,13 +58,24 @@ import {
 } from '@chakra-ui/react';
 import { EmailIcon, DeleteIcon, CopyIcon, CheckIcon } from '@chakra-ui/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../features/auth/stores/authStore';
 
 /** Short human-readable hint about whether an email was sent. */
 const email_configured_hint = (inv: Invitation) =>
   `Invitation created. ${inv.join_url ? 'Share the join link if the invitee doesn\'t receive an email.' : ''}`;
+
+/** Safely extract a string message from an API error response.
+ *  Some endpoints (e.g. the rate limiter) return detail as an object
+ *  { message, retry_after } — passing that object to a Chakra toast
+ *  description crashes React ("Objects are not valid as a React child"). */
+const getErrorMessage = (error: any): string => {
+  const detail = error?.response?.data?.detail;
+  if (!detail) return 'An error occurred';
+  if (typeof detail === 'object') return (detail as any).message || 'An error occurred';
+  return String(detail);
+};
 
 
 interface HouseholdMember {
@@ -115,7 +125,6 @@ const CopyLinkButton: React.FC<{ url: string }> = ({ url }) => {
 
 export const HouseholdSettingsPage: React.FC = () => {
   const toast = useToast();
-  const [lastJoinUrl, setLastJoinUrl] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isLeaveOpen, onOpen: onLeaveOpen, onClose: onLeaveClose } = useDisclosure();
@@ -150,21 +159,20 @@ export const HouseholdSettingsPage: React.FC = () => {
       return response.data as Invitation;
     },
     onSuccess: (data) => {
-      setLastJoinUrl(data.join_url);
       toast({
         title: 'Invitation sent',
         description: email_configured_hint(data),
         status: 'success',
         duration: 5000,
       });
-      queryClient.invalidateQueries({ queryKey: ['household-invitations'] });
       setInviteEmail('');
       onClose();
+      queryClient.invalidateQueries({ queryKey: ['household-invitations'] });
     },
     onError: (error: any) => {
       toast({
         title: 'Failed to send invitation',
-        description: error.response?.data?.detail || 'An error occurred',
+        description: getErrorMessage(error),
         status: 'error',
         duration: 5000,
       });
@@ -188,7 +196,7 @@ export const HouseholdSettingsPage: React.FC = () => {
     onError: (error: any) => {
       toast({
         title: 'Failed to remove member',
-        description: error.response?.data?.detail || 'An error occurred',
+        description: getErrorMessage(error),
         status: 'error',
         duration: 5000,
       });
@@ -196,16 +204,21 @@ export const HouseholdSettingsPage: React.FC = () => {
   });
 
   // Fetch org preferences
-  useQuery<OrganizationPreferences>({
+  const { data: orgPrefs } = useQuery<OrganizationPreferences>({
     queryKey: ['orgPreferences'],
     queryFn: async () => {
       const response = await api.get('/settings/organization');
-      const data = response.data;
-      setMonthlyStartDay(data.monthly_start_day || 1);
-      return data;
+      return response.data;
     },
     enabled: user?.is_org_admin === true,
   });
+
+  // Sync monthlyStartDay when org preferences load or change
+  useEffect(() => {
+    if (orgPrefs) {
+      setMonthlyStartDay(orgPrefs.monthly_start_day || 1);
+    }
+  }, [orgPrefs]);
 
   // Update org preferences mutation
   const updateOrgMutation = useMutation({
@@ -224,7 +237,7 @@ export const HouseholdSettingsPage: React.FC = () => {
     onError: (error: any) => {
       toast({
         title: 'Failed to update preferences',
-        description: error.response?.data?.detail || 'An error occurred',
+        description: getErrorMessage(error),
         status: 'error',
         duration: 5000,
       });
@@ -252,7 +265,7 @@ export const HouseholdSettingsPage: React.FC = () => {
     onError: (error: any) => {
       toast({
         title: 'Failed to cancel invitation',
-        description: error.response?.data?.detail || 'An error occurred',
+        description: getErrorMessage(error),
         status: 'error',
         duration: 5000,
       });
@@ -282,7 +295,7 @@ export const HouseholdSettingsPage: React.FC = () => {
       onLeaveClose();
       toast({
         title: 'Failed to leave household',
-        description: error.response?.data?.detail || 'An error occurred',
+        description: getErrorMessage(error),
         status: 'error',
         duration: 5000,
       });

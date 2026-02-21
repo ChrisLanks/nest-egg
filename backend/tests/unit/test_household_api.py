@@ -101,14 +101,19 @@ class TestInviteMember:
         existing_user_result = Mock()
         existing_user_result.scalar_one_or_none.return_value = None
 
-        # Mock pending invitation check (not found)
-        invitation_result = Mock()
-        invitation_result.scalar_one_or_none.return_value = None
+        # Mock bulk delete result (always executed, even when 0 rows deleted)
+        delete_result = Mock()
+        # Mock org name query
+        org_mock = Mock()
+        org_mock.name = "Test Household"
+        org_result = Mock()
+        org_result.scalar_one_or_none.return_value = org_mock
 
         mock_db.execute.side_effect = [
             member_result,
             existing_user_result,
-            invitation_result,
+            delete_result,
+            org_result,
         ]
 
         with patch(
@@ -116,7 +121,8 @@ class TestInviteMember:
             return_value=None,
         ):
             with patch("app.api.v1.household.secrets.token_urlsafe", return_value="test-token"):
-                result = await invite_member(
+                with patch("app.api.v1.household.email_service.send_invitation_email", new=AsyncMock(return_value=False)):
+                    result = await invite_member(
                     request_data=request_data,
                     http_request=mock_request,
                     current_user=mock_user,
@@ -190,13 +196,13 @@ class TestInviteMember:
             assert "already a member" in exc_info.value.detail
 
     @pytest.mark.asyncio
-    async def test_rejects_pending_invitation(
+    async def test_replaces_existing_pending_invitation(
         self, mock_db, mock_user, mock_request
     ):
-        """Should reject when invitation already pending."""
+        """Should delete existing pending invitation and create a fresh one (no error)."""
         request_data = InviteMemberRequest(email="pending@example.com")
 
-        # Mock household size check - returns count via scalar_one()
+        # Mock household size check
         member_result = Mock()
         member_result.scalar_one.return_value = 1
 
@@ -204,31 +210,42 @@ class TestInviteMember:
         existing_user_result = Mock()
         existing_user_result.scalar_one_or_none.return_value = None
 
-        # Mock pending invitation check (found)
-        invitation = Mock(spec=HouseholdInvitation)
-        invitation_result = Mock()
-        invitation_result.scalar_one_or_none.return_value = invitation
+        # Mock bulk DELETE result (always executed)
+        delete_result = Mock()
+
+        # Mock org name query
+        org_mock = Mock()
+        org_mock.name = "Test Household"
+        org_result = Mock()
+        org_result.scalar_one_or_none.return_value = org_mock
 
         mock_db.execute.side_effect = [
             member_result,
             existing_user_result,
-            invitation_result,
+            delete_result,
+            org_result,
         ]
 
         with patch(
             "app.api.v1.household.rate_limit_service.check_rate_limit",
             return_value=None,
         ):
-            with pytest.raises(HTTPException) as exc_info:
-                await invite_member(
-                    request_data=request_data,
-                    http_request=mock_request,
-                    current_user=mock_user,
-                    db=mock_db,
-                )
+            with patch("app.api.v1.household.secrets.token_urlsafe", return_value="new-token"):
+                with patch("app.api.v1.household.email_service.send_invitation_email", new=AsyncMock(return_value=False)):
+                    result = await invite_member(
+                        request_data=request_data,
+                        http_request=mock_request,
+                        current_user=mock_user,
+                        db=mock_db,
+                    )
 
-            assert exc_info.value.status_code == 400
-            assert "already pending" in exc_info.value.detail
+        # Should succeed and return the new invitation
+        assert result["email"] == "pending@example.com"
+        assert result["invitation_code"] == "new-token"
+        # Bulk delete was executed (4 total: count, user check, delete, org)
+        assert mock_db.execute.call_count == 4
+        assert mock_db.add.called
+        assert mock_db.commit.called
 
 
     @pytest.mark.asyncio
@@ -247,19 +264,24 @@ class TestInviteMember:
         existing_user_result = Mock()
         existing_user_result.scalar_one_or_none.return_value = None
 
-        invitation_result = Mock()
-        invitation_result.scalar_one_or_none.return_value = None
+        delete_result = Mock()
 
-        mock_db.execute.side_effect = [count_result, existing_user_result, invitation_result]
+        org_mock = Mock()
+        org_mock.name = "Test Household"
+        org_result = Mock()
+        org_result.scalar_one_or_none.return_value = org_mock
+
+        mock_db.execute.side_effect = [count_result, existing_user_result, delete_result, org_result]
 
         with patch("app.api.v1.household.rate_limit_service.check_rate_limit", return_value=None):
             with patch("app.api.v1.household.secrets.token_urlsafe", return_value="tok"):
-                result = await invite_member(
-                    request_data=request_data,
-                    http_request=mock_request,
-                    current_user=mock_user,
-                    db=mock_db,
-                )
+                with patch("app.api.v1.household.email_service.send_invitation_email", new=AsyncMock(return_value=False)):
+                    result = await invite_member(
+                        request_data=request_data,
+                        http_request=mock_request,
+                        current_user=mock_user,
+                        db=mock_db,
+                    )
 
         # If scalar_one() was called, the result["email"] will be set correctly
         assert result["email"] == "newmember@example.com"
@@ -279,19 +301,24 @@ class TestInviteMember:
         existing_user_result = Mock()
         existing_user_result.scalar_one_or_none.return_value = None
 
-        invitation_result = Mock()
-        invitation_result.scalar_one_or_none.return_value = None
+        delete_result = Mock()
 
-        mock_db.execute.side_effect = [count_result, existing_user_result, invitation_result]
+        org_mock = Mock()
+        org_mock.name = "Test Household"
+        org_result = Mock()
+        org_result.scalar_one_or_none.return_value = org_mock
+
+        mock_db.execute.side_effect = [count_result, existing_user_result, delete_result, org_result]
 
         with patch("app.api.v1.household.rate_limit_service.check_rate_limit", return_value=None):
             with patch("app.api.v1.household.secrets.token_urlsafe", return_value="tok"):
-                result = await invite_member(
-                    request_data=request_data,
-                    http_request=mock_request,
-                    current_user=mock_user,
-                    db=mock_db,
-                )
+                with patch("app.api.v1.household.email_service.send_invitation_email", new=AsyncMock(return_value=False)):
+                    result = await invite_member(
+                        request_data=request_data,
+                        http_request=mock_request,
+                        current_user=mock_user,
+                        db=mock_db,
+                    )
 
         assert result["email"] == "newmember@example.com"
 
@@ -1100,10 +1127,15 @@ class TestInviteEmail:
         # Member count query returns 1
         count_result = Mock()
         count_result.scalar_one.return_value = 1
-        # No existing user / no existing invitation
+        # No existing user for email check
         no_result = Mock()
         no_result.scalar_one_or_none.return_value = None
-        mock_db.execute = AsyncMock(side_effect=[count_result, no_result, no_result])
+        # Bulk delete result (always executed)
+        delete_result = Mock()
+        # Org name query
+        org_result = Mock()
+        org_result.scalar_one_or_none.return_value = None  # falls back to "your household"
+        mock_db.execute = AsyncMock(side_effect=[count_result, no_result, delete_result, org_result])
         mock_db.add = Mock()
         mock_db.commit = AsyncMock()
         mock_db.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "id", invitation.id) or
@@ -1134,7 +1166,10 @@ class TestInviteEmail:
         count_result.scalar_one.return_value = 1
         no_result = Mock()
         no_result.scalar_one_or_none.return_value = None
-        mock_db.execute = AsyncMock(side_effect=[count_result, no_result, no_result])
+        delete_result = Mock()
+        org_result = Mock()
+        org_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(side_effect=[count_result, no_result, delete_result, org_result])
         mock_db.add = Mock()
         mock_db.commit = AsyncMock()
         mock_db.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "id", invitation.id) or
@@ -1164,7 +1199,10 @@ class TestInviteEmail:
         count_result.scalar_one.return_value = 1
         no_result = Mock()
         no_result.scalar_one_or_none.return_value = None
-        mock_db.execute = AsyncMock(side_effect=[count_result, no_result, no_result])
+        delete_result = Mock()
+        org_result = Mock()
+        org_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(side_effect=[count_result, no_result, delete_result, org_result])
         mock_db.add = Mock()
         mock_db.commit = AsyncMock()
         mock_db.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "id", invitation.id) or
