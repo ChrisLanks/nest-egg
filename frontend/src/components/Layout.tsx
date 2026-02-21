@@ -41,6 +41,7 @@ import { AddAccountModal } from "../features/accounts/components/AddAccountModal
 import NotificationBell from "../features/notifications/components/NotificationBell";
 import { UserViewToggle } from "./UserViewToggle";
 import { useUserView } from "../contexts/UserViewContext";
+import { EmailVerificationBanner } from "./EmailVerificationBanner";
 
 interface Account {
   id: string;
@@ -703,6 +704,9 @@ export const Layout = () => {
 
   return (
     <Flex h="100vh" flexDirection="column" overflow="hidden">
+      {/* Email verification banner — shown when user's email is not yet verified */}
+      <EmailVerificationBanner />
+
       {/* Top Header */}
       <Box
         bg="white"

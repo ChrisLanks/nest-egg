@@ -5,7 +5,8 @@ import logging
 import secrets
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -19,7 +20,7 @@ from app.core.security import (
 )
 from app.crud.user import organization_crud, refresh_token_crud, user_crud
 from app.dependencies import get_current_user
-from app.models.user import User
+from app.models.user import User, EmailVerificationToken
 from app.schemas.auth import (
     AccessTokenResponse,
     LoginRequest,
@@ -30,6 +31,7 @@ from app.schemas.auth import (
 from app.schemas.user import User as UserSchema
 from app.services.rate_limit_service import get_rate_limit_service
 from app.services.password_validation_service import password_validation_service
+from app.services.email_service import email_service, create_verification_token, hash_token
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import redact_email
 
@@ -140,6 +142,17 @@ async def register(
 
     # Update last login
     await user_crud.update_last_login(db, user.id)
+
+    # Send email verification (non-blocking — failure doesn't prevent registration)
+    try:
+        raw_token = await create_verification_token(db, user.id)
+        await email_service.send_verification_email(
+            to_email=user.email,
+            token=raw_token,
+            display_name=user.display_name or user.first_name or user.email,
+        )
+    except Exception:
+        logger.warning("Failed to create/send verification token after registration", exc_info=True)
 
     # Generate tokens and create response
     return await create_auth_response(db, user)
@@ -278,7 +291,6 @@ async def _maybe_refresh_prices_on_login(organization_id) -> None:
     up-to-date prices on their next portfolio load without waiting.
     Silently swallows errors so it never affects the login response.
     """
-    import uuid
     from datetime import datetime, timezone, timedelta
     from sqlalchemy import select
     from app.core.database import async_session_factory
@@ -448,6 +460,75 @@ async def refresh_access_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate token",
         )
+
+
+@router.get("/verify-email")
+async def verify_email(
+    request: Request,
+    token: str = Query(..., description="Email verification token from the link"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Verify a user's email address using the token sent to their inbox.
+    Rate limited to 10 attempts per minute to prevent brute-forcing tokens.
+    """
+    await rate_limit_service.check_rate_limit(request=request, max_requests=10, window_seconds=60)
+
+    token_hash = hash_token(token)
+    result = await db.execute(
+        select(EmailVerificationToken).where(
+            EmailVerificationToken.token_hash == token_hash
+        )
+    )
+    record = result.scalar_one_or_none()
+
+    if not record or not record.is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification link. Please request a new one.",
+        )
+
+    # Mark token as used and verify the user's email
+    record.used_at = utc_now()
+    user = await user_crud.get_by_id(db, record.user_id)
+    if user:
+        user.email_verified = True
+    await db.commit()
+
+    logger.info("Email verified for user %s", record.user_id)
+    return {"message": "Email verified successfully"}
+
+
+@router.post("/resend-verification")
+async def resend_verification(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Resend an email verification link to the currently authenticated user.
+    Rate limited to 3 requests per hour per user to prevent abuse.
+    """
+    await rate_limit_service.check_rate_limit(request=request, max_requests=3, window_seconds=3600)
+
+    if current_user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email is already verified",
+        )
+
+    raw_token = await create_verification_token(db, current_user.id)
+    await email_service.send_verification_email(
+        to_email=current_user.email,
+        token=raw_token,
+        display_name=current_user.display_name or current_user.first_name or current_user.email,
+    )
+
+    response: dict = {"message": "Verification email sent"}
+    # In development, return the raw token so devs can test without a real SMTP server
+    if settings.ENVIRONMENT == "development":
+        response["token"] = raw_token
+    return response
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

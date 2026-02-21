@@ -1055,3 +1055,131 @@ class TestAcceptInvitation:
 
             assert exc_info.value.status_code == 400
             assert "not the only member" in exc_info.value.detail
+
+
+# ---------------------------------------------------------------------------
+# Invite email + join_url
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestInviteEmail:
+    """Household invite should send an email and always include join_url."""
+
+    def _make_admin(self):
+        org = Mock()
+        org.name = "Smith Family"
+
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        user.email = "admin@example.com"
+        user.display_name = "Admin"
+        user.organization = org
+        return user
+
+    def _make_invitation(self, admin):
+        import secrets
+        inv = Mock(spec=HouseholdInvitation)
+        inv.id = uuid4()
+        inv.email = "invite@example.com"
+        inv.invitation_code = secrets.token_urlsafe(32)
+        inv.status = InvitationStatus.PENDING
+        inv.expires_at = datetime.utcnow() + timedelta(days=7)
+        inv.created_at = datetime.utcnow()
+        return inv
+
+    @pytest.mark.asyncio
+    async def test_invite_response_includes_join_url(self):
+        """InvitationResponse must always contain join_url."""
+        admin = self._make_admin()
+        invitation = self._make_invitation(admin)
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+
+        # Member count query returns 1
+        count_result = Mock()
+        count_result.scalar_one.return_value = 1
+        # No existing user / no existing invitation
+        no_result = Mock()
+        no_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(side_effect=[count_result, no_result, no_result])
+        mock_db.add = Mock()
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "id", invitation.id) or
+                                     setattr(obj, "invitation_code", invitation.invitation_code) or
+                                     setattr(obj, "status", invitation.status) or
+                                     setattr(obj, "expires_at", invitation.expires_at) or
+                                     setattr(obj, "created_at", invitation.created_at) or
+                                     setattr(obj, "email", invitation.email))
+
+        with patch("app.api.v1.household.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.household.email_service.send_invitation_email", new=AsyncMock(return_value=False)):
+                request_data = InviteMemberRequest(email="invite@example.com")
+                result = await invite_member(request_data, mock_request, current_user=admin, db=mock_db)
+
+        assert "join_url" in result
+        assert "accept-invite?code=" in result["join_url"]
+
+    @pytest.mark.asyncio
+    async def test_invite_sends_email_when_configured(self):
+        """When email service is configured, send_invitation_email should be called."""
+        admin = self._make_admin()
+        invitation = self._make_invitation(admin)
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+
+        count_result = Mock()
+        count_result.scalar_one.return_value = 1
+        no_result = Mock()
+        no_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(side_effect=[count_result, no_result, no_result])
+        mock_db.add = Mock()
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "id", invitation.id) or
+                                     setattr(obj, "invitation_code", invitation.invitation_code) or
+                                     setattr(obj, "status", invitation.status) or
+                                     setattr(obj, "expires_at", invitation.expires_at) or
+                                     setattr(obj, "created_at", invitation.created_at) or
+                                     setattr(obj, "email", invitation.email))
+
+        with patch("app.api.v1.household.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.household.email_service.send_invitation_email", new=AsyncMock(return_value=True)) as mock_send:
+                request_data = InviteMemberRequest(email="invite@example.com")
+                await invite_member(request_data, mock_request, current_user=admin, db=mock_db)
+
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_invite_skips_email_when_not_configured(self):
+        """When email service is not configured, invite still returns 201 (join_url present)."""
+        admin = self._make_admin()
+        invitation = self._make_invitation(admin)
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+
+        count_result = Mock()
+        count_result.scalar_one.return_value = 1
+        no_result = Mock()
+        no_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(side_effect=[count_result, no_result, no_result])
+        mock_db.add = Mock()
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "id", invitation.id) or
+                                     setattr(obj, "invitation_code", invitation.invitation_code) or
+                                     setattr(obj, "status", invitation.status) or
+                                     setattr(obj, "expires_at", invitation.expires_at) or
+                                     setattr(obj, "created_at", invitation.created_at) or
+                                     setattr(obj, "email", invitation.email))
+
+        # Email service returns False (not configured)
+        with patch("app.api.v1.household.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.household.email_service.send_invitation_email", new=AsyncMock(return_value=False)):
+                request_data = InviteMemberRequest(email="invite@example.com")
+                result = await invite_member(request_data, mock_request, current_user=admin, db=mock_db)
+
+        # Should still return a valid response dict with join_url
+        assert result is not None
+        assert "join_url" in result

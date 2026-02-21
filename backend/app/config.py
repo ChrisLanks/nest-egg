@@ -121,6 +121,18 @@ class Settings(BaseSettings):
     LOG_FORMAT: str = "text"  # 'text' or 'json' (json for production)
     ENVIRONMENT: str = "development"  # development, staging, production
 
+    # Email (SMTP) — all optional; emails are silently skipped when SMTP_HOST is unset.
+    # Works with any SMTP provider: Gmail, AWS SES, SendGrid, Mailgun, etc.
+    # Example: SMTP_HOST=smtp.gmail.com SMTP_PORT=587 SMTP_USE_TLS=true
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM_EMAIL: str = "noreply@nestegg.app"
+    SMTP_FROM_NAME: str = "Nest Egg"
+    SMTP_USE_TLS: bool = True  # Use STARTTLS (port 587). Set False for SSL on port 465.
+    APP_BASE_URL: str = "http://localhost:5173"  # Used to build clickable links in emails
+
     # Prometheus Metrics
     METRICS_ENABLED: bool = True
     METRICS_INCLUDE_IN_SCHEMA: bool = False  # Hide from Swagger docs

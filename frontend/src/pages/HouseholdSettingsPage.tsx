@@ -51,11 +51,16 @@ import {
   Th,
   Td,
 } from '@chakra-ui/react';
-import { EmailIcon, DeleteIcon } from '@chakra-ui/icons';
+import { EmailIcon, DeleteIcon, CopyIcon, CheckIcon } from '@chakra-ui/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../features/auth/stores/authStore';
+
+/** Short human-readable hint about whether an email was sent. */
+const email_configured_hint = (inv: Invitation) =>
+  `Invitation created. ${inv.join_url ? 'Share the join link if the invitee doesn\'t receive an email.' : ''}`;
+
 
 interface HouseholdMember {
   id: string;
@@ -76,6 +81,7 @@ interface Invitation {
   expires_at: string;
   created_at: string;
   invited_by_email: string;
+  join_url: string;
 }
 
 interface OrganizationPreferences {
@@ -85,8 +91,25 @@ interface OrganizationPreferences {
   timezone: string;
 }
 
+/** Small copy-to-clipboard button for an invitation join URL. */
+const CopyLinkButton: React.FC<{ url: string }> = ({ url }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <Button size="xs" variant="ghost" colorScheme="blue" leftIcon={copied ? <CheckIcon /> : <CopyIcon />} onClick={handleCopy}>
+      {copied ? 'Copied!' : 'Copy link'}
+    </Button>
+  );
+};
+
 export const HouseholdSettingsPage: React.FC = () => {
   const toast = useToast();
+  const [lastJoinUrl, setLastJoinUrl] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [inviteEmail, setInviteEmail] = useState('');
@@ -116,14 +139,15 @@ export const HouseholdSettingsPage: React.FC = () => {
   const inviteMutation = useMutation({
     mutationFn: async (email: string) => {
       const response = await api.post('/household/invite', { email });
-      return response.data;
+      return response.data as Invitation;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      setLastJoinUrl(data.join_url);
       toast({
         title: 'Invitation sent',
-        description: 'The invitation has been sent successfully.',
+        description: email_configured_hint(data),
         status: 'success',
-        duration: 3000,
+        duration: 5000,
       });
       queryClient.invalidateQueries({ queryKey: ['household-invitations'] });
       setInviteEmail('');
@@ -401,18 +425,21 @@ export const HouseholdSettingsPage: React.FC = () => {
                           {formatDate(invitation.expires_at)}
                         </Td>
                         <Td textAlign="right">
-                          <Button
-                            size="xs"
-                            colorScheme="red"
-                            variant="ghost"
-                            onClick={() => {
-                              if (window.confirm(`Cancel invitation to ${invitation.email}?`)) {
-                                cancelInvitationMutation.mutate(invitation.id);
-                              }
-                            }}
-                          >
-                            Cancel
-                          </Button>
+                          <HStack spacing={1} justify="flex-end">
+                            <CopyLinkButton url={invitation.join_url} />
+                            <Button
+                              size="xs"
+                              colorScheme="red"
+                              variant="ghost"
+                              onClick={() => {
+                                if (window.confirm(`Cancel invitation to ${invitation.email}?`)) {
+                                  cancelInvitationMutation.mutate(invitation.id);
+                                }
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </HStack>
                         </Td>
                       </Tr>
                     ))}
@@ -489,8 +516,9 @@ export const HouseholdSettingsPage: React.FC = () => {
               <Alert status="info" borderRadius="md">
                 <AlertIcon />
                 <Text fontSize="sm">
-                  The invited member will receive an email with an invitation link.
-                  They'll have 7 days to accept the invitation.
+                  An invitation email will be sent if email is configured.
+                  You can also copy the join link from the pending invitations table
+                  and share it directly. Invitations expire after 7 days.
                 </Text>
               </Alert>
             </VStack>

@@ -21,6 +21,7 @@ from app.models.holding import Holding
 from app.models.transaction import Transaction
 from app.models.user import User, Organization
 from app.schemas.user import UserUpdate, OrganizationUpdate
+from app.services.email_service import email_service, create_verification_token
 from app.services.password_validation_service import password_validation_service
 from app.services.rate_limit_service import get_rate_limit_service
 
@@ -129,7 +130,8 @@ async def update_user_profile(
     elif any(f is not None for f in birthday_fields):
         raise HTTPException(status_code=400, detail="birth_day, birth_month, and birth_year must all be provided together")
 
-    # Email update requires additional verification (not implemented here)
+    # Email update — track whether it changed so we can send verification afterwards
+    email_changed = False
     if update_data.email is not None and update_data.email != current_user.email:
         # Check if email is already taken
         result = await db.execute(select(User).where(User.email == update_data.email))
@@ -138,9 +140,22 @@ async def update_user_profile(
             raise HTTPException(status_code=400, detail="Email already in use")
         current_user.email = update_data.email
         current_user.email_verified = False  # Require re-verification
+        email_changed = True
 
     await db.commit()
     await db.refresh(current_user)
+
+    # If email was changed, send a verification email to the new address
+    if email_changed:
+        try:
+            raw_token = await create_verification_token(db, current_user.id)
+            await email_service.send_verification_email(
+                to_email=current_user.email,
+                token=raw_token,
+                display_name=current_user.display_name or current_user.first_name or current_user.email,
+            )
+        except Exception:
+            pass  # Never fail a profile update because of email sending
 
     return UserProfileResponse(
         id=current_user.id,

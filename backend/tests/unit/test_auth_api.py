@@ -1449,3 +1449,168 @@ class TestDebugCheckRefreshTokenEndpoint:
 
                     assert result["decode_success"] is True
                     assert result["in_database"] is False
+
+
+# ---------------------------------------------------------------------------
+# Email verification endpoints
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestEmailVerification:
+    """Tests for GET /auth/verify-email and POST /auth/resend-verification."""
+
+    @pytest.mark.asyncio
+    async def test_verify_email_marks_user_verified(self):
+        """Valid token → sets user.email_verified = True and marks token used."""
+        from app.api.v1.auth import verify_email
+        from app.models.user import EmailVerificationToken
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.email_verified = False
+
+        mock_token = Mock(spec=EmailVerificationToken)
+        mock_token.is_valid = True
+        mock_token.user_id = mock_user.id
+        mock_token.used_at = None
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_token
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.hash_token", return_value="hashed"):
+                with patch("app.api.v1.auth.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)):
+                    result = await verify_email(mock_request, token="raw_token", db=mock_db)
+
+        assert result["message"] == "Email verified successfully"
+        assert mock_user.email_verified is True
+        assert mock_token.used_at is not None
+
+    @pytest.mark.asyncio
+    async def test_verify_email_invalid_token_returns_400(self):
+        """Unknown token → 400."""
+        from app.api.v1.auth import verify_email
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.hash_token", return_value="hashed"):
+                with pytest.raises(HTTPException) as exc_info:
+                    await verify_email(mock_request, token="bad_token", db=mock_db)
+
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_verify_email_expired_token_returns_400(self):
+        """Expired token → 400 (is_valid returns False)."""
+        from app.api.v1.auth import verify_email
+        from app.models.user import EmailVerificationToken
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+
+        mock_token = Mock(spec=EmailVerificationToken)
+        mock_token.is_valid = False  # expired or already used
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_token
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.hash_token", return_value="hashed"):
+                with pytest.raises(HTTPException) as exc_info:
+                    await verify_email(mock_request, token="expired_token", db=mock_db)
+
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_resend_verification_sends_email(self):
+        """Unverified user → creates token and calls email service."""
+        from app.api.v1.auth import resend_verification
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.email = "user@example.com"
+        mock_user.display_name = "Alice"
+        mock_user.first_name = "Alice"
+        mock_user.email_verified = False
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.create_verification_token", new=AsyncMock(return_value="raw_tok")) as mock_create:
+                with patch("app.api.v1.auth.email_service.send_verification_email", new=AsyncMock(return_value=True)) as mock_send:
+                    result = await resend_verification(mock_request, current_user=mock_user, db=mock_db)
+
+        assert "message" in result
+        mock_create.assert_called_once_with(mock_db, mock_user.id)
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_resend_verification_already_verified_returns_400(self):
+        """Already-verified user → 400."""
+        from app.api.v1.auth import resend_verification
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+
+        mock_user = Mock(spec=User)
+        mock_user.email_verified = True
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with pytest.raises(HTTPException) as exc_info:
+                await resend_verification(mock_request, current_user=mock_user, db=mock_db)
+
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_register_sends_verification_email(self):
+        """After successful registration, a verification email should be sent."""
+        from app.api.v1.auth import register
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_data = Mock()
+        mock_data.email = "new@example.com"
+        mock_data.password = "SecurePass123!"
+        mock_data.first_name = "Jane"
+        mock_data.last_name = "Doe"
+        mock_data.display_name = "Jane Doe"
+        mock_data.organization_name = "My Household"
+        mock_data.skip_password_validation = True
+        mock_data.birth_day = None
+        mock_data.birth_month = None
+        mock_data.birth_year = None
+
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.email = "new@example.com"
+        mock_user.display_name = "Jane Doe"
+        mock_user.first_name = "Jane"
+
+        mock_org = Mock()
+        mock_org.id = uuid4()
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
+                with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)):
+                    with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)):
+                        with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+                            with patch("app.api.v1.auth.create_verification_token", new=AsyncMock(return_value="tok")) as mock_create_tok:
+                                with patch("app.api.v1.auth.email_service.send_verification_email", new=AsyncMock()) as mock_send:
+                                    with patch("app.api.v1.auth.create_auth_response", new=AsyncMock(return_value=Mock())):
+                                        await register(mock_request, mock_data, mock_db)
+
+        mock_create_tok.assert_called_once()
+        mock_send.assert_called_once()

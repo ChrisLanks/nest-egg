@@ -10,9 +10,11 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.database import get_db
 from app.dependencies import get_current_user, get_current_admin_user
 from app.models.user import User, HouseholdInvitation, InvitationStatus
+from app.services.email_service import email_service
 from app.services.rate_limit_service import get_rate_limit_service
 
 router = APIRouter(prefix="/household", tags=["household"])
@@ -48,6 +50,7 @@ class InvitationResponse(BaseModel):
     expires_at: datetime
     created_at: datetime
     invited_by_email: str
+    join_url: str  # Always returned; share directly if email is not configured
 
     class Config:
         from_attributes = True
@@ -141,8 +144,17 @@ async def invite_member(
     await db.commit()
     await db.refresh(invitation)
 
-    # Add invited_by_email for response
-    invitation_dict = {
+    join_url = f"{settings.APP_BASE_URL}/accept-invite?code={invitation.invitation_code}"
+
+    # Send invitation email (non-blocking; still return 201 if email fails)
+    await email_service.send_invitation_email(
+        to_email=invitation.email,
+        invitation_code=invitation.invitation_code,
+        invited_by=current_user.display_name or current_user.email,
+        org_name=current_user.organization.name if current_user.organization else "your household",
+    )
+
+    return {
         "id": invitation.id,
         "email": invitation.email,
         "invitation_code": invitation.invitation_code,
@@ -150,11 +162,8 @@ async def invite_member(
         "expires_at": invitation.expires_at,
         "created_at": invitation.created_at,
         "invited_by_email": current_user.email,
+        "join_url": join_url,
     }
-
-    # TODO: Send invitation email
-
-    return invitation_dict
 
 
 @router.get("/invitations", response_model=List[InvitationResponse])
@@ -188,6 +197,7 @@ async def list_invitations(
                 "expires_at": inv.expires_at,
                 "created_at": inv.created_at,
                 "invited_by_email": invited_by.email,
+                "join_url": f"{settings.APP_BASE_URL}/accept-invite?code={inv.invitation_code}",
             }
         )
 

@@ -455,3 +455,127 @@ class TestUpdateUserProfile:
 
         assert exc_info.value.status_code == 400
         assert exc_info.value.detail == "Email already in use"
+
+
+# ---------------------------------------------------------------------------
+# Email change → verification flow
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestEmailChangeVerification:
+    """Email change should reset email_verified and trigger a verification email."""
+
+    def _make_user(self):
+        user = Mock()
+        user.id = uuid4()
+        user.email = "old@example.com"
+        user.email_verified = True
+        user.display_name = "Alice"
+        user.first_name = "Alice"
+        user.last_name = "Smith"
+        user.birthdate = None
+        user.dashboard_layout = None
+        user.is_org_admin = False
+        return user
+
+    @pytest.mark.asyncio
+    async def test_email_change_resets_email_verified_to_false(self):
+        """When a user changes their email, email_verified must be set to False."""
+        update = Mock()
+        update.first_name = None
+        update.last_name = None
+        update.display_name = None
+        update.email = "new@example.com"
+        update.birth_day = None
+        update.birth_month = None
+        update.birth_year = None
+
+        user = self._make_user()
+        mock_request = Mock()
+        db = AsyncMock()
+        db.commit = AsyncMock()
+        db.refresh = AsyncMock()
+
+        # No existing user with new email
+        no_user_result = Mock()
+        no_user_result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=no_user_result)
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.settings.create_verification_token", new=AsyncMock(return_value="tok")):
+                with patch("app.api.v1.settings.email_service.send_verification_email", new=AsyncMock()):
+                    await update_user_profile(
+                        update_data=update,
+                        http_request=mock_request,
+                        current_user=user,
+                        db=db,
+                    )
+
+        assert user.email == "new@example.com"
+        assert user.email_verified is False
+
+    @pytest.mark.asyncio
+    async def test_email_change_sends_verification_email(self):
+        """When email changes, send_verification_email should be called."""
+        update = Mock()
+        update.first_name = None
+        update.last_name = None
+        update.display_name = None
+        update.email = "new2@example.com"
+        update.birth_day = None
+        update.birth_month = None
+        update.birth_year = None
+
+        user = self._make_user()
+        mock_request = Mock()
+        db = AsyncMock()
+        db.commit = AsyncMock()
+        db.refresh = AsyncMock()
+
+        no_user_result = Mock()
+        no_user_result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=no_user_result)
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.settings.create_verification_token", new=AsyncMock(return_value="tok")) as mock_create:
+                with patch("app.api.v1.settings.email_service.send_verification_email", new=AsyncMock()) as mock_send:
+                    await update_user_profile(
+                        update_data=update,
+                        http_request=mock_request,
+                        current_user=user,
+                        db=db,
+                    )
+
+        mock_create.assert_called_once()
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_no_verification_email_when_email_unchanged(self):
+        """If email is not changed, no verification email should be sent."""
+        update = Mock()
+        update.first_name = None
+        update.last_name = None
+        update.display_name = "New Name"
+        update.email = None  # not changing email
+        update.birth_day = None
+        update.birth_month = None
+        update.birth_year = None
+
+        user = self._make_user()
+        mock_request = Mock()
+        db = AsyncMock()
+        db.commit = AsyncMock()
+        db.refresh = AsyncMock()
+        db.execute = AsyncMock(return_value=Mock())
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.settings.email_service.send_verification_email", new=AsyncMock()) as mock_send:
+                await update_user_profile(
+                    update_data=update,
+                    http_request=mock_request,
+                    current_user=user,
+                    db=db,
+                )
+
+        mock_send.assert_not_called()
+
