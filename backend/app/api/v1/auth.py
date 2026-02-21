@@ -6,7 +6,9 @@ import secrets
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -20,7 +22,7 @@ from app.core.security import (
 )
 from app.crud.user import organization_crud, refresh_token_crud, user_crud
 from app.dependencies import get_current_user
-from app.models.user import User, EmailVerificationToken
+from app.models.user import User, EmailVerificationToken, PasswordResetToken
 from app.schemas.auth import (
     AccessTokenResponse,
     LoginRequest,
@@ -31,7 +33,12 @@ from app.schemas.auth import (
 from app.schemas.user import User as UserSchema
 from app.services.rate_limit_service import get_rate_limit_service
 from app.services.password_validation_service import password_validation_service
-from app.services.email_service import email_service, create_verification_token, hash_token
+from app.services.email_service import (
+    email_service,
+    create_verification_token,
+    create_password_reset_token,
+    hash_token,
+)
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import redact_email
 
@@ -529,6 +536,94 @@ async def resend_verification(
     if settings.ENVIRONMENT == "development":
         response["token"] = raw_token
     return response
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    data: ForgotPasswordRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Request a password reset email.
+
+    Always returns 200 regardless of whether the email is registered — this
+    prevents user enumeration. Rate limited to 5 requests per hour per IP.
+    In development mode, the raw token is included in the response for testing
+    without a real SMTP server.
+    """
+    await rate_limit_service.check_rate_limit(request=request, max_requests=5, window_seconds=3600)
+
+    result = await db.execute(
+        select(User).where(User.email == data.email, User.is_active.is_(True))
+    )
+    user = result.scalar_one_or_none()
+
+    response: dict = {
+        "message": "If that email is registered, a password reset link has been sent."
+    }
+
+    if user:
+        raw_token = await create_password_reset_token(db, user.id)
+        await email_service.send_password_reset_email(
+            to_email=user.email,
+            token=raw_token,
+            display_name=user.display_name or user.first_name or user.email,
+        )
+        logger.info("Password reset requested for %s", redact_email(user.email))
+        # In development, return the raw token so devs can test without SMTP
+        if settings.ENVIRONMENT == "development":
+            response["token"] = raw_token
+
+    return response
+
+
+@router.post("/reset-password")
+async def reset_password(
+    data: ResetPasswordRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Reset a user's password using a token from the forgot-password email.
+
+    Validates the token, updates the password, clears any account lockout,
+    and marks the token as used. Rate limited to 10 requests per 15 minutes per IP.
+    """
+    await rate_limit_service.check_rate_limit(request=request, max_requests=10, window_seconds=900)
+
+    token_hash = hash_token(data.token)
+    result = await db.execute(
+        select(PasswordResetToken)
+        .where(PasswordResetToken.token_hash == token_hash)
+        .options(selectinload(PasswordResetToken.user))
+    )
+    record = result.scalar_one_or_none()
+
+    if not record or not record.is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset link",
+        )
+
+    user = record.user
+    user.password_hash = hash_password(data.new_password)
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    record.used_at = utc_now()
+    await db.commit()
+
+    logger.info("Password reset completed for user %s", user.id)
+    return {"message": "Password reset successfully. You can now log in with your new password."}
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

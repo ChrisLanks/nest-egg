@@ -3,6 +3,8 @@
  */
 
 import {
+  Alert,
+  AlertIcon,
   Box,
   Button,
   Container,
@@ -38,6 +40,7 @@ export const LoginPage = () => {
   const toast = useToast();
   const loginMutation = useLogin();
   const [rememberMe, setRememberMe] = useState(false);
+  const [credentialError, setCredentialError] = useState<string | null>(null);
 
   const {
     register,
@@ -61,47 +64,39 @@ export const LoginPage = () => {
   }, [setValue]);
 
   const onSubmit = async (data: LoginFormData) => {
-    console.log('🔐 Login attempt started', { email: data.email });
+    setCredentialError(null);
 
     try {
-      // Save or clear email based on remember me checkbox
       if (rememberMe) {
         localStorage.setItem('rememberedEmail', data.email);
       } else {
         localStorage.removeItem('rememberedEmail');
       }
 
-      console.log('🔐 Calling login API...');
-      const result = await loginMutation.mutateAsync(data);
-      console.log('✅ Login successful', result);
-
-      toast({
-        title: 'Login successful',
-        status: 'success',
-        duration: 3000,
-      });
+      await loginMutation.mutateAsync(data);
     } catch (error: any) {
       const status = error?.response?.status;
-      // Map HTTP status codes to user-safe messages — never expose raw server detail
-      let errorMessage = 'Invalid email or password';
-      if (status === 423) {
-        errorMessage = 'Account temporarily locked due to too many failed attempts. Please try again later.';
-      } else if (status === 429) {
-        errorMessage = 'Too many login attempts. Please wait a moment and try again.';
-      } else if (status && status >= 500) {
-        errorMessage = 'Something went wrong on our end. Please try again.';
-      }
-      console.error('❌ Login failed:', {
-        status,
-        data: error.response?.data,
-      });
 
-      toast({
-        title: 'Login failed',
-        description: errorMessage,
-        status: 'error',
-        duration: 5000,
-      });
+      if (status === 401) {
+        // Show inline error for wrong credentials — more visible than a toast
+        setCredentialError('Incorrect email or password.');
+      } else if (status === 423) {
+        setCredentialError('Account temporarily locked due to too many failed attempts. Please try again later.');
+      } else if (status === 429) {
+        toast({
+          title: 'Too many attempts',
+          description: 'Please wait a moment and try again.',
+          status: 'warning',
+          duration: 6000,
+        });
+      } else {
+        toast({
+          title: 'Login failed',
+          description: 'Something went wrong on our end. Please try again.',
+          status: 'error',
+          duration: 5000,
+        });
+      }
     }
   };
 
@@ -138,7 +133,17 @@ export const LoginPage = () => {
                 </FormControl>
 
                 <FormControl isInvalid={!!errors.password}>
-                  <FormLabel>Password</FormLabel>
+                  <HStack justify="space-between" mb={1}>
+                    <FormLabel mb={0}>Password</FormLabel>
+                    <ChakraLink
+                      as={Link}
+                      to="/forgot-password"
+                      fontSize="sm"
+                      color="brand.500"
+                    >
+                      Forgot password?
+                    </ChakraLink>
+                  </HStack>
                   <Input
                     type="password"
                     placeholder="Enter your password"
@@ -147,6 +152,13 @@ export const LoginPage = () => {
                   />
                   <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
                 </FormControl>
+
+                {credentialError && (
+                  <Alert status="error" borderRadius="md">
+                    <AlertIcon />
+                    {credentialError}
+                  </Alert>
+                )}
 
                 <HStack justify="space-between">
                   <Checkbox

@@ -214,6 +214,32 @@ class EmailVerificationToken(Base):
         return self.used_at is None and utc_now() < self.expires_at
 
 
+class PasswordResetToken(Base):
+    """Token used to reset a user's password via email link."""
+
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # SHA-256 hex digest of the raw token — never store the raw token
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+
+    user = relationship("User")
+
+    def __repr__(self):
+        return f"<PasswordResetToken user={self.user_id}>"
+
+    @property
+    def is_valid(self) -> bool:
+        """Token is valid if it has not been used and has not expired."""
+        return self.used_at is None and utc_now() < self.expires_at
+
+
 class AccountShare(Base):
     """Account share model for sharing accounts between household members."""
 

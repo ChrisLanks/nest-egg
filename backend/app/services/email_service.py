@@ -66,6 +66,38 @@ async def create_verification_token(db: AsyncSession, user_id: UUID) -> str:
     return raw_token
 
 
+async def create_password_reset_token(db: AsyncSession, user_id: UUID) -> str:
+    """
+    Generate a new password-reset token for *user_id*.
+
+    Any existing unused tokens for the same user are invalidated first so
+    that only the most-recently requested token is valid.  Returns the raw
+    (unhashed) token — the caller must pass it to the email template.
+    Token expires in 1 hour (shorter window than email verification).
+    """
+    from app.models.user import PasswordResetToken  # local import avoids circular dep
+
+    # Invalidate any existing unused tokens for this user
+    await db.execute(
+        update(PasswordResetToken)
+        .where(
+            PasswordResetToken.user_id == user_id,
+            PasswordResetToken.used_at.is_(None),
+        )
+        .values(used_at=utc_now())
+    )
+
+    raw_token = secrets.token_urlsafe(32)
+    token_record = PasswordResetToken(
+        user_id=user_id,
+        token_hash=hash_token(raw_token),
+        expires_at=utc_now() + timedelta(hours=1),
+    )
+    db.add(token_record)
+    await db.commit()
+    return raw_token
+
+
 # ---------------------------------------------------------------------------
 # EmailService
 # ---------------------------------------------------------------------------
@@ -157,6 +189,43 @@ class EmailService:
             f"Hi {greeting},\n\n"
             f"Please verify your email address by visiting:\n{verify_url}\n\n"
             f"This link expires in 24 hours.\n\n"
+            f"If you didn't request this, you can safely ignore it."
+        )
+        return await self.send_email(to_email, subject, html_body, text_body)
+
+    async def send_password_reset_email(self, to_email: str, token: str,
+                                        display_name: str) -> bool:
+        """Send a password-reset link."""
+        reset_url = f"{self._base_url}/reset-password?token={token}"
+        greeting = display_name or to_email
+
+        subject = "Reset your Nest Egg password"
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <h2 style="color: #2D3748;">Reset your password</h2>
+  <p>Hi {greeting},</p>
+  <p>We received a request to reset your Nest Egg password. Click the button below to choose a new one.</p>
+  <p style="margin: 30px 0;">
+    <a href="{reset_url}"
+       style="background-color: #E53E3E; color: white; padding: 12px 24px;
+              text-decoration: none; border-radius: 6px; display: inline-block;">
+      Reset Password
+    </a>
+  </p>
+  <p style="color: #718096; font-size: 14px;">
+    This link expires in <strong>1 hour</strong>. If you didn't request a password reset, you can safely ignore this email — your password will not change.
+  </p>
+  <p style="color: #718096; font-size: 12px;">
+    Or copy and paste this URL: {reset_url}
+  </p>
+</body>
+</html>"""
+        text_body = (
+            f"Hi {greeting},\n\n"
+            f"Reset your Nest Egg password by visiting:\n{reset_url}\n\n"
+            f"This link expires in 1 hour.\n\n"
             f"If you didn't request this, you can safely ignore it."
         )
         return await self.send_email(to_email, subject, html_body, text_body)

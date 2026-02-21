@@ -39,6 +39,8 @@ const DebtPayoffPage = lazy(() => import('./pages/DebtPayoffPage'));
 const HouseholdSettingsPage = lazy(() => import('./pages/HouseholdSettingsPage').then(m => ({ default: m.HouseholdSettingsPage })));
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage').then(m => ({ default: m.AcceptInvitationPage })));
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'));
+const ForgotPasswordPage = lazy(() => import('./features/auth/pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import('./features/auth/pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -61,6 +63,8 @@ function App() {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/accept-invite" element={<AcceptInvitationPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* Protected routes with layout */}
             <Route element={<ProtectedRoute />}>
