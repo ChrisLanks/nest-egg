@@ -393,6 +393,9 @@ export const HouseholdSettingsPage: React.FC = () => {
                               <Text fontWeight="medium">
                                 {getDisplayName(member)}
                               </Text>
+                              {member.id === user?.id && (
+                                <Badge colorScheme="gray">You</Badge>
+                              )}
                               {member.is_primary_household_member && (
                                 <Badge colorScheme="purple">Primary</Badge>
                               )}
@@ -408,7 +411,11 @@ export const HouseholdSettingsPage: React.FC = () => {
                             </Text>
                           </Box>
                         </HStack>
-                        {!member.is_primary_household_member && member.is_org_admin && (
+                        {member.id === user?.id && !member.is_primary_household_member ? (
+                          <Text fontSize="xs" color="gray.400" fontStyle="italic" pr={1}>
+                            Use "Leave Household" below
+                          </Text>
+                        ) : !member.is_primary_household_member && user?.is_org_admin ? (
                           <IconButton
                             aria-label="Remove member"
                             icon={<DeleteIcon />}
@@ -421,7 +428,7 @@ export const HouseholdSettingsPage: React.FC = () => {
                               }
                             }}
                           />
-                        )}
+                        ) : null}
                       </HStack>
                     </CardBody>
                   </Card>
