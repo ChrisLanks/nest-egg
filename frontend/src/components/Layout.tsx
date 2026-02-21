@@ -794,7 +794,7 @@ export const Layout = () => {
       </Box>
 
       {/* View Indicator Banner */}
-      {!isCombinedView && members && (
+      {!isCombinedView && members && members.length > 1 && (
         <Box
           bg={isOtherUserView ? "orange.50" : "blue.50"}
           borderBottomWidth={1}
@@ -856,7 +856,7 @@ export const Layout = () => {
                 >
                   Accounts
                 </Text>
-                {!isCombinedView && members && (
+                {!isCombinedView && members && members.length > 1 && (
                   <HStack spacing={1} mt={1}>
                     <Badge
                       size="sm"

@@ -1183,3 +1183,116 @@ class TestInviteEmail:
         # Should still return a valid response dict with join_url
         assert result is not None
         assert "join_url" in result
+
+
+# ---------------------------------------------------------------------------
+# Leave household
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestLeaveHousehold:
+    """Tests for POST /household/leave."""
+
+    def _make_user(self, *, is_primary: bool = False) -> Mock:
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        user.display_name = "Alice"
+        user.first_name = "Alice"
+        user.email = "alice@example.com"
+        user.is_primary_household_member = is_primary
+        user.is_org_admin = False
+        return user
+
+    @pytest.mark.asyncio
+    async def test_primary_member_cannot_leave(self):
+        """Primary household member gets 400 when trying to leave."""
+        from app.api.v1.household import leave_household
+
+        primary_user = self._make_user(is_primary=True)
+        mock_db = AsyncMock()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await leave_household(current_user=primary_user, db=mock_db)
+
+        assert exc_info.value.status_code == 400
+        assert "primary" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_non_primary_member_can_leave(self):
+        """Non-primary member gets 200 and a success message."""
+        from app.api.v1.household import leave_household
+
+        user = self._make_user(is_primary=False)
+        mock_db = AsyncMock()
+        mock_db.flush = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        mock_accounts_result = Mock()
+        mock_accounts_result.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_accounts_result)
+        mock_db.add = Mock()
+
+        result = await leave_household(current_user=user, db=mock_db)
+
+        assert "message" in result
+        mock_db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_leave_moves_accounts_to_new_org(self):
+        """User's accounts are re-assigned to the new solo org."""
+        from app.api.v1.household import leave_household
+        from app.models.account import Account
+
+        user = self._make_user(is_primary=False)
+        old_org_id = user.organization_id
+
+        mock_account = Mock(spec=Account)
+        mock_account.organization_id = old_org_id
+        mock_account.user_id = user.id
+
+        mock_db = AsyncMock()
+        mock_db.flush = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        mock_accounts_result = Mock()
+        mock_accounts_result.scalars.return_value.all.return_value = [mock_account]
+        mock_db.execute = AsyncMock(return_value=mock_accounts_result)
+
+        captured_org = None
+
+        def capture_add(obj):
+            nonlocal captured_org
+            from app.models.user import Organization
+            if isinstance(obj, Organization):
+                captured_org = obj
+                # Simulate flush giving the org an id
+                obj.id = uuid4()
+
+        mock_db.add = capture_add
+
+        await leave_household(current_user=user, db=mock_db)
+
+        # Account should now point to the new org
+        assert mock_account.organization_id == captured_org.id
+
+    @pytest.mark.asyncio
+    async def test_leave_promotes_user_to_primary_admin(self):
+        """After leaving, user becomes primary member and admin of new solo org."""
+        from app.api.v1.household import leave_household
+
+        user = self._make_user(is_primary=False)
+
+        mock_db = AsyncMock()
+        mock_db.flush = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        mock_accounts_result = Mock()
+        mock_accounts_result.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_accounts_result)
+        mock_db.add = Mock()
+
+        await leave_household(current_user=user, db=mock_db)
+
+        assert user.is_primary_household_member is True
+        assert user.is_org_admin is True
