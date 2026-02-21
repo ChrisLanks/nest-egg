@@ -26,6 +26,12 @@ import {
   ModalCloseButton,
   ModalBody,
   ModalFooter,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
   FormControl,
   FormLabel,
   FormHelperText,
@@ -53,7 +59,7 @@ import {
 } from '@chakra-ui/react';
 import { EmailIcon, DeleteIcon, CopyIcon, CheckIcon } from '@chakra-ui/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../features/auth/stores/authStore';
 
@@ -112,9 +118,11 @@ export const HouseholdSettingsPage: React.FC = () => {
   const [lastJoinUrl, setLastJoinUrl] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { isOpen: isLeaveOpen, onOpen: onLeaveOpen, onClose: onLeaveClose } = useDisclosure();
+  const leaveCancelRef = useRef<HTMLButtonElement>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [emailError, setEmailError] = useState('');
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const [monthlyStartDay, setMonthlyStartDay] = useState(1);
 
   // Fetch household members
@@ -244,6 +252,36 @@ export const HouseholdSettingsPage: React.FC = () => {
     onError: (error: any) => {
       toast({
         title: 'Failed to cancel invitation',
+        description: error.response?.data?.detail || 'An error occurred',
+        status: 'error',
+        duration: 5000,
+      });
+    },
+  });
+
+  // Leave household mutation
+  const leaveMutation = useMutation({
+    mutationFn: async () => {
+      await api.post('/household/leave');
+    },
+    onSuccess: () => {
+      onLeaveClose();
+      toast({
+        title: 'You have left the household',
+        description: 'Signing you out so your session refreshes.',
+        status: 'success',
+        duration: 3000,
+      });
+      // Org context has changed — sign out so the user logs back in with fresh state
+      setTimeout(() => {
+        logout();
+        window.location.href = '/login';
+      }, 1500);
+    },
+    onError: (error: any) => {
+      onLeaveClose();
+      toast({
+        title: 'Failed to leave household',
         description: error.response?.data?.detail || 'An error occurred',
         status: 'error',
         duration: 5000,
@@ -449,6 +487,35 @@ export const HouseholdSettingsPage: React.FC = () => {
             </CardBody>
           </Card>
         )}
+        {/* Leave Household — visible to non-primary members only */}
+        {members && (() => {
+          const currentMember = members.find(m => m.id === user?.id);
+          if (!currentMember || currentMember.is_primary_household_member) return null;
+          return (
+            <Card borderColor="red.200" borderWidth="1px">
+              <CardHeader>
+                <Heading size="md" color="red.600">Leave Household</Heading>
+              </CardHeader>
+              <CardBody>
+                <VStack align="stretch" spacing={4}>
+                  <Text color="gray.600" fontSize="sm">
+                    Leaving will move your accounts to a new solo household. You can rejoin or create
+                    a new household at any time.
+                  </Text>
+                  <Button
+                    colorScheme="red"
+                    variant="outline"
+                    alignSelf="flex-start"
+                    onClick={onLeaveOpen}
+                  >
+                    Leave Household
+                  </Button>
+                </VStack>
+              </CardBody>
+            </Card>
+          );
+        })()}
+
         {/* Organization Preferences */}
         {user?.is_org_admin && (
           <Card>
@@ -491,6 +558,40 @@ export const HouseholdSettingsPage: React.FC = () => {
           </Card>
         )}
       </VStack>
+
+      {/* Leave household confirmation dialog */}
+      <AlertDialog isOpen={isLeaveOpen} leastDestructiveRef={leaveCancelRef} onClose={onLeaveClose}>
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Leave Household?
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              <VStack align="stretch" spacing={3}>
+                <Text>Are you sure you want to leave this household?</Text>
+                <Alert status="warning" borderRadius="md" fontSize="sm">
+                  <AlertIcon />
+                  Your accounts will be moved to a new solo household. You will be signed out
+                  immediately so your session refreshes.
+                </Alert>
+              </VStack>
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={leaveCancelRef} onClick={onLeaveClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                ml={3}
+                onClick={() => leaveMutation.mutate()}
+                isLoading={leaveMutation.isPending}
+              >
+                Leave Household
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
 
       {/* Invite modal */}
       <Modal isOpen={isOpen} onClose={onClose}>

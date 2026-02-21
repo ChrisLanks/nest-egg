@@ -268,6 +268,57 @@ async def cancel_invitation(
     return None
 
 
+@router.post("/leave", status_code=status.HTTP_200_OK)
+async def leave_household(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Leave the current household and move to a new solo household.
+
+    The primary household member cannot leave — they created the household
+    and must remove other members first. All accounts owned by the leaving
+    user are moved to their new solo household.
+    """
+    if current_user.is_primary_household_member:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The primary household member cannot leave. Remove other members first.",
+        )
+
+    from app.models.user import Organization
+    from app.models.account import Account
+
+    # Build a sensible name for their new solo household
+    name_part = (
+        current_user.display_name
+        or current_user.first_name
+        or current_user.email.split("@")[0]
+    )
+    new_org = Organization(name=f"{name_part}'s Household")
+    db.add(new_org)
+    await db.flush()  # resolve new_org.id without committing yet
+
+    # Move accounts that belong to this user
+    result = await db.execute(
+        select(Account).where(
+            Account.organization_id == current_user.organization_id,
+            Account.user_id == current_user.id,
+        )
+    )
+    user_accounts = result.scalars().all()
+    for account in user_accounts:
+        account.organization_id = new_org.id
+
+    # Re-home the user
+    current_user.organization_id = new_org.id
+    current_user.is_primary_household_member = True
+    current_user.is_org_admin = True
+
+    await db.commit()
+    return {"message": "You have left the household. Your accounts have been moved to your new household."}
+
+
 @router.get("/invitation/{invitation_code}")
 async def get_invitation_details(
     invitation_code: str,
