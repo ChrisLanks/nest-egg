@@ -206,6 +206,9 @@ class RecurringDetectionService:
                 existing.next_expected_date = next_expected
                 existing.occurrence_count = len(txns)
                 existing.is_no_longer_found = False  # Re-found — clear the flag
+                # Auto-reactivate if deactivated but transactions are still occurring
+                if not existing.is_active:
+                    existing.is_active = True
                 existing.updated_at = utc_now()
                 patterns.append(existing)
             else:

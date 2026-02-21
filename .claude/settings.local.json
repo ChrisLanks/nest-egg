@@ -55,7 +55,11 @@
       "Bash(./venv/bin/alembic revision:*)",
       "Bash(PGPASSWORD=nestegg_dev_password psql:*)",
       "Bash(PYTHONPATH=/Users/chris/github/ChrisLanks27/nest-egg/backend ./venv/bin/pytest:*)",
-      "Bash(venv/bin/python -m pytest tests/unit/test_forecast_service.py -v)"
+      "Bash(venv/bin/python -m pytest tests/unit/test_forecast_service.py -v)",
+      "Bash(docker compose:*)",
+      "Bash(alembic heads:*)",
+      "Bash(alembic stamp:*)",
+      "Bash(wc:*)"
     ]
   }
 }

@@ -60,7 +60,7 @@ export const SubscriptionsWidget: React.FC = () => {
       <CardBody>
         <HStack justify="space-between" mb={4}>
           <Heading size="md">Subscriptions</Heading>
-          <Link as={RouterLink} to="/subscriptions" fontSize="sm" color="brand.500">
+          <Link as={RouterLink} to="/recurring?tab=subscriptions" fontSize="sm" color="brand.500">
             View all →
           </Link>
         </HStack>

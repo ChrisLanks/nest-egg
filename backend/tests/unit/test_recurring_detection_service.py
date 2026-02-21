@@ -890,6 +890,48 @@ class TestRecurringDetectionService:
         assert found.is_no_longer_found is False
 
     @pytest.mark.asyncio
+    async def test_detect_auto_reactivates_deactivated_pattern(
+        self, db_session, test_user, test_account
+    ):
+        """Should auto-reactivate a deactivated pattern when transactions still occur."""
+        service = RecurringDetectionService()
+
+        base_date = date.today() - timedelta(days=120)
+        for i in range(4):
+            txn = Transaction(
+                organization_id=test_user.organization_id,
+                account_id=test_account.id,
+                date=base_date + timedelta(days=30 * i),
+                amount=Decimal("-12.99"),
+                merchant_name="Deactivated Sub",
+                deduplication_hash=str(uuid4()),
+            )
+            db_session.add(txn)
+
+        # Pre-existing pattern that was deactivated by the user
+        existing = RecurringTransaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            merchant_name="Deactivated Sub",
+            frequency=RecurringFrequency.MONTHLY,
+            average_amount=Decimal("12.99"),
+            confidence_score=Decimal("0.80"),
+            occurrence_count=3,
+            first_occurrence=base_date,
+            is_user_created=False,
+            is_active=False,  # User deactivated it
+        )
+        db_session.add(existing)
+        await db_session.commit()
+
+        # Detection sees transactions still occurring → should reactivate
+        patterns = await service.detect_recurring_patterns(db_session, test_user, min_occurrences=3)
+
+        found = next((p for p in patterns if p.merchant_name == "Deactivated Sub"), None)
+        assert found is not None
+        assert found.is_active is True  # Auto-reactivated
+
+    @pytest.mark.asyncio
     async def test_detect_does_not_mark_manual_bills_as_no_longer_found(
         self, db_session, test_user, test_account
     ):

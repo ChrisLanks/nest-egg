@@ -50,7 +50,7 @@ import {
   useDisclosure,
 } from '@chakra-ui/react';
 import { RepeatIcon, DeleteIcon, EditIcon, AddIcon } from '@chakra-ui/icons';
-import { FiLock, FiRepeat } from 'react-icons/fi';
+import { FiLock, FiRepeat, FiPause, FiPlay } from 'react-icons/fi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { recurringTransactionsApi } from '../api/recurring-transactions';
@@ -165,10 +165,12 @@ export default function RecurringTransactionsPage() {
     queryFn: () => recurringTransactionsApi.getAll(),
   });
 
-  // Filter for subscriptions: monthly/yearly with high confidence (>70%)
+  // Filter for subscriptions: active monthly/yearly with high confidence (>70%)
+  // Matches the /subscriptions API definition — inactive patterns excluded here
   const subscriptions = useMemo(() => {
     return patterns.filter(
       (pattern) =>
+        pattern.is_active &&
         (pattern.frequency === RecurringFrequency.MONTHLY ||
           pattern.frequency === RecurringFrequency.YEARLY) &&
         (pattern.confidence_score ?? 0) >= 0.7
@@ -241,6 +243,28 @@ export default function RecurringTransactionsPage() {
       queryClient.invalidateQueries({ queryKey: ['recurring-transactions'] });
       toast({ title: 'Pattern updated', status: 'success', duration: 2000 });
       onEditClose();
+    },
+    onError: () => {
+      toast({ title: 'Failed to update pattern', status: 'error', duration: 3000 });
+    },
+  });
+
+  // Toggle active/inactive mutation
+  const toggleActiveMutation = useMutation({
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
+      recurringTransactionsApi.update(id, { is_active }),
+    onSuccess: (_, { is_active }) => {
+      queryClient.invalidateQueries({ queryKey: ['recurring-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['subscriptions-widget'] });
+      toast({
+        title: is_active ? 'Pattern reactivated' : 'Pattern deactivated',
+        description: is_active
+          ? 'This pattern will be included in forecasts again.'
+          : 'This pattern is paused and excluded from forecasts.',
+        status: is_active ? 'success' : 'info',
+        duration: 3000,
+      });
     },
     onError: () => {
       toast({ title: 'Failed to update pattern', status: 'error', duration: 3000 });
@@ -337,6 +361,30 @@ export default function RecurringTransactionsPage() {
           variant="ghost"
           colorScheme={!canEdit ? 'gray' : 'blue'}
           onClick={() => openEdit(pattern)}
+          isDisabled={!canEdit}
+        />
+      </Tooltip>
+      <Tooltip
+        label={
+          !canEdit
+            ? 'Read-only'
+            : pattern.is_active
+            ? 'Deactivate (excludes from forecasts; auto-reactivates if transactions resume)'
+            : 'Reactivate (include in forecasts again)'
+        }
+        placement="top"
+        isDisabled={false}
+      >
+        <IconButton
+          aria-label={pattern.is_active ? 'Deactivate' : 'Reactivate'}
+          icon={pattern.is_active ? <FiPause /> : <FiPlay />}
+          size="sm"
+          variant="ghost"
+          colorScheme={!canEdit ? 'gray' : pattern.is_active ? 'orange' : 'green'}
+          onClick={() =>
+            toggleActiveMutation.mutate({ id: pattern.id, is_active: !pattern.is_active })
+          }
+          isLoading={toggleActiveMutation.isPending}
           isDisabled={!canEdit}
         />
       </Tooltip>
@@ -493,7 +541,7 @@ export default function RecurringTransactionsPage() {
           <Tabs index={tabIndex} onChange={setTabIndex} colorScheme="brand">
             <TabList>
               <Tab>All Recurring ({patterns.length})</Tab>
-              <Tab>Subscriptions ({subscriptions.length})</Tab>
+              <Tab>Active Subscriptions ({subscriptions.length})</Tab>
             </TabList>
 
             <TabPanels>
@@ -518,7 +566,11 @@ export default function RecurringTransactionsPage() {
                           </Thead>
                           <Tbody>
                             {patterns.map((pattern) => (
-                              <Tr key={pattern.id}>
+                              <Tr
+                                key={pattern.id}
+                                opacity={pattern.is_active ? 1 : 0.5}
+                                bg={pattern.is_active ? undefined : 'gray.50'}
+                              >
                                 <Td fontWeight="medium">{pattern.merchant_name}</Td>
                                 <Td>
                                   <Badge colorScheme="blue">
@@ -548,9 +600,14 @@ export default function RecurringTransactionsPage() {
                                   )}
                                 </Td>
                                 <Td>
-                                  <Badge colorScheme={pattern.is_user_created ? 'purple' : 'gray'}>
-                                    {pattern.is_user_created ? 'Manual' : 'Auto'}
-                                  </Badge>
+                                  <HStack spacing={1}>
+                                    <Badge colorScheme={pattern.is_user_created ? 'purple' : 'gray'}>
+                                      {pattern.is_user_created ? 'Manual' : 'Auto'}
+                                    </Badge>
+                                    {!pattern.is_active && (
+                                      <Badge colorScheme="orange">Inactive</Badge>
+                                    )}
+                                  </HStack>
                                 </Td>
                                 <Td>{actionButtons(pattern)}</Td>
                               </Tr>
@@ -563,10 +620,11 @@ export default function RecurringTransactionsPage() {
 
                   <Box p={4} bg="blue.50" borderRadius="md">
                     <Text fontSize="sm" color="gray.700">
-                      💡 <strong>Tip:</strong> These patterns are auto-detected based on your transaction
-                      history. High confidence patterns are more reliable. Click the edit icon to correct
-                      the name, amount, or frequency. Use <strong>Add Recurring</strong> to manually add
-                      a pattern that hasn't been auto-detected.
+                      💡 <strong>Tip:</strong> Patterns are auto-detected from your transaction history.
+                      Use <strong>Add Recurring</strong> to add one manually. Click{' '}
+                      <strong>pause</strong> to deactivate a pattern — it will be excluded from cash flow
+                      forecasts and the Subscriptions tab. If transactions for a deactivated pattern are
+                      detected again, it will be <strong>automatically reactivated</strong>.
                     </Text>
                   </Box>
                 </VStack>
