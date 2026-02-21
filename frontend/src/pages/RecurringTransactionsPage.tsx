@@ -49,14 +49,16 @@ import {
   Switch,
   useDisclosure,
 } from '@chakra-ui/react';
-import { RepeatIcon, DeleteIcon, EditIcon } from '@chakra-ui/icons';
+import { RepeatIcon, DeleteIcon, EditIcon, AddIcon } from '@chakra-ui/icons';
 import { FiLock, FiRepeat } from 'react-icons/fi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { recurringTransactionsApi } from '../api/recurring-transactions';
-import { RecurringFrequency, type RecurringTransaction } from '../types/recurring-transaction';
+import { RecurringFrequency, type RecurringTransaction, type RecurringTransactionCreate } from '../types/recurring-transaction';
 import { useUserView } from '../contexts/UserViewContext';
 import { EmptyState } from '../components/EmptyState';
+import { accountsApi } from '../api/accounts';
+import api from '../services/api';
 
 export default function RecurringTransactionsPage() {
   const toast = useToast();
@@ -64,7 +66,7 @@ export default function RecurringTransactionsPage() {
   const { canEdit, isOtherUserView } = useUserView();
   const [tabIndex, setTabIndex] = useState(0);
 
-  // Edit modal state
+  // Edit modal
   const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
   const [editingPattern, setEditingPattern] = useState<RecurringTransaction | null>(null);
   const [editForm, setEditForm] = useState({
@@ -74,6 +76,88 @@ export default function RecurringTransactionsPage() {
     is_bill: false,
     reminder_days_before: 3,
   });
+
+  // Add modal
+  const { isOpen: isAddOpen, onOpen: onAddOpen, onClose: onAddClose } = useDisclosure();
+  const [addForm, setAddForm] = useState({
+    merchant_name: '',
+    account_id: '',
+    frequency: RecurringFrequency.MONTHLY,
+    average_amount: '',
+    is_bill: false,
+    reminder_days_before: 3,
+  });
+
+  // Merchant autocomplete state — edit modal
+  const [editMerchantQuery, setEditMerchantQuery] = useState('');
+  const [editShowSuggestions, setEditShowSuggestions] = useState(false);
+  const editMerchantInputRef = useRef<HTMLInputElement>(null);
+  const editSuggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Merchant autocomplete state — add modal
+  const [addMerchantQuery, setAddMerchantQuery] = useState('');
+  const [addShowSuggestions, setAddShowSuggestions] = useState(false);
+  const addMerchantInputRef = useRef<HTMLInputElement>(null);
+  const addSuggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Fetch merchants for autocomplete
+  const { data: allMerchants = [] } = useQuery({
+    queryKey: ['transaction-merchants'],
+    queryFn: () => api.get<string[]>('/transactions/merchants').then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch accounts for the create modal account selector
+  const { data: accounts = [] } = useQuery({
+    queryKey: ['accounts'],
+    queryFn: () => accountsApi.getAccounts(),
+  });
+
+  // Filter merchant suggestions — edit modal
+  const editMerchantSuggestions = useMemo(() => {
+    if (!editMerchantQuery.trim()) return [];
+    const q = editMerchantQuery.toLowerCase();
+    return allMerchants.filter((m) => m.toLowerCase().includes(q)).slice(0, 10);
+  }, [editMerchantQuery, allMerchants]);
+
+  // Filter merchant suggestions — add modal
+  const addMerchantSuggestions = useMemo(() => {
+    if (!addMerchantQuery.trim()) return [];
+    const q = addMerchantQuery.toLowerCase();
+    return allMerchants.filter((m) => m.toLowerCase().includes(q)).slice(0, 10);
+  }, [addMerchantQuery, allMerchants]);
+
+  // Close edit modal suggestions on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        editMerchantInputRef.current &&
+        !editMerchantInputRef.current.contains(e.target as Node) &&
+        editSuggestionsRef.current &&
+        !editSuggestionsRef.current.contains(e.target as Node)
+      ) {
+        setEditShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Close add modal suggestions on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        addMerchantInputRef.current &&
+        !addMerchantInputRef.current.contains(e.target as Node) &&
+        addSuggestionsRef.current &&
+        !addSuggestionsRef.current.contains(e.target as Node)
+      ) {
+        setAddShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // Get all recurring patterns
   const { data: patterns = [], isLoading } = useQuery({
@@ -163,6 +247,28 @@ export default function RecurringTransactionsPage() {
     },
   });
 
+  // Create mutation
+  const createMutation = useMutation({
+    mutationFn: (data: RecurringTransactionCreate) => recurringTransactionsApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recurring-transactions'] });
+      toast({ title: 'Recurring transaction added', status: 'success', duration: 2000 });
+      onAddClose();
+      setAddForm({
+        merchant_name: '',
+        account_id: '',
+        frequency: RecurringFrequency.MONTHLY,
+        average_amount: '',
+        is_bill: false,
+        reminder_days_before: 3,
+      });
+      setAddMerchantQuery('');
+    },
+    onError: () => {
+      toast({ title: 'Failed to add recurring transaction', status: 'error', duration: 3000 });
+    },
+  });
+
   const openEdit = (pattern: RecurringTransaction) => {
     setEditingPattern(pattern);
     setEditForm({
@@ -172,12 +278,25 @@ export default function RecurringTransactionsPage() {
       is_bill: pattern.is_bill,
       reminder_days_before: pattern.reminder_days_before,
     });
+    setEditMerchantQuery(pattern.merchant_name);
     onEditOpen();
   };
 
   const handleEditSave = () => {
     if (!editingPattern) return;
     editMutation.mutate({ id: editingPattern.id, updates: editForm });
+  };
+
+  const handleAddSave = () => {
+    if (!addForm.merchant_name.trim() || !addForm.account_id) return;
+    createMutation.mutate({
+      merchant_name: addForm.merchant_name,
+      account_id: addForm.account_id,
+      frequency: addForm.frequency,
+      average_amount: parseFloat(addForm.average_amount) || 0,
+      is_bill: addForm.is_bill,
+      reminder_days_before: addForm.reminder_days_before,
+    });
   };
 
   const formatCurrency = (amount: number) => {
@@ -240,6 +359,50 @@ export default function RecurringTransactionsPage() {
     </HStack>
   );
 
+  // Shared merchant autocomplete dropdown renderer
+  const MerchantSuggestions = ({
+    suggestions,
+    suggestionsRef: ref,
+    onSelect,
+  }: {
+    suggestions: string[];
+    suggestionsRef: React.RefObject<HTMLDivElement>;
+    onSelect: (merchant: string) => void;
+  }) =>
+    suggestions.length > 0 ? (
+      <Box
+        ref={ref}
+        position="absolute"
+        top="100%"
+        left={0}
+        right={0}
+        zIndex={10}
+        bg="white"
+        border="1px solid"
+        borderColor="gray.200"
+        borderRadius="md"
+        boxShadow="md"
+        maxH="200px"
+        overflowY="auto"
+      >
+        {suggestions.map((m) => (
+          <Box
+            key={m}
+            px={3}
+            py={2}
+            cursor="pointer"
+            _hover={{ bg: 'gray.100' }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onSelect(m);
+            }}
+          >
+            {m}
+          </Box>
+        ))}
+      </Box>
+    ) : null;
+
   return (
     <Box p={8}>
       <VStack align="stretch" spacing={6}>
@@ -263,21 +426,38 @@ export default function RecurringTransactionsPage() {
               Auto-detected patterns and subscription charges
             </Text>
           </VStack>
-          <Tooltip
-            label={!canEdit ? "Read-only: You can only detect patterns for your own data" : ""}
-            placement="top"
-            isDisabled={canEdit}
-          >
-            <Button
-              leftIcon={canEdit ? <RepeatIcon /> : <FiLock />}
-              colorScheme="blue"
-              onClick={() => detectMutation.mutate()}
-              isLoading={detectMutation.isPending}
-              isDisabled={!canEdit}
+          <HStack spacing={2}>
+            <Tooltip
+              label={!canEdit ? "Read-only: You can only add patterns for your own data" : ""}
+              placement="top"
+              isDisabled={canEdit}
             >
-              Detect Patterns
-            </Button>
-          </Tooltip>
+              <Button
+                leftIcon={canEdit ? <AddIcon /> : <FiLock />}
+                variant="outline"
+                colorScheme="brand"
+                onClick={onAddOpen}
+                isDisabled={!canEdit}
+              >
+                Add Recurring
+              </Button>
+            </Tooltip>
+            <Tooltip
+              label={!canEdit ? "Read-only: You can only detect patterns for your own data" : ""}
+              placement="top"
+              isDisabled={canEdit}
+            >
+              <Button
+                leftIcon={canEdit ? <RepeatIcon /> : <FiLock />}
+                colorScheme="blue"
+                onClick={() => detectMutation.mutate()}
+                isLoading={detectMutation.isPending}
+                isDisabled={!canEdit}
+              >
+                Detect Patterns
+              </Button>
+            </Tooltip>
+          </HStack>
         </HStack>
 
         {/* Loading state */}
@@ -289,16 +469,23 @@ export default function RecurringTransactionsPage() {
 
         {/* Empty state */}
         {!isLoading && patterns.length === 0 && (
-          <EmptyState
-            icon={FiRepeat}
-            title={isOtherUserView
-              ? "This user has no recurring patterns detected yet"
-              : "No recurring patterns detected yet"}
-            description="Automatically detect subscription payments, bills, and other recurring transactions in your history."
-            actionLabel="Detect Patterns Now"
-            onAction={() => detectMutation.mutate()}
-            showAction={!isOtherUserView}
-          />
+          <VStack spacing={4}>
+            <EmptyState
+              icon={FiRepeat}
+              title={isOtherUserView
+                ? "This user has no recurring patterns detected yet"
+                : "No recurring patterns detected yet"}
+              description="Automatically detect subscription payments, bills, and other recurring transactions in your history — or add one manually."
+              actionLabel="Detect Patterns Now"
+              onAction={() => detectMutation.mutate()}
+              showAction={!isOtherUserView}
+            />
+            {!isOtherUserView && (
+              <Button variant="outline" colorScheme="brand" leftIcon={<AddIcon />} onClick={onAddOpen}>
+                Add Manually
+              </Button>
+            )}
+          </VStack>
         )}
 
         {/* Tabs for All Recurring vs Subscriptions */}
@@ -378,7 +565,8 @@ export default function RecurringTransactionsPage() {
                     <Text fontSize="sm" color="gray.700">
                       💡 <strong>Tip:</strong> These patterns are auto-detected based on your transaction
                       history. High confidence patterns are more reliable. Click the edit icon to correct
-                      the name, amount, or frequency.
+                      the name, amount, or frequency. Use <strong>Add Recurring</strong> to manually add
+                      a pattern that hasn't been auto-detected.
                     </Text>
                   </Box>
                 </VStack>
@@ -481,8 +669,10 @@ export default function RecurringTransactionsPage() {
                   <Box p={4} bg="purple.50" borderRadius="md">
                     <Text fontSize="sm" color="gray.700">
                       💡 <strong>Subscriptions</strong> are recurring charges that happen monthly or yearly
-                      with high confidence (70%+). Click the edit icon to correct any details, or the
-                      delete icon to remove a pattern.
+                      with high confidence (70%+). They are auto-detected from your transaction history.
+                      To manually track a subscription not yet imported, use{' '}
+                      <strong>Add Recurring</strong> (top-right) and set the frequency to Monthly or Yearly
+                      — it will appear here once detected with high confidence.
                     </Text>
                   </Box>
                 </VStack>
@@ -500,13 +690,30 @@ export default function RecurringTransactionsPage() {
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing={4}>
-              <FormControl>
+              <FormControl position="relative">
                 <FormLabel>Merchant / Service Name</FormLabel>
                 <Input
-                  value={editForm.merchant_name}
-                  onChange={(e) => setEditForm((f) => ({ ...f, merchant_name: e.target.value }))}
+                  ref={editMerchantInputRef}
+                  value={editMerchantQuery}
+                  onChange={(e) => {
+                    setEditMerchantQuery(e.target.value);
+                    setEditForm((f) => ({ ...f, merchant_name: e.target.value }));
+                    setEditShowSuggestions(true);
+                  }}
+                  onFocus={() => setEditShowSuggestions(true)}
                   placeholder="e.g. Netflix"
                 />
+                {editShowSuggestions && (
+                  <MerchantSuggestions
+                    suggestions={editMerchantSuggestions}
+                    suggestionsRef={editSuggestionsRef}
+                    onSelect={(m) => {
+                      setEditMerchantQuery(m);
+                      setEditForm((f) => ({ ...f, merchant_name: m }));
+                      setEditShowSuggestions(false);
+                    }}
+                  />
+                )}
               </FormControl>
 
               <FormControl>
@@ -581,6 +788,132 @@ export default function RecurringTransactionsPage() {
               isDisabled={!editForm.merchant_name.trim()}
             >
               Save Changes
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Add Recurring Pattern Modal */}
+      <Modal isOpen={isAddOpen} onClose={onAddClose} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Add Recurring Transaction</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4}>
+              <FormControl position="relative" isRequired>
+                <FormLabel>Merchant / Service Name</FormLabel>
+                <Input
+                  ref={addMerchantInputRef}
+                  value={addMerchantQuery}
+                  onChange={(e) => {
+                    setAddMerchantQuery(e.target.value);
+                    setAddForm((f) => ({ ...f, merchant_name: e.target.value }));
+                    setAddShowSuggestions(true);
+                  }}
+                  onFocus={() => setAddShowSuggestions(true)}
+                  placeholder="e.g. Netflix"
+                />
+                {addShowSuggestions && (
+                  <MerchantSuggestions
+                    suggestions={addMerchantSuggestions}
+                    suggestionsRef={addSuggestionsRef}
+                    onSelect={(m) => {
+                      setAddMerchantQuery(m);
+                      setAddForm((f) => ({ ...f, merchant_name: m }));
+                      setAddShowSuggestions(false);
+                    }}
+                  />
+                )}
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Account</FormLabel>
+                <Select
+                  value={addForm.account_id}
+                  onChange={(e) => setAddForm((f) => ({ ...f, account_id: e.target.value }))}
+                  placeholder="Select account"
+                >
+                  {accounts.map((acct) => (
+                    <option key={acct.id} value={acct.id}>
+                      {acct.name}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Frequency</FormLabel>
+                <Select
+                  value={addForm.frequency}
+                  onChange={(e) =>
+                    setAddForm((f) => ({ ...f, frequency: e.target.value as RecurringFrequency }))
+                  }
+                >
+                  <option value={RecurringFrequency.WEEKLY}>Weekly</option>
+                  <option value={RecurringFrequency.BIWEEKLY}>Bi-weekly</option>
+                  <option value={RecurringFrequency.MONTHLY}>Monthly</option>
+                  <option value={RecurringFrequency.QUARTERLY}>Quarterly</option>
+                  <option value={RecurringFrequency.YEARLY}>Yearly</option>
+                  <option value={RecurringFrequency.ON_DEMAND}>On Demand</option>
+                </Select>
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Typical Amount ($)</FormLabel>
+                <NumberInput
+                  min={0}
+                  precision={2}
+                  value={addForm.average_amount}
+                  onChange={(val) => setAddForm((f) => ({ ...f, average_amount: val }))}
+                >
+                  <NumberInputField placeholder="e.g. 15.99" />
+                </NumberInput>
+              </FormControl>
+
+              <FormControl>
+                <HStack justify="space-between">
+                  <FormLabel mb={0}>Mark as Bill</FormLabel>
+                  <Switch
+                    isChecked={addForm.is_bill}
+                    onChange={(e) => setAddForm((f) => ({ ...f, is_bill: e.target.checked }))}
+                    colorScheme="brand"
+                  />
+                </HStack>
+                <Text fontSize="xs" color="gray.500" mt={1}>
+                  Bills appear in the upcoming bills calendar and trigger reminders.
+                </Text>
+              </FormControl>
+
+              {addForm.is_bill && (
+                <FormControl>
+                  <FormLabel>Reminder (days before due)</FormLabel>
+                  <NumberInput
+                    min={0}
+                    max={30}
+                    value={addForm.reminder_days_before}
+                    onChange={(_, val) =>
+                      setAddForm((f) => ({ ...f, reminder_days_before: isNaN(val) ? 3 : val }))
+                    }
+                  >
+                    <NumberInputField />
+                  </NumberInput>
+                </FormControl>
+              )}
+            </VStack>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onAddClose}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="brand"
+              onClick={handleAddSave}
+              isLoading={createMutation.isPending}
+              isDisabled={!addForm.merchant_name.trim() || !addForm.account_id}
+            >
+              Add Recurring
             </Button>
           </ModalFooter>
         </ModalContent>
