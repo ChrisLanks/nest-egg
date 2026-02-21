@@ -135,7 +135,6 @@ class TaxService:
                     Transaction.date >= start_date,
                     Transaction.date <= end_date,
                     Transaction.is_transfer.is_(False),
-                    Account.exclude_from_cash_flow.is_(False),
                 )
             )
         )
@@ -207,7 +206,6 @@ class TaxService:
                     Transaction.date >= start_date,
                     Transaction.date <= end_date,
                     Transaction.is_transfer.is_(False),
-                    Account.exclude_from_cash_flow.is_(False),
                     TransactionLabel.label_id == label_id,
                 )
             )
