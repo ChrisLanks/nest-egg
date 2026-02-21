@@ -462,12 +462,14 @@ MARKET_DATA_PROVIDER=yahoo_finance  # Free, unlimited stock prices
 MARKET_DATA_TIMEOUT=10  # Request timeout in seconds
 MARKET_DATA_CACHE_TTL=300  # Cache TTL in seconds (5 minutes)
 
-# Email (Optional)
+# Email (Optional — emails silently skipped when SMTP_HOST is unset)
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
+SMTP_USERNAME=your-email@gmail.com
 SMTP_PASSWORD=your-app-password
-SMTP_FROM=noreply@nestegg.app
+SMTP_FROM_EMAIL=noreply@nestegg.app
+SMTP_FROM_NAME=Nest Egg
+SMTP_USE_TLS=true  # STARTTLS on port 587; set false for SSL on port 465
 
 # Alpha Vantage (Optional - for sector data fallback)
 ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
