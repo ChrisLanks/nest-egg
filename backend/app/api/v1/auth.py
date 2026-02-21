@@ -5,7 +5,7 @@ import logging
 import secrets
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -52,21 +52,46 @@ DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
 rate_limit_service = get_rate_limit_service()
 
 
+_REFRESH_COOKIE_MAX_AGE = settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400
+
+
+def _set_refresh_cookie(response: Response, refresh_token_str: str) -> None:
+    """Set the refresh token as an httpOnly cookie on the response."""
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token_str,
+        httponly=True,
+        secure=not settings.DEBUG,   # False in dev (http), True in prod (https)
+        samesite="lax",              # lax works across same-host different ports in dev
+        max_age=_REFRESH_COOKIE_MAX_AGE,
+        path="/api/v1/auth",         # Scope cookie to auth endpoints only
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    """Clear the refresh token cookie (on logout or invalid token)."""
+    response.delete_cookie(key="refresh_token", path="/api/v1/auth")
+
+
 async def create_auth_response(
     db: AsyncSession,
     user: User,
+    response: Response | None = None,
 ) -> TokenResponse:
     """
     Create authentication response with tokens.
 
     Generates access and refresh tokens, stores refresh token hash in database.
+    When a FastAPI Response object is provided, the refresh token is delivered as
+    an httpOnly cookie instead of in the response body.
 
     Args:
         db: Database session
         user: Authenticated user
+        response: Optional FastAPI Response for setting httpOnly cookie
 
     Returns:
-        TokenResponse with access token, refresh token, and user data
+        TokenResponse with access token and user data (refresh_token omitted from body)
     """
     # Generate tokens
     access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
@@ -81,6 +106,16 @@ async def create_auth_response(
         expires_at=expires_at,
     )
 
+    if response is not None:
+        # Deliver refresh token as httpOnly cookie — not readable by JavaScript
+        _set_refresh_cookie(response, refresh_token_str)
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=None,
+            user=UserSchema.from_orm(user),
+        )
+
+    # Fallback: include refresh token in body (used by tests / non-browser clients)
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token_str,
@@ -91,6 +126,7 @@ async def create_auth_response(
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     request: Request,
+    response: Response,
     data: RegisterRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -107,11 +143,10 @@ async def register(
         window_seconds=600,  # 10 minutes
     )
 
-    # Validate password strength and check for breaches (unless user chose to skip)
-    if not data.skip_password_validation:
-        await password_validation_service.validate_and_raise_async(
-            data.password, check_breach=True
-        )
+    # Always validate password strength and check for breaches
+    await password_validation_service.validate_and_raise_async(
+        data.password, check_breach=True
+    )
 
     # Check if user already exists
     existing_user = await user_crud.get_by_email(db, data.email)
@@ -161,13 +196,14 @@ async def register(
     except Exception:
         logger.warning("Failed to create/send verification token after registration", exc_info=True)
 
-    # Generate tokens and create response
-    return await create_auth_response(db, user)
+    # Generate tokens and create response (refresh token set as httpOnly cookie)
+    return await create_auth_response(db, user, response)
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
     request: Request,
+    response: Response,
     data: LoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -274,12 +310,12 @@ async def login(
 
         logger.info("Generating tokens")
 
-        # Generate tokens and create response
-        response = await create_auth_response(db, user)
+        # Generate tokens and create response (refresh token set as httpOnly cookie)
+        auth_response = await create_auth_response(db, user, response)
 
         logger.info("Login successful")
 
-        return response
+        return auth_response
     except HTTPException:
         raise
     except Exception as e:
@@ -320,15 +356,18 @@ async def _maybe_refresh_prices_on_login(organization_id) -> None:
                 logger.debug("Holdings prices are fresh; skipping login-triggered refresh")
                 return
 
-            # Fetch all holdings for a batch update
+            # Fetch only stale holdings — no need to re-fetch fresh prices
             result = await db.execute(
-                select(Holding).where(Holding.organization_id == organization_id)
+                select(Holding).where(
+                    Holding.organization_id == organization_id,
+                    (Holding.price_as_of.is_(None)) | (Holding.price_as_of < cutoff),
+                )
             )
-            holdings = result.scalars().all()
-            if not holdings:
+            stale_holdings = result.scalars().all()
+            if not stale_holdings:
                 return
 
-            symbols = list({h.ticker for h in holdings if h.ticker})
+            symbols = list({h.ticker for h in stale_holdings if h.ticker})
             if not symbols:
                 return
 
@@ -338,7 +377,7 @@ async def _maybe_refresh_prices_on_login(organization_id) -> None:
             from sqlalchemy import update as sa_update
             updated = 0
             now = datetime.now(timezone.utc)
-            for h in holdings:
+            for h in stale_holdings:
                 if h.ticker and h.ticker in quotes:
                     q = quotes[h.ticker]
                     await db.execute(
@@ -350,10 +389,10 @@ async def _maybe_refresh_prices_on_login(organization_id) -> None:
 
             await db.commit()
             logger.info(
-                "login_price_refresh: org=%s updated=%d total=%d provider=%s",
+                "login_price_refresh: org=%s updated=%d stale=%d provider=%s",
                 organization_id,
                 updated,
-                len(holdings),
+                len(stale_holdings),
                 market_data.get_provider_name(),
             )
     except Exception as exc:
@@ -364,11 +403,15 @@ async def _maybe_refresh_prices_on_login(organization_id) -> None:
 @router.post("/refresh", response_model=AccessTokenResponse)
 async def refresh_access_token(
     request: Request,
-    data: RefreshTokenRequest,
+    response: Response,
+    data: RefreshTokenRequest | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     """
     Refresh access token using refresh token.
+
+    Accepts the refresh token from either the httpOnly cookie (preferred) or the
+    request body (for non-browser clients / backward compatibility).
     Rate limited to 10 refreshes per minute to prevent abuse.
     """
     # Rate limit: 10 refresh attempts per minute per IP
@@ -378,9 +421,18 @@ async def refresh_access_token(
         window_seconds=60,
     )
 
+    # Prefer httpOnly cookie; fall back to body for non-browser clients
+    raw_token = request.cookies.get("refresh_token") or (data.refresh_token if data else None)
+    if not raw_token:
+        _clear_refresh_cookie(response)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No refresh token provided",
+        )
+
     try:
         # Decode refresh token
-        payload = decode_token(data.refresh_token)
+        payload = decode_token(raw_token)
 
         # Check token type
         if payload.get("type") != "refresh":
@@ -406,13 +458,13 @@ async def refresh_access_token(
         refresh_token = await refresh_token_crud.get_by_token_hash(db, token_hash)
 
         if not refresh_token:
-            # Only log token details in DEBUG mode to prevent token leakage
             if settings.DEBUG:
                 logger.warning(
                     f"Token refresh failed: Token not found in database (jti: {jti[:10]}...)"
                 )
             else:
                 logger.warning("Token refresh failed: Token not found in database")
+            _clear_refresh_cookie(response)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token not found",
@@ -422,6 +474,7 @@ async def refresh_access_token(
             logger.warning(
                 f"Token refresh failed: Token has been revoked (user_id: {refresh_token.user_id})"
             )
+            _clear_refresh_cookie(response)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has been revoked",
@@ -429,8 +482,9 @@ async def refresh_access_token(
 
         if refresh_token.is_expired:
             logger.warning(
-                f"Token refresh failed: Token has expired (user_id: {refresh_token.user_id}, expired_at: {refresh_token.expires_at})"
+                f"Token refresh failed: Token has expired (user_id: {refresh_token.user_id})"
             )
+            _clear_refresh_cookie(response)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has expired",
@@ -442,6 +496,7 @@ async def refresh_access_token(
             logger.warning(
                 f"Token refresh failed: User not found or inactive (user_id: {refresh_token.user_id})"
             )
+            _clear_refresh_cookie(response)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found or inactive",
@@ -457,12 +512,20 @@ async def refresh_access_token(
             }
         )
 
-        return AccessTokenResponse(access_token=access_token)
+        # Extend the refresh token cookie lifetime (sliding window)
+        if request.cookies.get("refresh_token"):
+            _set_refresh_cookie(response, raw_token)
+
+        return AccessTokenResponse(
+            access_token=access_token,
+            user=UserSchema.from_orm(user),
+        )
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Token refresh error: {str(e)}", exc_info=True)
+        _clear_refresh_cookie(response)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate token",
@@ -599,7 +662,7 @@ async def reset_password(
     Validates the token, updates the password, clears any account lockout,
     and marks the token as used. Rate limited to 10 requests per 15 minutes per IP.
     """
-    await rate_limit_service.check_rate_limit(request=request, max_requests=10, window_seconds=900)
+    await rate_limit_service.check_rate_limit(request=request, max_requests=3, window_seconds=3600)
 
     token_hash = hash_token(data.token)
     result = await db.execute(
@@ -628,27 +691,28 @@ async def reset_password(
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
-    data: RefreshTokenRequest,
+    request: Request,
+    response: Response,
+    data: RefreshTokenRequest | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Logout by revoking the refresh token.
+    Logout by revoking the refresh token and clearing the httpOnly cookie.
     """
     try:
-        # Decode refresh token to get JTI
-        payload = decode_token(data.refresh_token)
-        jti = payload.get("jti")
-
-        if jti:
-            # Revoke token
-            token_hash = hashlib.sha256(jti.encode()).hexdigest()
-            await refresh_token_crud.revoke(db, token_hash)
-
+        # Prefer cookie; fall back to body for non-browser clients
+        raw_token = request.cookies.get("refresh_token") or (data.refresh_token if data else None)
+        if raw_token:
+            payload = decode_token(raw_token)
+            jti = payload.get("jti")
+            if jti:
+                token_hash = hashlib.sha256(jti.encode()).hexdigest()
+                await refresh_token_crud.revoke(db, token_hash)
     except Exception:
-        # If token is invalid, that's fine - just return success
-        pass
+        pass  # If token is invalid, still clear cookie and return success
 
+    _clear_refresh_cookie(response)
     return None
 
 

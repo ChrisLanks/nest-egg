@@ -739,6 +739,7 @@ class TestUpdateAccount:
         account.current_balance = Decimal("1000.00")
         account.mask = "1234"
         account.exclude_from_cash_flow = False
+        account.account_type = AccountType.CHECKING  # non-debt so balance stays positive
         return account
 
     @pytest.mark.asyncio

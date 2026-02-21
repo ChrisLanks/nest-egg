@@ -16,7 +16,7 @@ export const useLogin = () => {
   return useMutation({
     mutationFn: (data: LoginRequest) => authApi.login(data),
     onSuccess: (data) => {
-      setTokens(data.access_token, data.refresh_token, data.user);
+      setTokens(data.access_token, data.user);
       navigate('/dashboard');
     },
   });
@@ -29,7 +29,7 @@ export const useRegister = () => {
   return useMutation({
     mutationFn: (data: RegisterRequest) => authApi.register(data),
     onSuccess: (data) => {
-      setTokens(data.access_token, data.refresh_token, data.user);
+      setTokens(data.access_token, data.user);
       navigate('/dashboard');
     },
   });
@@ -38,10 +38,10 @@ export const useRegister = () => {
 export const useLogout = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { logout, refreshToken } = useAuthStore();
+  const { logout } = useAuthStore();
 
   return useMutation({
-    mutationFn: () => authApi.logout(refreshToken || ''),
+    mutationFn: () => authApi.logout(),
     onSuccess: () => {
       logout();
       queryClient.clear();

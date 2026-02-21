@@ -80,11 +80,10 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                     f"has_header={csrf_header is not None}"
                 )
 
-                # In development, just log warning but allow request
-                if settings.DEBUG:
-                    logger.warning("CSRF check failed but allowing in DEBUG mode")
+                # Only bypass CSRF in automated test environments, not in dev/staging/prod
+                if settings.ENVIRONMENT in ("test", "testing"):
+                    logger.warning("CSRF check failed but allowing in test environment")
                 else:
-                    # In production, reject the request
                     return Response(
                         content='{"detail":"CSRF token missing"}',
                         status_code=403,
@@ -96,11 +95,10 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                     f"CSRF validation failed: Token mismatch | " f"path={path} | method={method}"
                 )
 
-                # In development, just log warning but allow request
-                if settings.DEBUG:
-                    logger.warning("CSRF token mismatch but allowing in DEBUG mode")
+                # Only bypass CSRF in automated test environments, not in dev/staging/prod
+                if settings.ENVIRONMENT in ("test", "testing"):
+                    logger.warning("CSRF token mismatch but allowing in test environment")
                 else:
-                    # In production, reject the request
                     return Response(
                         content='{"detail":"CSRF token invalid"}',
                         status_code=403,

@@ -96,7 +96,7 @@ class Settings(BaseSettings):
 
     # Pagination
     DEFAULT_PAGE_SIZE: int = 50
-    MAX_PAGE_SIZE: int = 1000
+    MAX_PAGE_SIZE: int = 200
 
     # Background Jobs
     PLAID_SYNC_INTERVAL_HOURS: int = 6

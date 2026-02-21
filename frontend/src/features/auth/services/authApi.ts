@@ -7,7 +7,6 @@ import type {
   RegisterRequest,
   LoginRequest,
   TokenResponse,
-  RefreshTokenRequest,
   AccessTokenResponse,
 } from '../../../types/auth';
 import type { User } from '../../../types/user';
@@ -30,13 +29,15 @@ export const authApi = {
     }
   },
 
-  refresh: async (data: RefreshTokenRequest): Promise<AccessTokenResponse> => {
-    const response = await api.post<AccessTokenResponse>('/auth/refresh', data);
+  refresh: async (): Promise<AccessTokenResponse> => {
+    // No body needed — browser sends httpOnly refresh cookie automatically
+    const response = await api.post<AccessTokenResponse>('/auth/refresh', {});
     return response.data;
   },
 
-  logout: async (refreshToken: string): Promise<void> => {
-    await api.post('/auth/logout', { refresh_token: refreshToken });
+  logout: async (): Promise<void> => {
+    // No body needed — backend clears the httpOnly cookie server-side
+    await api.post('/auth/logout', {});
   },
 
   getCurrentUser: async (): Promise<User> => {

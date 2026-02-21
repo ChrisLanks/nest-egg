@@ -20,16 +20,17 @@ export interface LoginRequest {
 
 export interface TokenResponse {
   access_token: string;
-  refresh_token: string;
+  refresh_token?: string | null;  // Not in body when using httpOnly cookie
   token_type: string;
   user: User;
 }
 
 export interface RefreshTokenRequest {
-  refresh_token: string;
+  refresh_token?: string | null;  // Optional: cookie takes precedence
 }
 
 export interface AccessTokenResponse {
   access_token: string;
   token_type: string;
+  user?: User | null;  // Included on refresh so frontend can restore session
 }

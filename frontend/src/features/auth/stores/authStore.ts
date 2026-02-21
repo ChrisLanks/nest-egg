@@ -1,5 +1,12 @@
 /**
  * Auth store using Zustand
+ *
+ * Security model:
+ * - Access token lives in memory only (this store, NOT localStorage)
+ * - Refresh token lives in an httpOnly cookie set by the backend (not readable by JS)
+ * - On page reload: no access token in memory → tryRestoreSession() calls /auth/refresh
+ *   which sends the httpOnly cookie automatically → backend returns a new access token
+ * - This prevents XSS from stealing the long-lived refresh token
  */
 
 import { create } from 'zustand';
@@ -9,17 +16,17 @@ import { scheduleTokenRefresh } from '../../../services/api';
 
 interface AuthState {
   user: User | null;
-  accessToken: string | null;
-  refreshToken: string | null;
+  accessToken: string | null;  // Memory only — NOT persisted to localStorage
   isAuthenticated: boolean;
   isLoading: boolean;
 
   // Actions
-  setTokens: (accessToken: string, refreshToken: string, user: User) => void;
+  setTokens: (accessToken: string, user: User) => void;
   setAccessToken: (accessToken: string) => void;
   setUser: (user: User) => void;
   logout: () => void;
   setLoading: (loading: boolean) => void;
+  tryRestoreSession: () => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -27,32 +34,23 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       accessToken: null,
-      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
 
-      setTokens: (accessToken, refreshToken, user) => {
-        // Also store in localStorage for API interceptor
-        localStorage.setItem('access_token', accessToken);
-        localStorage.setItem('refresh_token', refreshToken);
-
+      setTokens: (accessToken, user) => {
         // Schedule proactive token refresh
-        scheduleTokenRefresh();
+        scheduleTokenRefresh(accessToken);
 
         set({
           accessToken,
-          refreshToken,
           user,
           isAuthenticated: true,
         });
       },
 
       setAccessToken: (accessToken) => {
-        // Update just the access token (used during refresh)
-        localStorage.setItem('access_token', accessToken);
-
-        // Schedule next token refresh
-        scheduleTokenRefresh();
+        // Update just the access token (used during silent refresh)
+        scheduleTokenRefresh(accessToken);
 
         set({
           accessToken,
@@ -65,14 +63,9 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
-        // Clear localStorage
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-
         set({
           user: null,
           accessToken: null,
-          refreshToken: null,
           isAuthenticated: false,
         });
       },
@@ -80,32 +73,42 @@ export const useAuthStore = create<AuthState>()(
       setLoading: (loading) => {
         set({ isLoading: loading });
       },
+
+      /**
+       * Try to restore the session using the httpOnly refresh cookie.
+       * Called on app startup when accessToken is null but isAuthenticated is true.
+       * Returns true if session was restored successfully.
+       */
+      tryRestoreSession: async () => {
+        try {
+          // Lazy import to avoid circular dependency
+          const { authApi } = await import('../services/authApi');
+          const data = await authApi.refresh();
+          const user = data.user ?? get().user;
+          if (data.access_token && user) {
+            get().setTokens(data.access_token, user);
+            return true;
+          }
+          return false;
+        } catch {
+          get().logout();
+          return false;
+        }
+      },
     }),
     {
       name: 'auth-storage',
+      // Only persist user + isAuthenticated flag — never tokens
       partialize: (state) => ({
         user: state.user,
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => {
         return (state) => {
-          // After Zustand restores persisted state, validate tokens
-          if (state && state.isAuthenticated) {
-            const accessToken = localStorage.getItem('access_token');
-            const refreshToken = localStorage.getItem('refresh_token');
-
-            // If tokens exist in localStorage, user should stay logged in
-            // The api.ts will handle token refresh if needed
-            if (accessToken && refreshToken) {
-              console.log('[Auth] Session restored from storage');
-              scheduleTokenRefresh();
-            } else {
-              // Tokens missing, log out
-              console.log('[Auth] Tokens missing, clearing auth state');
-              state.logout();
-            }
+          // Access token is not persisted, so it will always be null after reload.
+          // tryRestoreSession() (called in App.tsx) will restore it via the httpOnly cookie.
+          if (state) {
+            console.log('[Auth] Storage rehydrated — session will be restored via cookie on startup');
           }
         };
       },

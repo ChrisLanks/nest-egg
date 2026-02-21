@@ -67,8 +67,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request and log details."""
-        # Generate unique request ID
-        request_id = str(uuid.uuid4())
+        # Use incoming X-Request-ID if provided (e.g. from load balancer or client),
+        # otherwise generate a new one for correlation across logs and services.
+        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
 
         # Start timer
         start_time = time.time()

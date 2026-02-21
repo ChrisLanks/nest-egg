@@ -2,6 +2,8 @@
 
 import base64
 from cryptography.fernet import Fernet
+from sqlalchemy import String
+from sqlalchemy.types import TypeDecorator
 from app.config import settings
 
 
@@ -106,3 +108,38 @@ def get_encryption_service() -> EncryptionService:
     if _encryption_service is None:
         _encryption_service = EncryptionService()
     return _encryption_service
+
+
+class EncryptedString(TypeDecorator):
+    """
+    SQLAlchemy TypeDecorator that transparently encrypts/decrypts string fields.
+
+    Store as Text (base64-encoded Fernet ciphertext); decrypt on read.
+    During a migration window, plaintext values are returned as-is if decryption fails,
+    so the model stays readable while the migration encrypts existing rows.
+
+    Usage in models::
+
+        from app.services.encryption_service import EncryptedString
+
+        vehicle_vin = Column(EncryptedString, nullable=True)
+    """
+
+    impl = String
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        """Encrypt on write."""
+        if value is None:
+            return None
+        return get_encryption_service().encrypt_token(value)
+
+    def process_result_value(self, value, dialect):
+        """Decrypt on read. Returns plaintext as-is if decryption fails (migration safety)."""
+        if value is None:
+            return None
+        try:
+            return get_encryption_service().decrypt_token(value)
+        except Exception:
+            # Value is not yet encrypted (e.g. pre-migration row) — return as-is
+            return value

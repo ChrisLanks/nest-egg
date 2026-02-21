@@ -9,4 +9,14 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     exclude: ['src/App.test.tsx'],
   },
+  server: {
+    // Proxy /api → backend so the httpOnly refresh cookie is treated as same-origin
+    // in dev (frontend: 5173, backend: 8000).
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
+  },
 })

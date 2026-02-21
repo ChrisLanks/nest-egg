@@ -19,6 +19,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.services.encryption_service import EncryptedString
 from app.utils.datetime_utils import utc_now_lambda
 
 
@@ -372,11 +373,12 @@ class Account(Base):
     last_interest_accrued_at = Column(Date, nullable=True)          # Date of last auto-accrual (prevents double-accrual)
 
     # Property auto-valuation fields (used with ATTOM API)
-    property_address = Column(String(255), nullable=True)   # Street address (e.g. "123 Main St")
-    property_zip = Column(String(10), nullable=True)        # ZIP / postal code
+    # Stored encrypted — EncryptedString transparently encrypts on write, decrypts on read.
+    property_address = Column(EncryptedString, nullable=True)   # Street address (e.g. "123 Main St")
+    property_zip = Column(EncryptedString, nullable=True)       # ZIP / postal code
 
     # Vehicle auto-valuation fields (used with MarketCheck API + NHTSA VIN decode)
-    vehicle_vin = Column(String(17), nullable=True)         # VIN for auto-decode + valuation
+    vehicle_vin = Column(EncryptedString, nullable=True)        # VIN for auto-decode + valuation
     vehicle_mileage = Column(Integer, nullable=True)        # Current odometer for market value
 
     # Auto-valuation metadata (property + vehicle)

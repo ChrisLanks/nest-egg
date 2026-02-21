@@ -1,11 +1,18 @@
 /**
  * Axios API client with JWT token management
+ *
+ * Security model:
+ * - Access token: held in Zustand memory only (not localStorage)
+ * - Refresh token: httpOnly cookie managed by the browser (not accessible to JS)
+ * - withCredentials: true so the browser sends the refresh cookie on /auth/refresh
  */
 
 import axios from 'axios';
 import { useAuthStore } from '../features/auth/stores/authStore';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+// In dev the Vite proxy rewrites /api → http://localhost:8000/api so cookies
+// are same-origin.  In production the backend and frontend share a domain.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 // Development mode logger - only logs in development
 const isDev = import.meta.env.DEV;
@@ -26,6 +33,7 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Send httpOnly refresh cookie on every request
 });
 
 // Token refresh timer and in-flight promise
@@ -64,17 +72,17 @@ const isTokenExpired = (token: string, bufferMinutes: number = 0): boolean => {
 };
 
 // Proactively refresh token before it expires
-export const scheduleTokenRefresh = () => {
+export const scheduleTokenRefresh = (accessToken?: string) => {
   // Clear existing timer
   if (refreshTimer) {
     clearTimeout(refreshTimer);
   }
 
-  const accessToken = localStorage.getItem('access_token');
-  if (!accessToken) return;
+  const token = accessToken ?? useAuthStore.getState().accessToken;
+  if (!token) return;
 
   // Decode token to get expiration time
-  const decoded = decodeToken(accessToken);
+  const decoded = decodeToken(token);
   if (!decoded || !decoded.exp) {
     devError('[Auth] Could not decode token expiration');
     return;
@@ -89,7 +97,6 @@ export const scheduleTokenRefresh = () => {
   const timeUntilRefresh = timeUntilExpiration - refreshBuffer;
 
   if (timeUntilRefresh <= 0) {
-    // Token already expired or will expire very soon, refresh immediately
     devLog('[Auth] Token expired or expiring soon, refreshing immediately...');
     refreshTokenNow();
     return;
@@ -105,8 +112,6 @@ export const scheduleTokenRefresh = () => {
 
 // Refresh token immediately — all concurrent callers share the same in-flight promise
 const refreshTokenNow = (): Promise<string | null> => {
-  // If a refresh is already in progress, return the same promise so every
-  // caller gets the result once and no second network request is made.
   if (isRefreshing && refreshPromise) {
     devLog('[Auth] Token refresh already in progress, waiting for in-flight request...');
     return refreshPromise;
@@ -115,29 +120,27 @@ const refreshTokenNow = (): Promise<string | null> => {
   isRefreshing = true;
   refreshPromise = (async (): Promise<string | null> => {
     try {
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (!refreshToken) {
-        devError('[Auth] No refresh token available');
-        return null;
-      }
-
-      devLog('[Auth] Refreshing token...');
-      const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-        refresh_token: refreshToken,
+      devLog('[Auth] Refreshing token via httpOnly cookie...');
+      // No body needed — browser sends the httpOnly refresh cookie automatically
+      const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {}, {
+        withCredentials: true,
       });
 
-      const { access_token } = response.data;
+      const { access_token, user } = response.data;
 
-      // Update both localStorage and Zustand store
-      useAuthStore.getState().setAccessToken(access_token);
-      devLog('[Auth] Token refreshed successfully and auth store updated');
+      // Update Zustand store (in-memory only — no localStorage)
+      const store = useAuthStore.getState();
+      if (user) {
+        store.setTokens(access_token, user);
+      } else {
+        store.setAccessToken(access_token);
+      }
+      devLog('[Auth] Token refreshed successfully');
 
       return access_token;
     } catch (error: any) {
       const errorDetail = error?.response?.data?.detail || error.message || 'Unknown error';
-      devError('[Auth] Token refresh failed. Backend error:', errorDetail);
-      devError('[Auth] Full error:', error);
-      // Don't clear localStorage here - let the response interceptor handle it
+      devError('[Auth] Token refresh failed:', errorDetail);
       return null;
     } finally {
       isRefreshing = false;
@@ -148,23 +151,10 @@ const refreshTokenNow = (): Promise<string | null> => {
   return refreshPromise;
 };
 
-// Start token refresh on initial load if user is logged in
-const initToken = localStorage.getItem('access_token');
-if (initToken) {
-  // Check if token is still valid
-  if (isTokenExpired(initToken, 5)) {
-    devLog('[Auth] Token expired on page load, attempting refresh...');
-    refreshTokenNow();
-  } else {
-    devLog('[Auth] Valid token found, scheduling refresh');
-    scheduleTokenRefresh();
-  }
-}
-
 // Request interceptor to add JWT token and check expiration
 api.interceptors.request.use(
   async (config) => {
-    const token = localStorage.getItem('access_token');
+    const token = useAuthStore.getState().accessToken;
 
     // Log all API requests (mask sensitive data)
     const logData = config.url?.includes('/auth/')
@@ -181,8 +171,6 @@ api.interceptors.request.use(
                           config.url?.includes('/auth/register') ||
                           config.url?.includes('/auth/refresh');
 
-    devLog('[API] Auth endpoint check:', { url: config.url, isAuthEndpoint, hasToken: !!token });
-
     if (token && !isAuthEndpoint) {
       // Check if token will expire soon (within 2 minutes)
       if (isTokenExpired(token, 2)) {
@@ -191,16 +179,11 @@ api.interceptors.request.use(
           const newToken = await refreshTokenNow();
           if (newToken && config.headers) {
             config.headers.Authorization = `Bearer ${newToken}`;
-            devLog('[API] Using refreshed token for request');
-          } else {
-            // Refresh failed, use old token and let response interceptor handle it
-            if (config.headers) {
-              config.headers.Authorization = `Bearer ${token}`;
-            }
+          } else if (config.headers) {
+            config.headers.Authorization = `Bearer ${token}`;
           }
         } catch (error) {
           devError('[API] Pre-request token refresh failed:', error);
-          // Let the request continue - the response interceptor will handle it
           if (config.headers) {
             config.headers.Authorization = `Bearer ${token}`;
           }
@@ -210,7 +193,6 @@ api.interceptors.request.use(
       }
     }
 
-    devLog('[API] Request interceptor complete, sending request...');
     return config;
   },
   (error) => {
@@ -231,58 +213,39 @@ api.interceptors.response.use(
   async (error) => {
     devError(`[API] ❌ ${error.config?.method?.toUpperCase()} ${error.config?.url}`, {
       status: error.response?.status,
-      statusText: error.response?.statusText,
       data: error.response?.data,
       message: error.message,
     });
     const originalRequest = error.config;
 
-    // If 401 and not already retried, try to refresh token.
-    // Skip refresh for login/register — a 401 there is a credential failure,
-    // not an expired token, so let the error propagate to the caller.
+    // On 401, attempt silent refresh via httpOnly cookie.
+    // Skip for auth endpoints — a 401 there is a credential failure, not expiry.
     const isAuthEndpoint = originalRequest?.url?.includes('/auth/login') ||
                            originalRequest?.url?.includes('/auth/register') ||
                            originalRequest?.url?.includes('/auth/forgot-password') ||
                            originalRequest?.url?.includes('/auth/reset-password');
+
     if (error.response?.status === 401 && !originalRequest?._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem('refresh_token');
+        devLog('[Auth] Access token expired, attempting silent refresh...');
+        const newToken = await refreshTokenNow();
 
-        if (!refreshToken) {
-          // No refresh token, redirect to login
-          devLog('[Auth] No refresh token found, redirecting to login');
+        if (!newToken) {
+          devLog('[Auth] Silent refresh returned no token — logging out');
           useAuthStore.getState().logout();
           window.location.href = '/login';
           return Promise.reject(error);
         }
 
-        devLog('[Auth] Access token expired, attempting to refresh...');
-
-        // Try to refresh access token
-        const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-          refresh_token: refreshToken,
-        });
-
-        const { access_token } = response.data;
-
-        // Update both localStorage and Zustand store
-        useAuthStore.getState().setAccessToken(access_token);
-
-        devLog('[Auth] Token refreshed successfully and auth store updated, retrying original request');
-
-        // Retry original request with new token
+        devLog('[Auth] Silent refresh succeeded, retrying original request');
         if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
         }
-
         return api(originalRequest);
       } catch (refreshError: any) {
-        // Refresh failed, clear tokens and redirect to login
-        const errorMessage = refreshError.response?.data?.detail || refreshError.message;
-        devError('[Auth] Token refresh failed:', errorMessage);
-        devLog('[Auth] Clearing tokens and redirecting to login');
+        devError('[Auth] Silent refresh failed:', refreshError.response?.data?.detail || refreshError.message);
         useAuthStore.getState().logout();
         window.location.href = '/login';
         return Promise.reject(refreshError);

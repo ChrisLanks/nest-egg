@@ -24,7 +24,6 @@ class RegisterRequest(BaseModel):
     birth_day: Optional[int] = Field(None, ge=1, le=31)
     birth_month: Optional[int] = Field(None, ge=1, le=12)
     birth_year: Optional[int] = Field(None, ge=1900, le=2100)
-    skip_password_validation: bool = Field(False, description="Skip all server-side password security checks — user accepts the risk")
 
     @model_validator(mode="after")
     def validate_birthday(self) -> "RegisterRequest":
@@ -48,7 +47,7 @@ class TokenResponse(BaseModel):
     """Schema for token response."""
 
     access_token: str
-    refresh_token: str
+    refresh_token: Optional[str] = None  # Not returned in body when using httpOnly cookie
     token_type: str = "bearer"
     user: User
 
@@ -56,7 +55,7 @@ class TokenResponse(BaseModel):
 class RefreshTokenRequest(BaseModel):
     """Schema for refresh token request."""
 
-    refresh_token: str
+    refresh_token: Optional[str] = None  # Optional: cookie takes precedence
 
 
 class AccessTokenResponse(BaseModel):
@@ -64,3 +63,4 @@ class AccessTokenResponse(BaseModel):
 
     access_token: str
     token_type: str = "bearer"
+    user: Optional[User] = None  # Included on refresh so frontend can restore session

@@ -238,6 +238,45 @@ class SnapshotScheduler:
                 # Continue running even if one cycle fails
                 await asyncio.sleep(60)  # Wait 1 minute before retrying
 
+    async def cleanup_expired_tokens(self) -> None:
+        """Delete expired password-reset and email-verification tokens."""
+        from sqlalchemy import delete
+        from app.models.user import PasswordResetToken, EmailVerificationToken
+
+        async with AsyncSessionLocal() as db:
+            try:
+                now = datetime.utcnow()
+                r1 = await db.execute(
+                    delete(PasswordResetToken).where(PasswordResetToken.expires_at < now)
+                )
+                r2 = await db.execute(
+                    delete(EmailVerificationToken).where(EmailVerificationToken.expires_at < now)
+                )
+                await db.commit()
+                logger.info(
+                    "token_cleanup: deleted %d expired password-reset and %d email-verification tokens",
+                    r1.rowcount,
+                    r2.rowcount,
+                )
+            except Exception as e:
+                logger.error("Error during token cleanup: %s", e)
+
+    async def run_cleanup_loop(self) -> None:
+        """Run token cleanup every 24 hours."""
+        logger.info("Token cleanup loop started (runs every 24 hours)")
+        # Initial run on startup
+        await self.cleanup_expired_tokens()
+        while self.running:
+            try:
+                await asyncio.sleep(86400)  # 24 hours
+                await self.cleanup_expired_tokens()
+            except asyncio.CancelledError:
+                logger.info("Token cleanup loop cancelled")
+                break
+            except Exception as e:
+                logger.error("Error in token cleanup loop: %s", e)
+                await asyncio.sleep(60)  # Wait 1 minute before retrying
+
     async def start(self):
         """Start the background scheduler task."""
         if self.running:
@@ -246,7 +285,8 @@ class SnapshotScheduler:
 
         self.running = True
         self.task = asyncio.create_task(self.run_scheduler_loop())
-        logger.info("Snapshot scheduler task created")
+        self._cleanup_task: Optional[asyncio.Task] = asyncio.create_task(self.run_cleanup_loop())
+        logger.info("Snapshot scheduler and token cleanup tasks created")
 
     async def stop(self):
         """Stop the background scheduler task."""
@@ -254,12 +294,13 @@ class SnapshotScheduler:
             return
 
         self.running = False
-        if self.task:
-            self.task.cancel()
-            try:
-                await self.task
-            except asyncio.CancelledError:
-                pass
+        for task in (self.task, getattr(self, "_cleanup_task", None)):
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
         logger.info("Snapshot scheduler stopped")
 
