@@ -16,6 +16,7 @@ export const transactionApi = {
     page_size?: number;
     cursor?: string;
     account_id?: string;
+    user_id?: string;
     start_date?: string;
     end_date?: string;
     search?: string;

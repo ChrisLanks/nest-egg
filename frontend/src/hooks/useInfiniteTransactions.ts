@@ -9,6 +9,7 @@ import type { Transaction } from '../types/transaction';
 
 interface UseInfiniteTransactionsParams {
   accountId?: string;
+  userId?: string;
   startDate?: string;
   endDate?: string;
   search?: string;
@@ -28,6 +29,7 @@ interface UseInfiniteTransactionsReturn {
 
 export const useInfiniteTransactions = ({
   accountId,
+  userId,
   startDate,
   endDate,
   search,
@@ -48,14 +50,15 @@ export const useInfiniteTransactions = ({
     setNextCursor(null);
     setHasMore(false);
     setTotal(0);
-  }, [accountId, startDate, endDate, search]);
+  }, [accountId, userId, startDate, endDate, search]);
 
   const { data, isLoading, refetch: queryRefetch } = useQuery({
-    queryKey: ['infinite-transactions', accountId, startDate, endDate, search, currentCursor],
+    queryKey: ['infinite-transactions', accountId, userId, startDate, endDate, search, currentCursor],
     queryFn: async () => {
       const result = await transactionApi.listTransactions({
         page_size: pageSize,
         account_id: accountId,
+        user_id: userId,
         start_date: startDate,
         end_date: endDate,
         search,

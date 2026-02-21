@@ -190,7 +190,7 @@ export const TransactionsPage = () => {
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canEdit, isOtherUserView } = useUserView();
+  const { canEdit, isOtherUserView, selectedUserId } = useUserView();
   const isMobile = useBreakpointValue({ base: true, md: false });
 
   // Fetch current user for ownership checks
@@ -286,6 +286,7 @@ export const TransactionsPage = () => {
     loadMore,
     refetch,
   } = useInfiniteTransactions({
+    userId: selectedUserId ?? undefined,
     startDate: dateRange.start,
     endDate: dateRange.end,
     pageSize: 100,

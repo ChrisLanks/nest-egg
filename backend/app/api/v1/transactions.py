@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, verify_household_member
 from app.models.user import User
 from app.models.transaction import Transaction, Label, TransactionLabel, Category
 from app.models.account import Account
@@ -170,6 +170,7 @@ async def list_transactions(
     page_size: int = Query(50, ge=1, le=1000),
     cursor: Optional[str] = None,
     account_id: Optional[UUID] = None,
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     search: Optional[str] = None,
@@ -177,6 +178,10 @@ async def list_transactions(
     db: AsyncSession = Depends(get_db),
 ):
     """List transactions with filtering and cursor-based pagination."""
+    # Validate user_id belongs to the same household
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+
     # Parse date strings if provided
     start_date_obj = None
     end_date_obj = None
@@ -208,6 +213,9 @@ async def list_transactions(
     # Apply filters
     if account_id:
         query = query.where(Transaction.account_id == account_id)
+
+    if user_id:
+        query = query.where(Account.user_id == user_id)
 
     if start_date_obj:
         query = query.where(Transaction.date >= start_date_obj)
