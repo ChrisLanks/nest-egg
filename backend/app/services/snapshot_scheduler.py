@@ -162,7 +162,7 @@ class SnapshotScheduler:
                 return False
 
             # Get portfolio summary
-            portfolio = await get_portfolio_summary(current_user=user, db=db)
+            portfolio = await get_portfolio_summary(user_id=None, current_user=user, db=db)
 
             # Capture snapshot
             await snapshot_service.capture_snapshot(
