@@ -23,8 +23,12 @@ RUN npm run build
 # Production stage with nginx
 FROM nginx:alpine
 
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# NGINX_CONF selects which nginx config to use:
+#   nginx.conf      — development / permissive CSP (default)
+#   nginx.prod.conf — production / strict CSP, HSTS, no localhost
+# Pass --build-arg NGINX_CONF=nginx.prod.conf for production builds.
+ARG NGINX_CONF=nginx.conf
+COPY ${NGINX_CONF} /etc/nginx/conf.d/default.conf
 
 # Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html

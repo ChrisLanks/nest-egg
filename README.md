@@ -143,12 +143,14 @@ Scheduled tasks for hands-free operation:
 - **Negative Balance Alerts**: Proactive warnings when forecast shows insufficient funds
 
 ### 🔒 **Security Features**
-- **Global Rate Limiting**: 1000 requests/minute per user/IP prevents DoS attacks
-- **Security Headers**: Comprehensive CSP, X-Frame-Options, HSTS, X-XSS-Protection
+- **Redis-Backed Rate Limiting**: 1000 req/min per user/IP — distributed sliding window (safe across multiple workers/instances)
+- **Security Headers**: Strict CSP (no `unsafe-inline`/`unsafe-eval` in prod), HSTS, X-Frame-Options, X-XSS-Protection
 - **Input Validation**: Symbol sanitization, pattern matching, SQL injection prevention
+- **Encrypted PII**: VIN, property address/zip encrypted at rest (Fernet AES-128-CBC)
 - **Encrypted Credentials**: Teller credentials encrypted at rest with AES-256
-- **JWT Authentication**: Secure token-based auth with automatic refresh
+- **JWT Authentication**: Secure token-based auth with httpOnly-cookie refresh tokens
 - **Database Isolation**: Row-level security with organization-scoped queries
+- **Distributed Snapshot Scheduler**: Redis distributed lock prevents duplicate snapshot captures across instances
 
 ## 🛡️ Data Integrity & Deduplication
 
@@ -470,6 +472,7 @@ SMTP_PASSWORD=your-app-password
 SMTP_FROM_EMAIL=noreply@nestegg.app
 SMTP_FROM_NAME=Nest Egg
 SMTP_USE_TLS=true  # STARTTLS on port 587; set false for SSL on port 465
+APP_BASE_URL=http://localhost:5173  # Base URL used in email links — MUST be set to your domain in production
 
 # Alpha Vantage (Optional - for sector data fallback)
 ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
@@ -978,10 +981,12 @@ engine = create_async_engine(
 - [ ] Generate secure `MASTER_ENCRYPTION_KEY`: `openssl rand -hex 32`
 - [ ] Set `ENVIRONMENT=production`
 - [ ] Set `DEBUG=false`
+- [ ] Set `APP_BASE_URL=https://your-domain.com` (used in email verification / password-reset links)
 - [ ] Configure HTTPS/SSL certificates
-- [ ] Set restrictive CORS origins
-- [ ] Enable rate limiting
-- [ ] Set up Sentry error tracking
+- [ ] Set restrictive `CORS_ORIGINS` and `ALLOWED_HOSTS`
+- [ ] Use `nginx.prod.conf` for the frontend (passed automatically via `docker-compose.yml` build arg — strict CSP, HSTS)
+- [ ] Ensure Redis is running — required for distributed rate limiting and snapshot scheduler lock
+- [ ] Set up Sentry error tracking (`SENTRY_DSN`)
 
 #### Database
 - [ ] Use managed PostgreSQL (AWS RDS, GCP Cloud SQL, DigitalOcean)
@@ -1040,7 +1045,9 @@ docker-compose -f docker-compose.prod.yml logs -f
 ```env
 ENVIRONMENT=production
 DEBUG=false
+APP_BASE_URL=https://app.nestegg.com
 ALLOWED_ORIGINS=https://app.nestegg.com
+ALLOWED_HOSTS=app.nestegg.com,api.nestegg.com
 DATABASE_URL=postgresql+asyncpg://user:pass@prod-db:5432/nestegg
 REDIS_URL=redis://prod-redis:6379/0
 TELLER_ENVIRONMENT=production
@@ -1356,8 +1363,8 @@ Date,Merchant,Amount,Category,Description
 - [x] Authentication and user management
 - [x] **Teller integration** with automatic sync (100 free accounts/month)
 - [x] **Yahoo Finance integration** for free, unlimited investment data
-- [x] **Global rate limiting** (1000 req/min per user/IP)
-- [x] **Comprehensive security headers** (CSP, HSTS, X-Frame-Options)
+- [x] **Redis-backed distributed rate limiting** (1000 req/min per user/IP, works across multiple workers; falls back to in-memory in dev)
+- [x] **Strict security headers in production** (CSP without `unsafe-inline`/`unsafe-eval`, HSTS — served via `nginx.prod.conf`)
 - [x] Multi-user household support with deduplication
 - [x] Transaction management with bulk operations
 - [x] Rule engine for automated categorization
@@ -1369,7 +1376,7 @@ Date,Merchant,Amount,Category,Description
 - [x] Cash flow analytics with drill-down
 - [x] Tax-deductible transaction tracking
 - [x] CSV import with deduplication
-- [x] Smart portfolio snapshot scheduler
+- [x] Smart portfolio snapshot scheduler with Redis distributed lock (safe for multi-instance deployments)
 - [x] Celery background tasks
 
 ### 🚧 In Progress
