@@ -1,7 +1,7 @@
 """Unit tests for rate limit middleware."""
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from fastapi import Request, Response
 
 from app.middleware.rate_limit import RateLimitMiddleware, EXEMPT_PATHS
@@ -58,8 +58,8 @@ class TestRateLimitMiddleware:
         mock_request.state.user_id = "user-123"
 
         with patch("app.middleware.rate_limit.api_limiter") as mock_limiter:
-            mock_limiter.is_allowed.return_value = True
-            mock_limiter.get_remaining_calls.return_value = 50
+            mock_limiter.is_allowed = AsyncMock(return_value=True)
+            mock_limiter.get_remaining_calls = AsyncMock(return_value=50)
 
             await middleware.dispatch(mock_request, mock_call_next)
 
@@ -73,8 +73,8 @@ class TestRateLimitMiddleware:
         delattr(mock_request.state, "user_id")
 
         with patch("app.middleware.rate_limit.api_limiter") as mock_limiter:
-            mock_limiter.is_allowed.return_value = True
-            mock_limiter.get_remaining_calls.return_value = 50
+            mock_limiter.is_allowed = AsyncMock(return_value=True)
+            mock_limiter.get_remaining_calls = AsyncMock(return_value=50)
 
             await middleware.dispatch(mock_request, mock_call_next)
 
@@ -88,8 +88,8 @@ class TestRateLimitMiddleware:
         delattr(mock_request.state, "user_id")
 
         with patch("app.middleware.rate_limit.api_limiter") as mock_limiter:
-            mock_limiter.is_allowed.return_value = True
-            mock_limiter.get_remaining_calls.return_value = 50
+            mock_limiter.is_allowed = AsyncMock(return_value=True)
+            mock_limiter.get_remaining_calls = AsyncMock(return_value=50)
 
             await middleware.dispatch(mock_request, mock_call_next)
 
@@ -102,8 +102,8 @@ class TestRateLimitMiddleware:
         mock_request.state.user_id = "user-123"
 
         with patch("app.middleware.rate_limit.api_limiter") as mock_limiter:
-            mock_limiter.is_allowed.return_value = True
-            mock_limiter.get_remaining_calls.return_value = 50
+            mock_limiter.is_allowed = AsyncMock(return_value=True)
+            mock_limiter.get_remaining_calls = AsyncMock(return_value=50)
             mock_limiter.calls_per_minute = 100
 
             response = await middleware.dispatch(mock_request, mock_call_next)
@@ -115,8 +115,8 @@ class TestRateLimitMiddleware:
         mock_request.state.user_id = "user-123"
 
         with patch("app.middleware.rate_limit.api_limiter") as mock_limiter:
-            mock_limiter.is_allowed.return_value = False
-            mock_limiter.get_remaining_calls.return_value = 0
+            mock_limiter.is_allowed = AsyncMock(return_value=False)
+            mock_limiter.get_remaining_calls = AsyncMock(return_value=0)
             mock_limiter.calls_per_minute = 100
 
             with pytest.raises(Exception) as exc_info:
@@ -134,8 +134,8 @@ class TestRateLimitMiddleware:
         mock_request.state.user_id = "user-123"
 
         with patch("app.middleware.rate_limit.api_limiter") as mock_limiter:
-            mock_limiter.is_allowed.return_value = False
-            mock_limiter.get_remaining_calls.return_value = 0
+            mock_limiter.is_allowed = AsyncMock(return_value=False)
+            mock_limiter.get_remaining_calls = AsyncMock(return_value=0)
             mock_limiter.calls_per_minute = 100
 
             with patch("app.middleware.rate_limit.logger") as mock_logger:
@@ -152,8 +152,8 @@ class TestRateLimitMiddleware:
         mock_request.state.user_id = "user-123"
 
         with patch("app.middleware.rate_limit.api_limiter") as mock_limiter:
-            mock_limiter.is_allowed.return_value = True
-            mock_limiter.get_remaining_calls.return_value = 5
+            mock_limiter.is_allowed = AsyncMock(return_value=True)
+            mock_limiter.get_remaining_calls = AsyncMock(return_value=5)
             mock_limiter.calls_per_minute = 100
 
             with patch("app.middleware.rate_limit.logger") as mock_logger:
@@ -168,8 +168,8 @@ class TestRateLimitMiddleware:
         mock_request.state.user_id = "user-123"
 
         with patch("app.middleware.rate_limit.api_limiter") as mock_limiter:
-            mock_limiter.is_allowed.return_value = True
-            mock_limiter.get_remaining_calls.return_value = 50
+            mock_limiter.is_allowed = AsyncMock(return_value=True)
+            mock_limiter.get_remaining_calls = AsyncMock(return_value=50)
             mock_limiter.calls_per_minute = 100
 
             with patch("app.middleware.rate_limit.logger") as mock_logger:
@@ -182,8 +182,8 @@ class TestRateLimitMiddleware:
         mock_request.state.user_id = "user-123"
 
         with patch("app.middleware.rate_limit.api_limiter") as mock_limiter:
-            mock_limiter.is_allowed.return_value = True
-            mock_limiter.get_remaining_calls.return_value = 50
+            mock_limiter.is_allowed = AsyncMock(return_value=True)
+            mock_limiter.get_remaining_calls = AsyncMock(return_value=50)
             mock_limiter.calls_per_minute = 100
 
             response = await middleware.dispatch(mock_request, mock_call_next)
@@ -200,8 +200,8 @@ class TestRateLimitMiddleware:
         mock_request.state.user_id = "user-123"
 
         with patch("app.middleware.rate_limit.api_limiter") as mock_limiter:
-            mock_limiter.is_allowed.return_value = False
-            mock_limiter.get_remaining_calls.return_value = 0
+            mock_limiter.is_allowed = AsyncMock(return_value=False)
+            mock_limiter.get_remaining_calls = AsyncMock(return_value=0)
             mock_limiter.calls_per_minute = 100
 
             with pytest.raises(Exception) as exc_info:

@@ -89,13 +89,15 @@ async def get_portfolio_summary(
         acc.id for acc in accounts if acc.account_type in investment_account_types
     ]
 
-    # Fetch all holdings for the filtered investment accounts
+    # Fetch holdings for the filtered investment accounts (capped at 10 000 rows as
+    # a safety net; no real portfolio should ever approach this limit)
     if investment_account_ids:
         result = await db.execute(
             select(Holding)
             .join(Account)
             .where(Holding.account_id.in_(investment_account_ids))
             .options(selectinload(Holding.account))
+            .limit(10000)
         )
         holdings = result.scalars().all()
     else:

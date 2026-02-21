@@ -176,13 +176,47 @@ class SnapshotScheduler:
             logger.error(f"Failed to capture snapshot for org {organization_id}: {e}")
             return False
 
+    async def _acquire_lock(self) -> bool:
+        """
+        Attempt to acquire a distributed lock via Redis SET NX EX.
+
+        Returns True if the lock was acquired, False if another instance
+        already holds it.  Falls back to True (always run) when Redis is
+        unavailable so that single-instance / dev setups still work.
+        """
+        try:
+            import redis.asyncio as aioredis
+            from app.config import settings
+
+            client = aioredis.from_url(
+                settings.REDIS_URL, encoding="utf-8", decode_responses=True
+            )
+            # TTL of 2 hours; a full snapshot run should finish well within that
+            acquired = await client.set(
+                "scheduler:snapshot:lock", "1", nx=True, ex=7200
+            )
+            await client.aclose()
+            return bool(acquired)
+        except Exception as e:
+            logger.warning(
+                f"Could not acquire snapshot lock via Redis ({e}); running anyway"
+            )
+            return True  # Run without a lock (safe for dev / single-instance)
+
     async def check_and_capture_all(self):
         """
         Check all organizations and capture snapshots as needed.
 
         This is called periodically (every 12 hours) to check if any organization
         needs a snapshot based on their offset schedule.
+
+        A Redis distributed lock prevents multiple server instances from running
+        the snapshot loop simultaneously.
         """
+        if not await self._acquire_lock():
+            logger.info("Snapshot check skipped: another instance holds the lock")
+            return
+
         async with AsyncSessionLocal() as db:
             try:
                 # Get all active organizations

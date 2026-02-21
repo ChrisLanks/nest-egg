@@ -1,7 +1,10 @@
 """FastAPI main application."""
 
+import logging
 from contextlib import asynccontextmanager
 from decimal import Decimal
+
+_logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -239,9 +242,7 @@ def _make_json_serializable(obj):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
-    print(f"❌ Validation error: {exc}")
-    print(f"❌ Error details: {exc.errors()}")
-    print(f"❌ Request URL: {request.url}")
+    _logger.debug("Validation error on %s: %s", request.url, exc.errors())
     errors = _make_json_serializable(exc.errors())
     return JSONResponse(
         status_code=422,

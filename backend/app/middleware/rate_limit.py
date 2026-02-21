@@ -45,8 +45,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             rate_limit_key = f"user:{user_id}"
 
         # Check rate limit
-        if not api_limiter.is_allowed(rate_limit_key):
-            remaining = api_limiter.get_remaining_calls(rate_limit_key)
+        if not await api_limiter.is_allowed(rate_limit_key):
+            remaining = await api_limiter.get_remaining_calls(rate_limit_key)
             logger.warning(
                 f"Rate limit exceeded for {rate_limit_key} on {request.url.path}. "
                 f"Remaining: {remaining}/{api_limiter.calls_per_minute}"
@@ -62,7 +62,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
 
         # Log rate limit status for monitoring (only when approaching limit)
-        remaining = api_limiter.get_remaining_calls(rate_limit_key)
+        remaining = await api_limiter.get_remaining_calls(rate_limit_key)
         if remaining < 10:
             logger.info(
                 f"{rate_limit_key} approaching rate limit on {request.url.path}. "

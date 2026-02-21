@@ -44,8 +44,11 @@ def verify_teller_webhook_signature(
         Webhook signature verification is REQUIRED for production.
         In development with DEBUG=True, signature verification is logged but not enforced.
     """
+    # DEBUG bypass is only allowed in non-production environments
+    _debug_bypass = settings.DEBUG and settings.ENVIRONMENT != "production"
+
     if not secret:
-        if settings.DEBUG:
+        if _debug_bypass:
             logger.warning(
                 "⚠️  TELLER_WEBHOOK_SECRET not set - webhook verification disabled in DEBUG mode"
             )
@@ -57,7 +60,7 @@ def verify_teller_webhook_signature(
             )
 
     if not signature_header:
-        if settings.DEBUG:
+        if _debug_bypass:
             logger.warning("⚠️  Missing Teller-Signature header - allowing in DEBUG mode")
             return True
         else:
@@ -73,7 +76,7 @@ def verify_teller_webhook_signature(
         is_valid = hmac.compare_digest(expected_signature, signature_header)
 
         if not is_valid:
-            if settings.DEBUG:
+            if _debug_bypass:
                 logger.warning("⚠️  Teller webhook signature mismatch - allowing in DEBUG mode")
                 logger.debug(
                     f"Expected: {expected_signature[:16]}... Got: {signature_header[:16]}..."
@@ -87,7 +90,7 @@ def verify_teller_webhook_signature(
         return True
 
     except Exception as e:
-        if settings.DEBUG:
+        if _debug_bypass:
             logger.warning(f"⚠️  Webhook verification error in DEBUG mode: {str(e)}")
             return True
         else:

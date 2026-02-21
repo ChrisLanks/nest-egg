@@ -1,5 +1,6 @@
 """Plaid API service with test mode for development."""
 
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple, Dict, Any
 import uuid
@@ -8,6 +9,8 @@ from fastapi import HTTPException
 
 from app.models.user import User
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class PlaidService:
@@ -75,7 +78,7 @@ class PlaidService:
                 if body_hash != decoded["request_body_sha256"]:
                     raise HTTPException(status_code=401, detail="Webhook body hash mismatch")
 
-            print(f"✅ Webhook signature verified for item: {webhook_body.get('item_id')}")
+            logger.info(f"Webhook signature verified for item: {webhook_body.get('item_id')}")
             return True
 
         except jwt.ExpiredSignatureError:
@@ -83,7 +86,7 @@ class PlaidService:
         except jwt.InvalidTokenError as e:
             raise HTTPException(status_code=401, detail=f"Invalid webhook signature: {str(e)}")
         except Exception as e:
-            print(f"❌ Webhook verification error: {str(e)}")
+            logger.error(f"Webhook verification error: {str(e)}")
             raise HTTPException(status_code=401, detail="Webhook verification failed")
 
     async def create_link_token(self, user: User) -> Tuple[str, str]:
