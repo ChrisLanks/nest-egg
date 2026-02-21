@@ -103,7 +103,7 @@ export default function RecurringTransactionsPage() {
   // Fetch merchants for autocomplete
   const { data: allMerchants = [] } = useQuery({
     queryKey: ['transaction-merchants'],
-    queryFn: () => api.get<string[]>('/transactions/merchants').then((r) => r.data),
+    queryFn: () => api.get<{ merchants: string[] }>('/transactions/merchants').then((r) => r.data.merchants),
     staleTime: 5 * 60 * 1000,
   });
 
