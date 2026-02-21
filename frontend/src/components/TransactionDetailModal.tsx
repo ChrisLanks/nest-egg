@@ -33,6 +33,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import type { Transaction } from '../types/transaction';
 import api from '../services/api';
 import { useAuthStore } from '../features/auth/stores/authStore';
+import { useUserView } from '../contexts/UserViewContext';
 import { CategorySelect } from './CategorySelect';
 import { MerchantSelect } from './MerchantSelect';
 import { RuleBuilder } from '../features/rules/components/RuleBuilder';
@@ -64,11 +65,13 @@ export const TransactionDetailModal = ({
   const toast = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
+  const { isSelfView, isOtherUserView } = useUserView();
 
   // Rule builder modal
   const { isOpen: isRuleBuilderOpen, onOpen: onRuleBuilderOpen, onClose: onRuleBuilderClose } = useDisclosure();
 
-  // Fetch account to check ownership
+  // Fetch account to check ownership — only needed for combined household view
+  // (in self-view all shown transactions are ours; in other-user-view never editable)
   const { data: account } = useQuery({
     queryKey: ['account', transaction?.account_id],
     queryFn: async () => {
@@ -76,11 +79,18 @@ export const TransactionDetailModal = ({
       const response = await api.get(`/accounts/${transaction.account_id}`);
       return response.data;
     },
-    enabled: !!transaction?.account_id && isOpen,
+    enabled: !!transaction?.account_id && isOpen && !isSelfView && !isOtherUserView,
   });
 
-  // Check if current user owns the transaction's account
-  const canEdit = account && account.user_id === user?.id;
+  // Determine edit permission:
+  // - Self view: all displayed transactions belong to the current user → always editable
+  // - Other-user view: read-only → never editable
+  // - Combined household view: check account ownership
+  const canEdit = isSelfView
+    ? true
+    : isOtherUserView
+      ? false
+      : !!(account && account.user_id === user?.id);
 
   // Fetch available labels
   const { data: availableLabels } = useQuery({
