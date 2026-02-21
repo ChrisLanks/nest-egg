@@ -10,8 +10,8 @@ from passlib.context import CryptContext
 from app.config import settings
 from app.utils.datetime_utils import utc_now
 
-# Password hashing context using Argon2
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+# Password hashing context using Argon2 (bcrypt kept as deprecated for legacy hashes)
+pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
