@@ -60,23 +60,24 @@ class TestMarketDataEndpoints:
 
         assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
 
-    def test_get_quote_rate_limited(self, client, auth_headers):
+    def test_get_quote_rate_limited(self, client, auth_headers, mock_provider):
         """Should enforce rate limiting."""
-        # Make 101 requests (over the limit of 100)
-        for i in range(101):
-            response = client.get("/api/v1/market-data/quote/AAPL", headers=auth_headers)
+        # Make 101 requests (over the limit of 100), mock provider to avoid real network calls
+        with patch("app.api.v1.market_data.get_market_data_provider", return_value=mock_provider):
+            for i in range(101):
+                response = client.get("/api/v1/market-data/quote/AAPL", headers=auth_headers)
 
-            if i < 100:
-                assert response.status_code in [
-                    status.HTTP_200_OK,
-                    status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    status.HTTP_404_NOT_FOUND,
-                ]  # May fail for other reasons
-            else:
-                # 101st request should be rate limited
-                assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
-                data = response.json()
-                assert "Rate limit exceeded" in str(data["detail"])
+                if i < 100:
+                    assert response.status_code in [
+                        status.HTTP_200_OK,
+                        status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        status.HTTP_404_NOT_FOUND,
+                    ]  # May fail for other reasons
+                else:
+                    # 101st request should be rate limited
+                    assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+                    data = response.json()
+                    assert "Rate limit exceeded" in str(data["detail"])
 
     def test_get_quotes_batch(self, client, auth_headers, mock_provider):
         """Should fetch multiple quotes in batch."""
