@@ -50,8 +50,8 @@ services:
     environment:
       # Application
       APP_NAME: "Nest Egg"
-      ENVIRONMENT: ${ENVIRONMENT:-production}
-      DEBUG: ${DEBUG:-false}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-true}
 
       # Database
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-nestegg}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nestegg}
@@ -93,8 +93,8 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/0
 
       # CORS
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000","http://localhost:5173"]}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-["localhost","localhost:8000","127.0.0.1"]}
 
       # Monitoring
       SENTRY_DSN: ${SENTRY_DSN}

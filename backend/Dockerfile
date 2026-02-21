@@ -35,6 +35,10 @@ COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
 # Copy application code
 COPY --chown=appuser:appuser . .
 
+# Ensure /app is writable by appuser (WORKDIR creates it as root)
+RUN chown appuser:appuser /app && mkdir -p /app/logs && chown appuser:appuser /app/logs && \
+    chmod +x /app/start.sh
+
 # Make sure scripts in .local are usable and app module is importable
 ENV PATH=/home/appuser/.local/bin:$PATH \
     PYTHONPATH=/app:$PYTHONPATH
@@ -49,5 +53,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run uvicorn with multiple workers for production
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+# Run migrations then start uvicorn
+CMD ["/app/start.sh"]

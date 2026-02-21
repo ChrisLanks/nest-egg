@@ -139,6 +139,18 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
+    @field_validator("CORS_ORIGINS", "ALLOWED_HOSTS", mode="before")
+    @classmethod
+    def parse_string_list(cls, v):
+        """Allow comma-separated strings in env vars (e.g. 'http://a.com,http://b.com')."""
+        if isinstance(v, str):
+            import json
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, ValueError):
+                return [item.strip() for item in v.split(",") if item.strip()]
+        return v
+
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
