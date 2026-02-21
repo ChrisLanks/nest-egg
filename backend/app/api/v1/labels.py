@@ -56,6 +56,109 @@ async def list_labels(
     return labels
 
 
+# Tax-Deductible Endpoints — must be registered BEFORE /{label_id} so FastAPI
+# doesn't greedily match "tax-deductible" as a label_id path parameter.
+
+
+@router.post("/tax-deductible/initialize", response_model=List[LabelResponse], status_code=201)
+async def initialize_tax_labels(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Initialize default tax-deductible labels for the organization.
+
+    Creates standard IRS-aligned tax labels:
+    - Medical & Dental
+    - Charitable Donations
+    - Business Expenses
+    - Education
+    - Home Office
+
+    Idempotent operation - only creates labels that don't exist.
+    """
+    labels = await TaxService.initialize_tax_labels(db, current_user.organization_id)
+    return labels
+
+
+@router.get("/tax-deductible")
+async def get_tax_deductible_transactions(
+    start_date: date = Query(..., description="Start date for tax period (e.g., 2024-01-01)"),
+    end_date: date = Query(..., description="End date for tax period (e.g., 2024-12-31)"),
+    label_ids: Optional[List[UUID]] = Query(None, description="Filter by specific tax label IDs"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get tax-deductible transactions grouped by label.
+
+    Returns summary with:
+    - Total amount per tax category
+    - Transaction count per category
+    - Detailed transaction list per category
+
+    Useful for tax preparation and reporting.
+    """
+    summaries = await TaxService.get_tax_deductible_summary(
+        db,
+        current_user.organization_id,
+        start_date,
+        end_date,
+        label_ids,
+        user_id,
+    )
+
+    # Convert to dict format for JSON response
+    return [
+        {
+            "label_id": str(summary.label_id),
+            "label_name": summary.label_name,
+            "label_color": summary.label_color,
+            "total_amount": float(summary.total_amount),
+            "transaction_count": summary.transaction_count,
+            "transactions": summary.transactions,
+        }
+        for summary in summaries
+    ]
+
+
+@router.get("/tax-deductible/export")
+async def export_tax_deductible_csv(
+    start_date: date = Query(..., description="Start date for tax period"),
+    end_date: date = Query(..., description="End date for tax period"),
+    label_ids: Optional[List[UUID]] = Query(None, description="Filter by specific tax label IDs"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Export tax-deductible transactions as CSV.
+
+    Format optimized for tax software import:
+    - Date, Merchant, Description, Category, Tax Label, Amount, Account, Notes
+
+    Returns CSV file with name: tax_deductible_transactions_{start_date}_{end_date}.csv
+    """
+    csv_data = await TaxService.generate_tax_export_csv(
+        db,
+        current_user.organization_id,
+        start_date,
+        end_date,
+        label_ids,
+        user_id,
+    )
+
+    # Generate filename
+    filename = f"tax_deductible_transactions_{start_date}_{end_date}.csv"
+
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 @router.get("/{label_id}", response_model=LabelResponse)
 async def get_label(
     label_id: UUID,
@@ -207,105 +310,3 @@ async def delete_label(
 
     await db.delete(label)
     await db.commit()
-
-
-# Tax-Deductible Endpoints
-
-
-@router.post("/tax-deductible/initialize", response_model=List[LabelResponse], status_code=201)
-async def initialize_tax_labels(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Initialize default tax-deductible labels for the organization.
-
-    Creates standard IRS-aligned tax labels:
-    - Medical & Dental
-    - Charitable Donations
-    - Business Expenses
-    - Education
-    - Home Office
-
-    Idempotent operation - only creates labels that don't exist.
-    """
-    labels = await TaxService.initialize_tax_labels(db, current_user.organization_id)
-    return labels
-
-
-@router.get("/tax-deductible")
-async def get_tax_deductible_transactions(
-    start_date: date = Query(..., description="Start date for tax period (e.g., 2024-01-01)"),
-    end_date: date = Query(..., description="End date for tax period (e.g., 2024-12-31)"),
-    label_ids: Optional[List[UUID]] = Query(None, description="Filter by specific tax label IDs"),
-    user_id: Optional[UUID] = Query(None, description="Filter by user"),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Get tax-deductible transactions grouped by label.
-
-    Returns summary with:
-    - Total amount per tax category
-    - Transaction count per category
-    - Detailed transaction list per category
-
-    Useful for tax preparation and reporting.
-    """
-    summaries = await TaxService.get_tax_deductible_summary(
-        db,
-        current_user.organization_id,
-        start_date,
-        end_date,
-        label_ids,
-        user_id,
-    )
-
-    # Convert to dict format for JSON response
-    return [
-        {
-            "label_id": str(summary.label_id),
-            "label_name": summary.label_name,
-            "label_color": summary.label_color,
-            "total_amount": float(summary.total_amount),
-            "transaction_count": summary.transaction_count,
-            "transactions": summary.transactions,
-        }
-        for summary in summaries
-    ]
-
-
-@router.get("/tax-deductible/export")
-async def export_tax_deductible_csv(
-    start_date: date = Query(..., description="Start date for tax period"),
-    end_date: date = Query(..., description="End date for tax period"),
-    label_ids: Optional[List[UUID]] = Query(None, description="Filter by specific tax label IDs"),
-    user_id: Optional[UUID] = Query(None, description="Filter by user"),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Export tax-deductible transactions as CSV.
-
-    Format optimized for tax software import:
-    - Date, Merchant, Description, Category, Tax Label, Amount, Account, Notes
-
-    Returns CSV file with name: tax_deductible_transactions_{start_date}_{end_date}.csv
-    """
-    csv_data = await TaxService.generate_tax_export_csv(
-        db,
-        current_user.organization_id,
-        start_date,
-        end_date,
-        label_ids,
-        user_id,
-    )
-
-    # Generate filename
-    filename = f"tax_deductible_transactions_{start_date}_{end_date}.csv"
-
-    return Response(
-        content=csv_data,
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )

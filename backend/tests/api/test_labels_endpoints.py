@@ -403,3 +403,127 @@ class TestLabelEndpoints:
         )
         txn_data = txn_response.json()
         assert not any(label["id"] == label_id for label in txn_data.get("labels", []))
+
+
+@pytest.mark.api
+class TestTaxDeductibleEndpoints:
+    """Integration tests for the tax-deductible label endpoints.
+
+    Specifically validates the route-ordering fix: the static paths
+    /tax-deductible, /tax-deductible/initialize, and /tax-deductible/export
+    must be registered BEFORE /{label_id} or FastAPI greedily matches
+    "tax-deductible" as a UUID path parameter and returns 422.
+    """
+
+    def test_tax_deductible_endpoint_resolves_correctly(
+        self, client: TestClient, auth_headers
+    ):
+        """GET /labels/tax-deductible should return 200, not a UUID validation 422."""
+        response = client.get(
+            "/api/v1/labels/tax-deductible?start_date=2026-01-01&end_date=2026-12-31",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        assert isinstance(response.json(), list)
+
+    def test_tax_deductible_endpoint_missing_dates_returns_date_error(
+        self, client: TestClient, auth_headers
+    ):
+        """Without dates, must 422 on start_date/end_date, not on a label_id UUID."""
+        response = client.get(
+            "/api/v1/labels/tax-deductible",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 422
+        data = response.json()
+        # Error detail must reference the missing query params, not label_id UUID
+        flat_locs = [
+            field
+            for error in data.get("detail", [])
+            for field in error.get("loc", [])
+        ]
+        assert "start_date" in flat_locs or "end_date" in flat_locs
+        assert "label_id" not in flat_locs
+
+    def test_initialize_tax_labels_creates_five_labels(
+        self, client: TestClient, auth_headers
+    ):
+        """POST /labels/tax-deductible/initialize should return the 5 tax labels."""
+        response = client.post(
+            "/api/v1/labels/tax-deductible/initialize",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert len(data) == 5
+        names = {label["name"] for label in data}
+        assert names == {
+            "Medical & Dental",
+            "Charitable Donations",
+            "Business Expenses",
+            "Education",
+            "Home Office",
+        }
+
+    def test_initialize_tax_labels_is_idempotent(
+        self, client: TestClient, auth_headers
+    ):
+        """Calling initialize twice should not create duplicate labels."""
+        client.post(
+            "/api/v1/labels/tax-deductible/initialize", headers=auth_headers
+        )
+        response = client.post(
+            "/api/v1/labels/tax-deductible/initialize", headers=auth_headers
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        # Still exactly 5 — no duplicates
+        assert len(data) == 5
+
+    def test_tax_deductible_returns_only_tax_label_transactions(
+        self, client: TestClient, auth_headers
+    ):
+        """Only transactions tagged with official tax labels should appear.
+
+        Even if the user creates a label named 'Groceries' and tags transactions
+        with it, that label must never appear in the tax-deductible report.
+        """
+        # Initialize the 5 official tax labels
+        client.post(
+            "/api/v1/labels/tax-deductible/initialize", headers=auth_headers
+        )
+
+        # Create a non-tax label
+        client.post(
+            "/api/v1/labels",
+            json={"name": "Groceries", "is_income": False},
+            headers=auth_headers,
+        )
+
+        # The tax report must not contain "Groceries" regardless of what
+        # transactions may exist — the backend filters by official names only.
+        response = client.get(
+            "/api/v1/labels/tax-deductible?start_date=2026-01-01&end_date=2026-12-31",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert all(summary["label_name"] != "Groceries" for summary in data)
+
+    def test_export_csv_resolves_correctly(
+        self, client: TestClient, auth_headers
+    ):
+        """GET /labels/tax-deductible/export should return CSV, not a UUID error."""
+        response = client.get(
+            "/api/v1/labels/tax-deductible/export"
+            "?start_date=2026-01-01&end_date=2026-12-31",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        assert "text/csv" in response.headers.get("content-type", "")

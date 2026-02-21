@@ -116,6 +116,9 @@ class TaxService:
         Returns:
             List of tax-deductible summaries grouped by label
         """
+        # Only surface the 5 official tax-deductible labels, not arbitrary user labels
+        tax_label_names = [l["name"] for l in TaxService.DEFAULT_TAX_LABELS]
+
         # Build base query for transactions with tax labels
         query = (
             select(
@@ -134,7 +137,7 @@ class TaxService:
                     Account.organization_id == organization_id,
                     Transaction.date >= start_date,
                     Transaction.date <= end_date,
-                    Transaction.is_transfer.is_(False),
+                    Label.name.in_(tax_label_names),
                 )
             )
         )
@@ -152,25 +155,43 @@ class TaxService:
         query = query.order_by(func.sum(func.abs(Transaction.amount)).desc())
 
         result = await db.execute(query)
-        summaries = []
 
+        # Merge rows with the same label name — avoids showing duplicates when a
+        # label was created both manually and via initialize (same name, different id).
+        merged: dict = {}
         for row in result.all():
-            # Get detailed transactions for this label
+            name = row.label_name
+            if name in merged:
+                merged[name]["label_ids"].append(row.label_id)
+                merged[name]["total_amount"] += row.total_amount
+                merged[name]["transaction_count"] += row.transaction_count
+            else:
+                merged[name] = {
+                    "label_id": row.label_id,
+                    "label_ids": [row.label_id],
+                    "label_name": row.label_name,
+                    "label_color": row.label_color,
+                    "total_amount": row.total_amount,
+                    "transaction_count": row.transaction_count,
+                }
+
+        summaries = []
+        for data in merged.values():
             transactions = await TaxService._get_transactions_for_label(
                 db,
                 organization_id,
                 start_date,
                 end_date,
-                row.label_id,
+                data["label_ids"],
                 user_id,
             )
 
             summary = TaxDeductibleSummary(
-                label_id=row.label_id,
-                label_name=row.label_name,
-                label_color=row.label_color,
-                total_amount=row.total_amount,
-                transaction_count=row.transaction_count,
+                label_id=data["label_id"],
+                label_name=data["label_name"],
+                label_color=data["label_color"],
+                total_amount=data["total_amount"],
+                transaction_count=len(transactions),
                 transactions=transactions,
             )
             summaries.append(summary)
@@ -183,10 +204,10 @@ class TaxService:
         organization_id: UUID,
         start_date: date,
         end_date: date,
-        label_id: UUID,
+        label_ids: List[UUID],
         user_id: Optional[UUID] = None,
     ) -> List[Dict]:
-        """Get detailed transaction list for a specific label."""
+        """Get deduplicated transaction list for one or more label IDs sharing the same name."""
         query = (
             select(
                 Transaction.id,
@@ -197,6 +218,7 @@ class TaxService:
                 Transaction.category_primary,
                 Account.name.label("account_name"),
             )
+            .distinct()
             .select_from(Transaction)
             .join(TransactionLabel, Transaction.id == TransactionLabel.transaction_id)
             .join(Account, Transaction.account_id == Account.id)
@@ -205,8 +227,7 @@ class TaxService:
                     Account.organization_id == organization_id,
                     Transaction.date >= start_date,
                     Transaction.date <= end_date,
-                    Transaction.is_transfer.is_(False),
-                    TransactionLabel.label_id == label_id,
+                    TransactionLabel.label_id.in_(label_ids),
                 )
             )
         )
