@@ -200,7 +200,9 @@ export const RothConversionAnalyzer: React.FC = () => {
                 <FormLabel fontSize="sm">
                   Traditional Balance to Analyze
                   <Tooltip label={fetchedBalance > 0 ? `Auto-filled from your accounts (${formatCurrency(fetchedBalance)}). Edit to run a hypothetical.` : 'Enter your traditional IRA or 401(k) balance'} placement="top">
-                    <Icon as={FiInfo} ml={1} boxSize={3} color="gray.400" />
+                    <Box as="span" display="inline-flex" ml={1} verticalAlign="middle" cursor="help">
+                      <Icon as={FiInfo} boxSize={3} color="gray.400" />
+                    </Box>
                   </Tooltip>
                 </FormLabel>
                 <input
@@ -225,7 +227,9 @@ export const RothConversionAnalyzer: React.FC = () => {
                 <FormLabel fontSize="sm">
                   Current Tax Bracket
                   <Tooltip label="Your marginal federal income tax rate today" placement="top">
-                    <Icon as={FiInfo} ml={1} boxSize={3} color="gray.400" />
+                    <Box as="span" display="inline-flex" ml={1} verticalAlign="middle" cursor="help">
+                      <Icon as={FiInfo} boxSize={3} color="gray.400" />
+                    </Box>
                   </Tooltip>
                 </FormLabel>
                 <Select
@@ -243,7 +247,9 @@ export const RothConversionAnalyzer: React.FC = () => {
                 <FormLabel fontSize="sm">
                   Expected Retirement Tax Bracket
                   <Tooltip label="Your estimated marginal rate in retirement" placement="top">
-                    <Icon as={FiInfo} ml={1} boxSize={3} color="gray.400" />
+                    <Box as="span" display="inline-flex" ml={1} verticalAlign="middle" cursor="help">
+                      <Icon as={FiInfo} boxSize={3} color="gray.400" />
+                    </Box>
                   </Tooltip>
                 </FormLabel>
                 <Select
