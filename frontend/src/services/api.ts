@@ -237,8 +237,14 @@ api.interceptors.response.use(
     });
     const originalRequest = error.config;
 
-    // If 401 and not already retried, try to refresh token
-    if (error.response?.status === 401 && !originalRequest?._retry) {
+    // If 401 and not already retried, try to refresh token.
+    // Skip refresh for login/register — a 401 there is a credential failure,
+    // not an expired token, so let the error propagate to the caller.
+    const isAuthEndpoint = originalRequest?.url?.includes('/auth/login') ||
+                           originalRequest?.url?.includes('/auth/register') ||
+                           originalRequest?.url?.includes('/auth/forgot-password') ||
+                           originalRequest?.url?.includes('/auth/reset-password');
+    if (error.response?.status === 401 && !originalRequest?._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       try {
