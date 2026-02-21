@@ -1296,3 +1296,27 @@ class TestLeaveHousehold:
 
         assert user.is_primary_household_member is True
         assert user.is_org_admin is True
+
+    @pytest.mark.asyncio
+    async def test_leave_expires_pending_invitations(self):
+        """Leaving expires any PENDING invitations so the admin can re-invite cleanly."""
+        from app.api.v1.household import leave_household
+
+        user = self._make_user(is_primary=False)
+
+        mock_db = AsyncMock()
+        mock_db.flush = AsyncMock()
+        mock_db.commit = AsyncMock()
+        mock_db.add = Mock()
+
+        # execute is called twice: once for UPDATE invitations, once for SELECT accounts
+        mock_accounts_result = Mock()
+        mock_accounts_result.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_accounts_result)
+
+        await leave_household(current_user=user, db=mock_db)
+
+        # The UPDATE call should have been made (execute called at least twice)
+        assert mock_db.execute.call_count >= 2
+        # Commit should still happen
+        mock_db.commit.assert_called_once()

@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -288,6 +288,17 @@ async def leave_household(
 
     from app.models.user import Organization
     from app.models.account import Account
+
+    # Expire any pending invitations for this user so the admin can re-invite cleanly
+    await db.execute(
+        update(HouseholdInvitation)
+        .where(
+            HouseholdInvitation.email == current_user.email,
+            HouseholdInvitation.organization_id == current_user.organization_id,
+            HouseholdInvitation.status == InvitationStatus.PENDING,
+        )
+        .values(status=InvitationStatus.EXPIRED)
+    )
 
     # Build a sensible name for their new solo household
     name_part = (
