@@ -244,6 +244,7 @@ class TestListTransactions:
                 page_size=50,
                 cursor=None,
                 account_id=None,
+                user_id=None,
                 start_date="invalid-date",
                 end_date=None,
                 search=None,
@@ -253,6 +254,102 @@ class TestListTransactions:
 
         assert exc_info.value.status_code == 400
         assert "Invalid start_date format" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_user_id_calls_verify_household_member(self, mock_user):
+        """Providing user_id must call verify_household_member before querying."""
+        mock_db = AsyncMock(spec=AsyncSession)
+        target_user_id = uuid4()
+        mock_txn = self.create_mock_transaction()
+
+        mock_scalars = Mock()
+        mock_scalars.all = Mock(return_value=[mock_txn])
+        mock_unique = Mock()
+        mock_unique.scalars = Mock(return_value=mock_scalars)
+        mock_execute_result = Mock()
+        mock_execute_result.unique = Mock(return_value=mock_unique)
+        mock_count_result = Mock()
+        mock_count_result.scalar = Mock(return_value=1)
+        mock_db.execute = AsyncMock(side_effect=[mock_execute_result, mock_count_result])
+
+        with patch(
+            "app.api.v1.transactions.verify_household_member",
+            new_callable=AsyncMock,
+        ) as mock_verify:
+            await list_transactions(
+                page_size=50,
+                cursor=None,
+                account_id=None,
+                user_id=target_user_id,
+                start_date=None,
+                end_date=None,
+                search=None,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            mock_verify.assert_awaited_once_with(
+                mock_db, target_user_id, mock_user.organization_id
+            )
+
+    @pytest.mark.asyncio
+    async def test_user_id_non_member_raises_403(self, mock_user):
+        """verify_household_member raising 403 must propagate out of list_transactions."""
+        mock_db = AsyncMock(spec=AsyncSession)
+
+        with patch(
+            "app.api.v1.transactions.verify_household_member",
+            new_callable=AsyncMock,
+            side_effect=HTTPException(status_code=403, detail="Not a household member"),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await list_transactions(
+                    page_size=50,
+                    cursor=None,
+                    account_id=None,
+                    user_id=uuid4(),
+                    start_date=None,
+                    end_date=None,
+                    search=None,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+            assert exc_info.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_no_user_id_skips_verify_household_member(self, mock_user):
+        """When user_id is None (household view), verify_household_member is not called."""
+        mock_db = AsyncMock(spec=AsyncSession)
+        mock_txn = self.create_mock_transaction()
+
+        mock_scalars = Mock()
+        mock_scalars.all = Mock(return_value=[mock_txn])
+        mock_unique = Mock()
+        mock_unique.scalars = Mock(return_value=mock_scalars)
+        mock_execute_result = Mock()
+        mock_execute_result.unique = Mock(return_value=mock_unique)
+        mock_count_result = Mock()
+        mock_count_result.scalar = Mock(return_value=1)
+        mock_db.execute = AsyncMock(side_effect=[mock_execute_result, mock_count_result])
+
+        with patch(
+            "app.api.v1.transactions.verify_household_member",
+            new_callable=AsyncMock,
+        ) as mock_verify:
+            await list_transactions(
+                page_size=50,
+                cursor=None,
+                account_id=None,
+                user_id=None,
+                start_date=None,
+                end_date=None,
+                search=None,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            mock_verify.assert_not_awaited()
 
 
 @pytest.mark.unit
