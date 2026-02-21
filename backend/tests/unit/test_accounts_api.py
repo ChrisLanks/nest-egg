@@ -514,6 +514,86 @@ class TestCreateManualAccount:
             assert result.include_in_networth is False
 
     @pytest.mark.asyncio
+    async def test_create_negates_positive_balance_for_debt_account(
+        self, mock_db, mock_user
+    ):
+        """Positive balance entered for a debt account must be stored as negative."""
+        for account_type in [
+            AccountType.MORTGAGE,
+            AccountType.LOAN,
+            AccountType.STUDENT_LOAN,
+            AccountType.CREDIT_CARD,
+        ]:
+            account_data = ManualAccountCreate(
+                name=f"Test {account_type.value}",
+                account_type=account_type,
+                account_source=AccountSource.MANUAL,
+                balance=Decimal("10000.00"),
+            )
+
+            with patch(
+                "app.api.v1.accounts.deduplication_service.calculate_manual_account_hash",
+                return_value="hash",
+            ):
+                result = await create_manual_account(
+                    account_data=account_data,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+            assert result.current_balance == Decimal("-10000.00"), (
+                f"{account_type.value} with positive balance should be negated"
+            )
+
+    @pytest.mark.asyncio
+    async def test_create_keeps_negative_balance_for_debt_account(
+        self, mock_db, mock_user
+    ):
+        """Already-negative balance for a debt account should be stored as-is."""
+        account_data = ManualAccountCreate(
+            name="My Mortgage",
+            account_type=AccountType.MORTGAGE,
+            account_source=AccountSource.MANUAL,
+            balance=Decimal("-330000.00"),
+        )
+
+        with patch(
+            "app.api.v1.accounts.deduplication_service.calculate_manual_account_hash",
+            return_value="hash",
+        ):
+            result = await create_manual_account(
+                account_data=account_data,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+        assert result.current_balance == Decimal("-330000.00")
+
+    @pytest.mark.asyncio
+    async def test_create_keeps_positive_balance_for_asset_account(
+        self, mock_db, mock_user
+    ):
+        """Positive balance for a non-debt account must NOT be negated."""
+        account_data = ManualAccountCreate(
+            name="My Savings",
+            account_type=AccountType.SAVINGS,
+            account_source=AccountSource.MANUAL,
+            balance=Decimal("50000.00"),
+        )
+
+        with patch(
+            "app.api.v1.accounts.deduplication_service.calculate_manual_account_hash",
+            return_value="hash",
+        ):
+            result = await create_manual_account(
+                account_data=account_data,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+        assert result.current_balance == Decimal("50000.00")
+
+    @pytest.mark.asyncio
     async def test_creates_holdings_for_investment_accounts(
         self, mock_db, mock_user
     ):
@@ -725,6 +805,72 @@ class TestUpdateAccount:
         assert result.is_active is False
         assert result.current_balance == Decimal("2000.00")
         assert result.mask == "5678"
+
+    @pytest.mark.asyncio
+    async def test_update_negates_positive_balance_for_debt_account(
+        self, mock_db
+    ):
+        """Positive current_balance on update for a debt account must be negated."""
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.name = "My Mortgage"
+        account.account_type = AccountType.MORTGAGE
+        account.is_active = True
+        account.current_balance = Decimal("-330000.00")
+        account.mask = "1234"
+        account.exclude_from_cash_flow = True
+
+        update_data = AccountUpdate(current_balance=Decimal("330000.00"))
+
+        result = await update_account(
+            account_data=update_data, account=account, db=mock_db
+        )
+
+        assert result.current_balance == Decimal("-330000.00")
+
+    @pytest.mark.asyncio
+    async def test_update_keeps_negative_balance_for_debt_account(
+        self, mock_db
+    ):
+        """Already-negative current_balance on update for a debt account should be stored as-is."""
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.name = "My Loan"
+        account.account_type = AccountType.LOAN
+        account.is_active = True
+        account.current_balance = Decimal("-15000.00")
+        account.mask = "5678"
+        account.exclude_from_cash_flow = True
+
+        update_data = AccountUpdate(current_balance=Decimal("-12000.00"))
+
+        result = await update_account(
+            account_data=update_data, account=account, db=mock_db
+        )
+
+        assert result.current_balance == Decimal("-12000.00")
+
+    @pytest.mark.asyncio
+    async def test_update_keeps_positive_balance_for_asset_account(
+        self, mock_db
+    ):
+        """Positive current_balance on update for a non-debt account must NOT be negated."""
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.name = "My Checking"
+        account.account_type = AccountType.CHECKING
+        account.is_active = True
+        account.current_balance = Decimal("5000.00")
+        account.mask = "1234"
+        account.exclude_from_cash_flow = False
+
+        update_data = AccountUpdate(current_balance=Decimal("7500.00"))
+
+        result = await update_account(
+            account_data=update_data, account=account, db=mock_db
+        )
+
+        assert result.current_balance == Decimal("7500.00")
 
 
 @pytest.mark.unit

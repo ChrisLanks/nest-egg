@@ -8,8 +8,12 @@ from uuid import UUID
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account
+from app.models.account import Account, AccountType
 from app.services.amortization_service import AmortizationService
+
+# Build the debt type list dynamically from the enum so new debt types are
+# automatically included when added to AccountType.
+_DEBT_ACCOUNT_TYPES = [t.name for t in AccountType if t.is_debt]
 
 
 class DebtAccount:
@@ -53,8 +57,7 @@ class PayoffStrategyService:
         conditions = [
             Account.organization_id == organization_id,
             Account.is_active.is_(True),
-            Account.account_type.in_(["CREDIT_CARD", "LOAN", "STUDENT_LOAN", "MORTGAGE"]),
-            Account.current_balance < 0,  # Debt accounts have negative balances
+            Account.account_type.in_(_DEBT_ACCOUNT_TYPES),
         ]
 
         if user_id:
@@ -198,6 +201,7 @@ class PayoffStrategyService:
             {
                 "account_id": str(debt.account_id),
                 "name": debt.name,
+                "account_type": debt.account_type.value,
                 "original_balance": float(debt.balance),
                 "balance": debt.balance,
                 "interest_rate": debt.interest_rate,
@@ -236,6 +240,13 @@ class PayoffStrategyService:
                     debt["total_interest"] += interest
                     debt["total_paid"] += payment
 
+                    # Track payoff month if minimum payment just zeroed this debt
+                    if debt["balance"] <= Decimal("0.01") and debt["months_to_payoff"] == 0:
+                        debt["months_to_payoff"] = current_month
+                        debt["payoff_date"] = (
+                            date.today().replace(day=1) + timedelta(days=30 * current_month)
+                        ).isoformat()
+
             if all_paid:
                 break
 
@@ -266,10 +277,13 @@ class PayoffStrategyService:
         total_interest = sum(debt["total_interest"] for debt in debt_states)
         total_paid = sum(debt["total_paid"] for debt in debt_states)
 
-        # Set payoff dates for any remaining debts
+        # Safety net: set payoff month/date for any debt paid off but not yet recorded
         for debt in debt_states:
             if debt["months_to_payoff"] == 0 and debt["balance"] <= Decimal("0.01"):
                 debt["months_to_payoff"] = current_month
+                debt["payoff_date"] = (
+                    date.today().replace(day=1) + timedelta(days=30 * current_month)
+                ).isoformat()
 
         # Convert Decimal to float for JSON serialization
         for debt in debt_states:

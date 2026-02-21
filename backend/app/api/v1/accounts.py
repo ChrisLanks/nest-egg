@@ -205,7 +205,13 @@ async def create_manual_account(
         account_source=account_data.account_source,
         institution_name=account_data.institution,
         mask=account_data.account_number_last4,
-        current_balance=account_data.balance,
+        # Debt accounts always carry negative balances in this system.
+        # Negate if the user entered a positive value (e.g. "200000" for a mortgage).
+        current_balance=(
+            -abs(account_data.balance)
+            if account_data.account_type.is_debt and account_data.balance > 0
+            else account_data.balance
+        ),
         plaid_item_hash=plaid_item_hash,
         is_manual=True,
         is_active=True,
@@ -346,7 +352,11 @@ async def update_account(
     if account_data.is_active is not None:
         account.is_active = account_data.is_active
     if account_data.current_balance is not None:
-        account.current_balance = account_data.current_balance
+        # Keep debt accounts negative — negate if user supplied a positive value.
+        if account.account_type.is_debt and account_data.current_balance > 0:
+            account.current_balance = -account_data.current_balance
+        else:
+            account.current_balance = account_data.current_balance
     if account_data.mask is not None:
         account.mask = account_data.mask
     if account_data.exclude_from_cash_flow is not None:

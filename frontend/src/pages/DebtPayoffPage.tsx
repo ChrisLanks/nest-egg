@@ -16,7 +16,6 @@ import {
   StatLabel,
   StatNumber,
   StatHelpText,
-  StatArrow,
   Button,
   Input,
   FormControl,
@@ -44,14 +43,15 @@ import {
   ButtonGroup,
   IconButton,
   FormHelperText,
+  Collapse,
 } from '@chakra-ui/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../services/api';
 import { useUserView } from '../contexts/UserViewContext';
 import { Skeleton, Stack } from '@chakra-ui/react';
 import { EmptyState } from '../components/EmptyState';
-import { FiCreditCard } from 'react-icons/fi';
+import { FiCreditCard, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 
 interface DebtAccount {
   account_id: string;
@@ -80,15 +80,54 @@ interface ComparisonResult {
   recommendation: string | null;
 }
 
+type StrategyKey = 'snowball' | 'avalanche' | 'current_pace';
+
+const REC_TO_KEY: Record<string, StrategyKey> = {
+  SNOWBALL: 'snowball',
+  AVALANCHE: 'avalanche',
+  CURRENT: 'current_pace',
+};
+
+const KEY_TO_REC: Record<StrategyKey, string> = {
+  snowball: 'SNOWBALL',
+  avalanche: 'AVALANCHE',
+  current_pace: 'CURRENT',
+};
+
 const SELECTED_ACCOUNTS_KEY = 'debt-payoff-selected-accounts';
+const SELECTED_STRATEGY_KEY = 'debt-payoff-strategy';
+const DEBTS_OPEN_KEY = 'debt-payoff-debts-open';
+
+type SortField = 'name' | 'account_type' | 'balance' | 'interest_rate' | 'minimum_payment';
+type SortDir = 'asc' | 'desc';
 
 export default function DebtPayoffPage() {
   const { selectedUserId } = useUserView();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [extraPayment, setExtraPayment] = useState('500');
-  const [selectedStrategy, setSelectedStrategy] = useState<StrategyResult | null>(null);
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  // Initialize directly from localStorage so there's no flash or effect-ordering race
+  const [selectedStrategyKey, setSelectedStrategyKey] = useState<StrategyKey | null>(() => {
+    try {
+      const s = localStorage.getItem(SELECTED_STRATEGY_KEY);
+      return s && (['snowball', 'avalanche', 'current_pace'] as string[]).includes(s)
+        ? (s as StrategyKey)
+        : null;
+    } catch {
+      return null;
+    }
+  });
+  const hasAutoSelected = useRef(!!localStorage.getItem(SELECTED_STRATEGY_KEY));
+  const [isDebtsOpen, setIsDebtsOpen] = useState<boolean>(() => {
+    try {
+      const s = localStorage.getItem(DEBTS_OPEN_KEY);
+      return s !== null ? s === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+  const [sortField, setSortField] = useState<SortField>('balance');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   const {
     isOpen: isEditOpen,
     onOpen: onEditOpen,
@@ -108,7 +147,6 @@ export default function DebtPayoffPage() {
     queryFn: async () => {
       const params: any = {};
       if (selectedUserId) params.user_id = selectedUserId;
-
       const response = await api.get('/debt-payoff/summary', { params });
       return response.data;
     },
@@ -120,7 +158,6 @@ export default function DebtPayoffPage() {
     queryFn: async () => {
       const params: any = {};
       if (selectedUserId) params.user_id = selectedUserId;
-
       const response = await api.get('/debt-payoff/debts', { params });
       return response.data;
     },
@@ -142,7 +179,6 @@ export default function DebtPayoffPage() {
   // Initialize selected accounts when debts load
   useEffect(() => {
     if (debts && debts.length > 0 && selectedAccounts.size === 0) {
-      // If no saved selection, select all accounts by default
       const allAccountIds = debts.map((d) => d.account_id);
       setSelectedAccounts(new Set(allAccountIds));
     }
@@ -155,6 +191,18 @@ export default function DebtPayoffPage() {
     }
   }, [selectedAccounts]);
 
+  // Persist strategy selection
+  useEffect(() => {
+    if (selectedStrategyKey) {
+      localStorage.setItem(SELECTED_STRATEGY_KEY, selectedStrategyKey);
+    }
+  }, [selectedStrategyKey]);
+
+  // Persist debts section open/closed state
+  useEffect(() => {
+    localStorage.setItem(DEBTS_OPEN_KEY, String(isDebtsOpen));
+  }, [isDebtsOpen]);
+
   const toggleAccount = (accountId: string) => {
     const newSelected = new Set(selectedAccounts);
     if (newSelected.has(accountId)) {
@@ -166,9 +214,7 @@ export default function DebtPayoffPage() {
   };
 
   const selectAll = () => {
-    if (debts) {
-      setSelectedAccounts(new Set(debts.map((d) => d.account_id)));
-    }
+    if (debts) setSelectedAccounts(new Set(debts.map((d) => d.account_id)));
   };
 
   const deselectAll = () => {
@@ -180,7 +226,7 @@ export default function DebtPayoffPage() {
     setEditForm({
       interest_rate: debt.interest_rate?.toString() || '',
       minimum_payment: debt.minimum_payment?.toString() || '',
-      payment_due_day: '', // Will be added if available
+      payment_due_day: '',
     });
     onEditOpen();
   };
@@ -194,11 +240,7 @@ export default function DebtPayoffPage() {
       queryClient.invalidateQueries({ queryKey: ['debt-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['debt-summary'] });
       queryClient.invalidateQueries({ queryKey: ['debt-comparison'] });
-      toast({
-        title: 'Debt details updated',
-        status: 'success',
-        duration: 3000,
-      });
+      toast({ title: 'Debt details updated', status: 'success', duration: 3000 });
       onEditClose();
     },
     onError: (error: any) => {
@@ -213,64 +255,112 @@ export default function DebtPayoffPage() {
 
   const handleSaveEdit = () => {
     if (!editingDebt) return;
-
     const updates: any = {};
-    if (editForm.interest_rate) {
-      updates.interest_rate = parseFloat(editForm.interest_rate);
-    }
-    if (editForm.minimum_payment) {
-      updates.minimum_payment = parseFloat(editForm.minimum_payment);
-    }
-    if (editForm.payment_due_day) {
-      updates.payment_due_day = parseInt(editForm.payment_due_day);
-    }
-
-    updateDebtMutation.mutate({
-      account_id: editingDebt.account_id,
-      updates,
-    });
+    if (editForm.interest_rate) updates.interest_rate = parseFloat(editForm.interest_rate);
+    if (editForm.minimum_payment) updates.minimum_payment = parseFloat(editForm.minimum_payment);
+    if (editForm.payment_due_day) updates.payment_due_day = parseInt(editForm.payment_due_day);
+    updateDebtMutation.mutate({ account_id: editingDebt.account_id, updates });
   };
 
   // Fetch strategy comparison
   const { data: comparison, isLoading: comparisonLoading, refetch } = useQuery<ComparisonResult>({
     queryKey: ['debt-comparison', extraPayment, selectedUserId, Array.from(selectedAccounts)],
     queryFn: async () => {
-      const params: any = {
-        extra_payment: parseFloat(extraPayment) || 0,
-      };
+      const params: any = { extra_payment: parseFloat(extraPayment) || 0 };
       if (selectedUserId) params.user_id = selectedUserId;
-
-      // Only include selected accounts
-      if (selectedAccounts.size > 0) {
-        params.account_ids = Array.from(selectedAccounts).join(',');
-      }
-
+      if (selectedAccounts.size > 0) params.account_ids = Array.from(selectedAccounts).join(',');
       const response = await api.get('/debt-payoff/compare', { params });
       return response.data;
     },
     enabled: !!debts && debts.length > 0 && selectedAccounts.size > 0,
   });
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+  // Auto-select the recommended strategy on first data load
+  useEffect(() => {
+    if (comparison && !hasAutoSelected.current) {
+      const recKey = comparison.recommendation ? REC_TO_KEY[comparison.recommendation] : null;
+      const keyToSelect = recKey && comparison[recKey] ? recKey : comparison.avalanche ? 'avalanche' : null;
+      if (keyToSelect) {
+        setSelectedStrategyKey(keyToSelect);
+        hasAutoSelected.current = true;
+      }
+    }
+  }, [comparison]);
+
+  // Derive selected strategy data from key (stays fresh when comparison data updates)
+  const selectedStrategy: StrategyResult | null =
+    selectedStrategyKey && comparison ? (comparison[selectedStrategyKey] as StrategyResult | null) : null;
+
+  const handleStrategyClick = (key: StrategyKey) => {
+    // Toggle: clicking the already-selected card collapses the detail panel
+    setSelectedStrategyKey(selectedStrategyKey === key ? null : key);
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      // Numeric fields default desc (highest first); text fields default asc
+      setSortDir(field === 'balance' || field === 'interest_rate' || field === 'minimum_payment' ? 'desc' : 'asc');
+    }
+  };
+
+  const sortedDebts = useMemo(() => {
+    if (!debts) return [];
+    return [...debts].sort((a, b) => {
+      const aVal = a[sortField];
+      const bVal = b[sortField];
+      const cmp =
+        typeof aVal === 'string' && typeof bVal === 'string'
+          ? aVal.localeCompare(bVal)
+          : (aVal as number) - (bVal as number);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [debts, sortField, sortDir]);
+
+  const SortIndicator = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <span style={{ color: '#CBD5E0', marginLeft: 4 }}>↕</span>;
+    return <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>;
+  };
+
+  const getCardBorderProps = (key: StrategyKey) => {
+    const isSel = selectedStrategyKey === key;
+    const isRec = comparison?.recommendation === KEY_TO_REC[key];
+    return {
+      borderWidth: isSel || isRec ? 2 : 1,
+      borderColor: isSel ? 'blue.500' : isRec ? 'blue.300' : 'gray.200',
+      bg: isSel ? 'blue.50' : undefined,
+    };
+  };
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
-  };
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'N/A';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   };
 
   const handleExtraPaymentChange = (value: string) => {
-    // Only allow numbers and decimals
-    if (/^\d*\.?\d*$/.test(value)) {
-      setExtraPayment(value);
-    }
+    if (/^\d*\.?\d*$/.test(value)) setExtraPayment(value);
+  };
+
+  const strategyLabel: Record<StrategyKey, string> = {
+    snowball: '❄️ Snowball',
+    avalanche: '🔥 Avalanche',
+    current_pace: '🐢 Current Pace',
+  };
+
+  const strategyDetailColor: Record<StrategyKey, string> = {
+    snowball: 'green.400',
+    avalanche: 'blue.400',
+    current_pace: 'gray.300',
   };
 
   if (summaryLoading || debtsLoading) {
@@ -321,7 +411,7 @@ export default function DebtPayoffPage() {
             title="No debt accounts found"
             description="Add debt accounts (credit cards, loans, mortgages) with interest rates to use the payoff planner and compare strategies."
             actionLabel="Go to Accounts"
-            onAction={() => window.location.href = '/accounts'}
+            onAction={() => (window.location.href = '/accounts')}
           />
         </VStack>
       </Container>
@@ -337,7 +427,7 @@ export default function DebtPayoffPage() {
           <Text color="gray.600">Compare strategies to eliminate debt faster</Text>
         </Box>
 
-        {/* Summary Cards */}
+        {/* 1 — Summary Cards */}
         {summary && (
           <SimpleGrid columns={{ base: 1, md: 4 }} spacing={6}>
             <Card>
@@ -387,271 +477,344 @@ export default function DebtPayoffPage() {
           </SimpleGrid>
         )}
 
-        {/* Strategy Comparison */}
-        {comparisonLoading ? (
-          <Center py={10}>
-            <Spinner size="lg" color="brand.500" />
-          </Center>
-        ) : comparison && (
-          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
-            {/* Snowball Strategy */}
-            {comparison.snowball && (
-              <Card
-                cursor="pointer"
-                _hover={{ shadow: 'md', transform: 'translateY(-2px)', transition: 'all 0.2s' }}
-                onClick={() => {
-                  setSelectedStrategy(comparison.snowball);
-                  onOpen();
-                }}
-              >
-                <CardBody>
-                  <VStack align="stretch" spacing={4}>
-                    <HStack justify="space-between">
-                      <Heading size="md">❄️ Snowball</Heading>
-                      {comparison.recommendation === 'SNOWBALL' && (
-                        <Badge colorScheme="green">Best Psychology</Badge>
-                      )}
-                    </HStack>
-                    <Text fontSize="sm" color="gray.600">
-                      Pay smallest balance first
-                    </Text>
-
-                    <Box>
-                      <Text fontSize="sm" color="gray.600">
-                        Debt-Free Date
-                      </Text>
-                      <Text fontSize="xl" fontWeight="bold">
-                        {formatDate(comparison.snowball.debt_free_date)}
-                      </Text>
-                      <Text fontSize="xs" color="gray.500">
-                        {comparison.snowball.total_months} months
-                      </Text>
-                    </Box>
-
-                    <Box>
-                      <Text fontSize="sm" color="gray.600">
-                        Total Interest
-                      </Text>
-                      <Text fontSize="lg" fontWeight="semibold" color="red.600">
-                        {formatCurrency(comparison.snowball.total_interest)}
-                      </Text>
-                    </Box>
-
-                    {comparison.snowball.interest_saved_vs_current !== undefined && (
-                      <Box bg="green.50" p={3} borderRadius="md">
-                        <Text fontSize="xs" color="green.700" fontWeight="semibold">
-                          Save {formatCurrency(comparison.snowball.interest_saved_vs_current)} interest
-                        </Text>
-                        <Text fontSize="xs" color="green.700">
-                          {comparison.snowball.months_saved_vs_current} months faster
-                        </Text>
-                      </Box>
-                    )}
-                  </VStack>
-                </CardBody>
-              </Card>
-            )}
-
-            {/* Avalanche Strategy */}
-            {comparison.avalanche && (
-              <Card
-                borderWidth={comparison.recommendation === 'AVALANCHE' ? 2 : 1}
-                borderColor={comparison.recommendation === 'AVALANCHE' ? 'blue.500' : 'gray.200'}
-                cursor="pointer"
-                _hover={{ shadow: 'md', transform: 'translateY(-2px)', transition: 'all 0.2s' }}
-                onClick={() => {
-                  setSelectedStrategy(comparison.avalanche);
-                  onOpen();
-                }}
-              >
-                <CardBody>
-                  <VStack align="stretch" spacing={4}>
-                    <HStack justify="space-between">
-                      <Heading size="md">🔥 Avalanche</Heading>
-                      {comparison.recommendation === 'AVALANCHE' && (
-                        <Badge colorScheme="blue">Best Savings</Badge>
-                      )}
-                    </HStack>
-                    <Text fontSize="sm" color="gray.600">
-                      Pay highest interest first
-                    </Text>
-
-                    <Box>
-                      <Text fontSize="sm" color="gray.600">
-                        Debt-Free Date
-                      </Text>
-                      <Text fontSize="xl" fontWeight="bold">
-                        {formatDate(comparison.avalanche.debt_free_date)}
-                      </Text>
-                      <Text fontSize="xs" color="gray.500">
-                        {comparison.avalanche.total_months} months
-                      </Text>
-                    </Box>
-
-                    <Box>
-                      <Text fontSize="sm" color="gray.600">
-                        Total Interest
-                      </Text>
-                      <Text fontSize="lg" fontWeight="semibold" color="red.600">
-                        {formatCurrency(comparison.avalanche.total_interest)}
-                      </Text>
-                    </Box>
-
-                    {comparison.avalanche.interest_saved_vs_current !== undefined && (
-                      <Box bg="blue.50" p={3} borderRadius="md">
-                        <Text fontSize="xs" color="blue.700" fontWeight="semibold">
-                          Save {formatCurrency(comparison.avalanche.interest_saved_vs_current)} interest
-                        </Text>
-                        <Text fontSize="xs" color="blue.700">
-                          {comparison.avalanche.months_saved_vs_current} months faster
-                        </Text>
-                      </Box>
-                    )}
-                  </VStack>
-                </CardBody>
-              </Card>
-            )}
-
-            {/* Current Pace */}
-            {comparison.current_pace && (
-              <Card
-                cursor="pointer"
-                _hover={{ shadow: 'md', transform: 'translateY(-2px)', transition: 'all 0.2s' }}
-                onClick={() => {
-                  setSelectedStrategy(comparison.current_pace);
-                  onOpen();
-                }}
-              >
-                <CardBody>
-                  <VStack align="stretch" spacing={4}>
-                    <Heading size="md">🐢 Current Pace</Heading>
-                    <Text fontSize="sm" color="gray.600">
-                      Minimum payments only
-                    </Text>
-
-                    <Box>
-                      <Text fontSize="sm" color="gray.600">
-                        Debt-Free Date
-                      </Text>
-                      <Text fontSize="xl" fontWeight="bold">
-                        {formatDate(comparison.current_pace.debt_free_date)}
-                      </Text>
-                      <Text fontSize="xs" color="gray.500">
-                        {comparison.current_pace.total_months} months
-                      </Text>
-                    </Box>
-
-                    <Box>
-                      <Text fontSize="sm" color="gray.600">
-                        Total Interest
-                      </Text>
-                      <Text fontSize="lg" fontWeight="semibold" color="red.600">
-                        {formatCurrency(comparison.current_pace.total_interest)}
-                      </Text>
-                    </Box>
-
-                    <Box bg="gray.50" p={3} borderRadius="md">
-                      <Text fontSize="xs" color="gray.600">
-                        Baseline comparison
-                      </Text>
-                    </Box>
-                  </VStack>
-                </CardBody>
-              </Card>
-            )}
-          </SimpleGrid>
-        )}
-
-        {/* Debt Accounts List */}
+        {/* 2 — Your Debts (collapsible) */}
         <Card>
           <CardBody>
-            <VStack align="stretch" spacing={4}>
-              <HStack justify="space-between">
+            <HStack justify="space-between" mb={isDebtsOpen ? 4 : 0}>
+              <HStack spacing={3}>
+                <IconButton
+                  aria-label={isDebtsOpen ? 'Collapse debts' : 'Expand debts'}
+                  icon={isDebtsOpen ? <FiChevronUp /> : <FiChevronDown />}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsDebtsOpen(!isDebtsOpen)}
+                />
                 <Heading size="md">Your Debts</Heading>
+                <Badge colorScheme="gray">{debts.length} accounts</Badge>
+              </HStack>
+              {isDebtsOpen && (
                 <ButtonGroup size="sm" variant="outline">
                   <Button onClick={selectAll}>Select All</Button>
                   <Button onClick={deselectAll}>Deselect All</Button>
                 </ButtonGroup>
-              </HStack>
-              {selectedAccounts.size === 0 && (
-                <Box bg="orange.50" p={3} borderRadius="md">
-                  <Text fontSize="sm" color="orange.700">
-                    ⚠️ Select at least one account to see payoff strategies
-                  </Text>
-                </Box>
               )}
-              <Table variant="simple" size="sm">
-                <Thead>
-                  <Tr>
-                    <Th width="40px">Include</Th>
-                    <Th>Account</Th>
-                    <Th>Type</Th>
-                    <Th isNumeric>Balance</Th>
-                    <Th isNumeric>Interest Rate</Th>
-                    <Th isNumeric>Min Payment</Th>
-                    <Th width="80px">Actions</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {debts.map((debt) => (
-                    <Tr
-                      key={debt.account_id}
-                      opacity={selectedAccounts.has(debt.account_id) ? 1 : 0.5}
-                      bg={selectedAccounts.has(debt.account_id) ? 'transparent' : 'gray.50'}
-                    >
-                      <Td>
-                        <Checkbox
-                          isChecked={selectedAccounts.has(debt.account_id)}
-                          onChange={() => toggleAccount(debt.account_id)}
-                          colorScheme="blue"
-                        />
-                      </Td>
-                      <Td fontWeight="medium">{debt.name}</Td>
-                      <Td>
-                        <Badge colorScheme="purple">
-                          {debt.account_type.replace('_', ' ')}
-                        </Badge>
-                      </Td>
-                      <Td isNumeric>{formatCurrency(debt.balance)}</Td>
-                      <Td isNumeric>{debt.interest_rate.toFixed(2)}%</Td>
-                      <Td isNumeric>{formatCurrency(debt.minimum_payment)}</Td>
-                      <Td>
-                        <Button
-                          size="xs"
-                          variant="ghost"
-                          colorScheme="blue"
-                          onClick={() => handleEditDebt(debt)}
-                        >
-                          Edit
-                        </Button>
-                      </Td>
+            </HStack>
+
+            <Collapse in={isDebtsOpen} animateOpacity>
+              <VStack align="stretch" spacing={4}>
+                {selectedAccounts.size === 0 && (
+                  <Box bg="orange.50" p={3} borderRadius="md">
+                    <Text fontSize="sm" color="orange.700">
+                      ⚠️ Select at least one account to see payoff strategies
+                    </Text>
+                  </Box>
+                )}
+                <Table variant="simple" size="sm">
+                  <Thead>
+                    <Tr>
+                      <Th width="40px">Include</Th>
+                      <Th
+                        cursor="pointer"
+                        userSelect="none"
+                        _hover={{ color: 'blue.600' }}
+                        onClick={() => handleSort('name')}
+                      >
+                        Account<SortIndicator field="name" />
+                      </Th>
+                      <Th
+                        cursor="pointer"
+                        userSelect="none"
+                        _hover={{ color: 'blue.600' }}
+                        onClick={() => handleSort('account_type')}
+                      >
+                        Type<SortIndicator field="account_type" />
+                      </Th>
+                      <Th
+                        isNumeric
+                        cursor="pointer"
+                        userSelect="none"
+                        _hover={{ color: 'blue.600' }}
+                        onClick={() => handleSort('balance')}
+                      >
+                        Balance<SortIndicator field="balance" />
+                      </Th>
+                      <Th
+                        isNumeric
+                        cursor="pointer"
+                        userSelect="none"
+                        _hover={{ color: 'blue.600' }}
+                        onClick={() => handleSort('interest_rate')}
+                      >
+                        Interest Rate<SortIndicator field="interest_rate" />
+                      </Th>
+                      <Th
+                        isNumeric
+                        cursor="pointer"
+                        userSelect="none"
+                        _hover={{ color: 'blue.600' }}
+                        onClick={() => handleSort('minimum_payment')}
+                      >
+                        Min Payment<SortIndicator field="minimum_payment" />
+                      </Th>
+                      <Th width="80px">Actions</Th>
                     </Tr>
-                  ))}
-                </Tbody>
-              </Table>
-            </VStack>
+                  </Thead>
+                  <Tbody>
+                    {sortedDebts.map((debt) => (
+                      <Tr
+                        key={debt.account_id}
+                        opacity={selectedAccounts.has(debt.account_id) ? 1 : 0.5}
+                        bg={selectedAccounts.has(debt.account_id) ? 'transparent' : 'gray.50'}
+                      >
+                        <Td>
+                          <Checkbox
+                            isChecked={selectedAccounts.has(debt.account_id)}
+                            onChange={() => toggleAccount(debt.account_id)}
+                            colorScheme="blue"
+                          />
+                        </Td>
+                        <Td fontWeight="medium">{debt.name}</Td>
+                        <Td>
+                          <Badge colorScheme="purple">{debt.account_type.replace('_', ' ')}</Badge>
+                        </Td>
+                        <Td isNumeric>{formatCurrency(debt.balance)}</Td>
+                        <Td isNumeric>{debt.interest_rate.toFixed(2)}%</Td>
+                        <Td isNumeric>{formatCurrency(debt.minimum_payment)}</Td>
+                        <Td>
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            colorScheme="blue"
+                            onClick={() => handleEditDebt(debt)}
+                          >
+                            Edit
+                          </Button>
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </VStack>
+            </Collapse>
           </CardBody>
         </Card>
 
-        {/* Strategy Detail Modal */}
-        <Modal isOpen={isOpen} onClose={onClose} size="4xl" scrollBehavior="inside">
-          <ModalOverlay />
-          <ModalContent>
-            <ModalHeader>
-              {selectedStrategy?.strategy === 'SNOWBALL' && '❄️ Snowball Strategy Details'}
-              {selectedStrategy?.strategy === 'AVALANCHE' && '🔥 Avalanche Strategy Details'}
-              {selectedStrategy?.strategy === 'CURRENT' && '🐢 Current Pace Details'}
-            </ModalHeader>
-            <ModalCloseButton />
-            <ModalBody>
-              {selectedStrategy && (
+        {/* 3 — Strategy Cards */}
+        {comparisonLoading ? (
+          <Center py={10}>
+            <Spinner size="lg" color="brand.500" />
+          </Center>
+        ) : (
+          comparison && (
+            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
+              {/* Snowball */}
+              {comparison.snowball && (
+                <Card
+                  {...getCardBorderProps('snowball')}
+                  cursor="pointer"
+                  _hover={{ shadow: 'md', transform: 'translateY(-2px)', transition: 'all 0.2s' }}
+                  transition="all 0.2s"
+                  onClick={() => handleStrategyClick('snowball')}
+                >
+                  <CardBody>
+                    <VStack align="stretch" spacing={4}>
+                      <HStack justify="space-between">
+                        <Heading size="md">❄️ Snowball</Heading>
+                        {comparison.recommendation === 'SNOWBALL' && (
+                          <Badge colorScheme="green">Best Psychology</Badge>
+                        )}
+                      </HStack>
+                      <Box>
+                        <Text fontSize="sm" fontWeight="semibold" color="gray.700">
+                          Pay smallest balance first
+                        </Text>
+                        <Text fontSize="xs" color="gray.500" mt={1}>
+                          Clear your smallest debts quickly for momentum. Each payoff
+                          frees up cash that rolls into the next debt — great if you
+                          need early wins to stay motivated.
+                        </Text>
+                      </Box>
+
+                      <Box>
+                        <Text fontSize="sm" color="gray.600">Debt-Free Date</Text>
+                        <Text fontSize="xl" fontWeight="bold">
+                          {formatDate(comparison.snowball.debt_free_date)}
+                        </Text>
+                        <Text fontSize="xs" color="gray.500">
+                          {comparison.snowball.total_months} months
+                        </Text>
+                      </Box>
+
+                      <Box>
+                        <Text fontSize="sm" color="gray.600">Total Interest</Text>
+                        <Text fontSize="lg" fontWeight="semibold" color="red.600">
+                          {formatCurrency(comparison.snowball.total_interest)}
+                        </Text>
+                      </Box>
+
+                      {comparison.snowball.interest_saved_vs_current !== undefined && (
+                        <Box bg="green.50" p={3} borderRadius="md">
+                          <Text fontSize="xs" color="green.700" fontWeight="semibold">
+                            Save {formatCurrency(comparison.snowball.interest_saved_vs_current)} interest
+                          </Text>
+                          <Text fontSize="xs" color="green.700">
+                            {comparison.snowball.months_saved_vs_current} months faster
+                          </Text>
+                        </Box>
+                      )}
+
+                      <Text fontSize="xs" color="blue.500" textAlign="center">
+                        {selectedStrategyKey === 'snowball' ? '▲ Hide plan' : '▼ View plan'}
+                      </Text>
+                    </VStack>
+                  </CardBody>
+                </Card>
+              )}
+
+              {/* Avalanche */}
+              {comparison.avalanche && (
+                <Card
+                  {...getCardBorderProps('avalanche')}
+                  cursor="pointer"
+                  _hover={{ shadow: 'md', transform: 'translateY(-2px)', transition: 'all 0.2s' }}
+                  transition="all 0.2s"
+                  onClick={() => handleStrategyClick('avalanche')}
+                >
+                  <CardBody>
+                    <VStack align="stretch" spacing={4}>
+                      <HStack justify="space-between">
+                        <Heading size="md">🔥 Avalanche</Heading>
+                        {comparison.recommendation === 'AVALANCHE' && (
+                          <Badge colorScheme="blue">Best Savings</Badge>
+                        )}
+                      </HStack>
+                      <Box>
+                        <Text fontSize="sm" fontWeight="semibold" color="gray.700">
+                          Pay highest interest first
+                        </Text>
+                        <Text fontSize="xs" color="gray.500" mt={1}>
+                          Attack the most expensive debt first to minimize total
+                          interest paid. Takes longer to see individual payoffs, but
+                          saves the most money overall.
+                        </Text>
+                      </Box>
+
+                      <Box>
+                        <Text fontSize="sm" color="gray.600">Debt-Free Date</Text>
+                        <Text fontSize="xl" fontWeight="bold">
+                          {formatDate(comparison.avalanche.debt_free_date)}
+                        </Text>
+                        <Text fontSize="xs" color="gray.500">
+                          {comparison.avalanche.total_months} months
+                        </Text>
+                      </Box>
+
+                      <Box>
+                        <Text fontSize="sm" color="gray.600">Total Interest</Text>
+                        <Text fontSize="lg" fontWeight="semibold" color="red.600">
+                          {formatCurrency(comparison.avalanche.total_interest)}
+                        </Text>
+                      </Box>
+
+                      {comparison.avalanche.interest_saved_vs_current !== undefined && (
+                        <Box bg="blue.50" p={3} borderRadius="md">
+                          <Text fontSize="xs" color="blue.700" fontWeight="semibold">
+                            Save {formatCurrency(comparison.avalanche.interest_saved_vs_current)} interest
+                          </Text>
+                          <Text fontSize="xs" color="blue.700">
+                            {comparison.avalanche.months_saved_vs_current} months faster
+                          </Text>
+                        </Box>
+                      )}
+
+                      <Text fontSize="xs" color="blue.500" textAlign="center">
+                        {selectedStrategyKey === 'avalanche' ? '▲ Hide plan' : '▼ View plan'}
+                      </Text>
+                    </VStack>
+                  </CardBody>
+                </Card>
+              )}
+
+              {/* Current Pace */}
+              {comparison.current_pace && (
+                <Card
+                  {...getCardBorderProps('current_pace')}
+                  cursor="pointer"
+                  _hover={{ shadow: 'md', transform: 'translateY(-2px)', transition: 'all 0.2s' }}
+                  transition="all 0.2s"
+                  onClick={() => handleStrategyClick('current_pace')}
+                >
+                  <CardBody>
+                    <VStack align="stretch" spacing={4}>
+                      <Heading size="md">🐢 Current Pace</Heading>
+                      <Box>
+                        <Text fontSize="sm" fontWeight="semibold" color="gray.700">
+                          Minimum payments only
+                        </Text>
+                        <Text fontSize="xs" color="gray.500" mt={1}>
+                          What happens if you only make the required minimum payment
+                          on each debt. Use this as a baseline to see how much time
+                          and money you save with a real strategy.
+                        </Text>
+                      </Box>
+
+                      <Box>
+                        <Text fontSize="sm" color="gray.600">Debt-Free Date</Text>
+                        <Text fontSize="xl" fontWeight="bold">
+                          {formatDate(comparison.current_pace.debt_free_date)}
+                        </Text>
+                        <Text fontSize="xs" color="gray.500">
+                          {comparison.current_pace.total_months} months
+                        </Text>
+                      </Box>
+
+                      <Box>
+                        <Text fontSize="sm" color="gray.600">Total Interest</Text>
+                        <Text fontSize="lg" fontWeight="semibold" color="red.600">
+                          {formatCurrency(comparison.current_pace.total_interest)}
+                        </Text>
+                      </Box>
+
+                      <Box bg="gray.50" p={3} borderRadius="md">
+                        <Text fontSize="xs" color="gray.600">Baseline comparison</Text>
+                      </Box>
+
+                      <Text fontSize="xs" color="blue.500" textAlign="center">
+                        {selectedStrategyKey === 'current_pace' ? '▲ Hide plan' : '▼ View plan'}
+                      </Text>
+                    </VStack>
+                  </CardBody>
+                </Card>
+              )}
+            </SimpleGrid>
+          )
+        )}
+
+        {/* 4 — Inline Strategy Detail Panel */}
+        <Collapse in={!!selectedStrategy} animateOpacity>
+          {selectedStrategy && selectedStrategyKey && (
+            <Card
+              borderWidth={2}
+              borderColor={strategyDetailColor[selectedStrategyKey]}
+            >
+              <CardBody>
                 <VStack align="stretch" spacing={6}>
-                  {/* Summary */}
+                  {/* Panel header */}
+                  <HStack justify="space-between">
+                    <Heading size="md">{strategyLabel[selectedStrategyKey]} — Payment Plan</Heading>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSelectedStrategyKey(null)}
+                    >
+                      Close
+                    </Button>
+                  </HStack>
+
+                  {/* Summary row */}
                   <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
                     <Box>
-                      <Text fontSize="sm" color="gray.600">
-                        Debt-Free Date
-                      </Text>
+                      <Text fontSize="sm" color="gray.600">Debt-Free Date</Text>
                       <Text fontSize="2xl" fontWeight="bold">
                         {formatDate(selectedStrategy.debt_free_date)}
                       </Text>
@@ -660,17 +823,13 @@ export default function DebtPayoffPage() {
                       </Text>
                     </Box>
                     <Box>
-                      <Text fontSize="sm" color="gray.600">
-                        Total Interest Paid
-                      </Text>
+                      <Text fontSize="sm" color="gray.600">Total Interest Paid</Text>
                       <Text fontSize="2xl" fontWeight="bold" color="red.600">
                         {formatCurrency(selectedStrategy.total_interest)}
                       </Text>
                     </Box>
                     <Box>
-                      <Text fontSize="sm" color="gray.600">
-                        Total Amount Paid
-                      </Text>
+                      <Text fontSize="sm" color="gray.600">Total Amount Paid</Text>
                       <Text fontSize="2xl" fontWeight="bold">
                         {formatCurrency(selectedStrategy.total_paid)}
                       </Text>
@@ -690,18 +849,16 @@ export default function DebtPayoffPage() {
 
                   <Divider />
 
-                  {/* Payment Schedule by Account */}
+                  {/* Payment Schedule */}
                   <Box>
-                    <Heading size="md" mb={4}>
-                      Payment Schedule
-                    </Heading>
+                    <Heading size="sm" mb={2}>Payment Schedule</Heading>
                     <Text fontSize="sm" color="gray.600" mb={4}>
                       {selectedStrategy.strategy === 'SNOWBALL' &&
-                        'Debts are paid off in order from smallest balance to largest, with extra payments accelerating each payoff.'}
+                        'Debts are paid off smallest balance first, with extra payments rolling forward to the next debt.'}
                       {selectedStrategy.strategy === 'AVALANCHE' &&
-                        'Debts are paid off in order from highest interest rate to lowest, maximizing interest savings.'}
+                        'Debts are paid off highest interest rate first, minimizing total interest paid.'}
                       {selectedStrategy.strategy === 'CURRENT' &&
-                        'Making only minimum payments on all debts.'}
+                        'Making only minimum payments on all debts — no extra payment applied.'}
                     </Text>
 
                     {selectedStrategy.debts && selectedStrategy.debts.length > 0 ? (
@@ -715,14 +872,12 @@ export default function DebtPayoffPage() {
                                     <Text fontWeight="bold" fontSize="lg">
                                       {debt.name || `Debt ${idx + 1}`}
                                     </Text>
-                                    <Badge colorScheme="purple" mt={1}>
-                                      {debt.account_type?.replace('_', ' ') || 'Account'}
+                                    <Badge colorScheme="purple" mt={1} textTransform="capitalize">
+                                      {debt.account_type?.replace(/_/g, ' ') || 'Account'}
                                     </Badge>
                                   </Box>
                                   <Box textAlign="right">
-                                    <Text fontSize="sm" color="gray.600">
-                                      Payoff Order
-                                    </Text>
+                                    <Text fontSize="sm" color="gray.600">Payoff Order</Text>
                                     <Text fontSize="2xl" fontWeight="bold" color="blue.600">
                                       #{idx + 1}
                                     </Text>
@@ -731,29 +886,23 @@ export default function DebtPayoffPage() {
 
                                 <SimpleGrid columns={{ base: 2, md: 4 }} spacing={3}>
                                   <Box>
-                                    <Text fontSize="xs" color="gray.600">
-                                      Starting Balance
-                                    </Text>
+                                    <Text fontSize="xs" color="gray.600">Starting Balance</Text>
                                     <Text fontWeight="semibold">
                                       {formatCurrency(debt.starting_balance || 0)}
                                     </Text>
                                   </Box>
                                   <Box>
-                                    <Text fontSize="xs" color="gray.600">
-                                      Interest Rate
+                                    <Text fontSize="xs" color="gray.600">Interest Rate</Text>
+                                    <Text fontWeight="semibold">
+                                      {debt.interest_rate?.toFixed(2) || 0}%
                                     </Text>
-                                    <Text fontWeight="semibold">{debt.interest_rate?.toFixed(2) || 0}%</Text>
                                   </Box>
                                   <Box>
-                                    <Text fontSize="xs" color="gray.600">
-                                      Months to Payoff
-                                    </Text>
+                                    <Text fontSize="xs" color="gray.600">Months to Payoff</Text>
                                     <Text fontWeight="semibold">{debt.months_to_payoff || 0} months</Text>
                                   </Box>
                                   <Box>
-                                    <Text fontSize="xs" color="gray.600">
-                                      Total Interest
-                                    </Text>
+                                    <Text fontSize="xs" color="gray.600">Total Interest</Text>
                                     <Text fontWeight="semibold" color="red.600">
                                       {formatCurrency(debt.total_interest || 0)}
                                     </Text>
@@ -763,9 +912,7 @@ export default function DebtPayoffPage() {
                                 {debt.payoff_date && (
                                   <Box bg="gray.50" p={2} borderRadius="md">
                                     <Text fontSize="sm">
-                                      <Text as="span" fontWeight="semibold">
-                                        Paid off:
-                                      </Text>{' '}
+                                      <Text as="span" fontWeight="semibold">Paid off:</Text>{' '}
                                       {formatDate(debt.payoff_date)}
                                     </Text>
                                   </Box>
@@ -782,21 +929,16 @@ export default function DebtPayoffPage() {
                     )}
                   </Box>
                 </VStack>
-              )}
-            </ModalBody>
-            <ModalFooter>
-              <Button colorScheme="blue" onClick={onClose}>
-                Close
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+              </CardBody>
+            </Card>
+          )}
+        </Collapse>
 
         {/* Edit Debt Details Modal */}
         <Modal isOpen={isEditOpen} onClose={onEditClose} size="lg">
           <ModalOverlay />
           <ModalContent>
-            <ModalHeader>Edit Debt Details - {editingDebt?.name}</ModalHeader>
+            <ModalHeader>Edit Debt Details — {editingDebt?.name}</ModalHeader>
             <ModalCloseButton />
             <ModalBody>
               <VStack spacing={4} align="stretch">
@@ -806,9 +948,7 @@ export default function DebtPayoffPage() {
                     type="number"
                     step="0.01"
                     value={editForm.interest_rate}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, interest_rate: e.target.value })
-                    }
+                    onChange={(e) => setEditForm({ ...editForm, interest_rate: e.target.value })}
                     placeholder="18.99"
                   />
                   <FormHelperText>Annual Percentage Rate (e.g., 18.99 for 18.99%)</FormHelperText>
@@ -820,9 +960,7 @@ export default function DebtPayoffPage() {
                     type="number"
                     step="0.01"
                     value={editForm.minimum_payment}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, minimum_payment: e.target.value })
-                    }
+                    onChange={(e) => setEditForm({ ...editForm, minimum_payment: e.target.value })}
                     placeholder="150.00"
                   />
                   <FormHelperText>Required minimum payment each month</FormHelperText>
@@ -835,9 +973,7 @@ export default function DebtPayoffPage() {
                     min="1"
                     max="31"
                     value={editForm.payment_due_day}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, payment_due_day: e.target.value })
-                    }
+                    onChange={(e) => setEditForm({ ...editForm, payment_due_day: e.target.value })}
                     placeholder="15"
                   />
                   <FormHelperText>Day of month payment is due (1-31)</FormHelperText>
@@ -845,18 +981,16 @@ export default function DebtPayoffPage() {
 
                 <Box bg="blue.50" p={3} borderRadius="md">
                   <Text fontSize="sm" color="blue.700">
-                    💡 <Text as="span" fontWeight="semibold">Tip:</Text> Interest rate
-                    and minimum payment are used to calculate payoff strategies. More
-                    accurate values lead to better projections.
+                    💡 <Text as="span" fontWeight="semibold">Tip:</Text> Interest rate and
+                    minimum payment are used to calculate payoff strategies. More accurate
+                    values lead to better projections.
                   </Text>
                 </Box>
               </VStack>
             </ModalBody>
             <ModalFooter>
               <ButtonGroup>
-                <Button variant="ghost" onClick={onEditClose}>
-                  Cancel
-                </Button>
+                <Button variant="ghost" onClick={onEditClose}>Cancel</Button>
                 <Button
                   colorScheme="blue"
                   onClick={handleSaveEdit}
