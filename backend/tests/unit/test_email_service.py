@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.services.email_service import EmailService, hash_token, create_verification_token
+from app.services.email_service import EmailService, hash_token, create_verification_token, create_password_reset_token
 from app.utils.datetime_utils import utc_now
 
 
@@ -193,3 +193,105 @@ class TestCreateVerificationToken:
         assert stored_record is not None
         assert stored_record.token_hash == hash_token(raw)
         assert stored_record.user_id == user_id
+
+
+# ---------------------------------------------------------------------------
+# create_password_reset_token
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+class TestCreatePasswordResetToken:
+    async def test_returns_raw_token(self):
+        user_id = uuid4()
+        db = MagicMock()
+        db.execute = AsyncMock()
+        db.commit = AsyncMock()
+        db.add = MagicMock()
+
+        raw = await create_password_reset_token(db, user_id)
+
+        assert isinstance(raw, str)
+        assert len(raw) > 20  # token_urlsafe(32) is ~43 chars
+
+    async def test_stored_token_hash_matches(self):
+        """Token stored in DB should be the SHA-256 of the returned raw token."""
+        user_id = uuid4()
+        stored_record = None
+
+        db = MagicMock()
+        db.execute = AsyncMock()
+        db.commit = AsyncMock()
+
+        def capture_add(record):
+            nonlocal stored_record
+            stored_record = record
+
+        db.add = capture_add
+
+        raw = await create_password_reset_token(db, user_id)
+
+        assert stored_record is not None
+        assert stored_record.token_hash == hash_token(raw)
+        assert stored_record.user_id == user_id
+
+    async def test_expires_in_one_hour(self):
+        """Password reset tokens expire in 1 hour (shorter than email verify's 24h)."""
+        user_id = uuid4()
+        stored_record = None
+
+        db = MagicMock()
+        db.execute = AsyncMock()
+        db.commit = AsyncMock()
+
+        def capture_add(record):
+            nonlocal stored_record
+            stored_record = record
+
+        db.add = capture_add
+
+        before = utc_now()
+        await create_password_reset_token(db, user_id)
+        after = utc_now()
+
+        assert stored_record is not None
+        # Should expire roughly 1 hour from now (between 59 and 61 minutes)
+        delta = stored_record.expires_at - before
+        assert timedelta(minutes=59) < delta < timedelta(minutes=61)
+
+
+# ---------------------------------------------------------------------------
+# send_password_reset_email
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+class TestSendPasswordResetEmail:
+    async def test_builds_correct_url(self):
+        svc = _make_service(smtp_host="smtp.example.com", app_base_url="https://app.example.com")
+        captured = {}
+
+        async def fake_send(msg, **kwargs):
+            captured["body"] = msg.as_string()
+
+        with patch("app.services.email_service.aiosmtplib.send", new_callable=AsyncMock, side_effect=fake_send):
+            await svc.send_password_reset_email("user@test.com", "resettoken456", "Bob")
+
+        assert "https://app.example.com/reset-password?token=resettoken456" in captured["body"]
+
+    async def test_returns_false_when_unconfigured(self):
+        svc = _make_service(smtp_host=None)
+        result = await svc.send_password_reset_email("u@t.com", "tok", "Bob")
+        assert result is False
+
+    async def test_includes_display_name_in_email(self):
+        svc = _make_service(smtp_host="smtp.example.com")
+        captured = {}
+
+        async def fake_send(msg, **kwargs):
+            captured["body"] = msg.as_string()
+
+        with patch("app.services.email_service.aiosmtplib.send", new_callable=AsyncMock, side_effect=fake_send):
+            await svc.send_password_reset_email("user@test.com", "tok", "Charlie")
+
+        assert "Charlie" in captured["body"]

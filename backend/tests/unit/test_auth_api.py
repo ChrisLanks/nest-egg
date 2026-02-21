@@ -1614,3 +1614,291 @@ class TestEmailVerification:
 
         mock_create_tok.assert_called_once()
         mock_send.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Forgot password endpoint
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestForgotPassword:
+    """Tests for POST /auth/forgot-password."""
+
+    @pytest.mark.asyncio
+    async def test_returns_200_for_unknown_email(self):
+        """Should return 200 even if email is not registered (prevents enumeration)."""
+        from app.api.v1.auth import forgot_password, ForgotPasswordRequest
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = None  # user not found
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        data = Mock(spec=ForgotPasswordRequest)
+        data.email = "nobody@example.com"
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            result = await forgot_password(data, mock_request, db=mock_db)
+
+        assert "message" in result
+        assert "token" not in result  # no token for unknown email
+
+    @pytest.mark.asyncio
+    async def test_creates_token_and_sends_email_for_known_user(self):
+        """Known active user → create token and send email."""
+        from app.api.v1.auth import forgot_password, ForgotPasswordRequest
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.email = "alice@example.com"
+        mock_user.display_name = "Alice"
+        mock_user.first_name = "Alice"
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_user
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        data = Mock(spec=ForgotPasswordRequest)
+        data.email = "alice@example.com"
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.create_password_reset_token", new=AsyncMock(return_value="raw_tok")) as mock_create:
+                with patch("app.api.v1.auth.email_service.send_password_reset_email", new=AsyncMock()) as mock_send:
+                    with patch("app.api.v1.auth.settings.ENVIRONMENT", "production"):
+                        result = await forgot_password(data, mock_request, db=mock_db)
+
+        assert "message" in result
+        mock_create.assert_called_once_with(mock_db, mock_user.id)
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_dev_mode_returns_raw_token(self):
+        """In development mode, raw token is included in response for SMTP-less testing."""
+        from app.api.v1.auth import forgot_password, ForgotPasswordRequest
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.email = "alice@example.com"
+        mock_user.display_name = "Alice"
+        mock_user.first_name = "Alice"
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_user
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        data = Mock(spec=ForgotPasswordRequest)
+        data.email = "alice@example.com"
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.create_password_reset_token", new=AsyncMock(return_value="raw_tok")):
+                with patch("app.api.v1.auth.email_service.send_password_reset_email", new=AsyncMock()):
+                    with patch("app.api.v1.auth.settings.ENVIRONMENT", "development"):
+                        result = await forgot_password(data, mock_request, db=mock_db)
+
+        assert result.get("token") == "raw_tok"
+
+    @pytest.mark.asyncio
+    async def test_production_mode_does_not_return_token(self):
+        """In production, token must NOT be in the response."""
+        from app.api.v1.auth import forgot_password, ForgotPasswordRequest
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.email = "alice@example.com"
+        mock_user.display_name = "Alice"
+        mock_user.first_name = "Alice"
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_user
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        data = Mock(spec=ForgotPasswordRequest)
+        data.email = "alice@example.com"
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.create_password_reset_token", new=AsyncMock(return_value="raw_tok")):
+                with patch("app.api.v1.auth.email_service.send_password_reset_email", new=AsyncMock()):
+                    with patch("app.api.v1.auth.settings.ENVIRONMENT", "production"):
+                        result = await forgot_password(data, mock_request, db=mock_db)
+
+        assert "token" not in result
+
+
+# ---------------------------------------------------------------------------
+# Reset password endpoint
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestResetPassword:
+    """Tests for POST /auth/reset-password."""
+
+    @pytest.mark.asyncio
+    async def test_unknown_token_returns_400(self):
+        """Token not in DB → 400."""
+        from app.api.v1.auth import reset_password, ResetPasswordRequest
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        data = Mock(spec=ResetPasswordRequest)
+        data.token = "bogus_token"
+        data.new_password = "newpassword123"
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.hash_token", return_value="hashed"):
+                with pytest.raises(HTTPException) as exc_info:
+                    await reset_password(data, mock_request, db=mock_db)
+
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_expired_or_used_token_returns_400(self):
+        """Token found but is_valid=False (expired or already used) → 400."""
+        from app.api.v1.auth import reset_password, ResetPasswordRequest
+        from app.models.user import PasswordResetToken
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+
+        mock_record = Mock(spec=PasswordResetToken)
+        mock_record.is_valid = False
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_record
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        data = Mock(spec=ResetPasswordRequest)
+        data.token = "expired_token"
+        data.new_password = "newpassword123"
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.hash_token", return_value="hashed"):
+                with pytest.raises(HTTPException) as exc_info:
+                    await reset_password(data, mock_request, db=mock_db)
+
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_valid_token_updates_password(self):
+        """Valid token → password_hash is updated."""
+        from app.api.v1.auth import reset_password, ResetPasswordRequest
+        from app.models.user import PasswordResetToken
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.password_hash = "old_hash"
+        mock_user.failed_login_attempts = 3
+        mock_user.locked_until = datetime.now()
+
+        mock_record = Mock(spec=PasswordResetToken)
+        mock_record.is_valid = True
+        mock_record.user = mock_user
+        mock_record.used_at = None
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_record
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        data = Mock(spec=ResetPasswordRequest)
+        data.token = "valid_token"
+        data.new_password = "newSecurePass!"
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.hash_token", return_value="hashed"):
+                with patch("app.api.v1.auth.hash_password", return_value="new_argon2_hash"):
+                    result = await reset_password(data, mock_request, db=mock_db)
+
+        assert mock_user.password_hash == "new_argon2_hash"
+        assert "message" in result
+
+    @pytest.mark.asyncio
+    async def test_valid_token_clears_lockout(self):
+        """Valid token → failed_login_attempts reset to 0 and locked_until cleared."""
+        from app.api.v1.auth import reset_password, ResetPasswordRequest
+        from app.models.user import PasswordResetToken
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.password_hash = "old_hash"
+        mock_user.failed_login_attempts = 5
+        mock_user.locked_until = datetime.now() + timedelta(hours=1)
+
+        mock_record = Mock(spec=PasswordResetToken)
+        mock_record.is_valid = True
+        mock_record.user = mock_user
+        mock_record.used_at = None
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_record
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        data = Mock(spec=ResetPasswordRequest)
+        data.token = "valid_token"
+        data.new_password = "newSecurePass!"
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.hash_token", return_value="hashed"):
+                with patch("app.api.v1.auth.hash_password", return_value="new_hash"):
+                    await reset_password(data, mock_request, db=mock_db)
+
+        assert mock_user.failed_login_attempts == 0
+        assert mock_user.locked_until is None
+
+    @pytest.mark.asyncio
+    async def test_valid_token_marks_used_at(self):
+        """Valid token → used_at is set so the same token cannot be reused."""
+        from app.api.v1.auth import reset_password, ResetPasswordRequest
+        from app.models.user import PasswordResetToken
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.password_hash = "old_hash"
+        mock_user.failed_login_attempts = 0
+        mock_user.locked_until = None
+
+        mock_record = Mock(spec=PasswordResetToken)
+        mock_record.is_valid = True
+        mock_record.user = mock_user
+        mock_record.used_at = None
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = mock_record
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        data = Mock(spec=ResetPasswordRequest)
+        data.token = "valid_token"
+        data.new_password = "newSecurePass!"
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.hash_token", return_value="hashed"):
+                with patch("app.api.v1.auth.hash_password", return_value="new_hash"):
+                    await reset_password(data, mock_request, db=mock_db)
+
+        assert mock_record.used_at is not None
