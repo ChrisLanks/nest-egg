@@ -41,10 +41,10 @@ class TestTellerEncryption:
         # Should be a string (not bytes)
         assert isinstance(encrypted, str)
 
-        # Should be base64 (contains only alphanumeric + / + =)
+        # Should use versioned format v{n}:<base64>
         import re
 
-        assert re.match(r"^[A-Za-z0-9+/=]+$", encrypted)
+        assert re.match(r"^v\d+:[A-Za-z0-9+/=_\-]+$", encrypted)
 
     def test_teller_enrollment_decryption(self):
         """Should decrypt access token via model method."""

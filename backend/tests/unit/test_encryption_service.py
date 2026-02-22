@@ -2,8 +2,11 @@
 
 import pytest
 import base64
+from unittest.mock import patch
 
-from app.services.encryption_service import get_encryption_service
+from cryptography.fernet import Fernet
+
+from app.services.encryption_service import get_encryption_service, EncryptionService
 
 
 class TestEncryptionService:
@@ -23,8 +26,8 @@ class TestEncryptionService:
 
         assert decrypted == plaintext
 
-    def test_encrypt_token_returns_base64_string(self):
-        """Should return base64-encoded string suitable for TEXT columns."""
+    def test_encrypt_token_returns_versioned_string(self):
+        """Should return versioned string in format v{n}:<base64> suitable for TEXT columns."""
         service = get_encryption_service()
 
         encrypted = service.encrypt_token("test_token")
@@ -32,16 +35,18 @@ class TestEncryptionService:
         # Should be a string (not bytes)
         assert isinstance(encrypted, str)
 
-        # Should be valid base64
+        # Should have versioned prefix
         import re
+        assert re.match(r"^v\d+:[A-Za-z0-9+/=]+$", encrypted), (
+            f"Expected 'v{{n}}:<base64>' format, got: {encrypted[:40]}"
+        )
 
-        assert re.match(r"^[A-Za-z0-9+/=]+$", encrypted)
-
-        # Should be decodable
+        # The ciphertext portion should be valid base64
+        ciphertext = encrypted.split(":", 1)[1]
         try:
-            base64.b64decode(encrypted)
+            base64.b64decode(ciphertext)
         except Exception:
-            pytest.fail("Encrypted token is not valid base64")
+            pytest.fail("Ciphertext portion is not valid base64")
 
     def test_encrypt_token_produces_different_output_each_time(self):
         """Should use IV/nonce so same token encrypts differently each time."""
@@ -336,3 +341,110 @@ class TestEncryptionService:
         decrypted = service2.decrypt_token(encrypted)
 
         assert decrypted == token
+
+
+@pytest.mark.unit
+class TestEncryptionKeyRotation:
+    """Tests for versioned key rotation support."""
+
+    def _make_service(self, current_key: str, current_version: int, v1_key=None):
+        """Helper: instantiate EncryptionService with controlled settings."""
+        mock_settings = type("S", (), {
+            "MASTER_ENCRYPTION_KEY": current_key,
+            "ENCRYPTION_CURRENT_VERSION": current_version,
+            "ENCRYPTION_KEY_V1": v1_key,
+        })()
+        with patch("app.services.encryption_service.settings", mock_settings):
+            return EncryptionService()
+
+    def test_encrypt_token_includes_version_prefix(self):
+        """Encrypted tokens should start with v{n}: prefix."""
+        key = Fernet.generate_key().decode()
+        service = self._make_service(key, current_version=1)
+        encrypted = service.encrypt_token("hello")
+        assert encrypted.startswith("v1:")
+
+    def test_version_incremented_in_prefix(self):
+        """After rotation, new writes carry the new version number."""
+        key = Fernet.generate_key().decode()
+        service = self._make_service(key, current_version=2)
+        encrypted = service.encrypt_token("hello")
+        assert encrypted.startswith("v2:")
+
+    def test_decrypt_versioned_token(self):
+        """Should decrypt a token with a version prefix using the correct key."""
+        key = Fernet.generate_key().decode()
+        service = self._make_service(key, current_version=1)
+        encrypted = service.encrypt_token("plaintext")
+        assert service.decrypt_token(encrypted) == "plaintext"
+
+    def test_decrypt_legacy_token_without_prefix(self):
+        """Should decrypt legacy ciphertext (no v{n}: prefix) with the current key."""
+        key = Fernet.generate_key().decode()
+        service = self._make_service(key, current_version=1)
+
+        # Simulate a legacy token: raw base64 Fernet ciphertext, no version prefix
+        fernet = Fernet(key.encode())
+        legacy_ciphertext = base64.b64encode(fernet.encrypt(b"old_plaintext")).decode()
+
+        assert service.decrypt_token(legacy_ciphertext) == "old_plaintext"
+
+    def test_key_rotation_old_rows_decrypt_with_v1_key(self):
+        """After rotation: rows encrypted with old key should decrypt via ENCRYPTION_KEY_V1."""
+        old_key = Fernet.generate_key().decode()
+        new_key = Fernet.generate_key().decode()
+
+        # Service before rotation: encrypts with old key, version 1
+        pre_rotation = self._make_service(old_key, current_version=1)
+        encrypted_v1 = pre_rotation.encrypt_token("sensitive_value")
+        assert encrypted_v1.startswith("v1:")
+
+        # Service after rotation: MASTER=new key (version 2), V1=old key
+        post_rotation = self._make_service(
+            new_key, current_version=2, v1_key=old_key
+        )
+
+        # New writes use new key
+        new_encrypted = post_rotation.encrypt_token("new_value")
+        assert new_encrypted.startswith("v2:")
+        assert post_rotation.decrypt_token(new_encrypted) == "new_value"
+
+        # Old v1 rows still decrypt
+        assert post_rotation.decrypt_token(encrypted_v1) == "sensitive_value"
+
+    def test_unknown_version_raises_value_error(self):
+        """Decrypting a token whose version has no configured key raises ValueError."""
+        key = Fernet.generate_key().decode()
+        service = self._make_service(key, current_version=1)
+
+        # Fabricate a token claiming to be version 99
+        fernet = Fernet(key.encode())
+        ciphertext = base64.b64encode(fernet.encrypt(b"data")).decode()
+        v99_token = f"v99:{ciphertext}"
+
+        with pytest.raises(ValueError, match="No decryption key configured for version 99"):
+            service.decrypt_token(v99_token)
+
+    def test_bytes_input_raises_value_error(self):
+        """Passing bytes to decrypt_token should raise ValueError, not TypeError."""
+        key = Fernet.generate_key().decode()
+        service = self._make_service(key, current_version=1)
+        encrypted_bytes = service.encrypt_string("data")  # returns bytes
+
+        with pytest.raises(ValueError):
+            service.decrypt_token(encrypted_bytes)  # type: ignore
+
+    def test_cross_version_isolation(self):
+        """A v2 token should not be decryptable by a service with only a v1 key."""
+        old_key = Fernet.generate_key().decode()
+        new_key = Fernet.generate_key().decode()
+
+        # Service with new key at version 2
+        new_service = self._make_service(new_key, current_version=2)
+        encrypted_v2 = new_service.encrypt_token("secret")
+
+        # Service that only knows the old key (no V1 registered for version 2)
+        old_service = self._make_service(old_key, current_version=1)
+
+        with pytest.raises(ValueError):
+            old_service.decrypt_token(encrypted_v2)

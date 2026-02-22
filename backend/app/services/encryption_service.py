@@ -98,6 +98,11 @@ class EncryptionService:
         if not encrypted_token:
             raise ValueError("Encrypted token cannot be empty")
 
+        if not isinstance(encrypted_token, str):
+            raise ValueError(
+                f"decrypt_token expects a str, got {type(encrypted_token).__name__}"
+            )
+
         # Parse version prefix
         version = self._current_version
         ciphertext = encrypted_token

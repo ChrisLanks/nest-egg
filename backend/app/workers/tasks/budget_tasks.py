@@ -4,7 +4,7 @@ import logging
 from sqlalchemy import select
 
 from app.workers.celery_app import celery_app
-from app.core.database import async_session_factory
+from app.core.database import AsyncSessionLocal as async_session_factory
 from app.services.budget_service import BudgetService
 from app.models.user import User
 from app.models.budget import Budget

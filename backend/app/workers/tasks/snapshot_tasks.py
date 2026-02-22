@@ -35,15 +35,13 @@ def _calculate_offset_seconds(organization_id) -> int:
     return offset_minutes * 60             # convert to seconds
 
 
-@celery_app.task(name="orchestrate_portfolio_snapshots")
-def orchestrate_portfolio_snapshots():
+def _fetch_all_organizations():
     """
-    Celery Beat entry point (fires at midnight UTC).
+    Fetch all organisations synchronously. Extracted for testability.
 
-    Fetches all organisations and dispatches per-org snapshot tasks with
-    staggered countdowns to avoid a thundering herd.
+    Runs the async DB query in a fresh event loop (Celery worker context).
     """
-    async def _get_orgs():
+    async def _inner():
         from sqlalchemy import select
         from app.core.database import AsyncSessionLocal
         from app.models.user import Organization
@@ -52,15 +50,38 @@ def orchestrate_portfolio_snapshots():
             result = await db.execute(select(Organization))
             return result.scalars().all()
 
-    orgs = asyncio.run(_get_orgs())
-    logger.info("orchestrate_portfolio_snapshots: dispatching tasks for %d orgs", len(orgs))
+    return asyncio.run(_inner())
 
+
+def _dispatch_snapshot_tasks(orgs) -> int:
+    """
+    Enqueue per-org snapshot tasks with staggered countdowns.
+
+    Extracted so tests can call this with a pre-built org list without
+    needing to patch the DB fetch or asyncio.run.
+
+    Returns the number of tasks dispatched.
+    """
+    logger.info("orchestrate_portfolio_snapshots: dispatching tasks for %d orgs", len(orgs))
     for org in orgs:
         countdown = _calculate_offset_seconds(org.id)
         capture_org_portfolio_snapshot.apply_async(
             args=[str(org.id)],
             countdown=countdown,
         )
+    return len(orgs)
+
+
+@celery_app.task(name="orchestrate_portfolio_snapshots")
+def orchestrate_portfolio_snapshots():
+    """
+    Celery Beat entry point (fires at midnight UTC).
+
+    Fetches all organisations and dispatches per-org snapshot tasks with
+    staggered countdowns to avoid a thundering herd.
+    """
+    orgs = _fetch_all_organizations()
+    _dispatch_snapshot_tasks(orgs)
 
 
 @celery_app.task(name="capture_org_portfolio_snapshot")
