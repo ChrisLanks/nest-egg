@@ -219,13 +219,22 @@ api.interceptors.response.use(
     const originalRequest = error.config;
 
     // On 401, attempt silent refresh via httpOnly cookie.
-    // Skip for auth endpoints — a 401 there is a credential failure, not expiry.
+    // Also handle 403 when we have no access token in memory — FastAPI's
+    // HTTPBearer raises 403 (not 401) when the Authorization header is absent.
+    // Skip for auth endpoints — errors there are credential failures, not expiry.
     const isAuthEndpoint = originalRequest?.url?.includes('/auth/login') ||
                            originalRequest?.url?.includes('/auth/register') ||
                            originalRequest?.url?.includes('/auth/forgot-password') ||
                            originalRequest?.url?.includes('/auth/reset-password');
 
-    if (error.response?.status === 401 && !originalRequest?._retry && !isAuthEndpoint) {
+    const isMissingToken =
+      error.response?.status === 403 && !useAuthStore.getState().accessToken;
+
+    if (
+      (error.response?.status === 401 || isMissingToken) &&
+      !originalRequest?._retry &&
+      !isAuthEndpoint
+    ) {
       originalRequest._retry = true;
 
       try {

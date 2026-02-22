@@ -14,8 +14,13 @@ export default defineConfig({
     // in dev (frontend: 5173, backend: 8000).
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        // In Docker Compose the backend is reachable via its service name.
+        // Direct npm run dev: VITE_PROXY_TARGET is unset → falls back to localhost.
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:8000',
         changeOrigin: true,
+        // Follow 307 redirects server-side so the browser never sees a cross-origin
+        // redirect (which would cause Chrome to strip the Authorization header).
+        followRedirects: true,
       },
     },
   },
