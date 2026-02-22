@@ -17,12 +17,40 @@ Usage:
 
 import logging
 import logging.config
+import re
 import sys
+from typing import Any, MutableMapping
 
 import structlog
 from pythonjsonlogger import jsonlogger
 
 from app.config import settings
+from app.utils.logging_utils import redact_email, redact_ip
+
+
+# Regex patterns for PII detection
+_EMAIL_RE = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
+_IPV4_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
+_PHONE_RE = re.compile(r'\b(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b')
+
+
+def pii_redaction_processor(
+    logger: Any, method: str, event_dict: MutableMapping[str, Any]
+) -> MutableMapping[str, Any]:
+    """
+    Structlog processor that automatically redacts PII from all string values.
+
+    Runs before the renderer so PII is never written to log output.
+    Redacts: email addresses, IPv4 addresses, phone numbers.
+    """
+    for key, value in list(event_dict.items()):
+        if not isinstance(value, str):
+            continue
+        value = _EMAIL_RE.sub(lambda m: redact_email(m.group()), value)
+        value = _IPV4_RE.sub(lambda m: redact_ip(m.group()), value)
+        value = _PHONE_RE.sub('[PHONE REDACTED]', value)
+        event_dict[key] = value
+    return event_dict
 
 
 def setup_logging() -> None:
@@ -70,6 +98,8 @@ def setup_logging() -> None:
                 structlog.processors.CallsiteParameter.FUNC_NAME,
             ],
         ),
+        # Automatically redact PII (emails, IPs, phone numbers) before rendering
+        pii_redaction_processor,
     ]
 
     # Add environment-specific processors

@@ -1,4 +1,21 @@
-"""Encryption service for sensitive data."""
+"""Encryption service for sensitive data.
+
+Key rotation:
+  - Ciphertexts are stored with a version prefix: ``v{n}:<base64ciphertext>``
+  - New writes always use ENCRYPTION_CURRENT_VERSION and MASTER_ENCRYPTION_KEY
+  - Old rows (encrypted with a previous key) are decrypted via ENCRYPTION_KEY_V1
+  - Legacy rows with no prefix (from before rotation was introduced) are decrypted
+    with the current key (safe: they were written when that key was the only one)
+
+Rotation procedure:
+  1. Generate a new Fernet key:
+       python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+  2. Move current MASTER_ENCRYPTION_KEY → ENCRYPTION_KEY_V1
+  3. Set MASTER_ENCRYPTION_KEY = <new key>
+  4. Increment ENCRYPTION_CURRENT_VERSION (e.g. 1 → 2)
+  5. Deploy — old V1 rows decrypt fine; new writes use V2 prefix
+  6. Optionally re-encrypt all rows to migrate them to V2 in a one-time script
+"""
 
 import base64
 from cryptography.fernet import Fernet
@@ -11,62 +28,105 @@ class EncryptionService:
     """Service for encrypting and decrypting sensitive data like API tokens."""
 
     def __init__(self):
-        """Initialize the encryption service with the master key."""
+        """Initialize the encryption service and build the key map."""
         if not settings.MASTER_ENCRYPTION_KEY:
             raise ValueError("MASTER_ENCRYPTION_KEY must be set in environment")
 
-        # Ensure the key is properly formatted for Fernet
-        key = settings.MASTER_ENCRYPTION_KEY
-        if isinstance(key, str):
-            key = key.encode()
+        self._current_version = settings.ENCRYPTION_CURRENT_VERSION
+        self._keys: dict[int, Fernet] = {}
 
+        # Register current key at current version
+        current_key = settings.MASTER_ENCRYPTION_KEY
+        if isinstance(current_key, str):
+            current_key = current_key.encode()
         try:
-            self.cipher = Fernet(key)
+            self._keys[self._current_version] = Fernet(current_key)
         except Exception as e:
             raise ValueError(
                 f"Invalid MASTER_ENCRYPTION_KEY format. Must be a valid Fernet key: {e}"
             )
 
+        # Register previous key at V1 (for decryption-only after rotation)
+        if settings.ENCRYPTION_KEY_V1 and self._current_version != 1:
+            prev_key = settings.ENCRYPTION_KEY_V1
+            if isinstance(prev_key, str):
+                prev_key = prev_key.encode()
+            try:
+                self._keys[1] = Fernet(prev_key)
+            except Exception as e:
+                raise ValueError(
+                    f"Invalid ENCRYPTION_KEY_V1 format. Must be a valid Fernet key: {e}"
+                )
+
     def encrypt_token(self, token: str) -> str:
         """
-        Encrypt a token string and return as base64-encoded string for storage.
+        Encrypt a token and return a versioned, base64-encoded ciphertext string.
+
+        Format: ``v{version}:<base64(fernet_ciphertext)>``
 
         Args:
             token: The plaintext token to encrypt
 
         Returns:
-            Encrypted token as base64-encoded string (suitable for TEXT columns)
+            Versioned encrypted string suitable for TEXT columns
         """
         if not token:
             raise ValueError("Token cannot be empty")
 
-        encrypted_bytes = self.cipher.encrypt(token.encode())
-        # Base64 encode for storage in TEXT columns
-        return base64.b64encode(encrypted_bytes).decode("utf-8")
+        fernet = self._keys[self._current_version]
+        encrypted_bytes = fernet.encrypt(token.encode())
+        ciphertext = base64.b64encode(encrypted_bytes).decode("utf-8")
+        return f"v{self._current_version}:{ciphertext}"
 
     def decrypt_token(self, encrypted_token: str) -> str:
         """
-        Decrypt an encrypted token from base64-encoded string.
+        Decrypt a versioned encrypted token string.
+
+        Handles:
+        - Versioned format: ``v{n}:<ciphertext>`` — uses key for version n
+        - Legacy format (no prefix): uses current key (pre-rotation rows)
 
         Args:
-            encrypted_token: The base64-encoded encrypted token string
+            encrypted_token: The versioned or legacy encrypted token string
 
         Returns:
-            Decrypted token as string
+            Decrypted plaintext token
+
+        Raises:
+            ValueError: If the token is malformed, the version is unknown, or decryption fails
         """
         if not encrypted_token:
             raise ValueError("Encrypted token cannot be empty")
 
+        # Parse version prefix
+        version = self._current_version
+        ciphertext = encrypted_token
+        if encrypted_token.startswith("v") and ":" in encrypted_token:
+            prefix, rest = encrypted_token.split(":", 1)
+            try:
+                version = int(prefix[1:])
+                ciphertext = rest
+            except (ValueError, IndexError):
+                # Not a valid version prefix — treat the whole thing as legacy ciphertext
+                version = self._current_version
+                ciphertext = encrypted_token
+
+        if version not in self._keys:
+            raise ValueError(
+                f"No decryption key configured for version {version}. "
+                f"Check ENCRYPTION_KEY_V{version} in your environment."
+            )
+
         try:
-            # Base64 decode first
-            encrypted_bytes = base64.b64decode(encrypted_token.encode("utf-8"))
-            return self.cipher.decrypt(encrypted_bytes).decode()
+            fernet = self._keys[version]
+            encrypted_bytes = base64.b64decode(ciphertext.encode("utf-8"))
+            return fernet.decrypt(encrypted_bytes).decode()
         except Exception as e:
-            raise ValueError(f"Failed to decrypt token. Token may be corrupted or key changed: {e}")
+            raise ValueError(f"Failed to decrypt token (version {version}): {e}")
 
     def encrypt_string(self, data: str) -> bytes:
         """
-        Encrypt any sensitive string data.
+        Encrypt any sensitive string data using the current key.
 
         Args:
             data: The plaintext string to encrypt
@@ -77,11 +137,12 @@ class EncryptionService:
         if not data:
             raise ValueError("Data cannot be empty")
 
-        return self.cipher.encrypt(data.encode())
+        fernet = self._keys[self._current_version]
+        return fernet.encrypt(data.encode())
 
     def decrypt_string(self, encrypted_data: bytes) -> str:
         """
-        Decrypt encrypted string data.
+        Decrypt encrypted string data using the current key.
 
         Args:
             encrypted_data: The encrypted data bytes
@@ -93,7 +154,8 @@ class EncryptionService:
             raise ValueError("Encrypted data cannot be empty")
 
         try:
-            return self.cipher.decrypt(encrypted_data).decode()
+            fernet = self._keys[self._current_version]
+            return fernet.decrypt(encrypted_data).decode()
         except Exception as e:
             raise ValueError(f"Failed to decrypt data: {e}")
 
@@ -114,7 +176,7 @@ class EncryptedString(TypeDecorator):
     """
     SQLAlchemy TypeDecorator that transparently encrypts/decrypts string fields.
 
-    Store as Text (base64-encoded Fernet ciphertext); decrypt on read.
+    Store as Text (versioned base64-encoded Fernet ciphertext); decrypt on read.
     During a migration window, plaintext values are returned as-is if decryption fails,
     so the model stays readable while the migration encrypts existing rows.
 

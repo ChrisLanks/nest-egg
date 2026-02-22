@@ -8,6 +8,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -318,6 +319,12 @@ async def login(
         return auth_response
     except HTTPException:
         raise
+    except SQLAlchemyError:
+        logger.error(f"Database error during login for {redact_email(data.email)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during login",
+        )
     except Exception as e:
         logger.error(f"Login error for {redact_email(data.email)}: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -523,6 +530,13 @@ async def refresh_access_token(
 
     except HTTPException:
         raise
+    except SQLAlchemyError:
+        logger.error("Database error during token refresh", exc_info=True)
+        _clear_refresh_cookie(response)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during token refresh",
+        )
     except Exception as e:
         logger.error(f"Token refresh error: {str(e)}", exc_info=True)
         _clear_refresh_cookie(response)

@@ -12,7 +12,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '../../../types/user';
-import { scheduleTokenRefresh } from '../../../services/api';
+import { scheduleTokenRefresh, clearTokenRefresh } from '../../../services/api';
 
 interface AuthState {
   user: User | null;
@@ -63,6 +63,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        clearTokenRefresh(); // cancel any pending proactive refresh timer
         set({
           user: null,
           accessToken: null,

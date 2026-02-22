@@ -29,7 +29,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15  # Industry standard for security
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
-    MASTER_ENCRYPTION_KEY: str
+    MASTER_ENCRYPTION_KEY: str  # Current key — used for all new writes
+    # Key rotation: when rotating, move MASTER_ENCRYPTION_KEY → ENCRYPTION_KEY_V1 and set new key.
+    # Old rows encrypted with V1 continue to decrypt; new writes use the new key + incremented version.
+    ENCRYPTION_KEY_V1: Optional[str] = None  # Previous key — decryption only
+    ENCRYPTION_CURRENT_VERSION: int = 1      # Version prefix for new writes (increment on rotation)
 
     # Plaid API
     PLAID_CLIENT_ID: str = ""
@@ -136,6 +140,18 @@ class Settings(BaseSettings):
     # Prometheus Metrics
     METRICS_ENABLED: bool = True
     METRICS_INCLUDE_IN_SCHEMA: bool = False  # Hide from Swagger docs
+    METRICS_ADMIN_PORT: int = 9090           # Separate port for /metrics endpoint
+    METRICS_USERNAME: str = "admin"          # Basic auth username — override in prod
+    METRICS_PASSWORD: str = "metrics_admin"  # Basic auth password — CHANGE IN PROD
+
+    # Storage (CSV uploads, attachments)
+    STORAGE_BACKEND: str = "local"           # "local" or "s3"
+    LOCAL_UPLOAD_DIR: str = "/tmp/nestegg-uploads"
+    AWS_S3_BUCKET: Optional[str] = None
+    AWS_REGION: str = "us-east-1"
+    AWS_ACCESS_KEY_ID: Optional[str] = None  # Omit to use IAM instance role
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+    AWS_S3_PREFIX: str = "csv-uploads/"
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 

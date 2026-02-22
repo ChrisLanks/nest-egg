@@ -48,7 +48,7 @@ from app.api.v1 import settings as settings_router
 from app.config import settings
 from app.core.database import close_db, init_db
 from app.core.logging_config import setup_logging
-from app.core.metrics import setup_metrics
+from app.core.metrics import create_metrics_app, setup_metrics
 from app.middleware.csrf_protection import CSRFProtectionMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
@@ -60,7 +60,6 @@ from app.middleware.request_logging import (
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.services.secrets_validation_service import secrets_validation_service
-from app.services.snapshot_scheduler import snapshot_scheduler
 
 # Initialize Sentry for error tracking and monitoring (optional)
 try:
@@ -128,6 +127,8 @@ elif SENTRY_AVAILABLE and not settings.SENTRY_DSN:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
+    import asyncio
+
     # Startup
     print("🚀 Starting Nest Egg API...")
 
@@ -156,14 +157,27 @@ async def lifespan(app: FastAPI):
         print("⚠️  Running in DEBUG mode - secrets validation skipped")
 
     await init_db()
-    await snapshot_scheduler.start()
+
+    # Launch Prometheus metrics on a separate admin port (protected by basic auth)
+    if settings.METRICS_ENABLED:
+        import uvicorn
+        metrics_asgi = create_metrics_app()
+        metrics_config = uvicorn.Config(
+            metrics_asgi,
+            host="0.0.0.0",
+            port=settings.METRICS_ADMIN_PORT,
+            log_level="warning",
+        )
+        metrics_server = uvicorn.Server(metrics_config)
+        asyncio.create_task(metrics_server.serve())
+        print(f"✅ Metrics admin server started on port {settings.METRICS_ADMIN_PORT}")
+
     print("✅ Nest Egg API started successfully")
 
     yield
 
     # Shutdown
     print("🛑 Shutting down Nest Egg API...")
-    await snapshot_scheduler.stop()
     await close_db()
     print("✅ Nest Egg API shutdown complete")
 
@@ -175,10 +189,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Setup Prometheus metrics
+# Instrument the app with Prometheus (metrics served on admin port, not here)
 if settings.METRICS_ENABLED:
     setup_metrics(app)
-    print("✅ Prometheus metrics enabled at /metrics")
 
 # Configure CORS
 app.add_middleware(
@@ -315,7 +328,7 @@ app.include_router(
     income_expenses.router, prefix="/api/v1/income-expenses", tags=["Income vs Expenses"]
 )
 app.include_router(settings_router.router, prefix="/api/v1/settings", tags=["Settings"])
-if settings.ENVIRONMENT != "production":
+if settings.ENVIRONMENT == "development":
     app.include_router(dev.router, prefix="/api/v1/dev", tags=["Development"])
 
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])

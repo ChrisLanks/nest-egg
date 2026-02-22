@@ -38,6 +38,14 @@ export const api = axios.create({
 
 // Token refresh timer and in-flight promise
 let refreshTimer: NodeJS.Timeout | null = null;
+
+/** Cancel any pending proactive token refresh. Call this on logout. */
+export const clearTokenRefresh = () => {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+};
 let isRefreshing = false;
 let refreshPromise: Promise<string | null> | null = null;
 

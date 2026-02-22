@@ -9,7 +9,7 @@ export const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
       gcTime: 1000 * 60 * 30, // 30 minutes (formerly cacheTime)
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: false, // opt-in per query; globally too noisy for a financial app
       refetchOnReconnect: true,
       retry: 1,
     },

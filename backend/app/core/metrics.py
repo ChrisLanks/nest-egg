@@ -8,12 +8,22 @@ This module provides Prometheus metrics for:
 - Rate limiting hits
 - Business metrics (users, transactions, accounts)
 
-Metrics are exposed at /metrics endpoint for Prometheus scraping.
+Metrics are exposed on a SEPARATE admin port (default 9090) protected by HTTP Basic Auth.
+They are NOT exposed on the main API port (8000).
+
+Dev access: curl -u admin:metrics_admin http://localhost:9090/metrics
+Prod: override METRICS_USERNAME and METRICS_PASSWORD in environment.
 """
 
+import base64
+
 from fastapi import FastAPI
-from prometheus_client import Counter, Gauge, Histogram
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator, metrics
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.routing import Route
 from starlette.types import ASGIApp
 
 
@@ -109,7 +119,10 @@ budget_alerts_total = Counter(
 
 def setup_metrics(app: FastAPI) -> None:
     """
-    Set up Prometheus metrics instrumentation for FastAPI app.
+    Instrument the FastAPI app with Prometheus metrics collectors.
+
+    Does NOT expose a /metrics route on the main API port.
+    Metrics are served on a separate admin port via create_metrics_app().
 
     Args:
         app: FastAPI application instance
@@ -120,7 +133,7 @@ def setup_metrics(app: FastAPI) -> None:
         should_ignore_untemplated=True,
         should_respect_env_var=True,
         should_instrument_requests_inprogress=True,
-        excluded_handlers=["/metrics", "/health", "/docs", "/openapi.json"],
+        excluded_handlers=["/health", "/docs", "/openapi.json"],
         env_var_name="ENABLE_METRICS",
         inprogress_name="http_requests_inprogress",
         inprogress_labels=True,
@@ -160,15 +173,53 @@ def setup_metrics(app: FastAPI) -> None:
         )
     )
 
-    # Instrument the app
+    # Instrument only — do NOT expose /metrics on the main port
     instrumentator.instrument(app)
 
-    # Expose metrics endpoint
-    instrumentator.expose(
-        app,
-        endpoint="/metrics",
-        include_in_schema=False,  # Don't show in Swagger docs
-    )
+
+def create_metrics_app() -> ASGIApp:
+    """
+    Create a minimal ASGI app that serves /metrics behind HTTP Basic Auth.
+
+    This app runs on a separate admin port (METRICS_ADMIN_PORT, default 9090)
+    so Prometheus metrics are never exposed on the public API port.
+
+    Dev access:
+        curl -u admin:metrics_admin http://localhost:9090/metrics
+
+    Prod: override METRICS_USERNAME / METRICS_PASSWORD in environment.
+    """
+    from app.config import settings  # local import avoids circular dependency at module level
+
+    async def metrics_endpoint(request: Request) -> Response:
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Basic "):
+            return Response(
+                content="Unauthorized",
+                status_code=401,
+                headers={"WWW-Authenticate": 'Basic realm="metrics"'},
+            )
+
+        try:
+            decoded = base64.b64decode(auth_header[6:]).decode("utf-8", errors="replace")
+            username, password = decoded.split(":", 1)
+        except Exception:
+            return Response(
+                content="Unauthorized",
+                status_code=401,
+                headers={"WWW-Authenticate": 'Basic realm="metrics"'},
+            )
+
+        if username != settings.METRICS_USERNAME or password != settings.METRICS_PASSWORD:
+            return Response(
+                content="Unauthorized",
+                status_code=401,
+                headers={"WWW-Authenticate": 'Basic realm="metrics"'},
+            )
+
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+    return Starlette(routes=[Route("/metrics", metrics_endpoint)])
 
 
 # Middleware to track custom metrics

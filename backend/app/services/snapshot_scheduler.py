@@ -312,31 +312,14 @@ class SnapshotScheduler:
                 await asyncio.sleep(60)  # Wait 1 minute before retrying
 
     async def start(self):
-        """Start the background scheduler task."""
-        if self.running:
-            logger.warning("Scheduler already running")
-            return
-
-        self.running = True
-        self.task = asyncio.create_task(self.run_scheduler_loop())
-        self._cleanup_task: Optional[asyncio.Task] = asyncio.create_task(self.run_cleanup_loop())
-        logger.info("Snapshot scheduler and token cleanup tasks created")
+        """No-op: scheduling has moved to Celery Beat (snapshot_tasks.py)."""
+        logger.info(
+            "SnapshotScheduler.start() called but is a no-op — "
+            "portfolio snapshots are now managed by Celery Beat task 'orchestrate_portfolio_snapshots'"
+        )
 
     async def stop(self):
-        """Stop the background scheduler task."""
-        if not self.running:
-            return
-
-        self.running = False
-        for task in (self.task, getattr(self, "_cleanup_task", None)):
-            if task:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-
-        logger.info("Snapshot scheduler stopped")
+        """No-op: scheduling has moved to Celery Beat (snapshot_tasks.py)."""
 
 
 # Singleton instance

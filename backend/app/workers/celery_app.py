@@ -31,6 +31,7 @@ from app.workers.tasks import recurring_tasks  # noqa: F401
 from app.workers.tasks import forecast_tasks  # noqa: F401
 from app.workers.tasks import holdings_tasks  # noqa: F401
 from app.workers.tasks import interest_accrual_tasks  # noqa: F401
+from app.workers.tasks import snapshot_tasks  # noqa: F401
 
 # Beat schedule (periodic tasks)
 celery_app.conf.beat_schedule = {
@@ -65,5 +66,15 @@ celery_app.conf.beat_schedule = {
     "accrue-account-interest": {
         "task": "accrue_account_interest",
         "schedule": crontab(hour=1, minute=0, day_of_month=1),  # 1am on 1st of each month
+    },
+    # Portfolio net-worth snapshots (replaces in-process SnapshotScheduler loop)
+    "orchestrate-portfolio-snapshots": {
+        "task": "orchestrate_portfolio_snapshots",
+        "schedule": crontab(hour=0, minute=0),  # Midnight UTC — tasks stagger themselves
+    },
+    # Auth token cleanup (replaces SnapshotScheduler.run_cleanup_loop)
+    "cleanup-expired-auth-tokens": {
+        "task": "cleanup_expired_auth_tokens",
+        "schedule": crontab(hour=4, minute=0),  # 4am daily
     },
 }
