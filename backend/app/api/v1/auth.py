@@ -4,17 +4,17 @@ import asyncio
 import hashlib
 import logging
 import secrets
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select
+from sqlalchemy import select, update as sa_update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.database import get_db
+from app.core.database import AsyncSessionLocal, get_db
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -24,6 +24,7 @@ from app.core.security import (
 )
 from app.crud.user import organization_crud, refresh_token_crud, user_crud
 from app.dependencies import get_current_user
+from app.models.holding import Holding
 from app.models.mfa import UserMFA
 from app.models.user import User, EmailVerificationToken, PasswordResetToken, UserConsent, ConsentType
 from app.schemas.auth import (
@@ -34,6 +35,7 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.schemas.user import User as UserSchema
+from app.services.market_data import get_market_data_provider
 from app.services.mfa_service import mfa_service
 from app.services.rate_limit_service import get_rate_limit_service
 from app.services.password_validation_service import password_validation_service
@@ -43,6 +45,7 @@ from app.services.email_service import (
     create_password_reset_token,
     hash_token,
 )
+from app.services.input_sanitization_service import input_sanitization_service
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import redact_email
 
@@ -183,11 +186,12 @@ async def register(
         )
 
     # Create organization — use provided name or derive from display_name
-    org_name = (
+    raw_org_name = (
         data.organization_name
         if data.organization_name != "My Household"
         else f"{data.display_name}'s Household"
     )
+    org_name = input_sanitization_service.sanitize_html(raw_org_name)
     organization = await organization_crud.create(
         db=db,
         name=org_name,
@@ -396,16 +400,10 @@ async def _maybe_refresh_prices_on_login(organization_id) -> None:
     up-to-date prices on their next portfolio load without waiting.
     Silently swallows errors so it never affects the login response.
     """
-    from datetime import datetime, timezone, timedelta
-    from sqlalchemy import select
-    from app.core.database import async_session_factory
-    from app.models.holding import Holding
-    from app.services.market_data import get_market_data_provider
-
     STALE_AFTER_HOURS = 6
 
     try:
-        async with async_session_factory() as db:
+        async with AsyncSessionLocal() as db:
             cutoff = datetime.now(timezone.utc) - timedelta(hours=STALE_AFTER_HOURS)
             # Check whether any holding in this org has a stale (or missing) price
             result = await db.execute(
@@ -436,7 +434,6 @@ async def _maybe_refresh_prices_on_login(organization_id) -> None:
             market_data = get_market_data_provider()
             quotes = await market_data.get_quotes_batch(symbols)
 
-            from sqlalchemy import update as sa_update
             updated = 0
             now = datetime.now(timezone.utc)
             for h in stale_holdings:
@@ -954,9 +951,8 @@ async def debug_check_refresh_token(
                 else None
             ),
         }
-    except Exception as e:
+    except Exception:
         return {
             "decode_success": False,
-            "error": str(e),
-            "error_type": type(e).__name__,
+            "error": "Token decode failed",
         }

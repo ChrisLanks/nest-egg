@@ -16,6 +16,8 @@ from collections import defaultdict
 from fastapi import HTTPException, status
 import logging
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -156,7 +158,6 @@ class AsyncRateLimiter:
         if not self._redis_initialized:
             try:
                 import redis.asyncio as aioredis
-                from app.config import settings
 
                 client = aioredis.from_url(
                     settings.REDIS_URL, encoding="utf-8", decode_responses=True

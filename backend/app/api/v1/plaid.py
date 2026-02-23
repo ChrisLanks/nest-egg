@@ -1,7 +1,9 @@
 """Plaid integration API endpoints."""
 
+import json as _json
 import logging
 import uuid as _uuid_module
+from datetime import timedelta
 from typing import List, Dict, Any
 from uuid import UUID
 
@@ -22,10 +24,15 @@ from app.schemas.plaid import (
     PlaidAccount,
 )
 from app.services.plaid_service import PlaidService
+from app.services.plaid_transaction_sync_service import (
+    PlaidTransactionSyncService,
+    MockPlaidTransactionGenerator,
+)
 from app.services.notification_service import notification_service
 from app.services.deduplication_service import DeduplicationService
 from app.services.encryption_service import get_encryption_service
 from app.services.rate_limit_service import rate_limit_service
+from app.utils.datetime_utils import utc_now
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -259,8 +266,6 @@ async def handle_plaid_webhook(
         )
 
         # Only parse JSON after signature is verified
-        import json as _json
-
         webhook_data: Dict[str, Any] = _json.loads(raw_body)
 
         webhook_type = webhook_data.get("webhook_type")
@@ -314,13 +319,6 @@ async def sync_transactions(
         max_requests=5,
         window_seconds=60,
     )
-
-    from app.services.plaid_transaction_sync_service import (
-        PlaidTransactionSyncService,
-        MockPlaidTransactionGenerator,
-    )
-    from datetime import timedelta
-    from app.utils.datetime_utils import utc_now
 
     # Get PlaidItem and verify ownership
     result = await db.execute(
@@ -470,13 +468,6 @@ async def _handle_transactions_webhook(
     webhook_data: Dict[str, Any],
 ):
     """Handle TRANSACTIONS webhook events."""
-    from app.services.plaid_transaction_sync_service import (
-        PlaidTransactionSyncService,
-        MockPlaidTransactionGenerator,
-    )
-    from datetime import timedelta
-    from app.utils.datetime_utils import utc_now
-
     if webhook_code in ["DEFAULT_UPDATE", "INITIAL_UPDATE", "HISTORICAL_UPDATE"]:
         # New transaction data is available - trigger sync
         logger.info(f"Transaction data available for item: {plaid_item.item_id}")

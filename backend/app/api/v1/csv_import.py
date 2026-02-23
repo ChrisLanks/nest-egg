@@ -1,5 +1,6 @@
 """CSV import API endpoints."""
 
+import logging
 from typing import Dict
 from uuid import UUID
 
@@ -15,6 +16,8 @@ from app.schemas.csv_import import (
 from app.services.csv_import_service import csv_import_service
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.rate_limit_service import rate_limit_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -45,8 +48,8 @@ def validate_csv_file(file: UploadFile) -> None:
         )
 
     # Check content type (allow both text/csv and application/vnd.ms-excel)
+    allowed_types = ["text/csv", "application/vnd.ms-excel", "application/csv"]
     if file.content_type:
-        allowed_types = ["text/csv", "application/vnd.ms-excel", "application/csv"]
         if file.content_type not in allowed_types:
             raise HTTPException(
                 status_code=400,
@@ -80,7 +83,8 @@ async def validate_csv(
         content = await file.read()
         csv_content = content.decode("utf-8")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read file: {str(e)}")
+        logger.error("Failed to read CSV file: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to read file")
 
     validation = csv_import_service.validate_csv_format(csv_content)
 
@@ -117,7 +121,8 @@ async def preview_csv_import(
         content = await file.read()
         csv_content = content.decode("utf-8")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read file: {str(e)}")
+        logger.error("Failed to read CSV file: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to read file")
 
     preview = await csv_import_service.preview_csv(
         csv_content=csv_content,
@@ -165,7 +170,8 @@ async def import_csv(
         content = await file.read()
         csv_content = content.decode("utf-8")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read file: {str(e)}")
+        logger.error("Failed to read CSV file: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to read file")
 
     # Validate CSV
     validation = csv_import_service.validate_csv_format(csv_content)
@@ -198,5 +204,5 @@ async def import_csv(
             skip_duplicates=skip_duplicates,
         )
         return result
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid CSV data or account configuration")

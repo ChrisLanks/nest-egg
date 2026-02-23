@@ -1,6 +1,7 @@
 """Generic OIDC identity provider — supports Cognito, Keycloak, Okta, Google."""
 
 import logging
+import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -11,6 +12,8 @@ from jose import JWTError, jwt as jose_jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.core.security import hash_password
 from app.models.identity import UserIdentity
 from app.models.user import Organization, User
 from app.models.user import UserConsent, ConsentType
@@ -192,9 +195,6 @@ class OIDCIdentityProvider(IdentityProvider):
         self, db: AsyncSession, sub: str, email: str, groups: list
     ) -> Optional[UUID]:
         """Create a new User + Organization + UserIdentity for a first-time external login."""
-        from app.core.security import hash_password
-        import secrets
-
         try:
             # Create a new single-user organization
             org = Organization(name=email.split("@")[0] or "Household")
@@ -226,7 +226,6 @@ class OIDCIdentityProvider(IdentityProvider):
             db.add(identity)
 
             # Record consent (IdP-provisioned users agree to terms on first login)
-            from app.config import settings
             for consent_type in (ConsentType.TERMS_OF_SERVICE, ConsentType.PRIVACY_POLICY):
                 db.add(UserConsent(
                     user_id=user.id,

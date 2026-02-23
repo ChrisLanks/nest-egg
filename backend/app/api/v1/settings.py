@@ -28,6 +28,7 @@ from app.models.user import User, Organization
 from app.schemas.user import UserUpdate, OrganizationUpdate
 from app.services.email_service import email_service, create_verification_token
 from app.services.password_validation_service import password_validation_service
+from app.services.input_sanitization_service import input_sanitization_service
 from app.services.rate_limit_service import get_rate_limit_service
 
 logger = logging.getLogger(__name__)
@@ -119,8 +120,6 @@ async def update_user_profile(
     )
 
     # Update fields (sanitize to prevent stored XSS — these render in UI)
-    from app.services.input_sanitization_service import input_sanitization_service
-
     if update_data.first_name is not None:
         current_user.first_name = input_sanitization_service.sanitize_html(update_data.first_name)
     if update_data.last_name is not None:
@@ -269,9 +268,9 @@ async def update_organization_preferences(
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
 
-    # Update fields
+    # Update fields (sanitize to prevent stored XSS)
     if update_data.name is not None:
-        org.name = update_data.name
+        org.name = input_sanitization_service.sanitize_html(update_data.name)
     if update_data.monthly_start_day is not None:
         org.monthly_start_day = update_data.monthly_start_day
     if update_data.custom_month_end_day is not None:

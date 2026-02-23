@@ -6,13 +6,15 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.dependencies import get_current_user, get_db
+from app.models.notification import NotificationType, NotificationPriority
 from app.models.user import User
 from app.schemas.notification import (
     NotificationResponse,
     UnreadCountResponse,
 )
-from app.services.notification_service import notification_service
+from app.services.notification_service import notification_service, NotificationService
 
 router = APIRouter()
 
@@ -98,13 +100,8 @@ async def create_test_notification(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a test notification (for testing purposes). Disabled in production."""
-    from app.config import settings
-
     if settings.ENVIRONMENT == "production":
         raise HTTPException(status_code=404, detail="Not found")
-
-    from app.models.notification import NotificationType, NotificationPriority
-    from app.services.notification_service import NotificationService
 
     notification = await NotificationService.create_notification(
         db=db,

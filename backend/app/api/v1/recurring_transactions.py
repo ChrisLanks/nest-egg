@@ -20,6 +20,7 @@ from app.schemas.recurring_transaction import (
     UpcomingBillResponse,
 )
 from app.services.recurring_detection_service import recurring_detection_service, RecurringDetectionService
+from app.utils.datetime_utils import utc_now
 
 router = APIRouter()
 
@@ -247,7 +248,6 @@ async def apply_label_to_recurring(
             db, current_user.organization_id
         )
         pattern.label_id = label.id
-        from app.utils.datetime_utils import utc_now
         pattern.updated_at = utc_now()
 
     applied = 0

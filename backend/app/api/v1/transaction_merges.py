@@ -61,8 +61,8 @@ async def merge_transactions(
             is_auto_merged=False,
         )
         return merge_record
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid merge request")
 
 
 @router.get("/transaction/{transaction_id}/history", response_model=List[TransactionMergeResponse])

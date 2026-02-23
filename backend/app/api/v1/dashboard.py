@@ -20,7 +20,7 @@ from app.services.dashboard_service import DashboardService
 from app.services.deduplication_service import DeduplicationService
 from app.services.insights_service import InsightsService
 from app.services.forecast_service import ForecastService
-from app.schemas.transaction import TransactionDetail
+from app.schemas.transaction import CategorySummary, TransactionDetail
 
 
 router = APIRouter()
@@ -202,8 +202,6 @@ async def get_dashboard_data(
         account_mask = txn.account.mask if txn.account else None
 
         # Extract category information
-        from app.schemas.transaction import CategorySummary
-
         category_summary = None
         if txn.category:
             category_summary = CategorySummary(

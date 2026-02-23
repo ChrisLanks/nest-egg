@@ -17,8 +17,9 @@ from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
 from app.models.portfolio_snapshot import PortfolioSnapshot
-from app.models.user import Organization
+from app.models.user import Organization, User
 from app.services.snapshot_service import snapshot_service
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ class SnapshotScheduler:
             Next scheduled run datetime
         """
         if now is None:
-            now = datetime.utcnow()
+            now = utc_now()
 
         offset_hours = self.calculate_offset_hours(organization_id)
         offset_delta = timedelta(hours=offset_hours)
@@ -109,7 +110,7 @@ class SnapshotScheduler:
             True if snapshot should be captured
         """
         if now is None:
-            now = datetime.utcnow()
+            now = utc_now()
 
         today = now.date()
 
@@ -147,9 +148,8 @@ class SnapshotScheduler:
             True if snapshot was captured successfully
         """
         try:
-            # Get portfolio summary (reuse existing holdings API logic)
+            # Imported here to avoid circular dependency (holdings → services → scheduler)
             from app.api.v1.holdings import get_portfolio_summary
-            from app.models.user import User
 
             # Get first user of organization (for auth context)
             result = await db.execute(
@@ -225,7 +225,7 @@ class SnapshotScheduler:
 
                 logger.info(f"Checking {len(organizations)} organizations for snapshot capture")
 
-                now = datetime.utcnow()
+                now = utc_now()
                 captured_count = 0
 
                 for org in organizations:
@@ -279,7 +279,7 @@ class SnapshotScheduler:
 
         async with AsyncSessionLocal() as db:
             try:
-                now = datetime.utcnow()
+                now = utc_now()
                 r1 = await db.execute(
                     delete(PasswordResetToken).where(PasswordResetToken.expires_at < now)
                 )

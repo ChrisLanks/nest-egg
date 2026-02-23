@@ -1,5 +1,6 @@
 """Dashboard service for financial summary calculations."""
 
+import json
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional
@@ -8,8 +9,8 @@ from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.models.account import Account
-from app.models.transaction import Transaction, TransactionLabel
+from app.models.account import Account, AccountType
+from app.models.transaction import Transaction, TransactionLabel, Category
 from app.utils.datetime_utils import utc_now
 
 
@@ -70,8 +71,6 @@ class DashboardService:
             return account.include_in_networth
 
         # Auto-determine based on account type
-        from app.models.account import AccountType
-
         # Account types that default to excluded from net worth
         EXCLUDED_BY_DEFAULT = {
             AccountType.VEHICLE,  # Depreciating asset; opt-in for classics
@@ -99,9 +98,6 @@ class DashboardService:
         For Private Equity accounts with vesting schedules, only counts vested equity.
         For all other accounts, returns current_balance.
         """
-        from app.models.account import AccountType
-        import json
-
         # Handle Business Equity accounts
         if account.account_type == AccountType.BUSINESS_EQUITY:
             # If direct equity value is provided, use it
@@ -209,7 +205,7 @@ class DashboardService:
         """Calculate total spending for the period (negative transactions)."""
         if not start_date:
             # Default to current month
-            now = datetime.utcnow()
+            now = utc_now()
             start_date = date(now.year, now.month, 1)
 
         if not end_date:
@@ -240,7 +236,7 @@ class DashboardService:
         """Calculate total income for the period (positive transactions)."""
         if not start_date:
             # Default to current month
-            now = datetime.utcnow()
+            now = utc_now()
             start_date = date(now.year, now.month, 1)
 
         if not end_date:
@@ -271,7 +267,7 @@ class DashboardService:
     ) -> List[Dict]:
         """Get top expense categories."""
         if not start_date:
-            now = datetime.utcnow()
+            now = utc_now()
             start_date = date(now.year, now.month, 1)
 
         if not end_date:
@@ -315,8 +311,6 @@ class DashboardService:
         self, organization_id: str, limit: int = 10, account_ids: Optional[List[UUID]] = None
     ) -> List[Transaction]:
         """Get recent transactions."""
-        from app.models.transaction import Category
-
         conditions = [Transaction.organization_id == organization_id]
         if account_ids is not None:
             conditions.append(Transaction.account_id.in_(account_ids))

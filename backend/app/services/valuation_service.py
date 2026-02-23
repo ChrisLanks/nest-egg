@@ -28,6 +28,7 @@ discovery endpoint so the UI can show or hide the refresh button accordingly.
 """
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import Optional
 from decimal import Decimal
@@ -35,6 +36,9 @@ from decimal import Decimal
 import httpx
 
 from app.config import settings
+
+# VIN format: exactly 17 alphanumeric characters, excluding I, O, Q
+_VIN_RE = re.compile(r"^[A-HJ-NPR-Z0-9]{17}$")
 
 logger = logging.getLogger(__name__)
 
@@ -269,6 +273,10 @@ async def decode_vin_nhtsa(vin: str) -> Optional[dict]:
     Returns a dict with year, make, model (no price).
     Always free and official.
     """
+    # Validate VIN format to prevent path traversal in URL
+    if not _VIN_RE.match(vin.upper()):
+        logger.warning("Invalid VIN format: %s", vin[:20])
+        return None
     url = f"https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/{vin}?format=json"
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:

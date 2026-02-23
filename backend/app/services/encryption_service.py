@@ -18,6 +18,7 @@ Rotation procedure:
 """
 
 import base64
+from datetime import date as date_type
 from cryptography.fernet import Fernet
 from sqlalchemy import String
 from sqlalchemy.types import TypeDecorator
@@ -201,7 +202,6 @@ class EncryptedDate(TypeDecorator):
         """Encrypt on write: accepts date | str, stores versioned ciphertext."""
         if value is None:
             return None
-        from datetime import date as date_type
         if isinstance(value, date_type):
             value = value.isoformat()
         return get_encryption_service().encrypt_token(value)
@@ -210,7 +210,6 @@ class EncryptedDate(TypeDecorator):
         """Decrypt on read, return datetime.date. Falls back for legacy plaintext."""
         if value is None:
             return None
-        from datetime import date as date_type
         try:
             decrypted = get_encryption_service().decrypt_token(value)
             return date_type.fromisoformat(decrypted)

@@ -1,16 +1,28 @@
 """Holdings API endpoints."""
 
+import asyncio as _asyncio
+import logging
+import re
+import secrets
 from typing import List, Optional
 from uuid import UUID
 from decimal import Decimal
-from datetime import datetime, date
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.database import get_db
+from app.core.database import AsyncSessionLocal, get_db
+from app.utils.datetime_utils import utc_now
+from app.utils.rmd_calculator import (
+    calculate_age,
+    requires_rmd,
+    calculate_rmd,
+    get_rmd_deadline,
+    calculate_rmd_penalty,
+)
 from app.dependencies import (
     get_current_user,
     get_verified_account,
@@ -21,6 +33,8 @@ from app.dependencies import (
 from app.models.user import User
 from app.models.holding import Holding
 from app.models.account import Account, AccountType
+from app.schemas.rmd import RMDSummary, AccountRMD
+from app.services.market_data import get_market_data_provider
 from app.services.snapshot_service import snapshot_service
 from app.services.deduplication_service import deduplication_service
 from app.schemas.holding import (
@@ -54,8 +68,6 @@ async def get_portfolio_summary(
     If user_id is provided, shows only that user's accounts (owned + shared).
     If user_id is None (default), shows all household accounts with deduplication.
     """
-    import logging
-
     logger = logging.getLogger(__name__)
 
     logger.info(f"Portfolio request from user {current_user.id}, filter user_id={user_id}")
@@ -398,8 +410,6 @@ async def get_portfolio_summary(
 
         Returns: 'Large Cap', 'Mid Cap', or 'Small Cap'
         """
-        import re
-
         name_upper = (name or "").upper()
         ticker_upper = ticker.upper()
 
@@ -1119,8 +1129,6 @@ async def create_holding(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new holding."""
-    import logging
-
     logger = logging.getLogger(__name__)
 
     # Verify account belongs to user's organization
@@ -1190,7 +1198,6 @@ async def create_holding(
     )
 
     # Immediately fetch current price in background (non-blocking)
-    import asyncio as _asyncio
     _asyncio.create_task(_fetch_price_for_holding(holding.id, holding.ticker))
 
     return holding
@@ -1201,16 +1208,11 @@ async def _fetch_price_for_holding(holding_id, ticker: str) -> None:
     Background task: fetch and store the current price for a newly created holding.
     Silently swallows errors so it never affects the create response.
     """
-    from datetime import datetime, timezone
-    from sqlalchemy import update as sa_update
-    from app.core.database import async_session_factory
-    from app.services.market_data import get_market_data_provider
-
     try:
         market_data = get_market_data_provider()
         quote = await market_data.get_quote(ticker)
 
-        async with async_session_factory() as db:
+        async with AsyncSessionLocal() as db:
             await db.execute(
                 sa_update(Holding)
                 .where(Holding.id == holding_id)
@@ -1221,13 +1223,11 @@ async def _fetch_price_for_holding(holding_id, ticker: str) -> None:
             )
             await db.commit()
 
-        import logging as _logging
-        _logging.getLogger(__name__).info(
+        logging.getLogger(__name__).info(
             "holding_price_fetch: ticker=%s price=%s", ticker, quote.price
         )
     except Exception as exc:
-        import logging as _logging
-        _logging.getLogger(__name__).warning(
+        logging.getLogger(__name__).warning(
             "holding_price_fetch failed for ticker=%s (non-critical): %s", ticker, exc
         )
 
@@ -1266,11 +1266,11 @@ async def update_holding(
     if holding_data.current_price_per_share is not None:
         holding.current_price_per_share = holding_data.current_price_per_share
         holding.current_total_value = holding.shares * holding_data.current_price_per_share
-        holding.price_as_of = datetime.utcnow()
+        holding.price_as_of = utc_now()
     if holding_data.asset_type is not None:
         holding.asset_type = holding_data.asset_type
 
-    holding.updated_at = datetime.utcnow()
+    holding.updated_at = utc_now()
 
     await db.commit()
     await db.refresh(holding)
@@ -1285,8 +1285,6 @@ async def delete_holding(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a holding."""
-    import logging
-
     logger = logging.getLogger(__name__)
 
     # Fetch holding
@@ -1357,8 +1355,6 @@ async def get_historical_snapshots(
     """
     # Default to last year if no start date provided
     if start_date is None:
-        from datetime import timedelta
-
         start_date = date.today() - timedelta(days=365)
 
     snapshots = await snapshot_service.get_snapshots(
@@ -1384,7 +1380,6 @@ async def get_style_box_breakdown(
     - Cash holdings (Money Market, Checking, Savings)
     - Real estate exposure (from fund composition)
     """
-    from random import uniform
 
     # Get all holdings for the organization
     result = await db.execute(
@@ -1708,7 +1703,8 @@ async def get_style_box_breakdown(
         if "Cash" in style_class:
             one_day_change = Decimal("0")
         else:
-            one_day_change = Decimal(str(round(uniform(-0.5, 1.5), 2)))
+            # CSPRNG: generate int in [0, 200] then shift to [-0.5, 1.5]
+            one_day_change = Decimal(str(round((secrets.randbelow(201) - 50) / 100, 2)))
 
         breakdown.append(
             StyleBoxItem(
@@ -1737,16 +1733,6 @@ async def get_rmd_summary(
     For combined household view: Returns combined RMD for all household members with birthdates.
     Only applicable if user has birthdate set and is age 73+.
     """
-    from app.utils.rmd_calculator import (
-        calculate_age,
-        requires_rmd,
-        calculate_rmd,
-        get_rmd_deadline,
-        calculate_rmd_penalty,
-    )
-    from app.schemas.rmd import RMDSummary, AccountRMD
-    from datetime import date
-
     # RMD-applicable retirement accounts (Traditional IRA, 401k, SEP, SIMPLE)
     # Roth accounts do NOT require RMDs during owner's lifetime
     rmd_account_types = [
@@ -1938,16 +1924,13 @@ async def get_roth_analysis(
     db: AsyncSession = Depends(get_db),
 ):
     """Return traditional IRA/401k balance data for Roth conversion analysis."""
-    from app.utils.rmd_calculator import calculate_rmd, calculate_age
-    from app.models.user import User as UserModel
-
     # Traditional retirement accounts (Roth IRA does NOT appear here)
     traditional_types = [AccountType.RETIREMENT_401K, AccountType.RETIREMENT_IRA]
 
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
         accounts = await get_user_accounts(db, user_id, current_user.organization_id)
-        user_result = await db.execute(select(UserModel).where(UserModel.id == user_id))
+        user_result = await db.execute(select(User).where(User.id == user_id))
         target_user = user_result.scalar_one_or_none()
     else:
         accounts = await get_all_household_accounts(db, current_user.organization_id)

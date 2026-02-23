@@ -1,6 +1,6 @@
 """Insights service for generating smart spending insights and anomaly detection."""
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Dict, List
 from uuid import UUID
 
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Transaction
 from app.models.account import Account
+from app.utils.datetime_utils import utc_now
 
 
 class InsightsService:
@@ -57,7 +58,7 @@ class InsightsService:
             return []
 
         # Calculate current month (this month)
-        now = datetime.utcnow()
+        now = utc_now()
         current_month_start = date(now.year, now.month, 1)
 
         # Calculate previous month

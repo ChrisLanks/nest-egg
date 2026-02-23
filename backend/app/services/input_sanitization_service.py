@@ -60,8 +60,10 @@ class InputSanitizationService:
         # Strip ALL HTML tags (allowlist approach — no tag is permitted)
         text = re.sub(r"<[^>]*>", "", text)
 
-        # Escape any remaining special characters as defense-in-depth
-        text = html.escape(text)
+        # Escape angle brackets and ampersands as defense-in-depth.
+        # quote=False preserves apostrophes/quotes in names (e.g. "Jane's Household")
+        # which is safe because all tags are already stripped above.
+        text = html.escape(text, quote=False)
 
         return text
 

@@ -9,6 +9,7 @@ from collections import defaultdict
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.account import Account
 from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
 from app.models.transaction import Transaction, Label, TransactionLabel
 from app.models.user import User
@@ -464,8 +465,6 @@ class RecurringDetectionService:
         Returns:
             List of subscription-like recurring transactions
         """
-        from app.models.account import Account
-
         query = select(RecurringTransaction).where(
             and_(
                 RecurringTransaction.organization_id == organization_id,

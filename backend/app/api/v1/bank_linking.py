@@ -14,14 +14,17 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.plaid import exchange_public_token as plaid_exchange
+from app.api.v1.plaid import sync_transactions as plaid_sync
+from app.config import settings
 from app.core.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User
 from app.models.account import Account, AccountSource
+from app.models.user import User
+from app.schemas.plaid import PublicTokenExchangeRequest
 from app.services.plaid_service import PlaidService
-from app.services.teller_service import get_teller_service
 from app.services.rate_limit_service import rate_limit_service
-from app.config import settings
+from app.services.teller_service import get_teller_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -156,9 +159,6 @@ async def exchange_token(
     try:
         if request.provider == "plaid":
             # Use existing Plaid endpoint logic
-            from app.api.v1.plaid import exchange_public_token as plaid_exchange
-            from app.schemas.plaid import PublicTokenExchangeRequest
-
             plaid_request = PublicTokenExchangeRequest(
                 public_token=request.public_token,
                 institution_id=request.institution_id,
@@ -267,8 +267,6 @@ async def sync_transactions(
     try:
         if account.account_source == AccountSource.PLAID:
             # Use Plaid sync logic
-            from app.api.v1.plaid import sync_transactions as plaid_sync
-
             if not account.plaid_item_id:
                 raise HTTPException(status_code=400, detail="Account is not linked to a Plaid item")
 

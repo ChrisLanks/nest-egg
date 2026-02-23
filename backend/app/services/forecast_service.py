@@ -1,7 +1,10 @@
 """Service for cash flow forecasting."""
 
-from datetime import date, timedelta
+import calendar
+import json
+from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal as D
 from typing import List, Dict, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
@@ -9,7 +12,7 @@ from uuid import UUID
 
 from app.models.user import User
 from app.utils.datetime_utils import utc_now
-from app.models.account import Account
+from app.models.account import Account, AccountType
 from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
 from app.services.recurring_detection_service import RecurringDetectionService
 from app.services.notification_service import NotificationService
@@ -137,10 +140,6 @@ class ForecastService:
         For Private Equity accounts, calculates vested value based on vesting schedule.
         Respects include_in_networth flag.
         """
-        import json
-        from datetime import datetime
-        from app.models.account import AccountType
-
         # Query all accounts
         conditions = [
             Account.organization_id == organization_id,
@@ -295,10 +294,6 @@ class ForecastService:
         Returns:
             List of future vesting events as transaction-like dictionaries
         """
-        import json
-        from datetime import datetime
-        from app.models.account import AccountType
-
         # Query Private Equity accounts
         conditions = [
             Account.organization_id == organization_id,
@@ -387,8 +382,6 @@ class ForecastService:
         Returns:
             List of future private debt events as transaction-like dictionaries
         """
-        from app.models.account import AccountType
-
         # Query Private Debt accounts
         conditions = [
             Account.organization_id == organization_id,
@@ -476,9 +469,6 @@ class ForecastService:
         Returns:
             List of future CD maturity events as transaction-like dictionaries
         """
-        from app.models.account import AccountType
-        from decimal import Decimal as D
-
         # Query CD accounts
         conditions = [
             Account.organization_id == organization_id,
@@ -573,9 +563,6 @@ class ForecastService:
 
         Only runs for accounts with interest_rate set and exclude_from_cash_flow = False.
         """
-        import calendar
-        from app.models.account import AccountType
-
         loan_types = [AccountType.MORTGAGE, AccountType.LOAN, AccountType.STUDENT_LOAN]
 
         conditions = [
@@ -705,8 +692,6 @@ class ForecastService:
         Defaults to semi-annual frequency (most common for US bonds).
         Also projects principal repayment at maturity if within the forecast window.
         """
-        from app.models.account import AccountType
-
         conditions = [
             Account.organization_id == organization_id,
             Account.is_active.is_(True),
@@ -795,8 +780,6 @@ class ForecastService:
         Uses the monthly_benefit and benefit_start_date fields set by the user.
         Only generates events once the benefit_start_date has been reached.
         """
-        from app.models.account import AccountType
-
         conditions = [
             Account.organization_id == organization_id,
             Account.is_active.is_(True),

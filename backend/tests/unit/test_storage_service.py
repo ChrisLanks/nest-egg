@@ -62,10 +62,10 @@ class TestLocalStorageService:
 
     @pytest.mark.asyncio
     async def test_path_traversal_is_blocked(self, storage, tmp_dir):
-        """Keys with '../' components should be normalised to stay inside base_dir."""
-        # Store data using a traversal-looking key
-        await storage.save("../../../etc/passwd_test", b"harmless")
-        # The file should land inside tmp_dir, not at /etc/
+        """Keys with '../' components should raise ValueError."""
+        with pytest.raises(ValueError, match="Path traversal detected"):
+            await storage.save("../../../etc/passwd_test", b"harmless")
+        # The file should never land at /etc/
         assert not os.path.exists("/etc/passwd_test")
 
     @pytest.mark.asyncio

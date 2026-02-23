@@ -1,14 +1,16 @@
 """Plaid API service with test mode for development."""
 
+import hashlib
 import logging
-from datetime import datetime, timedelta
-from typing import List, Optional, Tuple, Dict, Any
+from datetime import timedelta
+from typing import List, Optional, Tuple
 import uuid
 import jwt
 from fastapi import HTTPException
 
 from app.models.user import User
 from app.config import settings
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +70,6 @@ class PlaidService:
 
             # Verify webhook body hash matches JWT claims
             if decoded.get("request_body_sha256"):
-                import hashlib
-
                 body_hash = hashlib.sha256(webhook_body).hexdigest()
 
                 if body_hash != decoded["request_body_sha256"]:
@@ -81,7 +81,8 @@ class PlaidService:
         except jwt.ExpiredSignatureError:
             raise HTTPException(status_code=401, detail="Webhook verification token expired")
         except jwt.InvalidTokenError as e:
-            raise HTTPException(status_code=401, detail=f"Invalid webhook signature: {str(e)}")
+            logger.error("Invalid webhook JWT: %s", e, exc_info=True)
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
         except Exception as e:
             logger.error(f"Webhook verification error: {str(e)}")
             raise HTTPException(status_code=401, detail="Webhook verification failed")
@@ -99,7 +100,7 @@ class PlaidService:
         if self.is_test_user(user):
             # Return dummy link token for test user
             dummy_token = f"link-sandbox-{uuid.uuid4()}"
-            expiration = (datetime.utcnow() + timedelta(hours=4)).isoformat()
+            expiration = (utc_now() + timedelta(hours=4)).isoformat()
             return dummy_token, expiration
 
         # TODO: For real users, call Plaid API
@@ -250,7 +251,7 @@ class PlaidService:
                 "name": "Apple Inc.",
                 "type": "equity",  # equity, derivative, etf, mutual fund, etc.
                 "close_price": 185.24,
-                "close_price_as_of": datetime.utcnow().isoformat(),
+                "close_price_as_of": utc_now().isoformat(),
             },
             {
                 "security_id": "sec_googl",
@@ -258,7 +259,7 @@ class PlaidService:
                 "name": "Alphabet Inc.",
                 "type": "equity",
                 "close_price": 142.65,
-                "close_price_as_of": datetime.utcnow().isoformat(),
+                "close_price_as_of": utc_now().isoformat(),
             },
             {
                 "security_id": "sec_vtsax",
@@ -266,7 +267,7 @@ class PlaidService:
                 "name": "Vanguard Total Stock Market Index Fund",
                 "type": "mutual fund",
                 "close_price": 118.32,
-                "close_price_as_of": datetime.utcnow().isoformat(),
+                "close_price_as_of": utc_now().isoformat(),
             },
             {
                 "security_id": "sec_vti",
@@ -274,7 +275,7 @@ class PlaidService:
                 "name": "Vanguard Total Stock Market ETF",
                 "type": "etf",
                 "close_price": 245.18,
-                "close_price_as_of": datetime.utcnow().isoformat(),
+                "close_price_as_of": utc_now().isoformat(),
             },
             {
                 "security_id": "sec_msft",
@@ -282,7 +283,7 @@ class PlaidService:
                 "name": "Microsoft Corporation",
                 "type": "equity",
                 "close_price": 378.91,
-                "close_price_as_of": datetime.utcnow().isoformat(),
+                "close_price_as_of": utc_now().isoformat(),
             },
         ]
 

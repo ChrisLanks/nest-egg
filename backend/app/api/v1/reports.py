@@ -1,5 +1,6 @@
 """Reports API endpoints."""
 
+import re
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
@@ -19,6 +20,10 @@ from app.models.user import User
 from app.models.report_template import ReportTemplate
 from app.services.report_service import ReportService
 from app.services.deduplication_service import DeduplicationService
+from app.utils.datetime_utils import utc_now
+
+# Allowed characters in Content-Disposition filenames
+_SAFE_FILENAME_RE = re.compile(r"[^a-zA-Z0-9_.\-]")
 
 router = APIRouter()
 deduplication_service = DeduplicationService()
@@ -127,8 +132,6 @@ async def create_report_template(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new report template."""
-    from datetime import datetime
-
     template = ReportTemplate(
         organization_id=current_user.organization_id,
         name=template_data.name,
@@ -137,8 +140,8 @@ async def create_report_template(
         config=template_data.config,
         is_shared=template_data.is_shared,
         created_by_user_id=current_user.id,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=utc_now(),
+        updated_at=utc_now(),
     )
 
     db.add(template)
@@ -206,8 +209,6 @@ async def update_report_template(
     db: AsyncSession = Depends(get_db),
 ):
     """Update a report template."""
-    from datetime import datetime
-
     result = await db.execute(
         select(ReportTemplate).where(
             and_(
@@ -236,7 +237,7 @@ async def update_report_template(
     if template_data.is_shared is not None:
         template.is_shared = template_data.is_shared
 
-    template.updated_at = datetime.utcnow()
+    template.updated_at = utc_now()
 
     await db.commit()
     await db.refresh(template)
@@ -382,6 +383,24 @@ async def export_report_csv(
     db: AsyncSession = Depends(get_db),
 ):
     """Export a saved report as CSV."""
+    # Load and authorize template first
+    result = await db.execute(
+        select(ReportTemplate).where(
+            and_(
+                ReportTemplate.id == template_id,
+                ReportTemplate.organization_id == current_user.organization_id,
+            )
+        )
+    )
+    template = result.scalar_one_or_none()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Report template not found")
+
+    # Check access: must be creator or template must be shared
+    if template.created_by_user_id != current_user.id and not template.is_shared:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     # Get accounts based on user filter
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
@@ -401,17 +420,16 @@ async def export_report_csv(
             user_id,
             account_ids,
         )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Report template not found")
 
-    # Load template for filename
-    result = await db.execute(select(ReportTemplate).where(ReportTemplate.id == template_id))
-    template = result.scalar_one_or_none()
-
-    filename = f"{template.name.lower().replace(' ', '_')}_report.csv" if template else "report.csv"
+    # Sanitize filename for Content-Disposition header
+    raw_name = template.name.lower().replace(" ", "_") if template else "report"
+    safe_name = _SAFE_FILENAME_RE.sub("", raw_name)[:80] or "report"
+    filename = f"{safe_name}_report.csv"
 
     return Response(
         content=csv_data,
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

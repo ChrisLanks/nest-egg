@@ -4,7 +4,8 @@ import re
 import logging
 import traceback
 from typing import Any, Dict, Optional
-from datetime import datetime
+
+from app.utils.datetime_utils import utc_now
 
 
 class ErrorLoggingService:
@@ -142,7 +143,7 @@ class ErrorLoggingService:
             ip_address: Source IP address
             additional_data: Additional event data
         """
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = utc_now().isoformat()
 
         log_data = {
             "timestamp": timestamp,

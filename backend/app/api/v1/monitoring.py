@@ -10,8 +10,11 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from app.config import settings
 from app.core.database import get_db
 from app.dependencies import get_current_admin_user
+from app.models.account import Account
+from app.models.transaction import Transaction
 from app.models.user import User
 from app.services.rate_limit_service import get_rate_limit_service
 from app.utils.datetime_utils import utc_now
@@ -61,8 +64,6 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 
     Returns status of application and dependencies.
     """
-    from app.config import settings
-
     # Check database
     db_status = "ok"
     try:
@@ -199,30 +200,40 @@ async def get_system_stats(
     Returns counts of key entities and recent activity.
     Only accessible by admin users.
     """
-    from app.models.account import Account
-    from app.models.transaction import Transaction
-    from app.models.user import User
+    org_id = current_user.organization_id
 
-    # Get counts
-    users_result = await db.execute(select(func.count(User.id)))
+    # Scope all counts to the admin's organization to prevent cross-tenant data leak
+    users_result = await db.execute(
+        select(func.count(User.id)).where(User.organization_id == org_id)
+    )
     users_count = users_result.scalar()
 
-    accounts_result = await db.execute(select(func.count(Account.id)))
+    accounts_result = await db.execute(
+        select(func.count(Account.id)).where(Account.organization_id == org_id)
+    )
     accounts_count = accounts_result.scalar()
 
-    transactions_result = await db.execute(select(func.count(Transaction.id)))
+    transactions_result = await db.execute(
+        select(func.count(Transaction.id)).where(Transaction.organization_id == org_id)
+    )
     transactions_count = transactions_result.scalar()
 
-    # Get recent activity (last 24 hours)
+    # Get recent activity (last 24 hours) within the organization
     yesterday = utc_now() - timedelta(days=1)
 
     new_users_result = await db.execute(
-        select(func.count(User.id)).where(User.created_at >= yesterday)
+        select(func.count(User.id)).where(
+            User.organization_id == org_id,
+            User.created_at >= yesterday,
+        )
     )
     new_users_24h = new_users_result.scalar()
 
     new_transactions_result = await db.execute(
-        select(func.count(Transaction.id)).where(Transaction.created_at >= yesterday)
+        select(func.count(Transaction.id)).where(
+            Transaction.organization_id == org_id,
+            Transaction.created_at >= yesterday,
+        )
     )
     new_transactions_24h = new_transactions_result.scalar()
 

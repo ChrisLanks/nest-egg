@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.core.database import get_db
 from app.dependencies import (
@@ -18,7 +19,7 @@ from app.dependencies import (
     get_all_household_accounts,
 )
 from app.models.user import User
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, Category, transaction_labels, Label
 from app.models.account import Account
 from app.services.deduplication_service import DeduplicationService
 from app.services.trend_analysis_service import TrendAnalysisService
@@ -159,9 +160,6 @@ async def get_income_expense_summary(
 
     # Get income by category - only from active accounts
     # Use hierarchical categories: show root category for child categories, otherwise show the category itself
-    from app.models.transaction import Category
-    from sqlalchemy.orm import aliased
-
     # Aliases for category matching
     ParentCategory = aliased(Category)
     CategoryByName = aliased(Category)  # Match provider category by name
@@ -355,9 +353,6 @@ async def get_category_drill_down(
         accounts = deduplication_service.deduplicate_accounts(accounts)
 
     account_ids = [acc.id for acc in accounts]
-
-    # Import models
-    from app.models.transaction import Category
 
     # Find the parent category
     parent_cat_result = await db.execute(
@@ -795,8 +790,6 @@ async def get_label_summary(
     db: AsyncSession = Depends(get_db),
 ):
     """Get income vs expense summary grouped by labels."""
-    from app.models.transaction import transaction_labels, Label
-
     # Get accounts based on user filter
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
@@ -987,8 +980,6 @@ async def get_label_merchant_breakdown(
     db: AsyncSession = Depends(get_db),
 ):
     """Get merchant breakdown for a label."""
-    from app.models.transaction import transaction_labels, Label
-
     # Get accounts based on user filter
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)

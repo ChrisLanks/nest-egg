@@ -344,8 +344,8 @@ class TestSyncTransactions:
         mock_db.execute.side_effect = [mock_plaid_result, mock_accounts_result]
 
         with patch("app.api.v1.plaid.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.services.plaid_transaction_sync_service.MockPlaidTransactionGenerator") as MockGen:
-                with patch("app.services.plaid_transaction_sync_service.PlaidTransactionSyncService") as MockSync:
+            with patch("app.api.v1.plaid.MockPlaidTransactionGenerator") as MockGen:
+                with patch("app.api.v1.plaid.PlaidTransactionSyncService") as MockSync:
                     MockGen.generate_mock_transactions.return_value = [{"id": "txn_1"}]
 
                     mock_sync_service = MockSync.return_value
@@ -497,8 +497,8 @@ class TestWebhookHandlers:
 
         mock_db.execute.side_effect = [mock_user_result, mock_accounts_result]
 
-        with patch("app.services.plaid_transaction_sync_service.PlaidTransactionSyncService") as MockSync:
-            with patch("app.services.plaid_transaction_sync_service.MockPlaidTransactionGenerator") as MockGen:
+        with patch("app.api.v1.plaid.PlaidTransactionSyncService") as MockSync:
+            with patch("app.api.v1.plaid.MockPlaidTransactionGenerator") as MockGen:
                 MockGen.generate_mock_transactions.return_value = []
 
                 mock_sync_service = MockSync.return_value

@@ -18,6 +18,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.crud.permission import permission_grant_crud
+from app.crud.user import user_crud
 from app.dependencies import get_current_user
 from app.models.permission import RESOURCE_TYPES
 from app.models.user import User
@@ -202,8 +204,6 @@ async def update_grant(
     db: AsyncSession = Depends(get_db),
 ):
     """Update the actions and/or expiry on an existing grant."""
-    from app.crud.permission import permission_grant_crud
-
     existing = await permission_grant_crud.get_by_id(db, grant_id)
     if existing is None or not existing.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grant not found")
@@ -219,7 +219,6 @@ async def update_grant(
     if existing.grantor_id == current_user.id:
         grantor_user = current_user
     else:
-        from app.crud.user import user_crud
         grantor_user = await user_crud.get_by_id(db, existing.grantor_id)
         if grantor_user is None:
             raise HTTPException(

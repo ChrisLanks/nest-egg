@@ -5,7 +5,8 @@ import logging
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +34,13 @@ from app.services.deduplication_service import DeduplicationService
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.permission_service import permission_service
 from app.services.rate_limit_service import rate_limit_service
+from app.services.valuation_service import (
+    get_available_property_providers,
+    get_available_vehicle_providers,
+    get_property_value,
+    get_vehicle_value,
+    decode_vin_nhtsa,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -469,11 +477,6 @@ async def get_valuation_providers(
             "vehicle":  ["marketcheck"]           # zero or more
         }
     """
-    from app.services.valuation_service import (
-        get_available_property_providers,
-        get_available_vehicle_providers,
-    )
-
     return {
         "property": get_available_property_providers(),
         "vehicle": get_available_vehicle_providers(),
@@ -495,16 +498,6 @@ async def refresh_account_valuation(
         provider=rentcast|attom|marketcheck
     When omitted, the first available configured provider is used.
     """
-    from datetime import datetime, timezone
-    from app.services.valuation_service import (
-        get_property_value,
-        get_vehicle_value,
-        decode_vin_nhtsa,
-        get_available_property_providers,
-        get_available_vehicle_providers,
-    )
-    from fastapi import HTTPException
-
     if provider is not None and provider not in _ALLOWED_VALUATION_PROVIDERS:
         raise HTTPException(status_code=400, detail="Invalid provider")
 

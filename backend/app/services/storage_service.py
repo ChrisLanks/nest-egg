@@ -80,9 +80,14 @@ class LocalStorageService:
         os.makedirs(base_dir, exist_ok=True)
 
     def _full_path(self, key: str) -> str:
-        # Prevent path traversal
+        # Prevent path traversal: normalize, strip leading slash, then verify
+        # the resolved path stays within the base directory
         safe_key = os.path.normpath(key).lstrip("/")
-        return os.path.join(self._base_dir, safe_key)
+        full = os.path.realpath(os.path.join(self._base_dir, safe_key))
+        base = os.path.realpath(self._base_dir)
+        if not full.startswith(base + os.sep) and full != base:
+            raise ValueError("Path traversal detected")
+        return full
 
     async def save(self, key: str, data: bytes, content_type: str = "text/csv") -> str:
         path = self._full_path(key)

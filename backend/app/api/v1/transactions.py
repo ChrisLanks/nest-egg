@@ -16,6 +16,7 @@ from sqlalchemy.orm import joinedload
 
 from app.core.database import get_db
 from app.dependencies import get_current_user, verify_household_member
+from app.utils.datetime_utils import utc_now
 from app.models.user import User
 from app.models.transaction import Transaction, Label, TransactionLabel, Category
 from app.models.account import Account
@@ -79,8 +80,8 @@ def decode_cursor(cursor: str) -> tuple:
             datetime.fromisoformat(cursor_data["created_at"]),
             UUID(cursor_data["id"]),
         )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid cursor: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid cursor")
 
 
 @router.post("/", response_model=TransactionDetail, status_code=200)
@@ -480,7 +481,7 @@ async def update_transaction(
 
         txn.is_transfer = update_data.is_transfer
 
-    txn.updated_at = datetime.utcnow()
+    txn.updated_at = utc_now()
 
     await db.commit()
     await db.refresh(txn, ["labels"])

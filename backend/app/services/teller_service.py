@@ -7,6 +7,7 @@ Teller provides bank account linking with a generous free tier:
 - Simple, clean API
 """
 
+import hashlib
 import httpx
 from typing import Dict, List, Optional
 from uuid import UUID
@@ -239,8 +240,6 @@ class TellerService:
 
     def _generate_dedup_hash(self, account_id: UUID, txn_data: Dict) -> str:
         """Generate deduplication hash for transaction."""
-        import hashlib
-
         # Use same approach as Plaid for consistency
         components = [
             str(account_id),

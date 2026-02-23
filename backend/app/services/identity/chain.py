@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.services.identity.base import AuthenticatedIdentity, IdentityProvider
 from app.services.identity.builtin import BuiltinIdentityProvider
 from app.services.identity.oidc import OIDCIdentityProvider, OIDCProviderConfig
@@ -61,8 +62,6 @@ class IdentityProviderChain:
 
 def build_chain() -> IdentityProviderChain:
     """Construct the provider chain from application settings."""
-    from app.config import settings
-
     providers: list[IdentityProvider] = []
 
     for name in settings.IDENTITY_PROVIDER_CHAIN:

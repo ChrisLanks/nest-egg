@@ -2,13 +2,17 @@
 
 import asyncio
 import logging
-from sqlalchemy import select
-from datetime import date
+from datetime import date, datetime, timezone
+
+from sqlalchemy import select, update
 
 from app.workers.celery_app import celery_app
 from app.core.database import AsyncSessionLocal as async_session_factory
 from app.models.user import User
+from app.models.holding import Holding
+from app.services.market_data import get_market_data_provider
 from app.services.snapshot_service import snapshot_service
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +34,6 @@ def enrich_holdings_metadata_task():
 
 async def _enrich_metadata_async():
     """Async implementation of holdings metadata enrichment."""
-    from app.models.holding import Holding
-    from app.services.market_data import get_market_data_provider
-    from sqlalchemy import update
-    from datetime import datetime
-
     async with async_session_factory() as db:
         try:
             # Get all holdings that have a ticker
@@ -58,7 +57,7 @@ async def _enrich_metadata_async():
                     metadata = await market_data.get_holding_metadata(ticker)
 
                     # Build update dict — only include fields the API returned a value for
-                    updates: dict = {"updated_at": datetime.utcnow()}
+                    updates: dict = {"updated_at": utc_now()}
                     if metadata.name is not None:
                         updates["name"] = metadata.name
                     if metadata.asset_type is not None:
@@ -109,13 +108,14 @@ def capture_daily_holdings_snapshot_task():
     Capture daily holdings snapshot for all organizations.
     Runs daily at 11:59 PM to capture end-of-day values.
     """
-    import asyncio
-
     asyncio.run(_capture_snapshots_async())
 
 
 async def _capture_snapshots_async():
     """Async implementation of holdings snapshot capture."""
+    # Imported here to avoid circular dependency (holdings → services → tasks)
+    from app.api.v1.holdings import get_portfolio_summary
+
     async with async_session_factory() as db:
         try:
             # Get all organizations
@@ -138,9 +138,6 @@ async def _capture_snapshots_async():
                     if not user:
                         logger.warning(f"No users found for org {org_id}")
                         continue
-
-                    # Import get_portfolio_summary from holdings API
-                    from app.api.v1.holdings import get_portfolio_summary
 
                     # Get current portfolio summary (this handles all the complex logic)
                     portfolio = await get_portfolio_summary(
@@ -176,8 +173,6 @@ def update_holdings_prices_task():
     Update prices for all holdings.
     Runs daily at 6:00 PM EST (after market close).
     """
-    import asyncio
-
     asyncio.run(_update_prices_async())
 
 
@@ -190,13 +185,10 @@ async def _update_prices_async():
     hammered twice a day for active users while still covering orgs whose
     members haven't logged in.
     """
-    from app.models.holding import Holding
-    from app.services.market_data import get_market_data_provider
-    from sqlalchemy import update
-    from datetime import datetime, timezone, timedelta
+    from datetime import timedelta
 
     STALE_AFTER_HOURS = 6
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=STALE_AFTER_HOURS)
+    cutoff = utc_now() - timedelta(hours=STALE_AFTER_HOURS)
 
     async with async_session_factory() as db:
         try:

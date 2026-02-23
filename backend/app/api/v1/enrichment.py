@@ -1,13 +1,15 @@
 """API endpoints for enriching holdings with external data."""
 
 from fastapi import APIRouter, Depends, BackgroundTasks
+from pydantic import BaseModel
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
+from app.models.holding import Holding
 from app.models.user import User
 from app.services.financial_data_service import financial_data_service
-from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -73,9 +75,6 @@ async def get_enrichment_status(
 
     Returns counts of enriched vs unenriched holdings.
     """
-    from sqlalchemy import select, func
-    from app.models.holding import Holding
-
     # Count total equity holdings
     total_query = select(func.count(Holding.id)).where(
         Holding.organization_id == current_user.organization_id,

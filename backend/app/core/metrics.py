@@ -26,6 +26,8 @@ from starlette.responses import Response
 from starlette.routing import Route
 from starlette.types import ASGIApp
 
+from app.config import settings
+
 
 # Custom Prometheus metrics
 
@@ -189,8 +191,6 @@ def create_metrics_app() -> ASGIApp:
 
     Prod: override METRICS_USERNAME / METRICS_PASSWORD in environment.
     """
-    from app.config import settings  # local import avoids circular dependency at module level
-
     async def metrics_endpoint(request: Request) -> Response:
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Basic "):

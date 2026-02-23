@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.database import get_db
 from app.dependencies import get_current_user, get_current_admin_user
+from app.models.account import Account
 from app.models.user import User, HouseholdInvitation, InvitationStatus, Organization
 from app.services.email_service import email_service
 from app.services.rate_limit_service import get_rate_limit_service
@@ -304,9 +305,6 @@ async def leave_household(
             detail="The primary household member cannot leave. Remove other members first.",
         )
 
-    from app.models.user import Organization
-    from app.models.account import Account
-
     # Expire any pending invitations for this user so the admin can re-invite cleanly
     await db.execute(
         update(HouseholdInvitation)
@@ -464,8 +462,6 @@ async def accept_invitation(
 
         # User is solo - migrate them and their accounts
         # Update all accounts to new organization
-        from app.models.account import Account
-
         result = await db.execute(
             select(Account).where(
                 Account.organization_id == old_organization_id, Account.user_id == existing_user.id
@@ -488,8 +484,6 @@ async def accept_invitation(
         await db.commit()
 
         # Now safe to delete old organization (user is already moved)
-        from app.models.user import Organization
-
         result = await db.execute(
             select(Organization).where(Organization.id == old_organization_id)
         )

@@ -1,11 +1,14 @@
 """Rule engine for evaluating and applying rules to transactions."""
 
 import re
-from typing import List
 from datetime import datetime
+from typing import List
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+
+from app.utils.datetime_utils import utc_now
 
 from app.models.rule import (
     Rule,
@@ -295,9 +298,7 @@ class RuleEngine:
         # Update rule statistics
         if count > 0:
             rule.times_applied += count
-            from datetime import datetime
-
-            rule.last_applied_at = datetime.utcnow()
+            rule.last_applied_at = utc_now()
 
         await self.db.commit()
         return count

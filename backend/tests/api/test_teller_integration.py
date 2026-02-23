@@ -355,7 +355,7 @@ class TestTellerWebhookHandling:
         }
 
         with patch("app.services.rate_limit_service.RateLimitService.check_rate_limit", new_callable=AsyncMock), \
-             patch("app.services.teller_service.get_teller_service") as mock_get_service:
+             patch("app.api.v1.teller.get_teller_service") as mock_get_service:
             mock_teller = AsyncMock()
             mock_get_service.return_value = mock_teller
 

@@ -4,18 +4,21 @@ import hashlib
 import hmac
 import json
 import logging
+from decimal import Decimal
 from typing import Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.database import get_db
 from app.models.account import Account, TellerEnrollment
 from app.models.notification import NotificationType, NotificationPriority
 from app.services.notification_service import notification_service
 from app.services.rate_limit_service import rate_limit_service
-from app.config import settings
+from app.services.teller_service import get_teller_service
+from app.utils.datetime_utils import utc_now
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -244,8 +247,6 @@ async def _handle_account_opened(
     logger.info(f"New account detected for enrollment: {enrollment.enrollment_id}")
 
     # Trigger account sync in background
-    from app.services.teller_service import get_teller_service
-
     teller_service = get_teller_service()
     new_accounts = await teller_service.sync_accounts(db, enrollment)
 
@@ -327,8 +328,6 @@ async def _handle_transaction_posted(
         logger.info(f"New transaction posted for account: {account.name}")
 
         # Trigger transaction sync
-        from app.services.teller_service import get_teller_service
-
         teller_service = get_teller_service()
         await teller_service.sync_transactions(db, account, days_back=7)
 
@@ -358,8 +357,6 @@ async def _handle_transaction_pending(
         logger.info(f"Pending transaction for account: {account.name}")
 
         # Trigger transaction sync
-        from app.services.teller_service import get_teller_service
-
         teller_service = get_teller_service()
         await teller_service.sync_transactions(db, account, days_back=7)
 
@@ -387,9 +384,6 @@ async def _handle_balance_updated(
     account = result.scalar_one_or_none()
 
     if account:
-        from decimal import Decimal
-        from app.utils.datetime_utils import utc_now
-
         logger.info(f"Updating balance for account: {account.name}")
         account.current_balance = Decimal(str(new_balance))
         account.balance_as_of = utc_now()

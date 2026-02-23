@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Transaction
 from app.models.account import Account, PlaidItem
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -257,7 +258,7 @@ class PlaidTransactionSyncService:
         # Update fields that may have changed
         transaction.is_pending = txn_data.get("pending", False)
         transaction.merchant_name = txn_data.get("merchant_name") or txn_data.get("name")
-        transaction.updated_at = datetime.utcnow()
+        transaction.updated_at = utc_now()
 
         stats["updated"] += 1
 

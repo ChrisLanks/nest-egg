@@ -11,8 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from typing import List, Optional
 from uuid import UUID
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
+
+import logging
+
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
@@ -22,8 +26,7 @@ from app.services.market_data import (
     get_market_data_provider,
 )
 from app.core.rate_limiter import check_rate_limit, market_data_limiter
-from pydantic import BaseModel
-import logging
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -153,10 +156,14 @@ async def get_quote(
 
         return QuoteResponse(**quote.model_dump(), provider=market_data.get_provider_name())
 
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Symbol not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch quote: {str(e)}")
+        logger.error("Failed to fetch quote for %s: %s", validated, e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch quote")
+
+
+MAX_BATCH_SYMBOLS = 50
 
 
 @router.post("/quote/batch", response_model=dict)
@@ -173,6 +180,12 @@ async def get_quotes_batch(
     # Rate limit check
     check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
 
+    if len(symbols) > MAX_BATCH_SYMBOLS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many symbols. Maximum is {MAX_BATCH_SYMBOLS}.",
+        )
+
     validated = [_validate_symbol(s) for s in symbols]
     try:
         market_data = get_market_data_provider(provider)
@@ -186,7 +199,8 @@ async def get_quotes_batch(
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch quotes: {str(e)}")
+        logger.error("Failed to fetch batch quotes: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch quotes")
 
 
 @router.get("/historical/{symbol}", response_model=List[HistoricalPriceResponse])
@@ -211,10 +225,11 @@ async def get_historical_prices(
 
         return [HistoricalPriceResponse(**p.model_dump()) for p in prices]
 
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Symbol not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch historical data: {str(e)}")
+        logger.error("Failed to fetch historical data for %s: %s", validated, e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch historical data")
 
 
 @router.get("/search", response_model=List[SearchResultResponse])
@@ -234,7 +249,8 @@ async def search_symbols(
         return [SearchResultResponse(**r.model_dump()) for r in results]
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+        logger.error("Symbol search failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Search failed")
 
 
 @router.get("/provider-info", response_model=ProviderInfo)
@@ -292,7 +308,7 @@ async def refresh_holding_price(
             .where(Holding.id == holding_id)
             .values(
                 current_price=quote.price,
-                last_price_update=datetime.utcnow(),
+                last_price_update=utc_now(),
             )
         )
         await db.commit()
@@ -311,10 +327,11 @@ async def refresh_holding_price(
             "provider": market_data.get_provider_name(),
         }
 
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Symbol not found")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to refresh price: {str(e)}")
+        logger.error("Failed to refresh holding price: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to refresh price")
 
 
 @router.post("/holdings/refresh-all")
@@ -361,7 +378,7 @@ async def refresh_all_holdings(
                 .where(Holding.id == holding.id)
                 .values(
                     current_price=quote.price,
-                    last_price_update=datetime.utcnow(),
+                    last_price_update=utc_now(),
                 )
             )
             updated_count += 1

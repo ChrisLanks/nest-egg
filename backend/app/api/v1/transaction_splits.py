@@ -37,8 +37,8 @@ async def create_transaction_splits(
             user=current_user,
         )
         return splits
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid split request")
 
 
 @router.get("/transaction/{transaction_id}", response_model=List[TransactionSplitResponse])
