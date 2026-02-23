@@ -6,7 +6,6 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
-from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import (
@@ -21,110 +20,91 @@ from app.dependencies import (
 )
 from app.models.user import User, AccountShare, SharePermission
 from app.models.account import Account
+from app.services.identity.base import AuthenticatedIdentity
+
+
+def _make_identity(user_id):
+    return AuthenticatedIdentity(
+        user_id=user_id,
+        provider="builtin",
+        subject=str(user_id),
+        email="user@example.com",
+        groups=[],
+        raw_claims={},
+    )
 
 
 @pytest.mark.unit
 class TestGetCurrentUser:
-    """Test get_current_user dependency."""
+    """Test get_current_user dependency (delegates to IdentityProviderChain)."""
 
     @pytest.fixture
     def mock_credentials(self):
-        """Create mock credentials."""
         creds = Mock(spec=HTTPAuthorizationCredentials)
         creds.credentials = "valid-token"
         return creds
 
     @pytest.fixture
     def mock_db(self):
-        """Create mock database session."""
         return AsyncMock(spec=AsyncSession)
 
     @pytest.mark.asyncio
     async def test_valid_token_returns_user(self, mock_credentials, mock_db):
-        """Should return user for valid access token."""
+        """Should return user when chain authenticates the token successfully."""
         user_id = uuid4()
         mock_user = Mock(spec=User)
         mock_user.id = user_id
         mock_user.is_active = True
 
-        with patch("app.dependencies.decode_token") as mock_decode:
-            mock_decode.return_value = {"type": "access", "sub": str(user_id)}
+        mock_chain = Mock()
+        mock_chain.authenticate = AsyncMock(return_value=_make_identity(user_id))
 
-            with patch("app.dependencies.user_crud.get_by_id") as mock_get_user:
-                mock_get_user.return_value = mock_user
-
+        with patch("app.dependencies.get_chain", return_value=mock_chain):
+            with patch("app.dependencies.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)):
                 result = await get_current_user(mock_credentials, mock_db)
-
                 assert result == mock_user
-                mock_decode.assert_called_once_with("valid-token")
-                mock_get_user.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_invalid_token_raises_error(self, mock_credentials, mock_db):
-        """Should raise 401 for invalid token."""
-        with patch("app.dependencies.decode_token") as mock_decode:
-            mock_decode.side_effect = JWTError("Invalid token")
+    async def test_invalid_token_raises_401(self, mock_credentials, mock_db):
+        """Should propagate 401 when chain rejects the token."""
+        mock_chain = Mock()
+        mock_chain.authenticate = AsyncMock(
+            side_effect=HTTPException(status_code=401, detail="Invalid or expired token")
+        )
 
+        with patch("app.dependencies.get_chain", return_value=mock_chain):
             with pytest.raises(HTTPException) as exc_info:
                 await get_current_user(mock_credentials, mock_db)
 
             assert exc_info.value.status_code == 401
-            assert "Could not validate credentials" in exc_info.value.detail
 
     @pytest.mark.asyncio
-    async def test_refresh_token_raises_error(self, mock_credentials, mock_db):
-        """Should raise 401 for refresh token (not access token)."""
+    async def test_user_not_found_raises_401(self, mock_credentials, mock_db):
+        """Should raise 401 when identity resolves but DB has no matching user."""
         user_id = uuid4()
+        mock_chain = Mock()
+        mock_chain.authenticate = AsyncMock(return_value=_make_identity(user_id))
 
-        with patch("app.dependencies.decode_token") as mock_decode:
-            mock_decode.return_value = {"type": "refresh", "sub": str(user_id)}
-
-            with pytest.raises(HTTPException) as exc_info:
-                await get_current_user(mock_credentials, mock_db)
-
-            assert exc_info.value.status_code == 401
-
-    @pytest.mark.asyncio
-    async def test_missing_user_id_raises_error(self, mock_credentials, mock_db):
-        """Should raise 401 when token has no sub claim."""
-        with patch("app.dependencies.decode_token") as mock_decode:
-            mock_decode.return_value = {"type": "access"}
-
-            with pytest.raises(HTTPException) as exc_info:
-                await get_current_user(mock_credentials, mock_db)
-
-            assert exc_info.value.status_code == 401
-
-    @pytest.mark.asyncio
-    async def test_user_not_found_raises_error(self, mock_credentials, mock_db):
-        """Should raise 401 when user not found in database."""
-        user_id = uuid4()
-
-        with patch("app.dependencies.decode_token") as mock_decode:
-            mock_decode.return_value = {"type": "access", "sub": str(user_id)}
-
-            with patch("app.dependencies.user_crud.get_by_id") as mock_get_user:
-                mock_get_user.return_value = None
-
+        with patch("app.dependencies.get_chain", return_value=mock_chain):
+            with patch("app.dependencies.user_crud.get_by_id", new=AsyncMock(return_value=None)):
                 with pytest.raises(HTTPException) as exc_info:
                     await get_current_user(mock_credentials, mock_db)
 
                 assert exc_info.value.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_inactive_user_raises_error(self, mock_credentials, mock_db):
+    async def test_inactive_user_raises_403(self, mock_credentials, mock_db):
         """Should raise 403 for inactive user."""
         user_id = uuid4()
         mock_user = Mock(spec=User)
         mock_user.id = user_id
         mock_user.is_active = False
 
-        with patch("app.dependencies.decode_token") as mock_decode:
-            mock_decode.return_value = {"type": "access", "sub": str(user_id)}
+        mock_chain = Mock()
+        mock_chain.authenticate = AsyncMock(return_value=_make_identity(user_id))
 
-            with patch("app.dependencies.user_crud.get_by_id") as mock_get_user:
-                mock_get_user.return_value = mock_user
-
+        with patch("app.dependencies.get_chain", return_value=mock_chain):
+            with patch("app.dependencies.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)):
                 with pytest.raises(HTTPException) as exc_info:
                     await get_current_user(mock_credentials, mock_db)
 
@@ -297,7 +277,6 @@ class TestGetUserAccounts:
         mock_account.id = uuid4()
         mock_account.user_id = user_id
 
-        # Mock owned accounts query
         mock_scalars = Mock()
         mock_scalars.all = Mock(return_value=[mock_account])
         mock_unique = Mock()
@@ -305,7 +284,6 @@ class TestGetUserAccounts:
         mock_result = Mock()
         mock_result.unique = Mock(return_value=mock_unique)
 
-        # Mock shared accounts query (empty)
         mock_shared_scalars = Mock()
         mock_shared_scalars.all = Mock(return_value=[])
         mock_shared_unique = Mock()
@@ -329,7 +307,6 @@ class TestGetUserAccounts:
         mock_shared_account = Mock(spec=Account)
         mock_shared_account.id = uuid4()
 
-        # Mock owned accounts query (empty)
         mock_owned_scalars = Mock()
         mock_owned_scalars.all = Mock(return_value=[])
         mock_owned_unique = Mock()
@@ -337,7 +314,6 @@ class TestGetUserAccounts:
         mock_owned_result = Mock()
         mock_owned_result.unique = Mock(return_value=mock_owned_unique)
 
-        # Mock shared accounts query
         mock_shared_scalars = Mock()
         mock_shared_scalars.all = Mock(return_value=[mock_shared_account])
         mock_shared_unique = Mock()
@@ -365,7 +341,6 @@ class TestGetUserAccounts:
         mock_account2 = Mock(spec=Account)
         mock_account2.id = account_id
 
-        # Mock owned accounts query
         mock_owned_scalars = Mock()
         mock_owned_scalars.all = Mock(return_value=[mock_account1])
         mock_owned_unique = Mock()
@@ -373,7 +348,6 @@ class TestGetUserAccounts:
         mock_owned_result = Mock()
         mock_owned_result.unique = Mock(return_value=mock_owned_unique)
 
-        # Mock shared accounts query (same account)
         mock_shared_scalars = Mock()
         mock_shared_scalars.all = Mock(return_value=[mock_account2])
         mock_shared_unique = Mock()
@@ -385,7 +359,6 @@ class TestGetUserAccounts:
 
         result = await get_user_accounts(mock_db, user_id, org_id)
 
-        # Should only return one instance despite being in both lists
         assert len(result) == 1
         assert result[0].id == account_id
 

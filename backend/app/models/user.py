@@ -116,6 +116,9 @@ class User(Base):
     consents = relationship(
         "UserConsent", back_populates="user", cascade="all, delete-orphan"
     )
+    identities = relationship(
+        "UserIdentity", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<User {self.email}>"

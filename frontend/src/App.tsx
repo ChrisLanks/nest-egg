@@ -37,6 +37,7 @@ const TrendsPage = lazy(() => import('./pages/TrendsPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const DebtPayoffPage = lazy(() => import('./pages/DebtPayoffPage'));
 const HouseholdSettingsPage = lazy(() => import('./pages/HouseholdSettingsPage').then(m => ({ default: m.HouseholdSettingsPage })));
+const PermissionsPage = lazy(() => import('./features/permissions/pages/PermissionsPage').then(m => ({ default: m.PermissionsPage })));
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage').then(m => ({ default: m.AcceptInvitationPage })));
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'));
 const ForgotPasswordPage = lazy(() => import('./features/auth/pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
@@ -90,6 +91,7 @@ function App() {
                 <Route path="/debt-payoff" element={<DebtPayoffPage />} />
                 <Route path="/preferences" element={<PreferencesPage />} />
                 <Route path="/household" element={<HouseholdSettingsPage />} />
+                <Route path="/permissions" element={<PermissionsPage />} />
               </Route>
             </Route>
 

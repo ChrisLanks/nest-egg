@@ -147,6 +147,32 @@ class Settings(BaseSettings):
     # Compliance
     TERMS_VERSION: str = "2026-02"  # Bump when Terms of Service or Privacy Policy changes
 
+    # ── Identity Provider Chain ───────────────────────────────────────────────
+    # Ordered comma-separated list of active providers.
+    # 'builtin' = app's own HS256 JWT (always available as fallback).
+    # First provider whose JWT issuer/alg matches the incoming token wins.
+    # Example: "cognito,builtin" — try Cognito first, fall back to built-in.
+    IDENTITY_PROVIDER_CHAIN: list[str] = ["builtin"]
+
+    # --- AWS Cognito (add 'cognito' to IDENTITY_PROVIDER_CHAIN to enable) ---
+    IDP_COGNITO_ISSUER: Optional[str] = None      # https://cognito-idp.{region}.amazonaws.com/{pool-id}
+    IDP_COGNITO_CLIENT_ID: Optional[str] = None
+    IDP_COGNITO_ADMIN_GROUP: str = "nest-egg-admins"
+
+    # --- Keycloak (add 'keycloak' to IDENTITY_PROVIDER_CHAIN to enable) ---
+    IDP_KEYCLOAK_ISSUER: Optional[str] = None     # https://keycloak.example.com/realms/{realm}
+    IDP_KEYCLOAK_CLIENT_ID: Optional[str] = None
+    IDP_KEYCLOAK_ADMIN_GROUP: str = "nest-egg-admins"
+    IDP_KEYCLOAK_GROUPS_CLAIM: str = "groups"
+
+    # --- Okta (add 'okta' to IDENTITY_PROVIDER_CHAIN to enable) ---
+    IDP_OKTA_ISSUER: Optional[str] = None         # https://company.okta.com/oauth2/default
+    IDP_OKTA_CLIENT_ID: Optional[str] = None
+    IDP_OKTA_GROUPS_CLAIM: str = "groups"
+
+    # --- Google (add 'google' to IDENTITY_PROVIDER_CHAIN to enable) ---
+    IDP_GOOGLE_CLIENT_ID: Optional[str] = None    # Google OAuth2 client ID (validates aud claim)
+
     # Storage (CSV uploads, attachments)
     STORAGE_BACKEND: str = "local"           # "local" or "s3"
     LOCAL_UPLOAD_DIR: str = "/tmp/nestegg-uploads"

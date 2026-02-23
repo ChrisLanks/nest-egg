@@ -169,6 +169,7 @@ const UserMenu = ({
 
   const menuItems = [
     { label: "Household Settings", icon: <FiUsers />, path: "/household" },
+    { label: "Permissions", icon: <FiSettings />, path: "/permissions" },
     { label: "Preferences", icon: <FiSettings />, path: "/preferences" },
   ];
 

@@ -14,6 +14,8 @@ from app.models.notification import Notification
 from app.models.contribution import AccountContribution
 from app.models.report_template import ReportTemplate
 from app.models.mfa import UserMFA
+from app.models.identity import UserIdentity
+from app.models.permission import PermissionGrant, PermissionGrantAudit
 
 __all__ = [
     "User",
@@ -38,4 +40,7 @@ __all__ = [
     "AccountContribution",
     "ReportTemplate",
     "UserMFA",
+    "UserIdentity",
+    "PermissionGrant",
+    "PermissionGrantAudit",
 ]

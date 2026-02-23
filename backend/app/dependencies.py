@@ -5,15 +5,14 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException, Path, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import decode_token
 from app.crud.user import user_crud
 from app.models.user import User, AccountShare, SharePermission
 from app.models.account import Account
+from app.services.identity.chain import get_chain
 from sqlalchemy.orm import joinedload
 
 # HTTP Bearer token scheme
@@ -27,6 +26,9 @@ async def get_current_user(
     """
     Get current authenticated user from JWT token.
 
+    Delegates to the IdentityProviderChain which supports the built-in HS256
+    JWT as well as external OIDC providers (Cognito, Keycloak, Okta, Google).
+
     Args:
         credentials: HTTP Bearer credentials
         db: Database session
@@ -37,36 +39,25 @@ async def get_current_user(
     Raises:
         HTTPException: If token is invalid or user not found
     """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    chain = get_chain()
+    # chain.authenticate raises HTTPException(401) on failure
+    identity = await chain.authenticate(credentials.credentials, db)
 
-    try:
-        token = credentials.credentials
-        payload = decode_token(token)
+    if identity.user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not resolve user from token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-        # Check token type
-        if payload.get("type") != "access":
-            raise credentials_exception
-
-        # Get user ID from token
-        user_id_str: Optional[str] = payload.get("sub")
-        if user_id_str is None:
-            raise credentials_exception
-
-        user_id = UUID(user_id_str)
-
-    except (JWTError, ValueError):
-        raise credentials_exception
-
-    # Get user from database
-    user = await user_crud.get_by_id(db, user_id)
+    user = await user_crud.get_by_id(db, identity.user_id)
     if user is None:
-        raise credentials_exception
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    # Check if user is active
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
