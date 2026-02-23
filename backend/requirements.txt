@@ -1,7 +1,7 @@
 # FastAPI Framework
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-python-multipart==0.0.6
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+python-multipart>=0.0.9  # CVE-2024-24762 (ReDoS) — was 0.0.6
 
 # Database
 sqlalchemy==2.0.25
@@ -10,16 +10,16 @@ psycopg2-binary==2.9.9
 alembic==1.13.1
 
 # Pydantic
-pydantic==2.5.3
-pydantic-settings==2.1.0
-email-validator==2.1.0
+pydantic>=2.10.0
+pydantic-settings>=2.1.0
+email-validator>=2.1.0
 
 # Authentication & Security
 python-jose[cryptography]==3.3.0
 PyJWT==2.11.0  # Required by plaid_service
 passlib[argon2]==1.7.4
 bcrypt==4.1.2
-cryptography==42.0.0
+cryptography>=44.0.0  # Multiple CVEs in 42.x — was 42.0.0
 
 # Background Jobs
 celery==5.3.6
@@ -38,7 +38,7 @@ httpx==0.26.0
 # Logging & Monitoring
 structlog==24.1.0
 python-json-logger==2.0.7
-sentry-sdk[fastapi]==1.40.0
+sentry-sdk[fastapi]>=2.0.0  # v1 EOL — was 1.40.0
 prometheus-client==0.19.0
 prometheus-fastapi-instrumentator==6.1.0
 

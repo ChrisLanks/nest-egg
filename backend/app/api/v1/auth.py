@@ -23,7 +23,8 @@ from app.core.security import (
 )
 from app.crud.user import organization_crud, refresh_token_crud, user_crud
 from app.dependencies import get_current_user
-from app.models.user import User, EmailVerificationToken, PasswordResetToken
+from app.models.mfa import UserMFA
+from app.models.user import User, EmailVerificationToken, PasswordResetToken, UserConsent, ConsentType
 from app.schemas.auth import (
     AccessTokenResponse,
     LoginRequest,
@@ -32,6 +33,7 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.schemas.user import User as UserSchema
+from app.services.mfa_service import mfa_service
 from app.services.rate_limit_service import get_rate_limit_service
 from app.services.password_validation_service import password_validation_service
 from app.services.email_service import (
@@ -42,6 +44,20 @@ from app.services.email_service import (
 )
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import redact_email
+
+
+class MFAChallengeResponse(BaseModel):
+    """Response returned when MFA verification is required before completing login."""
+
+    mfa_required: bool = True
+    mfa_token: str  # Short-lived JWT (5 min) with type="mfa_pending"
+
+
+class MFAVerifyRequest(BaseModel):
+    """Request body to complete MFA login challenge."""
+
+    mfa_token: str
+    code: str  # 6-digit TOTP code or XXXX-XXXX backup code
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -183,6 +199,17 @@ async def register(
         is_org_admin=True,  # First user is always org admin
     )
 
+    # Record consent (GDPR / CCPA compliance)
+    client_ip = request.client.host if request.client else None
+    for consent_type in (ConsentType.TERMS_OF_SERVICE, ConsentType.PRIVACY_POLICY):
+        db.add(UserConsent(
+            user_id=user.id,
+            consent_type=consent_type.value,
+            version=settings.TERMS_VERSION,
+            ip_address=client_ip,
+        ))
+    await db.flush()
+
     # Update last login
     await user_crud.update_last_login(db, user.id)
 
@@ -201,7 +228,7 @@ async def register(
     return await create_auth_response(db, user, response)
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=None)
 async def login(
     request: Request,
     response: Response,
@@ -299,6 +326,19 @@ async def login(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account is inactive",
             )
+
+        # MFA enforcement — skipped in development mode only
+        if settings.ENVIRONMENT != "development":
+            mfa_result = await db.execute(
+                select(UserMFA).where(UserMFA.user_id == user.id)
+            )
+            user_mfa = mfa_result.scalar_one_or_none()
+            if user_mfa and user_mfa.is_enabled and user_mfa.is_verified:
+                mfa_token = create_access_token(
+                    data={"sub": str(user.id), "type": "mfa_pending"},
+                    expires_delta=timedelta(minutes=5),
+                )
+                return MFAChallengeResponse(mfa_token=mfa_token)
 
         logger.info("Updating last login")
 
@@ -405,6 +445,99 @@ async def _maybe_refresh_prices_on_login(organization_id) -> None:
     except Exception as exc:
         # Never crash the login response due to a background refresh failure
         logger.warning("login_price_refresh failed (non-critical): %s", exc)
+
+
+async def _verify_and_consume_backup_code(
+    db: AsyncSession,
+    user_mfa: UserMFA,
+    code: str,
+) -> bool:
+    """Verify a backup code and mark it used (removes the code so it cannot be reused)."""
+    if not user_mfa.backup_codes:
+        return False
+    try:
+        stored_hashes = mfa_service.decrypt_backup_codes(user_mfa.backup_codes)
+    except Exception:
+        return False
+
+    for i, hashed_code in enumerate(stored_hashes):
+        if hashed_code and mfa_service.verify_backup_code(code, hashed_code):
+            stored_hashes[i] = ""
+            remaining = [c for c in stored_hashes if c]
+            user_mfa.backup_codes = mfa_service.encrypt_backup_codes(remaining) if remaining else None
+            await db.flush()
+            return True
+    return False
+
+
+@router.post("/mfa/verify", response_model=TokenResponse)
+async def verify_mfa_challenge(
+    request: Request,
+    response: Response,
+    data: MFAVerifyRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Complete an MFA login challenge.
+
+    Called after /login returns mfa_required=true. Accepts the short-lived
+    mfa_token from that response together with a 6-digit TOTP code (or a
+    XXXX-XXXX backup code). Returns a full TokenResponse on success.
+    Rate limited to 5 attempts per minute per IP.
+    """
+    await rate_limit_service.check_rate_limit(
+        request=request,
+        max_requests=5,
+        window_seconds=60,
+    )
+
+    try:
+        payload = decode_token(data.mfa_token)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired MFA token",
+        )
+
+    if payload.get("type") != "mfa_pending":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token type",
+        )
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    result = await db.execute(
+        select(User)
+        .where(User.id == user_id, User.is_active.is_(True))
+        .options(selectinload(User.mfa))
+    )
+    user = result.scalar_one_or_none()
+
+    if not user or not user.mfa or not user.mfa.is_enabled or not user.mfa.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="MFA verification failed",
+        )
+
+    # Verify TOTP code first, then try backup code
+    decrypted_secret = mfa_service.decrypt_secret(user.mfa.secret)
+    code_ok = mfa_service.verify_totp(decrypted_secret, data.code)
+    if not code_ok:
+        code_ok = await _verify_and_consume_backup_code(db, user.mfa, data.code)
+    if not code_ok:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid MFA code",
+        )
+
+    user.mfa.last_used_at = utc_now()
+    await user_crud.update_last_login(db, user.id)
+    await db.commit()
+
+    return await create_auth_response(db, user, response)
 
 
 @router.post("/refresh", response_model=AccessTokenResponse)

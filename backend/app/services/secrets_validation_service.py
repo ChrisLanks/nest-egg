@@ -80,6 +80,12 @@ class SecretsValidationService:
         if not settings.ALLOWED_HOSTS or settings.ALLOWED_HOSTS == ["*"]:
             errors.append("ALLOWED_HOSTS must be set to specific domains in production")
 
+        # Critical: Metrics admin password must be changed from default
+        if settings.METRICS_PASSWORD in ("metrics_admin", "admin", "password", "metrics"):
+            errors.append(
+                "METRICS_PASSWORD is set to a default/weak value — change before deploying to production"
+            )
+
         # Optional but recommended: Plaid secrets
         if not settings.PLAID_CLIENT_ID:
             warnings.append("PLAID_CLIENT_ID not set - Plaid integration will not work")
@@ -236,6 +242,11 @@ class SecretsValidationService:
         # External services
         checklist["plaid_configured"] = bool(settings.PLAID_CLIENT_ID and settings.PLAID_SECRET)
         checklist["plaid_webhook_verified"] = bool(settings.PLAID_WEBHOOK_SECRET)
+
+        # Metrics admin password changed from default
+        checklist["metrics_password_changed"] = settings.METRICS_PASSWORD not in (
+            "metrics_admin", "admin", "password", "metrics"
+        )
 
         return checklist
 

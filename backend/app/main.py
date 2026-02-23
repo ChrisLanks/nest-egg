@@ -60,6 +60,9 @@ from app.middleware.request_logging import (
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.services.secrets_validation_service import secrets_validation_service
+from app.dependencies import get_current_user
+from app.models.user import User as UserModel
+from fastapi import Depends, HTTPException
 
 # Initialize Sentry for error tracking and monitoring (optional)
 try:
@@ -280,13 +283,16 @@ async def health_check():
 
 
 @app.get("/security-status")
-async def security_status():
+async def security_status(current_user: UserModel = Depends(get_current_user)):
     """
-    Security configuration status endpoint.
+    Security configuration status endpoint — requires org admin authentication.
 
     Returns checklist of security configurations.
     Only shows status, never exposes actual secrets.
     """
+    if not current_user.is_org_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
     checklist = secrets_validation_service.generate_security_checklist()
 
     # Calculate overall security score

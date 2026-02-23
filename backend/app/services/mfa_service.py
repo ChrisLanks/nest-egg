@@ -7,7 +7,7 @@ import secrets
 from base64 import b64encode
 from typing import List
 
-from app.services.encryption_service import encryption_service
+from app.services.encryption_service import get_encryption_service
 
 
 class MFAService:
@@ -138,12 +138,12 @@ class MFAService:
     @staticmethod
     def encrypt_secret(secret: str) -> str:
         """Encrypt TOTP secret for database storage."""
-        return encryption_service.encrypt(secret)
+        return get_encryption_service().encrypt(secret)
 
     @staticmethod
     def decrypt_secret(encrypted_secret: str) -> str:
         """Decrypt TOTP secret from database."""
-        return encryption_service.decrypt(encrypted_secret)
+        return get_encryption_service().decrypt(encrypted_secret)
 
     @staticmethod
     def encrypt_backup_codes(codes: List[str]) -> str:
@@ -157,7 +157,7 @@ class MFAService:
             Encrypted comma-separated string
         """
         joined = ",".join(codes)
-        return encryption_service.encrypt(joined)
+        return get_encryption_service().encrypt(joined)
 
     @staticmethod
     def decrypt_backup_codes(encrypted_codes: str) -> List[str]:
@@ -170,7 +170,7 @@ class MFAService:
         Returns:
             List of hashed backup codes
         """
-        decrypted = encryption_service.decrypt(encrypted_codes)
+        decrypted = get_encryption_service().decrypt(encrypted_codes)
         return decrypted.split(",")
 
 

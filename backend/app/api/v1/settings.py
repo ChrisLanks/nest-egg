@@ -10,7 +10,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -393,3 +393,57 @@ async def export_data(
         media_type="application/zip",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+class DeleteAccountRequest(BaseModel):
+    """Request body for permanent account deletion (GDPR Article 17)."""
+
+    password: str
+
+
+@router.delete("/account", status_code=204)
+async def delete_account(
+    data: DeleteAccountRequest,
+    http_request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Permanently delete the current user's account and all associated data.
+
+    Implements GDPR Article 17 (Right to Erasure). Requires password confirmation.
+
+    - If the current user is the sole member of their organization, the entire
+      organization (and all cascading data) is deleted.
+    - If other members exist in the organization, only this user account is deleted.
+
+    Rate limited to 3 attempts per hour.
+    """
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=3,
+        window_seconds=3600,
+    )
+
+    if not verify_password(data.password, current_user.password_hash):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+
+    # Count active members in the organization
+    count_result = await db.execute(
+        select(func.count()).select_from(User).where(
+            User.organization_id == current_user.organization_id
+        )
+    )
+    member_count = count_result.scalar()
+
+    if member_count == 1:
+        # Sole member — delete entire organization; FK CASCADE removes all data
+        org = await db.get(Organization, current_user.organization_id)
+        if org:
+            await db.delete(org)
+    else:
+        # Household member — delete only this user account
+        await db.delete(current_user)
+
+    await db.commit()
+    return Response(status_code=204)

@@ -144,6 +144,9 @@ class Settings(BaseSettings):
     METRICS_USERNAME: str = "admin"          # Basic auth username — override in prod
     METRICS_PASSWORD: str = "metrics_admin"  # Basic auth password — CHANGE IN PROD
 
+    # Compliance
+    TERMS_VERSION: str = "2024-01"  # Bump when Terms of Service or Privacy Policy changes
+
     # Storage (CSV uploads, attachments)
     STORAGE_BACKEND: str = "local"           # "local" or "s3"
     LOCAL_UPLOAD_DIR: str = "/tmp/nestegg-uploads"

@@ -113,6 +113,9 @@ class User(Base):
     mfa = relationship(
         "UserMFA", back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
+    consents = relationship(
+        "UserConsent", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<User {self.email}>"
@@ -269,3 +272,41 @@ class AccountShare(Base):
 
     def __repr__(self):
         return f"<AccountShare account={self.account_id} shared_with={self.shared_with_user_id} permission={self.permission}>"
+
+
+class ConsentType(str, enum.Enum):
+    """Types of user consent that must be captured."""
+
+    TERMS_OF_SERVICE = "terms_of_service"
+    PRIVACY_POLICY = "privacy_policy"
+    MARKETING = "marketing"
+
+
+class UserConsent(Base):
+    """
+    Record of user consent events for GDPR/CCPA compliance.
+
+    A row is written for each consent action (accept or revoke).
+    Consent is considered active when revoked_at IS NULL.
+    """
+
+    __tablename__ = "user_consents"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    consent_type = Column(String(50), nullable=False)
+    version = Column(String(50), nullable=False)   # e.g. "2024-01" — bump when T&C/PP changes
+    consented_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    ip_address = Column(String(45), nullable=True)  # IPv4 or IPv6; NULL if unavailable
+    revoked_at = Column(DateTime, nullable=True)    # NULL = consent currently active
+
+    # Relationships
+    user = relationship("User", back_populates="consents")
+
+    def __repr__(self):
+        return f"<UserConsent user={self.user_id} type={self.consent_type} version={self.version}>"

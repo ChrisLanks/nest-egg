@@ -367,7 +367,7 @@ class Account(Base):
     # Employer 401k / 403b match fields
     employer_match_percent = Column(Numeric(5, 2), nullable=True)   # e.g. 50 → employer matches 50% of contribution
     employer_match_limit_percent = Column(Numeric(5, 2), nullable=True)  # e.g. 6 → on the first 6% of salary
-    annual_salary = Column(Numeric(15, 2), nullable=True)           # Used to calculate dollar value of match
+    annual_salary = Column(EncryptedString, nullable=True)          # Encrypted — decrypt to Decimal for arithmetic
 
     # Interest accrual tracking (CD / savings / money_market)
     last_interest_accrued_at = Column(Date, nullable=True)          # Date of last auto-accrual (prevents double-accrual)

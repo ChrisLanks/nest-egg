@@ -66,16 +66,16 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     db_status = "ok"
     try:
         await db.execute(select(1))
-    except Exception as e:
-        db_status = f"error: {str(e)}"
+    except Exception:
+        db_status = "error"
 
     # Check Redis
     redis_status = "ok"
     try:
         redis = await rate_limit_service.get_redis()
         await redis.ping()
-    except Exception as e:
-        redis_status = f"error: {str(e)}"
+    except Exception:
+        redis_status = "error"
 
     return HealthResponse(
         status="healthy" if db_status == "ok" and redis_status == "ok" else "degraded",

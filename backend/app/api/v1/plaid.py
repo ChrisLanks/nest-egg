@@ -1,6 +1,7 @@
 """Plaid integration API endpoints."""
 
 import logging
+import uuid as _uuid_module
 from typing import List, Dict, Any
 from uuid import UUID
 
@@ -107,7 +108,7 @@ async def exchange_public_token(
         plaid_item = PlaidItem(
             organization_id=current_user.organization_id,
             user_id=current_user.id,
-            item_id=f"item_{access_token[:16]}",  # Use part of access token as item_id for test
+            item_id=f"item_{_uuid_module.uuid4().hex}",  # Random ID — never exposes token content
             access_token=encrypted_access_token,  # Store encrypted
             institution_id=request.institution_id,
             institution_name=request.institution_name or "Unknown Institution",

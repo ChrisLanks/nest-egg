@@ -20,9 +20,34 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     task_track_started=True,
-    task_time_limit=600,  # 10 minutes max
+    task_time_limit=600,   # 10 minutes max
     task_soft_time_limit=540,  # 9 minutes soft limit
+    # Reliability: re-queue tasks if a worker crashes mid-execution
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    task_default_retry_delay=60,   # 60 seconds base delay before first retry
 )
+
+
+class RetryableTask(celery_app.Task):
+    """
+    Base task class with automatic exponential-backoff retry on failure.
+
+    All periodic and background tasks inherit this so transient errors
+    (DB timeouts, network blips, API rate limits) are handled automatically.
+    Override max_retries=0 on tasks that must not retry (e.g., send-once emails).
+    """
+
+    abstract = True
+    autoretry_for = (Exception,)
+    max_retries = 3
+    retry_backoff = True        # Exponential: 60s → 120s → 240s
+    retry_backoff_max = 600     # Cap at 10 minutes
+    retry_jitter = True         # Add jitter to prevent thundering herd on retry wave
+
+
+celery_app.Task = RetryableTask
+
 
 # Import tasks here as they're created
 from app.workers.tasks import auth_tasks  # noqa: F401
