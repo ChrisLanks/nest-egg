@@ -1139,14 +1139,17 @@ class TestRefreshTokenEndpoint:
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.decode_token", return_value=mock_payload):
                 with patch("app.api.v1.auth.refresh_token_crud.get_by_token_hash", new=AsyncMock(return_value=mock_token)):
-                    with patch("app.api.v1.auth.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)):
-                        with patch("app.api.v1.auth.create_access_token", return_value="new_access_token"):
-                            with patch("app.api.v1.auth.UserSchema") as mock_schema_cls:
-                                mock_schema_cls.from_orm.return_value = mock_user_schema
-                                with patch("app.api.v1.auth.AccessTokenResponse", return_value=mock_atr):
-                                    result = await refresh_access_token(mock_request, Mock(), mock_data, mock_db)
+                    with patch("app.api.v1.auth.refresh_token_crud.create", new=AsyncMock()):
+                        with patch("app.api.v1.auth.refresh_token_crud.revoke", new=AsyncMock()):
+                            with patch("app.api.v1.auth.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)):
+                                with patch("app.api.v1.auth.create_access_token", return_value="new_access_token"):
+                                    with patch("app.api.v1.auth.create_refresh_token", return_value=("new_rt", "new_jti", None)):
+                                        with patch("app.api.v1.auth.UserSchema") as mock_schema_cls:
+                                            mock_schema_cls.from_orm.return_value = mock_user_schema
+                                            with patch("app.api.v1.auth.AccessTokenResponse", return_value=mock_atr):
+                                                result = await refresh_access_token(mock_request, Mock(), mock_data, mock_db)
 
-                                    assert result.access_token == "new_access_token"
+                                                assert result.access_token == "new_access_token"
 
     @pytest.mark.asyncio
     async def test_refresh_handles_decode_errors(self):

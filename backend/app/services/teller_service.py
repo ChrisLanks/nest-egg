@@ -176,7 +176,7 @@ class TellerService:
         access_token = enrollment.get_decrypted_access_token()
 
         # Calculate date range
-        from_date = (datetime.now().date() - timedelta(days=days_back)).isoformat()
+        from_date = (utc_now().date() - timedelta(days=days_back)).isoformat()
 
         # Get transactions from Teller
         transactions_data = await self._make_request(

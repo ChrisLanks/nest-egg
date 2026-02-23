@@ -43,7 +43,7 @@ class Holding(Base):
     # Current value (cached, refreshed periodically)
     current_price_per_share = Column(Numeric(15, 2), nullable=True)
     current_total_value = Column(Numeric(15, 2), nullable=True)
-    price_as_of = Column(DateTime, nullable=True)  # When the price was last fetched
+    price_as_of = Column(DateTime, nullable=True, index=True)  # When the price was last fetched
 
     # Asset classification
     asset_type = Column(

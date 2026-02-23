@@ -317,7 +317,8 @@ async def sync_transactions(
         PlaidTransactionSyncService,
         MockPlaidTransactionGenerator,
     )
-    from datetime import datetime, timedelta
+    from datetime import timedelta
+    from app.utils.datetime_utils import utc_now
 
     # Get PlaidItem and verify ownership
     result = await db.execute(
@@ -349,7 +350,7 @@ async def sync_transactions(
 
             # Generate transactions for each account
             all_transactions = []
-            end_date = datetime.now().date()
+            end_date = utc_now().date()
             start_date = end_date - timedelta(days=90)  # Last 3 months
 
             for account in accounts:
@@ -471,7 +472,8 @@ async def _handle_transactions_webhook(
         PlaidTransactionSyncService,
         MockPlaidTransactionGenerator,
     )
-    from datetime import datetime, timedelta
+    from datetime import timedelta
+    from app.utils.datetime_utils import utc_now
 
     if webhook_code in ["DEFAULT_UPDATE", "INITIAL_UPDATE", "HISTORICAL_UPDATE"]:
         # New transaction data is available - trigger sync
@@ -499,7 +501,7 @@ async def _handle_transactions_webhook(
 
             # Generate transactions for each account
             all_transactions = []
-            end_date = datetime.now().date()
+            end_date = utc_now().date()
             start_date = end_date - timedelta(days=90)  # Last 3 months
 
             for account in accounts:

@@ -653,9 +653,21 @@ async def refresh_access_token(
             }
         )
 
-        # Extend the refresh token cookie lifetime (sliding window)
+        # Rotate the refresh token: issue a new one, revoke the old one.
+        # This means a stolen token can only be used once — the next legitimate
+        # refresh will fail (token revoked), alerting the real user.
+        new_refresh_token_str, new_jti, new_expires_at = create_refresh_token(str(user.id))
+        new_token_hash = hashlib.sha256(new_jti.encode()).hexdigest()
+        await refresh_token_crud.create(
+            db=db,
+            user_id=user.id,
+            token_hash=new_token_hash,
+            expires_at=new_expires_at,
+        )
+        await refresh_token_crud.revoke(db, token_hash)
+
         if request.cookies.get("refresh_token"):
-            _set_refresh_cookie(response, raw_token)
+            _set_refresh_cookie(response, new_refresh_token_str)
 
         return AccessTokenResponse(
             access_token=access_token,
