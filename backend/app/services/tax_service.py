@@ -117,7 +117,7 @@ class TaxService:
             List of tax-deductible summaries grouped by label
         """
         # Only surface the 5 official tax-deductible labels, not arbitrary user labels
-        tax_label_names = [l["name"] for l in TaxService.DEFAULT_TAX_LABELS]
+        tax_label_names = [label["name"] for label in TaxService.DEFAULT_TAX_LABELS]
 
         # Build base query for transactions with tax labels
         query = (

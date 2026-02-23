@@ -11,7 +11,6 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.transaction import Category, Transaction
-from app.models.account import Account
 from app.schemas.transaction import CategoryCreate, CategoryUpdate, CategoryResponse
 from app.services.hierarchy_validation_service import hierarchy_validation_service
 

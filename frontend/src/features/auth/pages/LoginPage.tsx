@@ -27,7 +27,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
-import { useLogin } from '../hooks/useAuth';
 import { useState, useEffect } from 'react';
 import { isMFAChallenge } from '../../../types/auth';
 import { authApi } from '../services/authApi';
@@ -43,7 +42,6 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export const LoginPage = () => {
   const toast = useToast();
-  const loginMutation = useLogin();
   const { setTokens } = useAuthStore();
   const [rememberMe, setRememberMe] = useState(false);
   const [credentialError, setCredentialError] = useState<string | null>(null);
@@ -283,7 +281,7 @@ export const LoginPage = () => {
                   colorScheme="brand"
                   size="lg"
                   w="full"
-                  isLoading={isSubmitting || loginMutation.isPending}
+                  isLoading={isSubmitting}
                 >
                   Login
                 </Button>

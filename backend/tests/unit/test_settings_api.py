@@ -609,7 +609,7 @@ class TestDeleteAccount:
         with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.settings.verify_password", return_value=False):
                 with pytest.raises(HTTPException) as exc_info:
-                    await delete_account(data=data, http_request=mock_request, current_user=user, db=db)
+                    await delete_account(data=data, http_request=mock_request, http_response=Mock(), current_user=user, db=db)
 
         assert exc_info.value.status_code == 401
 
@@ -634,7 +634,7 @@ class TestDeleteAccount:
 
         with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.settings.verify_password", return_value=True):
-                await delete_account(data=data, http_request=mock_request, current_user=user, db=db)
+                await delete_account(data=data, http_request=mock_request, http_response=Mock(), current_user=user, db=db)
 
         db.delete.assert_called_once_with(mock_org)
         db.commit.assert_called_once()
@@ -656,7 +656,7 @@ class TestDeleteAccount:
 
         with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.settings.verify_password", return_value=True):
-                await delete_account(data=data, http_request=mock_request, current_user=user, db=db)
+                await delete_account(data=data, http_request=mock_request, http_response=Mock(), current_user=user, db=db)
 
         db.delete.assert_called_once_with(user)
         db.commit.assert_called_once()
@@ -676,7 +676,7 @@ class TestDeleteAccount:
             new=AsyncMock(side_effect=HTTPException(status_code=429, detail="Rate limit")),
         ):
             with pytest.raises(HTTPException) as exc_info:
-                await delete_account(data=data, http_request=mock_request, current_user=user, db=db)
+                await delete_account(data=data, http_request=mock_request, http_response=Mock(), current_user=user, db=db)
 
         assert exc_info.value.status_code == 429
 

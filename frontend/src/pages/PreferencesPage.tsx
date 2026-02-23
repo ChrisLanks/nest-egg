@@ -34,6 +34,7 @@ import {
 import { useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
+import { useAuthStore } from '../features/auth/stores/authStore';
 
 interface UpdateProfileData {
   display_name?: string;
@@ -51,6 +52,7 @@ interface ChangePasswordData {
 export default function PreferencesPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { logout } = useAuthStore();
 
   // Note: Preferences are always for the current logged-in user,
   // not the selected user view. This page shows YOUR settings.
@@ -165,7 +167,8 @@ export default function PreferencesPage() {
     setIsDeleting(true);
     try {
       await api.delete('/settings/account', { data: { password: deletePassword } });
-      // Clear local state and redirect to login
+      // Clear auth state before redirect so no stale tokens remain in memory
+      logout();
       window.location.href = '/login';
     } catch (error: any) {
       const detail = error.response?.data?.detail;

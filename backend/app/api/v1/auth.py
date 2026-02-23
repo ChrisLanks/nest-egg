@@ -59,6 +59,7 @@ class MFAVerifyRequest(BaseModel):
     mfa_token: str
     code: str  # 6-digit TOTP code or XXXX-XXXX backup code
 
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -483,11 +484,11 @@ async def verify_mfa_challenge(
     Called after /login returns mfa_required=true. Accepts the short-lived
     mfa_token from that response together with a 6-digit TOTP code (or a
     XXXX-XXXX backup code). Returns a full TokenResponse on success.
-    Rate limited to 5 attempts per minute per IP.
+    Rate limited to 3 attempts per minute per IP.
     """
     await rate_limit_service.check_rate_limit(
         request=request,
-        max_requests=5,
+        max_requests=3,
         window_seconds=60,
     )
 

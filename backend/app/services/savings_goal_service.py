@@ -404,7 +404,6 @@ class SavingsGoalService:
             "is_completed": goal.is_completed,
         }
 
-
     @staticmethod
     async def create_emergency_fund_goal(
         db: AsyncSession,

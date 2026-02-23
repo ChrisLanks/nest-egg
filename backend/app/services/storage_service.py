@@ -43,8 +43,6 @@ Prod (S3 with explicit credentials)::
 import os
 from typing import Protocol, runtime_checkable
 
-from fastapi import Depends
-
 from app.config import settings
 
 

@@ -20,8 +20,8 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     task_track_started=True,
-    task_time_limit=600,   # 10 minutes max
-    task_soft_time_limit=540,  # 9 minutes soft limit
+    task_time_limit=300,   # 5 minutes max
+    task_soft_time_limit=270,  # 4.5 minutes soft limit
     # Reliability: re-queue tasks if a worker crashes mid-execution
     task_acks_late=True,
     task_reject_on_worker_lost=True,

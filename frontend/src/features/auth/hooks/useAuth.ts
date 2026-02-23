@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { authApi } from '../services/authApi';
 import { useAuthStore } from '../stores/authStore';
 import type { LoginRequest, RegisterRequest } from '../../../types/auth';
+import { isMFAChallenge } from '../../../types/auth';
 import { queryKeys } from '../../../services/queryClient';
 
 export const useLogin = () => {
@@ -16,6 +17,8 @@ export const useLogin = () => {
   return useMutation({
     mutationFn: (data: LoginRequest) => authApi.login(data),
     onSuccess: (data) => {
+      // MFA challenge requires user interaction — LoginPage handles that flow directly
+      if (isMFAChallenge(data)) return;
       setTokens(data.access_token, data.user);
       navigate('/dashboard');
     },

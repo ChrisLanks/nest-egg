@@ -518,7 +518,6 @@ class RecurringDetectionService:
             "yearly_cost": float(monthly_total * 12),
         }
 
-
     # ── Label helpers ────────────────────────────────────────────────────────
 
     @staticmethod

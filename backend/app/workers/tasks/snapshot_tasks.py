@@ -96,7 +96,7 @@ def capture_org_portfolio_snapshot(organization_id: str):
         from sqlalchemy import select
         from app.core.database import AsyncSessionLocal
         from app.models.portfolio_snapshot import PortfolioSnapshot
-        from app.models.user import Organization, User
+        from app.models.user import User
         from app.services.snapshot_service import snapshot_service
 
         async with AsyncSessionLocal() as db:

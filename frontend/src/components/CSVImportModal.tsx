@@ -268,9 +268,6 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({ isOpen, onClose 
     }
   };
 
-  const requiredFields = ['date', 'amount'];
-  const optionalFields = ['description', 'merchant', 'category'];
-
   return (
     <Modal isOpen={isOpen} onClose={handleClose} size="4xl" scrollBehavior="inside">
       <ModalOverlay />

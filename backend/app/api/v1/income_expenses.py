@@ -358,7 +358,6 @@ async def get_category_drill_down(
 
     # Import models
     from app.models.transaction import Category
-    from sqlalchemy.orm import aliased
 
     # Find the parent category
     parent_cat_result = await db.execute(
@@ -512,7 +511,6 @@ async def get_category_drill_down(
         )
 
     # Has children - return child breakdown
-    child_ids = [cat.id for cat in child_cats]
     child_names = [cat.name for cat in child_cats]
 
     # Get totals for parent (including children)

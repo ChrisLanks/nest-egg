@@ -19,7 +19,7 @@ import { authApi } from '../features/auth/services/authApi';
 const DISMISSED_KEY = 'email_verification_banner_dismissed';
 
 export const EmailVerificationBanner: React.FC = () => {
-  const { user, setUser } = useAuthStore();
+  const { user } = useAuthStore();
   const [dismissed, setDismissed] = useState(
     () => sessionStorage.getItem(DISMISSED_KEY) === '1'
   );

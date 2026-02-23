@@ -186,10 +186,14 @@ async def lifespan(app: FastAPI):
 
 
 # Create FastAPI application
+# Disable interactive API docs in production to reduce attack surface
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     lifespan=lifespan,
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
+    openapi_url="/openapi.json" if settings.DEBUG else None,
 )
 
 # Instrument the app with Prometheus (metrics served on admin port, not here)

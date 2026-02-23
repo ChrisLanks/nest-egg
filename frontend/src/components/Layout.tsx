@@ -15,7 +15,6 @@ import {
   useDisclosure,
   Avatar,
   Collapse,
-  IconButton,
   Tooltip,
 } from "@chakra-ui/react";
 
@@ -688,7 +687,7 @@ export const Layout = () => {
       const next = { ...prev, [sectionName]: !prev[sectionName] };
       try {
         localStorage.setItem('nav-collapsed-sections', JSON.stringify(next));
-      } catch {}
+      } catch { /* localStorage unavailable — ignore */ }
       return next;
     });
   };

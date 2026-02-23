@@ -43,7 +43,6 @@ class TransactionService:
         contains the word "transfer" (case-insensitive), or if it is a positive
         amount with a "Payment" merchant name (credit card payment pattern).
         """
-        transfer_keywords = {"transfer", "payment"}
         category_lower = (category or "").lower()
         merchant_lower = (merchant_name or "").lower()
 

@@ -7,11 +7,9 @@ import {
   Card,
   CardBody,
   Container,
-  Heading,
   HStack,
   SimpleGrid,
   Skeleton,
-  SkeletonText,
   Stack,
   VStack,
 } from '@chakra-ui/react';

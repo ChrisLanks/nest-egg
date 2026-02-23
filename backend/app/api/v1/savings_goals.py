@@ -28,6 +28,7 @@ class GoalTemplate(str, Enum):
 class GoalFromTemplateRequest(BaseModel):
     template: GoalTemplate
 
+
 router = APIRouter()
 
 

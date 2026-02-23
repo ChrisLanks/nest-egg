@@ -24,7 +24,6 @@ from app.schemas.transaction import (
     TransactionListResponse,
     TransactionUpdate,
     CategorySummary,
-    TransactionCreate,
     ManualTransactionCreate,
 )
 from app.services.input_sanitization_service import input_sanitization_service

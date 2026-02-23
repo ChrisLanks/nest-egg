@@ -2,10 +2,11 @@
 
 import csv
 import io
+import logging
 import zipfile
+from datetime import date
 from typing import Any, List, Literal, Optional
 from uuid import UUID
-from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
@@ -25,6 +26,7 @@ from app.services.email_service import email_service, create_verification_token
 from app.services.password_validation_service import password_validation_service
 from app.services.rate_limit_service import get_rate_limit_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 rate_limit_service = get_rate_limit_service()
 
@@ -405,6 +407,7 @@ class DeleteAccountRequest(BaseModel):
 async def delete_account(
     data: DeleteAccountRequest,
     http_request: Request,
+    http_response: Response,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -440,10 +443,24 @@ async def delete_account(
         # Sole member — delete entire organization; FK CASCADE removes all data
         org = await db.get(Organization, current_user.organization_id)
         if org:
+            logger.info(
+                "Account deletion: sole member — deleting org org_id=%s user_id=%s",
+                current_user.organization_id,
+                current_user.id,
+            )
             await db.delete(org)
     else:
         # Household member — delete only this user account
+        logger.info(
+            "Account deletion: household member user_id=%s org_id=%s",
+            current_user.id,
+            current_user.organization_id,
+        )
         await db.delete(current_user)
 
     await db.commit()
+
+    # Clear the httpOnly refresh-token cookie so the browser doesn't keep it
+    http_response.delete_cookie(key="refresh_token", path="/api/v1/auth")
+
     return Response(status_code=204)

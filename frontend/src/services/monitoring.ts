@@ -146,7 +146,7 @@ export function logError(error: Error, context?: Record<string, any>) {
 /**
  * Set user context for error tracking
  */
-export function setUserContext(user: { id: string; email: string; name?: string }) {
+export function setUserContext(_user: { id: string; email: string; name?: string }) {
   if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
     /* Uncomment when Sentry is enabled:
     Sentry.setUser({
