@@ -166,31 +166,13 @@ export const AccountsPage = () => {
 
   // Check if current user can modify an account
   const canModifyAccount = (account: Account): boolean => {
-    if (!currentUser) {
-      console.log('[AccountsPage] Cannot modify - currentUser not loaded');
-      return false;
-    }
-
-    // If viewing another user's data (not self, not combined), can't edit anything
-    if (isOtherUserView) {
-      console.log('[AccountsPage] Cannot modify - viewing another user');
-      return false;
-    }
-
-    // In combined view, can edit all household accounts
-    if (selectedUserId === null) {
-      console.log('[AccountsPage] Can modify - combined view');
-      return true;
-    }
-
-    // In self view, can edit own accounts
-    const canModify = account.user_id === currentUser.id;
-    console.log('[AccountsPage] Self view check:', {
-      accountUserId: account.user_id,
-      currentUserId: currentUser.id,
-      canModify,
-    });
-    return canModify;
+    if (!currentUser) return false;
+    // Combined view: can edit all household accounts
+    if (selectedUserId === null) return true;
+    // Self view: only own accounts
+    if (selectedUserId === currentUser.id) return account.user_id === currentUser.id;
+    // Other-user view: canEdit already evaluated grants in UserViewContext
+    return canEdit;
   };
 
   // Bulk delete mutation
@@ -224,22 +206,32 @@ export const AccountsPage = () => {
   // Bulk visibility mutation
   const visibilityMutation = useMutation({
     mutationFn: async ({ accountIds, isActive }: { accountIds: string[]; isActive: boolean }) => {
-      await api.patch('/accounts/bulk-visibility', {
+      const response = await api.patch<{ updated_count: number }>('/accounts/bulk-visibility', {
         account_ids: accountIds,
         is_active: isActive,
       });
+      return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      toast({
-        title: 'Account visibility updated',
-        status: 'success',
-        duration: 3000,
-      });
+      if (data.updated_count === 0) {
+        toast({
+          title: 'No accounts updated',
+          description: 'No accounts were changed — you may not have permission to modify these accounts.',
+          status: 'warning',
+          duration: 5000,
+        });
+      } else {
+        toast({
+          title: `${data.updated_count} account${data.updated_count !== 1 ? 's' : ''} updated`,
+          status: 'success',
+          duration: 3000,
+        });
+      }
       setSelectedAccounts(new Set());
     },
     onError: (error: any) => {
@@ -424,24 +416,12 @@ export const AccountsPage = () => {
   };
 
   const toggleInstitutionVisibility = (accounts: Account[]) => {
-    // Filter to only accounts the user can modify
     const modifiableAccounts = accounts.filter(account => canModifyAccount(account));
-
-    console.log('[AccountsPage] toggleInstitutionVisibility called', {
-      totalAccounts: accounts.length,
-      modifiableAccounts: modifiableAccounts.length,
-      accountDetails: modifiableAccounts.map(a => ({
-        id: a.id,
-        name: a.name,
-        userId: a.user_id,
-        isActive: a.is_active,
-      })),
-    });
 
     if (modifiableAccounts.length === 0) {
       toast({
         title: 'No accounts to modify',
-        description: 'You can only modify your own accounts',
+        description: 'You do not have permission to modify these accounts',
         status: 'warning',
         duration: 3000,
       });
@@ -449,19 +429,13 @@ export const AccountsPage = () => {
     }
 
     const shouldHide = allVisible(modifiableAccounts);
-    const accountIds = modifiableAccounts.map((a) => a.id);
-
-    console.log('[AccountsPage] Calling bulk visibility mutation', {
-      accountIds,
+    visibilityMutation.mutate({
+      accountIds: modifiableAccounts.map((a) => a.id),
       isActive: !shouldHide,
-      shouldHide,
     });
-
-    visibilityMutation.mutate({ accountIds, isActive: !shouldHide });
   };
 
   const handleBulkHide = () => {
-    // Filter to only accounts the user owns
     const ownedAccountIds = Array.from(selectedAccounts).filter(accountId => {
       const account = accounts?.find(a => a.id === accountId);
       return account && canModifyAccount(account);
@@ -470,7 +444,7 @@ export const AccountsPage = () => {
     if (ownedAccountIds.length === 0) {
       toast({
         title: 'No accounts to modify',
-        description: 'You can only modify your own accounts',
+        description: 'You do not have permission to modify these accounts',
         status: 'warning',
         duration: 3000,
       });
@@ -484,7 +458,6 @@ export const AccountsPage = () => {
   };
 
   const handleBulkShow = () => {
-    // Filter to only accounts the user owns
     const ownedAccountIds = Array.from(selectedAccounts).filter(accountId => {
       const account = accounts?.find(a => a.id === accountId);
       return account && canModifyAccount(account);
@@ -493,7 +466,7 @@ export const AccountsPage = () => {
     if (ownedAccountIds.length === 0) {
       toast({
         title: 'No accounts to modify',
-        description: 'You can only modify your own accounts',
+        description: 'You do not have permission to modify these accounts',
         status: 'warning',
         duration: 3000,
       });
@@ -676,7 +649,7 @@ export const AccountsPage = () => {
                       bg={account.is_active ? 'white' : 'gray.50'}
                     >
                       <Td>
-                        <Tooltip label={!canModifyAccount(account) ? 'Cannot select another user\'s account' : ''}>
+                        <Tooltip label={!canModifyAccount(account) ? 'No permission to modify this account' : ''}>
                           <Checkbox
                             isChecked={selectedAccounts.has(account.id)}
                             isDisabled={!canModifyAccount(account)}
@@ -748,7 +721,7 @@ export const AccountsPage = () => {
                       </Td>
                       <Td>
                         <HStack spacing={2}>
-                          <Tooltip label={!canModifyAccount(account) ? 'Cannot modify another user\'s account' : (account.is_active ? 'Hide account from everywhere' : 'Show account everywhere')}>
+                          <Tooltip label={!canModifyAccount(account) ? 'No permission to modify this account' : (account.is_active ? 'Hide account from everywhere' : 'Show account everywhere')}>
                             <IconButton
                               icon={account.is_active ? <ViewOffIcon /> : <ViewIcon />}
                               size="sm"
@@ -763,7 +736,7 @@ export const AccountsPage = () => {
                               }
                             />
                           </Tooltip>
-                          <Tooltip label={!canModifyAccount(account) ? 'Cannot modify another user\'s account' : (account.exclude_from_cash_flow ? 'Include in budgets & cash flow' : 'Exclude from budgets & cash flow')}>
+                          <Tooltip label={!canModifyAccount(account) ? 'No permission to modify this account' : (account.exclude_from_cash_flow ? 'Include in budgets & cash flow' : 'Exclude from budgets & cash flow')}>
                             <IconButton
                               icon={<Icon as={account.exclude_from_cash_flow ? FiTrendingDown : FiTrendingUp} />}
                               size="sm"
@@ -779,17 +752,17 @@ export const AccountsPage = () => {
                               }
                             />
                           </Tooltip>
-                          <Tooltip label={!canModifyAccount(account) ? 'Cannot modify another user\'s account' : 'Edit account details'}>
+                          <Tooltip label={!canModifyAccount(account) ? 'No permission to modify this account' : 'Edit account details'}>
                             <IconButton
                               icon={<EditIcon />}
                               size="sm"
                               variant="ghost"
                               aria-label="Edit account"
                               isDisabled={!canModifyAccount(account)}
-                              onClick={() => navigate(`/accounts/${account.id}`)}
+                              onClick={() => navigate(`/accounts/${account.id}${selectedUserId ? `?user=${selectedUserId}` : ''}`)}
                             />
                           </Tooltip>
-                          <Tooltip label={!canModifyAccount(account) ? 'Cannot modify another user\'s account' : 'Delete account permanently'}>
+                          <Tooltip label={!canModifyAccount(account) ? 'No permission to modify this account' : 'Delete account permanently'}>
                             <IconButton
                               icon={<DeleteIcon />}
                               size="sm"

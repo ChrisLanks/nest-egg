@@ -31,6 +31,7 @@ from app.schemas.account import (
 )
 from app.services.deduplication_service import DeduplicationService
 from app.services.input_sanitization_service import input_sanitization_service
+from app.services.permission_service import permission_service
 from app.services.rate_limit_service import rate_limit_service
 
 logger = logging.getLogger(__name__)
@@ -296,7 +297,7 @@ async def bulk_update_visibility(
     """
     Update visibility for multiple accounts.
     Rate limited to 30 requests per minute.
-    Only updates accounts owned by the current user.
+    Only updates accounts the current user owns or has 'update' grant for.
     """
     # Rate limit: 30 bulk update requests per minute per IP
     await rate_limit_service.check_rate_limit(
@@ -305,36 +306,33 @@ async def bulk_update_visibility(
         window_seconds=60,
     )
 
-    import logging
-
-    logger = logging.getLogger(__name__)
-
-    logger.info(
-        f"[bulk-visibility] Request: account_ids={request.account_ids}, is_active={request.is_active}, user_id={current_user.id}, org_id={current_user.organization_id}"
-    )
-
-    # Check which accounts exist and are owned by the user
+    # Fetch all requested accounts that are within the org
     check_result = await db.execute(
-        select(Account.id, Account.user_id, Account.organization_id, Account.is_active).where(
-            Account.id.in_(request.account_ids)
+        select(Account.id, Account.user_id).where(
+            Account.id.in_(request.account_ids),
+            Account.organization_id == current_user.organization_id,
         )
     )
     existing_accounts = check_result.all()
-    logger.info(f"[bulk-visibility] Found {len(existing_accounts)} accounts: {existing_accounts}")
 
-    # Only allow updating accounts owned by the current user
+    if not existing_accounts:
+        return {"updated_count": 0}
+
+    # Bulk permission check: single DB query instead of one per account
+    allowed_ids = await permission_service.filter_allowed_resources(
+        db, current_user, "update", "account",
+        resource_owner_pairs=[(acc_id, acc_user_id) for acc_id, acc_user_id in existing_accounts],
+    )
+
+    if not allowed_ids:
+        return {"updated_count": 0}
+
     result = await db.execute(
         update(Account)
-        .where(
-            Account.id.in_(request.account_ids),
-            Account.organization_id == current_user.organization_id,
-            Account.user_id == current_user.id,  # Must be account owner
-        )
+        .where(Account.id.in_(allowed_ids))
         .values(is_active=request.is_active)
     )
     await db.commit()
-
-    logger.info(f"[bulk-visibility] Updated {result.rowcount} accounts")
 
     return {"updated_count": result.rowcount}
 
@@ -343,9 +341,16 @@ async def bulk_update_visibility(
 async def update_account(
     account_data: AccountUpdate,
     account: Account = Depends(get_verified_account),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Update account details."""
+    # Enforce permission: owner, org admin, or holder of an 'update' grant
+    await permission_service.require(
+        db, current_user, "update", "account",
+        resource_id=account.id, owner_id=account.user_id,
+    )
+
     # Update basic fields
     if account_data.name is not None:
         account.name = input_sanitization_service.sanitize_html(account_data.name)
@@ -513,6 +518,12 @@ async def refresh_account_valuation(
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
+    # Enforce permission: owner, org admin, or holder of an 'update' grant
+    await permission_service.require(
+        db, current_user, "update", "account",
+        resource_id=account.id, owner_id=account.user_id,
+    )
+
     valuation_result = None
     vin_info = None
 
@@ -602,19 +613,35 @@ async def bulk_delete_accounts(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete multiple accounts at once. Only deletes accounts owned by the current user."""
+    """Delete multiple accounts at once. Only deletes accounts the user owns or has 'delete' grant for."""
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=10,
         window_seconds=60,
     )
-    # Only allow deletion of accounts owned by the current user
-    result = await db.execute(
-        delete(Account).where(
+    # Fetch all requested accounts within the org
+    fetch_result = await db.execute(
+        select(Account.id, Account.user_id).where(
             Account.id.in_(account_ids),
             Account.organization_id == current_user.organization_id,
-            Account.user_id == current_user.id,  # Must be account owner
         )
+    )
+    existing_accounts = fetch_result.all()
+
+    if not existing_accounts:
+        return {"deleted_count": 0}
+
+    # Bulk permission check: single DB query instead of one per account
+    allowed_ids = await permission_service.filter_allowed_resources(
+        db, current_user, "delete", "account",
+        resource_owner_pairs=[(acc_id, acc_user_id) for acc_id, acc_user_id in existing_accounts],
+    )
+
+    if not allowed_ids:
+        return {"deleted_count": 0}
+
+    result = await db.execute(
+        delete(Account).where(Account.id.in_(allowed_ids))
     )
     await db.commit()
     return {"deleted_count": result.rowcount}

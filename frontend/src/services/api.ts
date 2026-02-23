@@ -159,10 +159,25 @@ const refreshTokenNow = (): Promise<string | null> => {
   return refreshPromise;
 };
 
-// Request interceptor to add JWT token and check expiration
+// Read a cookie value by name
+const getCookie = (name: string): string | undefined => {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : undefined;
+};
+
+// Request interceptor to add JWT token, CSRF token, and check expiration
 api.interceptors.request.use(
   async (config) => {
     const token = useAuthStore.getState().accessToken;
+
+    // Attach CSRF token from cookie for state-changing requests
+    const method = config.method?.toUpperCase();
+    if (method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+      const csrfToken = getCookie('csrf_token');
+      if (csrfToken && config.headers) {
+        config.headers['X-CSRF-Token'] = csrfToken;
+      }
+    }
 
     // Log all API requests (mask sensitive data)
     const logData = config.url?.includes('/auth/')

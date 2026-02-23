@@ -152,7 +152,7 @@ export default function BudgetsPage() {
             description="Create budgets to track spending by category and stay on top of your financial goals."
             actionLabel="Create Your First Budget"
             onAction={handleCreate}
-            showAction={!isOtherUserView}
+            showAction={canEdit}
           />
         )}
 

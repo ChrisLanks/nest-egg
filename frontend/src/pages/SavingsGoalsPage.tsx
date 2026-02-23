@@ -385,12 +385,12 @@ export default function SavingsGoalsPage() {
             description="Set savings goals to track progress toward vacations, emergency funds, down payments, and more."
             actionLabel="Create Your First Goal"
             onAction={handleCreate}
-            showAction={!isOtherUserView}
+            showAction={canEdit}
           />
         )}
 
         {/* Emergency Fund quick-start card */}
-        {!goalsLoading && !isOtherUserView && canEdit && !hasEmergencyFundGoal && (
+        {!goalsLoading && canEdit && !hasEmergencyFundGoal && (
           <Card variant="outline" borderColor="blue.200" bg="blue.50">
             <CardBody>
               <HStack justify="space-between" flexWrap="wrap" spacing={4}>

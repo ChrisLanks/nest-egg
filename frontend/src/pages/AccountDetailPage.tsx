@@ -631,10 +631,11 @@ export const AccountDetailPage = () => {
   const isOwner = account.user_id === user?.id;
 
   // Disable editing if:
-  // 1. User doesn't have edit permission, OR
-  // 2. User doesn't own the account, OR
-  // 3. Account is shared AND in combined view (multi accounts can only be edited in individual views)
-  const canEditAccount = canEdit && isOwner && !isSharedAccount;
+  // 1. User doesn't have edit permission (no ownership or grant), OR
+  // 2. In combined view and user doesn't own the account
+  //    (in other-user view, canEdit already validated the grant), OR
+  // 3. Account is shared AND in combined view (must edit in individual user view)
+  const canEditAccount = canEdit && (isOwner || !isCombinedView) && !isSharedAccount;
 
   const isAssetAccount = ASSET_ACCOUNT_TYPES.includes(account.account_type);
   const isManual = account.account_source === 'manual';

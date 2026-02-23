@@ -214,10 +214,23 @@ async def update_grant(
             detail="Only the grantor or an org admin may modify this grant",
         )
 
+    # Resolve the original grantor — must remain the data owner, not the
+    # admin who happens to be editing the grant.
+    if existing.grantor_id == current_user.id:
+        grantor_user = current_user
+    else:
+        from app.crud.user import user_crud
+        grantor_user = await user_crud.get_by_id(db, existing.grantor_id)
+        if grantor_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Original grantor not found",
+            )
+
     # Re-use the service grant() which performs an upsert
     grant = await permission_service.grant(
         db,
-        grantor=current_user,
+        grantor=grantor_user,
         grantee_id=existing.grantee_id,
         resource_type=existing.resource_type,
         actions=list(body.actions),

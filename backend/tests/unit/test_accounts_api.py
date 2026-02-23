@@ -668,9 +668,12 @@ class TestBulkUpdateVisibility:
         account_ids = [uuid4(), uuid4()]
         request_data = BulkVisibilityUpdate(account_ids=account_ids, is_active=False)
 
-        # Mock check query
+        # Mock check query — selects (Account.id, Account.user_id)
         check_result = Mock()
-        check_result.all.return_value = [(account_ids[0], mock_user.id, mock_user.organization_id, True)]
+        check_result.all.return_value = [
+            (account_ids[0], mock_user.id),
+            (account_ids[1], mock_user.id),
+        ]
 
         # Mock update result
         update_result = Mock()
@@ -678,9 +681,91 @@ class TestBulkUpdateVisibility:
 
         mock_db.execute.side_effect = [check_result, update_result]
 
-        with patch(
-            "app.api.v1.accounts.rate_limit_service.check_rate_limit",
-            return_value=None,
+        with (
+            patch(
+                "app.api.v1.accounts.rate_limit_service.check_rate_limit",
+                return_value=None,
+            ),
+            patch(
+                "app.api.v1.accounts.permission_service.filter_allowed_resources",
+                new=AsyncMock(return_value=account_ids),
+            ) as mock_filter,
+        ):
+            result = await bulk_update_visibility(
+                request=request_data,
+                http_request=mock_http_request,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            assert result["updated_count"] == 2
+            assert mock_db.commit.called
+            mock_filter.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_only_updates_owned_accounts(self, mock_db, mock_user, mock_http_request):
+        """Should only update accounts the user owns or has update grant for."""
+        account_ids = [uuid4(), uuid4()]
+        other_user_id = uuid4()
+        request_data = BulkVisibilityUpdate(account_ids=account_ids, is_active=True)
+
+        # Mock check query — accounts exist but owned by someone else
+        check_result = Mock()
+        check_result.all.return_value = [
+            (account_ids[0], other_user_id),
+            (account_ids[1], other_user_id),
+        ]
+
+        mock_db.execute.return_value = check_result
+
+        with (
+            patch(
+                "app.api.v1.accounts.rate_limit_service.check_rate_limit",
+                return_value=None,
+            ),
+            patch(
+                "app.api.v1.accounts.permission_service.filter_allowed_resources",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            result = await bulk_update_visibility(
+                request=request_data,
+                http_request=mock_http_request,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            assert result["updated_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_updates_granted_accounts(self, mock_db, mock_user, mock_http_request):
+        """Should update accounts the user has an update grant for (not just owned)."""
+        account_ids = [uuid4(), uuid4()]
+        other_user_id = uuid4()
+        request_data = BulkVisibilityUpdate(account_ids=account_ids, is_active=False)
+
+        # Accounts exist in org but owned by another user
+        check_result = Mock()
+        check_result.all.return_value = [
+            (account_ids[0], other_user_id),
+            (account_ids[1], other_user_id),
+        ]
+
+        # Update result
+        update_result = Mock()
+        update_result.rowcount = 2
+
+        mock_db.execute.side_effect = [check_result, update_result]
+
+        with (
+            patch(
+                "app.api.v1.accounts.rate_limit_service.check_rate_limit",
+                return_value=None,
+            ),
+            patch(
+                "app.api.v1.accounts.permission_service.filter_allowed_resources",
+                new=AsyncMock(return_value=account_ids),
+            ),
         ):
             result = await bulk_update_visibility(
                 request=request_data,
@@ -692,35 +777,6 @@ class TestBulkUpdateVisibility:
             assert result["updated_count"] == 2
             assert mock_db.commit.called
 
-    @pytest.mark.asyncio
-    async def test_only_updates_owned_accounts(self, mock_db, mock_user, mock_http_request):
-        """Should only update accounts owned by current user."""
-        account_ids = [uuid4(), uuid4()]
-        request_data = BulkVisibilityUpdate(account_ids=account_ids, is_active=True)
-
-        # Mock check query
-        check_result = Mock()
-        check_result.all.return_value = []
-
-        # Mock update result - 0 rows because user doesn't own accounts
-        update_result = Mock()
-        update_result.rowcount = 0
-
-        mock_db.execute.side_effect = [check_result, update_result]
-
-        with patch(
-            "app.api.v1.accounts.rate_limit_service.check_rate_limit",
-            return_value=None,
-        ):
-            result = await bulk_update_visibility(
-                request=request_data,
-                http_request=mock_http_request,
-                current_user=mock_user,
-                db=mock_db,
-            )
-
-            assert result["updated_count"] == 0
-
 
 @pytest.mark.unit
 class TestUpdateAccount:
@@ -731,9 +787,18 @@ class TestUpdateAccount:
         return AsyncMock()
 
     @pytest.fixture
-    def mock_account(self):
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        user.is_org_admin = False
+        return user
+
+    @pytest.fixture
+    def mock_account(self, mock_user):
         account = Mock(spec=Account)
         account.id = uuid4()
+        account.user_id = mock_user.id  # owned by mock_user
         account.name = "Original Name"
         account.is_active = True
         account.current_balance = Decimal("1000.00")
@@ -742,13 +807,22 @@ class TestUpdateAccount:
         account.account_type = AccountType.CHECKING  # non-debt so balance stays positive
         return account
 
+    @pytest.fixture(autouse=True)
+    def _allow_permission(self):
+        with patch(
+            "app.api.v1.accounts.permission_service.require",
+            new=AsyncMock(return_value=None),
+        ):
+            yield
+
     @pytest.mark.asyncio
-    async def test_updates_account_name(self, mock_db, mock_account):
+    async def test_updates_account_name(self, mock_db, mock_user, mock_account):
         """Should update account name."""
         update_data = AccountUpdate(name="New Name")
 
         result = await update_account(
-            account_data=update_data, account=mock_account, db=mock_db
+            account_data=update_data, account=mock_account,
+            current_user=mock_user, db=mock_db,
         )
 
         assert result.name == "New Name"
@@ -756,40 +830,43 @@ class TestUpdateAccount:
         assert mock_db.refresh.called
 
     @pytest.mark.asyncio
-    async def test_updates_is_active_flag(self, mock_db, mock_account):
+    async def test_updates_is_active_flag(self, mock_db, mock_user, mock_account):
         """Should update is_active flag."""
         update_data = AccountUpdate(is_active=False)
 
         result = await update_account(
-            account_data=update_data, account=mock_account, db=mock_db
+            account_data=update_data, account=mock_account,
+            current_user=mock_user, db=mock_db,
         )
 
         assert result.is_active is False
 
     @pytest.mark.asyncio
-    async def test_updates_balance(self, mock_db, mock_account):
+    async def test_updates_balance(self, mock_db, mock_user, mock_account):
         """Should update current_balance."""
         update_data = AccountUpdate(current_balance=Decimal("5000.00"))
 
         result = await update_account(
-            account_data=update_data, account=mock_account, db=mock_db
+            account_data=update_data, account=mock_account,
+            current_user=mock_user, db=mock_db,
         )
 
         assert result.current_balance == Decimal("5000.00")
 
     @pytest.mark.asyncio
-    async def test_updates_exclude_from_cash_flow(self, mock_db, mock_account):
+    async def test_updates_exclude_from_cash_flow(self, mock_db, mock_user, mock_account):
         """Should update exclude_from_cash_flow flag."""
         update_data = AccountUpdate(exclude_from_cash_flow=True)
 
         result = await update_account(
-            account_data=update_data, account=mock_account, db=mock_db
+            account_data=update_data, account=mock_account,
+            current_user=mock_user, db=mock_db,
         )
 
         assert result.exclude_from_cash_flow is True
 
     @pytest.mark.asyncio
-    async def test_updates_multiple_fields(self, mock_db, mock_account):
+    async def test_updates_multiple_fields(self, mock_db, mock_user, mock_account):
         """Should update multiple fields at once."""
         update_data = AccountUpdate(
             name="New Name",
@@ -799,7 +876,8 @@ class TestUpdateAccount:
         )
 
         result = await update_account(
-            account_data=update_data, account=mock_account, db=mock_db
+            account_data=update_data, account=mock_account,
+            current_user=mock_user, db=mock_db,
         )
 
         assert result.name == "New Name"
@@ -809,11 +887,12 @@ class TestUpdateAccount:
 
     @pytest.mark.asyncio
     async def test_update_negates_positive_balance_for_debt_account(
-        self, mock_db
+        self, mock_db, mock_user
     ):
         """Positive current_balance on update for a debt account must be negated."""
         account = Mock(spec=Account)
         account.id = uuid4()
+        account.user_id = mock_user.id
         account.name = "My Mortgage"
         account.account_type = AccountType.MORTGAGE
         account.is_active = True
@@ -824,18 +903,20 @@ class TestUpdateAccount:
         update_data = AccountUpdate(current_balance=Decimal("330000.00"))
 
         result = await update_account(
-            account_data=update_data, account=account, db=mock_db
+            account_data=update_data, account=account,
+            current_user=mock_user, db=mock_db,
         )
 
         assert result.current_balance == Decimal("-330000.00")
 
     @pytest.mark.asyncio
     async def test_update_keeps_negative_balance_for_debt_account(
-        self, mock_db
+        self, mock_db, mock_user
     ):
         """Already-negative current_balance on update for a debt account should be stored as-is."""
         account = Mock(spec=Account)
         account.id = uuid4()
+        account.user_id = mock_user.id
         account.name = "My Loan"
         account.account_type = AccountType.LOAN
         account.is_active = True
@@ -846,18 +927,20 @@ class TestUpdateAccount:
         update_data = AccountUpdate(current_balance=Decimal("-12000.00"))
 
         result = await update_account(
-            account_data=update_data, account=account, db=mock_db
+            account_data=update_data, account=account,
+            current_user=mock_user, db=mock_db,
         )
 
         assert result.current_balance == Decimal("-12000.00")
 
     @pytest.mark.asyncio
     async def test_update_keeps_positive_balance_for_asset_account(
-        self, mock_db
+        self, mock_db, mock_user
     ):
         """Positive current_balance on update for a non-debt account must NOT be negated."""
         account = Mock(spec=Account)
         account.id = uuid4()
+        account.user_id = mock_user.id
         account.name = "My Checking"
         account.account_type = AccountType.CHECKING
         account.is_active = True
@@ -868,10 +951,33 @@ class TestUpdateAccount:
         update_data = AccountUpdate(current_balance=Decimal("7500.00"))
 
         result = await update_account(
-            account_data=update_data, account=account, db=mock_db
+            account_data=update_data, account=account,
+            current_user=mock_user, db=mock_db,
         )
 
         assert result.current_balance == Decimal("7500.00")
+
+    @pytest.mark.asyncio
+    async def test_update_rejects_without_permission(self, mock_db, mock_account):
+        """Should raise 403 when user has no update grant for another user's account."""
+        other_user = Mock(spec=User)
+        other_user.id = uuid4()
+        other_user.organization_id = mock_account.organization_id if hasattr(mock_account, 'organization_id') else uuid4()
+        other_user.is_org_admin = False
+
+        update_data = AccountUpdate(name="Hacked")
+
+        with patch(
+            "app.api.v1.accounts.permission_service.require",
+            new=AsyncMock(side_effect=HTTPException(status_code=403, detail="Insufficient permissions")),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await update_account(
+                    account_data=update_data, account=mock_account,
+                    current_user=other_user, db=mock_db,
+                )
+
+            assert exc_info.value.status_code == 403
 
 
 @pytest.mark.unit
@@ -891,19 +997,35 @@ class TestBulkDeleteAccounts:
 
     @pytest.mark.asyncio
     async def test_deletes_multiple_accounts(self, mock_db, mock_user):
-        """Should delete multiple accounts at once."""
+        """Should delete multiple accounts at once (owned accounts)."""
         account_ids = [uuid4(), uuid4(), uuid4()]
 
+        # First execute: fetch (id, user_id) pairs — all owned by current user
+        fetch_result = Mock()
+        fetch_result.all.return_value = [
+            (account_ids[0], mock_user.id),
+            (account_ids[1], mock_user.id),
+            (account_ids[2], mock_user.id),
+        ]
+
+        # Second execute: the DELETE statement
         delete_result = Mock()
         delete_result.rowcount = 3
-        mock_db.execute.return_value = delete_result
+
+        mock_db.execute.side_effect = [fetch_result, delete_result]
 
         mock_request = Mock()
         mock_request.client = Mock()
         mock_request.client.host = "127.0.0.1"
         mock_request.headers = {}
 
-        with patch("app.api.v1.accounts.rate_limit_service.check_rate_limit", return_value=None):
+        with (
+            patch("app.api.v1.accounts.rate_limit_service.check_rate_limit", return_value=None),
+            patch(
+                "app.api.v1.accounts.permission_service.filter_allowed_resources",
+                new=AsyncMock(return_value=account_ids),
+            ),
+        ):
             result = await bulk_delete_accounts(
                 account_ids=account_ids, http_request=mock_request, current_user=mock_user, db=mock_db
             )
@@ -913,25 +1035,76 @@ class TestBulkDeleteAccounts:
 
     @pytest.mark.asyncio
     async def test_only_deletes_owned_accounts(self, mock_db, mock_user):
-        """Should only delete accounts owned by current user."""
+        """Should not delete accounts the user neither owns nor has a delete grant for."""
         account_ids = [uuid4(), uuid4()]
+        other_user_id = uuid4()
 
-        # Mock 0 rows deleted because user doesn't own accounts
-        delete_result = Mock()
-        delete_result.rowcount = 0
-        mock_db.execute.return_value = delete_result
+        # Fetch returns accounts owned by someone else, not mock_user
+        fetch_result = Mock()
+        fetch_result.all.return_value = [
+            (account_ids[0], other_user_id),
+            (account_ids[1], other_user_id),
+        ]
+        mock_db.execute.return_value = fetch_result
 
         mock_request = Mock()
         mock_request.client = Mock()
         mock_request.client.host = "127.0.0.1"
         mock_request.headers = {}
 
-        with patch("app.api.v1.accounts.rate_limit_service.check_rate_limit", return_value=None):
+        # No delete grant — filter_allowed_resources returns empty list
+        with (
+            patch("app.api.v1.accounts.rate_limit_service.check_rate_limit", return_value=None),
+            patch(
+                "app.api.v1.accounts.permission_service.filter_allowed_resources",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
             result = await bulk_delete_accounts(
                 account_ids=account_ids, http_request=mock_request, current_user=mock_user, db=mock_db
             )
 
+        # Early return before DELETE execute — nothing deleted
         assert result["deleted_count"] == 0
+        assert not mock_db.commit.called
+
+    @pytest.mark.asyncio
+    async def test_deletes_granted_accounts(self, mock_db, mock_user):
+        """Should delete accounts the user has a delete grant for (not just owned)."""
+        account_ids = [uuid4(), uuid4()]
+        other_user_id = uuid4()
+
+        # Accounts exist in org but owned by another user
+        fetch_result = Mock()
+        fetch_result.all.return_value = [
+            (account_ids[0], other_user_id),
+            (account_ids[1], other_user_id),
+        ]
+
+        # DELETE result
+        delete_result = Mock()
+        delete_result.rowcount = 2
+
+        mock_db.execute.side_effect = [fetch_result, delete_result]
+
+        mock_request = Mock()
+        mock_request.client = Mock()
+        mock_request.client.host = "127.0.0.1"
+        mock_request.headers = {}
+
+        with (
+            patch("app.api.v1.accounts.rate_limit_service.check_rate_limit", return_value=None),
+            patch(
+                "app.api.v1.accounts.permission_service.filter_allowed_resources",
+                new=AsyncMock(return_value=account_ids),
+            ),
+        ):
+            result = await bulk_delete_accounts(
+                account_ids=account_ids, http_request=mock_request, current_user=mock_user, db=mock_db
+            )
+
+        assert result["deleted_count"] == 2
+        assert mock_db.commit.called
 
 
 @pytest.mark.unit
@@ -1050,10 +1223,11 @@ class TestAccountNameSanitization:
         assert "<script>" not in result.name
 
     @pytest.mark.asyncio
-    async def test_update_strips_html_from_name(self, mock_db):
+    async def test_update_strips_html_from_name(self, mock_db, mock_user):
         """HTML tags in account name must be stripped on update."""
         account = Mock(spec=Account)
         account.id = uuid4()
+        account.user_id = mock_user.id
         account.name = "Original"
         account.is_active = True
         account.current_balance = Decimal("1000.00")
@@ -1063,14 +1237,19 @@ class TestAccountNameSanitization:
         update_data = AccountUpdate(name="<b>Bold</b> Name")
 
         with patch(
-            "app.api.v1.accounts.input_sanitization_service.sanitize_html",
-            side_effect=lambda s: s.replace("<b>", "").replace("</b>", ""),
-        ) as mock_sanitize:
-            result = await update_account(
-                account_data=update_data,
-                account=account,
-                db=mock_db,
-            )
+            "app.api.v1.accounts.permission_service.require",
+            new_callable=AsyncMock,
+        ):
+            with patch(
+                "app.api.v1.accounts.input_sanitization_service.sanitize_html",
+                side_effect=lambda s: s.replace("<b>", "").replace("</b>", ""),
+            ) as mock_sanitize:
+                result = await update_account(
+                    account_data=update_data,
+                    account=account,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
 
         mock_sanitize.assert_called_once_with("<b>Bold</b> Name")
         assert "<b>" not in result.name

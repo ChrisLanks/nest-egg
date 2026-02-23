@@ -527,9 +527,9 @@ export default function RecurringTransactionsPage() {
               description="Automatically detect subscription payments, bills, and other recurring transactions in your history — or add one manually."
               actionLabel="Detect Patterns Now"
               onAction={() => detectMutation.mutate()}
-              showAction={!isOtherUserView}
+              showAction={canEdit}
             />
-            {!isOtherUserView && (
+            {canEdit && (
               <Button variant="outline" colorScheme="brand" leftIcon={<AddIcon />} onClick={onAddOpen}>
                 Add Manually
               </Button>

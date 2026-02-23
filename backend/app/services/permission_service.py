@@ -21,6 +21,7 @@ Usage::
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -38,6 +39,8 @@ from app.models.permission import (
 )
 from app.models.user import User
 from app.utils.datetime_utils import utc_now
+
+logger = logging.getLogger(__name__)
 
 
 class PermissionService:
@@ -79,10 +82,85 @@ class PermissionService:
             resource_id=resource_id,
         )
         if grant is None:
+            logger.debug(
+                "[permission.check] DENY — no active grant found | "
+                "actor=%s action=%s resource_type=%s resource_id=%s owner_id=%s",
+                actor.id, action, resource_type, resource_id, owner_id,
+            )
             return False
         if grant.expires_at is not None and utc_now() > grant.expires_at:
+            logger.debug(
+                "[permission.check] DENY — grant expired | grant_id=%s expires_at=%s",
+                grant.id, grant.expires_at,
+            )
             return False
-        return action in (grant.actions or [])
+        allowed = action in (grant.actions or [])
+        logger.debug(
+            "[permission.check] %s | grant_id=%s actor=%s action=%s actions=%s",
+            "ALLOW" if allowed else "DENY (action not in grant)",
+            grant.id, actor.id, action, grant.actions,
+        )
+        return allowed
+
+    async def filter_allowed_resources(
+        self,
+        db: AsyncSession,
+        actor: User,
+        action: str,
+        resource_type: str,
+        resource_owner_pairs: list[tuple[UUID, UUID]],
+    ) -> list[UUID]:
+        """Return the subset of resource IDs the actor may perform *action* on.
+
+        This is a bulk-optimised alternative to calling ``check()`` in a loop.
+        It fetches all relevant grants in a *single* DB query and resolves
+        permissions in Python.
+
+        Args:
+            resource_owner_pairs: list of ``(resource_id, owner_id)`` tuples.
+
+        Returns:
+            List of ``resource_id`` values the actor is allowed to act on.
+        """
+        if actor.is_org_admin:
+            return [rid for rid, _ in resource_owner_pairs]
+
+        allowed: list[UUID] = []
+        non_owned: list[tuple[UUID, UUID]] = []
+
+        for rid, owner_id in resource_owner_pairs:
+            if actor.id == owner_id:
+                allowed.append(rid)
+            else:
+                non_owned.append((rid, owner_id))
+
+        if not non_owned:
+            return allowed
+
+        # Single DB query: fetch ALL grants the actor has for this resource type
+        grants = await permission_grant_crud.list_grants_for_grantee(
+            db, grantee_id=actor.id, resource_type=resource_type,
+        )
+
+        now = utc_now()
+        wildcard_grantors: set[UUID] = set()
+        specific_resources: set[UUID] = set()
+
+        for g in grants:
+            if g.expires_at is not None and now > g.expires_at:
+                continue
+            if action not in (g.actions or []):
+                continue
+            if g.resource_id is None:
+                wildcard_grantors.add(g.grantor_id)
+            else:
+                specific_resources.add(g.resource_id)
+
+        for rid, owner_id in non_owned:
+            if owner_id in wildcard_grantors or rid in specific_resources:
+                allowed.append(rid)
+
+        return allowed
 
     async def require(
         self,

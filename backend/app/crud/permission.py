@@ -32,6 +32,10 @@ class PermissionGrantCRUD:
         Checks two conditions (OR):
           1. Exact match: same resource_id
           2. Wildcard grant: resource_id IS NULL (covers all resources of this type)
+
+        Uses .scalars().first() instead of scalar_one_or_none() to gracefully
+        handle the rare case where PostgreSQL NULL uniqueness allows duplicate
+        wildcard rows — returning the first match rather than raising.
         """
         result = await db.execute(
             select(PermissionGrant).where(
@@ -45,7 +49,7 @@ class PermissionGrantCRUD:
                 ),
             )
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     @staticmethod
     async def find_exact(
@@ -68,6 +72,27 @@ class PermissionGrantCRUD:
 
         result = await db.execute(select(PermissionGrant).where(condition))
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def list_grants_for_grantee(
+        db: AsyncSession,
+        grantee_id: UUID,
+        resource_type: str,
+    ) -> list[PermissionGrant]:
+        """Return all active grants a grantee has received for a resource type.
+
+        Unlike ``find_active`` this does NOT filter by grantor or resource_id,
+        making it suitable for bulk permission checks where we need to evaluate
+        many resources from potentially different owners in a single query.
+        """
+        result = await db.execute(
+            select(PermissionGrant).where(
+                PermissionGrant.grantee_id == grantee_id,
+                PermissionGrant.resource_type == resource_type,
+                PermissionGrant.is_active.is_(True),
+            )
+        )
+        return list(result.scalars().all())
 
     @staticmethod
     async def list_given(
