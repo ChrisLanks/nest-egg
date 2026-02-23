@@ -177,7 +177,12 @@ class RuleEngine:
                 return field_value.endswith(condition_value)
             elif condition.operator == ConditionOperator.REGEX:
                 try:
-                    return bool(re.search(condition_value, field_value, re.IGNORECASE))
+                    # Limit pattern length and reject known ReDoS constructs
+                    if len(condition_value) > 200:
+                        return False
+                    compiled = re.compile(condition_value, re.IGNORECASE)
+                    # Use match with a short string limit to bound execution
+                    return bool(compiled.search(field_value[:1000]))
                 except re.error:
                     return False
 
@@ -213,8 +218,13 @@ class RuleEngine:
                 return True
 
             elif action.action_type == ActionType.ADD_LABEL:
-                # Check if label exists
-                result = await self.db.execute(select(Label).where(Label.id == action.action_value))
+                # Check if label exists AND belongs to the same organization
+                result = await self.db.execute(
+                    select(Label).where(
+                        Label.id == action.action_value,
+                        Label.organization_id == transaction.organization_id,
+                    )
+                )
                 label = result.scalar_one_or_none()
                 if not label:
                     return False

@@ -233,22 +233,24 @@ class InsightsService:
                 merchant_data[merchant] = []
             merchant_data[merchant].append(amount)
 
-        # Find anomalies
+        # Find anomalies using leave-one-out: exclude the candidate from its own stats
         insights = []
         for txn in transactions:
             merchant = txn.merchant_name
             amount = abs(float(txn.amount))
             merchant_transactions = merchant_data[merchant]
 
-            # Need at least 3 transactions to establish a pattern
-            if len(merchant_transactions) < 3:
+            # Need at least 4 transactions (3 others + the candidate) to establish a pattern
+            if len(merchant_transactions) < 4:
                 continue
 
-            # Calculate mean and standard deviation
-            mean = sum(merchant_transactions) / len(merchant_transactions)
-            variance = sum((x - mean) ** 2 for x in merchant_transactions) / len(
-                merchant_transactions
-            )
+            # Leave-one-out: compute stats from all OTHER transactions for this merchant
+            others = [x for x in merchant_transactions if x != amount]
+            if not others:
+                others = merchant_transactions[:-1]  # fallback for duplicates
+
+            mean = sum(others) / len(others)
+            variance = sum((x - mean) ** 2 for x in others) / len(others)
             std_dev = variance**0.5
 
             # Check if this transaction is >2 standard deviations from mean

@@ -63,7 +63,7 @@ class DashboardService:
             (
                 abs(account.current_balance or Decimal(0))
                 for account in accounts
-                if account.account_type.is_debt
+                if account.account_type.is_debt and self._should_include_in_networth(account)
             ),
             Decimal(0),
         )
@@ -137,13 +137,13 @@ class DashboardService:
         """
         # Handle Business Equity accounts
         if account.account_type == AccountType.BUSINESS_EQUITY:
-            # If direct equity value is provided, use it
-            if account.equity_value:
+            # If direct equity value is provided, use it (Decimal(0) is a valid explicit value)
+            if account.equity_value is not None:
                 return account.equity_value
             # If company valuation is provided
-            elif account.company_valuation:
+            elif account.company_valuation is not None:
                 # If ownership percentage is also provided, calculate proportional value
-                if account.ownership_percentage:
+                if account.ownership_percentage is not None:
                     return (account.company_valuation * account.ownership_percentage) / Decimal(100)
                 # If no percentage provided, assume 100% ownership (use full valuation)
                 else:

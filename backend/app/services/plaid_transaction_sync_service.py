@@ -156,12 +156,12 @@ class PlaidTransactionSyncService:
         # Parse transaction fields
         txn_date = datetime.strptime(txn_data["date"], "%Y-%m-%d").date()
         amount = Decimal(str(txn_data["amount"]))
-        txn_data.get("merchant_name") or txn_data.get("name")
+        merchant_name = txn_data.get("merchant_name") or txn_data.get("name", "")
         description = txn_data.get("name", "")
 
-        # Generate deduplication hash
+        # Generate deduplication hash (include merchant for stronger dedup)
         dedup_hash = self.generate_deduplication_hash(
-            account_id=account.id, txn_date=txn_date, amount=amount, description=description
+            account_id=account.id, txn_date=txn_date, amount=amount, description=merchant_name or description
         )
 
         # Check if transaction already exists by external_id (cross-account check)

@@ -40,6 +40,7 @@ Prod (S3 with explicit credentials)::
     AWS_SECRET_ACCESS_KEY=...
 """
 
+import asyncio
 import os
 from typing import Protocol, runtime_checkable
 
@@ -91,20 +92,32 @@ class LocalStorageService:
 
     async def save(self, key: str, data: bytes, content_type: str = "text/csv") -> str:
         path = self._full_path(key)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "wb") as f:
-            f.write(data)
+
+        def _write():
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as f:
+                f.write(data)
+
+        await asyncio.to_thread(_write)
         return path
 
     async def load(self, key: str) -> bytes:
         path = self._full_path(key)
-        with open(path, "rb") as f:
-            return f.read()
+
+        def _read():
+            with open(path, "rb") as f:
+                return f.read()
+
+        return await asyncio.to_thread(_read)
 
     async def delete(self, key: str) -> None:
         path = self._full_path(key)
-        if os.path.exists(path):
-            os.remove(path)
+
+        def _remove():
+            if os.path.exists(path):
+                os.remove(path)
+
+        await asyncio.to_thread(_remove)
 
 
 class S3StorageService:
@@ -132,7 +145,8 @@ class S3StorageService:
 
     async def save(self, key: str, data: bytes, content_type: str = "text/csv") -> str:
         full_key = self._full_key(key)
-        self._s3.put_object(
+        await asyncio.to_thread(
+            self._s3.put_object,
             Bucket=self._bucket,
             Key=full_key,
             Body=data,
@@ -142,12 +156,18 @@ class S3StorageService:
 
     async def load(self, key: str) -> bytes:
         full_key = self._full_key(key)
-        response = self._s3.get_object(Bucket=self._bucket, Key=full_key)
-        return response["Body"].read()
+
+        def _read():
+            response = self._s3.get_object(Bucket=self._bucket, Key=full_key)
+            return response["Body"].read()
+
+        return await asyncio.to_thread(_read)
 
     async def delete(self, key: str) -> None:
         full_key = self._full_key(key)
-        self._s3.delete_object(Bucket=self._bucket, Key=full_key)
+        await asyncio.to_thread(
+            self._s3.delete_object, Bucket=self._bucket, Key=full_key
+        )
 
 
 def get_storage_service() -> StorageService:

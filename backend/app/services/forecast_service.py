@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from decimal import Decimal as D
 from typing import List, Dict, Optional
+from dateutil.relativedelta import relativedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from uuid import UUID
@@ -167,6 +168,7 @@ class ForecastService:
             AccountType.COLLECTIBLES,
             AccountType.OTHER,
             AccountType.MANUAL,
+            AccountType.PENSION,
         }
 
         for account in accounts:
@@ -189,13 +191,13 @@ class ForecastService:
             # Calculate account value
             # Handle Business Equity accounts
             if account.account_type == AccountType.BUSINESS_EQUITY:
-                # If direct equity value is provided, use it
-                if account.equity_value:
+                # If direct equity value is provided, use it (Decimal(0) is valid)
+                if account.equity_value is not None:
                     total += account.equity_value
                 # If company valuation is provided
-                elif account.company_valuation:
+                elif account.company_valuation is not None:
                     # If ownership percentage is also provided, calculate proportional value
-                    if account.ownership_percentage:
+                    if account.ownership_percentage is not None:
                         total += (
                             account.company_valuation * account.ownership_percentage
                         ) / Decimal(100)
@@ -256,16 +258,16 @@ class ForecastService:
         current_date = pattern.next_expected_date or date.today()
         end_date = date.today() + timedelta(days=days_ahead)
 
-        # Frequency to days mapping
-        frequency_days = {
-            RecurringFrequency.WEEKLY: 7,
-            RecurringFrequency.BIWEEKLY: 14,
-            RecurringFrequency.MONTHLY: 30,
-            RecurringFrequency.QUARTERLY: 90,
-            RecurringFrequency.YEARLY: 365,
+        # Calendar-aware frequency increments (avoids drift from fixed day counts)
+        frequency_deltas = {
+            RecurringFrequency.WEEKLY: relativedelta(weeks=1),
+            RecurringFrequency.BIWEEKLY: relativedelta(weeks=2),
+            RecurringFrequency.MONTHLY: relativedelta(months=1),
+            RecurringFrequency.QUARTERLY: relativedelta(months=3),
+            RecurringFrequency.YEARLY: relativedelta(years=1),
         }
 
-        interval_days = frequency_days.get(pattern.frequency, 30)
+        delta = frequency_deltas.get(pattern.frequency, relativedelta(months=1))
 
         # Generate occurrences until end_date
         while current_date <= end_date:
@@ -276,7 +278,7 @@ class ForecastService:
                     "merchant": pattern.merchant_name,
                 }
             )
-            current_date += timedelta(days=interval_days)
+            current_date += delta
 
         return occurrences
 

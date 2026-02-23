@@ -84,7 +84,7 @@ def decode_cursor(cursor: str) -> tuple:
         raise HTTPException(status_code=400, detail="Invalid cursor")
 
 
-@router.post("/", response_model=TransactionDetail, status_code=200)
+@router.post("/", response_model=TransactionDetail, status_code=201)
 async def create_transaction(
     transaction_data: ManualTransactionCreate,
     current_user: User = Depends(get_current_user),
@@ -278,6 +278,8 @@ async def list_transactions(
         )
         if account_id:
             count_query = count_query.where(Transaction.account_id == account_id)
+        if user_id:
+            count_query = count_query.where(Account.user_id == user_id)
         if start_date_obj:
             count_query = count_query.where(Transaction.date >= start_date_obj)
         if end_date_obj:

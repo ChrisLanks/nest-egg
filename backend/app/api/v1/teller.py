@@ -211,6 +211,7 @@ async def _handle_enrollment_connected(
         priority=NotificationPriority.LOW,
         expires_in_days=7,
     )
+    await db.commit()
 
 
 async def _handle_enrollment_disconnected(
@@ -268,6 +269,7 @@ async def _handle_account_opened(
             priority=NotificationPriority.LOW,
             expires_in_days=7,
         )
+        await db.commit()
 
 
 async def _handle_account_closed(
