@@ -177,6 +177,51 @@ def get_encryption_service() -> EncryptionService:
     return _encryption_service
 
 
+class EncryptedDate(TypeDecorator):
+    """
+    SQLAlchemy TypeDecorator that transparently encrypts/decrypts date fields.
+
+    Stored as a Text column (versioned encrypted ISO-date string); returns a
+    Python ``datetime.date`` on read.  Falls back gracefully:
+    - If decryption fails but the value is a valid ISO date string (YYYY-MM-DD),
+      it returns the parsed date (supports legacy plaintext rows during migration).
+    - Null values pass through unchanged.
+
+    Usage in models::
+
+        from app.services.encryption_service import EncryptedDate
+
+        birthdate = Column(EncryptedDate, nullable=True)
+    """
+
+    impl = String
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        """Encrypt on write: accepts date | str, stores versioned ciphertext."""
+        if value is None:
+            return None
+        from datetime import date as date_type
+        if isinstance(value, date_type):
+            value = value.isoformat()
+        return get_encryption_service().encrypt_token(value)
+
+    def process_result_value(self, value, dialect):
+        """Decrypt on read, return datetime.date. Falls back for legacy plaintext."""
+        if value is None:
+            return None
+        from datetime import date as date_type
+        try:
+            decrypted = get_encryption_service().decrypt_token(value)
+            return date_type.fromisoformat(decrypted)
+        except Exception:
+            # Legacy plaintext row: try parsing the raw value as ISO date
+            try:
+                return date_type.fromisoformat(str(value))
+            except Exception:
+                return None
+
+
 class EncryptedString(TypeDecorator):
     """
     SQLAlchemy TypeDecorator that transparently encrypts/decrypts string fields.

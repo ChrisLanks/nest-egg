@@ -232,3 +232,152 @@ async def get_system_stats(
         },
         "timestamp": datetime.utcnow().isoformat(),
     }
+
+
+# ---------------------------------------------------------------------------
+# GDPR Article 30 — Records of Processing Activities (RoPA)
+# ---------------------------------------------------------------------------
+
+_ROPA = [
+    {
+        "activity": "User authentication",
+        "purpose": "Verify user identity and issue access tokens",
+        "data_categories": ["email", "password_hash", "failed_login_attempts", "locked_until"],
+        "legal_basis": "Contractual necessity (Art. 6(1)(b))",
+        "retention": "Until account deletion",
+        "recipients": ["Internal system only"],
+    },
+    {
+        "activity": "Session management",
+        "purpose": "Maintain authenticated sessions via refresh tokens",
+        "data_categories": ["refresh_token_jti", "ip_address", "user_agent"],
+        "legal_basis": "Contractual necessity (Art. 6(1)(b))",
+        "retention": "30 days (tokens expire and are purged)",
+        "recipients": ["Internal system only"],
+    },
+    {
+        "activity": "Personal finance tracking",
+        "purpose": "Store and display user accounts, transactions, holdings, and budgets",
+        "data_categories": [
+            "account_names", "account_balances", "transaction_amounts",
+            "transaction_dates", "merchant_names", "categories",
+            "investment_holdings", "budget_limits",
+        ],
+        "legal_basis": "Contractual necessity (Art. 6(1)(b))",
+        "retention": "Until account deletion",
+        "recipients": ["Internal system only"],
+    },
+    {
+        "activity": "Household data sharing",
+        "purpose": "Allow household members to view/edit each other's financial data with explicit permission",
+        "data_categories": ["permission_grants", "resource_types", "grantee_user_ids"],
+        "legal_basis": "Explicit consent (Art. 6(1)(a)) — user initiates each grant",
+        "retention": "Until grant is revoked or account is deleted",
+        "recipients": ["Other household members (grantees) — limited to granted resource types"],
+    },
+    {
+        "activity": "External bank data import (Plaid)",
+        "purpose": "Fetch account balances and transactions from linked bank accounts",
+        "data_categories": [
+            "plaid_access_token (encrypted)", "account_ids", "transaction_data",
+        ],
+        "legal_basis": "Explicit consent (Art. 6(1)(a)) — user links each institution",
+        "retention": "Access token until user unlinks; transaction data until account deletion",
+        "recipients": ["Plaid Inc. (data processor) — subject to Plaid Privacy Policy"],
+    },
+    {
+        "activity": "External bank data import (Teller)",
+        "purpose": "Fetch account balances and transactions from linked bank accounts",
+        "data_categories": [
+            "teller_access_token (encrypted)", "account_ids", "transaction_data",
+        ],
+        "legal_basis": "Explicit consent (Art. 6(1)(a)) — user links each institution",
+        "retention": "Access token until user unlinks; transaction data until account deletion",
+        "recipients": ["Teller Inc. (data processor) — subject to Teller Privacy Policy"],
+    },
+    {
+        "activity": "Retirement planning calculations",
+        "purpose": "Calculate required minimum distributions (RMDs) and retirement projections",
+        "data_categories": ["birthdate (encrypted at rest)", "target_retirement_date"],
+        "legal_basis": "Explicit consent (Art. 6(1)(a)) — user optionally provides birthdate",
+        "retention": "Until removed by user or account deletion",
+        "recipients": ["Internal system only"],
+    },
+    {
+        "activity": "Multi-factor authentication",
+        "purpose": "Provide optional TOTP-based second factor for account security",
+        "data_categories": ["totp_secret (encrypted)", "backup_codes (encrypted)"],
+        "legal_basis": "Legitimate interest (Art. 6(1)(f)) — security of user data",
+        "retention": "Until MFA is disabled or account is deleted",
+        "recipients": ["Internal system only"],
+    },
+    {
+        "activity": "Consent records",
+        "purpose": "Record user consent to Terms of Service and Privacy Policy (GDPR Art. 7)",
+        "data_categories": ["consent_type", "version", "consented_at", "ip_address"],
+        "legal_basis": "Legal obligation (Art. 6(1)(c)) — GDPR Art. 7 record-keeping",
+        "retention": "3 years after account deletion (legal obligation)",
+        "recipients": ["Internal system only"],
+    },
+    {
+        "activity": "Permission grant audit log",
+        "purpose": "Immutable record of all permission grant changes (GDPR Art. 30)",
+        "data_categories": [
+            "grantor_id", "grantee_id", "resource_type", "actions_before",
+            "actions_after", "actor_id", "ip_address", "occurred_at",
+        ],
+        "legal_basis": "Legal obligation (Art. 6(1)(c)) — audit trail",
+        "retention": "Until grantor's account is deleted",
+        "recipients": ["Internal system only"],
+    },
+    {
+        "activity": "Error monitoring (Sentry)",
+        "purpose": "Track application errors for reliability and security incident detection",
+        "data_categories": ["stack_traces", "request_paths", "anonymised_user_ids"],
+        "legal_basis": "Legitimate interest (Art. 6(1)(f)) — application security and stability",
+        "retention": "90 days (Sentry default retention)",
+        "recipients": [
+            "Sentry Inc. (data processor) — PII scrubbed before transmission "
+            "(no email, no token, no financial data)"
+        ],
+    },
+    {
+        "activity": "Request logging",
+        "purpose": "Structured access logs for security monitoring and debugging",
+        "data_categories": [
+            "request_id", "http_method", "path", "status_code",
+            "duration_ms", "user_id (anonymised)", "ip_address",
+        ],
+        "legal_basis": "Legitimate interest (Art. 6(1)(f)) — security monitoring",
+        "retention": "30 days (log rotation)",
+        "recipients": ["Internal system only"],
+    },
+    {
+        "activity": "Data export (GDPR Art. 20)",
+        "purpose": "Provide users a machine-readable copy of all their data",
+        "data_categories": ["All data categories listed above"],
+        "legal_basis": "Legal obligation (Art. 6(1)(c)) — GDPR Art. 20 data portability",
+        "retention": "Export files are generated on demand and not stored server-side",
+        "recipients": ["User themselves only"],
+    },
+]
+
+
+@router.get("/data-processing-activities")
+async def list_data_processing_activities(
+    _admin: User = Depends(get_current_admin_user),
+):
+    """
+    GDPR Article 30 — Records of Processing Activities (RoPA).
+
+    Returns a machine-readable list of all data processing activities,
+    including legal basis, data categories, and recipient categories.
+
+    Restricted to org admins.
+    """
+    return {
+        "version": "2026-02",
+        "last_updated": "2026-02-23",
+        "controller": "Nest Egg",
+        "activities": _ROPA,
+    }

@@ -18,7 +18,11 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.core.security import hash_password, verify_password
 from app.models.account import Account
+from app.models.budget import Budget
 from app.models.holding import Holding
+from app.models.permission import PermissionGrant
+from app.models.recurring_transaction import RecurringTransaction
+from app.models.rule import Rule
 from app.models.transaction import Transaction
 from app.models.user import User, Organization
 from app.schemas.user import UserUpdate, OrganizationUpdate
@@ -295,6 +299,18 @@ async def export_data(
     """
     Export all data as a ZIP archive containing CSV files.
 
+    The transactions file uses Mint's CSV format so it can be imported into
+    Mint, Personal Capital, Monarch Money, or any Mint-compatible tool.
+
+    Files included:
+      - transactions.csv  — Mint-compatible format
+      - accounts.csv
+      - holdings.csv
+      - budgets.csv
+      - bills.csv         — recurring transactions / subscriptions
+      - rules.csv         — auto-categorisation rules
+      - grants.csv        — permission grants you have shared
+
     Rate limited to 5 exports per hour.
     """
     await rate_limit_service.check_rate_limit(
@@ -304,12 +320,14 @@ async def export_data(
     )
 
     org_id = current_user.organization_id
+    user_id = current_user.id
 
     # --- Fetch data ---
     accounts_result = await db.execute(
         select(Account).where(Account.organization_id == org_id).order_by(Account.name)
     )
     accounts = list(accounts_result.scalars().all())
+    account_names = {str(a.id): a.name for a in accounts}
 
     txn_result = await db.execute(
         select(Transaction)
@@ -319,19 +337,84 @@ async def export_data(
     )
     transactions = list(txn_result.scalars().all())
 
-    # Build account name lookup
-    account_names = {str(a.id): a.name for a in accounts}
-
     holdings_result = await db.execute(
         select(Holding).where(Holding.organization_id == org_id).order_by(Holding.ticker)
     )
     holdings = list(holdings_result.scalars().all())
 
+    budgets_result = await db.execute(
+        select(Budget).where(Budget.organization_id == org_id).order_by(Budget.name)
+    )
+    budgets = list(budgets_result.scalars().all())
+
+    bills_result = await db.execute(
+        select(RecurringTransaction)
+        .where(RecurringTransaction.organization_id == org_id)
+        .order_by(RecurringTransaction.merchant_name)
+    )
+    bills = list(bills_result.scalars().all())
+
+    rules_result = await db.execute(
+        select(Rule)
+        .where(Rule.organization_id == org_id)
+        .order_by(Rule.priority.desc(), Rule.name)
+    )
+    rules = list(rules_result.scalars().all())
+
+    grants_result = await db.execute(
+        select(PermissionGrant)
+        .where(
+            PermissionGrant.organization_id == org_id,
+            PermissionGrant.grantor_id == user_id,
+            PermissionGrant.is_active.is_(True),
+        )
+        .order_by(PermissionGrant.granted_at.desc())
+    )
+    grants = list(grants_result.scalars().all())
+
     # --- Build in-memory ZIP ---
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
 
+        # -----------------------------------------------------------------
+        # transactions.csv — Mint-compatible format
+        # Mint columns: Date, Description, Original Description, Amount,
+        #               Transaction Type, Category, Account Name, Labels, Notes
+        # Amount is always positive; type is "debit" (expense) or "credit" (income).
+        # -----------------------------------------------------------------
+        txn_buf = io.StringIO()
+        txn_writer = csv.writer(txn_buf)
+        txn_writer.writerow([
+            "Date", "Description", "Original Description", "Amount",
+            "Transaction Type", "Category", "Account Name", "Labels", "Notes",
+        ])
+        for t in transactions:
+            amount = float(t.amount) if t.amount is not None else 0.0
+            txn_type = "debit" if amount >= 0 else "credit"
+            abs_amount = abs(amount)
+            txn_date = t.date.strftime("%m/%d/%Y") if t.date else ""
+            labels = ""
+            try:
+                if t.labels:
+                    labels = ",".join(str(lbl) for lbl in t.labels)
+            except Exception:
+                pass
+            txn_writer.writerow([
+                txn_date,
+                t.merchant_name or "",
+                t.merchant_name or "",  # Original Description (same source)
+                f"{abs_amount:.2f}",
+                txn_type,
+                t.category_primary or "",
+                account_names.get(str(t.account_id), ""),
+                labels,
+                t.notes or "",
+            ])
+        zf.writestr("transactions.csv", txn_buf.getvalue())
+
+        # -----------------------------------------------------------------
         # accounts.csv
+        # -----------------------------------------------------------------
         acc_buf = io.StringIO()
         acc_writer = csv.writer(acc_buf)
         acc_writer.writerow([
@@ -350,28 +433,9 @@ async def export_data(
             ])
         zf.writestr("accounts.csv", acc_buf.getvalue())
 
-        # transactions.csv
-        txn_buf = io.StringIO()
-        txn_writer = csv.writer(txn_buf)
-        txn_writer.writerow([
-            "id", "date", "merchant_name", "amount", "currency",
-            "category", "account", "notes", "is_manual",
-        ])
-        for t in transactions:
-            txn_writer.writerow([
-                str(t.id),
-                str(t.date),
-                t.merchant_name or "",
-                str(t.amount),
-                t.currency or "USD",
-                t.category_primary or "",
-                account_names.get(str(t.account_id), ""),
-                t.notes or "",
-                t.is_manual,
-            ])
-        zf.writestr("transactions.csv", txn_buf.getvalue())
-
-        # holdings.csv (only if any exist)
+        # -----------------------------------------------------------------
+        # holdings.csv
+        # -----------------------------------------------------------------
         if holdings:
             hld_buf = io.StringIO()
             hld_writer = csv.writer(hld_buf)
@@ -388,6 +452,94 @@ async def export_data(
                     account_names.get(str(h.account_id), ""),
                 ])
             zf.writestr("holdings.csv", hld_buf.getvalue())
+
+        # -----------------------------------------------------------------
+        # budgets.csv
+        # -----------------------------------------------------------------
+        if budgets:
+            bud_buf = io.StringIO()
+            bud_writer = csv.writer(bud_buf)
+            bud_writer.writerow([
+                "id", "name", "amount", "period", "start_date", "end_date",
+                "rollover_unused", "alert_threshold", "is_active",
+            ])
+            for b in budgets:
+                bud_writer.writerow([
+                    str(b.id), b.name,
+                    str(b.amount),
+                    b.period.value if b.period else "",
+                    str(b.start_date) if b.start_date else "",
+                    str(b.end_date) if b.end_date else "",
+                    b.rollover_unused,
+                    str(b.alert_threshold) if b.alert_threshold else "",
+                    b.is_active,
+                ])
+            zf.writestr("budgets.csv", bud_buf.getvalue())
+
+        # -----------------------------------------------------------------
+        # bills.csv — recurring transactions / subscriptions
+        # -----------------------------------------------------------------
+        if bills:
+            bill_buf = io.StringIO()
+            bill_writer = csv.writer(bill_buf)
+            bill_writer.writerow([
+                "id", "merchant_name", "frequency", "average_amount",
+                "account", "is_active",
+            ])
+            for b in bills:
+                bill_writer.writerow([
+                    str(b.id),
+                    b.merchant_name,
+                    b.frequency.value if b.frequency else "",
+                    str(b.average_amount),
+                    account_names.get(str(b.account_id), ""),
+                    b.is_active,
+                ])
+            zf.writestr("bills.csv", bill_buf.getvalue())
+
+        # -----------------------------------------------------------------
+        # rules.csv — auto-categorisation rules
+        # -----------------------------------------------------------------
+        if rules:
+            rule_buf = io.StringIO()
+            rule_writer = csv.writer(rule_buf)
+            rule_writer.writerow([
+                "id", "name", "description", "match_type", "apply_to",
+                "priority", "is_active", "times_applied",
+            ])
+            for r in rules:
+                rule_writer.writerow([
+                    str(r.id), r.name,
+                    r.description or "",
+                    r.match_type.value if r.match_type else "",
+                    r.apply_to.value if r.apply_to else "",
+                    r.priority,
+                    r.is_active,
+                    r.times_applied,
+                ])
+            zf.writestr("rules.csv", rule_buf.getvalue())
+
+        # -----------------------------------------------------------------
+        # grants.csv — active permission grants this user has shared
+        # -----------------------------------------------------------------
+        if grants:
+            grant_buf = io.StringIO()
+            grant_writer = csv.writer(grant_buf)
+            grant_writer.writerow([
+                "id", "grantee_id", "resource_type", "resource_id",
+                "actions", "granted_at", "expires_at",
+            ])
+            for g in grants:
+                grant_writer.writerow([
+                    str(g.id),
+                    str(g.grantee_id),
+                    g.resource_type,
+                    str(g.resource_id) if g.resource_id else "",
+                    ",".join(g.actions) if g.actions else "",
+                    str(g.granted_at.date()) if g.granted_at else "",
+                    str(g.expires_at.date()) if g.expires_at else "",
+                ])
+            zf.writestr("grants.csv", grant_buf.getvalue())
 
     zip_buffer.seek(0)
     filename = f"nest-egg-export-{date.today()}.zip"

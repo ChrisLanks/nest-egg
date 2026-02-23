@@ -19,6 +19,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.services.encryption_service import EncryptedDate
 from app.utils.datetime_utils import utc_now_lambda, utc_now
 
 
@@ -80,7 +81,7 @@ class User(Base):
     display_name = Column(String(255))  # Optional display name
 
     # Retirement planning fields
-    birthdate = Column(Date, nullable=True)  # For RMD and age-based calculations
+    birthdate = Column(EncryptedDate, nullable=True)  # Encrypted at rest (GDPR Art. 32)
     target_retirement_date = Column(Date, nullable=True)  # Planned retirement date
 
     is_active = Column(Boolean, default=True, nullable=False)

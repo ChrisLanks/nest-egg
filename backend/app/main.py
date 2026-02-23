@@ -50,6 +50,7 @@ from app.config import settings
 from app.core.database import close_db, init_db
 from app.core.logging_config import setup_logging
 from app.core.metrics import create_metrics_app, setup_metrics
+from app.middleware.anomaly_detection import AnomalyDetectionMiddleware
 from app.middleware.csrf_protection import CSRFProtectionMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
@@ -244,6 +245,9 @@ app.add_middleware(RequestLoggingMiddleware)
 
 # Audit logging - Track sensitive operations
 app.add_middleware(AuditLogMiddleware)
+
+# Anomaly detection - Emit CRITICAL logs on breach signals (Sentry picks these up)
+app.add_middleware(AnomalyDetectionMiddleware)
 
 
 def _make_json_serializable(obj):

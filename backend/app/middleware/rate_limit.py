@@ -44,36 +44,53 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         else:
             rate_limit_key = f"user:{user_id}"
 
-        # Check rate limit
-        if not await api_limiter.is_allowed(rate_limit_key):
-            remaining = await api_limiter.get_remaining_calls(rate_limit_key)
-            logger.warning(
-                f"Rate limit exceeded for {rate_limit_key} on {request.url.path}. "
-                f"Remaining: {remaining}/{api_limiter.calls_per_minute}"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail={
-                    "error": "Rate limit exceeded",
-                    "message": f"Too many requests. Maximum {api_limiter.calls_per_minute} requests per minute.",
-                    "retry_after": 60,  # seconds
-                    "remaining_calls": remaining,
-                },
-            )
+        # Check rate limit.  The AsyncRateLimiter already falls back to an
+        # in-memory sliding window when Redis is unavailable.  The outer
+        # try/except here ensures that any unexpected error in the limiter
+        # itself never hard-fails a request — we allow it through and log.
+        try:
+            if not await api_limiter.is_allowed(rate_limit_key):
+                remaining = await api_limiter.get_remaining_calls(rate_limit_key)
+                logger.warning(
+                    f"Rate limit exceeded for {rate_limit_key} on {request.url.path}. "
+                    f"Remaining: {remaining}/{api_limiter.calls_per_minute}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail={
+                        "error": "Rate limit exceeded",
+                        "message": f"Too many requests. Maximum {api_limiter.calls_per_minute} requests per minute.",
+                        "retry_after": 60,  # seconds
+                        "remaining_calls": remaining,
+                    },
+                )
 
-        # Log rate limit status for monitoring (only when approaching limit)
-        remaining = await api_limiter.get_remaining_calls(rate_limit_key)
-        if remaining < 10:
-            logger.info(
-                f"{rate_limit_key} approaching rate limit on {request.url.path}. "
-                f"Remaining: {remaining}/{api_limiter.calls_per_minute}"
+            # Log rate limit status for monitoring (only when approaching limit)
+            remaining = await api_limiter.get_remaining_calls(rate_limit_key)
+            if remaining < 10:
+                logger.info(
+                    f"{rate_limit_key} approaching rate limit on {request.url.path}. "
+                    f"Remaining: {remaining}/{api_limiter.calls_per_minute}"
+                )
+        except HTTPException:
+            raise  # Let 429s propagate normally
+        except Exception as e:
+            # Rate limiter is entirely unavailable — allow request through rather
+            # than hard-failing every user.  Log at ERROR so Sentry captures it.
+            logger.error(
+                f"RateLimitMiddleware error ({type(e).__name__}): {e}. "
+                "Allowing request through — rate limiting is degraded."
             )
+            return await call_next(request)
 
         response = await call_next(request)
 
-        # Add rate limit headers
-        response.headers["X-RateLimit-Limit"] = str(api_limiter.calls_per_minute)
-        response.headers["X-RateLimit-Remaining"] = str(remaining)
-        response.headers["X-RateLimit-Reset"] = "60"  # seconds until reset
+        # Add rate limit headers (best-effort; skip on limiter failure)
+        try:
+            response.headers["X-RateLimit-Limit"] = str(api_limiter.calls_per_minute)
+            response.headers["X-RateLimit-Remaining"] = str(remaining)
+            response.headers["X-RateLimit-Reset"] = "60"  # seconds until reset
+        except Exception:
+            pass
 
         return response

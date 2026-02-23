@@ -7,6 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.database import get_db
 from app.crud.user import user_crud
 from app.models.user import User, AccountShare, SharePermission
@@ -61,6 +62,14 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive",
+        )
+
+    # Enforce email verification in non-dev environments.
+    # In development, skip so new accounts work without an email server.
+    if settings.ENVIRONMENT != "development" and not user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email address not verified. Please check your inbox for a verification link.",
         )
 
     return user
