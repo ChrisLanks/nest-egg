@@ -1,5 +1,6 @@
 """Authentication API endpoints."""
 
+import asyncio
 import hashlib
 import logging
 import secrets
@@ -44,6 +45,13 @@ from app.services.email_service import (
 )
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import redact_email
+
+
+# Module-level set holding references to fire-and-forget background tasks.
+# asyncio only keeps weak references to tasks; without a strong reference the
+# GC can cancel a task before it finishes.  Tasks remove themselves via the
+# done-callback once complete.
+_background_tasks: set[asyncio.Task] = set()
 
 
 class MFAChallengeResponse(BaseModel):
@@ -347,9 +355,11 @@ async def login(
         # Update last login
         await user_crud.update_last_login(db, user.id)
 
-        # Trigger background price refresh if holdings are stale (non-blocking)
-        import asyncio
-        asyncio.create_task(_maybe_refresh_prices_on_login(user.organization_id))
+        # Trigger background price refresh if holdings are stale (non-blocking).
+        # Store the task reference to prevent the GC from cancelling it mid-flight.
+        _task = asyncio.create_task(_maybe_refresh_prices_on_login(user.organization_id))
+        _background_tasks.add(_task)
+        _task.add_done_callback(_background_tasks.discard)
 
         logger.info("Generating tokens")
 
@@ -840,6 +850,13 @@ async def reset_password(
         )
 
     user = record.user
+
+    # Validate password strength and check against breach database —
+    # same checks applied at registration and change-password endpoints.
+    await password_validation_service.validate_and_raise_async(
+        data.new_password, check_breach=True
+    )
+
     user.password_hash = hash_password(data.new_password)
     user.failed_login_attempts = 0
     user.locked_until = None

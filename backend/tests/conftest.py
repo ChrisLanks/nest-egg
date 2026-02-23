@@ -64,6 +64,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.config import settings
+# Enable CSRF bypass for the test suite — this flag is the only authorised way
+# to do this; it is explicitly checked in the middleware so that a mis-set
+# ENVIRONMENT=test in a real deployment cannot disable CSRF protection.
+settings.SKIP_CSRF_IN_TESTS = True
+
 from app.core.database import Base, get_db
 from app.main import app
 from app.models.user import User, Organization

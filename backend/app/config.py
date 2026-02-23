@@ -124,6 +124,9 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "text"  # 'text' or 'json' (json for production)
     ENVIRONMENT: str = "development"  # development, staging, production
+    # Set to true ONLY in pytest fixtures — never in .env files.
+    # Guards CSRF bypass so it can't be triggered by a mis-set ENVIRONMENT var.
+    SKIP_CSRF_IN_TESTS: bool = False
 
     # Email (SMTP) — all optional; emails are silently skipped when SMTP_HOST is unset.
     # Works with any SMTP provider: Gmail, AWS SES, SendGrid, Mailgun, etc.

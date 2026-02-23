@@ -1730,7 +1730,8 @@ class TestResetPassword:
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.hash_token", return_value="hashed"):
                 with patch("app.api.v1.auth.hash_password", return_value="new_argon2_hash"):
-                    result = await reset_password(data, mock_request, db=mock_db)
+                    with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
+                        result = await reset_password(data, mock_request, db=mock_db)
 
         assert mock_user.password_hash == "new_argon2_hash"
         assert "message" in result
@@ -1762,12 +1763,13 @@ class TestResetPassword:
 
         data = Mock(spec=ResetPasswordRequest)
         data.token = "valid_token"
-        data.new_password = "newSecurePass!"
+        data.new_password = "newSecurePass1!"
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.hash_token", return_value="hashed"):
                 with patch("app.api.v1.auth.hash_password", return_value="new_hash"):
-                    await reset_password(data, mock_request, db=mock_db)
+                    with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
+                        await reset_password(data, mock_request, db=mock_db)
 
         assert mock_user.failed_login_attempts == 0
         assert mock_user.locked_until is None
@@ -1799,12 +1801,13 @@ class TestResetPassword:
 
         data = Mock(spec=ResetPasswordRequest)
         data.token = "valid_token"
-        data.new_password = "newSecurePass!"
+        data.new_password = "newSecurePass1!"
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.hash_token", return_value="hashed"):
                 with patch("app.api.v1.auth.hash_password", return_value="new_hash"):
-                    await reset_password(data, mock_request, db=mock_db)
+                    with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
+                        await reset_password(data, mock_request, db=mock_db)
 
         assert mock_record.used_at is not None
 

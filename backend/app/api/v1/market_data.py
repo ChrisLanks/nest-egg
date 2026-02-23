@@ -4,6 +4,8 @@ Generic market data API endpoints.
 Provider-agnostic - works with Yahoo Finance, Alpha Vantage, Finnhub, etc.
 """
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
@@ -103,6 +105,27 @@ class ProviderInfo(BaseModel):
 
 
 # ============================================================================
+# Helpers
+# ============================================================================
+
+# Valid ticker format: 1-15 uppercase alphanumeric chars plus ., -, ^
+# Covers stocks (AAPL), ETFs (BRK.A), indices (^GSPC), crypto (BTC-USD).
+_TICKER_RE = re.compile(r"^[A-Z0-9.\-\^]{1,15}$")
+
+
+def _validate_symbol(symbol: str) -> str:
+    """Normalise and validate a ticker symbol. Raises 400 on invalid format."""
+    upper = symbol.strip().upper()
+    if not _TICKER_RE.match(upper):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid ticker symbol '{symbol}'. "
+                   "Must be 1-15 characters: letters, digits, '.', '-', or '^'.",
+        )
+    return upper
+
+
+# ============================================================================
 # Endpoints
 # ============================================================================
 
@@ -123,9 +146,10 @@ async def get_quote(
     # Rate limit check
     check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
 
+    validated = _validate_symbol(symbol)
     try:
         market_data = get_market_data_provider(provider)
-        quote = await market_data.get_quote(symbol.upper())
+        quote = await market_data.get_quote(validated)
 
         return QuoteResponse(**quote.model_dump(), provider=market_data.get_provider_name())
 
@@ -149,9 +173,10 @@ async def get_quotes_batch(
     # Rate limit check
     check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
 
+    validated = [_validate_symbol(s) for s in symbols]
     try:
         market_data = get_market_data_provider(provider)
-        quotes = await market_data.get_quotes_batch([s.upper() for s in symbols])
+        quotes = await market_data.get_quotes_batch(validated)
 
         return {
             symbol: QuoteResponse(
@@ -177,10 +202,11 @@ async def get_historical_prices(
     # Rate limit check
     check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
 
+    validated = _validate_symbol(symbol)
     try:
         market_data = get_market_data_provider(provider)
         prices = await market_data.get_historical_prices(
-            symbol.upper(), start_date, end_date, interval
+            validated, start_date, end_date, interval
         )
 
         return [HistoricalPriceResponse(**p.model_dump()) for p in prices]

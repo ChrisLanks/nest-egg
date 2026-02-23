@@ -268,10 +268,10 @@ class PermissionService:
         )
 
     async def list_audit(
-        self, db: AsyncSession, grantor: User, limit: int = 200
+        self, db: AsyncSession, grantor: User, limit: int = 50, offset: int = 0
     ) -> list[PermissionGrantAudit]:
         return await permission_grant_crud.list_audit(
-            db, grantor_id=grantor.id, limit=limit
+            db, grantor_id=grantor.id, limit=limit, offset=offset
         )
 
 

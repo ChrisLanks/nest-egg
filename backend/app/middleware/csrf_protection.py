@@ -33,16 +33,15 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
     - /health, /, /docs (public endpoints)
     """
 
-    # Paths that don't require CSRF protection
-    EXEMPT_PATHS = [
+    # Paths exempt via exact match (short public endpoints).
+    # Must NOT use startswith for these — "/" would otherwise match every path.
+    EXEMPT_EXACT: frozenset[str] = frozenset({"/", "/health", "/docs", "/openapi.json", "/metrics"})
+
+    # Paths exempt via prefix match (whole subtrees).
+    EXEMPT_PREFIXES = [
         "/api/v1/auth/",
         "/api/v1/plaid/webhook",
         "/api/v1/teller/webhook",
-        "/health",
-        "/",
-        "/docs",
-        "/openapi.json",
-        "/metrics",
     ]
 
     # Methods that modify state and require CSRF protection
@@ -56,8 +55,13 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         method = request.method
 
-        # Skip CSRF check for exempt paths
-        is_exempt = any(path.startswith(exempt) for exempt in self.EXEMPT_PATHS)
+        # Skip CSRF check for exempt paths.
+        # Exact-match set handles short paths like "/" and "/health".
+        # Prefix list handles subtrees like "/api/v1/auth/".
+        is_exempt = (
+            path in self.EXEMPT_EXACT
+            or any(path.startswith(p) for p in self.EXEMPT_PREFIXES)
+        )
 
         if is_exempt:
             response = await call_next(request)
@@ -80,9 +84,10 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                     f"has_header={csrf_header is not None}"
                 )
 
-                # Only bypass CSRF in automated test environments, not in dev/staging/prod
-                if settings.ENVIRONMENT in ("test", "testing"):
-                    logger.warning("CSRF check failed but allowing in test environment")
+                # Only bypass in pytest — guarded by explicit flag, not ENVIRONMENT,
+                # so a mis-set ENVIRONMENT=test in staging/prod can't disable CSRF.
+                if settings.SKIP_CSRF_IN_TESTS:
+                    logger.warning("CSRF check failed but allowing (SKIP_CSRF_IN_TESTS=true)")
                 else:
                     return Response(
                         content='{"detail":"CSRF token missing"}',
@@ -95,9 +100,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                     f"CSRF validation failed: Token mismatch | " f"path={path} | method={method}"
                 )
 
-                # Only bypass CSRF in automated test environments, not in dev/staging/prod
-                if settings.ENVIRONMENT in ("test", "testing"):
-                    logger.warning("CSRF token mismatch but allowing in test environment")
+                # Only bypass in pytest — guarded by explicit flag, not ENVIRONMENT.
+                if settings.SKIP_CSRF_IN_TESTS:
+                    logger.warning("CSRF token mismatch but allowing (SKIP_CSRF_IN_TESTS=true)")
                 else:
                     return Response(
                         content='{"detail":"CSRF token invalid"}',

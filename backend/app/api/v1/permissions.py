@@ -13,7 +13,7 @@ Key security rules enforced here:
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,7 +36,9 @@ router = APIRouter()
 def _ip(request: Request) -> Optional[str]:
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        # Use the rightmost IP — appended by the last trusted proxy.
+        # The leftmost IPs are client-supplied and can be spoofed.
+        return forwarded.split(",")[-1].strip()
     return request.client.host if request.client else None
 
 
@@ -100,9 +102,13 @@ async def list_received(
 async def list_audit(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=50, ge=1, le=200, description="Max rows to return"),
+    offset: int = Query(default=0, ge=0, description="Row offset for pagination"),
 ):
     """Audit log of all grant changes where the current user is the grantor."""
-    entries = await permission_service.list_audit(db, grantor=current_user)
+    entries = await permission_service.list_audit(
+        db, grantor=current_user, limit=limit, offset=offset
+    )
     return [AuditResponse.model_validate(e) for e in entries]
 
 

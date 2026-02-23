@@ -14,13 +14,11 @@ class TestCSRFProtectionMiddleware:
 
     @pytest.fixture
     def middleware(self):
-        """Create middleware instance."""
         app = Mock()
         return CSRFProtectionMiddleware(app)
 
     @pytest.fixture
     def mock_request(self):
-        """Create mock request."""
         request = Mock(spec=Request)
         request.url = Mock()
         request.url.path = "/api/v1/test"
@@ -31,39 +29,46 @@ class TestCSRFProtectionMiddleware:
 
     @pytest.fixture
     def mock_call_next(self):
-        """Create mock call_next that succeeds."""
-
         async def call_next(request):
             response = Mock()
             response.status_code = 200
             response.set_cookie = Mock()
             return response
-
         return call_next
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        "exempt_path",
-        [
-            "/api/v1/auth/login",
-            "/api/v1/plaid/webhook",
-            "/api/v1/teller/webhook",
-            "/health",
-            "/",
-            "/docs",
-            "/openapi.json",
-            "/metrics",
-        ],
-    )
+    @pytest.mark.parametrize("exempt_path", [
+        "/api/v1/auth/login",
+        "/api/v1/plaid/webhook",
+        "/api/v1/teller/webhook",
+        "/health",
+        "/",
+        "/docs",
+        "/openapi.json",
+        "/metrics",
+    ])
     async def test_skips_csrf_check_for_exempt_paths(
         self, middleware, mock_request, mock_call_next, exempt_path
     ):
         """Should skip CSRF check for exempt paths."""
         mock_request.url.path = exempt_path
         mock_request.method = "POST"
-
         response = await middleware.dispatch(mock_request, mock_call_next)
         assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_enforces_csrf_on_non_exempt_api_path(
+        self, middleware, mock_request, mock_call_next
+    ):
+        """Non-exempt paths must have CSRF token — '/' prefix must not exempt them."""
+        from app import config
+        mock_request.url.path = "/api/v1/accounts"
+        mock_request.method = "POST"
+        mock_request.cookies = {}
+        mock_request.headers = {}
+        with patch.object(config.settings, "SKIP_CSRF_IN_TESTS", False):
+            response = await middleware.dispatch(mock_request, mock_call_next)
+        assert response.status_code == 403
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("method", ["GET", "HEAD", "OPTIONS"])
@@ -72,7 +77,6 @@ class TestCSRFProtectionMiddleware:
     ):
         """Should skip CSRF validation for safe HTTP methods."""
         mock_request.method = method
-
         response = await middleware.dispatch(mock_request, mock_call_next)
         assert response.status_code == 200
 
@@ -85,7 +89,6 @@ class TestCSRFProtectionMiddleware:
         mock_request.method = method
         mock_request.cookies = {"csrf_token": "test-token"}
         mock_request.headers = {"X-CSRF-Token": "test-token"}
-
         response = await middleware.dispatch(mock_request, mock_call_next)
         assert response.status_code == 200
 
@@ -95,152 +98,81 @@ class TestCSRFProtectionMiddleware:
         mock_request.method = "POST"
         mock_request.cookies = {"csrf_token": "test-token-123"}
         mock_request.headers = {"X-CSRF-Token": "test-token-123"}
-
         response = await middleware.dispatch(mock_request, mock_call_next)
         assert response.status_code == 200
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Settings.DEBUG mocking not working in unit tests - needs integration test")
-    async def test_rejects_missing_cookie_in_production(
-        self, middleware, mock_request, mock_call_next
-    ):
-        """Should reject request with missing CSRF cookie in production."""
+    async def test_rejects_missing_cookie(self, middleware, mock_request, mock_call_next):
+        """Should reject request with missing CSRF cookie."""
         from app import config
-
         mock_request.method = "POST"
         mock_request.cookies = {}
         mock_request.headers = {"X-CSRF-Token": "test-token"}
-
-        with patch.object(config.settings, "DEBUG", False):
+        with patch.object(config.settings, "SKIP_CSRF_IN_TESTS", False):
             response = await middleware.dispatch(mock_request, mock_call_next)
-            assert response.status_code == 403
-            assert isinstance(response, Response)
+        assert response.status_code == 403
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Settings.DEBUG mocking not working in unit tests - needs integration test")
-    async def test_rejects_missing_header_in_production(
-        self, middleware, mock_request, mock_call_next
-    ):
-        """Should reject request with missing CSRF header in production."""
+    async def test_rejects_missing_header(self, middleware, mock_request, mock_call_next):
+        """Should reject request with missing CSRF header."""
         from app import config
-
         mock_request.method = "POST"
         mock_request.cookies = {"csrf_token": "test-token"}
         mock_request.headers = {}
-
-        with patch.object(config.settings, "DEBUG", False):
+        with patch.object(config.settings, "SKIP_CSRF_IN_TESTS", False):
             response = await middleware.dispatch(mock_request, mock_call_next)
-            assert response.status_code == 403
-            assert isinstance(response, Response)
+        assert response.status_code == 403
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Settings.DEBUG mocking not working in unit tests - needs integration test")
-    async def test_rejects_mismatched_tokens_in_production(
-        self, middleware, mock_request, mock_call_next
-    ):
-        """Should reject request when CSRF tokens don't match in production."""
+    async def test_rejects_mismatched_tokens(self, middleware, mock_request, mock_call_next):
+        """Should reject request when CSRF tokens don't match."""
         from app import config
-
         mock_request.method = "POST"
         mock_request.cookies = {"csrf_token": "token-1"}
         mock_request.headers = {"X-CSRF-Token": "token-2"}
-
-        with patch.object(config.settings, "DEBUG", False):
+        with patch.object(config.settings, "SKIP_CSRF_IN_TESTS", False):
             response = await middleware.dispatch(mock_request, mock_call_next)
-            assert response.status_code == 403
-            assert isinstance(response, Response)
+        assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_allows_missing_token_in_debug_mode(
+    async def test_allows_bypass_when_skip_csrf_in_tests(
         self, middleware, mock_request, mock_call_next
     ):
-        """Should allow request with missing CSRF token in debug mode."""
+        """Should allow missing token when SKIP_CSRF_IN_TESTS=true (pytest only)."""
         from app import config
-
         mock_request.method = "POST"
         mock_request.cookies = {}
         mock_request.headers = {}
-
-        with patch.object(config.settings, "DEBUG", True):
-            with patch("app.middleware.csrf_protection.logger"):
-                response = await middleware.dispatch(mock_request, mock_call_next)
-                assert response.status_code == 200
+        with patch.object(config.settings, "SKIP_CSRF_IN_TESTS", True):
+            response = await middleware.dispatch(mock_request, mock_call_next)
+            assert response.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_allows_mismatched_token_in_debug_mode(
+    async def test_allows_mismatch_when_skip_csrf_in_tests(
         self, middleware, mock_request, mock_call_next
     ):
-        """Should allow request with mismatched CSRF token in debug mode."""
+        """Should allow mismatched tokens when SKIP_CSRF_IN_TESTS=true (pytest only)."""
         from app import config
-
         mock_request.method = "POST"
         mock_request.cookies = {"csrf_token": "token-1"}
         mock_request.headers = {"X-CSRF-Token": "token-2"}
-
-        with patch.object(config.settings, "DEBUG", True):
-            with patch("app.middleware.csrf_protection.logger"):
-                response = await middleware.dispatch(mock_request, mock_call_next)
-                assert response.status_code == 200
+        with patch.object(config.settings, "SKIP_CSRF_IN_TESTS", True):
+            response = await middleware.dispatch(mock_request, mock_call_next)
+            assert response.status_code == 200
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Settings.DEBUG mocking not working in unit tests - needs integration test")
-    async def test_logs_warning_for_missing_token(
+    async def test_does_not_bypass_csrf_when_environment_is_test(
         self, middleware, mock_request, mock_call_next
     ):
-        """Should log warning when CSRF token is missing."""
+        """ENVIRONMENT=test must NOT bypass CSRF — only SKIP_CSRF_IN_TESTS can."""
         from app import config
-
         mock_request.method = "POST"
         mock_request.cookies = {}
         mock_request.headers = {}
-
-        with patch.object(config.settings, "DEBUG", True):
-            with patch("app.middleware.csrf_protection.logger") as mock_logger:
-                await middleware.dispatch(mock_request, mock_call_next)
-                assert mock_logger.warning.called
-
-    @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Settings.DEBUG mocking not working in unit tests - needs integration test")
-    async def test_logs_warning_for_mismatched_token(
-        self, middleware, mock_request, mock_call_next
-    ):
-        """Should log warning when CSRF tokens don't match."""
-        from app import config
-
-        mock_request.method = "POST"
-        mock_request.cookies = {"csrf_token": "token-1"}
-        mock_request.headers = {"X-CSRF-Token": "token-2"}
-
-        with patch.object(config.settings, "DEBUG", True):
-            with patch("app.middleware.csrf_protection.logger") as mock_logger:
-                await middleware.dispatch(mock_request, mock_call_next)
-                assert mock_logger.warning.called
-
-    @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Settings.DEBUG mocking not working in unit tests - needs integration test")
-    async def test_sets_csrf_cookie_on_get_request(
-        self, middleware, mock_request, mock_call_next
-    ):
-        """Should set CSRF cookie on successful GET request."""
-        from app import config
-
-        mock_request.method = "GET"
-        mock_request.cookies = {}
-
-        with patch.object(config.settings, "DEBUG", False):
-            with patch("app.middleware.csrf_protection.secrets.token_urlsafe") as mock_token_urlsafe:
-                mock_token_urlsafe.return_value = "new-csrf-token"
-
+        with patch.object(config.settings, "ENVIRONMENT", "test"):
+            with patch.object(config.settings, "SKIP_CSRF_IN_TESTS", False):
                 response = await middleware.dispatch(mock_request, mock_call_next)
-
-                response.set_cookie.assert_called_once()
-                call_kwargs = response.set_cookie.call_args.kwargs
-                assert call_kwargs["key"] == "csrf_token"
-                assert call_kwargs["value"] == "new-csrf-token"
-                assert call_kwargs["httponly"] is False
-                assert call_kwargs["secure"] is True
-                assert call_kwargs["samesite"] == "lax"
-                assert call_kwargs["max_age"] == 86400
+                assert response.status_code == 403
 
     @pytest.mark.asyncio
     async def test_does_not_set_cookie_if_already_present(
@@ -249,30 +181,8 @@ class TestCSRFProtectionMiddleware:
         """Should not set CSRF cookie if already present."""
         mock_request.method = "GET"
         mock_request.cookies = {"csrf_token": "existing-token"}
-
         response = await middleware.dispatch(mock_request, mock_call_next)
-
         assert not response.set_cookie.called
-
-    @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Settings.DEBUG mocking not working in unit tests - needs integration test")
-    async def test_cookie_secure_flag_in_debug_mode(
-        self, middleware, mock_request, mock_call_next
-    ):
-        """Should set secure=False for CSRF cookie in debug mode."""
-        from app import config
-
-        mock_request.method = "GET"
-        mock_request.cookies = {}
-
-        with patch.object(config.settings, "DEBUG", True):
-            with patch("app.middleware.csrf_protection.secrets.token_urlsafe") as mock_token_urlsafe:
-                mock_token_urlsafe.return_value = "new-csrf-token"
-
-                response = await middleware.dispatch(mock_request, mock_call_next)
-
-                call_kwargs = response.set_cookie.call_args.kwargs
-                assert call_kwargs["secure"] is False
 
     @pytest.mark.asyncio
     async def test_does_not_set_cookie_on_failed_request(
@@ -289,5 +199,4 @@ class TestCSRFProtectionMiddleware:
             return response
 
         response = await middleware.dispatch(mock_request, call_next_error)
-
         assert not response.set_cookie.called

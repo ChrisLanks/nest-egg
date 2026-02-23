@@ -101,12 +101,13 @@ class PermissionGrantCRUD:
 
     @staticmethod
     async def list_audit(
-        db: AsyncSession, grantor_id: UUID, limit: int = 200
+        db: AsyncSession, grantor_id: UUID, limit: int = 50, offset: int = 0
     ) -> list[PermissionGrantAudit]:
         result = await db.execute(
             select(PermissionGrantAudit)
             .where(PermissionGrantAudit.grantor_id == grantor_id)
             .order_by(PermissionGrantAudit.occurred_at.desc())
+            .offset(offset)
             .limit(limit)
         )
         return list(result.scalars().all())
