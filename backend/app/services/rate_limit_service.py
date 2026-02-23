@@ -67,7 +67,11 @@ class RateLimitService:
             # The leftmost IPs are client-supplied and can be spoofed; only the
             # rightmost entry is appended by infrastructure we control.
             forwarded = request.headers.get("X-Forwarded-For")
-            identifier = forwarded.split(",")[-1].strip() if forwarded else (request.client.host if request.client else "unknown")
+            if forwarded:
+                ips = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
+                identifier = ips[-1] if ips else (request.client.host if request.client else "unknown")
+            else:
+                identifier = request.client.host if request.client else "unknown"
 
         # Skip rate limiting when no real client IP is available (e.g., test environment)
         if identifier == "unknown":

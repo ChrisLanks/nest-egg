@@ -101,14 +101,16 @@ class TransactionMergeService:
         Raises:
             ValueError: If transactions not found or validation fails
         """
-        # Validate primary transaction exists
+        # Lock the primary transaction to prevent concurrent merges
         result = await db.execute(
-            select(Transaction).where(
+            select(Transaction)
+            .where(
                 and_(
                     Transaction.id == primary_transaction_id,
                     Transaction.organization_id == user.organization_id,
                 )
             )
+            .with_for_update()
         )
         primary_txn = result.scalar_one_or_none()
         if not primary_txn:
@@ -117,14 +119,16 @@ class TransactionMergeService:
         # Create merge records and delete duplicates
         merge_records = []
         for dup_id in duplicate_transaction_ids:
-            # Validate duplicate exists
+            # Lock duplicate to prevent concurrent operations on it
             result = await db.execute(
-                select(Transaction).where(
+                select(Transaction)
+                .where(
                     and_(
                         Transaction.id == dup_id,
                         Transaction.organization_id == user.organization_id,
                     )
                 )
+                .with_for_update()
             )
             dup_txn = result.scalar_one_or_none()
             if not dup_txn:

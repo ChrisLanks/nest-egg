@@ -47,6 +47,7 @@ class _SlidingWindowCounter:
         self.threshold = threshold
         self.label = label
         self._events: Dict[str, List[float]] = defaultdict(list)
+        self._ops_since_cleanup = 0
 
     def record_and_check(self, key: str) -> bool:
         """Record an event; return True if the threshold has been crossed."""
@@ -56,6 +57,13 @@ class _SlidingWindowCounter:
         # Evict expired timestamps
         self._events[key] = [t for t in events if t > cutoff]
         self._events[key].append(now)
+
+        # Periodic full cleanup to prevent unbounded memory growth
+        self._ops_since_cleanup += 1
+        if self._ops_since_cleanup >= 1000:
+            self.cleanup()
+            self._ops_since_cleanup = 0
+
         return len(self._events[key]) >= self.threshold
 
     def count(self, key: str) -> int:
@@ -95,7 +103,9 @@ _EXPORT_PATH = "/api/v1/settings/export"
 def _get_ip(request: Request) -> str:
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
-        return forwarded.split(",")[-1].strip()
+        ips = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
+        if ips:
+            return ips[-1]
     return request.client.host if request.client else "unknown"
 
 

@@ -158,9 +158,9 @@ class RuleEngine:
             condition_value = condition.value
             if condition.operator == ConditionOperator.EQUALS:
                 return field_value == condition_value
-            # CONTAINS can match multiple account IDs (comma-separated)
+            # CONTAINS can match multiple account IDs (comma-separated, max 100)
             elif condition.operator == ConditionOperator.CONTAINS:
-                account_ids = [acc_id.strip() for acc_id in condition_value.split(",")]
+                account_ids = [acc_id.strip() for acc_id in condition_value.split(",")][:100]
                 return field_value in account_ids
 
         # Handle string comparisons

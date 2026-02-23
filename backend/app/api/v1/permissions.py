@@ -40,7 +40,9 @@ def _ip(request: Request) -> Optional[str]:
     if forwarded:
         # Use the rightmost IP — appended by the last trusted proxy.
         # The leftmost IPs are client-supplied and can be spoofed.
-        return forwarded.split(",")[-1].strip()
+        ips = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
+        if ips:
+            return ips[-1]
     return request.client.host if request.client else None
 
 

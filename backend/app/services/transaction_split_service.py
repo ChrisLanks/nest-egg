@@ -37,6 +37,9 @@ class TransactionSplitService:
         Raises:
             ValueError: If splits don't match transaction amount
         """
+        if len(splits_data) > 50:
+            raise ValueError("Maximum 50 splits per transaction")
+
         # Get transaction
         result = await db.execute(
             select(Transaction).where(

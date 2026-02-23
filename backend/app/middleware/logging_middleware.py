@@ -48,7 +48,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         client_ip = request.client.host if request.client else "unknown"
         forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
-            client_ip = forwarded_for.split(",")[0].strip()
+            ips = [ip.strip() for ip in forwarded_for.split(",") if ip.strip()]
+            if ips:
+                client_ip = ips[0]
 
         try:
             response = await call_next(request)
