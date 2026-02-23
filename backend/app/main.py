@@ -287,8 +287,33 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy"}
+    """Health check endpoint with real dependency checks.
+
+    Returns 200 if the database is reachable, 503 otherwise.
+    Unauthenticated so Docker HEALTHCHECK / load balancers can use it.
+    """
+    from app.core.database import AsyncSessionLocal
+    from sqlalchemy import text
+
+    checks = {}
+
+    # Database connectivity
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception:
+        checks["database"] = "unreachable"
+
+    all_ok = all(v == "ok" for v in checks.values())
+
+    if not all_ok:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "checks": checks},
+        )
+
+    return {"status": "healthy", "checks": checks}
 
 
 @app.get("/security-status")

@@ -56,6 +56,7 @@ from app.workers.tasks import recurring_tasks  # noqa: F401
 from app.workers.tasks import forecast_tasks  # noqa: F401
 from app.workers.tasks import holdings_tasks  # noqa: F401
 from app.workers.tasks import interest_accrual_tasks  # noqa: F401
+from app.workers.tasks import retention_tasks  # noqa: F401
 from app.workers.tasks import snapshot_tasks  # noqa: F401
 
 # Beat schedule (periodic tasks)
@@ -101,5 +102,10 @@ celery_app.conf.beat_schedule = {
     "cleanup-expired-auth-tokens": {
         "task": "cleanup_expired_auth_tokens",
         "schedule": crontab(hour=4, minute=0),  # 4am daily
+    },
+    # Data retention — only effective when DATA_RETENTION_DAYS is set
+    "run-data-retention": {
+        "task": "run_data_retention",
+        "schedule": crontab(hour=3, minute=30),  # 3:30am daily
     },
 }

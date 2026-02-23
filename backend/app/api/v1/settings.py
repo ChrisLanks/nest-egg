@@ -330,13 +330,7 @@ async def export_data(
     accounts = list(accounts_result.scalars().all())
     account_names = {str(a.id): a.name for a in accounts}
 
-    txn_result = await db.execute(
-        select(Transaction)
-        .where(Transaction.organization_id == org_id)
-        .order_by(Transaction.date.desc())
-        .limit(100_000)  # Safety cap — prevents memory bloat for very large orgs
-    )
-    transactions = list(txn_result.scalars().all())
+    # Transactions are fetched in batches below to avoid loading everything into memory
 
     holdings_result = await db.execute(
         select(Holding).where(Holding.organization_id == org_id).order_by(Holding.ticker)
@@ -389,28 +383,49 @@ async def export_data(
             "Date", "Description", "Original Description", "Amount",
             "Transaction Type", "Category", "Account Name", "Labels", "Notes",
         ])
-        for t in transactions:
-            amount = float(t.amount) if t.amount is not None else 0.0
-            txn_type = "debit" if amount >= 0 else "credit"
-            abs_amount = abs(amount)
-            txn_date = t.date.strftime("%m/%d/%Y") if t.date else ""
-            labels = ""
-            try:
-                if t.labels:
-                    labels = ",".join(str(lbl) for lbl in t.labels)
-            except Exception:
-                pass
-            txn_writer.writerow([
-                txn_date,
-                t.merchant_name or "",
-                t.merchant_name or "",  # Original Description (same source)
-                f"{abs_amount:.2f}",
-                txn_type,
-                t.category_primary or "",
-                account_names.get(str(t.account_id), ""),
-                labels,
-                t.notes or "",
-            ])
+
+        # Batch-iterate transactions to avoid loading entire history into memory
+        EXPORT_BATCH_SIZE = 5000
+        txn_offset = 0
+        while True:
+            batch_result = await db.execute(
+                select(Transaction)
+                .where(Transaction.organization_id == org_id)
+                .order_by(Transaction.date.desc())
+                .offset(txn_offset)
+                .limit(EXPORT_BATCH_SIZE)
+            )
+            batch = list(batch_result.scalars().all())
+            if not batch:
+                break
+
+            for t in batch:
+                amount = float(t.amount) if t.amount is not None else 0.0
+                txn_type = "debit" if amount >= 0 else "credit"
+                abs_amount = abs(amount)
+                txn_date = t.date.strftime("%m/%d/%Y") if t.date else ""
+                labels = ""
+                try:
+                    if t.labels:
+                        labels = ",".join(str(lbl) for lbl in t.labels)
+                except Exception:
+                    pass
+                txn_writer.writerow([
+                    txn_date,
+                    t.merchant_name or "",
+                    t.merchant_name or "",  # Original Description (same source)
+                    f"{abs_amount:.2f}",
+                    txn_type,
+                    t.category_primary or "",
+                    account_names.get(str(t.account_id), ""),
+                    labels,
+                    getattr(t, "notes", "") or "",
+                ])
+
+            txn_offset += EXPORT_BATCH_SIZE
+            if len(batch) < EXPORT_BATCH_SIZE:
+                break
+
         zf.writestr("transactions.csv", txn_buf.getvalue())
 
         # -----------------------------------------------------------------
@@ -428,7 +443,7 @@ async def export_data(
                 a.account_type.value if a.account_type else "",
                 a.institution_name or "",
                 str(a.current_balance),
-                a.currency or "USD",
+                getattr(a, "currency", "USD") or "USD",
                 a.is_active,
                 a.created_at.date() if a.created_at else "",
             ])
@@ -544,14 +559,10 @@ async def export_data(
 
     zip_buffer.seek(0)
     filename = f"nest-egg-export-{date.today()}.zip"
-    response_headers: dict = {"Content-Disposition": f"attachment; filename={filename}"}
-    if len(transactions) == 100_000:
-        response_headers["X-Export-Truncated"] = "true"
-        response_headers["X-Export-Limit"] = "100000"
     return StreamingResponse(
         zip_buffer,
         media_type="application/zip",
-        headers=response_headers,
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 

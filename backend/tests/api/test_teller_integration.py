@@ -322,7 +322,8 @@ class TestTellerWebhookHandling:
             "payload": {"enrollment_id": "enr_test123"},
         }
 
-        with patch("app.services.rate_limit_service.RateLimitService.check_rate_limit", new_callable=AsyncMock):
+        with patch("app.services.rate_limit_service.RateLimitService.check_rate_limit", new_callable=AsyncMock), \
+             patch("app.api.v1.teller.verify_teller_webhook_signature", return_value=True):
             response = await async_client.post("/api/v1/teller/webhook", json=webhook_data)
 
         # Should acknowledge webhook
@@ -355,6 +356,7 @@ class TestTellerWebhookHandling:
         }
 
         with patch("app.services.rate_limit_service.RateLimitService.check_rate_limit", new_callable=AsyncMock), \
+             patch("app.api.v1.teller.verify_teller_webhook_signature", return_value=True), \
              patch("app.api.v1.teller.get_teller_service") as mock_get_service:
             mock_teller = AsyncMock()
             mock_get_service.return_value = mock_teller
@@ -373,7 +375,8 @@ class TestTellerWebhookHandling:
             "payload": {"enrollment_id": "nonexistent"},
         }
 
-        with patch("app.services.rate_limit_service.RateLimitService.check_rate_limit", new_callable=AsyncMock):
+        with patch("app.services.rate_limit_service.RateLimitService.check_rate_limit", new_callable=AsyncMock), \
+             patch("app.api.v1.teller.verify_teller_webhook_signature", return_value=True):
             response = await async_client.post("/api/v1/teller/webhook", json=webhook_data)
 
         assert response.status_code == status.HTTP_200_OK

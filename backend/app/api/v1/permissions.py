@@ -107,7 +107,7 @@ async def list_audit(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     limit: int = Query(default=50, ge=1, le=200, description="Max rows to return"),
-    offset: int = Query(default=0, ge=0, description="Row offset for pagination"),
+    offset: int = Query(default=0, ge=0, le=10000, description="Row offset for pagination"),
 ):
     """Audit log of all grant changes where the current user is the grantor."""
     entries = await permission_service.list_audit(

@@ -178,7 +178,7 @@ def client(override_get_db) -> TestClient:
 async def async_client(override_get_db) -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client."""
     app.dependency_overrides[get_db] = override_get_db
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    async with AsyncClient(app=app, base_url="http://test", follow_redirects=True) as ac:
         yield ac
     app.dependency_overrides.clear()
 
@@ -312,7 +312,7 @@ async def authenticated_client(override_get_db, test_user: User) -> AsyncGenerat
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = mock_get_current_user
 
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    async with AsyncClient(app=app, base_url="http://test", follow_redirects=True) as ac:
         yield ac
 
     app.dependency_overrides.clear()

@@ -150,6 +150,13 @@ class Settings(BaseSettings):
     # Compliance
     TERMS_VERSION: str = "2026-02"  # Bump when Terms of Service or Privacy Policy changes
 
+    # Data Retention (enterprise compliance)
+    # None = keep data indefinitely (default for self-hosted / small teams)
+    DATA_RETENTION_DAYS: Optional[int] = None
+    # Safety: dry-run logs what would be deleted without actually deleting.
+    # Set to False only after verifying the retention window is correct.
+    DATA_RETENTION_DRY_RUN: bool = True
+
     # ── Identity Provider Chain ───────────────────────────────────────────────
     # Ordered comma-separated list of active providers.
     # 'builtin' = app's own HS256 JWT (always available as fallback).
@@ -250,6 +257,22 @@ class Settings(BaseSettings):
             raise ValueError(
                 "ALLOWED_HOSTS=['*'] is insecure in production! "
                 "Set specific domains like ['app.nestegg.com', 'api.nestegg.com']"
+            )
+
+        return v
+
+    @field_validator("APP_BASE_URL")
+    @classmethod
+    def validate_app_base_url(cls, v: str) -> str:
+        """Reject localhost APP_BASE_URL in production."""
+        import os
+
+        environment = os.getenv("ENVIRONMENT", "development")
+
+        if environment == "production" and "localhost" in v:
+            raise ValueError(
+                "APP_BASE_URL contains 'localhost' in production! "
+                "Set to your public URL, e.g. 'https://app.nestegg.com'"
             )
 
         return v

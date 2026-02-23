@@ -5,7 +5,7 @@ from datetime import date
 from typing import Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +23,7 @@ from app.models.transaction import Transaction, Category, transaction_labels, La
 from app.models.account import Account
 from app.services.deduplication_service import DeduplicationService
 from app.services.trend_analysis_service import TrendAnalysisService
+from app.utils.date_validation import validate_date_range
 
 
 router = APIRouter()
@@ -31,37 +32,8 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 deduplication_service = DeduplicationService()
 
-
-def validate_date_range(start_date: date, end_date: date) -> None:
-    """Validate date range parameters."""
-    # Check date range bounds (prevent unrealistic queries)
-    min_date = date(1900, 1, 1)
-    max_date = date(2100, 12, 31)
-
-    if start_date < min_date:
-        raise HTTPException(
-            status_code=400, detail=f"start_date cannot be before {min_date.isoformat()}"
-        )
-
-    if end_date > max_date:
-        raise HTTPException(
-            status_code=400, detail=f"end_date cannot be after {max_date.isoformat()}"
-        )
-
-    # Check start is before end
-    if start_date > end_date:
-        raise HTTPException(
-            status_code=400, detail="start_date must be before or equal to end_date"
-        )
-
-    # Check date range is not too large (prevent DoS via huge queries)
-    max_range_days = 5475  # ~15 years (allows "All Time" views)
-    date_diff = (end_date - start_date).days
-
-    if date_diff > max_range_days:
-        raise HTTPException(
-            status_code=400, detail=f"Date range cannot exceed {max_range_days} days (~15 years)"
-        )
+# Cap on merchant GROUP BY results to prevent unbounded memory use
+MAX_MERCHANT_RESULTS = 500
 
 
 class CategoryBreakdown(BaseModel):
@@ -752,6 +724,7 @@ async def get_merchant_breakdown(
             if transaction_type == "income"
             else func.sum(Transaction.amount).asc()
         )
+        .limit(MAX_MERCHANT_RESULTS)
     )
 
     # Calculate total for percentage
@@ -1055,6 +1028,7 @@ async def get_label_merchant_breakdown(
                 if transaction_type == "income"
                 else func.sum(Transaction.amount).asc()
             )
+            .limit(MAX_MERCHANT_RESULTS)
         )
 
         # Calculate total for percentage
@@ -1080,6 +1054,7 @@ async def get_label_merchant_breakdown(
                 if transaction_type == "income"
                 else func.sum(Transaction.amount).asc()
             )
+            .limit(MAX_MERCHANT_RESULTS)
         )
 
         total_result = await db.execute(
@@ -1187,6 +1162,7 @@ async def get_merchant_summary(
         )
         .group_by(Transaction.merchant_name)
         .order_by(func.sum(Transaction.amount).desc())
+        .limit(MAX_MERCHANT_RESULTS)
     )
 
     income_categories = []
@@ -1226,6 +1202,7 @@ async def get_merchant_summary(
         )
         .group_by(Transaction.merchant_name)
         .order_by(func.sum(Transaction.amount).asc())  # Most negative first
+        .limit(MAX_MERCHANT_RESULTS)
     )
 
     expense_categories = []
@@ -1453,6 +1430,7 @@ async def get_account_merchant_breakdown(
             if transaction_type == "income"
             else func.sum(Transaction.amount).asc()
         )
+        .limit(MAX_MERCHANT_RESULTS)
     )
 
     # Calculate total for percentage

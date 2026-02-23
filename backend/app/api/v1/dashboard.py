@@ -21,6 +21,7 @@ from app.services.deduplication_service import DeduplicationService
 from app.services.insights_service import InsightsService
 from app.services.forecast_service import ForecastService
 from app.schemas.transaction import CategorySummary, TransactionDetail
+from app.utils.date_validation import validate_date_range
 
 
 router = APIRouter()
@@ -110,6 +111,9 @@ async def get_dashboard_summary(
     db: AsyncSession = Depends(get_db),
 ):
     """Get dashboard summary metrics."""
+    if start_date and end_date:
+        validate_date_range(start_date, end_date)
+
     # Get accounts based on user filter
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
@@ -154,6 +158,9 @@ async def get_dashboard_data(
     db: AsyncSession = Depends(get_db),
 ):
     """Get complete dashboard data."""
+    if start_date and end_date:
+        validate_date_range(start_date, end_date)
+
     # Get accounts based on user filter
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)

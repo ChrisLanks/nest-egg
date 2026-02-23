@@ -148,7 +148,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
     - Permission changes
     """
 
-    # Paths that should be audited
+    # Paths that should be audited (mutating operations)
     AUDIT_PATHS = {
         "/api/v1/auth/login": "LOGIN_ATTEMPT",
         "/api/v1/auth/register": "REGISTRATION",
@@ -156,6 +156,13 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         "/api/v1/accounts": "ACCOUNT_OPERATION",
         "/api/v1/transactions": "TRANSACTION_OPERATION",
         "/api/v1/household/members": "HOUSEHOLD_CHANGE",
+    }
+
+    # Sensitive read operations that should also be audited (GET requests)
+    AUDIT_READ_PATHS = {
+        "/api/v1/settings/export": "DATA_EXPORT",
+        "/api/v1/settings/profile": "PROFILE_VIEW",
+        "/api/v1/holdings/portfolio": "PORTFOLIO_VIEW",
     }
 
     # Methods that modify data
@@ -176,7 +183,14 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
                 audit_type = action_type
                 break
 
-        # Only audit mutating operations or specific paths
+        # Also check sensitive read paths for GET requests
+        if not audit_type and method == "GET":
+            for audit_path, action_type in self.AUDIT_READ_PATHS.items():
+                if path.startswith(audit_path):
+                    audit_type = action_type
+                    break
+
+        # Audit mutating operations, specific paths, or sensitive reads
         should_audit = audit_type or (method in self.MUTATING_METHODS and "/api/v1/" in path)
 
         if not should_audit:

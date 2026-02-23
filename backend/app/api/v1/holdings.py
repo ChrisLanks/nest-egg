@@ -1339,7 +1339,7 @@ async def capture_portfolio_snapshot(
 async def get_historical_snapshots(
     start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
-    limit: Optional[int] = Query(None, description="Maximum number of snapshots"),
+    limit: Optional[int] = Query(None, ge=1, le=5000, description="Maximum number of snapshots"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1351,11 +1351,15 @@ async def get_historical_snapshots(
     Query parameters:
     - start_date: Start date (defaults to 1 year ago)
     - end_date: End date (defaults to today)
-    - limit: Maximum number of snapshots to return
+    - limit: Maximum number of snapshots to return (max 5000)
     """
     # Default to last year if no start date provided
     if start_date is None:
         start_date = date.today() - timedelta(days=365)
+
+    if start_date and end_date:
+        from app.utils.date_validation import validate_date_range
+        validate_date_range(start_date, end_date)
 
     snapshots = await snapshot_service.get_snapshots(
         db=db,
