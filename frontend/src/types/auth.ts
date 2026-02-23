@@ -34,3 +34,20 @@ export interface AccessTokenResponse {
   token_type: string;
   user?: User | null;  // Included on refresh so frontend can restore session
 }
+
+export interface MFAChallengeResponse {
+  mfa_required: true;
+  mfa_token: string;
+}
+
+export interface MFAVerifyRequest {
+  mfa_token: string;
+  code: string;
+}
+
+// Login can return either a full token response or an MFA challenge
+export type LoginResponse = TokenResponse | MFAChallengeResponse;
+
+export function isMFAChallenge(r: LoginResponse): r is MFAChallengeResponse {
+  return (r as MFAChallengeResponse).mfa_required === true;
+}

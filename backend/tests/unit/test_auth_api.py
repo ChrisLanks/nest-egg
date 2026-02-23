@@ -1796,3 +1796,232 @@ class TestResetPassword:
                     await reset_password(data, mock_request, db=mock_db)
 
         assert mock_record.used_at is not None
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/mfa/verify
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestVerifyMfaChallenge:
+    """Tests for POST /auth/mfa/verify endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_invalid_token_returns_401(self):
+        """Should return 401 when the mfa_token cannot be decoded."""
+        from app.api.v1.auth import verify_mfa_challenge, MFAVerifyRequest
+
+        data = MFAVerifyRequest(mfa_token="bad_token", code="123456")
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.decode_token", side_effect=Exception("bad token")):
+                with pytest.raises(HTTPException) as exc_info:
+                    await verify_mfa_challenge(
+                        request=Mock(), response=Mock(), data=data, db=AsyncMock()
+                    )
+
+        assert exc_info.value.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_wrong_token_type_returns_401(self):
+        """Should return 401 when token type is not mfa_pending."""
+        from app.api.v1.auth import verify_mfa_challenge, MFAVerifyRequest
+
+        data = MFAVerifyRequest(mfa_token="some_token", code="123456")
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.decode_token", return_value={"type": "access", "sub": str(uuid4())}):
+                with pytest.raises(HTTPException) as exc_info:
+                    await verify_mfa_challenge(
+                        request=Mock(), response=Mock(), data=data, db=AsyncMock()
+                    )
+
+        assert exc_info.value.status_code == 401
+        assert "token type" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_user_not_found_returns_401(self):
+        """Should return 401 when user does not exist or MFA is not set up."""
+        from app.api.v1.auth import verify_mfa_challenge, MFAVerifyRequest
+
+        user_id = uuid4()
+        data = MFAVerifyRequest(mfa_token="token", code="123456")
+
+        db = AsyncMock()
+        result_mock = Mock()
+        result_mock.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=result_mock)
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.decode_token",
+                return_value={"type": "mfa_pending", "sub": str(user_id)},
+            ):
+                with pytest.raises(HTTPException) as exc_info:
+                    await verify_mfa_challenge(
+                        request=Mock(), response=Mock(), data=data, db=db
+                    )
+
+        assert exc_info.value.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_invalid_totp_returns_401(self):
+        """Should return 401 when TOTP code is wrong and no valid backup code."""
+        from app.api.v1.auth import verify_mfa_challenge, MFAVerifyRequest
+        from app.models.mfa import UserMFA
+
+        user_id = uuid4()
+        data = MFAVerifyRequest(mfa_token="token", code="000000")
+
+        mock_mfa = Mock(spec=UserMFA)
+        mock_mfa.is_enabled = True
+        mock_mfa.is_verified = True
+        mock_mfa.secret = "encrypted_secret"
+        mock_mfa.backup_codes = None
+
+        mock_user = Mock(spec=User)
+        mock_user.id = user_id
+        mock_user.mfa = mock_mfa
+
+        db = AsyncMock()
+        result_mock = Mock()
+        result_mock.scalar_one_or_none.return_value = mock_user
+        db.execute = AsyncMock(return_value=result_mock)
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.decode_token",
+                return_value={"type": "mfa_pending", "sub": str(user_id)},
+            ):
+                with patch("app.api.v1.auth.mfa_service.decrypt_secret", return_value="RAW_SECRET"):
+                    with patch("app.api.v1.auth.mfa_service.verify_totp", return_value=False):
+                        with pytest.raises(HTTPException) as exc_info:
+                            await verify_mfa_challenge(
+                                request=Mock(), response=Mock(), data=data, db=db
+                            )
+
+        assert exc_info.value.status_code == 401
+        assert "Invalid MFA code" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_valid_totp_returns_auth_response(self):
+        """Should return full auth response when TOTP code is correct."""
+        from app.api.v1.auth import verify_mfa_challenge, MFAVerifyRequest
+        from app.models.mfa import UserMFA
+        from app.schemas.auth import TokenResponse
+        from app.schemas.user import User as UserSchema
+
+        user_id = uuid4()
+        data = MFAVerifyRequest(mfa_token="token", code="123456")
+
+        mock_mfa = Mock(spec=UserMFA)
+        mock_mfa.is_enabled = True
+        mock_mfa.is_verified = True
+        mock_mfa.secret = "encrypted_secret"
+        mock_mfa.backup_codes = None
+
+        mock_user = Mock(spec=User)
+        mock_user.id = user_id
+        mock_user.email = "user@example.com"
+        mock_user.mfa = mock_mfa
+
+        db = AsyncMock()
+        result_mock = Mock()
+        result_mock.scalar_one_or_none.return_value = mock_user
+        db.execute = AsyncMock(return_value=result_mock)
+
+        mock_token_response = Mock(spec=TokenResponse)
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.decode_token",
+                return_value={"type": "mfa_pending", "sub": str(user_id)},
+            ):
+                with patch("app.api.v1.auth.mfa_service.decrypt_secret", return_value="RAW_SECRET"):
+                    with patch("app.api.v1.auth.mfa_service.verify_totp", return_value=True):
+                        with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+                            with patch(
+                                "app.api.v1.auth.create_auth_response",
+                                new=AsyncMock(return_value=mock_token_response),
+                            ) as mock_auth:
+                                result = await verify_mfa_challenge(
+                                    request=Mock(), response=Mock(), data=data, db=db
+                                )
+
+        assert result is mock_token_response
+        mock_auth.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_enforced(self):
+        """Should enforce rate limit of 5 per minute."""
+        from app.api.v1.auth import verify_mfa_challenge, MFAVerifyRequest
+
+        data = MFAVerifyRequest(mfa_token="token", code="123456")
+
+        with patch(
+            "app.api.v1.auth.rate_limit_service.check_rate_limit",
+            new=AsyncMock(side_effect=HTTPException(status_code=429, detail="Rate limit")),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await verify_mfa_challenge(
+                    request=Mock(), response=Mock(), data=data, db=AsyncMock()
+                )
+
+        assert exc_info.value.status_code == 429
+
+
+# ---------------------------------------------------------------------------
+# UserConsent capture at registration
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestRegisterConsentCapture:
+    """Verify that registration records consent for ToS and Privacy Policy."""
+
+    @pytest.mark.asyncio
+    async def test_register_creates_consent_records(self):
+        """Two UserConsent rows (ToS + Privacy) should be added to the DB on registration."""
+        from app.api.v1.auth import register
+        from app.models.user import UserConsent
+
+        mock_request = Mock()
+        mock_request.client = Mock()
+        mock_request.client.host = "1.2.3.4"
+
+        mock_db = AsyncMock()
+        added_objects = []
+        mock_db.add = Mock(side_effect=lambda obj: added_objects.append(obj))
+        mock_db.flush = AsyncMock()
+
+        mock_data = Mock()
+        mock_data.email = "consent@example.com"
+        mock_data.password = "SecurePass123!"
+        mock_data.organization_name = "Test Org"
+        mock_data.first_name = "Alice"
+        mock_data.last_name = "Smith"
+        mock_data.display_name = "Alice"
+
+        mock_org = Mock(spec=User)
+        mock_org.id = uuid4()
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.email = mock_data.email
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
+                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
+                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)):
+                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)):
+                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+                                with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
+                                    await register(mock_request, Mock(), mock_data, mock_db)
+
+        consent_objects = [o for o in added_objects if isinstance(o, UserConsent)]
+        consent_types = {c.consent_type for c in consent_objects}
+
+        assert len(consent_objects) == 2, "Expected 2 consent records (ToS + Privacy)"
+        assert "terms_of_service" in consent_types
+        assert "privacy_policy" in consent_types
+        # IP address captured
+        for c in consent_objects:
+            assert c.ip_address == "1.2.3.4"

@@ -8,6 +8,8 @@ import type {
   LoginRequest,
   TokenResponse,
   AccessTokenResponse,
+  LoginResponse,
+  MFAVerifyRequest,
 } from '../../../types/auth';
 import type { User } from '../../../types/user';
 
@@ -17,16 +19,21 @@ export const authApi = {
     return response.data;
   },
 
-  login: async (data: LoginRequest): Promise<TokenResponse> => {
+  login: async (data: LoginRequest): Promise<LoginResponse> => {
     console.log('📡 authApi.login called', { email: data.email });
     try {
-      const response = await api.post<TokenResponse>('/auth/login', data);
+      const response = await api.post<LoginResponse>('/auth/login', data);
       console.log('📡 authApi.login response received', response.data);
       return response.data;
     } catch (error) {
       console.error('📡 authApi.login error', error);
       throw error;
     }
+  },
+
+  verifyMfa: async (data: MFAVerifyRequest): Promise<TokenResponse> => {
+    const response = await api.post<TokenResponse>('/auth/mfa/verify', data);
+    return response.data;
   },
 
   refresh: async (): Promise<AccessTokenResponse> => {

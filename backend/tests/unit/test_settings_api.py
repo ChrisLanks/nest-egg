@@ -579,3 +579,104 @@ class TestEmailChangeVerification:
 
         mock_send.assert_not_called()
 
+
+# ---------------------------------------------------------------------------
+# DELETE /settings/account  (GDPR Article 17 — Right to Erasure)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestDeleteAccount:
+    """Tests for DELETE /settings/account endpoint."""
+
+    def _make_user(self, *, is_org_admin: bool = True) -> Mock:
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        user.is_org_admin = is_org_admin
+        user.password_hash = "hashed_password"
+        return user
+
+    @pytest.mark.asyncio
+    async def test_wrong_password_returns_401(self):
+        """Should return 401 when supplied password is incorrect."""
+        from app.api.v1.settings import delete_account, DeleteAccountRequest
+
+        user = self._make_user()
+        data = DeleteAccountRequest(password="wrongpassword")
+        mock_request = Mock()
+        db = AsyncMock()
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.settings.verify_password", return_value=False):
+                with pytest.raises(HTTPException) as exc_info:
+                    await delete_account(data=data, http_request=mock_request, current_user=user, db=db)
+
+        assert exc_info.value.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_sole_member_deletes_organization(self):
+        """When user is the only member, the whole organization is deleted."""
+        from app.api.v1.settings import delete_account, DeleteAccountRequest
+
+        user = self._make_user()
+        data = DeleteAccountRequest(password="correctpassword")
+        mock_request = Mock()
+
+        mock_org = Mock(spec=Organization)
+        mock_org.id = user.organization_id
+
+        db = AsyncMock()
+        # count returns 1 (sole member)
+        count_scalar = Mock()
+        count_scalar.scalar.return_value = 1
+        db.execute = AsyncMock(return_value=count_scalar)
+        db.get = AsyncMock(return_value=mock_org)
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.settings.verify_password", return_value=True):
+                await delete_account(data=data, http_request=mock_request, current_user=user, db=db)
+
+        db.delete.assert_called_once_with(mock_org)
+        db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_household_member_deletes_only_user(self):
+        """When other members exist, only the current user is deleted."""
+        from app.api.v1.settings import delete_account, DeleteAccountRequest
+
+        user = self._make_user()
+        data = DeleteAccountRequest(password="correctpassword")
+        mock_request = Mock()
+
+        db = AsyncMock()
+        # count returns 3 (multiple members)
+        count_scalar = Mock()
+        count_scalar.scalar.return_value = 3
+        db.execute = AsyncMock(return_value=count_scalar)
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.settings.verify_password", return_value=True):
+                await delete_account(data=data, http_request=mock_request, current_user=user, db=db)
+
+        db.delete.assert_called_once_with(user)
+        db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_enforced(self):
+        """Should check rate limit before processing."""
+        from app.api.v1.settings import delete_account, DeleteAccountRequest
+
+        user = self._make_user()
+        data = DeleteAccountRequest(password="pw")
+        mock_request = Mock()
+        db = AsyncMock()
+
+        with patch(
+            "app.api.v1.settings.rate_limit_service.check_rate_limit",
+            new=AsyncMock(side_effect=HTTPException(status_code=429, detail="Rate limit")),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await delete_account(data=data, http_request=mock_request, current_user=user, db=db)
+
+        assert exc_info.value.status_code == 429
+

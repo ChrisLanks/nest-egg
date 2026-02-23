@@ -6,9 +6,16 @@ const getDaysInMonth = (year: number | null, month: number | null): number => {
   return new Date(y, month, 0).getDate();
 };
 import {
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
   Box,
   Button,
   Container,
+  Divider,
   FormControl,
   FormLabel,
   Heading,
@@ -19,10 +26,12 @@ import {
   SimpleGrid,
   Stack,
   Text,
+  useDisclosure,
   useToast,
   VStack,
   FormHelperText,
 } from '@chakra-ui/react';
+import { useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 
@@ -144,6 +153,30 @@ export default function PreferencesPage() {
 
   // Export state
   const [isExporting, setIsExporting] = useState(false);
+
+  // Delete account state
+  const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+  const [deletePassword, setDeletePassword] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) return;
+    setIsDeleting(true);
+    try {
+      await api.delete('/settings/account', { data: { password: deletePassword } });
+      // Clear local state and redirect to login
+      window.location.href = '/login';
+    } catch (error: any) {
+      const detail = error.response?.data?.detail;
+      const description = typeof detail === 'string' ? detail : 'An error occurred';
+      toast({ title: 'Failed to delete account', description, status: 'error', duration: 5000 });
+    } finally {
+      setIsDeleting(false);
+      setDeletePassword('');
+      onDeleteClose();
+    }
+  };
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -365,6 +398,66 @@ export default function PreferencesPage() {
             </Button>
           </Stack>
         </Box>
+
+        {/* Danger Zone — Delete Account */}
+        <Box bg="white" p={6} borderRadius="lg" boxShadow="sm" borderWidth={1} borderColor="red.200">
+          <Heading size="md" mb={1} color="red.600">
+            Danger Zone
+          </Heading>
+          <Text color="gray.600" fontSize="sm" mb={4}>
+            Permanently delete your account and all associated data. This action cannot be undone.
+          </Text>
+          <Divider mb={4} />
+          <Button colorScheme="red" variant="outline" onClick={onDeleteOpen}>
+            Delete Account
+          </Button>
+        </Box>
+
+        {/* Delete Account confirmation dialog */}
+        <AlertDialog
+          isOpen={isDeleteOpen}
+          leastDestructiveRef={cancelDeleteRef}
+          onClose={onDeleteClose}
+        >
+          <AlertDialogOverlay>
+            <AlertDialogContent>
+              <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                Delete Account
+              </AlertDialogHeader>
+
+              <AlertDialogBody>
+                <Text mb={4}>
+                  This will permanently delete your account and <strong>all associated data</strong> (accounts, transactions, holdings). This cannot be undone.
+                </Text>
+                <FormControl>
+                  <FormLabel>Confirm your password</FormLabel>
+                  <Input
+                    type="password"
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    placeholder="Enter your password to confirm"
+                    autoComplete="current-password"
+                  />
+                </FormControl>
+              </AlertDialogBody>
+
+              <AlertDialogFooter>
+                <Button ref={cancelDeleteRef} onClick={onDeleteClose}>
+                  Cancel
+                </Button>
+                <Button
+                  colorScheme="red"
+                  ml={3}
+                  isLoading={isDeleting}
+                  isDisabled={!deletePassword}
+                  onClick={handleDeleteAccount}
+                >
+                  Delete My Account
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialogOverlay>
+        </AlertDialog>
 
       </VStack>
     </Container>

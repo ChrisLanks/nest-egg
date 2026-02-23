@@ -20,6 +20,8 @@ import {
   VStack,
   Checkbox,
   HStack,
+  PinInput,
+  PinInputField,
 } from '@chakra-ui/react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -27,6 +29,9 @@ import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { useLogin } from '../hooks/useAuth';
 import { useState, useEffect } from 'react';
+import { isMFAChallenge } from '../../../types/auth';
+import { authApi } from '../services/authApi';
+import { useAuthStore } from '../stores/authStore';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -39,8 +44,15 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export const LoginPage = () => {
   const toast = useToast();
   const loginMutation = useLogin();
+  const { setTokens } = useAuthStore();
   const [rememberMe, setRememberMe] = useState(false);
   const [credentialError, setCredentialError] = useState<string | null>(null);
+
+  // MFA challenge state
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaError, setMfaError] = useState<string | null>(null);
+  const [mfaLoading, setMfaLoading] = useState(false);
 
   const {
     register,
@@ -73,12 +85,21 @@ export const LoginPage = () => {
         localStorage.removeItem('rememberedEmail');
       }
 
-      await loginMutation.mutateAsync(data);
+      const result = await authApi.login(data);
+
+      if (isMFAChallenge(result)) {
+        // Backend requires MFA — show the TOTP step
+        setMfaToken(result.mfa_token);
+        return;
+      }
+
+      // Normal login — store tokens and navigate
+      setTokens(result.access_token, result.user);
+      window.location.href = '/dashboard';
     } catch (error: any) {
       const status = error?.response?.status;
 
       if (status === 401) {
-        // Show inline error for wrong credentials — more visible than a toast
         setCredentialError('Incorrect email or password.');
       } else if (status === 423) {
         setCredentialError('Account temporarily locked due to too many failed attempts. Please try again later.');
@@ -100,6 +121,94 @@ export const LoginPage = () => {
     }
   };
 
+  const handleMfaVerify = async () => {
+    if (!mfaToken || mfaCode.length < 6) return;
+    setMfaError(null);
+    setMfaLoading(true);
+
+    try {
+      const result = await authApi.verifyMfa({ mfa_token: mfaToken, code: mfaCode });
+      setTokens(result.access_token, result.user);
+      window.location.href = '/dashboard';
+    } catch (error: any) {
+      const status = error?.response?.status;
+      if (status === 401) {
+        setMfaError('Invalid code. Please check your authenticator app and try again.');
+        setMfaCode('');
+      } else if (status === 429) {
+        setMfaError('Too many attempts. Please wait a moment.');
+      } else {
+        setMfaError('Something went wrong. Please try again.');
+      }
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  // ── MFA challenge step ─────────────────────────────────────────────────────
+  if (mfaToken) {
+    return (
+      <Container maxW="md" py={20}>
+        <VStack spacing={8}>
+          <VStack spacing={2}>
+            <Heading size="2xl">Nest Egg</Heading>
+            <Text color="gray.600">Your personal finance tracker</Text>
+          </VStack>
+
+          <Box w="full" bg="white" p={8} borderRadius="lg" boxShadow="md">
+            <VStack spacing={6}>
+              <Heading size="lg">Two-Factor Authentication</Heading>
+              <Text color="gray.600" textAlign="center" fontSize="sm">
+                Enter the 6-digit code from your authenticator app.
+              </Text>
+
+              <HStack justify="center">
+                <PinInput
+                  value={mfaCode}
+                  onChange={setMfaCode}
+                  onComplete={handleMfaVerify}
+                  otp
+                  size="lg"
+                >
+                  {[0, 1, 2, 3, 4, 5].map((i) => (
+                    <PinInputField key={i} />
+                  ))}
+                </PinInput>
+              </HStack>
+
+              {mfaError && (
+                <Alert status="error" borderRadius="md">
+                  <AlertIcon />
+                  {mfaError}
+                </Alert>
+              )}
+
+              <Button
+                colorScheme="brand"
+                size="lg"
+                w="full"
+                isLoading={mfaLoading}
+                isDisabled={mfaCode.length < 6}
+                onClick={handleMfaVerify}
+              >
+                Verify
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setMfaToken(null); setMfaCode(''); setMfaError(null); }}
+              >
+                Back to login
+              </Button>
+            </VStack>
+          </Box>
+        </VStack>
+      </Container>
+    );
+  }
+
+  // ── Normal login step ──────────────────────────────────────────────────────
   return (
     <Container maxW="md" py={20}>
       <VStack spacing={8}>
