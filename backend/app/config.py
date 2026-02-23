@@ -145,7 +145,7 @@ class Settings(BaseSettings):
     METRICS_PASSWORD: str = "metrics_admin"  # Basic auth password — CHANGE IN PROD
 
     # Compliance
-    TERMS_VERSION: str = "2024-01"  # Bump when Terms of Service or Privacy Policy changes
+    TERMS_VERSION: str = "2026-02"  # Bump when Terms of Service or Privacy Policy changes
 
     # Storage (CSV uploads, attachments)
     STORAGE_BACKEND: str = "local"           # "local" or "s3"

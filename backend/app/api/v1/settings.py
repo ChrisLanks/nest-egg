@@ -315,6 +315,7 @@ async def export_data(
         select(Transaction)
         .where(Transaction.organization_id == org_id)
         .order_by(Transaction.date.desc())
+        .limit(100_000)  # Safety cap — prevents memory bloat for very large orgs
     )
     transactions = list(txn_result.scalars().all())
 
@@ -390,10 +391,14 @@ async def export_data(
 
     zip_buffer.seek(0)
     filename = f"nest-egg-export-{date.today()}.zip"
+    response_headers: dict = {"Content-Disposition": f"attachment; filename={filename}"}
+    if len(transactions) == 100_000:
+        response_headers["X-Export-Truncated"] = "true"
+        response_headers["X-Export-Limit"] = "100000"
     return StreamingResponse(
         zip_buffer,
         media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers=response_headers,
     )
 
 
