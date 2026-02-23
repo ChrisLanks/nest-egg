@@ -6,6 +6,7 @@ from datetime import date, datetime
 import base64
 import json
 import csv
+import re
 from io import StringIO
 
 from fastapi import APIRouter, Depends, Query, HTTPException
@@ -706,14 +707,17 @@ async def export_transactions_csv(
 
             offset += batch_size
 
-    # Generate filename with date range
+    # Generate filename with date range (sanitize to prevent header injection)
+    def _safe_date(val: str | None) -> str:
+        return re.sub(r"[^0-9\-]", "", val or "")
+
     filename = "transactions"
     if start_date and end_date:
-        filename = f"transactions_{start_date}_to_{end_date}"
+        filename = f"transactions_{_safe_date(start_date)}_to_{_safe_date(end_date)}"
     elif start_date:
-        filename = f"transactions_from_{start_date}"
+        filename = f"transactions_from_{_safe_date(start_date)}"
     elif end_date:
-        filename = f"transactions_until_{end_date}"
+        filename = f"transactions_until_{_safe_date(end_date)}"
     filename += ".csv"
 
     return StreamingResponse(

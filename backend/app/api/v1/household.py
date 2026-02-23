@@ -14,6 +14,7 @@ from app.config import settings
 from app.core.database import get_db
 from app.dependencies import get_current_user, get_current_admin_user
 from app.models.account import Account
+from app.models.transaction import Transaction
 from app.models.user import User, HouseholdInvitation, InvitationStatus, Organization
 from app.services.email_service import email_service
 from app.services.rate_limit_service import get_rate_limit_service
@@ -335,6 +336,12 @@ async def leave_household(
     )
     user_accounts = result.scalars().all()
     for account in user_accounts:
+        # Migrate transactions to new org before moving the account
+        await db.execute(
+            update(Transaction)
+            .where(Transaction.account_id == account.id)
+            .values(organization_id=new_org.id)
+        )
         account.organization_id = new_org.id
 
     # Re-home the user
@@ -470,6 +477,12 @@ async def accept_invitation(
         user_accounts = result.scalars().all()
 
         for account in user_accounts:
+            # Migrate transactions to new org before moving the account
+            await db.execute(
+                update(Transaction)
+                .where(Transaction.account_id == account.id)
+                .values(organization_id=invitation.organization_id)
+            )
             account.organization_id = invitation.organization_id
 
         # Update user's organization

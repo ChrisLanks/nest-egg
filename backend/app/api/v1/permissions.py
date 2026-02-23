@@ -207,7 +207,7 @@ async def update_grant(
 ):
     """Update the actions and/or expiry on an existing grant."""
     existing = await permission_grant_crud.get_by_id(db, grant_id)
-    if existing is None or not existing.is_active:
+    if existing is None or not existing.is_active or existing.organization_id != current_user.organization_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grant not found")
 
     if existing.grantor_id != current_user.id and not current_user.is_org_admin:

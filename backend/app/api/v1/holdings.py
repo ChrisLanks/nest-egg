@@ -1198,9 +1198,15 @@ async def create_holding(
     )
 
     # Immediately fetch current price in background (non-blocking)
-    _asyncio.create_task(_fetch_price_for_holding(holding.id, holding.ticker))
+    _task = _asyncio.create_task(_fetch_price_for_holding(holding.id, holding.ticker))
+    _background_tasks.add(_task)
+    _task.add_done_callback(_background_tasks.discard)
 
     return holding
+
+
+# Strong references to background tasks to prevent GC from cancelling them
+_background_tasks: set[_asyncio.Task] = set()
 
 
 async def _fetch_price_for_holding(holding_id, ticker: str) -> None:

@@ -350,7 +350,11 @@ class TrendAnalysisService:
         if starting_value == 0 or num_years <= 0:
             return None
 
-        return (pow(ending_value / starting_value, 1 / num_years) - 1) * 100
+        ratio = ending_value / starting_value
+        if ratio <= 0:
+            return None  # CAGR is undefined for non-positive ratios
+
+        return (pow(ratio, 1 / num_years) - 1) * 100
 
     @staticmethod
     async def get_annual_summary(

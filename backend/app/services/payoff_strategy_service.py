@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import List, Dict, Optional
 from uuid import UUID
+from dateutil.relativedelta import relativedelta
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -74,7 +75,7 @@ class PayoffStrategyService:
             # Estimate minimum payment if not set
             if account.minimum_payment and account.minimum_payment > 0:
                 min_payment = account.minimum_payment
-            elif account.account_type == "CREDIT_CARD":
+            elif account.account_type == AccountType.CREDIT_CARD:
                 min_payment = AmortizationService.calculate_credit_card_minimum(balance)
             elif account.interest_rate and account.interest_rate > 0:
                 # Estimate based on 5-year payoff
@@ -215,6 +216,7 @@ class PayoffStrategyService:
         ]
 
         available_extra = extra_payment
+        freed_minimums = Decimal(0)
         current_month = 0
         max_months = 360  # Cap at 30 years
 
@@ -244,7 +246,7 @@ class PayoffStrategyService:
                     if debt["balance"] <= Decimal("0.01") and debt["months_to_payoff"] == 0:
                         debt["months_to_payoff"] = current_month
                         debt["payoff_date"] = (
-                            date.today().replace(day=1) + timedelta(days=30 * current_month)
+                            date.today().replace(day=1) + relativedelta(months=current_month)
                         ).isoformat()
 
             if all_paid:
@@ -262,16 +264,16 @@ class PayoffStrategyService:
                         debt["balance"] = Decimal(0)
                         debt["months_to_payoff"] = current_month
                         debt["payoff_date"] = (
-                            date.today().replace(day=1) + timedelta(days=30 * current_month)
+                            date.today().replace(day=1) + relativedelta(months=current_month)
                         ).isoformat()
 
-                        # Snowball effect: add this debt's minimum to available extra
-                        available_extra += debt["minimum_payment"]
+                        # Snowball effect: permanently free this debt's minimum payment
+                        freed_minimums += debt["minimum_payment"]
 
                     break
 
-            # Reset available extra for next month
-            available_extra = extra_payment
+            # Reset available extra for next month (include freed minimums from paid-off debts)
+            available_extra = extra_payment + freed_minimums
 
         # Calculate totals
         total_interest = sum(debt["total_interest"] for debt in debt_states)
@@ -282,7 +284,7 @@ class PayoffStrategyService:
             if debt["months_to_payoff"] == 0 and debt["balance"] <= Decimal("0.01"):
                 debt["months_to_payoff"] = current_month
                 debt["payoff_date"] = (
-                    date.today().replace(day=1) + timedelta(days=30 * current_month)
+                    date.today().replace(day=1) + relativedelta(months=current_month)
                 ).isoformat()
 
         # Convert Decimal to float for JSON serialization
@@ -299,7 +301,7 @@ class PayoffStrategyService:
             "total_interest": float(total_interest),
             "total_paid": float(total_paid),
             "debt_free_date": (
-                (date.today().replace(day=1) + timedelta(days=30 * current_month)).isoformat()
+                (date.today().replace(day=1) + relativedelta(months=current_month)).isoformat()
                 if current_month < max_months
                 else None
             ),
@@ -372,7 +374,3 @@ class PayoffStrategyService:
             "current_pace": current_pace,
             "recommendation": recommendation,
         }
-
-
-# Import timedelta here to avoid circular import
-from datetime import timedelta

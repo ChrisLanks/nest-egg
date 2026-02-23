@@ -1,5 +1,6 @@
 """Service for amortization calculations and debt payoff math."""
 
+import calendar
 import math
 from datetime import date
 from decimal import Decimal
@@ -142,6 +143,7 @@ class AmortizationService:
         schedule = []
         remaining_balance = principal
         current_date = start_date
+        original_day = start_date.day
         month_num = 0
 
         monthly_rate = annual_rate / Decimal(100) / Decimal(12)
@@ -176,15 +178,14 @@ class AmortizationService:
                 }
             )
 
-            # Move to next month
-            if current_date.month == 12:
-                current_date = date(current_date.year + 1, 1, current_date.day)
-            else:
-                try:
-                    current_date = date(current_date.year, current_date.month + 1, current_date.day)
-                except ValueError:
-                    # Handle cases like Jan 31 -> Feb 31 (doesn't exist)
-                    current_date = date(current_date.year, current_date.month + 1, 28)
+            # Move to next month (preserve original day, clamp to month's last day)
+            next_month = current_date.month + 1
+            next_year = current_date.year
+            if next_month > 12:
+                next_month = 1
+                next_year += 1
+            last_day = calendar.monthrange(next_year, next_month)[1]
+            current_date = date(next_year, next_month, min(original_day, last_day))
 
             # Stop if balance is paid off
             if remaining_balance <= Decimal("0.01"):

@@ -297,7 +297,7 @@ class PermissionService:
             HTTPException(403): caller is not the grantor and not an org admin.
         """
         grant = await permission_grant_crud.get_by_id(db, grant_id)
-        if grant is None:
+        if grant is None or grant.organization_id != grantor.organization_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grant not found")
 
         if grant.grantor_id != grantor.id and not grantor.is_org_admin:

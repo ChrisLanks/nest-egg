@@ -89,30 +89,25 @@ class RateLimitService:
         key = self._get_rate_limit_key(identifier, request.url.path)
 
         try:
-            # Get current count
-            current = await redis_client.get(key)
+            # Atomic increment-then-expire to prevent race conditions
+            pipe = redis_client.pipeline()
+            pipe.incr(key)
+            pipe.expire(key, window_seconds)
+            results = await pipe.execute()
+            current_count = results[0]
 
-            if current is None:
-                # First request in window
-                await redis_client.setex(key, window_seconds, 1)
-            else:
-                current_count = int(current)
-
-                if current_count >= max_requests:
-                    # Rate limit exceeded
-                    ttl = await redis_client.ttl(key)
-                    raise HTTPException(
-                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                        detail={
-                            "error": "Rate limit exceeded",
-                            "message": f"Too many requests. Please try again in {ttl} seconds.",
-                            "retry_after": ttl,
-                        },
-                        headers={"Retry-After": str(ttl)},
-                    )
-
-                # Increment counter
-                await redis_client.incr(key)
+            if current_count > max_requests:
+                # Rate limit exceeded
+                ttl = await redis_client.ttl(key)
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail={
+                        "error": "Rate limit exceeded",
+                        "message": f"Too many requests. Please try again in {ttl} seconds.",
+                        "retry_after": ttl,
+                    },
+                    headers={"Retry-After": str(ttl)},
+                )
 
         except HTTPException:
             # Re-raise rate limit errors

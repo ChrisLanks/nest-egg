@@ -22,12 +22,12 @@ def _make_user(*, is_org_admin=False, org_id=None):
 
 
 def _make_grant(*, grantor_id, grantee_id, resource_type="account", actions=None,
-                resource_id=None, is_active=True, expires_at=None):
+                resource_id=None, is_active=True, expires_at=None, org_id=None):
     g = Mock(spec=PermissionGrant)
     g.id = uuid4()
     g.grantor_id = grantor_id
     g.grantee_id = grantee_id
-    g.organization_id = uuid4()
+    g.organization_id = org_id or uuid4()
     g.resource_type = resource_type
     g.resource_id = resource_id
     g.actions = actions or ["read"]
@@ -263,7 +263,7 @@ class TestPermissionServiceRevoke:
     async def test_grantor_can_revoke(self, db):
         """Grant owner can revoke their own grant."""
         grantor = _make_user()
-        grant = _make_grant(grantor_id=grantor.id, grantee_id=uuid4())
+        grant = _make_grant(grantor_id=grantor.id, grantee_id=uuid4(), org_id=grantor.organization_id)
 
         with patch(
             "app.services.permission_service.permission_grant_crud.get_by_id",
@@ -282,8 +282,8 @@ class TestPermissionServiceRevoke:
     async def test_org_admin_can_revoke(self, db):
         """Org admin can revoke any grant."""
         admin = _make_user(is_org_admin=True)
-        other_user = _make_user()
-        grant = _make_grant(grantor_id=other_user.id, grantee_id=uuid4())
+        other_user = _make_user(org_id=admin.organization_id)
+        grant = _make_grant(grantor_id=other_user.id, grantee_id=uuid4(), org_id=admin.organization_id)
 
         with patch(
             "app.services.permission_service.permission_grant_crud.get_by_id",
@@ -297,9 +297,10 @@ class TestPermissionServiceRevoke:
     @pytest.mark.asyncio
     async def test_non_owner_cannot_revoke(self, db):
         """Non-owner non-admin raises 403."""
-        actor = _make_user()
-        owner = _make_user()
-        grant = _make_grant(grantor_id=owner.id, grantee_id=uuid4())
+        shared_org = uuid4()
+        actor = _make_user(org_id=shared_org)
+        owner = _make_user(org_id=shared_org)
+        grant = _make_grant(grantor_id=owner.id, grantee_id=uuid4(), org_id=shared_org)
 
         with patch(
             "app.services.permission_service.permission_grant_crud.get_by_id",

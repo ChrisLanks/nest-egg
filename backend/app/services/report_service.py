@@ -198,9 +198,14 @@ class ReportService:
         db: AsyncSession, conditions: List, config: Dict
     ) -> List[Dict]:
         """Execute query grouped by category."""
-        config.get("sortBy", "amount")
+        sort_by = config.get("sortBy", "amount")
         sort_direction = config.get("sortDirection", "desc")
         limit = config.get("limit", 20)
+
+        sort_col = (
+            func.count(Transaction.id) if sort_by == "count"
+            else func.sum(func.abs(Transaction.amount))
+        )
 
         result = await db.execute(
             select(
@@ -213,9 +218,7 @@ class ReportService:
             .where(and_(*conditions), Transaction.category_primary.isnot(None))
             .group_by(Transaction.category_primary)
             .order_by(
-                func.sum(func.abs(Transaction.amount)).desc()
-                if sort_direction == "desc"
-                else func.sum(func.abs(Transaction.amount)).asc()
+                sort_col.desc() if sort_direction == "desc" else sort_col.asc()
             )
             .limit(limit)
         )

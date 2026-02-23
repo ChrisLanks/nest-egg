@@ -850,10 +850,16 @@ class TestAcceptInvitation:
         org_result = Mock()
         org_result.scalar_one_or_none.return_value = old_org
 
+        # Mock results for transaction migration updates (one per account)
+        txn_update_result1 = Mock()
+        txn_update_result2 = Mock()
+
         mock_db.execute.side_effect = [
             invitation_result,
             household_result,  # Household size check
             accounts_result,  # User's accounts
+            txn_update_result1,  # Transaction migration for account1
+            txn_update_result2,  # Transaction migration for account2
             org_result,  # Old organization
         ]
 

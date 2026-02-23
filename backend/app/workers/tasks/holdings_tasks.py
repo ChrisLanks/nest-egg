@@ -44,8 +44,15 @@ async def _enrich_metadata_async():
                 logger.info("No holdings to enrich")
                 return
 
-            # Work per unique ticker so we only call the API once per symbol
-            tickers = list({h.ticker.upper() for h in holdings})
+            # Build a mapping from ticker to the set of organization_ids that own it,
+            # so the bulk update is scoped per-org (prevents cross-org metadata bleed
+            # if two orgs happen to use the same custom ticker symbol).
+            ticker_orgs: dict[str, set] = {}
+            for h in holdings:
+                key = h.ticker.upper()
+                ticker_orgs.setdefault(key, set()).add(h.organization_id)
+
+            tickers = list(ticker_orgs.keys())
             logger.info(f"Enriching metadata for {len(tickers)} unique tickers")
 
             market_data = get_market_data_provider()
@@ -74,11 +81,15 @@ async def _enrich_metadata_async():
                         updates["country"] = metadata.country
 
                     if len(updates) > 1:  # More than just updated_at
-                        await db.execute(
-                            update(Holding)
-                            .where(Holding.ticker == ticker)
-                            .values(**updates)
-                        )
+                        for org_id in ticker_orgs[ticker]:
+                            await db.execute(
+                                update(Holding)
+                                .where(
+                                    Holding.ticker == ticker,
+                                    Holding.organization_id == org_id,
+                                )
+                                .values(**updates)
+                            )
                         enriched_count += 1
                         logger.debug(f"Enriched {ticker}: {list(updates.keys())}")
                     else:

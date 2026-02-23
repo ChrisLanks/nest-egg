@@ -16,6 +16,7 @@ Prod: override METRICS_USERNAME and METRICS_PASSWORD in environment.
 """
 
 import base64
+import hmac
 
 from fastapi import FastAPI
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
@@ -210,7 +211,7 @@ def create_metrics_app() -> ASGIApp:
                 headers={"WWW-Authenticate": 'Basic realm="metrics"'},
             )
 
-        if username != settings.METRICS_USERNAME or password != settings.METRICS_PASSWORD:
+        if not (hmac.compare_digest(username, settings.METRICS_USERNAME) and hmac.compare_digest(password, settings.METRICS_PASSWORD)):
             return Response(
                 content="Unauthorized",
                 status_code=401,
@@ -234,11 +235,6 @@ class MetricsMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Track request
-        scope["method"]
-        scope["path"]
-
-        # Execute request
         await self.app(scope, receive, send)
 
 
