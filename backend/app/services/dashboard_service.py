@@ -20,36 +20,73 @@ class DashboardService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_net_worth(
+    async def get_active_accounts(
         self, organization_id: str, account_ids: Optional[List[UUID]] = None
-    ) -> Decimal:
-        """Calculate net worth (assets - debts)."""
-        # Get all active accounts
+    ) -> list:
+        """Fetch active accounts once for reuse across multiple calculations."""
         conditions = [Account.organization_id == organization_id, Account.is_active.is_(True)]
         if account_ids is not None:
             conditions.append(Account.id.in_(account_ids))
 
-        result = await self.db.execute(select(Account).where(and_(*conditions)))
-        accounts = result.scalars().all()
+        result = await self.db.execute(
+            select(Account).where(and_(*conditions)).order_by(Account.account_type, Account.name)
+        )
+        return result.scalars().all()
 
+    def compute_net_worth(self, accounts: list) -> Decimal:
+        """Calculate net worth from pre-fetched accounts (no DB query)."""
         total = Decimal(0)
         for account in accounts:
-            # Check if account should be included in net worth
-            include = self._should_include_in_networth(account)
-            if not include:
+            if not self._should_include_in_networth(account):
                 continue
 
-            # Calculate account value (may be vested equity for private equity accounts)
             balance = self._calculate_account_value(account)
 
-            # Use account type's category property to determine how to handle balance
             if account.account_type.is_asset:
                 total += balance
             elif account.account_type.is_debt:
-                # Use abs() to handle both positive and negative balance representations
                 total -= abs(balance)
 
         return total
+
+    def compute_total_assets(self, accounts: list) -> Decimal:
+        """Calculate total assets from pre-fetched accounts (no DB query)."""
+        total = Decimal(0)
+        for account in accounts:
+            if account.account_type.is_asset and self._should_include_in_networth(account):
+                total += self._calculate_account_value(account)
+        return total
+
+    def compute_total_debts(self, accounts: list) -> Decimal:
+        """Calculate total debts from pre-fetched accounts (no DB query)."""
+        return sum(
+            (
+                abs(account.current_balance or Decimal(0))
+                for account in accounts
+                if account.account_type.is_debt
+            ),
+            Decimal(0),
+        )
+
+    def compute_account_balances(self, accounts: list) -> List[Dict]:
+        """Get account balances from pre-fetched accounts (no DB query)."""
+        return [
+            {
+                "id": str(account.id),
+                "name": account.name,
+                "type": account.account_type,
+                "balance": float(account.current_balance or 0),
+                "institution": account.institution_name,
+            }
+            for account in accounts
+        ]
+
+    async def get_net_worth(
+        self, organization_id: str, account_ids: Optional[List[UUID]] = None
+    ) -> Decimal:
+        """Calculate net worth (assets - debts)."""
+        accounts = await self.get_active_accounts(organization_id, account_ids)
+        return self.compute_net_worth(accounts)
 
     def _should_include_in_networth(self, account: Account) -> bool:
         """
@@ -159,41 +196,15 @@ class DashboardService:
         self, organization_id: str, account_ids: Optional[List[UUID]] = None
     ) -> Decimal:
         """Calculate total assets."""
-        conditions = [Account.organization_id == organization_id, Account.is_active.is_(True)]
-        if account_ids is not None:
-            conditions.append(Account.id.in_(account_ids))
-
-        result = await self.db.execute(select(Account).where(and_(*conditions)))
-        accounts = result.scalars().all()
-
-        # Filter for asset accounts using category property and respect include_in_networth
-        total = Decimal(0)
-        for account in accounts:
-            if account.account_type.is_asset and self._should_include_in_networth(account):
-                total += self._calculate_account_value(account)
-
-        return total
+        accounts = await self.get_active_accounts(organization_id, account_ids)
+        return self.compute_total_assets(accounts)
 
     async def get_total_debts(
         self, organization_id: str, account_ids: Optional[List[UUID]] = None
     ) -> Decimal:
         """Calculate total debts."""
-        conditions = [Account.organization_id == organization_id, Account.is_active.is_(True)]
-        if account_ids is not None:
-            conditions.append(Account.id.in_(account_ids))
-
-        result = await self.db.execute(select(Account).where(and_(*conditions)))
-        accounts = result.scalars().all()
-
-        # Filter for debt accounts using category property and return absolute value for display
-        return sum(
-            (
-                abs(account.current_balance or Decimal(0))
-                for account in accounts
-                if account.account_type.is_debt
-            ),
-            Decimal(0),
-        )
+        accounts = await self.get_active_accounts(organization_id, account_ids)
+        return self.compute_total_debts(accounts)
 
     async def get_monthly_spending(
         self,
@@ -256,6 +267,44 @@ class DashboardService:
         )
         total = result.scalar()
         return total if total else Decimal(0)
+
+    async def get_spending_and_income(
+        self,
+        organization_id: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        account_ids: Optional[List[UUID]] = None,
+    ) -> tuple[Decimal, Decimal]:
+        """Get spending and income in a single query using CASE WHEN."""
+        if not start_date:
+            now = utc_now()
+            start_date = date(now.year, now.month, 1)
+
+        if not end_date:
+            end_date = date.today()
+
+        conditions = [
+            Transaction.organization_id == organization_id,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+        ]
+        if account_ids is not None:
+            conditions.append(Transaction.account_id.in_(account_ids))
+
+        result = await self.db.execute(
+            select(
+                func.sum(case((Transaction.amount < 0, Transaction.amount), else_=0)).label(
+                    "spending"
+                ),
+                func.sum(case((Transaction.amount > 0, Transaction.amount), else_=0)).label(
+                    "income"
+                ),
+            ).where(and_(*conditions))
+        )
+        row = result.one()
+        spending = abs(row.spending) if row.spending else Decimal(0)
+        income = row.income if row.income else Decimal(0)
+        return spending, income
 
     async def get_expense_by_category(
         self,
@@ -377,25 +426,5 @@ class DashboardService:
         self, organization_id: str, account_ids: Optional[List[UUID]] = None
     ) -> List[Dict]:
         """Get all active account balances."""
-        conditions = [Account.organization_id == organization_id, Account.is_active.is_(True)]
-        if account_ids is not None:
-            conditions.append(Account.id.in_(account_ids))
-
-        result = await self.db.execute(
-            select(Account).where(and_(*conditions)).order_by(Account.account_type, Account.name)
-        )
-        accounts = result.scalars().all()
-
-        balances = []
-        for account in accounts:
-            balances.append(
-                {
-                    "id": str(account.id),
-                    "name": account.name,
-                    "type": account.account_type,
-                    "balance": float(account.current_balance or 0),
-                    "institution": account.institution_name,
-                }
-            )
-
-        return balances
+        accounts = await self.get_active_accounts(organization_id, account_ids)
+        return self.compute_account_balances(accounts)

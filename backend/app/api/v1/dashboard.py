@@ -126,14 +126,16 @@ async def get_dashboard_summary(
 
     service = DashboardService(db)
 
-    # Calculate metrics
-    net_worth = await service.get_net_worth(current_user.organization_id, account_ids)
-    total_assets = await service.get_total_assets(current_user.organization_id, account_ids)
-    total_debts = await service.get_total_debts(current_user.organization_id, account_ids)
-    monthly_spending = await service.get_monthly_spending(
-        current_user.organization_id, start_date, end_date, account_ids
-    )
-    monthly_income = await service.get_monthly_income(
+    # Fetch accounts once (eliminates 3 redundant identical queries)
+    accounts = await service.get_active_accounts(current_user.organization_id, account_ids)
+
+    # Compute account-based metrics synchronously from pre-fetched data
+    net_worth = service.compute_net_worth(accounts)
+    total_assets = service.compute_total_assets(accounts)
+    total_debts = service.compute_total_debts(accounts)
+
+    # Single query for both spending and income (CASE WHEN)
+    monthly_spending, monthly_income = await service.get_spending_and_income(
         current_user.organization_id, start_date, end_date, account_ids
     )
 
@@ -173,14 +175,17 @@ async def get_dashboard_data(
 
     service = DashboardService(db)
 
-    # Get all dashboard data
-    net_worth = await service.get_net_worth(current_user.organization_id, account_ids)
-    total_assets = await service.get_total_assets(current_user.organization_id, account_ids)
-    total_debts = await service.get_total_debts(current_user.organization_id, account_ids)
-    monthly_spending = await service.get_monthly_spending(
-        current_user.organization_id, start_date, end_date, account_ids
-    )
-    monthly_income = await service.get_monthly_income(
+    # Fetch accounts once (eliminates 4 redundant identical queries)
+    accounts = await service.get_active_accounts(current_user.organization_id, account_ids)
+
+    # Compute account-based metrics synchronously from pre-fetched data
+    net_worth = service.compute_net_worth(accounts)
+    total_assets = service.compute_total_assets(accounts)
+    total_debts = service.compute_total_debts(accounts)
+    account_balances = service.compute_account_balances(accounts)
+
+    # Single query for both spending and income (CASE WHEN)
+    monthly_spending, monthly_income = await service.get_spending_and_income(
         current_user.organization_id, start_date, end_date, account_ids
     )
 
@@ -191,8 +196,6 @@ async def get_dashboard_data(
     top_expenses = await service.get_expense_by_category(
         current_user.organization_id, start_date, end_date, limit=10, account_ids=account_ids
     )
-
-    account_balances = await service.get_account_balances(current_user.organization_id, account_ids)
 
     cash_flow_trend = await service.get_cash_flow_trend(
         current_user.organization_id, months=6, account_ids=account_ids

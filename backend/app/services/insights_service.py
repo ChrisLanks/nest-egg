@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from typing import Dict, List
 from uuid import UUID
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Transaction
@@ -72,36 +72,34 @@ class InsightsService:
 
         current_month_end = date.today()
 
-        # Get spending by category for current month
-        current_month_result = await db.execute(
+        # Single query for both months using conditional aggregation
+        combined_result = await db.execute(
             select(
-                Transaction.category_primary, func.sum(func.abs(Transaction.amount)).label("total")
-            )
-            .select_from(Transaction)
-            .join(Account)
-            .where(
-                and_(
-                    Transaction.organization_id == organization_id,
-                    Account.is_active.is_(True),
-                    Account.exclude_from_cash_flow.is_(False),
-                    Transaction.is_transfer.is_(False),
-                    Transaction.account_id.in_(account_ids),
-                    Transaction.date >= current_month_start,
-                    Transaction.date <= current_month_end,
-                    Transaction.amount < 0,  # Expenses only
-                    Transaction.category_primary.isnot(None),
-                )
-            )
-            .group_by(Transaction.category_primary)
-        )
-        current_month_data = {
-            row.category_primary: float(row.total) for row in current_month_result
-        }
-
-        # Get spending by category for previous month
-        previous_month_result = await db.execute(
-            select(
-                Transaction.category_primary, func.sum(func.abs(Transaction.amount)).label("total")
+                Transaction.category_primary,
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                Transaction.date >= current_month_start,
+                                Transaction.date <= current_month_end,
+                            ),
+                            func.abs(Transaction.amount),
+                        ),
+                        else_=0,
+                    )
+                ).label("current_total"),
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                Transaction.date >= previous_month_start,
+                                Transaction.date <= previous_month_end,
+                            ),
+                            func.abs(Transaction.amount),
+                        ),
+                        else_=0,
+                    )
+                ).label("previous_total"),
             )
             .select_from(Transaction)
             .join(Account)
@@ -113,16 +111,20 @@ class InsightsService:
                     Transaction.is_transfer.is_(False),
                     Transaction.account_id.in_(account_ids),
                     Transaction.date >= previous_month_start,
-                    Transaction.date <= previous_month_end,
+                    Transaction.date <= current_month_end,
                     Transaction.amount < 0,  # Expenses only
                     Transaction.category_primary.isnot(None),
                 )
             )
             .group_by(Transaction.category_primary)
         )
-        previous_month_data = {
-            row.category_primary: float(row.total) for row in previous_month_result
-        }
+        current_month_data = {}
+        previous_month_data = {}
+        for row in combined_result:
+            if row.current_total:
+                current_month_data[row.category_primary] = float(row.current_total)
+            if row.previous_total:
+                previous_month_data[row.category_primary] = float(row.previous_total)
 
         # Calculate trends
         insights = []

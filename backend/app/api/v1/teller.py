@@ -139,7 +139,11 @@ async def handle_teller_webhook(
         )
 
         # Now parse the JSON body
-        webhook_data: Dict[str, Any] = json.loads(raw_body.decode("utf-8"))
+        try:
+            webhook_data: Dict[str, Any] = json.loads(raw_body.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            logger.warning(f"Malformed webhook body: {e}")
+            raise HTTPException(status_code=400, detail="Invalid JSON body")
 
         event_type = webhook_data.get("event")
         payload = webhook_data.get("payload", {})
@@ -181,6 +185,8 @@ async def handle_teller_webhook(
 
         return {"status": "acknowledged"}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Webhook error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Webhook processing failed")

@@ -109,6 +109,7 @@ Scheduled tasks for hands-free operation:
 - **Daily Budget Alerts** (Midnight): Check all budgets and create notifications
 - **Weekly Recurring Detection** (Monday 2am): Auto-detect recurring transactions/subscriptions
 - **Daily Cash Flow Forecast** (6:30am): Check for projected negative balances
+- **Daily Data Retention** (3:30am): Purge transactions older than `DATA_RETENTION_DAYS` (disabled by default; dry-run safety)
 - **Daily Portfolio Snapshots** (11:59pm): Capture end-of-day holdings values
   - Smart offset-based scheduling distributes load across 24 hours
   - Each organization runs at a consistent time based on UUID hash
@@ -181,16 +182,28 @@ Drop-in support for external identity providers alongside the built-in JWT syste
 - **JWT Authentication**: Secure token-based auth with httpOnly-cookie refresh tokens and automatic rotation
 - **Two-Factor Authentication (MFA)**: TOTP-based 2FA with backup codes; enforced at login in production
 - **Account Lockout**: Configurable failed-attempt lockout (default 5 attempts / 30 min)
-- **Anomaly Detection Middleware**: Request logging with structured fields for security monitoring
+- **Anomaly Detection Middleware**: Request logging with structured fields for security monitoring; read-operation audit for sensitive endpoints (export, profile, portfolio)
 - **GDPR Right to Erasure**: `DELETE /settings/account` — password-confirmed account deletion with cookie clearing
 - **GDPR Records of Processing**: Admin-only `/monitoring/data-processing-activities` endpoint (Article 30 RoPA)
+- **GDPR Data Export**: Streaming ZIP export with no row cap — batched 5K rows at a time for constant memory
 - **Consent Tracking**: ToS and Privacy Policy acceptance recorded at registration with IP and version
+- **Configurable Data Retention**: Optional `DATA_RETENTION_DAYS` with dry-run safety default; Celery task purges old transactions nightly
 - **Database Isolation**: Row-level security with organization-scoped queries
 - **API Docs Disabled in Production**: Swagger/ReDoc/OpenAPI only available when `DEBUG=true`
+- **Production Config Validation**: `APP_BASE_URL` rejects `localhost` when `ENVIRONMENT=production`
 - **Distributed Snapshot Scheduler**: Redis distributed lock prevents duplicate snapshot captures across instances
 - **OIDC/OAuth2 Support**: RS256 token validation via JWKS for Cognito, Keycloak, Okta, and Google (see IdP-Agnostic Authentication above)
 - **RBAC Audit Trail**: Immutable log of every permission grant change (actor, IP, before/after state)
 - **Webhook Signature Verification**: Plaid and Teller webhooks verified before processing (HMAC-SHA256)
+
+### **Scalability Safeguards**
+- **Date Range Validation**: Shared utility caps queries to ~50 years; applied to dashboard, income/expenses, and holdings endpoints
+- **Pagination Depth Caps**: OFFSET limited to 10,000 on report templates and audit log to prevent deep table scans
+- **Merchant GROUP BY Limits**: All unbounded merchant aggregation queries capped to 500 results
+- **Real Health Check**: `/health` verifies actual DB connectivity and returns 503 when unreachable (Docker/K8s will restart)
+- **Dashboard Query Consolidation**: Account data fetched once (eliminates 4 redundant queries); spending + income merged into single `CASE WHEN` query
+- **Forecast O(n) Optimization**: Transaction-by-date pre-grouping replaces O(n*days) scan
+- **Insights Query Consolidation**: Two identical month-aggregation queries merged into one with `CASE WHEN`
 
 ## 🛡️ Data Integrity & Deduplication
 
@@ -646,6 +659,13 @@ At least one key must be set to enable the "Refresh Valuation" button on propert
 | `CELERY_BROKER_URL` | `redis://localhost:6379/0` | Celery task broker URL. |
 | `CELERY_RESULT_BACKEND` | `redis://localhost:6379/0` | Celery result store URL. |
 | `RULE_APPLICATION_INTERVAL_HOURS` | `1` | How often Celery re-applies categorization rules to new transactions. |
+
+#### Data Retention *(optional)*
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATA_RETENTION_DAYS` | — (indefinite) | Delete transactions older than this many days. Leave unset to keep all data forever. |
+| `DATA_RETENTION_DRY_RUN` | `true` | When `true`, logs what would be deleted without actually deleting. Set to `false` to enable real purges. |
 
 #### Email / SMTP *(optional)*
 
@@ -1310,8 +1330,10 @@ nest-egg/
 │   │   │       ├── holdings_tasks.py     # Price refresh
 │   │   │       ├── interest_accrual_tasks.py  # Interest accrual
 │   │   │       ├── recurring_tasks.py    # Pattern detection
+│   │   │       ├── retention_tasks.py   # Data retention purge
 │   │   │       └── snapshot_tasks.py     # Portfolio snapshots
-│   │   └── utils/                # Utility functions
+│   │   ├── utils/                # Utility functions
+│   │   │   └── date_validation.py       # Shared date range validation
 │   ├── alembic/                  # Database migrations
 │   │   └── versions/             # Migration files
 │   ├── tests/                    # Backend tests
@@ -1354,6 +1376,7 @@ nest-egg/
 ├── docker-compose.dev.yml        # Development overrides
 ├── Makefile                      # Common commands (make install, make dev, make test)
 ├── setup.sh                      # Automated first-time setup script
+├── SELF_HOSTING.md               # Enterprise self-hosting guide
 ├── .env.example                  # Environment template
 └── README.md                     # This file
 ```
@@ -1625,6 +1648,9 @@ Date,Merchant,Amount,Category,Description
 - [x] **Interest accrual** — automated interest calculations for savings and debt accounts
 - [x] **CSRF protection** — double-submit cookie pattern with constant-time comparison
 - [x] **GDPR compliance** — Article 30 RoPA, data export (Article 20), right to erasure (Article 17)
+- [x] **Enterprise hardening** — scalability safeguards (date range, pagination, merchant caps), streaming export, data retention, real health checks
+- [x] **Performance optimization** — dashboard query consolidation (9 queries → 5), O(n) forecast, single-query insights
+- [x] **Self-hosting documentation** — production checklist, backup/restore, scaling, encryption rotation (see `SELF_HOSTING.md`)
 
 ### 🚧 In Progress
 
@@ -1714,4 +1740,4 @@ Built with:
 
 **Built with ❤️ for personal finance management**
 
-_Last Updated: February 2026 - Security hardening pass, debt payoff planner, custom reports, subscription tracker, and 10+ new features!_
+_Last Updated: February 2026 - Enterprise hardening (scalability, compliance, self-hosting), performance optimization, 5 security audit passes, and 10+ new features!_

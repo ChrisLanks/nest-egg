@@ -2,6 +2,7 @@
 
 import calendar
 import json
+from collections import defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from decimal import Decimal as D
@@ -105,6 +106,11 @@ class ForecastService:
         )
         future_transactions.extend(income_events)
 
+        # Pre-group transactions by date: O(n) instead of O(n*days)
+        txn_by_date: Dict[date, list] = defaultdict(list)
+        for t in future_transactions:
+            txn_by_date[t["date"]].append(t)
+
         # Calculate daily running balance
         forecast = []
         running_balance = current_balance
@@ -113,8 +119,7 @@ class ForecastService:
         for day_offset in range(days_ahead + 1):  # Include today
             forecast_date = start_date + timedelta(days=day_offset)
 
-            # Sum transactions for this day
-            day_transactions = [t for t in future_transactions if t["date"] == forecast_date]
+            day_transactions = txn_by_date.get(forecast_date, [])
             day_change = sum(t["amount"] for t in day_transactions)
             running_balance += day_change
 
