@@ -7,7 +7,7 @@ help:
 	@echo "  make test-unit  - Run only unit tests"
 	@echo "  make test-api   - Run only API tests"
 	@echo "  make lint       - Run all linters"
-	@echo "  make format     - Format code with black and isort"
+	@echo "  make format     - Format code with ruff"
 	@echo "  make coverage   - Run tests with coverage report"
 	@echo "  make clean      - Remove cache and build files"
 	@echo "  make pre-commit - Setup pre-commit hooks"
@@ -29,20 +29,16 @@ test-integration:
 	pytest -v -m integration
 
 lint:
-	@echo "Running Black..."
-	black --check app tests
-	@echo "Running isort..."
-	isort --check-only app tests
-	@echo "Running Flake8..."
-	flake8 app tests
-	@echo "Running Pylint..."
-	pylint app --max-line-length=100 --disable=all --enable=E,F || true
+	@echo "Running ruff check..."
+	ruff check app --ignore E402
+	@echo "Running ruff format check..."
+	ruff format --check app tests
 
 format:
-	@echo "Formatting with Black..."
-	black app tests
-	@echo "Sorting imports with isort..."
-	isort app tests
+	@echo "Formatting with ruff..."
+	ruff format app tests
+	@echo "Fixing lint issues..."
+	ruff check app tests --fix --ignore E402
 	@echo "Done!"
 
 coverage:

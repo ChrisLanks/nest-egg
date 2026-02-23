@@ -1,13 +1,11 @@
-name: Build and Push Docker Images
+name: Release
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [main, master]
     tags:
-      - 'v*.*.*'  # Trigger on version tags (e.g., v1.0.0)
-  workflow_dispatch:  # Allow manual trigger
+      - "v*.*.*"
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -15,16 +13,43 @@ env:
   IMAGE_NAME_FRONTEND: ${{ github.repository }}/frontend
 
 jobs:
-  build-and-push-backend:
-    name: Build Backend Docker Image
+  test:
+    name: Verify Tests Pass
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov httpx
+
+      - name: Run tests
+        working-directory: ./backend
+        env:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+          SECRET_KEY: test-secret-key-for-ci-32-chars-long
+          MASTER_ENCRYPTION_KEY: test-encryption-key-must-be-32-bytes-exactly
+          DEBUG: "true"
+        run: pytest -q
+
+  build-and-push-backend:
+    name: Build Backend Image
+    runs-on: ubuntu-latest
+    needs: test
     permissions:
       contents: read
       packages: write
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -36,28 +61,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}
           tags: |
-            # Tag with 'latest' for main/master branch
             type=raw,value=latest,enable={{is_default_branch}}
-            # Tag with commit SHA
-            type=sha,prefix={{branch}}-
-            # Tag with version for release tags (v1.0.0 -> 1.0.0)
+            type=sha,prefix=
             type=semver,pattern={{version}}
-            # Tag with major.minor (v1.0.0 -> 1.0)
             type=semver,pattern={{major}}.{{minor}}
-            # Tag with branch name for non-main branches
-            type=ref,event=branch
           labels: |
             org.opencontainers.image.title=Nest Egg Backend
             org.opencontainers.image.description=Personal Finance Tracking Backend API
-            org.opencontainers.image.vendor=Nest Egg
 
-      - name: Build and push Backend image
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: ./backend
@@ -70,15 +88,14 @@ jobs:
           platforms: linux/amd64,linux/arm64
 
   build-and-push-frontend:
-    name: Build Frontend Docker Image
+    name: Build Frontend Image
     runs-on: ubuntu-latest
+    needs: test
     permissions:
       contents: read
       packages: write
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -90,23 +107,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix={{branch}}-
+            type=sha,prefix=
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=ref,event=branch
           labels: |
             org.opencontainers.image.title=Nest Egg Frontend
             org.opencontainers.image.description=Personal Finance Tracking Frontend UI
-            org.opencontainers.image.vendor=Nest Egg
 
-      - name: Build and push Frontend image
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
@@ -118,62 +133,65 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
 
-  # Create GitHub release on version tags
   create-release:
-    name: Create GitHub Release
+    name: Create Release
     runs-on: ubuntu-latest
     needs: [build-and-push-backend, build-and-push-frontend]
-    if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "is_tag=true" >> $GITHUB_OUTPUT
+          else
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            DATE=$(date +%Y.%m.%d)
+            echo "tag=${DATE}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+            echo "is_tag=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Generate changelog
         id: changelog
         run: |
-          # Get commits since last tag
-          PREV_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+          PREV_TAG=$(git describe --abbrev=0 --tags 2>/dev/null || echo "")
           if [ -z "$PREV_TAG" ]; then
-            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
           else
             COMMITS=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
           fi
-
-          # Write to file for multiline support
-          echo "$COMMITS" > changelog.txt
-
-          # Set output
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          cat changelog.txt >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          name: Release ${{ github.ref_name }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.tag }}
           body: |
-            ## 🚀 What's Changed
+            ## What's Changed
 
             ${{ steps.changelog.outputs.changelog }}
 
-            ## 📦 Docker Images
+            ## Docker Images
 
-            Pull the images:
-            ```bash
-            docker pull ghcr.io/${{ github.repository }}/backend:${{ github.ref_name }}
-            docker pull ghcr.io/${{ github.repository }}/frontend:${{ github.ref_name }}
-            ```
-
-            Or use `latest` tag:
             ```bash
             docker pull ghcr.io/${{ github.repository }}/backend:latest
             docker pull ghcr.io/${{ github.repository }}/frontend:latest
             ```
+
+            Or pin to this commit:
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+            docker pull ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
+            ```
           draft: false
-          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') }}
+          prerelease: ${{ steps.version.outputs.is_tag == 'false' }}
           generate_release_notes: true
