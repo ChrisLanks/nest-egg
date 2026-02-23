@@ -4,7 +4,7 @@ Monitoring and observability API endpoints.
 Provides endpoints for health checks, metrics, and rate limiting status.
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends
@@ -14,6 +14,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_admin_user
 from app.models.user import User
 from app.services.rate_limit_service import get_rate_limit_service
+from app.utils.datetime_utils import utc_now
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -80,7 +81,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     return HealthResponse(
         status="healthy" if db_status == "ok" and redis_status == "ok" else "degraded",
         version=settings.APP_VERSION,
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=utc_now().isoformat(),
         database=db_status,
         redis=redis_status,
     )
@@ -98,7 +99,12 @@ async def get_rate_limit_dashboard(
     redis = await rate_limit_service.get_redis()
 
     # Get all rate limit keys
-    rate_limit_keys = await redis.keys("rate_limit:*")
+    # Use SCAN instead of KEYS to avoid blocking Redis
+    rate_limit_keys = []
+    async for key in redis.scan_iter(match="rate_limit:*", count=100):
+        rate_limit_keys.append(key)
+        if len(rate_limit_keys) >= 500:  # Safety cap for admin dashboard
+            break
 
     # Parse current active limits
     active_limits = []
@@ -145,7 +151,7 @@ async def get_rate_limit_dashboard(
         if is_blocked:
             blocked_count += 1
 
-        reset_time = datetime.utcnow() + timedelta(seconds=ttl)
+        reset_time = utc_now() + timedelta(seconds=ttl)
 
         active_limits.append(
             RateLimitStatus(
@@ -208,7 +214,7 @@ async def get_system_stats(
     transactions_count = transactions_result.scalar()
 
     # Get recent activity (last 24 hours)
-    yesterday = datetime.utcnow() - timedelta(days=1)
+    yesterday = utc_now() - timedelta(days=1)
 
     new_users_result = await db.execute(
         select(func.count(User.id)).where(User.created_at >= yesterday)
@@ -230,7 +236,7 @@ async def get_system_stats(
             "new_users": new_users_24h,
             "new_transactions": new_transactions_24h,
         },
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": utc_now().isoformat(),
     }
 
 

@@ -25,17 +25,25 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         """Check request size before processing."""
-        # Check Content-Length header
-        content_length = request.headers.get("content-length")
+        max_mb = f"{self.max_request_size / (1024 * 1024):.1f}MB"
 
+        # Fast path: reject obviously oversized requests via Content-Length header
+        content_length = request.headers.get("content-length")
         if content_length:
-            content_length = int(content_length)
-            if content_length > self.max_request_size:
+            if int(content_length) > self.max_request_size:
                 return JSONResponse(
                     status_code=413,
-                    content={
-                        "detail": f"Request body too large. Maximum size is {self.max_request_size / (1024 * 1024):.1f}MB"
-                    },
+                    content={"detail": f"Request body too large. Maximum size is {max_mb}"},
+                )
+
+        # For state-changing methods, verify actual body size.
+        # Content-Length can be omitted or spoofed with chunked encoding.
+        if request.method in ("POST", "PUT", "PATCH"):
+            body = await request.body()
+            if len(body) > self.max_request_size:
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": f"Request body too large. Maximum size is {max_mb}"},
                 )
 
         response: Response = await call_next(request)

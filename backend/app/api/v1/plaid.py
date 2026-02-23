@@ -63,10 +63,8 @@ async def create_link_token(
             expiration=expiration,
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create link token: {str(e)}",
-        )
+        logger.error(f"Failed to create link token: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create link token")
 
 
 @router.post("/exchange-token", response_model=PublicTokenExchangeResponse)
@@ -183,10 +181,8 @@ async def exchange_public_token(
 
     except Exception as e:
         await db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to exchange token: {str(e)}",
-        )
+        logger.error(f"Failed to exchange token: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to exchange token")
 
 
 def _map_plaid_account_type(plaid_type: str, plaid_subtype: str) -> AccountType:
@@ -253,13 +249,19 @@ async def handle_plaid_webhook(
     )
 
     try:
-        webhook_data: Dict[str, Any] = await request.json()
+        # Read raw body BEFORE parsing — verify signature on untrusted data first
+        raw_body = await request.body()
 
         # Verify webhook signature to ensure it's from Plaid
         plaid_verification_header = request.headers.get("Plaid-Verification")
         PlaidService.verify_webhook_signature(
-            webhook_verification_header=plaid_verification_header, webhook_body=webhook_data
+            webhook_verification_header=plaid_verification_header, webhook_body=raw_body
         )
+
+        # Only parse JSON after signature is verified
+        import json as _json
+
+        webhook_data: Dict[str, Any] = _json.loads(raw_body)
 
         webhook_type = webhook_data.get("webhook_type")
         webhook_code = webhook_data.get("webhook_code")
@@ -286,8 +288,8 @@ async def handle_plaid_webhook(
         return {"status": "acknowledged"}
 
     except Exception as e:
-        logger.error(f"Webhook error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Webhook error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Webhook processing failed")
 
 
 @router.post("/sync-transactions/{plaid_item_id}")
@@ -388,8 +390,8 @@ async def sync_transactions(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Sync error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
+        logger.error(f"Sync error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Sync failed")
 
 
 async def _handle_item_webhook(

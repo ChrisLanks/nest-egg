@@ -25,7 +25,7 @@ class PlaidService:
 
     @staticmethod
     def verify_webhook_signature(
-        webhook_verification_header: Optional[str], webhook_body: Dict[str, Any]
+        webhook_verification_header: Optional[str], webhook_body: bytes
     ) -> bool:
         """
         Verify Plaid webhook signature using JWT verification.
@@ -66,19 +66,16 @@ class PlaidService:
                 algorithms=["ES256"],  # Plaid uses ES256 (ECDSA with SHA-256)
             )
 
-            # Optional: Verify webhook body matches JWT claims
-            # Plaid includes the item_id in the JWT which should match the body
+            # Verify webhook body hash matches JWT claims
             if decoded.get("request_body_sha256"):
                 import hashlib
-                import json
 
-                body_str = json.dumps(webhook_body, separators=(",", ":"), sort_keys=True)
-                body_hash = hashlib.sha256(body_str.encode()).hexdigest()
+                body_hash = hashlib.sha256(webhook_body).hexdigest()
 
                 if body_hash != decoded["request_body_sha256"]:
                     raise HTTPException(status_code=401, detail="Webhook body hash mismatch")
 
-            logger.info(f"Webhook signature verified for item: {webhook_body.get('item_id')}")
+            logger.info("Webhook signature verified")
             return True
 
         except jwt.ExpiredSignatureError:

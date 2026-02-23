@@ -223,7 +223,9 @@ async def list_transactions(
         query = query.where(Transaction.date <= end_date_obj)
 
     if search:
-        search_pattern = f"%{search}%"
+        # Escape ILIKE wildcards in user input to prevent pattern injection
+        escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        search_pattern = f"%{escaped}%"
         query = query.where(
             Transaction.merchant_name.ilike(search_pattern)
             | Transaction.description.ilike(search_pattern)
@@ -280,7 +282,8 @@ async def list_transactions(
         if end_date_obj:
             count_query = count_query.where(Transaction.date <= end_date_obj)
         if search:
-            search_pattern = f"%{search}%"
+            escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            search_pattern = f"%{escaped}%"
             count_query = count_query.where(
                 Transaction.merchant_name.ilike(search_pattern)
                 | Transaction.description.ilike(search_pattern)
@@ -649,11 +652,14 @@ async def export_transactions_csv(
         output.seek(0)
         output.truncate(0)
 
-        # Stream transactions in batches to avoid memory issues
+        # Stream transactions in batches to avoid memory issues.
+        # Cap at 500K rows to prevent runaway exports on very large datasets.
+        MAX_EXPORT_ROWS = 500_000
         batch_size = 1000
         offset = 0
+        total_exported = 0
 
-        while True:
+        while total_exported < MAX_EXPORT_ROWS:
             # Fetch batch
             batch_query = query.offset(offset).limit(batch_size)
             result = await db.execute(batch_query)
@@ -687,6 +693,8 @@ async def export_transactions_csv(
                         str(txn.id),
                     ]
                 )
+
+            total_exported += len(transactions)
 
             # Yield batch
             yield output.getvalue()

@@ -242,6 +242,8 @@ class TestHandlePlaidWebhook:
     @pytest.mark.asyncio
     async def test_handles_item_error_webhook(self, mock_request):
         """Should handle ITEM ERROR webhook."""
+        import json as _json
+
         mock_db = AsyncMock(spec=AsyncSession)
 
         webhook_data = {
@@ -263,7 +265,8 @@ class TestHandlePlaidWebhook:
         mock_result.scalar_one_or_none.return_value = mock_plaid_item
         mock_db.execute.return_value = mock_result
 
-        mock_request.json = AsyncMock(return_value=webhook_data)
+        # Webhook handler now reads raw body first for signature verification
+        mock_request.body = AsyncMock(return_value=_json.dumps(webhook_data).encode())
         mock_request.headers = {"Plaid-Verification": "signature"}
 
         with patch("app.api.v1.plaid.rate_limit_service.check_rate_limit", new=AsyncMock()):
@@ -280,6 +283,8 @@ class TestHandlePlaidWebhook:
     @pytest.mark.asyncio
     async def test_webhook_returns_item_not_found(self, mock_request):
         """Should return item_not_found if PlaidItem doesn't exist."""
+        import json as _json
+
         mock_db = AsyncMock(spec=AsyncSession)
 
         webhook_data = {
@@ -292,7 +297,8 @@ class TestHandlePlaidWebhook:
         mock_result.scalar_one_or_none.return_value = None
         mock_db.execute.return_value = mock_result
 
-        mock_request.json = AsyncMock(return_value=webhook_data)
+        # Webhook handler now reads raw body first for signature verification
+        mock_request.body = AsyncMock(return_value=_json.dumps(webhook_data).encode())
         mock_request.headers = {"Plaid-Verification": "signature"}
 
         with patch("app.api.v1.plaid.rate_limit_service.check_rate_limit", new=AsyncMock()):

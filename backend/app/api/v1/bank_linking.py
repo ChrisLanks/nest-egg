@@ -129,11 +129,8 @@ async def create_link_token(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to create link token for {request.provider}: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create link token: {str(e)}",
-        )
+        logger.error(f"Failed to create link token for {request.provider}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create link token")
 
 
 @router.post("/exchange-token", response_model=ExchangeTokenResponse)
@@ -230,12 +227,9 @@ async def exchange_token(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to exchange token for {request.provider}: {str(e)}", exc_info=True)
+        logger.error(f"Failed to exchange token for {request.provider}: {e}", exc_info=True)
         await db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to exchange token: {str(e)}",
-        )
+        raise HTTPException(status_code=500, detail="Failed to exchange token")
 
 
 @router.post("/sync-transactions/{account_id}")
@@ -321,8 +315,8 @@ async def sync_transactions(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Sync error for account {account_id}: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
+        logger.error(f"Sync error for account {account_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Sync failed")
 
 
 @router.get("/providers")

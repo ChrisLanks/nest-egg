@@ -35,6 +35,7 @@ class RateLimiter:
         """
         self.calls_per_minute = calls_per_minute
         self.calls: Dict[str, list] = defaultdict(list)
+        self._last_cleanup: float = time()
 
     def is_allowed(self, key: str) -> bool:
         """
@@ -61,6 +62,12 @@ class RateLimiter:
 
         # Record this call
         self.calls[key].append(now)
+
+        # Periodic cleanup to prevent unbounded memory growth
+        if now - self._last_cleanup > 300:  # Every 5 minutes
+            self.cleanup_old_entries(max_age_seconds=300)
+            self._last_cleanup = now
+
         return True
 
     def get_remaining_calls(self, key: str) -> int:
@@ -142,6 +149,7 @@ class AsyncRateLimiter:
         self._script_sha: Optional[str] = None
         # In-memory fallback state
         self._memory_calls: Dict[str, list] = defaultdict(list)
+        self._last_cleanup: float = time()
 
     async def _get_redis(self):
         """Lazily initialise the Redis client; returns None when unavailable."""
@@ -218,6 +226,14 @@ class AsyncRateLimiter:
             return False
 
         self._memory_calls[key].append(now)
+
+        # Periodic cleanup to prevent unbounded memory growth
+        if now - self._last_cleanup > 300:  # Every 5 minutes
+            stale_keys = [k for k, v in self._memory_calls.items() if not v or v[-1] < now - 300]
+            for k in stale_keys:
+                del self._memory_calls[k]
+            self._last_cleanup = now
+
         return True
 
     async def get_remaining_calls(self, key: str) -> int:

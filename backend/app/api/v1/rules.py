@@ -308,9 +308,13 @@ async def preview_rule(
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
 
-    # Get all transactions for this organization
+    # Get transactions for this organization (capped to prevent OOM on large datasets)
+    MAX_PREVIEW = 10_000
     result = await db.execute(
-        select(Transaction).where(Transaction.organization_id == current_user.organization_id)
+        select(Transaction)
+        .where(Transaction.organization_id == current_user.organization_id)
+        .order_by(Transaction.date.desc())
+        .limit(MAX_PREVIEW)
     )
     transactions = result.scalars().all()
 
@@ -324,6 +328,7 @@ async def preview_rule(
     return {
         "matching_transaction_ids": matching_ids,
         "count": len(matching_ids),
+        "truncated": len(transactions) >= MAX_PREVIEW,
     }
 
 

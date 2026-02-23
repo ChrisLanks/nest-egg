@@ -376,15 +376,16 @@ class TestListInvitations:
 
         # Mock invited_by user
         invited_by = Mock(spec=User)
+        invited_by.id = invitation1.invited_by_user_id
         invited_by.email = "admin@example.com"
 
         # Mock invitation query
         invitation_result = Mock()
         invitation_result.scalars.return_value.all.return_value = [invitation1]
 
-        # Mock user query
+        # Mock batch user query (N+1 fix uses .scalars().all())
         user_result = Mock()
-        user_result.scalar_one.return_value = invited_by
+        user_result.scalars.return_value.all.return_value = [invited_by]
 
         mock_db.execute.side_effect = [invitation_result, user_result]
 
@@ -578,7 +579,8 @@ class TestGetInvitationDetails:
         invitation.expires_at = datetime.utcnow() + timedelta(days=7)
 
         invited_by = Mock(spec=User)
-        invited_by.email = "admin@example.com"
+        invited_by.display_name = "Admin User"
+        invited_by.first_name = "Admin"
 
         # Mock invitation query
         invitation_result = Mock()
@@ -600,8 +602,10 @@ class TestGetInvitationDetails:
                 db=mock_db,
             )
 
-            assert result["email"] == "invited@example.com"
-            assert result["invited_by_email"] == "admin@example.com"
+            # Email is masked for public display
+            assert result["email"] == "i***d@e***.com"
+            # invited_by_name instead of invited_by_email
+            assert result["invited_by_name"] == "Admin User"
 
     @pytest.mark.asyncio
     async def test_raises_404_when_code_invalid(self, mock_db, mock_request):
@@ -652,19 +656,15 @@ class TestAcceptInvitation:
         invitation.status = InvitationStatus.PENDING
         invitation.expires_at = datetime.utcnow() + timedelta(days=7)
 
-        existing_user = Mock(spec=User)
-        existing_user.email = "newuser@example.com"
-        existing_user.organization_id = None  # No org yet
+        current_user = Mock(spec=User)
+        current_user.email = "newuser@example.com"
+        current_user.organization_id = None  # No org yet
 
         # Mock invitation query
         invitation_result = Mock()
         invitation_result.scalar_one_or_none.return_value = invitation
 
-        # Mock user query
-        user_result = Mock()
-        user_result.scalar_one_or_none.return_value = existing_user
-
-        mock_db.execute.side_effect = [invitation_result, user_result]
+        mock_db.execute.side_effect = [invitation_result]
 
         with patch(
             "app.api.v1.household.rate_limit_service.check_rate_limit",
@@ -673,18 +673,21 @@ class TestAcceptInvitation:
             result = await accept_invitation(
                 invitation_code=invitation_code,
                 request=mock_request,
+                current_user=current_user,
                 db=mock_db,
             )
 
             assert result["message"] == "Invitation accepted successfully"
             assert result["accounts_migrated"] == 0
-            assert existing_user.organization_id == invitation.organization_id
+            assert current_user.organization_id == invitation.organization_id
             assert invitation.status == InvitationStatus.ACCEPTED
 
     @pytest.mark.asyncio
     async def test_raises_404_for_invalid_code(self, mock_db, mock_request):
         """Should raise 404 for invalid invitation code."""
         invitation_code = "invalid"
+        current_user = Mock(spec=User)
+        current_user.email = "someone@example.com"
 
         result = Mock()
         result.scalar_one_or_none.return_value = None
@@ -698,6 +701,7 @@ class TestAcceptInvitation:
                 await accept_invitation(
                     invitation_code=invitation_code,
                     request=mock_request,
+                    current_user=current_user,
                     db=mock_db,
                 )
 
@@ -707,6 +711,8 @@ class TestAcceptInvitation:
     async def test_rejects_already_accepted_invitation(self, mock_db, mock_request):
         """Should reject invitation that was already accepted."""
         invitation_code = "test-code"
+        current_user = Mock(spec=User)
+        current_user.email = "user@example.com"
 
         invitation = Mock(spec=HouseholdInvitation)
         invitation.status = InvitationStatus.ACCEPTED  # Already accepted
@@ -724,6 +730,7 @@ class TestAcceptInvitation:
                 await accept_invitation(
                     invitation_code=invitation_code,
                     request=mock_request,
+                    current_user=current_user,
                     db=mock_db,
                 )
 
@@ -734,6 +741,8 @@ class TestAcceptInvitation:
     async def test_rejects_expired_invitation(self, mock_db, mock_request):
         """Should reject expired invitation."""
         invitation_code = "test-code"
+        current_user = Mock(spec=User)
+        current_user.email = "user@example.com"
 
         invitation = Mock(spec=HouseholdInvitation)
         invitation.status = InvitationStatus.PENDING
@@ -751,6 +760,7 @@ class TestAcceptInvitation:
                 await accept_invitation(
                     invitation_code=invitation_code,
                     request=mock_request,
+                    current_user=current_user,
                     db=mock_db,
                 )
 
@@ -759,24 +769,20 @@ class TestAcceptInvitation:
             assert invitation.status == InvitationStatus.EXPIRED
 
     @pytest.mark.asyncio
-    async def test_rejects_when_user_not_registered(self, mock_db, mock_request):
-        """Should reject when user hasn't registered yet."""
+    async def test_rejects_when_email_mismatch(self, mock_db, mock_request):
+        """Should reject when authenticated user's email doesn't match invitation."""
         invitation_code = "test-code"
+        current_user = Mock(spec=User)
+        current_user.email = "wrong@example.com"
 
         invitation = Mock(spec=HouseholdInvitation)
-        invitation.email = "notregistered@example.com"
+        invitation.email = "invited@example.com"
         invitation.status = InvitationStatus.PENDING
         invitation.expires_at = datetime.utcnow() + timedelta(days=7)
 
-        # Mock invitation query
         invitation_result = Mock()
         invitation_result.scalar_one_or_none.return_value = invitation
-
-        # Mock user query (not found)
-        user_result = Mock()
-        user_result.scalar_one_or_none.return_value = None
-
-        mock_db.execute.side_effect = [invitation_result, user_result]
+        mock_db.execute.side_effect = [invitation_result]
 
         with patch(
             "app.api.v1.household.rate_limit_service.check_rate_limit",
@@ -786,12 +792,12 @@ class TestAcceptInvitation:
                 await accept_invitation(
                     invitation_code=invitation_code,
                     request=mock_request,
+                    current_user=current_user,
                     db=mock_db,
                 )
 
-            assert exc_info.value.status_code == 400
-            assert "not found" in exc_info.value.detail
-            assert "register first" in exc_info.value.detail.lower()
+            assert exc_info.value.status_code == 403
+            assert "different email" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
     async def test_migrates_solo_user_with_accounts(self, mock_db, mock_request):
@@ -809,21 +815,21 @@ class TestAcceptInvitation:
         invitation.status = InvitationStatus.PENDING
         invitation.expires_at = datetime.utcnow() + timedelta(days=7)
 
-        existing_user = Mock(spec=User)
-        existing_user.email = "solo@example.com"
-        existing_user.id = uuid4()
-        existing_user.organization_id = old_org_id  # User in different org
+        current_user = Mock(spec=User)
+        current_user.email = "solo@example.com"
+        current_user.id = uuid4()
+        current_user.organization_id = old_org_id  # User in different org
 
         # Mock accounts to migrate
         account1 = Mock(spec=Account)
         account1.id = uuid4()
         account1.organization_id = old_org_id
-        account1.user_id = existing_user.id
+        account1.user_id = current_user.id
 
         account2 = Mock(spec=Account)
         account2.id = uuid4()
         account2.organization_id = old_org_id
-        account2.user_id = existing_user.id
+        account2.user_id = current_user.id
 
         old_org = Mock(spec=Organization)
         old_org.id = old_org_id
@@ -832,13 +838,9 @@ class TestAcceptInvitation:
         invitation_result = Mock()
         invitation_result.scalar_one_or_none.return_value = invitation
 
-        # Mock user query
-        user_result = Mock()
-        user_result.scalar_one_or_none.return_value = existing_user
-
         # Mock household members query (solo user)
         household_result = Mock()
-        household_result.scalars.return_value.all.return_value = [existing_user]  # Only 1 member
+        household_result.scalars.return_value.all.return_value = [current_user]  # Only 1 member
 
         # Mock user accounts query
         accounts_result = Mock()
@@ -850,7 +852,6 @@ class TestAcceptInvitation:
 
         mock_db.execute.side_effect = [
             invitation_result,
-            user_result,
             household_result,  # Household size check
             accounts_result,  # User's accounts
             org_result,  # Old organization
@@ -863,6 +864,7 @@ class TestAcceptInvitation:
             result = await accept_invitation(
                 invitation_code=invitation_code,
                 request=mock_request,
+                current_user=current_user,
                 db=mock_db,
             )
 
@@ -876,8 +878,8 @@ class TestAcceptInvitation:
             assert account2.organization_id == new_org_id
 
             # Verify user migration
-            assert existing_user.organization_id == new_org_id
-            assert existing_user.is_primary_household_member is False
+            assert current_user.organization_id == new_org_id
+            assert current_user.is_primary_household_member is False
 
             # Verify invitation marked as accepted
             assert invitation.status == InvitationStatus.ACCEPTED
@@ -897,13 +899,15 @@ class TestAcceptInvitation:
         new_org_id = uuid4()
 
         invitation = Mock(spec=HouseholdInvitation)
+        invitation.email = "user@example.com"
         invitation.organization_id = new_org_id
         invitation.status = InvitationStatus.PENDING
         invitation.expires_at = datetime.utcnow() + timedelta(days=7)
 
-        existing_user = Mock(spec=User)
-        existing_user.id = uuid4()
-        existing_user.organization_id = old_org_id
+        current_user = Mock(spec=User)
+        current_user.email = "user@example.com"
+        current_user.id = uuid4()
+        current_user.organization_id = old_org_id
 
         old_org = Mock(spec=Organization)
         old_org.id = old_org_id
@@ -912,11 +916,8 @@ class TestAcceptInvitation:
         invitation_result = Mock()
         invitation_result.scalar_one_or_none.return_value = invitation
 
-        user_result = Mock()
-        user_result.scalar_one_or_none.return_value = existing_user
-
         household_result = Mock()
-        household_result.scalars.return_value.all.return_value = [existing_user]
+        household_result.scalars.return_value.all.return_value = [current_user]
 
         # No accounts
         accounts_result = Mock()
@@ -927,7 +928,6 @@ class TestAcceptInvitation:
 
         mock_db.execute.side_effect = [
             invitation_result,
-            user_result,
             household_result,
             accounts_result,
             org_result,
@@ -940,11 +940,12 @@ class TestAcceptInvitation:
             result = await accept_invitation(
                 invitation_code=invitation_code,
                 request=mock_request,
+                current_user=current_user,
                 db=mock_db,
             )
 
             assert result["accounts_migrated"] == 0
-            assert existing_user.organization_id == new_org_id
+            assert current_user.organization_id == new_org_id
 
     @pytest.mark.asyncio
     async def test_handles_missing_old_organization(self, mock_db, mock_request):
@@ -954,23 +955,22 @@ class TestAcceptInvitation:
         new_org_id = uuid4()
 
         invitation = Mock(spec=HouseholdInvitation)
+        invitation.email = "user@example.com"
         invitation.organization_id = new_org_id
         invitation.status = InvitationStatus.PENDING
         invitation.expires_at = datetime.utcnow() + timedelta(days=7)
 
-        existing_user = Mock(spec=User)
-        existing_user.id = uuid4()
-        existing_user.organization_id = old_org_id
+        current_user = Mock(spec=User)
+        current_user.email = "user@example.com"
+        current_user.id = uuid4()
+        current_user.organization_id = old_org_id
 
         # Mock queries
         invitation_result = Mock()
         invitation_result.scalar_one_or_none.return_value = invitation
 
-        user_result = Mock()
-        user_result.scalar_one_or_none.return_value = existing_user
-
         household_result = Mock()
-        household_result.scalars.return_value.all.return_value = [existing_user]
+        household_result.scalars.return_value.all.return_value = [current_user]
 
         accounts_result = Mock()
         accounts_result.scalars.return_value.all.return_value = []
@@ -981,7 +981,6 @@ class TestAcceptInvitation:
 
         mock_db.execute.side_effect = [
             invitation_result,
-            user_result,
             household_result,
             accounts_result,
             org_result,
@@ -994,6 +993,7 @@ class TestAcceptInvitation:
             result = await accept_invitation(
                 invitation_code=invitation_code,
                 request=mock_request,
+                current_user=current_user,
                 db=mock_db,
             )
 
@@ -1009,21 +1009,20 @@ class TestAcceptInvitation:
         org_id = uuid4()  # Same org
 
         invitation = Mock(spec=HouseholdInvitation)
+        invitation.email = "user@example.com"
         invitation.organization_id = org_id
         invitation.status = InvitationStatus.PENDING
         invitation.expires_at = datetime.utcnow() + timedelta(days=7)
 
-        existing_user = Mock(spec=User)
-        existing_user.organization_id = org_id  # Already in target org!
+        current_user = Mock(spec=User)
+        current_user.email = "user@example.com"
+        current_user.organization_id = org_id  # Already in target org!
 
         # Mock queries
         invitation_result = Mock()
         invitation_result.scalar_one_or_none.return_value = invitation
 
-        user_result = Mock()
-        user_result.scalar_one_or_none.return_value = existing_user
-
-        mock_db.execute.side_effect = [invitation_result, user_result]
+        mock_db.execute.side_effect = [invitation_result]
 
         with patch(
             "app.api.v1.household.rate_limit_service.check_rate_limit",
@@ -1033,6 +1032,7 @@ class TestAcceptInvitation:
                 await accept_invitation(
                     invitation_code=invitation_code,
                     request=mock_request,
+                    current_user=current_user,
                     db=mock_db,
                 )
 
@@ -1047,12 +1047,14 @@ class TestAcceptInvitation:
         new_org_id = uuid4()
 
         invitation = Mock(spec=HouseholdInvitation)
+        invitation.email = "user@example.com"
         invitation.organization_id = new_org_id
         invitation.status = InvitationStatus.PENDING
         invitation.expires_at = datetime.utcnow() + timedelta(days=7)
 
-        existing_user = Mock(spec=User)
-        existing_user.organization_id = old_org_id
+        current_user = Mock(spec=User)
+        current_user.email = "user@example.com"
+        current_user.organization_id = old_org_id
 
         other_user = Mock(spec=User)
 
@@ -1060,14 +1062,11 @@ class TestAcceptInvitation:
         invitation_result = Mock()
         invitation_result.scalar_one_or_none.return_value = invitation
 
-        user_result = Mock()
-        user_result.scalar_one_or_none.return_value = existing_user
-
         # Multiple household members
         household_result = Mock()
-        household_result.scalars.return_value.all.return_value = [existing_user, other_user]
+        household_result.scalars.return_value.all.return_value = [current_user, other_user]
 
-        mock_db.execute.side_effect = [invitation_result, user_result, household_result]
+        mock_db.execute.side_effect = [invitation_result, household_result]
 
         with patch(
             "app.api.v1.household.rate_limit_service.check_rate_limit",
@@ -1077,6 +1076,7 @@ class TestAcceptInvitation:
                 await accept_invitation(
                     invitation_code=invitation_code,
                     request=mock_request,
+                    current_user=current_user,
                     db=mock_db,
                 )
 

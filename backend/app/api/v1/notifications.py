@@ -97,7 +97,12 @@ async def create_test_notification(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a test notification (for testing purposes)."""
+    """Create a test notification (for testing purposes). Disabled in production."""
+    from app.config import settings
+
+    if settings.ENVIRONMENT == "production":
+        raise HTTPException(status_code=404, detail="Not found")
+
     from app.models.notification import NotificationType, NotificationPriority
     from app.services.notification_service import NotificationService
 

@@ -179,8 +179,8 @@ async def handle_teller_webhook(
         return {"status": "acknowledged"}
 
     except Exception as e:
-        logger.error(f"Webhook error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Webhook error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Webhook processing failed")
 
 
 async def _handle_enrollment_connected(

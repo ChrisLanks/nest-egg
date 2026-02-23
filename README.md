@@ -172,19 +172,25 @@ Drop-in support for external identity providers alongside the built-in JWT syste
 
 ### 🔒 **Security Features**
 - **Redis-Backed Rate Limiting**: 1000 req/min per user/IP — distributed sliding window (safe across multiple workers/instances)
+- **CSRF Protection**: Double-submit cookie pattern with constant-time token comparison
+- **Request Size Limiting**: 10 MB cap on request bodies (Content-Length + actual body verification)
 - **Security Headers**: Strict CSP (no `unsafe-inline`/`unsafe-eval` in prod), HSTS, X-Frame-Options, X-XSS-Protection
-- **Input Validation**: Symbol sanitization, pattern matching, SQL injection prevention
+- **Input Sanitization**: HTML tag stripping + entity escaping on all user text fields; ILIKE wildcard escaping for search
 - **Encrypted PII**: VIN, property address/zip, annual salary encrypted at rest (Fernet AES-128-CBC)
 - **Encrypted Credentials**: Teller credentials encrypted at rest with AES-256
-- **JWT Authentication**: Secure token-based auth with httpOnly-cookie refresh tokens
+- **JWT Authentication**: Secure token-based auth with httpOnly-cookie refresh tokens and automatic rotation
 - **Two-Factor Authentication (MFA)**: TOTP-based 2FA with backup codes; enforced at login in production
+- **Account Lockout**: Configurable failed-attempt lockout (default 5 attempts / 30 min)
+- **Anomaly Detection Middleware**: Request logging with structured fields for security monitoring
 - **GDPR Right to Erasure**: `DELETE /settings/account` — password-confirmed account deletion with cookie clearing
+- **GDPR Records of Processing**: Admin-only `/monitoring/data-processing-activities` endpoint (Article 30 RoPA)
 - **Consent Tracking**: ToS and Privacy Policy acceptance recorded at registration with IP and version
 - **Database Isolation**: Row-level security with organization-scoped queries
 - **API Docs Disabled in Production**: Swagger/ReDoc/OpenAPI only available when `DEBUG=true`
 - **Distributed Snapshot Scheduler**: Redis distributed lock prevents duplicate snapshot captures across instances
 - **OIDC/OAuth2 Support**: RS256 token validation via JWKS for Cognito, Keycloak, Okta, and Google (see IdP-Agnostic Authentication above)
 - **RBAC Audit Trail**: Immutable log of every permission grant change (actor, IP, before/after state)
+- **Webhook Signature Verification**: Plaid and Teller webhooks verified before processing (HMAC-SHA256)
 
 ## 🛡️ Data Integrity & Deduplication
 
@@ -305,7 +311,7 @@ MARKETCHECK_API_KEY=your_marketcheck_key   # For vehicle valuation
 ### Backend
 - **FastAPI** - Modern Python async web framework
 - **PostgreSQL** - Primary database with JSONB support
-- **Redis** - Caching and Celery task queue
+- **Redis** - Caching, rate limiting, and Celery task queue
 - **Celery** - Background task processing with Beat scheduler
 - **SQLAlchemy 2.0** - Async ORM with relationship loading
 - **Alembic** - Database migrations
@@ -315,6 +321,10 @@ MARKETCHECK_API_KEY=your_marketcheck_key   # For vehicle valuation
 - **Passlib** - Password hashing with bcrypt
 - **python-jose** - JWT token management
 - **Cryptography** - AES-256 encryption for sensitive credentials
+- **Prometheus** + **prometheus-fastapi-instrumentator** - Metrics and monitoring
+- **Sentry SDK** - Error tracking and performance monitoring
+- **pyotp** - TOTP-based multi-factor authentication
+- **httpx** - Async JWKS fetching for external identity providers
 
 ### Frontend
 - **React 18** - UI library with hooks
@@ -1172,16 +1182,16 @@ engine = create_async_engine(
 
 ```bash
 # Build production images
-docker-compose -f docker-compose.prod.yml build
+docker-compose build
 
 # Run migrations
-docker-compose -f docker-compose.prod.yml run api alembic upgrade head
+docker-compose run api alembic upgrade head
 
 # Start services
-docker-compose -f docker-compose.prod.yml up -d
+docker-compose up -d
 
 # View logs
-docker-compose -f docker-compose.prod.yml logs -f
+docker-compose logs -f
 ```
 
 ### Environment-Specific Settings
@@ -1219,34 +1229,56 @@ nest-egg/
 │   │   ├── api/                  # API endpoints
 │   │   │   └── v1/               # API version 1
 │   │   │       ├── accounts.py           # Account management
-│   │   │       ├── auth.py               # Authentication
+│   │   │       ├── auth.py               # Authentication + MFA
+│   │   │       ├── bank_linking.py       # Unified bank linking (Plaid + Teller)
+│   │   │       ├── bills.py              # Bills & recurring transactions
 │   │   │       ├── budgets.py            # Budget CRUD
 │   │   │       ├── categories.py         # Category management
-│   │   │       ├── dashboard.py          # Dashboard stats
+│   │   │       ├── contributions.py      # Contribution tracking
+│   │   │       ├── csv_import.py         # CSV import endpoint
+│   │   │       ├── dashboard.py          # Dashboard stats & widgets
+│   │   │       ├── debt_payoff.py        # Debt payoff planner
 │   │   │       ├── holdings.py           # Investment holdings
 │   │   │       ├── household.py          # Multi-user management
 │   │   │       ├── income_expenses.py    # Cash flow analytics
 │   │   │       ├── labels.py             # Label management
 │   │   │       ├── market_data.py        # Yahoo Finance integration
+│   │   │       ├── monitoring.py         # Health checks, rate-limit dashboard, GDPR RoPA
 │   │   │       ├── notifications.py      # Notification CRUD
-│   │   │       ├── teller.py             # Teller integration
+│   │   │       ├── plaid.py              # Plaid integration
+│   │   │       ├── reports.py            # Custom reports builder
 │   │   │       ├── rules.py              # Rule engine
-│   │   │       └── transactions.py       # Transaction CRUD
+│   │   │       ├── savings_goals.py      # Savings goals
+│   │   │       ├── settings.py           # User settings, data export, account deletion
+│   │   │       ├── subscriptions.py      # Subscription tracker
+│   │   │       ├── teller.py             # Teller integration
+│   │   │       ├── transaction_merges.py # Transaction merge/split
+│   │   │       ├── transaction_splits.py # Transaction splits
+│   │   │       └── transactions.py       # Transaction CRUD + CSV export
 │   │   ├── core/                 # Core utilities
 │   │   │   ├── config.py                 # Settings management
 │   │   │   ├── database.py               # DB connection pool
 │   │   │   ├── security.py               # Auth utilities
 │   │   │   └── encryption.py             # Field encryption
+│   │   ├── middleware/            # ASGI middleware
+│   │   │   ├── csrf_protection.py        # Double-submit CSRF tokens
+│   │   │   ├── rate_limit.py             # Global async rate limiter
+│   │   │   ├── request_size_limit.py     # Body size enforcement
+│   │   │   └── security_headers.py       # CSP, HSTS, X-Frame-Options
 │   │   ├── models/               # SQLAlchemy models
-│   │   │   ├── account.py                # Account model
-│   │   │   ├── transaction.py            # Transaction model
+│   │   │   ├── account.py                # Account + TellerEnrollment
+│   │   │   ├── transaction.py            # Transaction + Label + Category
 │   │   │   ├── budget.py                 # Budget model
-│   │   │   ├── category.py               # Category model
-│   │   │   ├── label.py                  # Label model
+│   │   │   ├── contribution.py           # Contribution tracking
+│   │   │   ├── holding.py               # Holdings + portfolio snapshots
+│   │   │   ├── mfa.py                    # UserMFA (TOTP)
 │   │   │   ├── notification.py           # Notification model
-│   │   │   ├── user.py                   # User + Organization models
-│   │   │   ├── identity.py               # UserIdentity (IdP links)
 │   │   │   ├── permission.py             # PermissionGrant + audit log
+│   │   │   ├── recurring_transaction.py  # Recurring transaction patterns
+│   │   │   ├── report_template.py        # Custom report templates
+│   │   │   ├── transaction_merge.py      # Transaction merge records
+│   │   │   ├── user.py                   # User + Organization + Invitation
+│   │   │   ├── identity.py               # UserIdentity (IdP links)
 │   │   │   └── ...                       # Other models
 │   │   ├── schemas/              # Pydantic schemas
 │   │   │   ├── account.py                # Account DTOs
@@ -1272,10 +1304,13 @@ nest-egg/
 │   │   ├── workers/              # Celery tasks
 │   │   │   ├── celery_app.py             # Celery configuration
 │   │   │   └── tasks/                    # Task modules
+│   │   │       ├── auth_tasks.py         # Token cleanup
 │   │   │       ├── budget_tasks.py       # Budget alert tasks
-│   │   │       ├── holdings_tasks.py     # Snapshot tasks
+│   │   │       ├── forecast_tasks.py     # Cash flow forecast
+│   │   │       ├── holdings_tasks.py     # Price refresh
+│   │   │       ├── interest_accrual_tasks.py  # Interest accrual
 │   │   │       ├── recurring_tasks.py    # Pattern detection
-│   │   │       └── forecast_tasks.py     # Cash flow forecast
+│   │   │       └── snapshot_tasks.py     # Portfolio snapshots
 │   │   └── utils/                # Utility functions
 │   ├── alembic/                  # Database migrations
 │   │   └── versions/             # Migration files
@@ -1315,8 +1350,10 @@ nest-egg/
 │   ├── vite.config.ts            # Vite configuration
 │   └── Dockerfile                # Frontend container
 │
-├── docker-compose.yml            # Development services
-├── docker-compose.prod.yml       # Production services
+├── docker-compose.yml            # Production services
+├── docker-compose.dev.yml        # Development overrides
+├── Makefile                      # Common commands (make install, make dev, make test)
+├── setup.sh                      # Automated first-time setup script
 ├── .env.example                  # Environment template
 └── README.md                     # This file
 ```
@@ -1575,20 +1612,27 @@ Date,Merchant,Amount,Category,Description
 - [x] **IdP-agnostic authentication** — pluggable Cognito, Keycloak, Okta, Google OIDC alongside built-in JWT
 - [x] **Bill tracking** with ON_DEMAND frequency, labels, archiving, and merchant autocomplete
 - [x] **Emergency fund template**, **401k match calculator**, **net worth projection**, **bill calendar**
-- [x] **Data export** (transactions CSV, tax report)
+- [x] **Data export** (ZIP with Mint-compatible CSV, full account data, tax reports)
 - [x] **Roth conversion analyzer**
+- [x] **Debt payoff planner** — snowball and avalanche strategies with amortization schedules
+- [x] **Custom reports builder** — configurable templates with saved report definitions
+- [x] **Multi-year trend analysis** — year-over-year comparisons and historical trends
+- [x] **Subscription tracker** — automatic detection and management of recurring subscriptions
+- [x] **Savings goals** — target-based savings tracking with progress visualization
+- [x] **Transaction splits & merges** — split single transactions or merge duplicates
+- [x] **Contributions tracking** — 401k, IRA, and other contribution tracking
+- [x] **Dashboard widgets** — 14 configurable widgets (net worth, spending, budgets, goals, etc.)
+- [x] **Interest accrual** — automated interest calculations for savings and debt accounts
+- [x] **CSRF protection** — double-submit cookie pattern with constant-time comparison
+- [x] **GDPR compliance** — Article 30 RoPA, data export (Article 20), right to erasure (Article 17)
 
 ### 🚧 In Progress
 
 - [ ] Manual account improvements
-- [ ] Debt payoff planner
-- [ ] Custom reports builder
+- [ ] Mobile app (React Native)
 
 ### 🔮 Future Features
 
-- [ ] Multi-year trend analysis
-- [ ] Subscription tracker
-- [ ] Mobile app (React Native)
 - [ ] Receipt OCR and attachment storage
 - [ ] Advanced investment analytics (Sharpe ratio, alpha, beta)
 - [ ] Tax bracket optimization
@@ -1670,4 +1714,4 @@ Built with:
 
 **Built with ❤️ for personal finance management**
 
-_Last Updated: February 2026 - Now with RBAC permission grants and IdP-agnostic authentication (Cognito, Keycloak, Okta, Google)!_
+_Last Updated: February 2026 - Security hardening pass, debt payoff planner, custom reports, subscription tracker, and 10+ new features!_

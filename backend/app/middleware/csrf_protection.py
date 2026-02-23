@@ -1,5 +1,6 @@
 """CSRF protection middleware using double-submit cookie pattern."""
 
+import hmac
 import logging
 import secrets
 from typing import Callable
@@ -95,7 +96,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                         media_type="application/json",
                     )
 
-            elif csrf_cookie != csrf_header:
+            elif not hmac.compare_digest(csrf_cookie, csrf_header):
                 logger.warning(
                     f"CSRF validation failed: Token mismatch | " f"path={path} | method={method}"
                 )

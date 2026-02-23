@@ -1,12 +1,15 @@
 """Rate limiting service using Redis."""
 
 import hashlib
+import logging
 from typing import Optional
 
 import redis.asyncio as redis
 from fastapi import HTTPException, Request, status
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class RateLimitService:
@@ -70,7 +73,8 @@ class RateLimitService:
         if identifier == "unknown":
             return
 
-        # Skip rate limiting in development mode
+        # Skip rate limiting in development — Redis may not be running locally,
+        # and devs need rapid iteration without hitting limits.
         if settings.ENVIRONMENT == "development":
             return
 
@@ -110,9 +114,12 @@ class RateLimitService:
             # Re-raise rate limit errors
             raise
         except Exception as e:
-            # Log error but don't block request if Redis fails
-            print(f"Rate limit check failed: {e}")
-            # In production, you might want to log this properly
+            # Fail-open: if Redis is unavailable, allow the request through
+            # rather than blocking all users.  This is acceptable because the
+            # global RateLimitMiddleware (AsyncRateLimiter) provides a second
+            # layer of defense, and individual endpoints are also protected by
+            # per-IP rate limits once Redis recovers.
+            logger.warning("Rate limit check failed (fail-open): %s", e)
 
     async def reset_rate_limit(self, identifier: str, endpoint: str) -> None:
         """

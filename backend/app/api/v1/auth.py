@@ -273,7 +273,9 @@ async def login(
                 detail="Incorrect email or password",
             )
 
-        # Account lockout — skipped in development mode
+        # Account lockout — skipped in development to avoid locking devs out
+        # during rapid iteration. In production, locks after MAX_LOGIN_ATTEMPTS
+        # failed attempts for ACCOUNT_LOCKOUT_MINUTES.
         if settings.ENVIRONMENT != "development":
             locked_until = getattr(user, "locked_until", None)
             if locked_until and locked_until > utc_now():
@@ -337,7 +339,8 @@ async def login(
                 detail="User account is inactive",
             )
 
-        # MFA enforcement — skipped in development mode only
+        # MFA enforcement — skipped in development so devs can log in without
+        # configuring a TOTP app locally. Enforced in staging and production.
         if settings.ENVIRONMENT != "development":
             mfa_result = await db.execute(
                 select(UserMFA).where(UserMFA.user_id == user.id)

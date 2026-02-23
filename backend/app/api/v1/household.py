@@ -16,11 +16,21 @@ from app.dependencies import get_current_user, get_current_admin_user
 from app.models.user import User, HouseholdInvitation, InvitationStatus, Organization
 from app.services.email_service import email_service
 from app.services.rate_limit_service import get_rate_limit_service
+from app.utils.datetime_utils import utc_now
 
 router = APIRouter(prefix="/household", tags=["household"])
 rate_limit_service = get_rate_limit_service()
 
 MAX_HOUSEHOLD_MEMBERS = 5
+
+
+def _mask_email(email: str) -> str:
+    """Mask email for public display: j***n@g***.com"""
+    local, domain = email.split("@", 1)
+    domain_name, tld = domain.rsplit(".", 1)
+    masked_local = local[0] + "***" + (local[-1] if len(local) > 1 else "")
+    masked_domain = domain_name[0] + "***" + "." + tld
+    return f"{masked_local}@{masked_domain}"
 
 
 # Schemas
@@ -133,7 +143,7 @@ async def invite_member(
         invited_by_user_id=current_user.id,
         invitation_code=secrets.token_urlsafe(32),
         status=InvitationStatus.PENDING,
-        expires_at=datetime.utcnow() + timedelta(days=7),
+        expires_at=utc_now() + timedelta(days=7),
     )
     db.add(invitation)
     await db.commit()
@@ -184,11 +194,17 @@ async def list_invitations(
     )
     invitations = result.scalars().all()
 
-    # Fetch invited_by users
+    # Batch-fetch invited_by users to avoid N+1 queries
+    inviter_ids = list({inv.invited_by_user_id for inv in invitations})
+    if inviter_ids:
+        user_result = await db.execute(select(User).where(User.id.in_(inviter_ids)))
+        users_by_id = {u.id: u for u in user_result.scalars().all()}
+    else:
+        users_by_id = {}
+
     response = []
     for inv in invitations:
-        result = await db.execute(select(User).where(User.id == inv.invited_by_user_id))
-        invited_by = result.scalar_one()
+        invited_by = users_by_id.get(inv.invited_by_user_id)
 
         response.append(
             {
@@ -198,7 +214,7 @@ async def list_invitations(
                 "status": inv.status,
                 "expires_at": inv.expires_at,
                 "created_at": inv.created_at,
-                "invited_by_email": invited_by.email,
+                "invited_by_email": invited_by.email if invited_by else "unknown",
                 "join_url": f"{settings.APP_BASE_URL}/accept-invite?code={inv.invitation_code}",
             }
         )
@@ -361,8 +377,8 @@ async def get_invitation_details(
     invited_by = result.scalar_one()
 
     return {
-        "email": invitation.email,
-        "invited_by_email": invited_by.email,
+        "email": _mask_email(invitation.email),
+        "invited_by_name": invited_by.display_name or invited_by.first_name or "A household member",
         "status": invitation.status,
         "expires_at": invitation.expires_at,
     }
@@ -372,10 +388,12 @@ async def get_invitation_details(
 async def accept_invitation(
     invitation_code: str,
     request: Request,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Accept a household invitation (public endpoint).
+    Accept a household invitation (requires authentication).
+    The authenticated user's email must match the invitation email.
     Rate limited to prevent brute force attempts on invitation codes.
     """
     # Rate limit: 5 accept attempts per minute per IP
@@ -403,22 +421,21 @@ async def accept_invitation(
         )
 
     # Check if invitation is expired
-    if datetime.utcnow() > invitation.expires_at:
+    if utc_now() > invitation.expires_at:
         invitation.status = InvitationStatus.EXPIRED
         await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invitation has expired"
         )
 
-    # Check if user already exists with this email
-    result = await db.execute(select(User).where(User.email == invitation.email))
-    existing_user = result.scalar_one_or_none()
-
-    if not existing_user:
+    # Verify the authenticated user matches the invitation recipient
+    if current_user.email != invitation.email:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User account not found. Please register first with the invited email address.",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This invitation was sent to a different email address",
         )
+
+    existing_user = current_user
 
     # Check if user is already in a household
     old_organization_id = existing_user.organization_id
@@ -465,7 +482,7 @@ async def accept_invitation(
 
         # Mark invitation as accepted before migrating
         invitation.status = InvitationStatus.ACCEPTED
-        invitation.accepted_at = datetime.utcnow()
+        invitation.accepted_at = utc_now()
 
         # Commit the migration FIRST to persist user's new organization
         await db.commit()
@@ -492,7 +509,7 @@ async def accept_invitation(
 
         # Mark invitation as accepted
         invitation.status = InvitationStatus.ACCEPTED
-        invitation.accepted_at = datetime.utcnow()
+        invitation.accepted_at = utc_now()
 
         await db.commit()
 

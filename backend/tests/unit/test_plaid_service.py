@@ -193,14 +193,15 @@ class TestPlaidService:
         import json
 
         webhook_body = {"item_id": "test_123", "webhook_code": "UPDATE"}
-        body_str = json.dumps(webhook_body, separators=(",", ":"), sort_keys=True)
-        body_hash = hashlib.sha256(body_str.encode()).hexdigest()
+        # Simulate raw bytes as they'd arrive from request.body()
+        raw_body = json.dumps(webhook_body, separators=(",", ":"), sort_keys=True).encode()
+        body_hash = hashlib.sha256(raw_body).hexdigest()
 
         # Mock JWT with body hash
         mock_jwt_decode.return_value = {"item_id": "test_123", "request_body_sha256": body_hash}
 
         result = PlaidService.verify_webhook_signature(
-            webhook_verification_header="valid.jwt.with.hash", webhook_body=webhook_body
+            webhook_verification_header="valid.jwt.with.hash", webhook_body=raw_body
         )
 
         assert result is True
@@ -217,12 +218,14 @@ class TestPlaidService:
             "request_body_sha256": "wrong_hash_value_1234567890abcdef",
         }
 
+        import json
         from fastapi import HTTPException
 
+        raw_body = json.dumps({"item_id": "test_123"}).encode()
         with pytest.raises(HTTPException) as exc_info:
             PlaidService.verify_webhook_signature(
                 webhook_verification_header="valid.jwt.wrong.hash",
-                webhook_body={"item_id": "test_123"},
+                webhook_body=raw_body,
             )
 
         assert exc_info.value.status_code == 401

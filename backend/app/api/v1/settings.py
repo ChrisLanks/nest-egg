@@ -118,13 +118,15 @@ async def update_user_profile(
         window_seconds=3600,  # 1 hour
     )
 
-    # Update fields
+    # Update fields (sanitize to prevent stored XSS — these render in UI)
+    from app.services.input_sanitization_service import input_sanitization_service
+
     if update_data.first_name is not None:
-        current_user.first_name = update_data.first_name
+        current_user.first_name = input_sanitization_service.sanitize_html(update_data.first_name)
     if update_data.last_name is not None:
-        current_user.last_name = update_data.last_name
+        current_user.last_name = input_sanitization_service.sanitize_html(update_data.last_name)
     if update_data.display_name is not None:
-        current_user.display_name = update_data.display_name
+        current_user.display_name = input_sanitization_service.sanitize_html(update_data.display_name)
 
     # Update birthday (requires day, month, and year together)
     birthday_fields = (update_data.birth_day, update_data.birth_month, update_data.birth_year)

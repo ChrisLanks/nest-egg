@@ -42,32 +42,26 @@ class InputSanitizationService:
     @staticmethod
     def sanitize_html(text: Optional[str], allow_basic_formatting: bool = False) -> Optional[str]:
         """
-        Sanitize HTML content by escaping or removing dangerous tags.
+        Sanitize text by stripping all HTML tags and escaping special characters.
+
+        For a personal finance application, there is no legitimate need for HTML
+        in user input. This method always strips tags and escapes to prevent XSS.
 
         Args:
             text: The text to sanitize
-            allow_basic_formatting: If True, allows basic formatting tags (b, i, u, br)
+            allow_basic_formatting: Deprecated, ignored. Always strips all HTML.
 
         Returns:
-            Sanitized text with dangerous content removed
+            Sanitized text with all HTML removed and special characters escaped
         """
         if not text:
             return text
 
-        # First pass: remove dangerous tags
-        for tag in InputSanitizationService.DANGEROUS_TAGS:
-            # Remove opening and closing tags
-            text = re.sub(f"<{tag}[^>]*>", "", text, flags=re.IGNORECASE)
-            text = re.sub(f"</{tag}>", "", text, flags=re.IGNORECASE)
+        # Strip ALL HTML tags (allowlist approach — no tag is permitted)
+        text = re.sub(r"<[^>]*>", "", text)
 
-        # Remove dangerous attributes from any remaining tags
-        for attr in InputSanitizationService.DANGEROUS_ATTRS:
-            text = re.sub(f'{attr}="[^"]*"', "", text, flags=re.IGNORECASE)
-            text = re.sub(f"{attr}='[^']*'", "", text, flags=re.IGNORECASE)
-
-        # If basic formatting not allowed, escape all HTML
-        if not allow_basic_formatting:
-            text = html.escape(text)
+        # Escape any remaining special characters as defense-in-depth
+        text = html.escape(text)
 
         return text
 
