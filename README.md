@@ -146,10 +146,14 @@ Scheduled tasks for hands-free operation:
 - **Redis-Backed Rate Limiting**: 1000 req/min per user/IP — distributed sliding window (safe across multiple workers/instances)
 - **Security Headers**: Strict CSP (no `unsafe-inline`/`unsafe-eval` in prod), HSTS, X-Frame-Options, X-XSS-Protection
 - **Input Validation**: Symbol sanitization, pattern matching, SQL injection prevention
-- **Encrypted PII**: VIN, property address/zip encrypted at rest (Fernet AES-128-CBC)
+- **Encrypted PII**: VIN, property address/zip, annual salary encrypted at rest (Fernet AES-128-CBC)
 - **Encrypted Credentials**: Teller credentials encrypted at rest with AES-256
 - **JWT Authentication**: Secure token-based auth with httpOnly-cookie refresh tokens
+- **Two-Factor Authentication (MFA)**: TOTP-based 2FA with backup codes; enforced at login in production
+- **GDPR Right to Erasure**: `DELETE /settings/account` — password-confirmed account deletion with cookie clearing
+- **Consent Tracking**: ToS and Privacy Policy acceptance recorded at registration with IP and version
 - **Database Isolation**: Row-level security with organization-scoped queries
+- **API Docs Disabled in Production**: Swagger/ReDoc/OpenAPI only available when `DEBUG=true`
 - **Distributed Snapshot Scheduler**: Redis distributed lock prevents duplicate snapshot captures across instances
 
 ## 🛡️ Data Integrity & Deduplication
@@ -404,8 +408,8 @@ npm run dev
 ### Accessing the Application
 
 - **Frontend**: http://localhost:5173
-- **API Docs (Swagger)**: http://localhost:8000/docs
-- **API Docs (ReDoc)**: http://localhost:8000/redoc
+- **API Docs (Swagger)**: http://localhost:8000/docs _(dev mode only — disabled in production)_
+- **API Docs (ReDoc)**: http://localhost:8000/redoc _(dev mode only)_
 - **Celery Flower**: http://localhost:5555
 
 ### First Time Setup
