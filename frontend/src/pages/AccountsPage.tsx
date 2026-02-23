@@ -91,7 +91,8 @@ export const AccountsPage = () => {
   const navigate = useNavigate();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
-  const { canEdit, isOtherUserView, selectedUserId } = useUserView();
+  const { canWriteResource, isOtherUserView, selectedUserId } = useUserView();
+  const canEdit = canWriteResource('account');
 
   // Fetch current user for permission checks
   const { data: currentUser } = useQuery({

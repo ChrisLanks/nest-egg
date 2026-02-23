@@ -62,6 +62,7 @@ import type { RecurringTransaction, UpcomingBill } from '../types/recurring-tran
 import { labelsApi } from '../api/labels';
 import type { Label } from '../types/transaction';
 import api from '../services/api';
+import { useUserView } from '../contexts/UserViewContext';
 
 interface Account {
   id: string;
@@ -91,6 +92,8 @@ const amountColor = (amount: number) => {
 const BillsPage: React.FC = () => {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { canWriteResource } = useUserView();
+  const canEdit = canWriteResource('recurring_transaction');
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedRecurring, setSelectedRecurring] = useState<RecurringTransaction | null>(null);
 
@@ -219,9 +222,11 @@ const BillsPage: React.FC = () => {
       onClose();
     },
     onError: (error: any) => {
+      const detail = error.response?.data?.detail;
+      const description = typeof detail === 'string' ? detail : 'Failed to create bill';
       toast({
         title: 'Error creating bill',
-        description: error.response?.data?.detail || 'Failed to create bill',
+        description,
         status: 'error',
         duration: 5000,
       });
@@ -363,7 +368,7 @@ const BillsPage: React.FC = () => {
       <VStack spacing={6} align="stretch">
         <HStack justify="space-between">
           <Heading size="lg">Bills</Heading>
-          <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={handleCreateNew}>
+          <Button leftIcon={<AddIcon />} colorScheme="blue" isDisabled={!canEdit} onClick={handleCreateNew}>
             Add Bill
           </Button>
         </HStack>
@@ -492,6 +497,7 @@ const BillsPage: React.FC = () => {
                                 isUpdating={updateRecurringMutation.isPending}
                                 isApplyingLabel={applyLabelMutation.isPending}
                                 labelMap={labelMap}
+                                canEdit={canEdit}
                               />
                             ))}
                           </VStack>
@@ -520,6 +526,7 @@ const BillsPage: React.FC = () => {
                                 isUpdating={updateRecurringMutation.isPending}
                                 labelMap={labelMap}
                                 isArchiveView
+                                canEdit={canEdit}
                               />
                             ))}
                           </VStack>
@@ -704,6 +711,7 @@ interface RecurringCardProps {
   isApplyingLabel?: boolean;
   labelMap: Map<string, Label>;
   isArchiveView?: boolean;
+  canEdit?: boolean;
 }
 
 const RecurringCard: React.FC<RecurringCardProps> = ({
@@ -718,6 +726,7 @@ const RecurringCard: React.FC<RecurringCardProps> = ({
   isApplyingLabel = false,
   labelMap,
   isArchiveView = false,
+  canEdit = true,
 }) => {
   const isManual = recurring.is_user_created;
   const isNoLongerFound = recurring.is_no_longer_found && !isManual;
@@ -812,21 +821,23 @@ const RecurringCard: React.FC<RecurringCardProps> = ({
 
           <HStack spacing={2} flexShrink={0}>
             {isArchiveView ? (
-              <Tooltip label="Move back to active">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  leftIcon={<FiRotateCcw />}
-                  onClick={() => onRestore?.(recurring.id)}
-                  isLoading={isUpdating}
-                  colorScheme="blue"
-                >
-                  Restore
-                </Button>
-              </Tooltip>
+              canEdit && (
+                <Tooltip label="Move back to active">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    leftIcon={<FiRotateCcw />}
+                    onClick={() => onRestore?.(recurring.id)}
+                    isLoading={isUpdating}
+                    colorScheme="blue"
+                  >
+                    Restore
+                  </Button>
+                </Tooltip>
+              )
             ) : (
               <>
-                {!attachedLabel && (
+                {canEdit && !attachedLabel && (
                   <Tooltip label='Tag matching transactions as "Recurring Bill"'>
                     <Button
                       size="sm"
@@ -840,22 +851,26 @@ const RecurringCard: React.FC<RecurringCardProps> = ({
                     </Button>
                   </Tooltip>
                 )}
-                <Button size="sm" variant="outline" onClick={() => onEdit?.(recurring)}>
-                  Edit
-                </Button>
-                <Tooltip label="Archive this bill">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    leftIcon={<FiArchive />}
-                    onClick={() => onArchive?.(recurring.id)}
-                    isLoading={isUpdating}
-                    colorScheme="gray"
-                    aria-label="Archive"
-                  >
-                    Archive
+                {canEdit && (
+                  <Button size="sm" variant="outline" onClick={() => onEdit?.(recurring)}>
+                    Edit
                   </Button>
-                </Tooltip>
+                )}
+                {canEdit && (
+                  <Tooltip label="Archive this bill">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      leftIcon={<FiArchive />}
+                      onClick={() => onArchive?.(recurring.id)}
+                      isLoading={isUpdating}
+                      colorScheme="gray"
+                      aria-label="Archive"
+                    >
+                      Archive
+                    </Button>
+                  </Tooltip>
+                )}
               </>
             )}
           </HStack>
@@ -1128,7 +1143,11 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
           <Button variant="ghost" mr={3} onClick={onClose}>
             Cancel
           </Button>
-          <Button colorScheme="blue" onClick={() => onSave(formData, tagTransactions)}>
+          <Button
+            colorScheme="blue"
+            onClick={() => onSave(formData, tagTransactions)}
+            isDisabled={!formData.merchant_name.trim() || !formData.account_id}
+          >
             Save
           </Button>
         </ModalFooter>

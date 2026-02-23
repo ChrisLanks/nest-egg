@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import hash_password
 from app.models.user import User, Organization
-from app.models.account import Account
+from app.models.account import Account, AccountType, AccountSource
 from app.models.transaction import Transaction
 from app.services.deduplication_service import DeduplicationService
 
@@ -81,24 +81,21 @@ async def create_unique_accounts(db: AsyncSession, user: User):
     accounts = [
         {
             "name": "Wells Fargo Checking",
-            "account_type": "depository",
-            "subtype": "checking",
+            "account_type": AccountType.CHECKING,
             "current_balance": Decimal("3500.00"),
             "mask": "8765",
             "institution_name": "Wells Fargo",
         },
         {
             "name": "Ally Savings",
-            "account_type": "depository",
-            "subtype": "savings",
+            "account_type": AccountType.SAVINGS,
             "current_balance": Decimal("15000.00"),
             "mask": "4321",
             "institution_name": "Ally Bank",
         },
         {
             "name": "Capital One Visa",
-            "account_type": "credit",
-            "subtype": "credit card",
+            "account_type": AccountType.CREDIT_CARD,
             "current_balance": Decimal("-850.00"),
             "mask": "9999",
             "institution_name": "Capital One",
@@ -113,7 +110,7 @@ async def create_unique_accounts(db: AsyncSession, user: User):
             user_id=user.id,
             name=acc_data["name"],
             account_type=acc_data["account_type"],
-            subtype=acc_data["subtype"],
+            account_source=AccountSource.MANUAL,
             current_balance=acc_data["current_balance"],
             available_balance=acc_data["current_balance"],
             mask=acc_data["mask"],
@@ -173,7 +170,6 @@ async def create_overlapping_accounts(db: AsyncSession, user2: User, user1_accou
             user_id=user2.id,
             name=acc.name,  # Same name
             account_type=acc.account_type,
-            subtype=acc.subtype,
             current_balance=acc.current_balance,  # Same balance
             available_balance=acc.available_balance,
             mask=acc.mask,  # Same mask
@@ -211,7 +207,7 @@ async def create_transactions(db: AsyncSession, accounts: list):
 
     for account in accounts:
         # Skip credit cards for simplicity
-        if account.account_type == "credit":
+        if account.account_type == AccountType.CREDIT_CARD:
             continue
 
         # Create 10 transactions per account

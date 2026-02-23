@@ -147,7 +147,8 @@ interface PortfolioSummary {
 
 export const InvestmentsPage = () => {
   // Use global user view context
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, canWriteResource } = useUserView();
+  const canEdit = canWriteResource('holding');
 
   // Drilled-down treemap node
   const [selectedNode, setSelectedNode] = useState<TreemapNode | null>(null);
@@ -673,13 +674,14 @@ export const InvestmentsPage = () => {
                 </MenuList>
               </Menu>
             )}
-            <Tooltip label="Fetch latest prices from Yahoo Finance">
+            <Tooltip label={canEdit ? "Fetch latest prices from Yahoo Finance" : "Read-only: cannot refresh prices"}>
               <Button
                 leftIcon={<FiRefreshCw />}
                 size="sm"
                 variant="outline"
                 isLoading={refreshPricesMutation.isPending}
                 onClick={() => refreshPricesMutation.mutate()}
+                isDisabled={!canEdit}
               >
                 Refresh Prices
               </Button>

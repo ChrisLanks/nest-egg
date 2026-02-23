@@ -139,7 +139,8 @@ export const AccountDetailPage = () => {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const { isOtherUserView, canEdit } = useUserView();
+  const { isOtherUserView, canWriteResource } = useUserView();
+  const canEdit = canWriteResource('account');
   const [searchParams] = useSearchParams();
   const selectedUserId = searchParams.get('user');
   const isCombinedView = !selectedUserId;

@@ -141,8 +141,8 @@ class Settings(BaseSettings):
     METRICS_ENABLED: bool = True
     METRICS_INCLUDE_IN_SCHEMA: bool = False  # Hide from Swagger docs
     METRICS_ADMIN_PORT: int = 9090           # Separate port for /metrics endpoint
-    METRICS_USERNAME: str = "admin"          # Basic auth username — override in prod
-    METRICS_PASSWORD: str = "metrics_admin"  # Basic auth password — CHANGE IN PROD
+    METRICS_USERNAME: str = "admin"           # Basic auth username — override in prod
+    METRICS_PASSWORD: str = "metrics_admin"   # Basic auth password — CHANGE IN PROD
 
     # Compliance
     TERMS_VERSION: str = "2026-02"  # Bump when Terms of Service or Privacy Policy changes
@@ -175,7 +175,7 @@ class Settings(BaseSettings):
 
     # Storage (CSV uploads, attachments)
     STORAGE_BACKEND: str = "local"           # "local" or "s3"
-    LOCAL_UPLOAD_DIR: str = "/tmp/nestegg-uploads"
+    LOCAL_UPLOAD_DIR: str = "/tmp/nestegg-uploads"  # nosec B108 — override via env var in production
     AWS_S3_BUCKET: Optional[str] = None
     AWS_REGION: str = "us-east-1"
     AWS_ACCESS_KEY_ID: Optional[str] = None  # Omit to use IAM instance role
@@ -219,6 +219,20 @@ class Settings(BaseSettings):
                 "Generate a secure key with: openssl rand -hex 32"
             )
 
+        return v
+
+    @field_validator("METRICS_PASSWORD")
+    @classmethod
+    def validate_metrics_password(cls, v: str) -> str:
+        """Require a non-default metrics password in non-development environments."""
+        import os
+
+        environment = os.getenv("ENVIRONMENT", "development")
+        if environment != "development" and v == "metrics_admin":
+            raise ValueError(
+                "Insecure default METRICS_PASSWORD detected. "
+                "Set a strong password via the METRICS_PASSWORD environment variable."
+            )
         return v
 
     @field_validator("ALLOWED_HOSTS")

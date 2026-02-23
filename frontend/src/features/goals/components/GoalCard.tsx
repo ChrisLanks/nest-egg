@@ -35,6 +35,7 @@ interface GoalCardProps {
   goal: SavingsGoal;
   onEdit: (goal: SavingsGoal) => void;
   showFundButton?: boolean;
+  canEdit?: boolean;
   dragHandleListeners?: Record<string, unknown>;
   dragHandleAttributes?: Record<string, unknown>;
   method?: 'waterfall' | 'proportional';
@@ -47,6 +48,7 @@ export default function GoalCard({
   dragHandleListeners,
   dragHandleAttributes,
   method = 'waterfall',
+  canEdit = true,
 }: GoalCardProps) {
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -146,7 +148,7 @@ export default function GoalCard({
                 <Checkbox
                   isChecked={goal.is_completed}
                   onChange={() => completeMutation.mutate()}
-                  isDisabled={completeMutation.isPending}
+                  isDisabled={!canEdit || completeMutation.isPending}
                   colorScheme="green"
                   size="lg"
                   flexShrink={0}
@@ -192,7 +194,7 @@ export default function GoalCard({
                   <MenuItem
                     icon={<FiCheckSquare />}
                     onClick={() => fundMutation.mutate()}
-                    isDisabled={fundMutation.isPending}
+                    isDisabled={!canEdit || fundMutation.isPending}
                   >
                     Mark as Funded
                   </MenuItem>
@@ -201,18 +203,18 @@ export default function GoalCard({
                   <MenuItem
                     icon={<RepeatIcon />}
                     onClick={() => syncMutation.mutate()}
-                    isDisabled={syncMutation.isPending}
+                    isDisabled={!canEdit || syncMutation.isPending}
                   >
                     Sync from Account
                   </MenuItem>
                 )}
-                <MenuItem icon={<EditIcon />} onClick={() => onEdit(goal)}>
+                <MenuItem icon={<EditIcon />} isDisabled={!canEdit} onClick={() => onEdit(goal)}>
                   Edit
                 </MenuItem>
                 <MenuItem
                   icon={<DeleteIcon />}
                   onClick={() => deleteMutation.mutate()}
-                  isDisabled={deleteMutation.isPending}
+                  isDisabled={!canEdit || deleteMutation.isPending}
                   color="red.600"
                 >
                   Delete

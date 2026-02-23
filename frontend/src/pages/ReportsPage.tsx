@@ -78,7 +78,8 @@ interface ReportResult {
 }
 
 export default function ReportsPage() {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, canWriteResource } = useUserView();
+  const canEdit = canWriteResource('report');
   const queryClient = useQueryClient();
   const toast = useToast();
   const { isOpen: isBuilderOpen, onOpen: onBuilderOpen, onClose: onBuilderClose } = useDisclosure();
@@ -246,7 +247,7 @@ export default function ReportsPage() {
             <Heading size="lg">📊 Custom Reports</Heading>
             <Text color="gray.600">Create and manage custom financial reports</Text>
           </Box>
-          <Button colorScheme="blue" onClick={onBuilderOpen}>
+          <Button colorScheme="blue" onClick={onBuilderOpen} isDisabled={!canEdit}>
             Create New Report
           </Button>
         </HStack>
@@ -303,6 +304,7 @@ export default function ReportsPage() {
                             colorScheme="red"
                             variant="ghost"
                             onClick={() => deleteMutation.mutate(template.id)}
+                            isDisabled={!canEdit}
                           />
                         </HStack>
                       </Td>
@@ -526,6 +528,7 @@ export default function ReportsPage() {
               colorScheme="blue"
               onClick={handleCreateReport}
               isLoading={createMutation.isPending}
+              isDisabled={!canEdit}
             >
               Create Report
             </Button>

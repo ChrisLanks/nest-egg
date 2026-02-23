@@ -190,7 +190,8 @@ export const TransactionsPage = () => {
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canEdit, isOtherUserView, selectedUserId } = useUserView();
+  const { canWriteResource, isOtherUserView, selectedUserId } = useUserView();
+  const canEdit = canWriteResource('transaction');
   const isMobile = useBreakpointValue({ base: true, md: false });
 
   // Fetch current user for ownership checks
@@ -1149,7 +1150,7 @@ export const TransactionsPage = () => {
     <Container maxW="container.xl" py={8}>
       <VStack spacing={6} align="stretch">
         {/* Read-only banner */}
-        {isOtherUserView && (
+        {isOtherUserView && !canEdit && (
           <Box
             p={4}
             bg="orange.50"

@@ -65,7 +65,8 @@ interface TaxLabel {
 export default function TaxDeductiblePage() {
   const queryClient = useQueryClient();
   const toast = useToast();
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, canWriteResource } = useUserView();
+  const canEdit = canWriteResource('category');
 
   // Default to current tax year (Jan 1 - Dec 31)
   const currentYear = new Date().getFullYear();
@@ -211,7 +212,7 @@ export default function TaxDeductiblePage() {
         </Box>
 
         {/* Initialize tax labels if needed */}
-        {!taxLabelsExist && !initializeMutation.isPending && (
+        {!taxLabelsExist && !initializeMutation.isPending && canEdit && (
           <Card bg="blue.50" borderColor="blue.200">
             <CardBody>
               <VStack align="start" spacing={3}>

@@ -46,7 +46,7 @@ import {
   Collapse,
 } from '@chakra-ui/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import { useUserView } from '../contexts/UserViewContext';
 import { Skeleton, Stack } from '@chakra-ui/react';
@@ -62,6 +62,16 @@ interface DebtAccount {
   account_type: string;
 }
 
+interface DebtScheduleEntry {
+  name?: string;
+  account_type?: string;
+  starting_balance?: number;
+  interest_rate?: number;
+  months_to_payoff?: number;
+  total_interest?: number;
+  payoff_date?: string;
+}
+
 interface StrategyResult {
   strategy: string;
   total_months: number;
@@ -70,7 +80,7 @@ interface StrategyResult {
   debt_free_date: string | null;
   interest_saved_vs_current?: number;
   months_saved_vs_current?: number;
-  debts: any[];
+  debts: DebtScheduleEntry[];
 }
 
 interface ComparisonResult {
@@ -101,8 +111,20 @@ const DEBTS_OPEN_KEY = 'debt-payoff-debts-open';
 type SortField = 'name' | 'account_type' | 'balance' | 'interest_rate' | 'minimum_payment';
 type SortDir = 'asc' | 'desc';
 
+interface DebtUpdatePayload {
+  interest_rate?: number;
+  minimum_payment?: number;
+  payment_due_day?: number;
+}
+
+function SortIndicator({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
+  if (sortField !== field) return <span style={{ color: '#CBD5E0', marginLeft: 4 }}>↕</span>;
+  return <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>;
+}
+
 export default function DebtPayoffPage() {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, canWriteResource } = useUserView();
+  const canEdit = canWriteResource('account');
   const toast = useToast();
   const queryClient = useQueryClient();
   const [extraPayment, setExtraPayment] = useState('500');
@@ -117,7 +139,10 @@ export default function DebtPayoffPage() {
       return null;
     }
   });
-  const hasAutoSelected = useRef(!!localStorage.getItem(SELECTED_STRATEGY_KEY));
+  // True once the user has explicitly clicked a strategy card (including closing it)
+  const [strategyUserInteracted, setStrategyUserInteracted] = useState(
+    () => !!localStorage.getItem(SELECTED_STRATEGY_KEY),
+  );
   const [isDebtsOpen, setIsDebtsOpen] = useState<boolean>(() => {
     try {
       const s = localStorage.getItem(DEBTS_OPEN_KEY);
@@ -133,7 +158,13 @@ export default function DebtPayoffPage() {
     onOpen: onEditOpen,
     onClose: onEditClose,
   } = useDisclosure();
-  const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
+  const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(SELECTED_ACCOUNTS_KEY);
+      if (saved) return new Set(JSON.parse(saved) as string[]);
+    } catch { /* ignore malformed localStorage value */ }
+    return new Set();
+  });
   const [editingDebt, setEditingDebt] = useState<DebtAccount | null>(null);
   const [editForm, setEditForm] = useState({
     interest_rate: '',
@@ -145,7 +176,7 @@ export default function DebtPayoffPage() {
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['debt-summary', selectedUserId],
     queryFn: async () => {
-      const params: any = {};
+      const params: Record<string, string> = {};
       if (selectedUserId) params.user_id = selectedUserId;
       const response = await api.get('/debt-payoff/summary', { params });
       return response.data;
@@ -156,35 +187,20 @@ export default function DebtPayoffPage() {
   const { data: debts, isLoading: debtsLoading } = useQuery<DebtAccount[]>({
     queryKey: ['debt-accounts', selectedUserId],
     queryFn: async () => {
-      const params: any = {};
+      const params: Record<string, string> = {};
       if (selectedUserId) params.user_id = selectedUserId;
       const response = await api.get('/debt-payoff/debts', { params });
       return response.data;
     },
   });
 
-  // Load selected accounts from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem(SELECTED_ACCOUNTS_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setSelectedAccounts(new Set(parsed));
-      } catch (e) {
-        console.error('Failed to parse selected accounts from localStorage');
-      }
-    }
-  }, []);
+  // When nothing is explicitly selected (empty localStorage on first load), default to all debt accounts
+  const effectiveSelectedAccounts = useMemo(
+    () => selectedAccounts.size > 0 ? selectedAccounts : new Set(debts?.map(d => d.account_id) ?? []),
+    [selectedAccounts, debts],
+  );
 
-  // Initialize selected accounts when debts load
-  useEffect(() => {
-    if (debts && debts.length > 0 && selectedAccounts.size === 0) {
-      const allAccountIds = debts.map((d) => d.account_id);
-      setSelectedAccounts(new Set(allAccountIds));
-    }
-  }, [debts]);
-
-  // Save selected accounts to localStorage whenever it changes
+  // Save selected accounts to localStorage whenever an explicit selection exists
   useEffect(() => {
     if (selectedAccounts.size > 0) {
       localStorage.setItem(SELECTED_ACCOUNTS_KEY, JSON.stringify(Array.from(selectedAccounts)));
@@ -204,7 +220,7 @@ export default function DebtPayoffPage() {
   }, [isDebtsOpen]);
 
   const toggleAccount = (accountId: string) => {
-    const newSelected = new Set(selectedAccounts);
+    const newSelected = new Set(effectiveSelectedAccounts);
     if (newSelected.has(accountId)) {
       newSelected.delete(accountId);
     } else {
@@ -232,21 +248,22 @@ export default function DebtPayoffPage() {
   };
 
   const updateDebtMutation = useMutation({
-    mutationFn: async (data: { account_id: string; updates: any }) => {
+    mutationFn: async (data: { account_id: string; updates: DebtUpdatePayload }) => {
       const response = await api.patch(`/accounts/${data.account_id}`, data.updates);
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['debt-accounts'] });
-      queryClient.invalidateQueries({ queryKey: ['debt-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['debt-comparison'] });
+      queryClient.invalidateQueries({ queryKey: ['debt-accounts', selectedUserId] });
+      queryClient.invalidateQueries({ queryKey: ['debt-summary', selectedUserId] });
+      queryClient.invalidateQueries({ queryKey: ['debt-comparison'] }); // broad invalidate — includes extraPayment + selectedAccounts
       toast({ title: 'Debt details updated', status: 'success', duration: 3000 });
       onEditClose();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
+      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       toast({
         title: 'Failed to update debt',
-        description: error?.response?.data?.detail || 'An error occurred',
+        description: detail || 'An error occurred',
         status: 'error',
         duration: 5000,
       });
@@ -255,7 +272,7 @@ export default function DebtPayoffPage() {
 
   const handleSaveEdit = () => {
     if (!editingDebt) return;
-    const updates: any = {};
+    const updates: DebtUpdatePayload = {};
     if (editForm.interest_rate) updates.interest_rate = parseFloat(editForm.interest_rate);
     if (editForm.minimum_payment) updates.minimum_payment = parseFloat(editForm.minimum_payment);
     if (editForm.payment_due_day) updates.payment_due_day = parseInt(editForm.payment_due_day);
@@ -264,36 +281,33 @@ export default function DebtPayoffPage() {
 
   // Fetch strategy comparison
   const { data: comparison, isLoading: comparisonLoading, refetch } = useQuery<ComparisonResult>({
-    queryKey: ['debt-comparison', extraPayment, selectedUserId, Array.from(selectedAccounts)],
+    queryKey: ['debt-comparison', extraPayment, selectedUserId, Array.from(effectiveSelectedAccounts)],
     queryFn: async () => {
-      const params: any = { extra_payment: parseFloat(extraPayment) || 0 };
+      const params: Record<string, string> = { extra_payment: String(parseFloat(extraPayment) || 0) };
       if (selectedUserId) params.user_id = selectedUserId;
-      if (selectedAccounts.size > 0) params.account_ids = Array.from(selectedAccounts).join(',');
+      if (effectiveSelectedAccounts.size > 0) params.account_ids = Array.from(effectiveSelectedAccounts).join(',');
       const response = await api.get('/debt-payoff/compare', { params });
       return response.data;
     },
-    enabled: !!debts && debts.length > 0 && selectedAccounts.size > 0,
+    enabled: !!debts && debts.length > 0 && effectiveSelectedAccounts.size > 0,
   });
 
-  // Auto-select the recommended strategy on first data load
-  useEffect(() => {
-    if (comparison && !hasAutoSelected.current) {
-      const recKey = comparison.recommendation ? REC_TO_KEY[comparison.recommendation] : null;
-      const keyToSelect = recKey && comparison[recKey] ? recKey : comparison.avalanche ? 'avalanche' : null;
-      if (keyToSelect) {
-        setSelectedStrategyKey(keyToSelect);
-        hasAutoSelected.current = true;
-      }
-    }
-  }, [comparison]);
+  // Derive effective strategy key: explicit user choice, or auto-select recommendation on first load
+  const effectiveStrategyKey = useMemo((): StrategyKey | null => {
+    if (strategyUserInteracted) return selectedStrategyKey;
+    if (!comparison) return null;
+    const recKey = comparison.recommendation ? REC_TO_KEY[comparison.recommendation] : null;
+    return recKey && comparison[recKey] ? recKey : comparison.avalanche ? 'avalanche' : null;
+  }, [strategyUserInteracted, selectedStrategyKey, comparison]);
 
   // Derive selected strategy data from key (stays fresh when comparison data updates)
   const selectedStrategy: StrategyResult | null =
-    selectedStrategyKey && comparison ? (comparison[selectedStrategyKey] as StrategyResult | null) : null;
+    effectiveStrategyKey && comparison ? (comparison[effectiveStrategyKey] as StrategyResult | null) : null;
 
   const handleStrategyClick = (key: StrategyKey) => {
-    // Toggle: clicking the already-selected card collapses the detail panel
-    setSelectedStrategyKey(selectedStrategyKey === key ? null : key);
+    // Toggle: clicking the already-effective card collapses the detail panel
+    setStrategyUserInteracted(true);
+    setSelectedStrategyKey(effectiveStrategyKey === key ? null : key);
   };
 
   const handleSort = (field: SortField) => {
@@ -319,13 +333,8 @@ export default function DebtPayoffPage() {
     });
   }, [debts, sortField, sortDir]);
 
-  const SortIndicator = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <span style={{ color: '#CBD5E0', marginLeft: 4 }}>↕</span>;
-    return <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>;
-  };
-
   const getCardBorderProps = (key: StrategyKey) => {
-    const isSel = selectedStrategyKey === key;
+    const isSel = effectiveStrategyKey === key;
     const isRec = comparison?.recommendation === KEY_TO_REC[key];
     return {
       borderWidth: isSel || isRec ? 2 : 1,
@@ -502,7 +511,7 @@ export default function DebtPayoffPage() {
 
             <Collapse in={isDebtsOpen} animateOpacity>
               <VStack align="stretch" spacing={4}>
-                {selectedAccounts.size === 0 && (
+                {effectiveSelectedAccounts.size === 0 && (
                   <Box bg="orange.50" p={3} borderRadius="md">
                     <Text fontSize="sm" color="orange.700">
                       ⚠️ Select at least one account to see payoff strategies
@@ -519,7 +528,7 @@ export default function DebtPayoffPage() {
                         _hover={{ color: 'blue.600' }}
                         onClick={() => handleSort('name')}
                       >
-                        Account<SortIndicator field="name" />
+                        Account<SortIndicator field="name" sortField={sortField} sortDir={sortDir} />
                       </Th>
                       <Th
                         cursor="pointer"
@@ -527,7 +536,7 @@ export default function DebtPayoffPage() {
                         _hover={{ color: 'blue.600' }}
                         onClick={() => handleSort('account_type')}
                       >
-                        Type<SortIndicator field="account_type" />
+                        Type<SortIndicator field="account_type" sortField={sortField} sortDir={sortDir} />
                       </Th>
                       <Th
                         isNumeric
@@ -536,7 +545,7 @@ export default function DebtPayoffPage() {
                         _hover={{ color: 'blue.600' }}
                         onClick={() => handleSort('balance')}
                       >
-                        Balance<SortIndicator field="balance" />
+                        Balance<SortIndicator field="balance" sortField={sortField} sortDir={sortDir} />
                       </Th>
                       <Th
                         isNumeric
@@ -545,7 +554,7 @@ export default function DebtPayoffPage() {
                         _hover={{ color: 'blue.600' }}
                         onClick={() => handleSort('interest_rate')}
                       >
-                        Interest Rate<SortIndicator field="interest_rate" />
+                        Interest Rate<SortIndicator field="interest_rate" sortField={sortField} sortDir={sortDir} />
                       </Th>
                       <Th
                         isNumeric
@@ -554,7 +563,7 @@ export default function DebtPayoffPage() {
                         _hover={{ color: 'blue.600' }}
                         onClick={() => handleSort('minimum_payment')}
                       >
-                        Min Payment<SortIndicator field="minimum_payment" />
+                        Min Payment<SortIndicator field="minimum_payment" sortField={sortField} sortDir={sortDir} />
                       </Th>
                       <Th width="80px">Actions</Th>
                     </Tr>
@@ -563,12 +572,12 @@ export default function DebtPayoffPage() {
                     {sortedDebts.map((debt) => (
                       <Tr
                         key={debt.account_id}
-                        opacity={selectedAccounts.has(debt.account_id) ? 1 : 0.5}
-                        bg={selectedAccounts.has(debt.account_id) ? 'transparent' : 'gray.50'}
+                        opacity={effectiveSelectedAccounts.has(debt.account_id) ? 1 : 0.5}
+                        bg={effectiveSelectedAccounts.has(debt.account_id) ? 'transparent' : 'gray.50'}
                       >
                         <Td>
                           <Checkbox
-                            isChecked={selectedAccounts.has(debt.account_id)}
+                            isChecked={effectiveSelectedAccounts.has(debt.account_id)}
                             onChange={() => toggleAccount(debt.account_id)}
                             colorScheme="blue"
                           />
@@ -586,6 +595,7 @@ export default function DebtPayoffPage() {
                             variant="ghost"
                             colorScheme="blue"
                             onClick={() => handleEditDebt(debt)}
+                            isDisabled={!canEdit}
                           >
                             Edit
                           </Button>
@@ -664,7 +674,7 @@ export default function DebtPayoffPage() {
                       )}
 
                       <Text fontSize="xs" color="blue.500" textAlign="center">
-                        {selectedStrategyKey === 'snowball' ? '▲ Hide plan' : '▼ View plan'}
+                        {effectiveStrategyKey === 'snowball' ? '▲ Hide plan' : '▼ View plan'}
                       </Text>
                     </VStack>
                   </CardBody>
@@ -728,7 +738,7 @@ export default function DebtPayoffPage() {
                       )}
 
                       <Text fontSize="xs" color="blue.500" textAlign="center">
-                        {selectedStrategyKey === 'avalanche' ? '▲ Hide plan' : '▼ View plan'}
+                        {effectiveStrategyKey === 'avalanche' ? '▲ Hide plan' : '▼ View plan'}
                       </Text>
                     </VStack>
                   </CardBody>
@@ -780,7 +790,7 @@ export default function DebtPayoffPage() {
                       </Box>
 
                       <Text fontSize="xs" color="blue.500" textAlign="center">
-                        {selectedStrategyKey === 'current_pace' ? '▲ Hide plan' : '▼ View plan'}
+                        {effectiveStrategyKey === 'current_pace' ? '▲ Hide plan' : '▼ View plan'}
                       </Text>
                     </VStack>
                   </CardBody>
@@ -792,16 +802,16 @@ export default function DebtPayoffPage() {
 
         {/* 4 — Inline Strategy Detail Panel */}
         <Collapse in={!!selectedStrategy} animateOpacity>
-          {selectedStrategy && selectedStrategyKey && (
+          {selectedStrategy && effectiveStrategyKey && (
             <Card
               borderWidth={2}
-              borderColor={strategyDetailColor[selectedStrategyKey]}
+              borderColor={strategyDetailColor[effectiveStrategyKey]}
             >
               <CardBody>
                 <VStack align="stretch" spacing={6}>
                   {/* Panel header */}
                   <HStack justify="space-between">
-                    <Heading size="md">{strategyLabel[selectedStrategyKey]} — Payment Plan</Heading>
+                    <Heading size="md">{strategyLabel[effectiveStrategyKey]} — Payment Plan</Heading>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -863,7 +873,7 @@ export default function DebtPayoffPage() {
 
                     {selectedStrategy.debts && selectedStrategy.debts.length > 0 ? (
                       <VStack align="stretch" spacing={4}>
-                        {selectedStrategy.debts.map((debt: any, idx: number) => (
+                        {selectedStrategy.debts.map((debt, idx) => (
                           <Card key={idx} variant="outline">
                             <CardBody>
                               <VStack align="stretch" spacing={3}>
@@ -995,6 +1005,7 @@ export default function DebtPayoffPage() {
                   colorScheme="blue"
                   onClick={handleSaveEdit}
                   isLoading={updateDebtMutation.isPending}
+                  isDisabled={!canEdit}
                 >
                   Save Changes
                 </Button>

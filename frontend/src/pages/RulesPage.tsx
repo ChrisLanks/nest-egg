@@ -35,6 +35,7 @@ import { useNavigate } from 'react-router-dom';
 import { RuleBuilderModal } from '../components/RuleBuilderModal';
 import type { Rule } from '../types/rule';
 import api from '../services/api';
+import { useUserView } from '../contexts/UserViewContext';
 
 const FIELD_LABELS: Record<string, string> = {
   merchant_name: 'Merchant',
@@ -69,6 +70,8 @@ export const RulesPage = () => {
   const toast = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { canWriteResource } = useUserView();
+  const canEdit = canWriteResource('rule');
 
   const { data: rules, isLoading } = useQuery({
     queryKey: ['rules'],
@@ -174,6 +177,7 @@ export const RulesPage = () => {
               colorScheme="brand"
               leftIcon={<AddIcon />}
               onClick={() => setIsRuleBuilderOpen(true)}
+              isDisabled={!canEdit}
             >
               Create Rule
             </Button>
@@ -198,6 +202,7 @@ export const RulesPage = () => {
               colorScheme="brand"
               leftIcon={<AddIcon />}
               onClick={() => setIsRuleBuilderOpen(true)}
+              isDisabled={!canEdit}
             >
               Create Your First Rule
             </Button>
@@ -259,7 +264,7 @@ export const RulesPage = () => {
                               colorScheme="green"
                               isChecked={rule.is_active}
                               onChange={() => handleToggleActive(rule.id, rule.is_active)}
-                              isDisabled={toggleActiveMutation.isPending}
+                              isDisabled={!canEdit || toggleActiveMutation.isPending}
                             />
                           </HStack>
                           <IconButton
@@ -267,6 +272,7 @@ export const RulesPage = () => {
                             aria-label="Edit rule"
                             variant="ghost"
                             size="sm"
+                            isDisabled={!canEdit}
                             onClick={() => {
                               setEditingRule(rule);
                               setIsRuleBuilderOpen(true);
@@ -278,6 +284,7 @@ export const RulesPage = () => {
                             colorScheme="red"
                             variant="ghost"
                             size="sm"
+                            isDisabled={!canEdit}
                             onClick={() => handleDelete(rule.id, rule.name)}
                             isLoading={deleteRuleMutation.isPending}
                           />

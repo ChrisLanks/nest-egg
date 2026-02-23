@@ -168,7 +168,7 @@ async def lifespan(app: FastAPI):
         metrics_asgi = create_metrics_app()
         metrics_config = uvicorn.Config(
             metrics_asgi,
-            host="0.0.0.0",
+            host="0.0.0.0",  # nosec B104 — metrics port is internal-only, protected by basic auth
             port=settings.METRICS_ADMIN_PORT,
             log_level="warning",
         )

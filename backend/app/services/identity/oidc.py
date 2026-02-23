@@ -32,9 +32,10 @@ class OIDCProviderConfig:
     client_id: str      # Used for audience validation
 
     # Group claim config (IdP-specific)
-    admin_group: str = ""        # Group name that maps to is_org_admin=True
-    groups_claim: str = "groups" # JWT claim containing group memberships
-                                 # Cognito: "cognito:groups"; Google: "" (no groups)
+    admin_group: str = ""  # Group name that maps to is_org_admin=True
+    # JWT claim containing group memberships.
+    # Cognito: "cognito:groups"; Google: "" (no groups)
+    groups_claim: str = "groups"
 
     # When True, auto-create a User + UserIdentity row on first external login
     auto_provision: bool = True

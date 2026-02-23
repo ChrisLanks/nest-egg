@@ -761,10 +761,12 @@ class TestLoginEndpoint:
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)):
-                with pytest.raises(HTTPException) as exc_info:
-                    await login(mock_request, Mock(), mock_data, mock_db)
+                with patch("app.api.v1.auth.settings") as mock_settings:
+                    mock_settings.ENVIRONMENT = "production"
+                    with pytest.raises(HTTPException) as exc_info:
+                        await login(mock_request, Mock(), mock_data, mock_db)
 
-                assert exc_info.value.status_code == 403
+                assert exc_info.value.status_code == 423
                 assert "locked" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
@@ -816,8 +818,12 @@ class TestLoginEndpoint:
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)):
                 with patch("app.api.v1.auth.verify_password", return_value=False):
-                    with pytest.raises(HTTPException) as exc_info:
-                        await login(mock_request, Mock(), mock_data, mock_db)
+                    with patch("app.api.v1.auth.settings") as mock_settings:
+                        mock_settings.ENVIRONMENT = "production"
+                        mock_settings.MAX_LOGIN_ATTEMPTS = 5
+                        mock_settings.ACCOUNT_LOCKOUT_MINUTES = 30
+                        with pytest.raises(HTTPException) as exc_info:
+                            await login(mock_request, Mock(), mock_data, mock_db)
 
                     assert mock_user.failed_login_attempts == 3
                     assert exc_info.value.status_code == 401
@@ -841,14 +847,16 @@ class TestLoginEndpoint:
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)):
                 with patch("app.api.v1.auth.verify_password", return_value=False):
-                    with patch("app.api.v1.auth.settings.MAX_LOGIN_ATTEMPTS", 5):
-                        with patch("app.api.v1.auth.settings.ACCOUNT_LOCKOUT_MINUTES", 30):
-                            with pytest.raises(HTTPException) as exc_info:
-                                await login(mock_request, Mock(), mock_data, mock_db)
+                    with patch("app.api.v1.auth.settings") as mock_settings:
+                        mock_settings.ENVIRONMENT = "production"
+                        mock_settings.MAX_LOGIN_ATTEMPTS = 5
+                        mock_settings.ACCOUNT_LOCKOUT_MINUTES = 30
+                        with pytest.raises(HTTPException) as exc_info:
+                            await login(mock_request, Mock(), mock_data, mock_db)
 
-                            assert mock_user.failed_login_attempts == 5
-                            assert mock_user.locked_until is not None
-                            assert exc_info.value.status_code == 403
+                        assert mock_user.failed_login_attempts == 5
+                        assert mock_user.locked_until is not None
+                        assert exc_info.value.status_code == 423
 
     @pytest.mark.asyncio
     async def test_login_rejects_inactive_user(self):

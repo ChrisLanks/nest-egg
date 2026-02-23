@@ -62,24 +62,31 @@ export default function NotificationBell() {
         <IconButton
           aria-label="Notifications"
           icon={
-            <Badge
-              colorScheme="red"
-              variant={hasUnread ? 'solid' : 'subtle'}
-              fontSize="xs"
-              position="absolute"
-              top="-1"
-              right="-1"
-              borderRadius="full"
-              display={hasUnread ? 'block' : 'none'}
-            >
-              {unreadCount?.count}
-            </Badge>
+            <Box position="relative" display="inline-flex">
+              <BellIcon boxSize={5} />
+              {hasUnread && (
+                <Badge
+                  colorScheme="red"
+                  variant="solid"
+                  fontSize="2xs"
+                  position="absolute"
+                  top="-2"
+                  right="-2"
+                  borderRadius="full"
+                  minW="16px"
+                  h="16px"
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  px={0}
+                >
+                  {(unreadCount?.count ?? 0) > 99 ? '99+' : unreadCount?.count}
+                </Badge>
+              )}
+            </Box>
           }
           variant="ghost"
-          position="relative"
-        >
-          <BellIcon boxSize={5} />
-        </IconButton>
+        />
       </PopoverTrigger>
 
       <PopoverContent width="400px" maxH="600px" overflowY="auto">

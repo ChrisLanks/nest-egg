@@ -36,11 +36,17 @@ import { useState, useRef, useEffect } from "react";
 import { useAuthStore } from "../features/auth/stores/authStore";
 import { useLogout } from "../features/auth/hooks/useAuth";
 import api from "../services/api";
+import { useHouseholdMembers } from "../hooks/useHouseholdMembers";
 import { AddAccountModal } from "../features/accounts/components/AddAccountModal";
 import NotificationBell from "../features/notifications/components/NotificationBell";
 import { UserViewToggle } from "./UserViewToggle";
 import { useUserView } from "../contexts/UserViewContext";
 import { EmailVerificationBanner } from "./EmailVerificationBanner";
+import {
+  RESOURCE_TYPE_LABELS,
+  getBannerAccess,
+  getResourceTypeForPath,
+} from "../utils/permissionBannerUtils";
 
 interface Account {
   id: string;
@@ -434,12 +440,14 @@ const accountTypeConfig: Record<string, { label: string; order: number }> = {
   other: { label: "Other", order: 8 },
 };
 
+
 export const Layout = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const isSelfOnlyPage = ['/preferences', '/permissions', '/household'].includes(location.pathname);
   const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
-  const { selectedUserId, isCombinedView, isOtherUserView, canEdit } =
+  const { selectedUserId, isCombinedView, isOtherUserView, canEdit, receivedGrants, isLoadingGrants } =
     useUserView();
   const logoutMutation = useLogout();
   const {
@@ -511,13 +519,7 @@ export const Layout = () => {
   });
 
   // Fetch household members for color coding
-  const { data: members } = useQuery({
-    queryKey: ["household-members"],
-    queryFn: async () => {
-      const response = await api.get("/household/members");
-      return response.data;
-    },
-  });
+  const { data: members } = useHouseholdMembers();
 
   // Assign colors to users for visual distinction in combined view
   const userColors = [
@@ -537,7 +539,7 @@ export const Layout = () => {
 
   const getUserColorIndex = (userId: string): number => {
     if (!members) return 0;
-    const memberIndex = members.findIndex((m: any) => m.id === userId);
+    const memberIndex = members.findIndex((m) => m.id === userId);
     return memberIndex >= 0 ? memberIndex : 0;
   };
 
@@ -557,7 +559,7 @@ export const Layout = () => {
       return "";
     }
 
-    const member = members.find((m: any) => m.id === userId);
+    const member = members.find((m) => m.id === userId);
     if (!member) {
       return "";
     }
@@ -794,45 +796,76 @@ export const Layout = () => {
       </Box>
 
       {/* View Indicator Banner */}
-      {!isCombinedView && members && members.length > 1 && (
-        <Box
-          bg={isOtherUserView ? "orange.50" : "blue.50"}
-          borderBottomWidth={1}
-          borderColor={isOtherUserView ? "orange.200" : "blue.200"}
-          px={8}
-          py={2}
-        >
-          <HStack spacing={3}>
-            <Text
-              fontSize="sm"
-              fontWeight="semibold"
-              color={isOtherUserView ? "orange.800" : "blue.800"}
-            >
-              {isOtherUserView ? "👁️ Viewing:" : "📊 Your View:"}
-            </Text>
-            <Badge
-              size="sm"
-              fontSize="xs"
-              px={2}
-              py={1}
-              borderRadius="md"
-              bg={getUserColor(selectedUserId || user?.id || "")}
-              color="white"
-              fontWeight="bold"
-            >
-              {getUserInitials(selectedUserId || user?.id || "")}
-            </Badge>
-            <Text
-              fontSize="sm"
-              fontWeight="medium"
-              color={isOtherUserView ? "orange.700" : "blue.700"}
-            >
-              {getUserName(selectedUserId || user?.id || "")}
-              {isOtherUserView ? "'s Accounts (Read-only)" : "'s Accounts"}
-            </Text>
-          </HStack>
-        </Box>
-      )}
+      {!isCombinedView && members && members.length > 1 && (() => {
+        if (!isOtherUserView || isSelfOnlyPage) {
+          // Own-view banner (blue) — also shown on self-only pages regardless of selected view
+          return (
+            <Box bg="blue.50" borderBottomWidth={1} borderColor="blue.200" px={8} py={2}>
+              <HStack spacing={3}>
+                <Text fontSize="sm" fontWeight="semibold" color="blue.800">📊 Your View:</Text>
+                <Badge size="sm" fontSize="xs" px={2} py={1} borderRadius="md"
+                  bg={getUserColor(user?.id || "")} color="white" fontWeight="bold">
+                  {getUserInitials(user?.id || "")}
+                </Badge>
+                <Text fontSize="sm" fontWeight="medium" color="blue.700">
+                  {getUserName(user?.id || "")}'s Accounts
+                </Text>
+              </HStack>
+            </Box>
+          );
+        }
+
+        // Other-user banner: check page-specific access
+        if (isLoadingGrants) {
+          return (
+            <Box bg="gray.50" borderBottomWidth={1} borderColor="gray.200" px={8} py={2}>
+              <HStack spacing={3}>
+                <Spinner size="xs" color="gray.400" />
+                <Text fontSize="sm" color="gray.500">Loading permissions…</Text>
+              </HStack>
+            </Box>
+          );
+        }
+
+        const pageResourceType = getResourceTypeForPath(location.pathname);
+        const access = getBannerAccess(receivedGrants, selectedUserId ?? '', pageResourceType);
+        const sectionLabel = pageResourceType
+          ? (RESOURCE_TYPE_LABELS[pageResourceType] ?? pageResourceType)
+          : 'Data';
+        const viewedName = getUserName(selectedUserId ?? '');
+
+        // Household members always have at least read access — 'none' (no explicit grant)
+        // still means read-only, not blocked.
+        const canWrite = access === 'write';
+        const bannerConfig = canWrite
+          ? {
+              bg: 'green.50', border: 'green.200',
+              headColor: 'green.800', textColor: 'green.700',
+              icon: '✏️', prefix: 'Can Edit:', suffix: `'s ${sectionLabel}`,
+            }
+          : {
+              bg: 'blue.50', border: 'blue.200',
+              headColor: 'blue.800', textColor: 'blue.700',
+              icon: '👁️', prefix: 'Read Only:', suffix: `'s ${sectionLabel}`,
+            };
+
+        return (
+          <Box bg={bannerConfig.bg} borderBottomWidth={1} borderColor={bannerConfig.border} px={8} py={2}>
+            <HStack spacing={3}>
+              <Text fontSize="sm" fontWeight="semibold" color={bannerConfig.headColor}>
+                {bannerConfig.icon} {bannerConfig.prefix}
+              </Text>
+              <Badge size="sm" fontSize="xs" px={2} py={1} borderRadius="md"
+                bg={getUserColor(selectedUserId ?? '')} color="white" fontWeight="bold">
+                {getUserInitials(selectedUserId ?? '')}
+              </Badge>
+              <Text fontSize="sm" fontWeight="medium" color={bannerConfig.textColor}>
+                {viewedName}{bannerConfig.suffix}
+              </Text>
+            </HStack>
+          </Box>
+        );
+      })()}
 
       <Flex flex={1} overflow="hidden">
         {/* Left Sidebar - Accounts */}
@@ -902,7 +935,7 @@ export const Layout = () => {
                 HOUSEHOLD MEMBERS
               </Text>
               <VStack spacing={1} align="stretch">
-                {members.map((member: any, index: number) => (
+                {members.map((member, index) => (
                   <HStack key={member.id} spacing={2}>
                     <Badge
                       size="sm"

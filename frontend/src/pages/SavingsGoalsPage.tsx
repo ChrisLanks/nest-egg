@@ -64,9 +64,10 @@ interface SortableGoalCardProps {
   goal: SavingsGoal;
   onEdit: (goal: SavingsGoal) => void;
   method: 'waterfall' | 'proportional';
+  canEdit?: boolean;
 }
 
-function SortableGoalCard({ goal, onEdit, method }: SortableGoalCardProps) {
+function SortableGoalCard({ goal, onEdit, method, canEdit = true }: SortableGoalCardProps) {
   const {
     attributes,
     listeners,
@@ -88,6 +89,7 @@ function SortableGoalCard({ goal, onEdit, method }: SortableGoalCardProps) {
         goal={goal}
         onEdit={onEdit}
         showFundButton
+        canEdit={canEdit}
         dragHandleListeners={listeners as Record<string, unknown>}
         dragHandleAttributes={attributes as Record<string, unknown>}
         method={method}
@@ -104,9 +106,10 @@ interface AccountGroupProps {
   accountName: string;
   goals: SavingsGoal[];
   onEdit: (goal: SavingsGoal) => void;
+  canEdit?: boolean;
 }
 
-function AccountGroup({ accountName, goals, onEdit }: AccountGroupProps) {
+function AccountGroup({ accountName, goals, onEdit, canEdit = true }: AccountGroupProps) {
   return (
     <AccordionItem border="1px solid" borderColor="gray.200" borderRadius="md" overflow="hidden">
       <AccordionButton bg="gray.50" _expanded={{ bg: 'blue.50' }} py={3} px={4}>
@@ -123,7 +126,7 @@ function AccountGroup({ accountName, goals, onEdit }: AccountGroupProps) {
       <AccordionPanel pb={4} pt={3} px={4}>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
           {goals.map((goal) => (
-            <GoalCard key={goal.id} goal={goal} onEdit={onEdit} showFundButton />
+            <GoalCard key={goal.id} goal={goal} onEdit={onEdit} showFundButton canEdit={canEdit} />
           ))}
         </SimpleGrid>
       </AccordionPanel>
@@ -141,7 +144,8 @@ export default function SavingsGoalsPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedGoal, setSelectedGoal] = useState<SavingsGoal | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('priority');
-  const { canEdit, isOtherUserView } = useUserView();
+  const { canWriteResource, isOtherUserView } = useUserView();
+  const canEdit = canWriteResource('savings_goal');
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -453,6 +457,7 @@ export default function SavingsGoalsPage() {
                             goal={goal}
                             onEdit={handleEdit}
                             method={allocationMethod}
+                            canEdit={canEdit}
                           />
                         ))}
                       </VStack>
@@ -468,6 +473,7 @@ export default function SavingsGoalsPage() {
                           accountName={accountMap.get(accountId)?.name ?? 'Unknown Account'}
                           goals={groupGoals}
                           onEdit={handleEdit}
+                          canEdit={canEdit}
                         />
                       ))}
                       {unlinkedGoals.length > 0 && (
@@ -476,6 +482,7 @@ export default function SavingsGoalsPage() {
                           accountName="Not linked to an account"
                           goals={unlinkedGoals}
                           onEdit={handleEdit}
+                          canEdit={canEdit}
                         />
                       )}
                     </VStack>
@@ -492,7 +499,7 @@ export default function SavingsGoalsPage() {
                 ) : (
                   <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
                     {completedGoals.map((goal) => (
-                      <GoalCard key={goal.id} goal={goal} onEdit={handleEdit} />
+                      <GoalCard key={goal.id} goal={goal} onEdit={handleEdit} canEdit={canEdit} />
                     ))}
                   </SimpleGrid>
                 )}

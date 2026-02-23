@@ -64,6 +64,7 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         clearTokenRefresh(); // cancel any pending proactive refresh timer
+        localStorage.removeItem('nest-egg-view'); // clear persisted view selection
         set({
           user: null,
           accessToken: null,

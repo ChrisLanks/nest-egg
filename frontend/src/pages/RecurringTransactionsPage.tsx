@@ -63,7 +63,8 @@ import api from '../services/api';
 export default function RecurringTransactionsPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
-  const { canEdit, isOtherUserView } = useUserView();
+  const { canWriteResource, isOtherUserView } = useUserView();
+  const canEdit = canWriteResource('recurring_transaction');
   const [tabIndex, setTabIndex] = useState(0);
 
   // Edit modal
@@ -455,7 +456,7 @@ export default function RecurringTransactionsPage() {
     <Box p={8}>
       <VStack align="stretch" spacing={6}>
         {/* Read-only banner */}
-        {isOtherUserView && (
+        {isOtherUserView && !canEdit && (
           <Box p={4} bg="orange.50" borderRadius="md" borderWidth={1} borderColor="orange.200">
             <HStack>
               <FiLock size={16} color="orange.600" />

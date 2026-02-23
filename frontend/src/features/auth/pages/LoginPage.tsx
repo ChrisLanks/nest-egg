@@ -26,7 +26,7 @@ import {
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { isMFAChallenge } from '../../../types/auth';
 import { authApi } from '../services/authApi';
@@ -42,6 +42,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export const LoginPage = () => {
   const toast = useToast();
+  const navigate = useNavigate();
   const { setTokens } = useAuthStore();
   const [rememberMe, setRememberMe] = useState(false);
   const [credentialError, setCredentialError] = useState<string | null>(null);
@@ -93,14 +94,14 @@ export const LoginPage = () => {
 
       // Normal login — store tokens and navigate
       setTokens(result.access_token, result.user);
-      window.location.href = '/dashboard';
+      navigate('/overview', { replace: true });
     } catch (error: any) {
       const status = error?.response?.status;
 
       if (status === 401) {
         setCredentialError('Incorrect email or password.');
       } else if (status === 423) {
-        setCredentialError('Account temporarily locked due to too many failed attempts. Please try again later.');
+        setCredentialError(error?.response?.data?.detail ?? 'Account temporarily locked. Please try again later.');
       } else if (status === 429) {
         toast({
           title: 'Too many attempts',
@@ -127,7 +128,7 @@ export const LoginPage = () => {
     try {
       const result = await authApi.verifyMfa({ mfa_token: mfaToken, code: mfaCode });
       setTokens(result.access_token, result.user);
-      window.location.href = '/dashboard';
+      navigate('/overview', { replace: true });
     } catch (error: any) {
       const status = error?.response?.status;
       if (status === 401) {

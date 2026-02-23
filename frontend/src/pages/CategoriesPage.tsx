@@ -48,6 +48,7 @@ import api from '../services/api';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import { EmptyState } from '../components/EmptyState';
 import { FiTag } from 'react-icons/fi';
+import { useUserView } from '../contexts/UserViewContext';
 
 interface Category {
   id: string | null;  // null for Plaid categories not yet in DB
@@ -76,6 +77,8 @@ export const CategoriesPage = () => {
   const toast = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { canWriteResource } = useUserView();
+  const canEdit = canWriteResource('category');
   const cancelRef = useRef<HTMLButtonElement>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const {
@@ -348,6 +351,7 @@ export const CategoriesPage = () => {
                   size="sm"
                   colorScheme="blue"
                   variant="ghost"
+                  isDisabled={!canEdit}
                   onClick={() => handleEdit(category)}
                 >
                   Make Custom
@@ -359,6 +363,7 @@ export const CategoriesPage = () => {
                     aria-label="Edit category"
                     size="sm"
                     variant="ghost"
+                    isDisabled={!canEdit}
                     onClick={() => handleEdit(category)}
                   />
                   <IconButton
@@ -367,6 +372,7 @@ export const CategoriesPage = () => {
                     size="sm"
                     variant="ghost"
                     colorScheme="red"
+                    isDisabled={!canEdit}
                     onClick={() => handleDelete(category)}
                     isLoading={deleteMutation.isPending}
                   />
@@ -402,7 +408,7 @@ export const CategoriesPage = () => {
             </Text>
           </Box>
           <HStack spacing={2}>
-            <Button colorScheme="brand" onClick={handleCreate}>
+            <Button colorScheme="brand" isDisabled={!canEdit} onClick={handleCreate}>
               Create Category
             </Button>
             <Button variant="ghost" onClick={() => navigate('/transactions')}>

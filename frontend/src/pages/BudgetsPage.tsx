@@ -34,7 +34,8 @@ export default function BudgetsPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
-  const { canEdit, isOtherUserView } = useUserView();
+  const { canWriteResource, isOtherUserView } = useUserView();
+  const canEdit = canWriteResource('budget');
 
   // Get all budgets
   const { data: budgets = [], isLoading } = useQuery({
@@ -175,7 +176,7 @@ export default function BudgetsPage() {
             </Heading>
             <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
               {activeBudgets.map((budget) => (
-                <BudgetCard key={budget.id} budget={budget} onEdit={handleEdit} />
+                <BudgetCard key={budget.id} budget={budget} onEdit={handleEdit} canEdit={canEdit} />
               ))}
             </SimpleGrid>
           </VStack>
@@ -192,7 +193,7 @@ export default function BudgetsPage() {
             </Heading>
             <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
               {inactiveBudgets.map((budget) => (
-                <BudgetCard key={budget.id} budget={budget} onEdit={handleEdit} />
+                <BudgetCard key={budget.id} budget={budget} onEdit={handleEdit} canEdit={canEdit} />
               ))}
             </SimpleGrid>
           </VStack>

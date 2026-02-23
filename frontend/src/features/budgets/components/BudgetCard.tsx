@@ -30,9 +30,10 @@ import { labelsApi } from '../../../api/labels';
 interface BudgetCardProps {
   budget: Budget;
   onEdit: (budget: Budget) => void;
+  canEdit?: boolean;
 }
 
-export default function BudgetCard({ budget, onEdit }: BudgetCardProps) {
+export default function BudgetCard({ budget, onEdit, canEdit = true }: BudgetCardProps) {
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -128,13 +129,13 @@ export default function BudgetCard({ budget, onEdit }: BudgetCardProps) {
               size="sm"
             />
             <MenuList>
-              <MenuItem icon={<EditIcon />} onClick={() => onEdit(budget)}>
+              <MenuItem icon={<EditIcon />} isDisabled={!canEdit} onClick={() => onEdit(budget)}>
                 Edit
               </MenuItem>
               <MenuItem
                 icon={<DeleteIcon />}
                 onClick={() => deleteMutation.mutate()}
-                isDisabled={deleteMutation.isPending}
+                isDisabled={!canEdit || deleteMutation.isPending}
                 color="red.600"
               >
                 Delete

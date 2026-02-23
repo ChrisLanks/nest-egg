@@ -109,11 +109,14 @@ export const GrantList = ({ grants, mode }: GrantListProps) => {
                 <Td>{RESOURCE_TYPE_LABELS[g.resource_type] ?? g.resource_type}</Td>
                 <Td>
                   <HStack spacing={1} wrap="wrap">
-                    {g.actions.map((a) => (
+                    {g.actions.filter((a) => a !== 'read').map((a) => (
                       <Badge key={a} colorScheme={ACTION_COLORS[a] ?? 'gray'} size="sm">
                         {a}
                       </Badge>
                     ))}
+                    {g.actions.every((a) => a === 'read') && (
+                      <Badge colorScheme="gray" size="sm">read only</Badge>
+                    )}
                   </HStack>
                 </Td>
                 <Td>

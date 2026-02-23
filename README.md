@@ -21,10 +21,12 @@ A comprehensive multi-user personal finance application for tracking transaction
 ## ✨ Features
 
 ### 📊 **Transaction & Account Management**
-- **Multi-Source Data Import**:
-  - 🏦 **Teller Integration**: Automatic bank sync with 5,000+ institutions (100 free accounts/month)
+- **Multi-Source Data Import** — providers are optional and can all run simultaneously:
+  - 🏦 **Teller** (optional): Automatic bank sync with 5,000+ US institutions — 100 free accounts/month
+  - 🏦 **Plaid** (optional): Automatic bank sync with 11,000+ institutions worldwide — paid after free tier
   - 📄 **CSV Import**: Manual upload for unsupported banks or historical data
   - 💰 **Investment Data**: Yahoo Finance for free, unlimited stock/ETF/mutual fund prices
+  - Both Teller and Plaid can be active at the same time; the deduplication layer prevents double-counting
 - **Smart Deduplication**: Multi-layer duplicate detection ensures no double-counting
   - Provider transaction IDs (Teller)
   - Content-based hashing (date + amount + merchant + account)
@@ -116,14 +118,40 @@ Scheduled tasks for hands-free operation:
 - **View Modes**:
   - Combined Household: All accounts deduplicated
   - Individual: User's own accounts only
-  - Other Members: View household members (read-only or edit permissions)
-- **Account Sharing**: Grant view/edit permissions to specific users
+  - Other Members: View household members (with permission-controlled access)
 - **Account Ownership**: Each user owns their connected accounts
 - **Duplicate Detection**: Same bank account added by multiple users only counted once
   - Uses SHA256 hash of `institution_id + account_id`
-  - Automatic on Plaid/MX sync
+  - Automatic on Teller sync
 - **Deep Linking**: URL state preservation (`?user=<uuid>`)
 - **RMD Calculations**: Age-specific Required Minimum Distribution per member
+
+### 🔑 **RBAC Permission Grants**
+Fine-grained access delegation between household members:
+- **Default Read Access**: Household members always have implicit read access to each other's data — no grant needed
+- **Write Grants**: Grant `create`, `update`, and/or `delete` access on top of the implicit read
+- **Scope Options**: Grant one specific section (e.g. Transactions) or all sections at once via the "All Sections" toggle
+- **Full Edit Preset**: One-click "Full Edit" button selects create+update+delete in the Grant Access dialog
+- **Resource Types**: `account`, `transaction`, `bill`, `holding`, `budget`, `category`, `rule`, `savings_goal`, and more
+- **Wildcard or Specific**: Grant access to all of a grantor's resources of a type, or to one specific resource by ID
+- **Direct Grant**: Owner pushes access to grantee — no approval step needed
+- **Expiry**: Optional `expires_at` date on any grant
+- **Immutable Audit Log**: Every grant creation, update, and revocation is logged with actor, IP, and before/after state
+- **`grant` is never delegatable**: Only the resource owner or an org admin can create/revoke grants — prevents privilege escalation
+- **Permissions Page**: `/permissions` — manage granted and received access with full audit history
+- **Per-Page Guards**: Edit/Create/Delete buttons are hidden on every page when the viewer does not have write access for that specific resource type
+
+### 🔐 **IdP-Agnostic Authentication**
+Drop-in support for external identity providers alongside the built-in JWT system:
+- **Built-in (default)**: App's own HS256 JWT — works out of the box, no config needed
+- **AWS Cognito**: Enable with `IDENTITY_PROVIDER_CHAIN=cognito,builtin` + `IDP_COGNITO_*` vars
+- **Keycloak**: Enable with `IDENTITY_PROVIDER_CHAIN=keycloak,builtin` + `IDP_KEYCLOAK_*` vars
+- **Okta**: Enable with `IDENTITY_PROVIDER_CHAIN=okta,builtin` + `IDP_OKTA_*` vars
+- **Google**: Enable with `IDENTITY_PROVIDER_CHAIN=google,builtin` + `IDP_GOOGLE_CLIENT_ID`
+- **Priority Chain**: Multiple providers active simultaneously; first JWT `iss` claim match wins
+- **Auto-Provisioning**: First external login creates a User + Organization + UserConsent automatically
+- **Group Sync**: IdP group membership synced on every login; maps to `is_org_admin` via configurable group name
+- **JWKS Cache**: Public keys cached 1 hour (httpx async fetch with TTL)
 
 ### 🏠 **Manual Assets & Accounts**
 - **Manual Account Types**: Savings, Checking, Investment, Retirement, Loan, Mortgage, Credit Card, Other
@@ -155,6 +183,8 @@ Scheduled tasks for hands-free operation:
 - **Database Isolation**: Row-level security with organization-scoped queries
 - **API Docs Disabled in Production**: Swagger/ReDoc/OpenAPI only available when `DEBUG=true`
 - **Distributed Snapshot Scheduler**: Redis distributed lock prevents duplicate snapshot captures across instances
+- **OIDC/OAuth2 Support**: RS256 token validation via JWKS for Cognito, Keycloak, Okta, and Google (see IdP-Agnostic Authentication above)
+- **RBAC Audit Trail**: Immutable log of every permission grant change (actor, IP, before/after state)
 
 ## 🛡️ Data Integrity & Deduplication
 
@@ -173,9 +203,9 @@ The application uses a **multi-layer deduplication strategy** to ensure transact
 - Works for CSV imports and manual entries
 
 #### Layer 3: Household Account Deduplication
-- SHA256 hash of: `institution_id + plaid_account_id`
-- Stored in `plaid_item_hash` column
-- When multiple users link the same bank account:
+- SHA256 hash of: `institution_id + account_id` (works across Plaid and Teller)
+- Stored in `plaid_item_hash` column (name retained for compatibility)
+- When multiple users link the same bank account (via any provider):
   - First user becomes the "owner"
   - Subsequent users' accounts are marked as duplicates
   - Only one copy appears in "Combined" view
@@ -191,22 +221,29 @@ UNIQUE (plaid_item_hash) WHERE plaid_item_hash IS NOT NULL
 
 ### **Import Methods**
 
-#### Teller Sync
+#### Teller Sync (when `TELLER_ENABLED=true`)
 ```bash
-# Automatic daily sync
-# Celery task: sync_account_task (scheduled)
+# Automatic daily sync via Celery
 
 # Manual sync via UI
 Dashboard → Sync button on account card
 
 # API endpoint
 POST /api/v1/teller/sync-account/{account_id}
-
-# Configure Teller credentials in .env:
-TELLER_APP_ID=your_teller_app_id
-TELLER_ENVIRONMENT=sandbox  # or production
-MASTER_ENCRYPTION_KEY=<32-byte-hex>  # For credential encryption
 ```
+
+#### Plaid Sync (when `PLAID_ENABLED=true`)
+```bash
+# Automatic sync on configurable interval (PLAID_SYNC_INTERVAL_HOURS)
+
+# Manual sync via UI
+Dashboard → Sync button on account card
+
+# API endpoint
+POST /api/v1/plaid/sync/{account_id}
+```
+
+> Both providers can run at the same time. Accounts from both appear in the UI, deduplicated automatically.
 
 #### Yahoo Finance (Investment Data)
 ```bash
@@ -298,7 +335,10 @@ MARKETCHECK_API_KEY=your_marketcheck_key   # For vehicle valuation
 - Docker and Docker Compose (recommended)
 - Node.js 18+ (for frontend development)
 - Python 3.11+ (for backend development without Docker)
-- Teller API credentials ([sign up](https://teller.io/signup)) - **100 free accounts/month**
+- **Banking providers are optional** — the app works without any of them (manual accounts + CSV import):
+  - Teller credentials ([sign up](https://teller.io/signup)) — 100 free accounts/month (US only)
+  - Plaid credentials ([sign up](https://plaid.com)) — 11,000+ institutions worldwide
+  - Both can be enabled at the same time; set neither to use manual entry only
 - Yahoo Finance integration (free, no API key required)
 
 ### Setup with Docker (Recommended)
@@ -324,16 +364,18 @@ MARKETCHECK_API_KEY=your_marketcheck_key   # For vehicle valuation
    SECRET_KEY=your-secret-key-here  # Generate with: openssl rand -hex 32
    MASTER_ENCRYPTION_KEY=your-encryption-key  # Generate with: openssl rand -hex 32
 
-   # Teller (Banking Integration)
-   TELLER_APP_ID=your_teller_app_id
-   TELLER_ENVIRONMENT=sandbox  # or production (100 free accounts/month)
-
-   # Market Data
-   MARKET_DATA_PROVIDER=yahoo_finance  # Free, unlimited stock prices
+   # Market Data (always free, no key needed)
+   MARKET_DATA_PROVIDER=yahoo_finance
 
    # Celery
    CELERY_BROKER_URL=redis://redis:6379/0
    CELERY_RESULT_BACKEND=redis://redis:6379/0
+
+   # Banking (optional — omit both to use manual accounts + CSV only)
+   # TELLER_APP_ID=your_teller_app_id        # teller.io — 100 free/month
+   # TELLER_API_KEY=your_teller_api_key
+   # PLAID_CLIENT_ID=your_plaid_client_id    # plaid.com — 11,000+ institutions
+   # PLAID_SECRET=your_plaid_secret
    ```
 
 3. **Start all services**
@@ -434,206 +476,305 @@ npm run dev
    }).then(r => r.json()).then(console.log)
    ```
 
+### Demo / Test Credentials
+
+The app ships with seed scripts for local development. After running migrations:
+
+**Primary test user** (`test@test.com`) — uses dummy Teller data, no real bank connection needed:
+```bash
+# From backend/ directory with venv active:
+python scripts/seed_mock_data.py        # seed accounts + transactions
+python scripts/seed_categories.py      # seed custom categories
+python scripts/seed_investment_holdings.py  # seed investment holdings
+```
+
+**Secondary test user** (`test2@test.com`) — used for multi-user household testing:
+```bash
+# Run via Docker (uses the app's hash_password — always correct):
+docker exec nestegg-dev-backend python3 -c "
+import asyncio
+from app.core.database import AsyncSessionLocal, init_db
+from app.core.security import hash_password
+from app.models.user import User, Organization, UserConsent, ConsentType
+from app.config import settings
+from sqlalchemy import select
+
+async def create():
+    await init_db()
+    async with AsyncSessionLocal() as db:
+        if (await db.execute(select(User).where(User.email == 'test2@test.com'))).scalar_one_or_none():
+            print('Already exists'); return
+        org = Organization(name='Test2 Household')
+        db.add(org); await db.flush()
+        user = User(email='test2@test.com', password_hash=hash_password('test1234'),
+                    organization_id=org.id, is_org_admin=True, is_active=True, email_verified=True)
+        db.add(user); await db.flush()
+        for ct in (ConsentType.TERMS_OF_SERVICE, ConsentType.PRIVACY_POLICY):
+            db.add(UserConsent(user_id=user.id, consent_type=ct.value, version=settings.TERMS_VERSION))
+        await db.commit(); print('Created test2@test.com')
+
+asyncio.run(create())
+"
+```
+
+| Email | Password | Role | Notes |
+|-------|----------|------|-------|
+| `test@test.com` | `test1234` | Org admin | Register via UI first, then run seed scripts |
+| `test2@test.com` | `test1234` | Org admin | Created by seed script above; separate household |
+
+> **Note**: `test2@test.com` exists in a **separate organization** from `test@test.com`. To test
+> household sharing, log in as `test@test.com` → Household Settings → Invite Member → enter
+> `test2@test.com`. After accepting, both users will be in the same household.
+
+**Reset a test user's password** (if you changed it and forgot):
+```bash
+cd backend && python scripts/reset_test_password.py   # resets test@test.com to test1234
+```
+
 ## 🔧 Configuration
 
 ### Environment Variables
 
-#### Backend (.env)
+All variables live in `backend/.env`. Variables marked **[required]** have no default and the app will not start without them. Everything else is optional with the defaults shown.
 
-```env
-# Application
-ENVIRONMENT=development
-DEBUG=true
-SECRET_KEY=<generate-with-openssl-rand-hex-32>
-MASTER_ENCRYPTION_KEY=<generate-with-openssl-rand-hex-32>
-ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+#### Application
 
-# Database
-DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/nestegg
+| Variable | Default | Description |
+|---|---|---|
+| `ENVIRONMENT` | `development` | `development`, `staging`, or `production`. Controls lockout bypass, security middleware, and docs visibility. |
+| `DEBUG` | `false` | Enables Swagger UI at `/docs`. Always `false` in production. |
+| `APP_NAME` | `Nest Egg` | Name returned in API responses. |
+| `APP_VERSION` | `1.0.0` | Version string returned in API responses. |
 
-# Redis
-REDIS_URL=redis://localhost:6379/0
+#### Database & Cache
 
-# Celery
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/0
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | — **[required]** | PostgreSQL async URL, e.g. `postgresql+asyncpg://user:pass@localhost:5432/nestegg` |
+| `DB_ECHO` | `false` | Log all SQL statements (very verbose — dev only). |
+| `DB_POOL_SIZE` | `20` | SQLAlchemy connection pool size. |
+| `DB_MAX_OVERFLOW` | `10` | Extra connections allowed above pool size. |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis URL (rate limiting, Celery broker). |
 
-# Teller Integration (Banking)
-TELLER_APP_ID=your_teller_app_id
-TELLER_ENVIRONMENT=sandbox  # sandbox or production
-# Note: Teller user credentials encrypted with MASTER_ENCRYPTION_KEY
+#### Security & Encryption
 
-# Market Data (Investments)
-MARKET_DATA_PROVIDER=yahoo_finance  # Free, unlimited stock prices
-MARKET_DATA_TIMEOUT=10  # Request timeout in seconds
-MARKET_DATA_CACHE_TTL=300  # Cache TTL in seconds (5 minutes)
+| Variable | Default | Description |
+|---|---|---|
+| `SECRET_KEY` | — **[required]** | JWT signing secret. Generate with `openssl rand -hex 32`. Min 32 chars enforced in production. |
+| `MASTER_ENCRYPTION_KEY` | — **[required]** | AES-256 key for encrypting Plaid/Teller tokens at rest. Generate with `openssl rand -hex 32`. |
+| `ALGORITHM` | `HS256` | JWT signing algorithm. |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token lifetime (industry standard). |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | Refresh token lifetime (stored as httpOnly cookie). |
+| `ENCRYPTION_KEY_V1` | — | Previous encryption key, used only for decryption during key rotation. |
+| `ENCRYPTION_CURRENT_VERSION` | `1` | Version tag written on new encrypted rows. Increment on key rotation. |
+| `MAX_LOGIN_ATTEMPTS` | `5` | Failed logins before account lockout (skipped in `ENVIRONMENT=development`). |
+| `ACCOUNT_LOCKOUT_MINUTES` | `30` | Lockout duration after too many failed login attempts. |
+| `ALLOWED_HOSTS` | `["*"]` | Trusted host list (TrustedHostMiddleware). Must be specific domains in production. |
+| `CORS_ORIGINS` | `["http://localhost:3000", "http://localhost:5173"]` | Allowed CORS origins. Set to your frontend domain in production. |
+| `TERMS_VERSION` | `2026-02` | Current Terms of Service version. Bump when ToS/Privacy Policy changes — users are re-prompted. |
 
-# Email (Optional — emails silently skipped when SMTP_HOST is unset)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USERNAME=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
-SMTP_FROM_EMAIL=noreply@nestegg.app
-SMTP_FROM_NAME=Nest Egg
-SMTP_USE_TLS=true  # STARTTLS on port 587; set false for SSL on port 465
-APP_BASE_URL=http://localhost:5173  # Base URL used in email links — MUST be set to your domain in production
+#### Banking: Teller *(optional)*
 
-# Alpha Vantage (Optional - for sector data fallback)
-ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
-```
+Teller provides 100 free linked accounts per month in production. All optional — set `TELLER_ENABLED=false` to disable.
+
+| Variable | Default | Description |
+|---|---|---|
+| `TELLER_ENABLED` | `true` | Enable/disable Teller integration entirely. |
+| `TELLER_APP_ID` | `""` | Your Teller application ID from teller.io. |
+| `TELLER_API_KEY` | `""` | Teller API key. |
+| `TELLER_ENV` | `sandbox` | `sandbox` or `production`. |
+| `TELLER_WEBHOOK_SECRET` | `""` | Secret for verifying Teller webhook signatures. |
+| `TELLER_CERT_PATH` | `""` | Path to Teller-issued mTLS certificate (`.pem`). Required for all API calls in production. |
+
+#### Banking: Plaid *(optional)*
+
+Plaid supports 11,000+ institutions. All optional — set `PLAID_ENABLED=false` to disable.
+
+| Variable | Default | Description |
+|---|---|---|
+| `PLAID_ENABLED` | `true` | Enable/disable Plaid integration entirely. |
+| `PLAID_CLIENT_ID` | `""` | Plaid client ID from plaid.com. |
+| `PLAID_SECRET` | `""` | Plaid secret key. |
+| `PLAID_ENV` | `sandbox` | `sandbox`, `development`, or `production`. |
+| `PLAID_WEBHOOK_SECRET` | `""` | Secret for verifying Plaid webhook signatures. |
+| `PLAID_SYNC_INTERVAL_HOURS` | `6` | How often Celery syncs Plaid accounts in the background. |
+| `SYNC_INITIAL_DAYS` | `90` | Days of history to fetch on first account link. |
+| `SYNC_INCREMENTAL_DAYS` | `7` | Days of history to fetch on subsequent syncs. |
+| `SYNC_MAX_RETRIES` | `3` | Max retry attempts on sync failure. |
+| `SYNC_RETRY_DELAY_SECONDS` | `300` | Delay between sync retries. |
+| `MAX_MANUAL_SYNCS_PER_HOUR` | `1` | Rate limit on user-triggered manual syncs. |
+
+#### Investment Price Data *(optional)*
+
+| Variable | Default | Description |
+|---|---|---|
+| `MARKET_DATA_PROVIDER` | `yahoo_finance` | Default price provider. Options: `yahoo_finance`, `alpha_vantage`, `finnhub`. |
+| `ALPHA_VANTAGE_API_KEY` | — | Alpha Vantage key. Free tier: 500 calls/day, 25/min. [Sign up](https://www.alphavantage.co/support/#api-key) |
+| `FINNHUB_API_KEY` | — | Finnhub key. Free tier: 60 calls/min. [Sign up](https://finnhub.io/register) |
+| `PRICE_REFRESH_COOLDOWN_HOURS` | `6` | Minimum hours between automatic holding price refreshes. |
+
+#### Property Auto-Valuation *(optional)*
+
+At least one key must be set to enable the "Refresh Valuation" button on property accounts.
+
+| Variable | Default | Description |
+|---|---|---|
+| `RENTCAST_API_KEY` | — | RentCast API key. Free tier: 50 calls/month, no credit card. **Recommended.** [Sign up](https://app.rentcast.io/app/api-access) |
+| `ATTOM_API_KEY` | — | ATTOM Data Solutions key. Paid, 30-day trial. |
+| `ZILLOW_RAPIDAPI_KEY` | — | Unofficial Zillow wrapper via RapidAPI. ⚠️ May violate Zillow ToS. |
+
+#### Vehicle Auto-Valuation *(optional)*
+
+| Variable | Default | Description |
+|---|---|---|
+| `MARKETCHECK_API_KEY` | — | MarketCheck key for KBB-comparable used-car valuations by VIN. NHTSA VIN decode is always free and requires no key. |
+
+#### Background Jobs (Celery)
+
+| Variable | Default | Description |
+|---|---|---|
+| `CELERY_BROKER_URL` | `redis://localhost:6379/0` | Celery task broker URL. |
+| `CELERY_RESULT_BACKEND` | `redis://localhost:6379/0` | Celery result store URL. |
+| `RULE_APPLICATION_INTERVAL_HOURS` | `1` | How often Celery re-applies categorization rules to new transactions. |
+
+#### Email / SMTP *(optional)*
+
+Emails (verification, password reset, notifications) are silently skipped when `SMTP_HOST` is unset.
+
+| Variable | Default | Description |
+|---|---|---|
+| `SMTP_HOST` | — | SMTP server hostname, e.g. `smtp.gmail.com`. Leave unset to disable email. |
+| `SMTP_PORT` | `587` | SMTP port. `587` for STARTTLS, `465` for SSL. |
+| `SMTP_USERNAME` | — | SMTP login username. |
+| `SMTP_PASSWORD` | — | SMTP login password (use app-specific password for Gmail). |
+| `SMTP_FROM_EMAIL` | `noreply@nestegg.app` | Sender address shown in outbound emails. |
+| `SMTP_FROM_NAME` | `Nest Egg` | Sender display name. |
+| `SMTP_USE_TLS` | `true` | Use STARTTLS (`true` for port 587). Set `false` for direct SSL on port 465. |
+| `APP_BASE_URL` | `http://localhost:5173` | Base URL for clickable links in emails. **Must be your public domain in production.** |
+
+#### Observability & Monitoring
+
+| Variable | Default | Description |
+|---|---|---|
+| `SENTRY_DSN` | — | Sentry DSN for error tracking. Leave unset to disable Sentry. |
+| `LOG_LEVEL` | `INFO` | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`. |
+| `LOG_FORMAT` | `text` | Log format: `text` (dev) or `json` (production, for log aggregators). |
+| `METRICS_ENABLED` | `true` | Enable Prometheus metrics endpoint. |
+| `METRICS_ADMIN_PORT` | `9090` | Port for the Prometheus `/metrics` admin server (separate from the main API). |
+| `METRICS_USERNAME` | `admin` | Basic auth username for the metrics endpoint. |
+| `METRICS_PASSWORD` | `metrics_admin` | Basic auth password for the metrics endpoint. **Change in production.** |
+| `METRICS_INCLUDE_IN_SCHEMA` | `false` | Show metrics endpoint in Swagger UI. |
+
+#### Identity Provider Chain *(optional)*
+
+By default the app uses its own HS256 JWT (`builtin`). Add external providers to enable SSO without replacing built-in auth.
+
+| Variable | Default | Description |
+|---|---|---|
+| `IDENTITY_PROVIDER_CHAIN` | `builtin` | Ordered comma-separated list of active providers. First JWT `iss` match wins. E.g. `cognito,builtin`. |
+| `IDP_COGNITO_ISSUER` | — | Cognito pool issuer URL: `https://cognito-idp.{region}.amazonaws.com/{pool-id}` |
+| `IDP_COGNITO_CLIENT_ID` | — | Cognito app client ID. |
+| `IDP_COGNITO_ADMIN_GROUP` | `nest-egg-admins` | Cognito group that grants `is_org_admin`. |
+| `IDP_KEYCLOAK_ISSUER` | — | Keycloak realm URL: `https://keycloak.example.com/realms/{realm}` |
+| `IDP_KEYCLOAK_CLIENT_ID` | — | Keycloak client ID. |
+| `IDP_KEYCLOAK_ADMIN_GROUP` | `nest-egg-admins` | Keycloak group that grants `is_org_admin`. |
+| `IDP_KEYCLOAK_GROUPS_CLAIM` | `groups` | JWT claim containing group memberships. |
+| `IDP_OKTA_ISSUER` | — | Okta authorization server URL: `https://company.okta.com/oauth2/default` |
+| `IDP_OKTA_CLIENT_ID` | — | Okta client ID. |
+| `IDP_OKTA_GROUPS_CLAIM` | `groups` | JWT claim containing group memberships. |
+| `IDP_GOOGLE_CLIENT_ID` | — | Google OAuth2 client ID (validates `aud` claim). Google does not expose group memberships. |
+
+#### File Storage *(optional)*
+
+| Variable | Default | Description |
+|---|---|---|
+| `STORAGE_BACKEND` | `local` | `local` (disk) or `s3` (AWS S3). |
+| `LOCAL_UPLOAD_DIR` | `/tmp/nestegg-uploads` | Local directory for CSV uploads and attachments. Override in production. |
+| `AWS_S3_BUCKET` | — | S3 bucket name (required when `STORAGE_BACKEND=s3`). |
+| `AWS_REGION` | `us-east-1` | AWS region. |
+| `AWS_ACCESS_KEY_ID` | — | AWS credentials. Omit to use IAM instance role. |
+| `AWS_SECRET_ACCESS_KEY` | — | AWS credentials. Omit to use IAM instance role. |
+| `AWS_S3_PREFIX` | `csv-uploads/` | Key prefix for S3 uploads. |
+
+#### Pagination
+
+| Variable | Default | Description |
+|---|---|---|
+| `DEFAULT_PAGE_SIZE` | `50` | Default number of items per page in list endpoints. |
+| `MAX_PAGE_SIZE` | `200` | Maximum items per page allowed by list endpoints. |
 
 #### Frontend (.env)
 
 ```env
-VITE_API_URL=http://localhost:8000
-VITE_APP_NAME=Nest Egg
+VITE_API_URL=http://localhost:8000   # Backend URL (dev only — prod uses relative /api path)
+VITE_APP_NAME=Nest Egg               # App name shown in browser tab
 ```
 
-## 🔄 Migration Guide: Plaid → Teller + Yahoo Finance
+## 🏦 Banking Providers
 
-### Why Migrate?
+All banking providers are **optional** and can be **enabled simultaneously**. The deduplication layer ensures accounts from multiple providers are never double-counted.
 
-**Previous Stack:** Plaid (banking + investments)
-**New Stack:** Teller (banking) + Yahoo Finance (investments)
+### Provider Comparison
 
-**Benefits:**
-- 💰 **Cost Savings:** Teller offers 100 free connected accounts/month (vs Plaid's paid plans)
-- 📈 **Free Investment Data:** Yahoo Finance provides unlimited stock/ETF/mutual fund prices at no cost
-- 🌐 **Broad Coverage:** Teller supports 5,000+ financial institutions
-- 🔒 **Security:** Same encryption standards, with added AES-256 for credentials
+| Feature | Plaid | Teller | Manual / CSV |
+|---------|-------|--------|--------------|
+| **Institution Coverage** | 11,000+ (US + int'l) | 5,000+ (US only) | Any |
+| **Cost** | Paid after free tier | 100 free accounts/month | Free |
+| **Transaction Categorization** | ✅ 350+ categories | ✅ Smart categorization | Manual |
+| **Investment Accounts** | ✅ Holdings sync | ⚠️ Manual tracking | Manual |
+| **Credit Cards** | ✅ | ✅ | ✅ |
+| **Auto Balance Updates** | ✅ | ✅ | Manual |
+| **Credentials Encrypted** | ✅ AES-256 at rest | ✅ AES-256 at rest | N/A |
 
-### Feature Comparison
+### Enabling Providers
 
-| Feature | Plaid | Teller + Yahoo Finance | Status |
-|---------|-------|------------------------|--------|
-| **Banking Transactions** | ✅ 11,000+ institutions | ✅ 5,000+ institutions | ✅ **Full Parity** |
-| **Credit Cards** | ✅ Supported | ✅ Supported | ✅ **Full Parity** |
-| **Investment Accounts** | ✅ Holdings data | ✅ Manual tracking | ⚠️ **Manual Entry** |
-| **Real-Time Stock Prices** | ✅ Via Plaid Investments | ✅ Yahoo Finance (free) | ✅ **Full Parity** |
-| **Historical Prices** | ✅ Supported | ✅ Yahoo Finance (free) | ✅ **Full Parity** |
-| **Transaction Categorization** | ✅ 350+ categories | ✅ Smart categorization | ✅ **Full Parity** |
-| **Account Balance Updates** | ✅ Automatic | ✅ Automatic | ✅ **Full Parity** |
-| **Monthly Cost** | 💲 Paid after free tier | 💰 100 free accounts | ✅ **Better Value** |
-| **API Limits** | Limited by plan | 1000 req/min (rate limited) | ✅ **Generous** |
+Each provider is independently toggled via `.env`. Set **both** to run them side-by-side:
 
-**Summary:** Teller + Yahoo Finance provides **95% feature parity** with significant cost savings. The only gap is automatic brokerage account syncing, which can be handled with manual investment tracking.
+```env
+# Plaid (optional — comment out to disable)
+PLAID_ENABLED=true
+PLAID_CLIENT_ID=your_plaid_client_id
+PLAID_SECRET=your_plaid_secret
+PLAID_ENV=sandbox          # sandbox | development | production
 
-### Migration Steps
-
-#### 1. **Obtain Teller Credentials**
-
-```bash
-# Sign up at https://teller.io/signup
-# Get your App ID from the dashboard
-TELLER_APP_ID=app_xxxxxxxxxxxxx
-TELLER_ENVIRONMENT=sandbox  # Start with sandbox, then move to production
-```
-
-#### 2. **Update Environment Variables**
-
-```bash
-# Remove old Plaid variables
-# PLAID_CLIENT_ID=...
-# PLAID_SECRET=...
-# PLAID_ENV=...
-
-# Add new Teller variables
+# Teller (optional — comment out to disable)
+TELLER_ENABLED=true
 TELLER_APP_ID=your_teller_app_id
-TELLER_ENVIRONMENT=sandbox
+TELLER_API_KEY=your_teller_api_key
+TELLER_ENV=sandbox         # sandbox | production
+TELLER_CERT_PATH=/path/to/teller_cert.pem   # required for API calls
 
-# Add market data configuration
+# Investment prices (always free)
 MARKET_DATA_PROVIDER=yahoo_finance
 ```
 
-#### 3. **Migrate Database Schema**
+When both are enabled, users see a provider picker in the "Connect Account" flow. Existing data from either provider is always preserved — switching or adding providers is purely additive.
 
-```bash
-cd backend
-alembic upgrade head
+### Cross-Provider Deduplication
 
-# This adds:
-# - Teller credential encryption columns
-# - Market data provider configuration
-# - Rate limiting tables (already done)
+When the same bank account is linked via multiple providers (e.g., Chase via Plaid **and** Teller), deduplication prevents double-counting:
+
+- **Account level**: SHA-256 hash of `institution_id + account_id` (`plaid_item_hash`) — first link becomes primary; duplicates flagged
+- **Transaction level**: SHA-256 hash of `date + amount + merchant + account_id` (`transaction_hash`) + provider transaction IDs — same transaction from two sources stored once
+- **Household level**: Same account added by two different household members → only one copy in Combined view
+
+```sql
+-- Database constraints that enforce this
+UNIQUE (account_id, plaid_transaction_id)
+UNIQUE (transaction_hash) WHERE transaction_hash IS NOT NULL
+UNIQUE (plaid_item_hash)  WHERE plaid_item_hash IS NOT NULL
 ```
 
-#### 4. **Re-Link Bank Accounts**
-
-**Option A: Fresh Start (Recommended)**
-```bash
-# Users re-link accounts via Teller Connect in UI
-# Existing transactions preserved via deduplication
-# Old Plaid accounts can be deleted after verification
-```
-
-**Option B: Gradual Migration**
-```bash
-# Keep existing Plaid accounts active
-# Add new accounts via Teller
-# Deduplication prevents double-counting
-# Deprecate Plaid accounts over time
-```
-
-#### 5. **Verify Investment Data**
+### Verifying the Setup
 
 ```bash
-# Test Yahoo Finance integration
-curl -X GET "http://localhost:8000/api/v1/market-data/quote/AAPL" \
+# Check which providers the API has enabled
+curl http://localhost:8000/api/v1/accounts/providers \
   -H "Authorization: Bearer <token>"
 
-# Expected response:
-{
-  "symbol": "AAPL",
-  "price": 150.25,
-  "name": "Apple Inc.",
-  "currency": "USD",
-  "exchange": "NASDAQ",
-  "provider": "Yahoo Finance"
-}
-```
-
-#### 6. **Update Frontend**
-
-```bash
-cd frontend
-
-# Update API client (already done)
-# Teller Connect component replaces Plaid Link
-# Investment price refresh uses new endpoints
-```
-
-#### 7. **Test Sync Workflow**
-
-```bash
-# 1. Link test bank account via Teller
-# 2. Wait for automatic sync (or trigger manually)
-# 3. Verify transactions appear
-# 4. Check deduplication works (import same CSV)
-# 5. Test investment price refresh
-```
-
-### Data Migration Strategy
-
-**Existing Plaid Data:**
-- ✅ Transactions: Preserved in database, no migration needed
-- ✅ Categories: Teller categories mapped to existing custom categories
-- ✅ Accounts: Can co-exist with new Teller accounts
-- ✅ Historical Data: Fully retained
-
-**No Data Loss:** Migration is additive, not destructive. Existing data remains intact.
-
-### Rollback Plan
-
-If issues arise, you can temporarily revert:
-
-```bash
-# Keep both Plaid and Teller environment variables
-PLAID_CLIENT_ID=your_plaid_client_id
-PLAID_SECRET=your_plaid_secret
-TELLER_APP_ID=your_teller_app_id
-
-# System supports both simultaneously
-# Users can have mix of Plaid and Teller accounts
+# Test investment data (always works, no provider key needed)
+curl "http://localhost:8000/api/v1/market-data/quote/AAPL" \
+  -H "Authorization: Bearer <token>"
 ```
 
 ## 📚 Key Concepts
@@ -1103,11 +1244,14 @@ nest-egg/
 │   │   │   ├── category.py               # Category model
 │   │   │   ├── label.py                  # Label model
 │   │   │   ├── notification.py           # Notification model
-│   │   │   ├── user.py                   # User model
+│   │   │   ├── user.py                   # User + Organization models
+│   │   │   ├── identity.py               # UserIdentity (IdP links)
+│   │   │   ├── permission.py             # PermissionGrant + audit log
 │   │   │   └── ...                       # Other models
 │   │   ├── schemas/              # Pydantic schemas
 │   │   │   ├── account.py                # Account DTOs
 │   │   │   ├── transaction.py            # Transaction DTOs
+│   │   │   ├── permission.py             # Permission grant/audit DTOs
 │   │   │   └── ...                       # Other schemas
 │   │   ├── services/             # Business logic
 │   │   │   ├── budget_service.py         # Budget calculations
@@ -1115,6 +1259,12 @@ nest-egg/
 │   │   │   ├── notification_service.py   # Notification creation
 │   │   │   ├── teller_service.py         # Teller sync logic
 │   │   │   ├── rule_engine_service.py    # Rule evaluation
+│   │   │   ├── permission_service.py     # RBAC grant/check/revoke
+│   │   │   ├── identity/                 # IdP provider chain
+│   │   │   │   ├── base.py               # AuthenticatedIdentity + abstract provider
+│   │   │   │   ├── builtin.py            # Built-in HS256 JWT provider
+│   │   │   │   ├── oidc.py               # Generic OIDC (Cognito/Keycloak/Okta/Google)
+│   │   │   │   └── chain.py              # IdentityProviderChain + build_chain()
 │   │   │   ├── market_data/              # Market data providers
 │   │   │   │   ├── base_provider.py      # Abstract provider
 │   │   │   │   └── yahoo_finance_provider.py  # Yahoo Finance impl
@@ -1144,6 +1294,7 @@ nest-egg/
 │   │   │   ├── income-expenses/  # Cash flow analytics
 │   │   │   ├── investments/      # Investment pages
 │   │   │   ├── notifications/    # Notification UI
+│   │   │   ├── permissions/      # RBAC grant management UI
 │   │   │   └── transactions/     # Transaction table
 │   │   ├── components/           # Shared components
 │   │   │   ├── Layout.tsx                # App layout with nav
@@ -1188,6 +1339,35 @@ curl -X POST http://localhost:8000/api/v1/household/invite \
   -H "Authorization: Bearer <admin-token>" \
   -H "Content-Type: application/json" \
   -d '{"email":"newuser@example.com"}'
+```
+
+### Grant Data Access to a Household Member
+
+```bash
+# Via UI (recommended)
+# 1. Login as the data owner
+# 2. Navigate to /permissions (user menu → Permissions)
+# 3. Click "Grant Access"
+# 4. Pick member, resource type, and actions (read/create/update/delete)
+# 5. Optionally set an expiry date
+
+# Via API
+curl -X POST http://localhost:8000/api/v1/permissions/grants \
+  -H "Authorization: Bearer <owner-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "grantee_id": "<member-uuid>",
+    "resource_type": "transaction",
+    "actions": ["read", "update"]
+  }'
+
+# List what you have shared
+curl -X GET http://localhost:8000/api/v1/permissions/given \
+  -H "Authorization: Bearer <token>"
+
+# Revoke a grant
+curl -X DELETE http://localhost:8000/api/v1/permissions/grants/<grant-id> \
+  -H "Authorization: Bearer <token>"
 ```
 
 ### Manually Sync Teller Account
@@ -1337,14 +1517,23 @@ fetch('/api/v1/notifications/test', {
 })
 ```
 
-### 7. **Multi-User View Permission Complexity**
+### 7. **Multi-User Permission Model**
 
-User view permissions can be confusing:
+There are two layers of permissions in the household:
 
+**View mode** (top-of-page toggle):
 - **Combined View**: Shows all household accounts (deduplicated)
-- **Individual View**: Shows user's owned accounts + shared accounts
-- **Edit Permissions**: Only owner can edit account details (name, balance)
-- **Transaction Permissions**: All household members can edit transactions
+- **Individual View**: Shows user's own accounts only
+
+**RBAC grants** (`/permissions` page):
+- **Implicit read**: All household members always have read access to each other's data — no explicit grant required
+- Use the Permissions page to grant additional write access (`create`, `update`, `delete`) to specific resource types (accounts, transactions, bills, holdings, budgets, goals, rules, categories, etc.)
+- **All Sections** scope: grant the same write permissions across every resource type in one operation
+- **Full Edit** preset: instantly selects create+update+delete without checking each box manually
+- Edit/delete/create buttons on each page are disabled when the viewer lacks write access for that resource type
+- Grants are per-action and can target all resources of a type or a specific resource by ID
+- Only the resource owner or an org admin can create/revoke grants
+- All grant changes are recorded in an immutable audit log
 
 ### 8. **CSV Import Format Requirements**
 
@@ -1382,23 +1571,25 @@ Date,Merchant,Amount,Category,Description
 - [x] CSV import with deduplication
 - [x] Smart portfolio snapshot scheduler with Redis distributed lock (safe for multi-instance deployments)
 - [x] Celery background tasks
+- [x] **RBAC permission grants** — per-action (read/create/update/delete), per-resource, with immutable audit log
+- [x] **IdP-agnostic authentication** — pluggable Cognito, Keycloak, Okta, Google OIDC alongside built-in JWT
+- [x] **Bill tracking** with ON_DEMAND frequency, labels, archiving, and merchant autocomplete
+- [x] **Emergency fund template**, **401k match calculator**, **net worth projection**, **bill calendar**
+- [x] **Data export** (transactions CSV, tax report)
+- [x] **Roth conversion analyzer**
 
 ### 🚧 In Progress
 
 - [ ] Manual account improvements
-- [ ] Debt payoff planner (Phase 3)
-- [ ] Custom reports builder (Phase 3)
+- [ ] Debt payoff planner
+- [ ] Custom reports builder
 
 ### 🔮 Future Features
 
 - [ ] Multi-year trend analysis
 - [ ] Subscription tracker
-- [ ] Cash flow forecasting
 - [ ] Mobile app (React Native)
 - [ ] Receipt OCR and attachment storage
-- [ ] Bill payment reminders
-- [ ] Savings goals with progress tracking
-- [ ] Net worth tracking over time
 - [ ] Advanced investment analytics (Sharpe ratio, alpha, beta)
 - [ ] Tax bracket optimization
 - [ ] White-label SaaS offering
@@ -1479,4 +1670,4 @@ Built with:
 
 **Built with ❤️ for personal finance management**
 
-_Last Updated: February 2026 - Now with Teller + Yahoo Finance integration!_
+_Last Updated: February 2026 - Now with RBAC permission grants and IdP-agnostic authentication (Cognito, Keycloak, Okta, Google)!_

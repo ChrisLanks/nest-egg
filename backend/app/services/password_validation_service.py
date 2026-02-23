@@ -137,8 +137,8 @@ class PasswordValidationService:
             - breach_count: Number of times seen in breaches (None if not breached)
         """
         try:
-            # Hash password with SHA-1
-            sha1_hash = hashlib.sha1(password.encode("utf-8")).hexdigest().upper()
+            # Hash password with SHA-1 (required by HIBP k-anonymity API — not used for security)
+            sha1_hash = hashlib.sha1(password.encode("utf-8"), usedforsecurity=False).hexdigest().upper()  # nosec B324
 
             # Split hash: first 5 chars sent to API, rest checked locally
             hash_prefix = sha1_hash[:5]
