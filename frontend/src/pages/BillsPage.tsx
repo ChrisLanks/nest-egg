@@ -401,8 +401,8 @@ const BillsPage: React.FC = () => {
                                   {bill.merchant_name}
                                 </Text>
                                 <HStack>
-                                  <Icon as={CalendarIcon} color="gray.500" />
-                                  <Text fontSize="sm" color="gray.600">
+                                  <Icon as={CalendarIcon} color="text.muted" />
+                                  <Text fontSize="sm" color="text.secondary">
                                     Due: {formatDate(bill.next_expected_date)}
                                   </Text>
                                 </HStack>
@@ -550,7 +550,7 @@ const BillsPage: React.FC = () => {
               ) : (
                 <VStack align="stretch" spacing={4}>
                   <HStack justify="space-between">
-                    <Text color="gray.600" fontSize="sm">
+                    <Text color="text.secondary" fontSize="sm">
                       {monthName} · Total: <strong>{formatCurrencyShort(monthTotal)}</strong>
                     </Text>
                     <HStack>
@@ -573,8 +573,8 @@ const BillsPage: React.FC = () => {
                   <Box borderWidth="1px" borderRadius="lg" overflow="hidden">
                     <Grid templateColumns="repeat(7, 1fr)">
                       {DAYS_OF_WEEK.map(d => (
-                        <GridItem key={d} bg="gray.50" p={2} textAlign="center">
-                          <Text fontSize="xs" fontWeight="bold" color="gray.500">{d}</Text>
+                        <GridItem key={d} bg="bg.subtle" p={2} textAlign="center">
+                          <Text fontSize="xs" fontWeight="bold" color="text.muted">{d}</Text>
                         </GridItem>
                       ))}
                     </Grid>
@@ -585,9 +585,9 @@ const BillsPage: React.FC = () => {
                             <GridItem
                               key={`empty-${idx}`}
                               minH="90px"
-                              bg="gray.50"
+                              bg="bg.subtle"
                               borderTop="1px solid"
-                              borderColor="gray.100"
+                              borderColor="border.subtle"
                             />
                           );
                         }
@@ -605,13 +605,13 @@ const BillsPage: React.FC = () => {
                             p={1.5}
                             borderTop="1px solid"
                             borderLeft={idx % 7 !== 0 ? '1px solid' : undefined}
-                            borderColor="gray.100"
-                            bg={isToday ? 'blue.50' : 'white'}
+                            borderColor="border.subtle"
+                            bg={isToday ? 'bg.info' : 'bg.surface'}
                           >
                             <Text
                               fontSize="sm"
                               fontWeight={isToday ? 'bold' : 'normal'}
-                              color={isToday ? 'blue.600' : 'gray.700'}
+                              color={isToday ? 'blue.600' : 'text.heading'}
                               mb={1}
                             >
                               {day}
@@ -639,7 +639,7 @@ const BillsPage: React.FC = () => {
                                   </PopoverHeader>
                                   <PopoverBody fontSize="sm">
                                     <Text>{formatCurrencyShort(entry.amount)}</Text>
-                                    <Text color="gray.500" fontSize="xs">{entry.frequency}</Text>
+                                    <Text color="text.muted" fontSize="xs">{entry.frequency}</Text>
                                   </PopoverBody>
                                 </PopoverContent>
                               </Popover>
@@ -807,13 +807,13 @@ const RecurringCard: React.FC<RecurringCardProps> = ({
             </Text>
 
             {recurring.next_expected_date && !isArchiveView && (
-              <Text fontSize="xs" color="gray.500">
+              <Text fontSize="xs" color="text.muted">
                 Next: {formatDate(recurring.next_expected_date)}
               </Text>
             )}
 
             {isArchiveView && recurring.last_occurrence && (
-              <Text fontSize="xs" color="gray.400">
+              <Text fontSize="xs" color="text.muted">
                 Last seen: {formatDate(recurring.last_occurrence)}
               </Text>
             )}
@@ -992,7 +992,7 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
                     right={0}
                     zIndex={10}
                     mt={1}
-                    bg="white"
+                    bg="bg.surface"
                     borderWidth="1px"
                     borderRadius="md"
                     shadow="md"
@@ -1007,7 +1007,7 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
                           py={2}
                           cursor="pointer"
                           fontSize="sm"
-                          _hover={{ bg: 'gray.50' }}
+                          _hover={{ bg: 'bg.subtle' }}
                           onMouseDown={(e) => {
                             e.preventDefault(); // prevent blur before click
                             setMerchantQuery(name);
@@ -1127,7 +1127,7 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
                     <FormLabel mb={0} fontWeight="semibold" fontSize="sm">
                       Tag matching transactions
                     </FormLabel>
-                    <Text fontSize="xs" color="gray.600" mt={0.5}>
+                    <Text fontSize="xs" color="text.secondary" mt={0.5}>
                       {tagTransactions
                         ? 'Applies a "Recurring Bill" label to past and future transactions matching this merchant + account.'
                         : 'No label will be applied. You can tag transactions later from the bill card.'}

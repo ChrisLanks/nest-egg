@@ -30,7 +30,7 @@ const urgencyProps = (
   if (bill.is_overdue) return { badge: 'Overdue', color: 'red.700', bg: 'red.50' };
   if (bill.days_until_due <= 3) return { badge: `${bill.days_until_due}d`, color: 'orange.700', bg: 'orange.50' };
   if (bill.days_until_due <= 7) return { badge: `${bill.days_until_due}d`, color: 'yellow.700', bg: 'yellow.50' };
-  return { badge: `${bill.days_until_due}d`, color: 'gray.600', bg: 'gray.50' };
+  return { badge: `${bill.days_until_due}d`, color: 'text.secondary', bg: 'bg.subtle' };
 };
 
 export const UpcomingBillsWidget: React.FC = () => {
@@ -66,7 +66,7 @@ export const UpcomingBillsWidget: React.FC = () => {
         </HStack>
 
         {sorted.length === 0 ? (
-          <Text color="gray.500" fontSize="sm">
+          <Text color="text.muted" fontSize="sm">
             No bills due in the next 30 days.
           </Text>
         ) : (
@@ -80,7 +80,7 @@ export const UpcomingBillsWidget: React.FC = () => {
                       <Text fontWeight="medium" fontSize="sm" noOfLines={1}>
                         {bill.merchant_name}
                       </Text>
-                      <Text fontSize="xs" color="gray.500">
+                      <Text fontSize="xs" color="text.muted">
                         {bill.is_overdue
                           ? 'Was due ' + new Date(bill.next_expected_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                           : 'Due ' + new Date(bill.next_expected_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}

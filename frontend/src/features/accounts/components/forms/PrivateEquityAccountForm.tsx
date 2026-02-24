@@ -257,7 +257,7 @@ export const PrivateEquityAccountForm = ({
             <Input
               value={`$${estimatedValue.toFixed(2)}`}
               isReadOnly
-              bg="gray.50"
+              bg="bg.subtle"
             />
             <FormHelperText>Calculated from quantity × share price</FormHelperText>
           </FormControl>

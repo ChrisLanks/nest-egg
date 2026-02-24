@@ -533,7 +533,7 @@ export const AccountsPage = () => {
         <HStack justify="space-between">
           <Box>
             <Heading size="lg">Accounts</Heading>
-            <Text color="gray.600" fontSize="sm" mt={1}>
+            <Text color="text.secondary" fontSize="sm" mt={1}>
               Manage your accounts, visibility, and bulk operations
             </Text>
           </Box>
@@ -589,7 +589,7 @@ export const AccountsPage = () => {
                       )}
                     </HStack>
                     {isPlaidLinked && lastSynced && (
-                      <Text fontSize="xs" color="gray.500" mt={1}>
+                      <Text fontSize="xs" color="text.muted" mt={1}>
                         Last synced: {formatLastSynced(lastSynced)}
                       </Text>
                     )}
@@ -646,7 +646,7 @@ export const AccountsPage = () => {
                     <Tr
                       key={account.id}
                       opacity={account.is_active ? 1 : 0.5}
-                      bg={account.is_active ? 'white' : 'gray.50'}
+                      bg={account.is_active ? 'bg.surface' : 'bg.subtle'}
                     >
                       <Td>
                         <Tooltip label={!canModifyAccount(account) ? 'No permission to modify this account' : ''}>
@@ -670,7 +670,7 @@ export const AccountsPage = () => {
                             )}
                           </HStack>
                           {account.mask && (
-                            <Text fontSize="xs" color="gray.500">
+                            <Text fontSize="xs" color="text.muted">
                               •••• {account.mask}
                             </Text>
                           )}
@@ -682,7 +682,7 @@ export const AccountsPage = () => {
                       <Td isNumeric>
                         <Text
                           fontWeight="semibold"
-                          color={account.current_balance < 0 ? 'red.600' : 'inherit'}
+                          color={account.current_balance < 0 ? 'finance.negative' : 'inherit'}
                         >
                           {formatCurrency(account.current_balance)}
                         </Text>

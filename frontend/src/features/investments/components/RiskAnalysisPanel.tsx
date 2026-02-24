@@ -13,7 +13,6 @@ import {
   Progress,
   Flex,
   Circle,
-  useColorModeValue,
   Alert,
   AlertIcon,
   AlertDescription,
@@ -141,9 +140,6 @@ const getRiskLevel = (riskScore: number): { color: string; label: string; colorS
 };
 
 export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps) {
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-
   // Fetch historical snapshots for volatility calculation
   const { data: snapshots } = useQuery({
     queryKey: ['portfolio-snapshots-risk'],
@@ -234,9 +230,9 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
         {/* Risk Score Circle */}
         <Box
           p={6}
-          bg={bgColor}
+          bg="bg.surface"
           borderWidth="1px"
-          borderColor={borderColor}
+          borderColor="border.default"
           borderRadius="md"
           textAlign="center"
         >
@@ -249,7 +245,7 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
                 <Text fontSize="3xl" fontWeight="bold" color={metrics.riskLevel.color}>
                   {metrics.riskScore}
                 </Text>
-                <Text fontSize="xs" color="gray.500">
+                <Text fontSize="xs" color="text.muted">
                   out of 100
                 </Text>
               </VStack>
@@ -258,7 +254,7 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
           <Badge colorScheme={metrics.riskLevel.colorScheme} fontSize="md" px={3} py={1}>
             {metrics.riskLevel.label}
           </Badge>
-          <Text fontSize="xs" color="gray.500" mt={2}>
+          <Text fontSize="xs" color="text.muted" mt={2}>
             Based on volatility & diversification
           </Text>
         </Box>
@@ -266,9 +262,9 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
         {/* Volatility */}
         <Box
           p={6}
-          bg={bgColor}
+          bg="bg.surface"
           borderWidth="1px"
-          borderColor={borderColor}
+          borderColor="border.default"
           borderRadius="md"
         >
           <Stat>
@@ -292,7 +288,7 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
                 size="sm"
                 borderRadius="md"
               />
-              <Text fontSize="xs" color="gray.500" mt={2}>
+              <Text fontSize="xs" color="text.muted" mt={2}>
                 {metrics.volatility < 15 ? 'Low volatility' : metrics.volatility < 25 ? 'Moderate volatility' : 'High volatility'}
               </Text>
             </Box>
@@ -302,9 +298,9 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
         {/* Diversification */}
         <Box
           p={6}
-          bg={bgColor}
+          bg="bg.surface"
           borderWidth="1px"
-          borderColor={borderColor}
+          borderColor="border.default"
           borderRadius="md"
         >
           <Stat>
@@ -330,7 +326,7 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
                 size="sm"
                 borderRadius="md"
               />
-              <Text fontSize="xs" color="gray.500" mt={2}>
+              <Text fontSize="xs" color="text.muted" mt={2}>
                 {portfolio.holdings_by_ticker.filter(h => h.current_total_value && h.current_total_value > 0).length} holdings
               </Text>
             </Box>
@@ -342,9 +338,9 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
         {/* Asset Allocation Chart */}
         <Box
           p={4}
-          bg={bgColor}
+          bg="bg.surface"
           borderWidth="1px"
-          borderColor={borderColor}
+          borderColor="border.default"
           borderRadius="md"
         >
           <Text fontSize="md" fontWeight="medium" mb={4}>
@@ -375,7 +371,7 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <Text color="gray.500" textAlign="center" py={10}>
+            <Text color="text.muted" textAlign="center" py={10}>
               No asset allocation data available
             </Text>
           )}
@@ -384,9 +380,9 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
         {/* Top Concentrations */}
         <Box
           p={4}
-          bg={bgColor}
+          bg="bg.surface"
           borderWidth="1px"
-          borderColor={borderColor}
+          borderColor="border.default"
           borderRadius="md"
         >
           <Text fontSize="md" fontWeight="medium" mb={4}>
@@ -394,10 +390,10 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
           </Text>
           {!hasHoldingsData ? (
             <Box textAlign="center" py={10}>
-              <Text color="gray.600" _dark={{ color: 'gray.400' }} fontWeight="medium">
+              <Text color="text.secondary" fontWeight="medium">
                 Unknown
               </Text>
-              <Text fontSize="sm" color="gray.500" mt={2}>
+              <Text fontSize="sm" color="text.muted" mt={2}>
                 No holdings data available
               </Text>
             </Box>
@@ -416,21 +412,20 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
                   borderWidth="1px"
                   borderColor="orange.200"
                   borderRadius="md"
-                  bg="orange.50"
-                  _dark={{ bg: 'orange.900', borderColor: 'orange.700' }}
+                  bg="bg.warning"
                 >
                   <HStack justify="space-between">
                     <VStack align="start" spacing={0}>
                       <Text fontWeight="bold">{holding.ticker}</Text>
                       {holding.name && (
-                        <Text fontSize="xs" color="gray.600" _dark={{ color: 'gray.400' }}>
+                        <Text fontSize="xs" color="text.secondary">
                           {holding.name}
                         </Text>
                       )}
                     </VStack>
                     <VStack align="end" spacing={0}>
                       <Badge colorScheme="orange">{holding.percentage.toFixed(1)}%</Badge>
-                      <Text fontSize="xs" color="gray.600" _dark={{ color: 'gray.400' }}>
+                      <Text fontSize="xs" color="text.secondary">
                         ${holding.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </Text>
                     </VStack>
@@ -440,10 +435,10 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
             </VStack>
           ) : (
             <Box textAlign="center" py={10}>
-              <Text color="green.600" _dark={{ color: 'green.400' }} fontWeight="medium">
+              <Text color="finance.positive" fontWeight="medium">
                 ✓ No excessive concentrations
               </Text>
-              <Text fontSize="sm" color="gray.500" mt={2}>
+              <Text fontSize="sm" color="text.muted" mt={2}>
                 All holdings are below 20% of portfolio
               </Text>
             </Box>

@@ -16,6 +16,7 @@ import {
   Avatar,
   Collapse,
   Tooltip,
+  useColorModeValue,
 } from "@chakra-ui/react";
 
 import {
@@ -117,9 +118,9 @@ const NavDropdown = ({ label, items, currentPath, onNavigate }: NavDropdownProps
           position="absolute"
           top="calc(100% + 4px)"
           left={0}
-          bg="white"
+          bg="bg.surface"
           borderWidth={1}
-          borderColor="gray.200"
+          borderColor="border.default"
           borderRadius="md"
           boxShadow="md"
           zIndex={200}
@@ -133,8 +134,8 @@ const NavDropdown = ({ label, items, currentPath, onNavigate }: NavDropdownProps
               py={2}
               cursor="pointer"
               fontWeight={currentPath === item.path ? "semibold" : "normal"}
-              bg={currentPath === item.path ? "brand.50" : "transparent"}
-              _hover={{ bg: currentPath === item.path ? "brand.100" : "gray.50" }}
+              bg={currentPath === item.path ? "brand.subtle" : "transparent"}
+              _hover={{ bg: currentPath === item.path ? "brand.subtle" : "bg.subtle" }}
               fontSize="sm"
               onClick={() => {
                 onNavigate(item.path);
@@ -197,7 +198,7 @@ const UserMenu = ({
             <Text fontSize="sm" fontWeight="medium">
               {user?.display_name || `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim() || user?.email}
             </Text>
-            <Text fontSize="xs" color="gray.600">
+            <Text fontSize="xs" color="text.secondary">
               {user?.email}
             </Text>
           </VStack>
@@ -208,9 +209,9 @@ const UserMenu = ({
           position="absolute"
           top="calc(100% + 4px)"
           right={0}
-          bg="white"
+          bg="bg.surface"
           borderWidth={1}
-          borderColor="gray.200"
+          borderColor="border.default"
           borderRadius="md"
           boxShadow="md"
           zIndex={200}
@@ -223,7 +224,7 @@ const UserMenu = ({
               px={3}
               py={2}
               cursor="pointer"
-              _hover={{ bg: "gray.50" }}
+              _hover={{ bg: "bg.subtle" }}
               fontSize="sm"
               onClick={() => {
                 onNavigate(item.path);
@@ -240,9 +241,9 @@ const UserMenu = ({
             px={3}
             py={2}
             cursor="pointer"
-            _hover={{ bg: "red.50" }}
+            _hover={{ bg: "bg.error" }}
             fontSize="sm"
-            color="red.600"
+            color="finance.negative"
             onClick={() => {
               onLogout();
               setIsOpen(false);
@@ -333,7 +334,7 @@ const AccountItem = ({
 
   // Get background color: owner color in multi-user view, subtle grey otherwise
   const primaryOwnerId = account.owner_ids[0];
-  const bgColor = isCombinedView && isMultiUser ? getUserBgColor(primaryOwnerId) : "gray.50";
+  const bgColor = isCombinedView && isMultiUser ? getUserBgColor(primaryOwnerId) : "bg.subtle";
 
   // Check for sync errors
   const hasSyncError = account.last_error_code || account.needs_reauth;
@@ -361,7 +362,7 @@ const AccountItem = ({
             <Text
               fontSize="xs"
               fontWeight="medium"
-              color="gray.700"
+              color="text.heading"
               noOfLines={1}
               flex={1}
             >
@@ -380,14 +381,14 @@ const AccountItem = ({
           <Text
             fontSize="xs"
             fontWeight="semibold"
-            color={isNegative ? "red.600" : "brand.600"}
+            color={isNegative ? "finance.negative" : "brand.accent"}
             flexShrink={0}
           >
             {formatCurrency(balance)}
           </Text>
         </HStack>
         <HStack justify="space-between" align="center">
-          <Text fontSize="2xs" color="gray.500">
+          <Text fontSize="2xs" color="text.muted">
             {formatLastUpdated(account.balance_as_of)}
           </Text>
           {isCombinedView && membersLoaded && isMultiUser && (
@@ -529,13 +530,10 @@ export const Layout = () => {
     "orange.500",
     "pink.500",
   ];
-  const userBgColors = [
-    "blue.50",
-    "green.50",
-    "purple.50",
-    "orange.50",
-    "pink.50",
-  ];
+  const userBgColors = useColorModeValue(
+    ["blue.50", "green.50", "purple.50", "orange.50", "pink.50"],
+    ["blue.900", "green.900", "purple.900", "orange.900", "pink.900"],
+  );
 
   const getUserColorIndex = (userId: string): number => {
     if (!members) return 0;
@@ -711,9 +709,9 @@ export const Layout = () => {
 
       {/* Top Header */}
       <Box
-        bg="white"
+        bg="bg.surface"
         borderBottomWidth={1}
-        borderColor="gray.200"
+        borderColor="border.default"
         px={6}
         py={3}
         position="sticky"
@@ -726,7 +724,7 @@ export const Layout = () => {
             <Text
               fontSize="xl"
               fontWeight="bold"
-              color="brand.600"
+              color="brand.accent"
               whiteSpace="nowrap"
             >
               Nest Egg
@@ -800,14 +798,14 @@ export const Layout = () => {
         if (!isOtherUserView || isSelfOnlyPage) {
           // Own-view banner (blue) — also shown on self-only pages regardless of selected view
           return (
-            <Box bg="blue.50" borderBottomWidth={1} borderColor="blue.200" px={8} py={2}>
+            <Box bg="bg.info" borderBottomWidth={1} borderColor="border.default" px={8} py={2}>
               <HStack spacing={3}>
-                <Text fontSize="sm" fontWeight="semibold" color="blue.800">📊 Your View:</Text>
+                <Text fontSize="sm" fontWeight="semibold" color="text.primary">📊 Your View:</Text>
                 <Badge size="sm" fontSize="xs" px={2} py={1} borderRadius="md"
                   bg={getUserColor(user?.id || "")} color="white" fontWeight="bold">
                   {getUserInitials(user?.id || "")}
                 </Badge>
-                <Text fontSize="sm" fontWeight="medium" color="blue.700">
+                <Text fontSize="sm" fontWeight="medium" color="text.heading">
                   {getUserName(user?.id || "")}'s Accounts
                 </Text>
               </HStack>
@@ -818,10 +816,10 @@ export const Layout = () => {
         // Other-user banner: check page-specific access
         if (isLoadingGrants) {
           return (
-            <Box bg="gray.50" borderBottomWidth={1} borderColor="gray.200" px={8} py={2}>
+            <Box bg="bg.subtle" borderBottomWidth={1} borderColor="border.default" px={8} py={2}>
               <HStack spacing={3}>
-                <Spinner size="xs" color="gray.400" />
-                <Text fontSize="sm" color="gray.500">Loading permissions…</Text>
+                <Spinner size="xs" color="text.muted" />
+                <Text fontSize="sm" color="text.muted">Loading permissions…</Text>
               </HStack>
             </Box>
           );
@@ -839,13 +837,13 @@ export const Layout = () => {
         const canWrite = access === 'write';
         const bannerConfig = canWrite
           ? {
-              bg: 'green.50', border: 'green.200',
-              headColor: 'green.800', textColor: 'green.700',
+              bg: 'bg.success', border: 'border.default',
+              headColor: 'text.primary', textColor: 'text.heading',
               icon: '✏️', prefix: 'Can Edit:', suffix: `'s ${sectionLabel}`,
             }
           : {
-              bg: 'blue.50', border: 'blue.200',
-              headColor: 'blue.800', textColor: 'blue.700',
+              bg: 'bg.info', border: 'border.default',
+              headColor: 'text.primary', textColor: 'text.heading',
               icon: '👁️', prefix: 'Read Only:', suffix: `'s ${sectionLabel}`,
             };
 
@@ -871,9 +869,9 @@ export const Layout = () => {
         {/* Left Sidebar - Accounts */}
         <Box
           w="280px"
-          bg="white"
+          bg="bg.surface"
           borderRightWidth={1}
-          borderColor="gray.200"
+          borderColor="border.default"
           overflowY="auto"
           p={3}
         >
@@ -884,7 +882,7 @@ export const Layout = () => {
                   fontSize="sm"
                   fontWeight="bold"
                   textTransform="uppercase"
-                  color="gray.700"
+                  color="text.heading"
                   letterSpacing="wide"
                 >
                   Accounts
@@ -903,7 +901,7 @@ export const Layout = () => {
                     >
                       {getUserInitials(selectedUserId || user?.id || "")}
                     </Badge>
-                    <Text fontSize="2xs" color="gray.600">
+                    <Text fontSize="2xs" color="text.secondary">
                       {getUserName(selectedUserId || user?.id || "")}
                     </Text>
                   </HStack>
@@ -914,7 +912,7 @@ export const Layout = () => {
                   fontSize="md"
                   fontWeight="bold"
                   color={
-                    dashboardSummary.net_worth >= 0 ? "green.600" : "red.600"
+                    dashboardSummary.net_worth >= 0 ? "finance.positive" : "finance.negative"
                   }
                 >
                   {formatCurrency(Number(dashboardSummary.net_worth))}
@@ -925,11 +923,11 @@ export const Layout = () => {
 
           {/* User color legend in combined view */}
           {isCombinedView && members && members.length > 1 && (
-            <Box mb={3} p={2} bg="gray.50" borderRadius="md">
+            <Box mb={3} p={2} bg="bg.subtle" borderRadius="md">
               <Text
                 fontSize="2xs"
                 fontWeight="semibold"
-                color="gray.600"
+                color="text.secondary"
                 mb={1.5}
               >
                 HOUSEHOLD MEMBERS
@@ -949,7 +947,7 @@ export const Layout = () => {
                     >
                       {getUserInitials(member.id)}
                     </Badge>
-                    <Text fontSize="2xs" color="gray.700">
+                    <Text fontSize="2xs" color="text.heading">
                       {getUserName(member.id)}
                     </Text>
                   </HStack>
@@ -979,20 +977,20 @@ export const Layout = () => {
                       px={2}
                       py={1.5}
                       cursor="pointer"
-                      _hover={{ bg: "gray.50" }}
+                      _hover={{ bg: "bg.subtle" }}
                       borderRadius="md"
                       onClick={() => toggleSection(groupName)}
                     >
                       <HStack spacing={2}>
                         {isCollapsed ? (
-                          <ChevronRightIcon boxSize={3.5} color="gray.600" />
+                          <ChevronRightIcon boxSize={3.5} color="text.secondary" />
                         ) : (
-                          <ChevronDownIcon boxSize={3.5} color="gray.600" />
+                          <ChevronDownIcon boxSize={3.5} color="text.secondary" />
                         )}
                         <Text
                           fontSize="sm"
                           fontWeight="bold"
-                          color="gray.700"
+                          color="text.heading"
                           textTransform="uppercase"
                           letterSpacing="wide"
                         >
@@ -1002,7 +1000,7 @@ export const Layout = () => {
                       <Text
                         fontSize="sm"
                         fontWeight="bold"
-                        color={groupTotal < 0 ? "red.600" : "gray.800"}
+                        color={groupTotal < 0 ? "finance.negative" : "text.primary"}
                       >
                         {formatCurrency(groupTotal)}
                       </Text>
@@ -1031,7 +1029,7 @@ export const Layout = () => {
               })}
 
               {(!sortedGroups || sortedGroups.length === 0) && (
-                <Text fontSize="sm" color="gray.500" textAlign="center" py={8}>
+                <Text fontSize="sm" color="text.muted" textAlign="center" py={8}>
                   {isOtherUserView
                     ? "This user has no accounts yet."
                     : "No accounts yet. Connect an account to get started."}
@@ -1066,7 +1064,7 @@ export const Layout = () => {
         </Box>
 
         {/* Main content area */}
-        <Box flex={1} overflowY="auto" bg="gray.50" pl={8}>
+        <Box flex={1} overflowY="auto" bg="bg.canvas" pl={8}>
           <Outlet />
         </Box>
       </Flex>

@@ -319,10 +319,10 @@ export const CategoriesPage = () => {
 
     return (
       <>
-        <Tr key={category.id || category.name} _hover={{ bg: 'gray.50' }}>
+        <Tr key={category.id || category.name} _hover={{ bg: 'bg.subtle' }}>
           <Td>
             <HStack spacing={2}>
-              {isChild && <ChevronRightIcon ml={4} color="gray.400" />}
+              {isChild && <ChevronRightIcon ml={4} color="text.muted" />}
               <Box
                 w={3}
                 h={3}
@@ -333,14 +333,14 @@ export const CategoriesPage = () => {
                 {category.name}
               </Text>
               {isPlaid && (
-                <Text fontSize="xs" color="gray.500">
+                <Text fontSize="xs" color="text.muted">
                   (from Plaid)
                 </Text>
               )}
             </HStack>
           </Td>
           <Td>
-            <Text fontSize="sm" color="gray.600">
+            <Text fontSize="sm" color="text.secondary">
               {category.transaction_count} transaction{category.transaction_count !== 1 ? 's' : ''}
             </Text>
           </Td>
@@ -403,7 +403,7 @@ export const CategoriesPage = () => {
         <HStack justify="space-between" align="start">
           <Box>
             <Heading size="lg">Categories</Heading>
-            <Text color="gray.600" mt={2}>
+            <Text color="text.secondary" mt={2}>
               Manage custom categories with hierarchical organization (max 2 levels). Separate from labels.
             </Text>
           </Box>
@@ -426,9 +426,9 @@ export const CategoriesPage = () => {
             onAction={handleCreate}
           />
         ) : (
-          <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
+          <Box bg="bg.surface" borderRadius="lg" boxShadow="sm" overflow="hidden">
             <Table variant="simple" size="sm">
-              <Thead bg="gray.50">
+              <Thead bg="bg.subtle">
                 <Tr>
                   <Th>Category Name</Th>
                   <Th width="150px">Transactions</Th>
@@ -439,9 +439,9 @@ export const CategoriesPage = () => {
                 {/* Custom Categories (hierarchical) */}
                 {customCategories.length > 0 && (
                   <>
-                    <Tr bg="gray.100">
+                    <Tr bg="bg.muted">
                       <Td colSpan={3}>
-                        <Text fontWeight="bold" fontSize="sm" color="gray.700">
+                        <Text fontWeight="bold" fontSize="sm" color="text.heading">
                           Custom Categories
                         </Text>
                       </Td>
@@ -453,9 +453,9 @@ export const CategoriesPage = () => {
                 {/* Plaid Categories (flat) */}
                 {plaidCategories.length > 0 && (
                   <>
-                    <Tr bg="gray.100">
+                    <Tr bg="bg.muted">
                       <Td colSpan={3}>
-                        <Text fontWeight="bold" fontSize="sm" color="gray.700">
+                        <Text fontWeight="bold" fontSize="sm" color="text.heading">
                           Plaid Categories (click "Make Custom" to edit)
                         </Text>
                       </Td>
@@ -500,7 +500,7 @@ export const CategoriesPage = () => {
                     </option>
                   ))}
                 </Select>
-                <Text fontSize="xs" color="gray.500" mt={1}>
+                <Text fontSize="xs" color="text.muted" mt={1}>
                   Categories can only be nested 2 levels deep (parent → child)
                 </Text>
               </FormControl>
@@ -564,7 +564,7 @@ export const CategoriesPage = () => {
                       </option>
                     ))}
                 </Select>
-                <Text fontSize="xs" color="gray.500" mt={1}>
+                <Text fontSize="xs" color="text.muted" mt={1}>
                   Cannot make this a child if it already has children
                 </Text>
               </FormControl>

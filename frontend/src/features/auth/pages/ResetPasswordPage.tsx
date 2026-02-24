@@ -64,7 +64,7 @@ export const ResetPasswordPage = () => {
   if (!token) {
     return (
       <Container maxW="md" py={20}>
-        <Box w="full" bg="white" p={8} borderRadius="lg" boxShadow="md">
+        <Box w="full" bg="bg.surface" p={8} borderRadius="lg" boxShadow="md">
           <VStack spacing={4}>
             <Alert status="error" borderRadius="md">
               <AlertIcon />
@@ -102,10 +102,10 @@ export const ResetPasswordPage = () => {
       <VStack spacing={8}>
         <VStack spacing={2}>
           <Heading size="2xl">Nest Egg</Heading>
-          <Text color="gray.600">Your personal finance tracker</Text>
+          <Text color="text.secondary">Your personal finance tracker</Text>
         </VStack>
 
-        <Box w="full" bg="white" p={8} borderRadius="lg" boxShadow="md">
+        <Box w="full" bg="bg.surface" p={8} borderRadius="lg" boxShadow="md">
           <VStack spacing={6}>
             <Heading size="lg">Reset Password</Heading>
 

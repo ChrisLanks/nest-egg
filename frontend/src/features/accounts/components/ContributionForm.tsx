@@ -130,7 +130,7 @@ export const ContributionForm = ({
           <FormErrorMessage>{errors.contribution_type?.message}</FormErrorMessage>
         </FormControl>
 
-        <Box p={3} bg="blue.50" borderRadius="md" borderWidth={1} borderColor="blue.200">
+        <Box p={3} bg="bg.info" borderRadius="md" borderWidth={1} borderColor="blue.200">
           <Text fontSize="sm" color="blue.800">
             {getHelperText()}
           </Text>
@@ -178,7 +178,7 @@ export const ContributionForm = ({
           <FormLabel>End Date (Optional)</FormLabel>
           <Input type="date" {...register('end_date')} />
           <FormErrorMessage>{errors.end_date?.message}</FormErrorMessage>
-          <Text fontSize="xs" color="gray.600" mt={1}>
+          <Text fontSize="xs" color="text.secondary" mt={1}>
             Leave blank for ongoing contributions
           </Text>
         </FormControl>

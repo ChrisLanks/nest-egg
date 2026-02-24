@@ -54,7 +54,7 @@ export const RecentTransactionsWidget: React.FC = () => {
                 <VStack align="start" spacing={0}>
                   <Text fontWeight="medium">{txn.merchant_name || 'Unknown'}</Text>
                   <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="text.secondary">
                       {formatDate(txn.date)}
                     </Text>
                     {txn.is_pending && (
@@ -64,7 +64,7 @@ export const RecentTransactionsWidget: React.FC = () => {
                     )}
                   </HStack>
                 </VStack>
-                <Text fontWeight="bold" color={txn.amount >= 0 ? 'green.600' : 'red.600'}>
+                <Text fontWeight="bold" color={txn.amount >= 0 ? 'finance.positive' : 'finance.negative'}>
                   {txn.amount >= 0 ? '+' : ''}
                   {formatCurrency(txn.amount)}
                 </Text>

@@ -75,7 +75,7 @@ export const GrantList = ({ grants, mode }: GrantListProps) => {
 
   if (grants.length === 0) {
     return (
-      <Text color="gray.500" py={4}>
+      <Text color="text.muted" py={4}>
         {mode === 'given'
           ? 'You have not granted access to anyone yet.'
           : 'No one has shared access with you yet.'}
@@ -123,13 +123,13 @@ export const GrantList = ({ grants, mode }: GrantListProps) => {
                   {g.expires_at ? (
                     <Text
                       fontSize="xs"
-                      color={isExpired ? 'red.600' : 'gray.600'}
+                      color={isExpired ? 'red.600' : 'text.secondary'}
                     >
                       {isExpired ? 'Expired ' : ''}
                       {new Date(g.expires_at).toLocaleDateString()}
                     </Text>
                   ) : (
-                    <Text fontSize="xs" color="gray.400">
+                    <Text fontSize="xs" color="text.muted">
                       Never
                     </Text>
                   )}

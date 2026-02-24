@@ -350,7 +350,7 @@ export const HouseholdSettingsPage: React.FC = () => {
           <Heading size="lg" mb={2}>
             Household Settings
           </Heading>
-          <Text color="gray.600">
+          <Text color="text.secondary">
             Manage household members and invitations
           </Text>
         </Box>
@@ -416,16 +416,16 @@ export const HouseholdSettingsPage: React.FC = () => {
                                 <Badge colorScheme="blue">Admin</Badge>
                               )}
                             </HStack>
-                            <Text fontSize="sm" color="gray.600">
+                            <Text fontSize="sm" color="text.secondary">
                               {member.email}
                             </Text>
-                            <Text fontSize="xs" color="gray.500">
+                            <Text fontSize="xs" color="text.muted">
                               Joined {formatDate(member.created_at)}
                             </Text>
                           </Box>
                         </HStack>
                         {member.id === user?.id && !member.is_primary_household_member ? (
-                          <Text fontSize="xs" color="gray.400" fontStyle="italic" pr={1}>
+                          <Text fontSize="xs" color="text.muted" fontStyle="italic" pr={1}>
                             Use "Leave Household" below
                           </Text>
                         ) : !member.is_primary_household_member && user?.is_org_admin ? (
@@ -476,7 +476,7 @@ export const HouseholdSettingsPage: React.FC = () => {
                     {invitations.map((invitation) => (
                       <Tr key={invitation.id}>
                         <Td>{invitation.email}</Td>
-                        <Td fontSize="sm" color="gray.600">
+                        <Td fontSize="sm" color="text.secondary">
                           {invitation.invited_by_email}
                         </Td>
                         <Td fontSize="sm">
@@ -518,7 +518,7 @@ export const HouseholdSettingsPage: React.FC = () => {
               </CardHeader>
               <CardBody>
                 <VStack align="stretch" spacing={4}>
-                  <Text color="gray.600" fontSize="sm">
+                  <Text color="text.secondary" fontSize="sm">
                     Leaving will move your accounts to a new solo household. You can rejoin or create
                     a new household at any time.
                   </Text>

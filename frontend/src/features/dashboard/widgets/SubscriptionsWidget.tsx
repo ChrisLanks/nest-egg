@@ -66,14 +66,14 @@ export const SubscriptionsWidget: React.FC = () => {
         </HStack>
 
         {subs.length === 0 ? (
-          <Text color="gray.500" fontSize="sm">
+          <Text color="text.muted" fontSize="sm">
             No subscriptions detected yet. Import transactions to get started.
           </Text>
         ) : (
           <>
             <Stat mb={4}>
               <StatLabel>Monthly Cost</StatLabel>
-              <StatNumber color="red.600">{formatCurrency(data?.monthly_cost ?? 0)}</StatNumber>
+              <StatNumber color="finance.negative">{formatCurrency(data?.monthly_cost ?? 0)}</StatNumber>
               <StatHelpText>{formatCurrency((data?.yearly_cost ?? 0))} / year</StatHelpText>
             </Stat>
 
@@ -85,7 +85,7 @@ export const SubscriptionsWidget: React.FC = () => {
                       <Text fontWeight="medium" fontSize="sm" noOfLines={1}>
                         {sub.merchant_name}
                       </Text>
-                      <Text fontSize="xs" color="gray.500">
+                      <Text fontSize="xs" color="text.muted">
                         {frequencyLabel(sub.frequency)}
                       </Text>
                     </VStack>

@@ -166,15 +166,15 @@ export const BusinessEquityAccountForm = ({
                 p={4}
                 borderWidth={2}
                 borderRadius="md"
-                borderColor={inputMethod === 'direct_value' ? 'blue.500' : 'gray.200'}
-                bg={inputMethod === 'direct_value' ? 'blue.50' : 'white'}
+                borderColor={inputMethod === 'direct_value' ? 'blue.500' : 'border.default'}
+                bg={inputMethod === 'direct_value' ? 'bg.info' : 'bg.surface'}
                 cursor="pointer"
                 onClick={() => setInputMethod('direct_value')}
               >
                 <Radio value="direct_value" size="lg">
                   <VStack align="start" spacing={0} ml={2}>
                     <Text fontWeight="semibold">Direct Equity Value</Text>
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="text.secondary">
                       Enter the total dollar value of your ownership stake
                     </Text>
                   </VStack>
@@ -185,15 +185,15 @@ export const BusinessEquityAccountForm = ({
                 p={4}
                 borderWidth={2}
                 borderRadius="md"
-                borderColor={inputMethod === 'valuation_percentage' ? 'blue.500' : 'gray.200'}
-                bg={inputMethod === 'valuation_percentage' ? 'blue.50' : 'white'}
+                borderColor={inputMethod === 'valuation_percentage' ? 'blue.500' : 'border.default'}
+                bg={inputMethod === 'valuation_percentage' ? 'bg.info' : 'bg.surface'}
                 cursor="pointer"
                 onClick={() => setInputMethod('valuation_percentage')}
               >
                 <Radio value="valuation_percentage" size="lg">
                   <VStack align="start" spacing={0} ml={2}>
                     <Text fontWeight="semibold">Company Valuation + Ownership %</Text>
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="text.secondary">
                       Enter company valuation and your ownership percentage
                     </Text>
                   </VStack>
@@ -279,7 +279,7 @@ export const BusinessEquityAccountForm = ({
 
             {/* Calculated Value Display */}
             {estimatedValue > 0 && (
-              <Box p={4} bg="blue.50" borderRadius="md" borderWidth={1} borderColor="blue.200">
+              <Box p={4} bg="bg.info" borderRadius="md" borderWidth={1} borderColor="blue.200">
                 <Text fontSize="sm" color="blue.800" fontWeight="medium">
                   Estimated Equity Value:{' '}
                   <Text as="span" fontSize="lg" fontWeight="bold">

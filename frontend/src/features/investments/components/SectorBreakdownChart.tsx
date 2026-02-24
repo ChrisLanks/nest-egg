@@ -110,23 +110,23 @@ export const SectorBreakdownChart = ({ holdings, sectorBreakdown }: SectorBreakd
       const data = payload[0].payload;
       return (
         <Box
-          bg="white"
+          bg="bg.surface"
           p={3}
           border="1px"
-          borderColor="gray.200"
+          borderColor="border.default"
           borderRadius="md"
           shadow="md"
         >
           <Text fontWeight="bold" mb={1}>
             {data.sector}
           </Text>
-          <Text fontSize="sm" color="gray.600">
+          <Text fontSize="sm" color="text.secondary">
             Value: {formatCurrency(data.value)}
           </Text>
-          <Text fontSize="sm" color="gray.600">
+          <Text fontSize="sm" color="text.secondary">
             {data.percentage.toFixed(1)}% of portfolio
           </Text>
-          <Text fontSize="sm" color="gray.600">
+          <Text fontSize="sm" color="text.secondary">
             {data.count} holding{data.count !== 1 ? 's' : ''}
           </Text>
         </Box>
@@ -146,7 +146,7 @@ export const SectorBreakdownChart = ({ holdings, sectorBreakdown }: SectorBreakd
 
       {/* Empty state */}
       {chartData.length === 0 ? (
-        <Box textAlign="center" py={10} color="gray.500">
+        <Box textAlign="center" py={10} color="text.muted">
           <Text>No sector data available</Text>
         </Box>
       ) : (
@@ -225,8 +225,8 @@ export const SectorBreakdownChart = ({ holdings, sectorBreakdown }: SectorBreakd
 
           {/* Insights */}
           {chartData.length > 0 && (
-            <Box mt={4} p={4} bg="blue.50" borderRadius="md">
-              <Text fontSize="sm" color="gray.700">
+            <Box mt={4} p={4} bg="bg.info" borderRadius="md">
+              <Text fontSize="sm" color="text.heading">
                 <strong>Diversification Insight:</strong> Your portfolio is most
                 concentrated in <strong>{chartData[0].sector}</strong> (
                 {chartData[0].percentage.toFixed(1)}%). Consider rebalancing if any

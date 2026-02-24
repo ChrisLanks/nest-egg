@@ -62,7 +62,7 @@ export const UserViewToggle = () => {
 
   return (
     <HStack spacing={2} align="center">
-      <Text fontSize="sm" fontWeight="medium" color={isSelfOnlyPage ? 'gray.400' : 'gray.600'}>
+      <Text fontSize="sm" fontWeight="medium" color={isSelfOnlyPage ? 'text.muted' : 'text.secondary'}>
         View:
       </Text>
       <Select
@@ -70,7 +70,7 @@ export const UserViewToggle = () => {
         onChange={(e) => handleChange(e.target.value)}
         size="sm"
         width="200px"
-        bg="white"
+        bg="bg.surface"
         isDisabled={isSelfOnlyPage}
         opacity={isSelfOnlyPage ? 0.5 : 1}
       >

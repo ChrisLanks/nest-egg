@@ -1153,7 +1153,7 @@ export const TransactionsPage = () => {
         {isOtherUserView && !canEdit && (
           <Box
             p={4}
-            bg="orange.50"
+            bg="bg.warning"
             borderRadius="md"
             borderWidth={1}
             borderColor="orange.200"
@@ -1171,7 +1171,7 @@ export const TransactionsPage = () => {
         <HStack justify="space-between" align="start">
           <Box flex={1}>
             <Heading size="lg">Transactions</Heading>
-            <Text color="gray.600" mt={2}>
+            <Text color="text.secondary" mt={2}>
               Showing {processedTransactions.length} transactions
               {total > 0 && ` (${total} total)`}
               {selectedTransactions.size > 0 &&
@@ -1221,7 +1221,7 @@ export const TransactionsPage = () => {
           <HStack spacing={2} flex={1}>
             <InputGroup maxW="750px" flex={1}>
               <InputLeftElement pointerEvents="none">
-                <SearchIcon color="gray.400" />
+                <SearchIcon color="text.muted" />
               </InputLeftElement>
               <Input
                 placeholder="Search or try: labels:Transfer accounts:Chase"
@@ -1263,7 +1263,7 @@ export const TransactionsPage = () => {
                       <Text fontWeight="semibold" mb={1}>
                         Basic Search
                       </Text>
-                      <Text color="gray.600">
+                      <Text color="text.secondary">
                         Just type to search merchant names, descriptions, and
                         amounts.
                       </Text>
@@ -1278,25 +1278,25 @@ export const TransactionsPage = () => {
                       <List spacing={2}>
                         <ListItem>
                           <Code fontSize="xs">labels:Transfer</Code>
-                          <Text color="gray.600" mt={1}>
+                          <Text color="text.secondary" mt={1}>
                             Search by label name
                           </Text>
                         </ListItem>
                         <ListItem>
                           <Code fontSize="xs">categories:Groceries</Code>
-                          <Text color="gray.600" mt={1}>
+                          <Text color="text.secondary" mt={1}>
                             Search by category
                           </Text>
                         </ListItem>
                         <ListItem>
                           <Code fontSize="xs">accounts:Chase</Code>
-                          <Text color="gray.600" mt={1}>
+                          <Text color="text.secondary" mt={1}>
                             Search by account
                           </Text>
                         </ListItem>
                         <ListItem>
                           <Code fontSize="xs">labels:""</Code>
-                          <Text color="gray.600" mt={1}>
+                          <Text color="text.secondary" mt={1}>
                             Find transactions with no labels
                           </Text>
                         </ListItem>
@@ -1314,13 +1314,13 @@ export const TransactionsPage = () => {
                           <Code fontSize="xs">
                             categories:"Food and Drink","Service"
                           </Code>
-                          <Text color="gray.600" mt={1}>
+                          <Text color="text.secondary" mt={1}>
                             Search for multiple categories (OR logic)
                           </Text>
                         </ListItem>
                         <ListItem>
                           <Code fontSize="xs">labels:Work,Personal</Code>
-                          <Text color="gray.600" mt={1}>
+                          <Text color="text.secondary" mt={1}>
                             Multiple labels without spaces
                           </Text>
                         </ListItem>
@@ -1333,7 +1333,7 @@ export const TransactionsPage = () => {
                       <Text fontWeight="semibold" mb={1}>
                         Quotes
                       </Text>
-                      <Text color="gray.600" mb={2}>
+                      <Text color="text.secondary" mb={2}>
                         Use quotes for names with spaces or commas:
                       </Text>
                       <List spacing={2}>
@@ -1354,7 +1354,7 @@ export const TransactionsPage = () => {
                       <Text fontWeight="semibold" mb={1}>
                         💡 Pro Tip
                       </Text>
-                      <Text color="gray.600">
+                      <Text color="text.secondary">
                         Click any category, label, or account badge to
                         automatically add it to your search!
                       </Text>
@@ -1447,7 +1447,7 @@ export const TransactionsPage = () => {
         {selectedTransactions.size > 0 && (
           <Box
             p={4}
-            bg="blue.50"
+            bg="bg.info"
             borderRadius="md"
             borderWidth={1}
             borderColor="blue.200"
@@ -1491,9 +1491,9 @@ export const TransactionsPage = () => {
 
         {/* Desktop Table View */}
         {!isMobile && processedTransactions.length > 0 && (
-          <Box bg="white" borderRadius="lg" boxShadow="sm" overflow="hidden">
+          <Box bg="bg.surface" borderRadius="lg" boxShadow="sm" overflow="hidden">
             <Table variant="simple" size="sm">
-              <Thead bg="gray.50">
+              <Thead bg="bg.subtle">
                 <Tr>
                   <Th width="40px">
                     <HStack spacing={1}>
@@ -1512,7 +1512,7 @@ export const TransactionsPage = () => {
                       >
                         <QuestionIcon
                           boxSize={3}
-                          color="gray.400"
+                          color="text.muted"
                           cursor="help"
                         />
                       </Tooltip>
@@ -1522,7 +1522,7 @@ export const TransactionsPage = () => {
                     <Th
                       cursor="pointer"
                       onClick={() => handleSort("date")}
-                      _hover={{ bg: "gray.100" }}
+                      _hover={{ bg: "bg.muted" }}
                       minWidth="120px"
                       maxWidth="140px"
                     >
@@ -1536,7 +1536,7 @@ export const TransactionsPage = () => {
                     <Th
                       cursor="pointer"
                       onClick={() => handleSort("merchant_name")}
-                      _hover={{ bg: "gray.100" }}
+                      _hover={{ bg: "bg.muted" }}
                     >
                       <HStack spacing={1}>
                         <Text>Merchant</Text>
@@ -1548,7 +1548,7 @@ export const TransactionsPage = () => {
                     <Th
                       cursor="pointer"
                       onClick={() => handleSort("account_name")}
-                      _hover={{ bg: "gray.100" }}
+                      _hover={{ bg: "bg.muted" }}
                     >
                       <HStack spacing={1}>
                         <Text>Account</Text>
@@ -1560,7 +1560,7 @@ export const TransactionsPage = () => {
                     <Th
                       cursor="pointer"
                       onClick={() => handleSort("category_primary")}
-                      _hover={{ bg: "gray.100" }}
+                      _hover={{ bg: "bg.muted" }}
                     >
                       <HStack spacing={1}>
                         <Text>Category</Text>
@@ -1572,7 +1572,7 @@ export const TransactionsPage = () => {
                     <Th
                       cursor="pointer"
                       onClick={() => handleSort("labels")}
-                      _hover={{ bg: "gray.100" }}
+                      _hover={{ bg: "bg.muted" }}
                     >
                       <HStack spacing={1}>
                         <Text>Labels</Text>
@@ -1585,7 +1585,7 @@ export const TransactionsPage = () => {
                       isNumeric
                       cursor="pointer"
                       onClick={() => handleSort("amount")}
-                      _hover={{ bg: "gray.100" }}
+                      _hover={{ bg: "bg.muted" }}
                     >
                       <HStack spacing={1} justify="flex-end">
                         <Text>Amount</Text>
@@ -1597,7 +1597,7 @@ export const TransactionsPage = () => {
                     <Th
                       cursor="pointer"
                       onClick={() => handleSort("status")}
-                      _hover={{ bg: "gray.100" }}
+                      _hover={{ bg: "bg.muted" }}
                     >
                       <HStack spacing={1}>
                         <Text>Status</Text>
@@ -1630,12 +1630,12 @@ export const TransactionsPage = () => {
                   return (
                     <React.Fragment key={monthGroup.period}>
                       {/* Month Period Header */}
-                      <Tr bg="gray.100">
+                      <Tr bg="bg.muted">
                         <Td colSpan={visibleColumnsCount} py={2}>
                           <Text
                             fontWeight="bold"
                             fontSize="sm"
-                            color="gray.700"
+                            color="text.heading"
                           >
                             {monthGroup.period}
                           </Text>
@@ -1654,8 +1654,8 @@ export const TransactionsPage = () => {
                             key={`desktop-${txn.id}`}
                             onClick={() => handleTransactionClick(txn)}
                             cursor="pointer"
-                            _hover={{ bg: "gray.50" }}
-                            bg={isSelected ? "blue.50" : undefined}
+                            _hover={{ bg: "bg.subtle" }}
+                            bg={isSelected ? "bg.info" : undefined}
                           >
                             <Td
                               width="40px"
@@ -1679,7 +1679,7 @@ export const TransactionsPage = () => {
                                   {txn.merchant_name}
                                 </Text>
                                 {txn.description && (
-                                  <Text fontSize="sm" color="gray.600">
+                                  <Text fontSize="sm" color="text.secondary">
                                     {txn.description}
                                   </Text>
                                 )}
@@ -1694,7 +1694,7 @@ export const TransactionsPage = () => {
                               >
                                 <Text
                                   fontSize="sm"
-                                  color="brand.600"
+                                  color="brand.accent"
                                   cursor="pointer"
                                   _hover={{ textDecoration: "underline" }}
                                 >
@@ -1772,7 +1772,7 @@ export const TransactionsPage = () => {
                               <Td isNumeric>
                                 <Text
                                   fontWeight="semibold"
-                                  color={isNegative ? "red.600" : "green.600"}
+                                  color={isNegative ? "finance.negative" : "finance.positive"}
                                 >
                                   {isNegative ? "-" : "+"}
                                   {formatted}
@@ -1817,7 +1817,7 @@ export const TransactionsPage = () => {
                 <Box key={`mobile-month-${monthGroup.period}`}>
                   {/* Month Header */}
                   <Box mb={3} px={2}>
-                    <Text fontWeight="bold" fontSize="md" color="gray.700">
+                    <Text fontWeight="bold" fontSize="md" color="text.heading">
                       {monthGroup.period}
                     </Text>
                   </Box>
@@ -1837,8 +1837,8 @@ export const TransactionsPage = () => {
                           variant="outline"
                           cursor="pointer"
                           onClick={() => handleTransactionClick(txn)}
-                          bg={isSelected ? "blue.50" : "white"}
-                          borderColor={isSelected ? "blue.300" : "gray.200"}
+                          bg={isSelected ? "bg.info" : "bg.surface"}
+                          borderColor={isSelected ? "blue.300" : "border.default"}
                           _hover={{ borderColor: "brand.300", shadow: "sm" }}
                         >
                           <CardBody p={4}>
@@ -1862,7 +1862,7 @@ export const TransactionsPage = () => {
                                     {txn.merchant_name}
                                   </Text>
                                   {txn.description && (
-                                    <Text fontSize="sm" color="gray.600" mt={1}>
+                                    <Text fontSize="sm" color="text.secondary" mt={1}>
                                       {txn.description}
                                     </Text>
                                   )}
@@ -1870,7 +1870,7 @@ export const TransactionsPage = () => {
                                 <Text
                                   fontWeight="bold"
                                   fontSize="lg"
-                                  color={isNegative ? "red.600" : "green.600"}
+                                  color={isNegative ? "finance.negative" : "finance.positive"}
                                   flexShrink={0}
                                 >
                                   {isNegative ? "-" : "+"}
@@ -1884,7 +1884,7 @@ export const TransactionsPage = () => {
                               <Stack spacing={2}>
                                 {/* Date */}
                                 <HStack justify="space-between">
-                                  <Text fontSize="sm" color="gray.500">
+                                  <Text fontSize="sm" color="text.muted">
                                     Date
                                   </Text>
                                   <Text fontSize="sm">
@@ -1895,12 +1895,12 @@ export const TransactionsPage = () => {
                                 {/* Account */}
                                 {txn.account_name && (
                                   <HStack justify="space-between">
-                                    <Text fontSize="sm" color="gray.500">
+                                    <Text fontSize="sm" color="text.muted">
                                       Account
                                     </Text>
                                     <Text
                                       fontSize="sm"
-                                      color="brand.600"
+                                      color="brand.accent"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         handleAccountClick(
@@ -1919,7 +1919,7 @@ export const TransactionsPage = () => {
                                 {/* Category */}
                                 {(txn.category || txn.category_primary) && (
                                   <HStack justify="space-between">
-                                    <Text fontSize="sm" color="gray.500">
+                                    <Text fontSize="sm" color="text.muted">
                                       Category
                                     </Text>
                                     <Badge
@@ -1954,7 +1954,7 @@ export const TransactionsPage = () => {
                                 {/* Labels */}
                                 {txn.labels && txn.labels.length > 0 && (
                                   <HStack justify="space-between" align="start">
-                                    <Text fontSize="sm" color="gray.500">
+                                    <Text fontSize="sm" color="text.muted">
                                       Labels
                                     </Text>
                                     <Wrap spacing={1} justify="flex-end">
@@ -2137,7 +2137,7 @@ export const TransactionsPage = () => {
                   {/* Labels Tab */}
                   <TabPanel>
                     <VStack align="stretch" spacing={4}>
-                      <Text fontSize="sm" color="gray.600" mb={2}>
+                      <Text fontSize="sm" color="text.secondary" mb={2}>
                         💡 <strong>Tip:</strong> To mark transactions as
                         transfers, add/remove the "Transfer" label.
                       </Text>
@@ -2268,7 +2268,7 @@ export const TransactionsPage = () => {
                       </FormControl>
 
                       {availableLabels.length === 0 && (
-                        <Text color="gray.500" fontSize="sm">
+                        <Text color="text.muted" fontSize="sm">
                           No labels available. Create labels from the Labels
                           page.
                         </Text>
@@ -2305,7 +2305,7 @@ export const TransactionsPage = () => {
                       </FormControl>
 
                       {availableCategories.length === 0 && (
-                        <Text color="gray.500" fontSize="sm">
+                        <Text color="text.muted" fontSize="sm">
                           No custom categories available. Create categories from
                           the Categories page.
                         </Text>

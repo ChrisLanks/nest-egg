@@ -56,32 +56,32 @@ export const EmptyState = ({
       py={config.py}
       px={6}
       textAlign="center"
-      bg="gray.50"
+      bg="bg.subtle"
       borderRadius="lg"
       borderWidth={1}
-      borderColor="gray.200"
+      borderColor="border.default"
     >
       <VStack spacing={4}>
         {icon && (
           <Box
             borderRadius="full"
-            bg="gray.100"
+            bg="bg.muted"
             p={6}
             display="inline-flex"
             alignItems="center"
             justifyContent="center"
           >
-            <Icon as={icon} boxSize={`${config.iconSize}px`} color="gray.400" />
+            <Icon as={icon} boxSize={`${config.iconSize}px`} color="text.muted" />
           </Box>
         )}
 
         <VStack spacing={2}>
-          <Heading size={config.titleSize} color="gray.700">
+          <Heading size={config.titleSize} color="text.heading">
             {title}
           </Heading>
 
           {description && (
-            <Text color="gray.600" maxW="md">
+            <Text color="text.secondary" maxW="md">
               {description}
             </Text>
           )}

@@ -143,7 +143,7 @@ export const AccountBalancesWidget: React.FC = () => {
                 <Td>
                   <Badge>{account.type.replace(/_/g, ' ')}</Badge>
                 </Td>
-                <Td color="gray.600">{account.institution || 'Manual'}</Td>
+                <Td color="text.secondary">{account.institution || 'Manual'}</Td>
                 <Td isNumeric fontWeight="bold">
                   {formatCurrency(account.balance)}
                 </Td>

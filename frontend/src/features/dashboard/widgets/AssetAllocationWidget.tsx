@@ -58,7 +58,7 @@ export const AssetAllocationWidget: React.FC = () => {
     return (
       <Card h="100%">
         <CardBody display="flex" alignItems="center" justifyContent="center">
-          <Text color="gray.500" fontSize="sm">
+          <Text color="text.muted" fontSize="sm">
             No investment holdings yet.
           </Text>
         </CardBody>
@@ -100,12 +100,12 @@ export const AssetAllocationWidget: React.FC = () => {
               <HStack key={slice.key} justify="space-between">
                 <HStack spacing={2}>
                   <Box w={3} h={3} borderRadius="sm" bg={slice.color} flexShrink={0} />
-                  <Text fontSize="xs" color="gray.700">
+                  <Text fontSize="xs" color="text.heading">
                     {slice.label}
                   </Text>
                 </HStack>
                 <HStack spacing={2}>
-                  <Text fontSize="xs" color="gray.500">
+                  <Text fontSize="xs" color="text.muted">
                     {pct}%
                   </Text>
                   <Text fontSize="xs" fontWeight="medium" minW="60px" textAlign="right">

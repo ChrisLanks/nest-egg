@@ -1,4 +1,4 @@
-import { Component, ReactNode } from 'react';
+import { Component, type ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -9,6 +9,11 @@ interface State {
   error?: Error;
 }
 
+/**
+ * Error boundary fallback — uses CSS variables from Chakra's color mode
+ * so it looks correct in both light and dark themes. (Class components
+ * can't call hooks, so we rely on the variables Chakra sets on <html>.)
+ */
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false };
 
@@ -32,18 +37,19 @@ export class ErrorBoundary extends Component<Props, State> {
             height: '100vh',
             gap: '16px',
             fontFamily: 'sans-serif',
-            color: '#2D3748',
+            color: 'var(--chakra-colors-chakra-body-text)',
+            backgroundColor: 'var(--chakra-colors-chakra-body-bg)',
           }}
         >
           <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Something went wrong</h2>
-          <p style={{ color: '#718096', fontSize: '0.875rem', maxWidth: '400px', textAlign: 'center' }}>
+          <p style={{ opacity: 0.7, fontSize: '0.875rem', maxWidth: '400px', textAlign: 'center' }}>
             {this.state.error?.message || 'An unexpected error occurred.'}
           </p>
           <button
             onClick={() => window.location.reload()}
             style={{
               padding: '8px 20px',
-              background: '#3182CE',
+              background: '#3f9142',
               color: 'white',
               border: 'none',
               borderRadius: '6px',

@@ -84,9 +84,9 @@ export default function NotificationItem({ notification }: NotificationItemProps
     <Box
       p={3}
       borderBottom="1px"
-      borderColor="gray.200"
-      bg={notification.is_read ? 'white' : 'blue.50'}
-      _hover={{ bg: 'gray.50', cursor: 'pointer' }}
+      borderColor="border.default"
+      bg={notification.is_read ? 'bg.surface' : 'bg.info'}
+      _hover={{ bg: 'bg.subtle', cursor: 'pointer' }}
       onClick={handleClick}
       position="relative"
     >
@@ -104,7 +104,7 @@ export default function NotificationItem({ notification }: NotificationItemProps
           <Text fontWeight={notification.is_read ? 'normal' : 'bold'} fontSize="sm">
             {notification.title}
           </Text>
-          <Text fontSize="xs" color="gray.600">
+          <Text fontSize="xs" color="text.secondary">
             {notification.message}
           </Text>
           {notification.action_label && (
@@ -112,7 +112,7 @@ export default function NotificationItem({ notification }: NotificationItemProps
               {notification.action_label} →
             </Text>
           )}
-          <Text fontSize="xs" color="gray.400">
+          <Text fontSize="xs" color="text.muted">
             {new Date(notification.created_at).toLocaleString()}
           </Text>
         </VStack>

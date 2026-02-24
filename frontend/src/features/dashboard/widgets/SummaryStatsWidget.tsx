@@ -43,7 +43,7 @@ export const SummaryStatsWidget: React.FC = () => {
           <CardBody>
             <Stat>
               <StatLabel>Net Worth</StatLabel>
-              <StatNumber color={netWorth >= 0 ? 'green.600' : 'red.600'}>
+              <StatNumber color={netWorth >= 0 ? 'finance.positive' : 'finance.negative'}>
                 {formatCurrency(netWorth)}
               </StatNumber>
               <StatHelpText>Assets - Debts</StatHelpText>
@@ -65,7 +65,7 @@ export const SummaryStatsWidget: React.FC = () => {
           <CardBody>
             <Stat>
               <StatLabel>Total Debts</StatLabel>
-              <StatNumber color="red.600">
+              <StatNumber color="finance.negative">
                 {formatCurrency(summary?.total_debts ?? 0)}
               </StatNumber>
               <StatHelpText>Credit Cards, Loans</StatHelpText>
@@ -79,7 +79,7 @@ export const SummaryStatsWidget: React.FC = () => {
           <CardBody>
             <Stat>
               <StatLabel>Monthly Income</StatLabel>
-              <StatNumber color="green.600">
+              <StatNumber color="finance.positive">
                 {formatCurrency(summary?.monthly_income ?? 0)}
               </StatNumber>
               <StatHelpText>This month</StatHelpText>
@@ -91,12 +91,12 @@ export const SummaryStatsWidget: React.FC = () => {
           <CardBody>
             <Stat>
               <StatLabel>Monthly Spending</StatLabel>
-              <StatNumber color="red.600">
+              <StatNumber color="finance.negative">
                 {formatCurrency(summary?.monthly_spending ?? 0)}
               </StatNumber>
               <StatHelpText>
                 Net:{' '}
-                <Text as="span" color={monthlyNet >= 0 ? 'green.600' : 'red.600'} fontWeight="bold">
+                <Text as="span" color={monthlyNet >= 0 ? 'finance.positive' : 'finance.negative'} fontWeight="bold">
                   {formatCurrency(monthlyNet)}
                 </Text>
               </StatHelpText>

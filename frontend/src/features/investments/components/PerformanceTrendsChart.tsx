@@ -12,7 +12,6 @@ import {
   StatArrow,
   SimpleGrid,
   Text,
-  useColorModeValue,
   Spinner,
   Alert,
   AlertIcon,
@@ -82,9 +81,6 @@ const generateMockSnapshots = (currentValue: number, months: number = 12): Snaps
 
 export default function PerformanceTrendsChart({ currentValue }: PerformanceTrendsChartProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('1Y');
-
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
 
   // Calculate date range
   const { startDate, endDate } = useMemo(() => {
@@ -266,9 +262,9 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
       <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
         <Box
           p={4}
-          bg={bgColor}
+          bg="bg.surface"
           borderWidth="1px"
-          borderColor={borderColor}
+          borderColor="border.default"
           borderRadius="md"
         >
           <Stat>
@@ -285,9 +281,9 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
 
         <Box
           p={4}
-          bg={bgColor}
+          bg="bg.surface"
           borderWidth="1px"
-          borderColor={borderColor}
+          borderColor="border.default"
           borderRadius="md"
         >
           <Stat>
@@ -299,9 +295,9 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
 
         <Box
           p={4}
-          bg={bgColor}
+          bg="bg.surface"
           borderWidth="1px"
-          borderColor={borderColor}
+          borderColor="border.default"
           borderRadius="md"
         >
           <Stat>
@@ -315,9 +311,9 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
       {/* Chart */}
       <Box
         p={4}
-        bg={bgColor}
+        bg="bg.surface"
         borderWidth="1px"
-        borderColor={borderColor}
+        borderColor="border.default"
         borderRadius="md"
       >
         <ResponsiveContainer width="100%" height={400}>

@@ -139,7 +139,7 @@ export const CategorySelect = ({
           left={0}
           right={0}
           mt={1}
-          bg="white"
+          bg="bg.surface"
           borderWidth={1}
           borderRadius="md"
           boxShadow="lg"
@@ -153,9 +153,9 @@ export const CategorySelect = ({
                 px={4}
                 py={2}
                 cursor="pointer"
-                bg="blue.50"
+                bg="bg.info"
                 borderBottomWidth={filteredCategories.length > 0 ? 1 : 0}
-                _hover={{ bg: 'blue.100' }}
+                _hover={{ bg: 'bg.muted' }}
                 onClick={() => handleSelectCategory(inputValue)}
               >
                 <Text fontWeight="medium" color="blue.600">
@@ -170,7 +170,7 @@ export const CategorySelect = ({
                 px={4}
                 py={2}
                 cursor="pointer"
-                _hover={{ bg: 'gray.100' }}
+                _hover={{ bg: 'bg.muted' }}
                 onClick={() => handleSelectCategory(category)}
               >
                 <Text>{category}</Text>

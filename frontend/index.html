@@ -7,6 +7,11 @@
     <title>frontend</title>
   </head>
   <body>
+    <!-- Chakra ColorModeScript: reads localStorage before React hydrates to
+         prevent a flash of the wrong color mode. Must stay before #root. -->
+    <script>
+      !function(){try{var d=document.documentElement,m=localStorage.getItem('chakra-ui-color-mode');if(m){d.style.colorScheme=m;d.setAttribute('data-theme',m);if(m==='dark')d.classList.add('chakra-ui-dark')};}catch(e){}}();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

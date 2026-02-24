@@ -14,11 +14,13 @@ import {
   AlertDialogOverlay,
   Box,
   Button,
+  ButtonGroup,
   Container,
   Divider,
   FormControl,
   FormLabel,
   Heading,
+  Icon,
   Input,
   NumberInput,
   NumberInputField,
@@ -31,6 +33,8 @@ import {
   VStack,
   FormHelperText,
 } from '@chakra-ui/react';
+import { FiSun, FiMoon, FiMonitor } from 'react-icons/fi';
+import { useColorModePreference, type ColorModePreference } from '../hooks/useColorModePreference';
 import { useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
@@ -53,6 +57,7 @@ export default function PreferencesPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { logout } = useAuthStore();
+  const { preference: colorModePreference, setPreference: setColorModePreference } = useColorModePreference();
 
   // Note: Preferences are always for the current logged-in user,
   // not the selected user view. This page shows YOUR settings.
@@ -251,7 +256,7 @@ export default function PreferencesPage() {
         <Heading size="lg">Settings</Heading>
 
         {/* User Profile Section */}
-        <Box bg="white" p={6} borderRadius="lg" boxShadow="sm">
+        <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
           <Heading size="md" mb={4}>
             User Profile
           </Heading>
@@ -335,12 +340,39 @@ export default function PreferencesPage() {
           </Stack>
         </Box>
 
+        {/* Appearance Section */}
+        <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
+          <Heading size="md" mb={1}>
+            Appearance
+          </Heading>
+          <Text color="text.secondary" fontSize="sm" mb={4}>
+            Choose your preferred color scheme.
+          </Text>
+          <ButtonGroup size="sm" isAttached variant="outline">
+            {([
+              { value: 'light' as ColorModePreference, label: 'Light', icon: FiSun },
+              { value: 'dark' as ColorModePreference, label: 'Dark', icon: FiMoon },
+              { value: 'system' as ColorModePreference, label: 'System', icon: FiMonitor },
+            ]).map(({ value, label, icon }) => (
+              <Button
+                key={value}
+                onClick={() => setColorModePreference(value)}
+                variant={colorModePreference === value ? 'solid' : 'outline'}
+                colorScheme={colorModePreference === value ? 'brand' : 'gray'}
+                leftIcon={<Icon as={icon} />}
+              >
+                {label}
+              </Button>
+            ))}
+          </ButtonGroup>
+        </Box>
+
         {/* Export Data Section */}
-        <Box bg="white" p={6} borderRadius="lg" boxShadow="sm">
+        <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
           <Heading size="md" mb={1}>
             Export Data
           </Heading>
-          <Text color="gray.600" fontSize="sm" mb={4}>
+          <Text color="text.secondary" fontSize="sm" mb={4}>
             Download all your accounts, transactions, and holdings as a ZIP of CSV files.
           </Text>
           <Button
@@ -355,7 +387,7 @@ export default function PreferencesPage() {
         </Box>
 
         {/* Change Password Section */}
-        <Box bg="white" p={6} borderRadius="lg" boxShadow="sm">
+        <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
           <Heading size="md" mb={4}>
             Change Password
           </Heading>
@@ -403,11 +435,11 @@ export default function PreferencesPage() {
         </Box>
 
         {/* Danger Zone — Delete Account */}
-        <Box bg="white" p={6} borderRadius="lg" boxShadow="sm" borderWidth={1} borderColor="red.200">
+        <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm" borderWidth={1} borderColor="red.200">
           <Heading size="md" mb={1} color="red.600">
             Danger Zone
           </Heading>
-          <Text color="gray.600" fontSize="sm" mb={4}>
+          <Text color="text.secondary" fontSize="sm" mb={4}>
             Permanently delete your account and all associated data. This action cannot be undone.
           </Text>
           <Divider mb={4} />

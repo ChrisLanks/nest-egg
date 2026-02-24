@@ -59,7 +59,7 @@ export const BudgetsWidget: React.FC = () => {
         </HStack>
 
         {topBudgets.length === 0 ? (
-          <Text color="gray.500" fontSize="sm">
+          <Text color="text.muted" fontSize="sm">
             No active budgets. Add one to start tracking.
           </Text>
         ) : (
@@ -75,7 +75,7 @@ export const BudgetsWidget: React.FC = () => {
                     <Text fontWeight="medium" fontSize="sm" noOfLines={1}>
                       {budget.name}
                     </Text>
-                    <Text fontSize="sm" color={isOver ? 'red.600' : 'gray.600'} whiteSpace="nowrap">
+                    <Text fontSize="sm" color={isOver ? 'finance.negative' : 'text.secondary'} whiteSpace="nowrap">
                       {spending
                         ? `${formatCurrency(spending.spent)} / ${formatCurrency(budget.amount)}`
                         : formatCurrency(budget.amount)}

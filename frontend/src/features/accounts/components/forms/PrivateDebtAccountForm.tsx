@@ -68,7 +68,7 @@ export const PrivateDebtAccountForm = ({
           Add Private Debt Account
         </Text>
 
-        <Text fontSize="sm" color="gray.600">
+        <Text fontSize="sm" color="text.secondary">
           Track private credit funds or loans you've made to businesses or individuals.
         </Text>
 

@@ -176,7 +176,7 @@ export const BasicManualAccountForm = ({
         {showLoanFields && (
           <>
             <Divider />
-            <Text fontWeight="semibold" fontSize="sm" color="gray.600">
+            <Text fontWeight="semibold" fontSize="sm" color="text.secondary">
               Loan Details
             </Text>
 
@@ -242,7 +242,7 @@ export const BasicManualAccountForm = ({
         {showCreditCardFields && (
           <>
             <Divider />
-            <Text fontWeight="semibold" fontSize="sm" color="gray.600">
+            <Text fontWeight="semibold" fontSize="sm" color="text.secondary">
               Credit Card Details (Optional)
             </Text>
 
@@ -294,7 +294,7 @@ export const BasicManualAccountForm = ({
         {showIncomeFields && (
           <>
             <Divider />
-            <Text fontWeight="semibold" fontSize="sm" color="gray.600">
+            <Text fontWeight="semibold" fontSize="sm" color="text.secondary">
               {accountType === ACCOUNT_TYPES.PENSION ? 'Pension Income Details (Optional)' : 'Annuity Income Details (Optional)'}
             </Text>
 

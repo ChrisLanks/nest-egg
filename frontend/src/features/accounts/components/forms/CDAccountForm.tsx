@@ -155,15 +155,15 @@ export const CDAccountForm = ({ onSubmit, onBack, isLoading }: CDAccountFormProp
                 p={4}
                 borderWidth={2}
                 borderRadius="md"
-                borderColor={trackingMode === 'simple' ? 'blue.500' : 'gray.200'}
-                bg={trackingMode === 'simple' ? 'blue.50' : 'white'}
+                borderColor={trackingMode === 'simple' ? 'blue.500' : 'border.default'}
+                bg={trackingMode === 'simple' ? 'bg.info' : 'bg.surface'}
                 cursor="pointer"
                 onClick={() => setTrackingMode('simple')}
               >
                 <Radio value="simple" size="lg">
                   <VStack align="start" spacing={0} ml={2}>
                     <Text fontWeight="semibold">Simple (Balance Only)</Text>
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="text.secondary">
                       Just track the current balance. You'll update it manually.
                     </Text>
                   </VStack>
@@ -174,15 +174,15 @@ export const CDAccountForm = ({ onSubmit, onBack, isLoading }: CDAccountFormProp
                 p={4}
                 borderWidth={2}
                 borderRadius="md"
-                borderColor={trackingMode === 'detailed' ? 'blue.500' : 'gray.200'}
-                bg={trackingMode === 'detailed' ? 'blue.50' : 'white'}
+                borderColor={trackingMode === 'detailed' ? 'blue.500' : 'border.default'}
+                bg={trackingMode === 'detailed' ? 'bg.info' : 'bg.surface'}
                 cursor="pointer"
                 onClick={() => setTrackingMode('detailed')}
               >
                 <Radio value="detailed" size="lg">
                   <VStack align="start" spacing={0} ml={2}>
                     <Text fontWeight="semibold">Detailed (Principal + APY)</Text>
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="text.secondary">
                       Track principal, APY, and compounding. We'll calculate interest for you.
                     </Text>
                   </VStack>

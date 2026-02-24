@@ -111,8 +111,8 @@ interface AccountGroupProps {
 
 function AccountGroup({ accountName, goals, onEdit, canEdit = true }: AccountGroupProps) {
   return (
-    <AccordionItem border="1px solid" borderColor="gray.200" borderRadius="md" overflow="hidden">
-      <AccordionButton bg="gray.50" _expanded={{ bg: 'blue.50' }} py={3} px={4}>
+    <AccordionItem border="1px solid" borderColor="border.default" borderRadius="md" overflow="hidden">
+      <AccordionButton bg="bg.subtle" _expanded={{ bg: 'blue.50' }} py={3} px={4}>
         <HStack flex={1} textAlign="left" spacing={3}>
           <Text fontWeight="semibold" fontSize="md">
             {accountName}
@@ -291,7 +291,7 @@ export default function SavingsGoalsPage() {
         <HStack justify="space-between">
           <VStack align="start" spacing={1}>
             <Heading size="lg">Savings Goals</Heading>
-            <Text color="gray.600">
+            <Text color="text.secondary">
               Track progress toward your financial goals
             </Text>
           </VStack>
@@ -316,7 +316,7 @@ export default function SavingsGoalsPage() {
           <HStack spacing={6} flexWrap="wrap">
             {/* View mode toggle */}
             <HStack spacing={2}>
-              <Text fontSize="sm" fontWeight="medium" color="gray.600">View:</Text>
+              <Text fontSize="sm" fontWeight="medium" color="text.secondary">View:</Text>
               <ButtonGroup size="sm" isAttached variant="outline">
                 <Button
                   colorScheme={viewMode === 'priority' ? 'blue' : 'gray'}
@@ -338,7 +338,7 @@ export default function SavingsGoalsPage() {
             {/* Allocation method — shown when auto-sync goals exist */}
             {hasAutoSyncGoals && (
               <HStack spacing={2}>
-                <Text fontSize="sm" fontWeight="medium" color="gray.600">Balance allocation:</Text>
+                <Text fontSize="sm" fontWeight="medium" color="text.secondary">Balance allocation:</Text>
                 <ButtonGroup size="sm" isAttached variant="outline">
                   <Button
                     colorScheme={allocationMethod === 'waterfall' ? 'blue' : 'gray'}
@@ -363,7 +363,7 @@ export default function SavingsGoalsPage() {
                   }
                   placement="right"
                 >
-                  <Text fontSize="xs" color="gray.400" cursor="help">(?)</Text>
+                  <Text fontSize="xs" color="text.muted" cursor="help">(?)</Text>
                 </Tooltip>
               </HStack>
             )}
@@ -441,7 +441,7 @@ export default function SavingsGoalsPage() {
               <TabPanel>
                 {activeGoals.length === 0 ? (
                   <Center py={8}>
-                    <Text color="gray.500">No active goals</Text>
+                    <Text color="text.muted">No active goals</Text>
                   </Center>
                 ) : viewMode === 'priority' ? (
                   /* Priority order — DnD sortable vertical list */
@@ -494,7 +494,7 @@ export default function SavingsGoalsPage() {
               <TabPanel>
                 {completedGoals.length === 0 ? (
                   <Center py={8}>
-                    <Text color="gray.500">No completed goals yet</Text>
+                    <Text color="text.muted">No completed goals yet</Text>
                   </Center>
                 ) : (
                   <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>

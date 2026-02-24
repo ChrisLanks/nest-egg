@@ -134,7 +134,7 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
           <CardBody>
             <Stat>
               <StatLabel>Median Projection</StatLabel>
-              <StatNumber color="brand.600">
+              <StatNumber color="brand.accent">
                 {formatCurrency(summaryStats.medianValue)}
               </StatNumber>
               <StatHelpText>
@@ -150,7 +150,7 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
           <CardBody>
             <Stat>
               <StatLabel>Pessimistic (10th %ile)</StatLabel>
-              <StatNumber color="red.600">
+              <StatNumber color="finance.negative">
                 {formatCurrency(summaryStats.pessimistic)}
               </StatNumber>
               <StatHelpText>Downside scenario</StatHelpText>
@@ -162,7 +162,7 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
           <CardBody>
             <Stat>
               <StatLabel>Optimistic (90th %ile)</StatLabel>
-              <StatNumber color="green.600">
+              <StatNumber color="finance.positive">
                 {formatCurrency(summaryStats.optimistic)}
               </StatNumber>
               <StatHelpText>Upside scenario</StatHelpText>
@@ -328,7 +328,7 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                       <NumberDecrementStepper />
                     </NumberInputStepper>
                   </NumberInput>
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color="text.secondary">
                     Historical S&P 500: ~10%
                   </Text>
                 </HStack>
@@ -352,7 +352,7 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                       <NumberDecrementStepper />
                     </NumberInputStepper>
                   </NumberInput>
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color="text.secondary">
                     S&P 500: ~15%
                   </Text>
                 </HStack>
@@ -376,7 +376,7 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                       <NumberDecrementStepper />
                     </NumberInputStepper>
                   </NumberInput>
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color="text.secondary">
                     Historical: ~3%
                   </Text>
                 </HStack>
@@ -421,7 +421,7 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
             </HStack>
 
             {/* Disclaimer */}
-            <Text fontSize="xs" color="gray.500" fontStyle="italic">
+            <Text fontSize="xs" color="text.muted" fontStyle="italic">
               Note: These projections are based on Monte Carlo simulations using
               historical market data. Past performance does not guarantee future
               results. Consult a financial advisor for personalized advice.

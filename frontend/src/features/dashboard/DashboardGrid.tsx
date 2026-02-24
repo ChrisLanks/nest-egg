@@ -16,6 +16,7 @@ import {
   IconButton,
   Text,
   Tooltip,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import {
   DndContext,
@@ -55,6 +56,7 @@ const SortableWidget: React.FC<SortableWidgetProps> = ({
   onSpanToggle,
 }) => {
   const def = WIDGET_REGISTRY[item.id];
+  const editBarBg = useColorModeValue('whiteAlpha.900', 'blackAlpha.800');
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
     disabled: !isEditing,
@@ -81,12 +83,12 @@ const SortableWidget: React.FC<SortableWidgetProps> = ({
           left={0}
           right={0}
           zIndex={10}
-          bg="whiteAlpha.900"
+          bg={editBarBg}
           borderTopRadius="md"
           px={3}
           py={2}
           borderBottom="1px solid"
-          borderColor="gray.200"
+          borderColor="border.default"
         >
           <HStack justify="space-between">
             <HStack spacing={2}>
@@ -95,12 +97,12 @@ const SortableWidget: React.FC<SortableWidgetProps> = ({
                 cursor="grab"
                 display="flex"
                 alignItems="center"
-                color="gray.400"
-                _hover={{ color: 'gray.600' }}
+                color="text.muted"
+                _hover={{ color: 'text.secondary' }}
               >
                 <Icon as={MdDragIndicator} boxSize={5} />
               </Box>
-              <Text fontSize="sm" fontWeight="medium" color="gray.700">
+              <Text fontSize="sm" fontWeight="medium" color="text.heading">
                 {def.title}
               </Text>
             </HStack>

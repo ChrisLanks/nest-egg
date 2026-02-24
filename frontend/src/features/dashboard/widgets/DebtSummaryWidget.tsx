@@ -72,7 +72,7 @@ export const DebtSummaryWidget: React.FC = () => {
 
         <Stat mb={4}>
           <StatLabel>Total Debt</StatLabel>
-          <StatNumber color="red.600">{formatCurrency(totalDebt)}</StatNumber>
+          <StatNumber color="finance.negative">{formatCurrency(totalDebt)}</StatNumber>
         </Stat>
 
         <VStack align="stretch" spacing={2}>
@@ -88,11 +88,11 @@ export const DebtSummaryWidget: React.FC = () => {
                   <Text fontWeight="medium" fontSize="sm" noOfLines={1}>
                     {account.name}
                   </Text>
-                  <Text fontSize="xs" color="gray.500" textTransform="capitalize">
+                  <Text fontSize="xs" color="text.muted" textTransform="capitalize">
                     {account.type.replace(/_/g, ' ')}
                   </Text>
                 </VStack>
-                <Text fontWeight="bold" fontSize="sm" color="red.600" whiteSpace="nowrap">
+                <Text fontWeight="bold" fontSize="sm" color="finance.negative" whiteSpace="nowrap">
                   {formatCurrency(Math.abs(account.balance))}
                 </Text>
               </HStack>

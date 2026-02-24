@@ -141,7 +141,7 @@ export const TableSkeleton = () => {
       <CardBody>
         <Stack spacing={3}>
           {/* Table Header */}
-          <HStack spacing={4} pb={2} borderBottom="1px solid" borderColor="gray.200">
+          <HStack spacing={4} pb={2} borderBottom="1px solid" borderColor="border.default">
             <Skeleton height="16px" width="20px" />
             <Skeleton height="16px" flex={1} />
             <Skeleton height="16px" width="120px" />

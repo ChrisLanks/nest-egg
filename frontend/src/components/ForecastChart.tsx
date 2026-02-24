@@ -199,7 +199,7 @@ export const ForecastChart = () => {
           </AreaChart>
         </ResponsiveContainer>
 
-        <Text fontSize="xs" color="gray.500" mt={2}>
+        <Text fontSize="xs" color="text.muted" mt={2}>
           Based on {daysWithTransactions} days with recurring transactions
         </Text>
       </CardBody>

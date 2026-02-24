@@ -37,11 +37,11 @@ export const TopExpensesWidget: React.FC = () => {
             <Box key={index}>
               <HStack justify="space-between" mb={1}>
                 <Text fontWeight="medium">{expense.category}</Text>
-                <Text fontWeight="bold" color="red.600">
+                <Text fontWeight="bold" color="finance.negative">
                   {formatCurrency(expense.total)}
                 </Text>
               </HStack>
-              <Text fontSize="sm" color="gray.600">
+              <Text fontSize="sm" color="text.secondary">
                 {expense.count} transaction{expense.count !== 1 ? 's' : ''}
               </Text>
               {index < topExpenses.length - 1 && <Divider mt={3} />}

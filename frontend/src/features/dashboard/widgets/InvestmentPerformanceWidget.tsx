@@ -67,7 +67,7 @@ export const InvestmentPerformanceWidget: React.FC = () => {
     return (
       <Card>
         <CardBody display="flex" alignItems="center" justifyContent="center" minH="200px">
-          <Text color="gray.500">No investment holdings tracked yet.</Text>
+          <Text color="text.muted">No investment holdings tracked yet.</Text>
         </CardBody>
       </Card>
     );
@@ -92,19 +92,19 @@ export const InvestmentPerformanceWidget: React.FC = () => {
             <StatLabel>Total Gain / Loss</StatLabel>
             <StatNumber
               fontSize="lg"
-              color={gainLoss == null ? 'gray.500' : gainLoss >= 0 ? 'green.600' : 'red.600'}
+              color={gainLoss == null ? 'text.muted' : gainLoss >= 0 ? 'finance.positive' : 'finance.negative'}
             >
               {gainLoss == null ? '—' : formatCurrency(gainLoss)}
             </StatNumber>
             {gainLossPct != null && (
-              <StatHelpText color={gainLossPct >= 0 ? 'green.600' : 'red.600'}>
+              <StatHelpText color={gainLossPct >= 0 ? 'finance.positive' : 'finance.negative'}>
                 {formatPct(gainLossPct)}
               </StatHelpText>
             )}
           </Stat>
           <Stat>
             <StatLabel>Annual Fees</StatLabel>
-            <StatNumber fontSize="lg" color="gray.600">
+            <StatNumber fontSize="lg" color="text.secondary">
               {portfolio?.total_annual_fees != null
                 ? formatCurrency(Number(portfolio.total_annual_fees))
                 : '—'}
@@ -114,7 +114,7 @@ export const InvestmentPerformanceWidget: React.FC = () => {
 
         {topHoldings.length > 0 && (
           <>
-            <Text fontSize="xs" fontWeight="semibold" color="gray.500" textTransform="uppercase" letterSpacing="wide" mb={2}>
+            <Text fontSize="xs" fontWeight="semibold" color="text.muted" textTransform="uppercase" letterSpacing="wide" mb={2}>
               Top Holdings
             </Text>
             <VStack align="stretch" spacing={0}>
@@ -128,7 +128,7 @@ export const InvestmentPerformanceWidget: React.FC = () => {
                         <Text fontWeight="semibold" fontSize="sm">
                           {h.ticker}
                         </Text>
-                        <Text fontSize="xs" color="gray.500" noOfLines={1}>
+                        <Text fontSize="xs" color="text.muted" noOfLines={1}>
                           {h.name ?? ''}
                         </Text>
                       </VStack>

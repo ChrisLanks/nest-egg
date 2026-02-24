@@ -134,7 +134,7 @@ export const RMDAlert: React.FC<RMDAlertProps> = ({ userId = null }) => {
               {rmdData.penalty_if_missed && rmdData.penalty_if_missed > 0 && (
                 <HStack>
                   <Badge colorScheme="red">Penalty Risk</Badge>
-                  <Text fontSize="xs" color="gray.600">
+                  <Text fontSize="xs" color="text.secondary">
                     {formatCurrency(rmdData.penalty_if_missed)} penalty if missed (25%)
                   </Text>
                 </HStack>
@@ -226,7 +226,7 @@ export const RMDAlert: React.FC<RMDAlertProps> = ({ userId = null }) => {
                         <Td>
                           <VStack align="start" spacing={0}>
                             <Text fontWeight="medium">{account.account_name}</Text>
-                            <Text fontSize="xs" color="gray.500">
+                            <Text fontSize="xs" color="text.muted">
                               {account.account_type.replace('_', ' ')}
                             </Text>
                           </VStack>
@@ -237,7 +237,7 @@ export const RMDAlert: React.FC<RMDAlertProps> = ({ userId = null }) => {
                           <Text
                             fontWeight="semibold"
                             color={
-                              account.remaining_required > 0 ? 'orange.600' : 'green.600'
+                              account.remaining_required > 0 ? 'orange.600' : 'finance.positive'
                             }
                           >
                             {formatCurrency(account.remaining_required)}

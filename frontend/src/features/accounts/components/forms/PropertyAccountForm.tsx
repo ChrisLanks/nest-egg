@@ -92,7 +92,7 @@ export const PropertyAccountForm = ({
           </FormControl>
 
           <FormControl isInvalid={!!errors.zip_code} flex={1}>
-            <FormLabel>ZIP Code <Text as="span" fontSize="xs" color="gray.500">(optional)</Text></FormLabel>
+            <FormLabel>ZIP Code <Text as="span" fontSize="xs" color="text.muted">(optional)</Text></FormLabel>
             <Input
               {...register('zip_code')}
               placeholder="e.g., 94102"
@@ -110,7 +110,7 @@ export const PropertyAccountForm = ({
             <option value="vacation_home">Vacation Home</option>
           </Select>
           <FormErrorMessage>{errors.property_classification?.message}</FormErrorMessage>
-          <Text fontSize="xs" color="gray.600" mt={1}>
+          <Text fontSize="xs" color="text.secondary" mt={1}>
             This classification affects tax implications and rental income tracking
           </Text>
         </FormControl>
@@ -127,7 +127,7 @@ export const PropertyAccountForm = ({
           <FormErrorMessage>{errors.property_type?.message}</FormErrorMessage>
         </FormControl>
 
-        <Box p={4} bg="blue.50" borderRadius="md" borderWidth={1} borderColor="blue.200">
+        <Box p={4} bg="bg.info" borderRadius="md" borderWidth={1} borderColor="blue.200">
           <Text fontSize="sm" color="blue.800" mb={2}>
             💡 <strong>Need help estimating your home's value?</strong>
           </Text>
@@ -192,20 +192,20 @@ export const PropertyAccountForm = ({
             )}
           />
           <FormErrorMessage>{errors.mortgage_balance?.message}</FormErrorMessage>
-          <Text fontSize="xs" color="gray.600" mt={1}>
+          <Text fontSize="xs" color="text.secondary" mt={1}>
             Leave blank if you own the property outright
           </Text>
         </FormControl>
 
         {mortgageBalance && mortgageBalance > 0 && (
-          <Box p={3} bg="gray.50" borderRadius="md">
+          <Box p={3} bg="bg.subtle" borderRadius="md">
             <HStack justify="space-between">
               <Text fontWeight="semibold">Home Equity:</Text>
-              <Text fontSize="lg" fontWeight="bold" color={equity >= 0 ? 'green.600' : 'red.600'}>
+              <Text fontSize="lg" fontWeight="bold" color={equity >= 0 ? 'finance.positive' : 'finance.negative'}>
                 ${equity.toLocaleString()}
               </Text>
             </HStack>
-            <Text fontSize="xs" color="gray.600" mt={1}>
+            <Text fontSize="xs" color="text.secondary" mt={1}>
               (Property Value - Mortgage Balance)
             </Text>
           </Box>

@@ -167,13 +167,13 @@ export default function BudgetCard({ budget, onEdit, canEdit = true }: BudgetCar
 
           {/* Remaining amount */}
           <HStack justify="space-between">
-            <Text fontSize="sm" color="gray.600">
+            <Text fontSize="sm" color="text.secondary">
               Remaining
             </Text>
             <Text
               fontSize="sm"
               fontWeight="medium"
-              color={spending?.remaining && spending.remaining < 0 ? 'red.600' : 'green.600'}
+              color={spending?.remaining && spending.remaining < 0 ? 'finance.negative' : 'finance.positive'}
             >
               {formatCurrency(spending?.remaining ?? budget.amount)}
             </Text>
@@ -181,7 +181,7 @@ export default function BudgetCard({ budget, onEdit, canEdit = true }: BudgetCar
 
           {/* Period dates */}
           {spending && (
-            <Text fontSize="xs" color="gray.500">
+            <Text fontSize="xs" color="text.muted">
               {new Date(spending.period_start).toLocaleDateString()} -{' '}
               {new Date(spending.period_end).toLocaleDateString()}
             </Text>

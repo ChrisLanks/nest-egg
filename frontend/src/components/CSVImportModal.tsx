@@ -274,7 +274,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({ isOpen, onClose 
       <ModalContent>
         <ModalHeader>
           Import Transactions from CSV
-          <Text fontSize="sm" fontWeight="normal" color="gray.600" mt={1}>
+          <Text fontSize="sm" fontWeight="normal" color="text.secondary" mt={1}>
             {step === 'upload' && 'Step 1: Upload your CSV file'}
             {step === 'mapping' && 'Step 2: Map columns'}
             {step === 'preview' && 'Step 3: Preview import'}
@@ -333,13 +333,13 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({ isOpen, onClose 
                   pt={1}
                 />
                 {file && (
-                  <Text fontSize="sm" color="gray.600" mt={2}>
+                  <Text fontSize="sm" color="text.secondary" mt={2}>
                     Selected: {file.name} ({(file.size / 1024).toFixed(1)} KB)
                   </Text>
                 )}
               </FormControl>
 
-              <Box bg="gray.50" p={4} borderRadius="md">
+              <Box bg="bg.subtle" p={4} borderRadius="md">
                 <Text fontSize="sm" fontWeight="semibold" mb={2}>
                   💡 Tips for best results:
                 </Text>
@@ -442,7 +442,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({ isOpen, onClose 
                 </Text>
                 <Box overflowX="auto" maxH="200px" overflowY="auto" borderWidth={1} borderRadius="md">
                   <Table size="sm" variant="simple">
-                    <Thead bg="gray.50" position="sticky" top={0}>
+                    <Thead bg="bg.subtle" position="sticky" top={0}>
                       <Tr>
                         {previewData.detected_columns.slice(0, 5).map((col) => (
                           <Th key={col}>{col}</Th>
@@ -502,7 +502,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({ isOpen, onClose 
                   />
                   <FormLabel mb={0}>Skip duplicate transactions</FormLabel>
                 </HStack>
-                <Text fontSize="sm" color="gray.600" ml={6}>
+                <Text fontSize="sm" color="text.secondary" ml={6}>
                   Transactions with matching date, amount, and merchant will be skipped
                 </Text>
               </FormControl>
@@ -543,7 +543,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({ isOpen, onClose 
                   <Text fontSize="3xl" fontWeight="bold" color="green.600">
                     {importResult.imported}
                   </Text>
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color="text.secondary">
                     Imported
                   </Text>
                 </Box>
@@ -552,7 +552,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({ isOpen, onClose 
                     <Text fontSize="3xl" fontWeight="bold" color="orange.600">
                       {importResult.skipped}
                     </Text>
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="text.secondary">
                       Skipped
                     </Text>
                   </Box>
@@ -562,7 +562,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({ isOpen, onClose 
                     <Text fontSize="3xl" fontWeight="bold" color="red.600">
                       {importResult.errors}
                     </Text>
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="text.secondary">
                       Errors
                     </Text>
                   </Box>

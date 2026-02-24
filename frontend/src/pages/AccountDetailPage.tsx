@@ -737,23 +737,23 @@ export const AccountDetailPage = () => {
                 )}
               </HStack>
             )}
-            <Text color="gray.600" mt={1}>
+            <Text color="text.secondary" mt={1}>
               {accountTypeLabels[account.account_type] || account.account_type}
               {account.mask && account.account_type !== 'vehicle' && ` ••${account.mask}`}
             </Text>
           </Box>
           <Box textAlign="right">
-            <Text fontSize="sm" color="gray.600">
+            <Text fontSize="sm" color="text.secondary">
               Current Balance
             </Text>
             <Text
               fontSize="3xl"
               fontWeight="bold"
-              color={isNegative ? 'red.600' : 'brand.600'}
+              color={isNegative ? 'finance.negative' : 'brand.accent'}
             >
               {formatCurrency(balance)}
             </Text>
-            <Text fontSize="xs" color="gray.500">
+            <Text fontSize="xs" color="text.muted">
               Updated: {formatDate(account.balance_as_of)}
             </Text>
           </Box>
@@ -816,7 +816,7 @@ export const AccountDetailPage = () => {
                   <FormLabel fontSize="sm" mb={0}>
                     Exclude from cash flow
                   </FormLabel>
-                  <Text fontSize="xs" color="gray.500" mt={0.5}>
+                  <Text fontSize="xs" color="text.muted" mt={0.5}>
                     Prevents double-counting (e.g., mortgage payments already tracked in checking account)
                   </Text>
                 </Box>
@@ -836,7 +836,7 @@ export const AccountDetailPage = () => {
 
               {/* Account Info */}
               <Box>
-                <Text fontSize="sm" fontWeight="medium" color="gray.600">
+                <Text fontSize="sm" fontWeight="medium" color="text.secondary">
                   Account Source
                 </Text>
                 <Text fontSize="sm">
@@ -849,7 +849,7 @@ export const AccountDetailPage = () => {
               {account.plaid_item_id && (
                 <Box>
                   <HStack justify="space-between" mb={2}>
-                    <Text fontSize="sm" fontWeight="medium" color="gray.600">
+                    <Text fontSize="sm" fontWeight="medium" color="text.secondary">
                       Sync Status
                     </Text>
                     <Tooltip label="Refresh transactions from bank" placement="top">
@@ -866,7 +866,7 @@ export const AccountDetailPage = () => {
                   </HStack>
                   <VStack align="stretch" spacing={1}>
                     <HStack>
-                      <Text fontSize="sm" color="gray.600">Last synced:</Text>
+                      <Text fontSize="sm" color="text.secondary">Last synced:</Text>
                       <Text fontSize="sm" fontWeight="medium">
                         {formatLastSynced(account.last_synced_at)}
                       </Text>
@@ -878,7 +878,7 @@ export const AccountDetailPage = () => {
                         </Badge>
                         {account.last_error_message && (
                           <Tooltip label={account.last_error_message} placement="top">
-                            <Text fontSize="xs" color="gray.600" noOfLines={1}>
+                            <Text fontSize="xs" color="text.secondary" noOfLines={1}>
                               {account.last_error_message}
                             </Text>
                           </Tooltip>
@@ -908,7 +908,7 @@ export const AccountDetailPage = () => {
                     Close Account
                   </Button>
                 </Tooltip>
-                <Text fontSize="xs" color="gray.500" mt={1}>
+                <Text fontSize="xs" color="text.muted" mt={1}>
                   This will permanently delete this account and all associated transactions.
                 </Text>
               </Box>
@@ -963,20 +963,20 @@ export const AccountDetailPage = () => {
                 {/* Current info display */}
                 <HStack spacing={6} wrap="wrap">
                   <Box>
-                    <Text fontSize="xs" color="gray.500">Current Mileage</Text>
+                    <Text fontSize="xs" color="text.muted">Current Mileage</Text>
                     <Text fontWeight="semibold">
                       {account.vehicle_mileage != null ? `${account.vehicle_mileage.toLocaleString()} miles` : 'Not set'}
                     </Text>
                   </Box>
                   <Box>
-                    <Text fontSize="xs" color="gray.500">VIN</Text>
+                    <Text fontSize="xs" color="text.muted">VIN</Text>
                     <Text fontWeight="semibold" fontFamily="mono" fontSize="sm">
                       {account.vehicle_vin ?? 'Not set'}
                     </Text>
                   </Box>
                   {account.last_auto_valued_at && (
                     <Box>
-                      <Text fontSize="xs" color="gray.500">Last Auto-Valued</Text>
+                      <Text fontSize="xs" color="text.muted">Last Auto-Valued</Text>
                       <Text fontWeight="semibold" fontSize="sm">
                         {formatLastSynced(account.last_auto_valued_at)}
                       </Text>
@@ -1006,7 +1006,7 @@ export const AccountDetailPage = () => {
                       />
                     </Tooltip>
                   </HStack>
-                  <Text fontSize="xs" color="gray.500" mt={1}>
+                  <Text fontSize="xs" color="text.muted" mt={1}>
                     Enable for classic or collectible vehicles you consider an investment.
                   </Text>
                 </FormControl>
@@ -1014,7 +1014,7 @@ export const AccountDetailPage = () => {
                 <Divider />
 
                 {!canEditAccount ? (
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color="text.secondary">
                     Vehicle details can only be updated by the account owner.
                   </Text>
                 ) : (
@@ -1030,7 +1030,7 @@ export const AccountDetailPage = () => {
                         size="sm"
                         fontFamily="mono"
                       />
-                      <Text fontSize="xs" color="gray.500" mt={1}>
+                      <Text fontSize="xs" color="text.muted" mt={1}>
                         17-character VIN enables automatic market value updates via MarketCheck API.
                       </Text>
                     </FormControl>
@@ -1047,7 +1047,7 @@ export const AccountDetailPage = () => {
                         >
                           <NumberInputField placeholder={account.vehicle_mileage != null ? String(account.vehicle_mileage) : 'Enter mileage'} />
                         </NumberInput>
-                        <Text fontSize="sm" color="gray.600">
+                        <Text fontSize="sm" color="text.secondary">
                           miles
                         </Text>
                       </HStack>
@@ -1134,7 +1134,7 @@ export const AccountDetailPage = () => {
                 {/* Current info display */}
                 <HStack spacing={6} wrap="wrap">
                   <Box>
-                    <Text fontSize="xs" color="gray.500">Address</Text>
+                    <Text fontSize="xs" color="text.muted">Address</Text>
                     <Text fontWeight="semibold" fontSize="sm">
                       {account.property_address
                         ? `${account.property_address}${account.property_zip ? `, ${account.property_zip}` : ''}`
@@ -1143,7 +1143,7 @@ export const AccountDetailPage = () => {
                   </Box>
                   {account.last_auto_valued_at && (
                     <Box>
-                      <Text fontSize="xs" color="gray.500">Last Auto-Valued</Text>
+                      <Text fontSize="xs" color="text.muted">Last Auto-Valued</Text>
                       <Text fontWeight="semibold" fontSize="sm">
                         {formatLastSynced(account.last_auto_valued_at)}
                       </Text>
@@ -1152,7 +1152,7 @@ export const AccountDetailPage = () => {
                 </HStack>
 
                 {!canEditAccount ? (
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color="text.secondary">
                     Property details can only be updated by the account owner.
                   </Text>
                 ) : (
@@ -1188,7 +1188,7 @@ export const AccountDetailPage = () => {
                     >
                       Save Property Details
                     </Button>
-                    <Text fontSize="xs" color="gray.500">
+                    <Text fontSize="xs" color="text.muted">
                       Address and ZIP are used to fetch automated property valuations.
                     </Text>
                   </>
@@ -1205,7 +1205,7 @@ export const AccountDetailPage = () => {
               <Heading size="md" mb={1}>
                 Loan Details
               </Heading>
-              <Text fontSize="sm" color="gray.500" mb={4}>
+              <Text fontSize="sm" color="text.muted" mb={4}>
                 {account.account_source !== 'manual'
                   ? 'Your bank may not provide these details. Enter them manually to enable cash flow projections and debt payoff planning.'
                   : 'Used for cash flow projections and debt payoff planning.'}
@@ -1217,13 +1217,13 @@ export const AccountDetailPage = () => {
                     <HStack spacing={6} wrap="wrap">
                       {account.interest_rate != null && (
                         <Box>
-                          <Text fontSize="xs" color="gray.500">Interest Rate</Text>
+                          <Text fontSize="xs" color="text.muted">Interest Rate</Text>
                           <Text fontWeight="semibold">{account.interest_rate}%</Text>
                         </Box>
                       )}
                       {account.loan_term_months != null && (
                         <Box>
-                          <Text fontSize="xs" color="gray.500">Loan Term</Text>
+                          <Text fontSize="xs" color="text.muted">Loan Term</Text>
                           <Text fontWeight="semibold">
                             {account.loan_term_months >= 12
                               ? `${Math.round(account.loan_term_months / 12)} years`
@@ -1233,7 +1233,7 @@ export const AccountDetailPage = () => {
                       )}
                       {account.origination_date && (
                         <Box>
-                          <Text fontSize="xs" color="gray.500">Loan Start</Text>
+                          <Text fontSize="xs" color="text.muted">Loan Start</Text>
                           <Text fontWeight="semibold">
                             {new Date(account.origination_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                           </Text>
@@ -1245,7 +1245,7 @@ export const AccountDetailPage = () => {
                 )}
 
                 {!canEditAccount ? (
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color="text.secondary">
                     Loan details can only be updated by the account owner.
                   </Text>
                 ) : (
@@ -1312,7 +1312,7 @@ export const AccountDetailPage = () => {
           <Card>
             <CardBody>
               <Heading size="md" mb={1}>Employer Match</Heading>
-              <Text fontSize="sm" color="gray.600" mb={4}>
+              <Text fontSize="sm" color="text.secondary" mb={4}>
                 Track how much your employer contributes to see your true total retirement savings rate.
               </Text>
 
@@ -1322,19 +1322,19 @@ export const AccountDetailPage = () => {
                   <HStack spacing={6} wrap="wrap" mb={4}>
                     {account.employer_match_percent != null && (
                       <Box>
-                        <Text fontSize="xs" color="gray.500">Employer Matches</Text>
+                        <Text fontSize="xs" color="text.muted">Employer Matches</Text>
                         <Text fontWeight="semibold">{account.employer_match_percent}% of your contribution</Text>
                       </Box>
                     )}
                     {account.employer_match_limit_percent != null && (
                       <Box>
-                        <Text fontSize="xs" color="gray.500">On First</Text>
+                        <Text fontSize="xs" color="text.muted">On First</Text>
                         <Text fontWeight="semibold">{account.employer_match_limit_percent}% of salary</Text>
                       </Box>
                     )}
                     {account.annual_salary != null && (
                       <Box>
-                        <Text fontSize="xs" color="gray.500">Annual Salary</Text>
+                        <Text fontSize="xs" color="text.muted">Annual Salary</Text>
                         <Text fontWeight="semibold">{formatCurrency(account.annual_salary)}</Text>
                       </Box>
                     )}
@@ -1344,7 +1344,7 @@ export const AccountDetailPage = () => {
                       const annualMatch = (matchablePct / 100) * (account.employer_match_percent / 100) * account.annual_salary;
                       const monthlyMatch = annualMatch / 12;
                       return (
-                        <Box bg="green.50" px={3} py={2} borderRadius="md" borderWidth="1px" borderColor="green.200">
+                        <Box bg="bg.success" px={3} py={2} borderRadius="md" borderWidth="1px" borderColor="green.200">
                           <Text fontSize="xs" color="green.700">Employer Contributes</Text>
                           <Text fontWeight="bold" color="green.700">
                             {formatCurrency(annualMatch)}/yr &nbsp;·&nbsp; {formatCurrency(monthlyMatch)}/mo
@@ -1358,7 +1358,7 @@ export const AccountDetailPage = () => {
               )}
 
               {!canEditAccount ? (
-                <Text fontSize="sm" color="gray.600">Employer match can only be updated by the account owner.</Text>
+                <Text fontSize="sm" color="text.secondary">Employer match can only be updated by the account owner.</Text>
               ) : (
                 <>
                   <HStack spacing={4} align="end" wrap="wrap">
@@ -1431,7 +1431,7 @@ export const AccountDetailPage = () => {
                     {accountHoldings.map((h) => (
                       <Tr key={h.id}>
                         <Td fontWeight="bold">{h.ticker}</Td>
-                        <Td color="gray.600">{h.name || '—'}</Td>
+                        <Td color="text.secondary">{h.name || '—'}</Td>
                         <Td isNumeric>{Number(h.shares).toLocaleString(undefined, { maximumFractionDigits: 6 })}</Td>
                         <Td isNumeric>
                           {h.cost_basis_per_share != null
@@ -1464,7 +1464,7 @@ export const AccountDetailPage = () => {
                   </Tbody>
                 </Table>
               ) : (
-                <Text color="gray.500" fontSize="sm" textAlign="center" py={6}>
+                <Text color="text.muted" fontSize="sm" textAlign="center" py={6}>
                   {isManual
                     ? 'No holdings yet. Use "Add Holding" to record your positions.'
                     : 'Holdings are synced from your brokerage.'}
@@ -1481,12 +1481,12 @@ export const AccountDetailPage = () => {
               <Heading size="md" mb={1}>
                 Update Balance
               </Heading>
-              <Text fontSize="sm" color="gray.500" mb={4}>
+              <Text fontSize="sm" color="text.muted" mb={4}>
                 Set the current amount owed to keep your debt tracking accurate.
               </Text>
               <VStack spacing={4} align="stretch">
                 {!canEditAccount ? (
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color="text.secondary">
                     Balance can only be updated by the account owner.
                   </Text>
                 ) : (
@@ -1529,14 +1529,14 @@ export const AccountDetailPage = () => {
               <Heading size="md" mb={1}>
                 {isAssetAccount ? 'Update Value' : 'Update Balance'}
               </Heading>
-              <Text fontSize="sm" color="gray.500" mb={4}>
+              <Text fontSize="sm" color="text.muted" mb={4}>
                 {isAssetAccount
                   ? 'Enter the current market value of this asset to keep your net worth up to date.'
                   : 'Set the current balance to keep your account accurate.'}
               </Text>
               <VStack spacing={4} align="stretch">
                 {!canEditAccount ? (
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color="text.secondary">
                     {isAssetAccount
                       ? 'Value can only be updated by the account owner.'
                       : 'Balance can only be updated by the account owner.'}
@@ -1587,7 +1587,7 @@ export const AccountDetailPage = () => {
               ) : (
                 <Box>
                   <Heading size="md" mb={2}>Recurring Contributions</Heading>
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color="text.secondary">
                     Contributions can only be managed by the account owner.
                   </Text>
                 </Box>
@@ -1614,7 +1614,7 @@ export const AccountDetailPage = () => {
                   </Button>
                 )}
                 {transactionsData && transactionsData.total > 0 && (
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color="text.secondary">
                     Showing {transactionsData.transactions?.length || 0} of {transactionsData.total}
                   </Text>
                 )}
@@ -1675,7 +1675,7 @@ export const AccountDetailPage = () => {
                             <Text
                               fontSize="sm"
                               fontWeight="semibold"
-                              color={isNegative ? 'green.600' : 'red.600'}
+                              color={isNegative ? 'finance.positive' : 'finance.negative'}
                             >
                               {isNegative ? '+' : '-'}
                               {formatCurrency(Math.abs(amount))}
@@ -1700,7 +1700,7 @@ export const AccountDetailPage = () => {
                 )}
               </>
             ) : (
-              <Text color="gray.500" fontSize="sm" textAlign="center" py={8}>
+              <Text color="text.muted" fontSize="sm" textAlign="center" py={8}>
                 No transactions found for this account.
               </Text>
             )}

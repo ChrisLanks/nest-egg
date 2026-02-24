@@ -76,7 +76,7 @@ export const AcceptInvitationPage: React.FC = () => {
             <VStack spacing={4} align="center">
               <WarningIcon w={12} h={12} color="red.500" />
               <Heading size="md">Invalid Invitation Link</Heading>
-              <Text color="gray.600" textAlign="center">
+              <Text color="text.secondary" textAlign="center">
                 The invitation link is missing or invalid. Please check the link and try again.
               </Text>
               <Button colorScheme="blue" onClick={() => navigate('/login')}>
@@ -114,7 +114,7 @@ export const AcceptInvitationPage: React.FC = () => {
             <VStack spacing={4} align="center">
               <WarningIcon w={12} h={12} color="red.500" />
               <Heading size="md">Invitation Not Found</Heading>
-              <Text color="gray.600" textAlign="center">
+              <Text color="text.secondary" textAlign="center">
                 This invitation link is invalid, has expired, or has already been used.
               </Text>
               <Button colorScheme="blue" onClick={() => navigate('/register')}>
@@ -139,7 +139,7 @@ export const AcceptInvitationPage: React.FC = () => {
             <VStack spacing={4} align="center">
               <CheckCircleIcon w={16} h={16} color="green.500" />
               <Heading size="lg">Invitation Accepted!</Heading>
-              <Text color="gray.600" textAlign="center">
+              <Text color="text.secondary" textAlign="center">
                 You have successfully joined the household. You will be redirected to login in a few seconds...
               </Text>
               <Button colorScheme="blue" onClick={() => navigate('/login')}>
@@ -161,7 +161,7 @@ export const AcceptInvitationPage: React.FC = () => {
             <VStack spacing={4} align="center">
               <WarningIcon w={12} h={12} color="orange.500" />
               <Heading size="md">Invitation Expired</Heading>
-              <Text color="gray.600" textAlign="center">
+              <Text color="text.secondary" textAlign="center">
                 This invitation expired on{' '}
                 {new Date(invitation.expires_at).toLocaleDateString('en-US', {
                   year: 'numeric',
@@ -189,7 +189,7 @@ export const AcceptInvitationPage: React.FC = () => {
             <VStack spacing={4} align="center">
               <WarningIcon w={12} h={12} color="orange.500" />
               <Heading size="md">Invitation Already Processed</Heading>
-              <Text color="gray.600" textAlign="center">
+              <Text color="text.secondary" textAlign="center">
                 This invitation has already been {invitation.status}.
               </Text>
               <Button colorScheme="blue" onClick={() => navigate('/login')}>
@@ -210,7 +210,7 @@ export const AcceptInvitationPage: React.FC = () => {
           <Heading size="xl" mb={2}>
             Household Invitation
           </Heading>
-          <Text color="gray.600">
+          <Text color="text.secondary">
             You've been invited to join a household on Nest Egg
           </Text>
         </Box>

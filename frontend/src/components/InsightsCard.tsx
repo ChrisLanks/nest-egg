@@ -73,7 +73,7 @@ export const InsightsCard = () => {
             <HStack
               key={idx}
               p={3}
-              bg={insight.priority === 'high' ? 'red.50' : insight.priority === 'medium' ? 'orange.50' : 'blue.50'}
+              bg={insight.priority === 'high' ? 'bg.error' : insight.priority === 'medium' ? 'bg.warning' : 'bg.info'}
               borderRadius="md"
               borderLeft="4px solid"
               borderLeftColor={
@@ -93,10 +93,10 @@ export const InsightsCard = () => {
                 {insight.icon}
               </Text>
               <VStack align="start" spacing={0} flex={1}>
-                <Text fontWeight="semibold" fontSize="sm" color="gray.800">
+                <Text fontWeight="semibold" fontSize="sm" color="text.primary">
                   {insight.title}
                 </Text>
-                <Text fontSize="xs" color="gray.600">
+                <Text fontSize="xs" color="text.secondary">
                   {insight.message}
                 </Text>
               </VStack>

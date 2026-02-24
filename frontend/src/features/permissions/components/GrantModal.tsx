@@ -255,7 +255,7 @@ export const GrantModal = ({ isOpen, onClose, editGrant }: GrantModalProps) => {
                   <Button onClick={() => setWriteActions([])}>Read Only</Button>
                 </ButtonGroup>
               </HStack>
-              <Text fontSize="xs" color="gray.500" mb={2}>
+              <Text fontSize="xs" color="text.muted" mb={2}>
                 Read access is always included. Select extra write permissions below.
               </Text>
               <CheckboxGroup

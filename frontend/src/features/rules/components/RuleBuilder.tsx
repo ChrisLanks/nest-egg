@@ -348,7 +348,7 @@ export const RuleBuilder = ({ isOpen, onClose, rule, prefillMerchant }: RuleBuil
 
               <VStack spacing={3} align="stretch">
                 {conditions.map((condition, index) => (
-                  <Box key={index} p={3} bg="gray.50" borderRadius="md">
+                  <Box key={index} p={3} bg="bg.subtle" borderRadius="md">
                     <HStack spacing={2} mb={2}>
                       <Select
                         value={condition.field}
@@ -413,7 +413,7 @@ export const RuleBuilder = ({ isOpen, onClose, rule, prefillMerchant }: RuleBuil
                 ))}
 
                 {conditions.length === 0 && (
-                  <Text color="gray.500" fontSize="sm" textAlign="center" py={4}>
+                  <Text color="text.muted" fontSize="sm" textAlign="center" py={4}>
                     No conditions added yet
                   </Text>
                 )}
@@ -433,7 +433,7 @@ export const RuleBuilder = ({ isOpen, onClose, rule, prefillMerchant }: RuleBuil
 
               <VStack spacing={3} align="stretch">
                 {actions.map((action, index) => (
-                  <Box key={index} p={3} bg="gray.50" borderRadius="md">
+                  <Box key={index} p={3} bg="bg.subtle" borderRadius="md">
                     <HStack spacing={2}>
                       <Select
                         value={action.action_type}
@@ -484,7 +484,7 @@ export const RuleBuilder = ({ isOpen, onClose, rule, prefillMerchant }: RuleBuil
                 ))}
 
                 {actions.length === 0 && (
-                  <Text color="gray.500" fontSize="sm" textAlign="center" py={4}>
+                  <Text color="text.muted" fontSize="sm" textAlign="center" py={4}>
                     No actions added yet
                   </Text>
                 )}

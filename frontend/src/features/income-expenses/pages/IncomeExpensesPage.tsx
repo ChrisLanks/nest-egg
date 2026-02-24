@@ -44,6 +44,7 @@ import {
   MenuList,
   MenuItem,
   Checkbox,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -106,6 +107,7 @@ const COLORS = [
 export const IncomeExpensesPage = () => {
   // Use global user view context
   const { selectedUserId } = useUserView();
+  const tooltipBg = useColorModeValue('#FFFFFF', '#2D3748');
 
   // Utility functions defined first to avoid hoisting issues
   const formatCurrency = (amount: number) => {
@@ -1001,7 +1003,7 @@ export const IncomeExpensesPage = () => {
     if (!data || data.length === 0) {
       return (
         <Box textAlign="center" py={10}>
-          <Text color="gray.500">No data to display</Text>
+          <Text color="text.muted">No data to display</Text>
         </Box>
       );
     }
@@ -1054,12 +1056,12 @@ export const IncomeExpensesPage = () => {
                 if (active && payload && payload.length) {
                   const data = payload[0].payload;
                   return (
-                    <Box bg="white" p={3} borderWidth={1} borderRadius="md" boxShadow="md">
+                    <Box bg="bg.surface" p={3} borderWidth={1} borderRadius="md" boxShadow="md">
                       <Text fontWeight="bold">{data.category}</Text>
-                      <Text color={type === 'income' ? 'green.600' : 'red.600'}>
+                      <Text color={type === 'income' ? 'finance.positive' : 'finance.negative'}>
                         {formatCurrency(data.amount)}
                       </Text>
-                      <Text fontSize="sm" color="gray.600">
+                      <Text fontSize="sm" color="text.secondary">
                         {(data.percentage || 0).toFixed(1)}%
                       </Text>
                     </Box>
@@ -1090,7 +1092,7 @@ export const IncomeExpensesPage = () => {
                               px={2}
                               py={1}
                               borderRadius="md"
-                              _hover={{ bg: 'gray.100' }}
+                              _hover={{ bg: 'bg.muted' }}
                               onClick={() => {
                                 if (drillDown.level === 'categories') {
                                   // In merchant grouping mode, top-level items are merchants, not categories
@@ -1195,7 +1197,7 @@ export const IncomeExpensesPage = () => {
 
     if (!sorted || sorted.length === 0) {
       return (
-        <Text color="gray.500" textAlign="center" py={8}>
+        <Text color="text.muted" textAlign="center" py={8}>
           No transactions found
         </Text>
       );
@@ -1204,12 +1206,12 @@ export const IncomeExpensesPage = () => {
     return (
       <Box overflowX="auto">
         <Table variant="simple" size="sm">
-          <Thead bg="gray.50">
+          <Thead bg="bg.subtle">
             <Tr>
               <Th
                 cursor="pointer"
                 onClick={() => handleSort('date', type)}
-                _hover={{ bg: 'gray.100' }}
+                _hover={{ bg: 'bg.muted' }}
               >
                 <HStack spacing={1}>
                   <Text>Date</Text>
@@ -1219,7 +1221,7 @@ export const IncomeExpensesPage = () => {
               <Th
                 cursor="pointer"
                 onClick={() => handleSort('merchant_name', type)}
-                _hover={{ bg: 'gray.100' }}
+                _hover={{ bg: 'bg.muted' }}
               >
                 <HStack spacing={1}>
                   <Text>Merchant</Text>
@@ -1232,7 +1234,7 @@ export const IncomeExpensesPage = () => {
                 isNumeric
                 cursor="pointer"
                 onClick={() => handleSort('amount', type)}
-                _hover={{ bg: 'gray.100' }}
+                _hover={{ bg: 'bg.muted' }}
               >
                 <HStack spacing={1} justify="flex-end">
                   <Text>Amount</Text>
@@ -1247,13 +1249,13 @@ export const IncomeExpensesPage = () => {
                 key={txn.id}
                 onClick={() => handleTransactionClick(txn)}
                 cursor="pointer"
-                _hover={{ bg: 'gray.50' }}
+                _hover={{ bg: 'bg.subtle' }}
               >
                 <Td>{formatDate(txn.date)}</Td>
                 <Td>
                   <Text fontWeight="medium">{txn.merchant_name}</Text>
                   {txn.description && (
-                    <Text fontSize="xs" color="gray.600">
+                    <Text fontSize="xs" color="text.secondary">
                       {txn.description}
                     </Text>
                   )}
@@ -1282,7 +1284,7 @@ export const IncomeExpensesPage = () => {
                 <Td isNumeric>
                   <Text
                     fontWeight="semibold"
-                    color={txn.amount >= 0 ? 'green.600' : 'red.600'}
+                    color={txn.amount >= 0 ? 'finance.positive' : 'finance.negative'}
                   >
                     {formatCurrency(Math.abs(txn.amount))}
                   </Text>
@@ -1302,7 +1304,7 @@ export const IncomeExpensesPage = () => {
         <HStack justify="space-between" align="start">
           <Box>
             <Heading size="lg" mb={2}>Cash Flow</Heading>
-            <Text color="gray.600">
+            <Text color="text.secondary">
               Analyze your income sources and spending patterns
             </Text>
           </Box>
@@ -1311,35 +1313,35 @@ export const IncomeExpensesPage = () => {
 
         {/* Group By Toggle */}
         <HStack>
-          <Text fontSize="sm" fontWeight="medium" color="gray.600">
+          <Text fontSize="sm" fontWeight="medium" color="text.secondary">
             Group by:
           </Text>
           <ButtonGroup size="sm" isAttached variant="outline">
             <Button
               colorScheme={groupBy === 'category' ? 'brand' : 'gray'}
               onClick={() => handleGroupByChange('category')}
-              bg={groupBy === 'category' ? 'brand.50' : 'white'}
+              bg={groupBy === 'category' ? 'brand.subtle' : 'bg.surface'}
             >
               Category
             </Button>
             <Button
               colorScheme={groupBy === 'label' ? 'brand' : 'gray'}
               onClick={() => handleGroupByChange('label')}
-              bg={groupBy === 'label' ? 'brand.50' : 'white'}
+              bg={groupBy === 'label' ? 'brand.subtle' : 'bg.surface'}
             >
               Labels
             </Button>
             <Button
               colorScheme={groupBy === 'merchant' ? 'brand' : 'gray'}
               onClick={() => handleGroupByChange('merchant')}
-              bg={groupBy === 'merchant' ? 'brand.50' : 'white'}
+              bg={groupBy === 'merchant' ? 'brand.subtle' : 'bg.surface'}
             >
               Merchant
             </Button>
             <Button
               colorScheme={groupBy === 'account' ? 'brand' : 'gray'}
               onClick={() => handleGroupByChange('account')}
-              bg={groupBy === 'account' ? 'brand.50' : 'white'}
+              bg={groupBy === 'account' ? 'brand.subtle' : 'bg.surface'}
             >
               Account
             </Button>
@@ -1381,7 +1383,7 @@ export const IncomeExpensesPage = () => {
             <CardBody>
               <Stat>
                 <StatLabel>Total Income</StatLabel>
-                <StatNumber color="green.600">
+                <StatNumber color="finance.positive">
                   {formatCurrency(filteredTotals.total_income)}
                 </StatNumber>
                 <StatHelpText>{dateRange.label}</StatHelpText>
@@ -1393,7 +1395,7 @@ export const IncomeExpensesPage = () => {
             <CardBody>
               <Stat>
                 <StatLabel>Total Expenses</StatLabel>
-                <StatNumber color="red.600">
+                <StatNumber color="finance.negative">
                   {formatCurrency(filteredTotals.total_expenses)}
                 </StatNumber>
                 <StatHelpText>{dateRange.label}</StatHelpText>
@@ -1405,7 +1407,7 @@ export const IncomeExpensesPage = () => {
             <CardBody>
               <Stat>
                 <StatLabel>Net</StatLabel>
-                <StatNumber color={net >= 0 ? 'green.600' : 'red.600'}>
+                <StatNumber color={net >= 0 ? 'finance.positive' : 'finance.negative'}>
                   {net >= 0 ? '+' : ''}
                   {formatCurrency(net)}
                 </StatNumber>
@@ -1439,7 +1441,7 @@ export const IncomeExpensesPage = () => {
                             <CardBody>
                               <Stat size="sm">
                                 <StatLabel fontSize="xs">Total Received</StatLabel>
-                                <StatNumber fontSize="lg" color="green.600">
+                                <StatNumber fontSize="lg" color="finance.positive">
                                   {formatCurrency(combinedStats.totalReceived)}
                                 </StatNumber>
                               </Stat>
@@ -1449,7 +1451,7 @@ export const IncomeExpensesPage = () => {
                             <CardBody>
                               <Stat size="sm">
                                 <StatLabel fontSize="xs">Total Spent</StatLabel>
-                                <StatNumber fontSize="lg" color="red.600">
+                                <StatNumber fontSize="lg" color="finance.negative">
                                   {formatCurrency(combinedStats.totalSpent)}
                                 </StatNumber>
                               </Stat>
@@ -1459,7 +1461,7 @@ export const IncomeExpensesPage = () => {
                             <CardBody>
                               <Stat size="sm">
                                 <StatLabel fontSize="xs">Net Cashflow</StatLabel>
-                                <StatNumber fontSize="lg" color={net >= 0 ? 'green.600' : 'red.600'}>
+                                <StatNumber fontSize="lg" color={net >= 0 ? 'finance.positive' : 'finance.negative'}>
                                   {net >= 0 ? '+' : ''}{formatCurrency(net)}
                                 </StatNumber>
                                 <StatHelpText fontSize="xs">
@@ -1485,7 +1487,7 @@ export const IncomeExpensesPage = () => {
                             <YAxis />
                             <Tooltip
                               formatter={(value: number) => formatCurrency(value)}
-                              contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc' }}
+                              contentStyle={{ backgroundColor: tooltipBg, border: '1px solid #ccc' }}
                             />
                             <Legend />
                             <Bar dataKey="income" fill="#48BB78" name="Income" />
@@ -1513,7 +1515,7 @@ export const IncomeExpensesPage = () => {
                               onClick={() => setIncomeChartType(incomeChartType === 'pie' ? 'bar' : 'pie')}
                             />
                           </HStack>
-                          <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="gray.500" />}>
+                          <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="text.muted" />}>
                             <BreadcrumbItem>
                               <BreadcrumbLink
                                 onClick={() => handleBreadcrumbClick('income', 'categories')}
@@ -1530,7 +1532,7 @@ export const IncomeExpensesPage = () => {
                                     // Go back to parent category level
                                     setIncomeDrillDown({ level: 'merchants', category: incomeDrillDown.parentCategory });
                                   }}
-                                  color="gray.600"
+                                  color="text.secondary"
                                   fontWeight="normal"
                                 >
                                   {incomeDrillDown.parentCategory}
@@ -1606,7 +1608,7 @@ export const IncomeExpensesPage = () => {
                             }
                           })()}
                           <Box>
-                            <Heading size="xs" mb={3} color="gray.600">
+                            <Heading size="xs" mb={3} color="text.secondary">
                               Transactions {incomeDrillDown.category && `in ${incomeDrillDown.category}`}
                               {incomeDrillDown.merchant && ` at ${incomeDrillDown.merchant}`}
                             </Heading>
@@ -1620,11 +1622,11 @@ export const IncomeExpensesPage = () => {
                           </Heading>
                           <Card>
                             <CardBody textAlign="center" py={12}>
-                              <Box as={FiInbox} size="48px" mx="auto" mb={4} color="gray.400" />
-                              <Text color="gray.600" fontWeight="semibold" fontSize="lg" mb={2}>
+                              <Box as={FiInbox} size="48px" mx="auto" mb={4} color="text.muted" />
+                              <Text color="text.secondary" fontWeight="semibold" fontSize="lg" mb={2}>
                                 No income data
                               </Text>
-                              <Text color="gray.500" fontSize="sm">
+                              <Text color="text.muted" fontSize="sm">
                                 No income transactions found for the selected date range
                               </Text>
                             </CardBody>
@@ -1647,7 +1649,7 @@ export const IncomeExpensesPage = () => {
                               onClick={() => setExpenseChartType(expenseChartType === 'pie' ? 'bar' : 'pie')}
                             />
                           </HStack>
-                          <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="gray.500" />}>
+                          <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="text.muted" />}>
                             <BreadcrumbItem>
                               <BreadcrumbLink
                                 onClick={() => handleBreadcrumbClick('expense', 'categories')}
@@ -1664,7 +1666,7 @@ export const IncomeExpensesPage = () => {
                                     // Go back to parent category level
                                     setExpenseDrillDown({ level: 'merchants', category: expenseDrillDown.parentCategory });
                                   }}
-                                  color="gray.600"
+                                  color="text.secondary"
                                   fontWeight="normal"
                                 >
                                   {expenseDrillDown.parentCategory}
@@ -1732,7 +1734,7 @@ export const IncomeExpensesPage = () => {
                             }
                           })()}
                           <Box>
-                            <Heading size="xs" mb={3} color="gray.600">
+                            <Heading size="xs" mb={3} color="text.secondary">
                               Transactions {expenseDrillDown.category && `in ${expenseDrillDown.category}`}
                               {expenseDrillDown.merchant && ` at ${expenseDrillDown.merchant}`}
                             </Heading>
@@ -1746,11 +1748,11 @@ export const IncomeExpensesPage = () => {
                           </Heading>
                           <Card>
                             <CardBody textAlign="center" py={12}>
-                              <Box as={FiInbox} size="48px" mx="auto" mb={4} color="gray.400" />
-                              <Text color="gray.600" fontWeight="semibold" fontSize="lg" mb={2}>
+                              <Box as={FiInbox} size="48px" mx="auto" mb={4} color="text.muted" />
+                              <Text color="text.secondary" fontWeight="semibold" fontSize="lg" mb={2}>
                                 No expense data
                               </Text>
-                              <Text color="gray.500" fontSize="sm">
+                              <Text color="text.muted" fontSize="sm">
                                 No expense transactions found for the selected date range
                               </Text>
                             </CardBody>
@@ -1779,7 +1781,7 @@ export const IncomeExpensesPage = () => {
                           <CardBody>
                             <Stat size="sm">
                               <StatLabel fontSize="xs">Total Received</StatLabel>
-                              <StatNumber fontSize="lg" color="green.600">
+                              <StatNumber fontSize="lg" color="finance.positive">
                                 {formatCurrency(incomeStats.totalAmount)}
                               </StatNumber>
                             </Stat>
@@ -1798,7 +1800,7 @@ export const IncomeExpensesPage = () => {
                         <Card
                           size="sm"
                           cursor="pointer"
-                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          _hover={{ bg: 'bg.subtle', transform: 'scale(1.02)', transition: 'all 0.2s' }}
                           onClick={() => incomeStats.minTransaction && handleTransactionClick(incomeStats.minTransaction)}
                         >
                           <CardBody>
@@ -1807,7 +1809,7 @@ export const IncomeExpensesPage = () => {
                               <StatNumber fontSize="lg">
                                 {formatCurrency(incomeStats.minAmount)}
                               </StatNumber>
-                              <StatHelpText fontSize="xs" color="gray.500">
+                              <StatHelpText fontSize="xs" color="text.muted">
                                 Click to view
                               </StatHelpText>
                             </Stat>
@@ -1816,7 +1818,7 @@ export const IncomeExpensesPage = () => {
                         <Card
                           size="sm"
                           cursor="pointer"
-                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          _hover={{ bg: 'bg.subtle', transform: 'scale(1.02)', transition: 'all 0.2s' }}
                           onClick={() => incomeStats.maxTransaction && handleTransactionClick(incomeStats.maxTransaction)}
                         >
                           <CardBody>
@@ -1825,7 +1827,7 @@ export const IncomeExpensesPage = () => {
                               <StatNumber fontSize="lg">
                                 {formatCurrency(incomeStats.maxAmount)}
                               </StatNumber>
-                              <StatHelpText fontSize="xs" color="gray.500">
+                              <StatHelpText fontSize="xs" color="text.muted">
                                 Click to view
                               </StatHelpText>
                             </Stat>
@@ -1834,7 +1836,7 @@ export const IncomeExpensesPage = () => {
                         <Card
                           size="sm"
                           cursor="pointer"
-                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          _hover={{ bg: 'bg.subtle', transform: 'scale(1.02)', transition: 'all 0.2s' }}
                           onClick={() => incomeStats.topPayee?.transactions?.[0] && handleTransactionClick(incomeStats.topPayee.transactions[0])}
                         >
                           <CardBody>
@@ -1852,7 +1854,7 @@ export const IncomeExpensesPage = () => {
                         <Card
                           size="sm"
                           cursor="pointer"
-                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          _hover={{ bg: 'bg.subtle', transform: 'scale(1.02)', transition: 'all 0.2s' }}
                           onClick={() => incomeStats.mostTransactions?.transactions?.[0] && handleTransactionClick(incomeStats.mostTransactions.transactions[0])}
                         >
                           <CardBody>
@@ -1884,7 +1886,7 @@ export const IncomeExpensesPage = () => {
                             onClick={() => setIncomeChartType(incomeChartType === 'pie' ? 'bar' : 'pie')}
                           />
                         </HStack>
-                        <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="gray.500" />}>
+                        <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="text.muted" />}>
                           <BreadcrumbItem>
                             <BreadcrumbLink
                               onClick={() => handleBreadcrumbClick('income', 'categories')}
@@ -1901,7 +1903,7 @@ export const IncomeExpensesPage = () => {
                                   // Go back to parent category level
                                   setIncomeDrillDown({ level: 'merchants', category: incomeDrillDown.parentCategory });
                                 }}
-                                color="gray.600"
+                                color="text.secondary"
                                 fontWeight="normal"
                               >
                                 {incomeDrillDown.parentCategory}
@@ -1952,11 +1954,11 @@ export const IncomeExpensesPage = () => {
                         </HStack>
                         <Card>
                           <CardBody textAlign="center" py={16}>
-                            <Box as={FiInbox} size="64px" mx="auto" mb={6} color="gray.300" />
-                            <Text color="gray.600" fontSize="xl" fontWeight="semibold" mb={3}>
+                            <Box as={FiInbox} size="64px" mx="auto" mb={6} color="text.muted" />
+                            <Text color="text.secondary" fontSize="xl" fontWeight="semibold" mb={3}>
                               No income data
                             </Text>
-                            <Text color="gray.500" maxW="md" mx="auto">
+                            <Text color="text.muted" maxW="md" mx="auto">
                               No income transactions found for the selected date range. Try selecting a different date range or check if income transactions have been imported.
                             </Text>
                           </CardBody>
@@ -1984,7 +1986,7 @@ export const IncomeExpensesPage = () => {
                           <CardBody>
                             <Stat size="sm">
                               <StatLabel fontSize="xs">Total Spent</StatLabel>
-                              <StatNumber fontSize="lg" color="red.600">
+                              <StatNumber fontSize="lg" color="finance.negative">
                                 {formatCurrency(expenseStats.totalAmount)}
                               </StatNumber>
                             </Stat>
@@ -2003,7 +2005,7 @@ export const IncomeExpensesPage = () => {
                         <Card
                           size="sm"
                           cursor="pointer"
-                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          _hover={{ bg: 'bg.subtle', transform: 'scale(1.02)', transition: 'all 0.2s' }}
                           onClick={() => expenseStats.minTransaction && handleTransactionClick(expenseStats.minTransaction)}
                         >
                           <CardBody>
@@ -2012,7 +2014,7 @@ export const IncomeExpensesPage = () => {
                               <StatNumber fontSize="lg">
                                 {formatCurrency(expenseStats.minAmount)}
                               </StatNumber>
-                              <StatHelpText fontSize="xs" color="gray.500">
+                              <StatHelpText fontSize="xs" color="text.muted">
                                 Click to view
                               </StatHelpText>
                             </Stat>
@@ -2021,7 +2023,7 @@ export const IncomeExpensesPage = () => {
                         <Card
                           size="sm"
                           cursor="pointer"
-                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          _hover={{ bg: 'bg.subtle', transform: 'scale(1.02)', transition: 'all 0.2s' }}
                           onClick={() => expenseStats.maxTransaction && handleTransactionClick(expenseStats.maxTransaction)}
                         >
                           <CardBody>
@@ -2030,7 +2032,7 @@ export const IncomeExpensesPage = () => {
                               <StatNumber fontSize="lg">
                                 {formatCurrency(expenseStats.maxAmount)}
                               </StatNumber>
-                              <StatHelpText fontSize="xs" color="gray.500">
+                              <StatHelpText fontSize="xs" color="text.muted">
                                 Click to view
                               </StatHelpText>
                             </Stat>
@@ -2039,7 +2041,7 @@ export const IncomeExpensesPage = () => {
                         <Card
                           size="sm"
                           cursor="pointer"
-                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          _hover={{ bg: 'bg.subtle', transform: 'scale(1.02)', transition: 'all 0.2s' }}
                           onClick={() => expenseStats.topMerchant?.transactions?.[0] && handleTransactionClick(expenseStats.topMerchant.transactions[0])}
                         >
                           <CardBody>
@@ -2057,7 +2059,7 @@ export const IncomeExpensesPage = () => {
                         <Card
                           size="sm"
                           cursor="pointer"
-                          _hover={{ bg: 'gray.50', transform: 'scale(1.02)', transition: 'all 0.2s' }}
+                          _hover={{ bg: 'bg.subtle', transform: 'scale(1.02)', transition: 'all 0.2s' }}
                           onClick={() => expenseStats.mostTransactions?.transactions?.[0] && handleTransactionClick(expenseStats.mostTransactions.transactions[0])}
                         >
                           <CardBody>
@@ -2089,7 +2091,7 @@ export const IncomeExpensesPage = () => {
                             onClick={() => setExpenseChartType(expenseChartType === 'pie' ? 'bar' : 'pie')}
                           />
                         </HStack>
-                        <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="gray.500" />}>
+                        <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="text.muted" />}>
                           <BreadcrumbItem>
                             <BreadcrumbLink
                               onClick={() => handleBreadcrumbClick('expense', 'categories')}
@@ -2106,7 +2108,7 @@ export const IncomeExpensesPage = () => {
                                   // Go back to parent category level
                                   setExpenseDrillDown({ level: 'merchants', category: expenseDrillDown.parentCategory });
                                 }}
-                                color="gray.600"
+                                color="text.secondary"
                                 fontWeight="normal"
                               >
                                 {expenseDrillDown.parentCategory}
@@ -2157,11 +2159,11 @@ export const IncomeExpensesPage = () => {
                         </HStack>
                         <Card>
                           <CardBody textAlign="center" py={16}>
-                            <Box as={FiInbox} size="64px" mx="auto" mb={6} color="gray.300" />
-                            <Text color="gray.600" fontSize="xl" fontWeight="semibold" mb={3}>
+                            <Box as={FiInbox} size="64px" mx="auto" mb={6} color="text.muted" />
+                            <Text color="text.secondary" fontSize="xl" fontWeight="semibold" mb={3}>
                               No expense data
                             </Text>
-                            <Text color="gray.500" maxW="md" mx="auto">
+                            <Text color="text.muted" maxW="md" mx="auto">
                               No expense transactions found for the selected date range. Try selecting a different date range or check if expense transactions have been imported.
                             </Text>
                           </CardBody>
@@ -2179,10 +2181,10 @@ export const IncomeExpensesPage = () => {
         {summary && filteredSummary && filteredSummary.income_categories.length === 0 && filteredSummary.expense_categories.length === 0 && (
           <Card>
             <CardBody textAlign="center" py={12}>
-              <Text color="gray.600" fontSize="lg">
+              <Text color="text.secondary" fontSize="lg">
                 No transactions found for the selected date range
               </Text>
-              <Text color="gray.500" mt={2}>
+              <Text color="text.muted" mt={2}>
                 Try selecting a different date range or add some transactions
               </Text>
             </CardBody>

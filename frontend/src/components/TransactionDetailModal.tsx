@@ -336,7 +336,7 @@ export const TransactionDetailModal = ({
               <Text
                 fontSize="2xl"
                 fontWeight="bold"
-                color={isNegative ? 'red.600' : 'green.600'}
+                color={isNegative ? 'finance.negative' : 'finance.positive'}
               >
                 {isNegative ? '-' : '+'}
                 {formatted}
@@ -361,10 +361,10 @@ export const TransactionDetailModal = ({
             <Box>
               <HStack justify="space-between" align="center">
                 <Box>
-                  <Text fontSize="sm" fontWeight="medium" color="gray.700">
+                  <Text fontSize="sm" fontWeight="medium" color="text.heading">
                     Transfer Transaction
                   </Text>
-                  <Text fontSize="xs" color="gray.500">
+                  <Text fontSize="xs" color="text.muted">
                     Transfers are excluded from cash flow and budgets
                   </Text>
                 </Box>
@@ -387,7 +387,7 @@ export const TransactionDetailModal = ({
 
             {/* Date */}
             <Box>
-              <Text fontSize="sm" color="gray.600">
+              <Text fontSize="sm" color="text.secondary">
                 Date
               </Text>
               <Text fontWeight="medium">{formatDate(currentTransaction.date)}</Text>
@@ -404,7 +404,7 @@ export const TransactionDetailModal = ({
               />
             ) : (
               <Box>
-                <Text fontSize="sm" color="gray.600">
+                <Text fontSize="sm" color="text.secondary">
                   Merchant
                 </Text>
                 <Text fontWeight="medium" fontSize="lg">
@@ -422,20 +422,20 @@ export const TransactionDetailModal = ({
               />
             ) : (
               <Box>
-                <Text fontSize="sm" color="gray.600">
+                <Text fontSize="sm" color="text.secondary">
                   Category
                 </Text>
                 {currentTransaction.category_primary ? (
                   <Badge colorScheme="blue">{currentTransaction.category_primary}</Badge>
                 ) : (
-                  <Text color="gray.500">No category</Text>
+                  <Text color="text.muted">No category</Text>
                 )}
               </Box>
             )}
 
             {/* Labels */}
             <Box>
-              <Text fontSize="sm" color="gray.600" mb={2}>
+              <Text fontSize="sm" color="text.secondary" mb={2}>
                 Labels
               </Text>
               {displayedLabels.length > 0 ? (
@@ -467,17 +467,17 @@ export const TransactionDetailModal = ({
                   ))}
                 </Wrap>
               ) : (
-                <Text color="gray.500" fontSize="sm">
+                <Text color="text.muted" fontSize="sm">
                   No labels
                 </Text>
               )}
 
               {/* Add label in edit mode */}
               {isEditing && (
-                <VStack align="stretch" mt={3} spacing={3} p={3} bg="gray.50" borderRadius="md">
+                <VStack align="stretch" mt={3} spacing={3} p={3} bg="bg.subtle" borderRadius="md">
                   {unusedLabels && unusedLabels.length > 0 ? (
                     <Box>
-                      <Text fontSize="sm" fontWeight="medium" color="gray.700" mb={2}>
+                      <Text fontSize="sm" fontWeight="medium" color="text.heading" mb={2}>
                         Add existing label:
                       </Text>
                       <Wrap spacing={2}>
@@ -496,7 +496,7 @@ export const TransactionDetailModal = ({
                       </Wrap>
                     </Box>
                   ) : (
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="text.secondary">
                       {availableLabels && availableLabels.length > 0
                         ? 'All labels already added'
                         : 'No labels created yet'}
@@ -506,7 +506,7 @@ export const TransactionDetailModal = ({
                   <Divider />
 
                   <Box>
-                    <Text fontSize="sm" fontWeight="medium" color="gray.700" mb={2}>
+                    <Text fontSize="sm" fontWeight="medium" color="text.heading" mb={2}>
                       Create new label:
                     </Text>
                     <HStack>
@@ -539,7 +539,7 @@ export const TransactionDetailModal = ({
 
             {/* Account */}
             <Box>
-              <Text fontSize="sm" color="gray.600">
+              <Text fontSize="sm" color="text.secondary">
                 Account
               </Text>
               <Text fontWeight="medium">
@@ -551,7 +551,7 @@ export const TransactionDetailModal = ({
             {/* Description */}
             {currentTransaction.description && (
               <Box>
-                <Text fontSize="sm" color="gray.600">
+                <Text fontSize="sm" color="text.secondary">
                   Description
                 </Text>
                 <Text>{currentTransaction.description}</Text>
@@ -605,7 +605,7 @@ export const TransactionDetailModal = ({
                   Create Rule for "{currentTransaction.merchant_name}"
                 </Button>
                 {!canEdit && (
-                  <Text fontSize="xs" color="gray.500" textAlign="center">
+                  <Text fontSize="xs" color="text.muted" textAlign="center">
                     Read-only: This transaction belongs to another household member
                   </Text>
                 )}

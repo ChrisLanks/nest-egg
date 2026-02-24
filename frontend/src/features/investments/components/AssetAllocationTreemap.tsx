@@ -215,7 +215,7 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
           </Button>
           {breadcrumbs.map((crumb, index) => (
             <HStack key={index} spacing={2}>
-              <Text color="gray.500">/</Text>
+              <Text color="text.muted">/</Text>
               <Button
                 size="sm"
                 variant="ghost"
@@ -227,7 +227,7 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
           ))}
           {currentNode !== data && (
             <>
-              <Text color="gray.500">/</Text>
+              <Text color="text.muted">/</Text>
               <Text fontWeight="bold">{currentNode.name}</Text>
             </>
           )}
@@ -258,7 +258,7 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
             animationDuration={200}
           />
         ) : (
-          <Text fontSize="sm" color="gray.600" textAlign="center" py={8}>
+          <Text fontSize="sm" color="text.secondary" textAlign="center" py={8}>
             No data to display
           </Text>
         )}
@@ -267,7 +267,7 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
       {/* Legend */}
       {currentNode.children && currentNode.children.length > 0 && (
         <Box mt={4}>
-          <Text fontSize="sm" fontWeight="semibold" mb={2} color="gray.700">
+          <Text fontSize="sm" fontWeight="semibold" mb={2} color="text.heading">
             Categories:
           </Text>
           <HStack spacing={3} flexWrap="wrap">
@@ -279,7 +279,7 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
                   bg={child.color}
                   borderRadius="2px"
                 />
-                <Text fontSize="sm" color="gray.700">
+                <Text fontSize="sm" color="text.heading">
                   {child.name}: {child.percent.toFixed(1)}%
                 </Text>
               </HStack>
@@ -290,7 +290,7 @@ export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTre
 
       {/* Help Text */}
       {currentNode.children && currentNode.children.length > 0 && (
-        <Text fontSize="sm" color="gray.600" mt={2}>
+        <Text fontSize="sm" color="text.secondary" mt={2}>
           Click on a category to drill down
         </Text>
       )}

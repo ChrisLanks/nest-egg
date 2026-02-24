@@ -72,7 +72,7 @@ export const NetWorthProjectionWidget: React.FC = () => {
       </HStack>
 
       {netWorth <= 0 ? (
-        <Text color="gray.500" fontSize="sm">
+        <Text color="text.muted" fontSize="sm">
           Net worth data not available. Add accounts to see projections.
         </Text>
       ) : (

@@ -295,16 +295,16 @@ export const InvestmentAccountForm = ({
               </Text>
             )}
 
-            <Box mt={4} p={3} bg="gray.50" borderRadius="md">
+            <Box mt={4} p={3} bg="bg.subtle" borderRadius="md">
               <HStack justify="space-between">
                 <Text fontWeight="semibold">Total Portfolio Value:</Text>
-                <Text fontSize="lg" fontWeight="bold" color="brand.600">
+                <Text fontSize="lg" fontWeight="bold" color="brand.accent">
                   ${totalValue.toFixed(2)}
                 </Text>
               </HStack>
             </Box>
 
-            <Text fontSize="xs" color="gray.600" mt={2}>
+            <Text fontSize="xs" color="text.secondary" mt={2}>
               💡 Tip: You can manually enter stock prices or look them up on Yahoo Finance or Google
             </Text>
           </Box>

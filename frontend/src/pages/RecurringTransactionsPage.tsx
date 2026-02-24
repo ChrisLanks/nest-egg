@@ -426,9 +426,9 @@ export default function RecurringTransactionsPage() {
         left={0}
         right={0}
         zIndex={10}
-        bg="white"
+        bg="bg.surface"
         border="1px solid"
-        borderColor="gray.200"
+        borderColor="border.default"
         borderRadius="md"
         boxShadow="md"
         maxH="200px"
@@ -440,7 +440,7 @@ export default function RecurringTransactionsPage() {
             px={3}
             py={2}
             cursor="pointer"
-            _hover={{ bg: 'gray.100' }}
+            _hover={{ bg: 'bg.muted' }}
             onMouseDown={(e) => {
               e.preventDefault();
               onSelect(m);
@@ -457,7 +457,7 @@ export default function RecurringTransactionsPage() {
       <VStack align="stretch" spacing={6}>
         {/* Read-only banner */}
         {isOtherUserView && !canEdit && (
-          <Box p={4} bg="orange.50" borderRadius="md" borderWidth={1} borderColor="orange.200">
+          <Box p={4} bg="bg.warning" borderRadius="md" borderWidth={1} borderColor="orange.200">
             <HStack>
               <FiLock size={16} color="orange.600" />
               <Text fontSize="sm" color="orange.800" fontWeight="medium">
@@ -471,7 +471,7 @@ export default function RecurringTransactionsPage() {
         <HStack justify="space-between">
           <VStack align="start" spacing={1}>
             <Heading size="lg">Recurring Transactions & Subscriptions</Heading>
-            <Text color="gray.600">
+            <Text color="text.secondary">
               Auto-detected patterns and subscription charges
             </Text>
           </VStack>
@@ -570,7 +570,7 @@ export default function RecurringTransactionsPage() {
                               <Tr
                                 key={pattern.id}
                                 opacity={pattern.is_active ? 1 : 0.5}
-                                bg={pattern.is_active ? undefined : 'gray.50'}
+                                bg={pattern.is_active ? undefined : 'bg.subtle'}
                               >
                                 <Td fontWeight="medium">{pattern.merchant_name}</Td>
                                 <Td>
@@ -619,8 +619,8 @@ export default function RecurringTransactionsPage() {
                     </CardBody>
                   </Card>
 
-                  <Box p={4} bg="blue.50" borderRadius="md">
-                    <Text fontSize="sm" color="gray.700">
+                  <Box p={4} bg="bg.info" borderRadius="md">
+                    <Text fontSize="sm" color="text.heading">
                       💡 <strong>Tip:</strong> Patterns are auto-detected from your transaction history.
                       Use <strong>Add Recurring</strong> to add one manually. Click{' '}
                       <strong>pause</strong> to deactivate a pattern — it will be excluded from cash flow
@@ -650,7 +650,7 @@ export default function RecurringTransactionsPage() {
                       <CardBody>
                         <Stat>
                           <StatLabel>Monthly Cost</StatLabel>
-                          <StatNumber color="red.600">
+                          <StatNumber color="finance.negative">
                             {formatCurrency(subscriptionSummary.monthlyTotal)}
                           </StatNumber>
                           <StatHelpText>Recurring charges</StatHelpText>
@@ -726,7 +726,7 @@ export default function RecurringTransactionsPage() {
                   )}
 
                   <Box p={4} bg="purple.50" borderRadius="md">
-                    <Text fontSize="sm" color="gray.700">
+                    <Text fontSize="sm" color="text.heading">
                       💡 <strong>Subscriptions</strong> are recurring charges that happen monthly or yearly
                       with high confidence (70%+). They are auto-detected from your transaction history.
                       To manually track a subscription not yet imported, use{' '}
@@ -813,7 +813,7 @@ export default function RecurringTransactionsPage() {
                     colorScheme="brand"
                   />
                 </HStack>
-                <Text fontSize="xs" color="gray.500" mt={1}>
+                <Text fontSize="xs" color="text.muted" mt={1}>
                   Bills appear in the upcoming bills calendar and trigger reminders.
                 </Text>
               </FormControl>
@@ -939,7 +939,7 @@ export default function RecurringTransactionsPage() {
                     colorScheme="brand"
                   />
                 </HStack>
-                <Text fontSize="xs" color="gray.500" mt={1}>
+                <Text fontSize="xs" color="text.muted" mt={1}>
                   Bills appear in the upcoming bills calendar and trigger reminders.
                 </Text>
               </FormControl>

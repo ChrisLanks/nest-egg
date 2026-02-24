@@ -140,7 +140,7 @@ export const RulesPage = () => {
         <HStack justify="space-between">
           <Box>
             <Heading size="lg">Transaction Rules</Heading>
-            <Text color="gray.600" mt={1}>
+            <Text color="text.secondary" mt={1}>
               Automatically categorize and label transactions based on conditions
             </Text>
           </Box>
@@ -150,7 +150,7 @@ export const RulesPage = () => {
         </HStack>
 
         {rules && rules.length > 0 ? (
-          <Box overflowX="auto" bg="white" borderRadius="lg" shadow="sm">
+          <Box overflowX="auto" bg="bg.surface" borderRadius="lg" shadow="sm">
             <Table variant="simple">
               <Thead>
                 <Tr>
@@ -177,7 +177,7 @@ export const RulesPage = () => {
                       <VStack align="start" spacing={1}>
                         <Text fontWeight="medium">{rule.name}</Text>
                         {rule.description && (
-                          <Text fontSize="sm" color="gray.600">
+                          <Text fontSize="sm" color="text.secondary">
                             {rule.description}
                           </Text>
                         )}
@@ -234,8 +234,8 @@ export const RulesPage = () => {
             </Table>
           </Box>
         ) : (
-          <Box textAlign="center" py={12} bg="gray.50" borderRadius="lg">
-            <Text color="gray.600" mb={4}>
+          <Box textAlign="center" py={12} bg="bg.subtle" borderRadius="lg">
+            <Text color="text.secondary" mb={4}>
               No rules created yet. Create your first rule to automate transaction categorization.
             </Text>
             <Button leftIcon={<AddIcon />} colorScheme="brand" onClick={handleCreate}>

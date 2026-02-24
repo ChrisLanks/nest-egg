@@ -41,7 +41,7 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
     return (
       <VStack spacing={6} align="center" py={8}>
         <Spinner size="lg" color="brand.500" />
-        <Text color="gray.600">Loading account providers...</Text>
+        <Text color="text.secondary">Loading account providers...</Text>
       </VStack>
     );
   }
@@ -52,7 +52,7 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
 
   return (
     <VStack spacing={6} align="stretch">
-      <Text fontSize="md" color="gray.600">
+      <Text fontSize="md" color="text.secondary">
         Choose how you'd like to add your account
       </Text>
 
@@ -69,10 +69,10 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
             p={6}
             borderWidth={2}
             borderRadius="lg"
-            borderColor="gray.200"
+            borderColor="border.default"
             _hover={plaidEnabled ? {
               borderColor: 'brand.500',
-              bg: 'brand.50',
+              bg: 'brand.subtle',
               transform: 'translateY(-2px)',
               shadow: 'md',
             } : {}}
@@ -94,7 +94,7 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
             <VStack spacing={3}>
               <Icon as={FiLink} boxSize={8} color="brand.500" />
               <Text fontWeight="bold">Plaid</Text>
-              <Text fontSize="sm" color="gray.600" textAlign="center">
+              <Text fontSize="sm" color="text.secondary" textAlign="center">
                 11,000+ institutions. Comprehensive support.
               </Text>
               {!plaidEnabled && (
@@ -118,10 +118,10 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
             p={6}
             borderWidth={2}
             borderRadius="lg"
-            borderColor="gray.200"
+            borderColor="border.default"
             _hover={tellerEnabled ? {
               borderColor: 'green.500',
-              bg: 'green.50',
+              bg: 'bg.success',
               transform: 'translateY(-2px)',
               shadow: 'md',
             } : {}}
@@ -153,7 +153,7 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
             <VStack spacing={3}>
               <Icon as={FiDollarSign} boxSize={8} color="green.500" />
               <Text fontWeight="bold">Teller</Text>
-              <Text fontSize="sm" color="gray.600" textAlign="center">
+              <Text fontSize="sm" color="text.secondary" textAlign="center">
                 100 free accounts/month. Simple & affordable.
               </Text>
               {!tellerEnabled && (
@@ -177,7 +177,7 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
             p={6}
             borderWidth={2}
             borderRadius="lg"
-            borderColor="gray.200"
+            borderColor="border.default"
             transition="all 0.2s"
             cursor="not-allowed"
             opacity={0.5}
@@ -188,13 +188,13 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
               position="absolute"
               top={2}
               right={2}
-              color="gray.400"
+              color="text.muted"
               boxSize={5}
             />
             <VStack spacing={3}>
               <Icon as={FiLink} boxSize={8} color="brand.500" />
               <Text fontWeight="bold">MX</Text>
-              <Text fontSize="sm" color="gray.600" textAlign="center">
+              <Text fontSize="sm" color="text.secondary" textAlign="center">
                 Alternative provider
               </Text>
               <Badge colorScheme="gray" fontSize="xs">
@@ -211,10 +211,10 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
           p={6}
           borderWidth={2}
           borderRadius="lg"
-          borderColor="gray.200"
+          borderColor="border.default"
           _hover={{
             borderColor: 'brand.500',
-            bg: 'brand.50',
+            bg: 'brand.subtle',
             transform: 'translateY(-2px)',
             shadow: 'md',
           }}
@@ -224,7 +224,7 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
           <VStack spacing={3}>
             <Icon as={FiEdit3} boxSize={8} color="brand.500" />
             <Text fontWeight="bold">Manual</Text>
-            <Text fontSize="sm" color="gray.600" textAlign="center">
+            <Text fontSize="sm" color="text.secondary" textAlign="center">
               Enter account details yourself
             </Text>
           </VStack>

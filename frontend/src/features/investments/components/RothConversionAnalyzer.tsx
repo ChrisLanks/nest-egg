@@ -175,7 +175,7 @@ export const RothConversionAnalyzer: React.FC = () => {
       {/* Header */}
       <Box>
         <Heading size="md" mb={1}>Roth Conversion Analyzer</Heading>
-        <Text fontSize="sm" color="gray.600">
+        <Text fontSize="sm" color="text.secondary">
           Model the long-term tax impact of converting traditional retirement funds to Roth.
         </Text>
       </Box>
@@ -201,7 +201,7 @@ export const RothConversionAnalyzer: React.FC = () => {
                   Traditional Balance to Analyze
                   <Tooltip label={fetchedBalance > 0 ? `Auto-filled from your accounts (${formatCurrency(fetchedBalance)}). Edit to run a hypothetical.` : 'Enter your traditional IRA or 401(k) balance'} placement="top">
                     <Box as="span" display="inline-flex" ml={1} verticalAlign="middle" cursor="help">
-                      <Icon as={FiInfo} boxSize={3} color="gray.400" />
+                      <Icon as={FiInfo} boxSize={3} color="text.muted" />
                     </Box>
                   </Tooltip>
                 </FormLabel>
@@ -228,7 +228,7 @@ export const RothConversionAnalyzer: React.FC = () => {
                   Current Tax Bracket
                   <Tooltip label="Your marginal federal income tax rate today" placement="top">
                     <Box as="span" display="inline-flex" ml={1} verticalAlign="middle" cursor="help">
-                      <Icon as={FiInfo} boxSize={3} color="gray.400" />
+                      <Icon as={FiInfo} boxSize={3} color="text.muted" />
                     </Box>
                   </Tooltip>
                 </FormLabel>
@@ -248,7 +248,7 @@ export const RothConversionAnalyzer: React.FC = () => {
                   Expected Retirement Tax Bracket
                   <Tooltip label="Your estimated marginal rate in retirement" placement="top">
                     <Box as="span" display="inline-flex" ml={1} verticalAlign="middle" cursor="help">
-                      <Icon as={FiInfo} boxSize={3} color="gray.400" />
+                      <Icon as={FiInfo} boxSize={3} color="text.muted" />
                     </Box>
                   </Tooltip>
                 </FormLabel>
@@ -268,7 +268,7 @@ export const RothConversionAnalyzer: React.FC = () => {
                   <FormLabel fontSize="sm" mb={0}>
                     Annual Conversion Amount
                   </FormLabel>
-                  <Text fontSize="sm" fontWeight="semibold" color="brand.600">
+                  <Text fontSize="sm" fontWeight="semibold" color="brand.accent">
                     {formatCurrency(annualConversion)}
                   </Text>
                 </HStack>
@@ -286,8 +286,8 @@ export const RothConversionAnalyzer: React.FC = () => {
                   <SliderThumb />
                 </Slider>
                 <HStack justify="space-between" mt={1}>
-                  <Text fontSize="xs" color="gray.500">$1K</Text>
-                  <Text fontSize="xs" color="gray.500">
+                  <Text fontSize="xs" color="text.muted">$1K</Text>
+                  <Text fontSize="xs" color="text.muted">
                     {formatCurrency(Math.max(1000, Math.min(100000, traditionalBalance)))}
                   </Text>
                 </HStack>
@@ -298,7 +298,7 @@ export const RothConversionAnalyzer: React.FC = () => {
                   <FormLabel fontSize="sm" mb={0}>
                     Expected Annual Return
                   </FormLabel>
-                  <Text fontSize="sm" fontWeight="semibold" color="brand.600">
+                  <Text fontSize="sm" fontWeight="semibold" color="brand.accent">
                     {annualReturn}%
                   </Text>
                 </HStack>
@@ -316,14 +316,14 @@ export const RothConversionAnalyzer: React.FC = () => {
                   <SliderThumb />
                 </Slider>
                 <HStack justify="space-between" mt={1}>
-                  <Text fontSize="xs" color="gray.500">3%</Text>
-                  <Text fontSize="xs" color="gray.500">12%</Text>
+                  <Text fontSize="xs" color="text.muted">3%</Text>
+                  <Text fontSize="xs" color="text.muted">12%</Text>
                 </HStack>
               </FormControl>
 
               {data?.current_age && (
-                <Box p={3} bg="gray.50" borderRadius="md">
-                  <Text fontSize="sm" color="gray.600">
+                <Box p={3} bg="bg.subtle" borderRadius="md">
+                  <Text fontSize="sm" color="text.secondary">
                     Current age: <strong>{data.current_age}</strong> ·{' '}
                     Years until RMD age (73): <strong>{yearsUntilRmd}</strong>
                   </Text>
@@ -339,7 +339,7 @@ export const RothConversionAnalyzer: React.FC = () => {
           <Card
             variant="outline"
             borderColor={isConversionBeneficial ? 'green.300' : 'yellow.300'}
-            bg={isConversionBeneficial ? 'green.50' : 'yellow.50'}
+            bg={isConversionBeneficial ? 'bg.success' : 'yellow.50'}
           >
             <CardBody>
               <HStack justify="space-between" align="start">
@@ -393,7 +393,7 @@ export const RothConversionAnalyzer: React.FC = () => {
               <CardBody>
                 <Stat>
                   <StatLabel fontSize="xs">Taxes Paid on Conversions</StatLabel>
-                  <StatNumber fontSize="lg" color="red.600">
+                  <StatNumber fontSize="lg" color="finance.negative">
                     {formatCurrency(totalTaxesPaid)}
                   </StatNumber>
                   <StatHelpText fontSize="xs">
@@ -407,7 +407,7 @@ export const RothConversionAnalyzer: React.FC = () => {
               <CardBody>
                 <Stat>
                   <StatLabel fontSize="xs">Annual RMD Tax Savings</StatLabel>
-                  <StatNumber fontSize="lg" color="green.600">
+                  <StatNumber fontSize="lg" color="finance.positive">
                     {formatCurrency(annualRmdTaxSavings)}
                   </StatNumber>
                   <StatHelpText fontSize="xs">
@@ -425,7 +425,7 @@ export const RothConversionAnalyzer: React.FC = () => {
                 <StatLabel>Break-Even Point</StatLabel>
                 {breakEvenYears !== null && annualRmdTaxSavings > 0 ? (
                   <>
-                    <StatNumber color="brand.600">
+                    <StatNumber color="brand.accent">
                       {breakEvenYears} {breakEvenYears === 1 ? 'year' : 'years'} after RMD begins
                     </StatNumber>
                     <StatHelpText>
@@ -433,7 +433,7 @@ export const RothConversionAnalyzer: React.FC = () => {
                     </StatHelpText>
                   </>
                 ) : (
-                  <StatNumber color="gray.500">N/A</StatNumber>
+                  <StatNumber color="text.muted">N/A</StatNumber>
                 )}
               </Stat>
             </CardBody>
@@ -467,7 +467,7 @@ export const RothConversionAnalyzer: React.FC = () => {
       <Card variant="outline">
         <CardBody>
           <Heading size="sm" mb={1}>Retirement Break-Even Table</Heading>
-          <Text fontSize="xs" color="gray.600" mb={4}>
+          <Text fontSize="xs" color="text.secondary" mb={4}>
             Cumulative RMD tax savings vs. taxes paid on conversions. Positive = conversion has paid off.
           </Text>
           <Box overflowX="auto">
@@ -487,24 +487,24 @@ export const RothConversionAnalyzer: React.FC = () => {
                   return (
                     <Tr
                       key={row.year}
-                      bg={isPaidOff ? 'green.50' : undefined}
+                      bg={isPaidOff ? 'bg.success' : undefined}
                       fontWeight={isPaidOff && breakEvenYears === row.year ? 'bold' : undefined}
                     >
                       <Td>Year {row.year}</Td>
                       <Td>Age {73 + row.year}</Td>
-                      <Td isNumeric color="green.700">
+                      <Td isNumeric color="finance.positive">
                         {formatCurrencyPrecise(row.cumulativeSaved)}
                       </Td>
-                      <Td isNumeric color="red.600">
+                      <Td isNumeric color="finance.negative">
                         {formatCurrencyPrecise(totalTaxesPaid)}
                       </Td>
                       <Td isNumeric>
                         <HStack justify="flex-end" spacing={1}>
                           <Icon
                             as={isPaidOff ? FiTrendingUp : FiTrendingDown}
-                            color={isPaidOff ? 'green.600' : 'red.600'}
+                            color={isPaidOff ? 'finance.positive' : 'finance.negative'}
                           />
-                          <Text color={isPaidOff ? 'green.700' : 'red.600'}>
+                          <Text color={isPaidOff ? 'finance.positive' : 'finance.negative'}>
                             {formatCurrencyPrecise(Math.abs(row.net))}
                           </Text>
                           {isPaidOff && breakEvenYears === row.year && (
@@ -518,7 +518,7 @@ export const RothConversionAnalyzer: React.FC = () => {
               </Tbody>
             </Table>
           </Box>
-          <Text fontSize="xs" color="gray.500" mt={3}>
+          <Text fontSize="xs" color="text.muted" mt={3}>
             * This analysis uses simplified estimates. Consult a tax advisor before making conversion decisions.
             RMD calculation uses IRS life expectancy factor of 26.5 at age 73.
           </Text>

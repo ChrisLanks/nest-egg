@@ -53,7 +53,7 @@ export const SavingsGoalsWidget: React.FC = () => {
         </HStack>
 
         {activeGoals.length === 0 ? (
-          <Text color="gray.500" fontSize="sm">
+          <Text color="text.muted" fontSize="sm">
             No active goals. Add one to get started.
           </Text>
         ) : (
@@ -68,7 +68,7 @@ export const SavingsGoalsWidget: React.FC = () => {
                     <Text fontWeight="medium" fontSize="sm" noOfLines={1}>
                       {goal.name}
                     </Text>
-                    <Text fontSize="sm" color="gray.600" whiteSpace="nowrap">
+                    <Text fontSize="sm" color="text.secondary" whiteSpace="nowrap">
                       {formatCurrency(goal.current_amount)} / {formatCurrency(goal.target_amount)}
                     </Text>
                   </HStack>

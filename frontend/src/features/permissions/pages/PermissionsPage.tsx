@@ -57,7 +57,7 @@ export const PermissionsPage = () => {
       <HStack justify="space-between" mb={6}>
         <Box>
           <Heading size="lg">Permissions</Heading>
-          <Text color="gray.600" mt={1} fontSize="sm">
+          <Text color="text.secondary" mt={1} fontSize="sm">
             Control who in your household can view or edit your financial data.
           </Text>
         </Box>
@@ -103,7 +103,7 @@ export const PermissionsPage = () => {
               <AccordionButton
                 px={0}
                 _hover={{ bg: 'transparent' }}
-                color="gray.600"
+                color="text.secondary"
                 fontSize="sm"
               >
                 <Box flex={1} textAlign="left" fontWeight="medium">

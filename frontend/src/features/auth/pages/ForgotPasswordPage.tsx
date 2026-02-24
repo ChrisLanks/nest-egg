@@ -59,10 +59,10 @@ export const ForgotPasswordPage = () => {
       <VStack spacing={8}>
         <VStack spacing={2}>
           <Heading size="2xl">Nest Egg</Heading>
-          <Text color="gray.600">Your personal finance tracker</Text>
+          <Text color="text.secondary">Your personal finance tracker</Text>
         </VStack>
 
-        <Box w="full" bg="white" p={8} borderRadius="lg" boxShadow="md">
+        <Box w="full" bg="bg.surface" p={8} borderRadius="lg" boxShadow="md">
           <VStack spacing={6}>
             <Heading size="lg">Forgot Password</Heading>
 
@@ -72,7 +72,7 @@ export const ForgotPasswordPage = () => {
                   <AlertIcon />
                   If that email is registered, a password reset link has been sent. Check your inbox.
                 </Alert>
-                <Text fontSize="sm" color="gray.500">
+                <Text fontSize="sm" color="text.muted">
                   Didn't receive an email? Check your spam folder or{' '}
                   <ChakraLink
                     color="brand.500"
@@ -90,7 +90,7 @@ export const ForgotPasswordPage = () => {
             ) : (
               <form onSubmit={handleSubmit(onSubmit)} style={{ width: '100%' }}>
                 <Stack spacing={4}>
-                  <Text color="gray.600" fontSize="sm">
+                  <Text color="text.secondary" fontSize="sm">
                     Enter your email address and we'll send you a link to reset your password.
                   </Text>
 

@@ -356,7 +356,7 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
                     )}
                   />
                 </HStack>
-                <Text fontSize="xs" color="gray.600">
+                <Text fontSize="xs" color="text.secondary">
                   Unused budget carries over to next period
                 </Text>
               </FormControl>

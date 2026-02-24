@@ -102,7 +102,7 @@ export default function StyleBoxModal({ isOpen, onClose }: StyleBoxModalProps) {
                           {showDivider && (
                             <Tr>
                               <Td colSpan={4} py={0}>
-                                <Box borderTop="1px solid" borderColor="gray.200" />
+                                <Box borderTop="1px solid" borderColor="border.default" />
                               </Td>
                             </Tr>
                           )}
@@ -113,10 +113,10 @@ export default function StyleBoxModal({ isOpen, onClose }: StyleBoxModalProps) {
                               isNumeric
                               color={
                                 item.one_day_change === null || Number(item.one_day_change) === 0
-                                  ? 'gray.500'
+                                  ? 'text.muted'
                                   : Number(item.one_day_change) >= 0
-                                  ? 'green.600'
-                                  : 'red.600'
+                                  ? 'finance.positive'
+                                  : 'finance.negative'
                               }
                             >
                               {item.one_day_change !== null && Number(item.one_day_change) !== 0
@@ -128,7 +128,7 @@ export default function StyleBoxModal({ isOpen, onClose }: StyleBoxModalProps) {
                         </>
                       );
                     })}
-                  <Tr fontWeight="bold" bg="gray.50">
+                  <Tr fontWeight="bold" bg="bg.subtle">
                     <Td>Grand Total</Td>
                     <Td isNumeric>100.00%</Td>
                     <Td isNumeric>—</Td>
@@ -139,7 +139,7 @@ export default function StyleBoxModal({ isOpen, onClose }: StyleBoxModalProps) {
             </Box>
           ) : (
             <Center py={8}>
-              <Text color="gray.500">No style box data available</Text>
+              <Text color="text.muted">No style box data available</Text>
             </Center>
           )}
         </ModalBody>

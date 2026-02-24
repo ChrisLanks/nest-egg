@@ -44,7 +44,7 @@ export const AddWidgetDrawer: React.FC<AddWidgetDrawerProps> = ({
         <DrawerHeader borderBottomWidth="1px">Add Widget</DrawerHeader>
         <DrawerBody pt={4}>
           {availableWidgets.length === 0 ? (
-            <Text color="gray.500" textAlign="center" mt={8}>
+            <Text color="text.muted" textAlign="center" mt={8}>
               All widgets are already on your dashboard.
             </Text>
           ) : (
@@ -57,7 +57,7 @@ export const AddWidgetDrawer: React.FC<AddWidgetDrawerProps> = ({
                   borderRadius="md"
                   justify="space-between"
                   align="start"
-                  _hover={{ bg: 'gray.50' }}
+                  _hover={{ bg: 'bg.subtle' }}
                 >
                   <VStack align="start" spacing={1} flex={1} mr={3}>
                     <HStack spacing={2}>
@@ -72,7 +72,7 @@ export const AddWidgetDrawer: React.FC<AddWidgetDrawerProps> = ({
                         {def.defaultSpan === 2 ? 'full width' : 'half width'}
                       </Badge>
                     </HStack>
-                    <Text fontSize="xs" color="gray.600">
+                    <Text fontSize="xs" color="text.secondary">
                       {def.description}
                     </Text>
                   </VStack>

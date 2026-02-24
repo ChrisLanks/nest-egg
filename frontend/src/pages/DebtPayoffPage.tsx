@@ -338,7 +338,7 @@ export default function DebtPayoffPage() {
     const isRec = comparison?.recommendation === KEY_TO_REC[key];
     return {
       borderWidth: isSel || isRec ? 2 : 1,
-      borderColor: isSel ? 'blue.500' : isRec ? 'blue.300' : 'gray.200',
+      borderColor: isSel ? 'blue.500' : isRec ? 'blue.300' : 'border.default',
       bg: isSel ? 'blue.50' : undefined,
     };
   };
@@ -413,7 +413,7 @@ export default function DebtPayoffPage() {
         <VStack spacing={8} align="stretch">
           <Box>
             <Heading size="lg">💳 Debt Payoff Planner</Heading>
-            <Text color="gray.600">Strategic debt elimination tool</Text>
+            <Text color="text.secondary">Strategic debt elimination tool</Text>
           </Box>
           <EmptyState
             icon={FiCreditCard}
@@ -433,7 +433,7 @@ export default function DebtPayoffPage() {
         {/* Header */}
         <Box>
           <Heading size="lg">💳 Debt Payoff Planner</Heading>
-          <Text color="gray.600">Compare strategies to eliminate debt faster</Text>
+          <Text color="text.secondary">Compare strategies to eliminate debt faster</Text>
         </Box>
 
         {/* 1 — Summary Cards */}
@@ -443,7 +443,7 @@ export default function DebtPayoffPage() {
               <CardBody>
                 <Stat>
                   <StatLabel>Total Debt</StatLabel>
-                  <StatNumber color="red.600">{formatCurrency(summary.total_debt)}</StatNumber>
+                  <StatNumber color="finance.negative">{formatCurrency(summary.total_debt)}</StatNumber>
                   <StatHelpText>{summary.debt_count} accounts</StatHelpText>
                 </Stat>
               </CardBody>
@@ -512,7 +512,7 @@ export default function DebtPayoffPage() {
             <Collapse in={isDebtsOpen} animateOpacity>
               <VStack align="stretch" spacing={4}>
                 {effectiveSelectedAccounts.size === 0 && (
-                  <Box bg="orange.50" p={3} borderRadius="md">
+                  <Box bg="bg.warning" p={3} borderRadius="md">
                     <Text fontSize="sm" color="orange.700">
                       ⚠️ Select at least one account to see payoff strategies
                     </Text>
@@ -635,10 +635,10 @@ export default function DebtPayoffPage() {
                         )}
                       </HStack>
                       <Box>
-                        <Text fontSize="sm" fontWeight="semibold" color="gray.700">
+                        <Text fontSize="sm" fontWeight="semibold" color="text.heading">
                           Pay smallest balance first
                         </Text>
-                        <Text fontSize="xs" color="gray.500" mt={1}>
+                        <Text fontSize="xs" color="text.muted" mt={1}>
                           Clear your smallest debts quickly for momentum. Each payoff
                           frees up cash that rolls into the next debt — great if you
                           need early wins to stay motivated.
@@ -646,24 +646,24 @@ export default function DebtPayoffPage() {
                       </Box>
 
                       <Box>
-                        <Text fontSize="sm" color="gray.600">Debt-Free Date</Text>
+                        <Text fontSize="sm" color="text.secondary">Debt-Free Date</Text>
                         <Text fontSize="xl" fontWeight="bold">
                           {formatDate(comparison.snowball.debt_free_date)}
                         </Text>
-                        <Text fontSize="xs" color="gray.500">
+                        <Text fontSize="xs" color="text.muted">
                           {comparison.snowball.total_months} months
                         </Text>
                       </Box>
 
                       <Box>
-                        <Text fontSize="sm" color="gray.600">Total Interest</Text>
-                        <Text fontSize="lg" fontWeight="semibold" color="red.600">
+                        <Text fontSize="sm" color="text.secondary">Total Interest</Text>
+                        <Text fontSize="lg" fontWeight="semibold" color="finance.negative">
                           {formatCurrency(comparison.snowball.total_interest)}
                         </Text>
                       </Box>
 
                       {comparison.snowball.interest_saved_vs_current !== undefined && (
-                        <Box bg="green.50" p={3} borderRadius="md">
+                        <Box bg="bg.success" p={3} borderRadius="md">
                           <Text fontSize="xs" color="green.700" fontWeight="semibold">
                             Save {formatCurrency(comparison.snowball.interest_saved_vs_current)} interest
                           </Text>
@@ -699,10 +699,10 @@ export default function DebtPayoffPage() {
                         )}
                       </HStack>
                       <Box>
-                        <Text fontSize="sm" fontWeight="semibold" color="gray.700">
+                        <Text fontSize="sm" fontWeight="semibold" color="text.heading">
                           Pay highest interest first
                         </Text>
-                        <Text fontSize="xs" color="gray.500" mt={1}>
+                        <Text fontSize="xs" color="text.muted" mt={1}>
                           Attack the most expensive debt first to minimize total
                           interest paid. Takes longer to see individual payoffs, but
                           saves the most money overall.
@@ -710,24 +710,24 @@ export default function DebtPayoffPage() {
                       </Box>
 
                       <Box>
-                        <Text fontSize="sm" color="gray.600">Debt-Free Date</Text>
+                        <Text fontSize="sm" color="text.secondary">Debt-Free Date</Text>
                         <Text fontSize="xl" fontWeight="bold">
                           {formatDate(comparison.avalanche.debt_free_date)}
                         </Text>
-                        <Text fontSize="xs" color="gray.500">
+                        <Text fontSize="xs" color="text.muted">
                           {comparison.avalanche.total_months} months
                         </Text>
                       </Box>
 
                       <Box>
-                        <Text fontSize="sm" color="gray.600">Total Interest</Text>
-                        <Text fontSize="lg" fontWeight="semibold" color="red.600">
+                        <Text fontSize="sm" color="text.secondary">Total Interest</Text>
+                        <Text fontSize="lg" fontWeight="semibold" color="finance.negative">
                           {formatCurrency(comparison.avalanche.total_interest)}
                         </Text>
                       </Box>
 
                       {comparison.avalanche.interest_saved_vs_current !== undefined && (
-                        <Box bg="blue.50" p={3} borderRadius="md">
+                        <Box bg="bg.info" p={3} borderRadius="md">
                           <Text fontSize="xs" color="blue.700" fontWeight="semibold">
                             Save {formatCurrency(comparison.avalanche.interest_saved_vs_current)} interest
                           </Text>
@@ -758,10 +758,10 @@ export default function DebtPayoffPage() {
                     <VStack align="stretch" spacing={4}>
                       <Heading size="md">🐢 Current Pace</Heading>
                       <Box>
-                        <Text fontSize="sm" fontWeight="semibold" color="gray.700">
+                        <Text fontSize="sm" fontWeight="semibold" color="text.heading">
                           Minimum payments only
                         </Text>
-                        <Text fontSize="xs" color="gray.500" mt={1}>
+                        <Text fontSize="xs" color="text.muted" mt={1}>
                           What happens if you only make the required minimum payment
                           on each debt. Use this as a baseline to see how much time
                           and money you save with a real strategy.
@@ -769,24 +769,24 @@ export default function DebtPayoffPage() {
                       </Box>
 
                       <Box>
-                        <Text fontSize="sm" color="gray.600">Debt-Free Date</Text>
+                        <Text fontSize="sm" color="text.secondary">Debt-Free Date</Text>
                         <Text fontSize="xl" fontWeight="bold">
                           {formatDate(comparison.current_pace.debt_free_date)}
                         </Text>
-                        <Text fontSize="xs" color="gray.500">
+                        <Text fontSize="xs" color="text.muted">
                           {comparison.current_pace.total_months} months
                         </Text>
                       </Box>
 
                       <Box>
-                        <Text fontSize="sm" color="gray.600">Total Interest</Text>
-                        <Text fontSize="lg" fontWeight="semibold" color="red.600">
+                        <Text fontSize="sm" color="text.secondary">Total Interest</Text>
+                        <Text fontSize="lg" fontWeight="semibold" color="finance.negative">
                           {formatCurrency(comparison.current_pace.total_interest)}
                         </Text>
                       </Box>
 
-                      <Box bg="gray.50" p={3} borderRadius="md">
-                        <Text fontSize="xs" color="gray.600">Baseline comparison</Text>
+                      <Box bg="bg.subtle" p={3} borderRadius="md">
+                        <Text fontSize="xs" color="text.secondary">Baseline comparison</Text>
                       </Box>
 
                       <Text fontSize="xs" color="blue.500" textAlign="center">
@@ -824,22 +824,22 @@ export default function DebtPayoffPage() {
                   {/* Summary row */}
                   <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
                     <Box>
-                      <Text fontSize="sm" color="gray.600">Debt-Free Date</Text>
+                      <Text fontSize="sm" color="text.secondary">Debt-Free Date</Text>
                       <Text fontSize="2xl" fontWeight="bold">
                         {formatDate(selectedStrategy.debt_free_date)}
                       </Text>
-                      <Text fontSize="sm" color="gray.500">
+                      <Text fontSize="sm" color="text.muted">
                         {selectedStrategy.total_months} months
                       </Text>
                     </Box>
                     <Box>
-                      <Text fontSize="sm" color="gray.600">Total Interest Paid</Text>
-                      <Text fontSize="2xl" fontWeight="bold" color="red.600">
+                      <Text fontSize="sm" color="text.secondary">Total Interest Paid</Text>
+                      <Text fontSize="2xl" fontWeight="bold" color="finance.negative">
                         {formatCurrency(selectedStrategy.total_interest)}
                       </Text>
                     </Box>
                     <Box>
-                      <Text fontSize="sm" color="gray.600">Total Amount Paid</Text>
+                      <Text fontSize="sm" color="text.secondary">Total Amount Paid</Text>
                       <Text fontSize="2xl" fontWeight="bold">
                         {formatCurrency(selectedStrategy.total_paid)}
                       </Text>
@@ -847,7 +847,7 @@ export default function DebtPayoffPage() {
                   </SimpleGrid>
 
                   {selectedStrategy.interest_saved_vs_current !== undefined && (
-                    <Box bg="green.50" p={4} borderRadius="md">
+                    <Box bg="bg.success" p={4} borderRadius="md">
                       <Text fontSize="md" fontWeight="semibold" color="green.700">
                         💰 Save {formatCurrency(selectedStrategy.interest_saved_vs_current)} in interest
                       </Text>
@@ -862,7 +862,7 @@ export default function DebtPayoffPage() {
                   {/* Payment Schedule */}
                   <Box>
                     <Heading size="sm" mb={2}>Payment Schedule</Heading>
-                    <Text fontSize="sm" color="gray.600" mb={4}>
+                    <Text fontSize="sm" color="text.secondary" mb={4}>
                       {selectedStrategy.strategy === 'SNOWBALL' &&
                         'Debts are paid off smallest balance first, with extra payments rolling forward to the next debt.'}
                       {selectedStrategy.strategy === 'AVALANCHE' &&
@@ -887,7 +887,7 @@ export default function DebtPayoffPage() {
                                     </Badge>
                                   </Box>
                                   <Box textAlign="right">
-                                    <Text fontSize="sm" color="gray.600">Payoff Order</Text>
+                                    <Text fontSize="sm" color="text.secondary">Payoff Order</Text>
                                     <Text fontSize="2xl" fontWeight="bold" color="blue.600">
                                       #{idx + 1}
                                     </Text>
@@ -896,31 +896,31 @@ export default function DebtPayoffPage() {
 
                                 <SimpleGrid columns={{ base: 2, md: 4 }} spacing={3}>
                                   <Box>
-                                    <Text fontSize="xs" color="gray.600">Starting Balance</Text>
+                                    <Text fontSize="xs" color="text.secondary">Starting Balance</Text>
                                     <Text fontWeight="semibold">
                                       {formatCurrency(debt.starting_balance || 0)}
                                     </Text>
                                   </Box>
                                   <Box>
-                                    <Text fontSize="xs" color="gray.600">Interest Rate</Text>
+                                    <Text fontSize="xs" color="text.secondary">Interest Rate</Text>
                                     <Text fontWeight="semibold">
                                       {debt.interest_rate?.toFixed(2) || 0}%
                                     </Text>
                                   </Box>
                                   <Box>
-                                    <Text fontSize="xs" color="gray.600">Months to Payoff</Text>
+                                    <Text fontSize="xs" color="text.secondary">Months to Payoff</Text>
                                     <Text fontWeight="semibold">{debt.months_to_payoff || 0} months</Text>
                                   </Box>
                                   <Box>
-                                    <Text fontSize="xs" color="gray.600">Total Interest</Text>
-                                    <Text fontWeight="semibold" color="red.600">
+                                    <Text fontSize="xs" color="text.secondary">Total Interest</Text>
+                                    <Text fontWeight="semibold" color="finance.negative">
                                       {formatCurrency(debt.total_interest || 0)}
                                     </Text>
                                   </Box>
                                 </SimpleGrid>
 
                                 {debt.payoff_date && (
-                                  <Box bg="gray.50" p={2} borderRadius="md">
+                                  <Box bg="bg.subtle" p={2} borderRadius="md">
                                     <Text fontSize="sm">
                                       <Text as="span" fontWeight="semibold">Paid off:</Text>{' '}
                                       {formatDate(debt.payoff_date)}
@@ -933,8 +933,8 @@ export default function DebtPayoffPage() {
                         ))}
                       </VStack>
                     ) : (
-                      <Box textAlign="center" py={8} bg="gray.50" borderRadius="md">
-                        <Text color="gray.600">No detailed payment schedule available</Text>
+                      <Box textAlign="center" py={8} bg="bg.subtle" borderRadius="md">
+                        <Text color="text.secondary">No detailed payment schedule available</Text>
                       </Box>
                     )}
                   </Box>
@@ -989,7 +989,7 @@ export default function DebtPayoffPage() {
                   <FormHelperText>Day of month payment is due (1-31)</FormHelperText>
                 </FormControl>
 
-                <Box bg="blue.50" p={3} borderRadius="md">
+                <Box bg="bg.info" p={3} borderRadius="md">
                   <Text fontSize="sm" color="blue.700">
                     💡 <Text as="span" fontWeight="semibold">Tip:</Text> Interest rate and
                     minimum payment are used to calculate payoff strategies. More accurate

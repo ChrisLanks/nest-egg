@@ -267,13 +267,13 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
         </Button>
       </HStack>
 
-      <Text fontSize="md" color="gray.600">
+      <Text fontSize="md" color="text.secondary">
         Select the type of account you want to add
       </Text>
 
       {/* Basic Accounts */}
       <Box>
-        <Text fontSize="sm" fontWeight="bold" color="gray.700" mb={3}>
+        <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
           Basic Accounts
         </Text>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
@@ -287,10 +287,10 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                 p={4}
                 borderWidth={2}
                 borderRadius="md"
-                borderColor="gray.200"
+                borderColor="border.default"
                 _hover={{
                   borderColor: 'brand.500',
-                  bg: 'brand.50',
+                  bg: 'brand.subtle',
                   transform: 'translateY(-2px)',
                   shadow: 'md',
                 }}
@@ -304,7 +304,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                     <Text fontWeight="bold" fontSize="sm">
                       {option.label}
                     </Text>
-                    <Text fontSize="xs" color="gray.600">
+                    <Text fontSize="xs" color="text.secondary">
                       {option.description}
                     </Text>
                   </VStack>
@@ -316,7 +316,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
 
       {/* Investment Accounts */}
       <Box>
-        <Text fontSize="sm" fontWeight="bold" color="gray.700" mb={3}>
+        <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
           Investment Accounts
         </Text>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
@@ -330,10 +330,10 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                 p={4}
                 borderWidth={2}
                 borderRadius="md"
-                borderColor="gray.200"
+                borderColor="border.default"
                 _hover={{
                   borderColor: 'brand.500',
-                  bg: 'brand.50',
+                  bg: 'brand.subtle',
                   transform: 'translateY(-2px)',
                   shadow: 'md',
                 }}
@@ -347,7 +347,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                     <Text fontWeight="bold" fontSize="sm">
                       {option.label}
                     </Text>
-                    <Text fontSize="xs" color="gray.600">
+                    <Text fontSize="xs" color="text.secondary">
                       {option.description}
                     </Text>
                   </VStack>
@@ -359,7 +359,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
 
       {/* Alternative Investments */}
       <Box>
-        <Text fontSize="sm" fontWeight="bold" color="gray.700" mb={3}>
+        <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
           Alternative Investments
         </Text>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
@@ -373,10 +373,10 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                 p={4}
                 borderWidth={2}
                 borderRadius="md"
-                borderColor="gray.200"
+                borderColor="border.default"
                 _hover={{
                   borderColor: 'brand.500',
-                  bg: 'brand.50',
+                  bg: 'brand.subtle',
                   transform: 'translateY(-2px)',
                   shadow: 'md',
                 }}
@@ -390,7 +390,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                     <Text fontWeight="bold" fontSize="sm">
                       {option.label}
                     </Text>
-                    <Text fontSize="xs" color="gray.600">
+                    <Text fontSize="xs" color="text.secondary">
                       {option.description}
                     </Text>
                   </VStack>
@@ -402,7 +402,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
 
       {/* Securities */}
       <Box>
-        <Text fontSize="sm" fontWeight="bold" color="gray.700" mb={3}>
+        <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
           Securities
         </Text>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
@@ -416,10 +416,10 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                 p={4}
                 borderWidth={2}
                 borderRadius="md"
-                borderColor="gray.200"
+                borderColor="border.default"
                 _hover={{
                   borderColor: 'brand.500',
-                  bg: 'brand.50',
+                  bg: 'brand.subtle',
                   transform: 'translateY(-2px)',
                   shadow: 'md',
                 }}
@@ -433,7 +433,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                     <Text fontWeight="bold" fontSize="sm">
                       {option.label}
                     </Text>
-                    <Text fontSize="xs" color="gray.600">
+                    <Text fontSize="xs" color="text.secondary">
                       {option.description}
                     </Text>
                   </VStack>
@@ -445,7 +445,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
 
       {/* Insurance & Annuities */}
       <Box>
-        <Text fontSize="sm" fontWeight="bold" color="gray.700" mb={3}>
+        <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
           Insurance & Annuities
         </Text>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
@@ -459,10 +459,10 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                 p={4}
                 borderWidth={2}
                 borderRadius="md"
-                borderColor="gray.200"
+                borderColor="border.default"
                 _hover={{
                   borderColor: 'brand.500',
-                  bg: 'brand.50',
+                  bg: 'brand.subtle',
                   transform: 'translateY(-2px)',
                   shadow: 'md',
                 }}
@@ -476,7 +476,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                     <Text fontWeight="bold" fontSize="sm">
                       {option.label}
                     </Text>
-                    <Text fontSize="xs" color="gray.600">
+                    <Text fontSize="xs" color="text.secondary">
                       {option.description}
                     </Text>
                   </VStack>
@@ -488,7 +488,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
 
       {/* Business */}
       <Box>
-        <Text fontSize="sm" fontWeight="bold" color="gray.700" mb={3}>
+        <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
           Business
         </Text>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
@@ -502,10 +502,10 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                 p={4}
                 borderWidth={2}
                 borderRadius="md"
-                borderColor="gray.200"
+                borderColor="border.default"
                 _hover={{
                   borderColor: 'brand.500',
-                  bg: 'brand.50',
+                  bg: 'brand.subtle',
                   transform: 'translateY(-2px)',
                   shadow: 'md',
                 }}
@@ -519,7 +519,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                     <Text fontWeight="bold" fontSize="sm">
                       {option.label}
                     </Text>
-                    <Text fontSize="xs" color="gray.600">
+                    <Text fontSize="xs" color="text.secondary">
                       {option.description}
                     </Text>
                   </VStack>
@@ -531,7 +531,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
 
       {/* Property Accounts */}
       <Box>
-        <Text fontSize="sm" fontWeight="bold" color="gray.700" mb={3}>
+        <Text fontSize="sm" fontWeight="bold" color="text.heading" mb={3}>
           Property & Vehicles
         </Text>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
@@ -545,10 +545,10 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                 p={4}
                 borderWidth={2}
                 borderRadius="md"
-                borderColor="gray.200"
+                borderColor="border.default"
                 _hover={{
                   borderColor: 'brand.500',
-                  bg: 'brand.50',
+                  bg: 'brand.subtle',
                   transform: 'translateY(-2px)',
                   shadow: 'md',
                 }}
@@ -562,7 +562,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                     <Text fontWeight="bold" fontSize="sm">
                       {option.label}
                     </Text>
-                    <Text fontSize="xs" color="gray.600">
+                    <Text fontSize="xs" color="text.secondary">
                       {option.description}
                     </Text>
                   </VStack>

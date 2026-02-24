@@ -252,7 +252,7 @@ export const DateRangePicker = ({ value, onChange, customMonthStartDay = 1 }: Da
           right={0}
           mt={2}
           p={4}
-          bg="white"
+          bg="bg.surface"
           borderWidth={1}
           borderRadius="md"
           boxShadow="lg"
@@ -264,7 +264,7 @@ export const DateRangePicker = ({ value, onChange, customMonthStartDay = 1 }: Da
             </Text>
             <HStack spacing={2}>
               <Box>
-                <Text fontSize="xs" color="gray.600" mb={1}>
+                <Text fontSize="xs" color="text.secondary" mb={1}>
                   Start Date
                 </Text>
                 <Input
@@ -275,7 +275,7 @@ export const DateRangePicker = ({ value, onChange, customMonthStartDay = 1 }: Da
                 />
               </Box>
               <Box>
-                <Text fontSize="xs" color="gray.600" mb={1}>
+                <Text fontSize="xs" color="text.secondary" mb={1}>
                   End Date
                 </Text>
                 <Input

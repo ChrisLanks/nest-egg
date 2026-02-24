@@ -29,6 +29,7 @@ import {
   Td,
   Badge,
   useToast,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
@@ -83,6 +84,7 @@ interface AnnualSummary {
 export default function TrendsPage() {
   const { selectedUserId } = useUserView();
   const toast = useToast();
+  const tooltipBg = useColorModeValue('#FFFFFF', '#2D3748');
 
   // Default to current year and 2 previous years
   const currentYear = new Date().getFullYear();
@@ -271,7 +273,7 @@ export default function TrendsPage() {
           <Heading size="lg" mb={2}>
             📊 Multi-Year Trends
           </Heading>
-          <Text color="gray.600">Year-over-year spending analysis and comparisons</Text>
+          <Text color="text.secondary">Year-over-year spending analysis and comparisons</Text>
         </Box>
 
         {/* Year Selector */}
@@ -280,7 +282,7 @@ export default function TrendsPage() {
             <VStack align="stretch" spacing={4}>
               <HStack justify="space-between">
                 <Text fontWeight="semibold">Select Years to Compare</Text>
-                <Text fontSize="sm" color="gray.600">
+                <Text fontSize="sm" color="text.secondary">
                   {selectedYears.length} of 3 selected
                 </Text>
               </HStack>
@@ -304,7 +306,7 @@ export default function TrendsPage() {
               </HStack>
               {selectedYears.length > 1 && (
                 <HStack spacing={2} align="center">
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color="text.secondary">
                     Primary year for comparisons:
                   </Text>
                   <Select
@@ -347,7 +349,7 @@ export default function TrendsPage() {
               <CardBody>
                 <Stat>
                   <StatLabel>Total Income ({primaryYear})</StatLabel>
-                  <StatNumber color="green.600">
+                  <StatNumber color="finance.positive">
                     {formatCurrency(primarySummary.total_income)}
                   </StatNumber>
                   {incomeGrowth !== null && comparisonYear && (
@@ -396,7 +398,7 @@ export default function TrendsPage() {
                 <Heading size="md" mb={1}>
                   Monthly Expenses Comparison
                 </Heading>
-                <Text fontSize="sm" color="gray.600">
+                <Text fontSize="sm" color="text.secondary">
                   Track spending patterns month-by-month across years
                 </Text>
               </Box>
@@ -417,7 +419,7 @@ export default function TrendsPage() {
                     <Tooltip
                       formatter={(value: number) => formatCurrency(value)}
                       contentStyle={{
-                        backgroundColor: 'white',
+                        backgroundColor: tooltipBg,
                         border: '1px solid #E2E8F0',
                         borderRadius: '8px',
                       }}
@@ -439,11 +441,11 @@ export default function TrendsPage() {
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
-                <Box textAlign="center" py={12} bg="gray.50" borderRadius="md">
-                  <Text color="gray.600" fontSize="lg" mb={2}>
+                <Box textAlign="center" py={12} bg="bg.subtle" borderRadius="md">
+                  <Text color="text.secondary" fontSize="lg" mb={2}>
                     No transaction data for selected years
                   </Text>
-                  <Text color="gray.500" fontSize="sm">
+                  <Text color="text.muted" fontSize="sm">
                     Try selecting different years or add more historical transactions to see trends.
                   </Text>
                 </Box>
@@ -461,7 +463,7 @@ export default function TrendsPage() {
                   <Heading size="md" mb={1}>
                     Quarterly Breakdown
                   </Heading>
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color="text.secondary">
                     Compare quarterly performance across years
                   </Text>
                 </Box>
@@ -493,7 +495,7 @@ export default function TrendsPage() {
                         </Tr>
                       ))}
                       {/* Total Row */}
-                      <Tr fontWeight="bold" bg="gray.50">
+                      <Tr fontWeight="bold" bg="bg.subtle">
                         <Td>Total</Td>
                         {selectedYears.map((year) => {
                           const total = quarterlyData.reduce((sum, quarter) => {

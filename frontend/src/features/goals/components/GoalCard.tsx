@@ -162,7 +162,7 @@ export default function GoalCard({
             </HStack>
             <Box minH="1.25rem">
               {goal.description && (
-                <Text fontSize="sm" color="gray.600" noOfLines={1}>
+                <Text fontSize="sm" color="text.secondary" noOfLines={1}>
                   {goal.description}
                 </Text>
               )}
@@ -249,7 +249,7 @@ export default function GoalCard({
           {progress && (
             <HStack spacing={4} justify="space-between">
               <VStack align="start" spacing={0}>
-                <Text fontSize="xs" color="gray.600">
+                <Text fontSize="xs" color="text.secondary">
                   Remaining
                 </Text>
                 <Text fontSize="sm" fontWeight="medium">
@@ -259,7 +259,7 @@ export default function GoalCard({
 
               {progress.days_remaining !== null && (
                 <VStack align="start" spacing={0}>
-                  <Text fontSize="xs" color="gray.600">
+                  <Text fontSize="xs" color="text.secondary">
                     Days Left
                   </Text>
                   <Text fontSize="sm" fontWeight="medium">
@@ -270,7 +270,7 @@ export default function GoalCard({
 
               {progress.monthly_required !== null && (
                 <VStack align="start" spacing={0}>
-                  <Text fontSize="xs" color="gray.600">
+                  <Text fontSize="xs" color="text.secondary">
                     Per Month
                   </Text>
                   <Text fontSize="sm" fontWeight="medium">
@@ -293,7 +293,7 @@ export default function GoalCard({
 
           {/* Target date */}
           {goal.target_date && (
-            <Text fontSize="xs" color="gray.500">
+            <Text fontSize="xs" color="text.muted">
               Target: {new Date(goal.target_date).toLocaleDateString()}
             </Text>
           )}
@@ -304,12 +304,12 @@ export default function GoalCard({
               <Divider />
               <HStack spacing={5}>
                 <HStack spacing={1.5}>
-                  <Icon as={FiLink} boxSize={3} color="gray.400" />
-                  <Text fontSize="xs" color="gray.500">{linkedAccount.name}</Text>
+                  <Icon as={FiLink} boxSize={3} color="text.muted" />
+                  <Text fontSize="xs" color="text.muted">{linkedAccount.name}</Text>
                 </HStack>
                 <HStack spacing={1.5}>
-                  <Icon as={FiRefreshCw} boxSize={3} color={goal.auto_sync ? 'blue.400' : 'gray.300'} />
-                  <Text fontSize="xs" color={goal.auto_sync ? 'blue.500' : 'gray.400'}>
+                  <Icon as={FiRefreshCw} boxSize={3} color={goal.auto_sync ? 'blue.400' : 'text.muted'} />
+                  <Text fontSize="xs" color={goal.auto_sync ? 'blue.500' : 'text.muted'}>
                     Auto-sync {goal.auto_sync ? 'on' : 'off'}
                   </Text>
                 </HStack>

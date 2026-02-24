@@ -162,7 +162,7 @@ export const RulesPage = () => {
         <HStack justify="space-between" align="start">
           <Box>
             <Heading size="lg">Rules</Heading>
-            <Text color="gray.600" mt={2}>
+            <Text color="text.secondary" mt={2}>
               Manage automation rules for transaction categorization. {rules?.length || 0} rule(s) total.
             </Text>
           </Box>
@@ -186,16 +186,16 @@ export const RulesPage = () => {
 
         {rules && rules.length === 0 ? (
           <Box
-            bg="white"
+            bg="bg.surface"
             p={12}
             borderRadius="lg"
             boxShadow="sm"
             textAlign="center"
           >
-            <Text fontSize="lg" color="gray.600" mb={4}>
+            <Text fontSize="lg" color="text.secondary" mb={4}>
               No rules created yet
             </Text>
-            <Text color="gray.500" mb={6}>
+            <Text color="text.muted" mb={6}>
               Create rules to automatically categorize and label transactions
             </Text>
             <Button
@@ -244,11 +244,11 @@ export const RulesPage = () => {
                               </Badge>
                             </HStack>
                             {rule.description && (
-                              <Text fontSize="sm" color="gray.600">
+                              <Text fontSize="sm" color="text.secondary">
                                 {rule.description}
                               </Text>
                             )}
-                            <Text fontSize="xs" color="gray.500" mt={1}>
+                            <Text fontSize="xs" color="text.muted" mt={1}>
                               Applied {rule.times_applied} times
                               {rule.last_applied_at && ` • Last: ${formatDate(rule.last_applied_at)}`}
                             </Text>
@@ -257,7 +257,7 @@ export const RulesPage = () => {
 
                         <HStack spacing={2}>
                           <HStack spacing={2}>
-                            <Text fontSize="sm" color="gray.600">
+                            <Text fontSize="sm" color="text.secondary">
                               {rule.is_active ? 'Enabled' : 'Disabled'}
                             </Text>
                             <Switch
@@ -298,7 +298,7 @@ export const RulesPage = () => {
 
                           {/* Conditions */}
                           <Box mb={4}>
-                            <Text fontWeight="semibold" fontSize="sm" color="gray.700" mb={2}>
+                            <Text fontWeight="semibold" fontSize="sm" color="text.heading" mb={2}>
                               Conditions ({rule.conditions?.length || 0}):
                             </Text>
                             <VStack align="stretch" spacing={1}>
@@ -331,7 +331,7 @@ export const RulesPage = () => {
 
                           {/* Actions */}
                           <Box>
-                            <Text fontWeight="semibold" fontSize="sm" color="gray.700" mb={2}>
+                            <Text fontWeight="semibold" fontSize="sm" color="text.heading" mb={2}>
                               Actions ({rule.actions?.length || 0}):
                             </Text>
                             <VStack align="stretch" spacing={1}>
@@ -352,7 +352,7 @@ export const RulesPage = () => {
                             </VStack>
                           </Box>
 
-                          <Text fontSize="xs" color="gray.500" mt={4}>
+                          <Text fontSize="xs" color="text.muted" mt={4}>
                             Created {formatDate(rule.created_at)}
                           </Text>
                         </Box>

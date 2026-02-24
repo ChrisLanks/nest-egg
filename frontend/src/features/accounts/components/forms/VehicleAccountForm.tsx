@@ -144,19 +144,19 @@ export const VehicleAccountForm = ({
         </HStack>
 
         <FormControl>
-          <FormLabel>VIN <Text as="span" fontSize="xs" color="gray.500">(optional — enables auto-valuation)</Text></FormLabel>
+          <FormLabel>VIN <Text as="span" fontSize="xs" color="text.muted">(optional — enables auto-valuation)</Text></FormLabel>
           <Input
             {...register('vin')}
             placeholder="e.g., 1HGBH41JXMN109186"
             maxLength={17}
             textTransform="uppercase"
           />
-          <Text fontSize="xs" color="gray.500" mt={1}>
+          <Text fontSize="xs" color="text.muted" mt={1}>
             17-character Vehicle Identification Number. Enables automatic market value updates.
           </Text>
         </FormControl>
 
-        <Box p={4} bg="blue.50" borderRadius="md" borderWidth={1} borderColor="blue.200">
+        <Box p={4} bg="bg.info" borderRadius="md" borderWidth={1} borderColor="blue.200">
           <Text fontSize="sm" color="blue.800" mb={2}>
             💡 <strong>Need help estimating your vehicle's value?</strong>
           </Text>
@@ -221,20 +221,20 @@ export const VehicleAccountForm = ({
             )}
           />
           <FormErrorMessage>{errors.loan_balance?.message}</FormErrorMessage>
-          <Text fontSize="xs" color="gray.600" mt={1}>
+          <Text fontSize="xs" color="text.secondary" mt={1}>
             Leave blank if the vehicle is paid off
           </Text>
         </FormControl>
 
         {loanBalance && loanBalance > 0 && (
-          <Box p={3} bg="gray.50" borderRadius="md">
+          <Box p={3} bg="bg.subtle" borderRadius="md">
             <HStack justify="space-between">
               <Text fontWeight="semibold">Vehicle Equity:</Text>
-              <Text fontSize="lg" fontWeight="bold" color={equity >= 0 ? 'green.600' : 'red.600'}>
+              <Text fontSize="lg" fontWeight="bold" color={equity >= 0 ? 'finance.positive' : 'finance.negative'}>
                 ${equity.toLocaleString()}
               </Text>
             </HStack>
-            <Text fontSize="xs" color="gray.600" mt={1}>
+            <Text fontSize="xs" color="text.secondary" mt={1}>
               (Vehicle Value - Loan Balance)
             </Text>
             {equity < 0 && (

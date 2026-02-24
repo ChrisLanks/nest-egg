@@ -195,7 +195,7 @@ export const BankLinkStep = ({ provider, onSuccess, onBack }: BankLinkStepProps)
         <Center py={12}>
           <VStack spacing={4}>
             <Spinner size="xl" color="brand.500" />
-            <Text color="gray.600">Preparing connection...</Text>
+            <Text color="text.secondary">Preparing connection...</Text>
           </VStack>
         </Center>
       </VStack>
@@ -221,7 +221,7 @@ export const BankLinkStep = ({ provider, onSuccess, onBack }: BankLinkStepProps)
         </HStack>
 
         <Box>
-          <Text fontSize="md" color="gray.600" mb={4}>
+          <Text fontSize="md" color="text.secondary" mb={4}>
             Select your bank to connect via {providerName} (Test Mode)
           </Text>
           <Text fontSize="sm" color="orange.600" mb={4}>
@@ -238,11 +238,11 @@ export const BankLinkStep = ({ provider, onSuccess, onBack }: BankLinkStepProps)
               p={4}
               borderWidth={2}
               borderRadius="md"
-              borderColor={selectedInstitution === institution.id ? 'brand.500' : 'gray.200'}
-              bg={selectedInstitution === institution.id ? 'brand.50' : 'white'}
+              borderColor={selectedInstitution === institution.id ? 'brand.500' : 'border.default'}
+              bg={selectedInstitution === institution.id ? 'brand.subtle' : 'bg.surface'}
               _hover={{
                 borderColor: 'brand.500',
-                bg: 'brand.50',
+                bg: 'brand.subtle',
                 transform: 'translateY(-2px)',
                 shadow: 'sm',
               }}
@@ -265,7 +265,7 @@ export const BankLinkStep = ({ provider, onSuccess, onBack }: BankLinkStepProps)
           ))}
         </SimpleGrid>
 
-        <Text fontSize="xs" color="gray.500" textAlign="center">
+        <Text fontSize="xs" color="text.muted" textAlign="center">
           In production, this will open the secure {providerName} interface
         </Text>
       </VStack>
@@ -308,7 +308,7 @@ export const BankLinkStep = ({ provider, onSuccess, onBack }: BankLinkStepProps)
           <Text fontSize="lg" fontWeight="medium">
             Connect Your Bank Account via {config.name}
           </Text>
-          <Text fontSize="sm" color="gray.600" textAlign="center" maxW="md">
+          <Text fontSize="sm" color="text.secondary" textAlign="center" maxW="md">
             {config.description}
           </Text>
           <Button

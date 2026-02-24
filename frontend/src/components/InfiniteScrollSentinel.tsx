@@ -52,7 +52,7 @@ export const InfiniteScrollSentinel = ({
           {isLoading && (
             <VStack spacing={2}>
               <Spinner size="lg" color="brand.500" />
-              <Text fontSize="sm" color="gray.600">
+              <Text fontSize="sm" color="text.secondary">
                 {loadingText}
               </Text>
             </VStack>
@@ -66,7 +66,7 @@ export const InfiniteScrollSentinel = ({
     return (
       <Box py={4}>
         <Center>
-          <Text fontSize="sm" color="gray.500">
+          <Text fontSize="sm" color="text.muted">
             {endText}
           </Text>
         </Center>

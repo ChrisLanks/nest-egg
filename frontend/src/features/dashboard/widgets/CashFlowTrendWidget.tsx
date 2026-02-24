@@ -1,4 +1,4 @@
-import { Card, CardBody, Heading } from '@chakra-ui/react';
+import { Card, CardBody, Heading, useColorModeValue } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Bar,
@@ -23,6 +23,8 @@ const formatCurrency = (amount: number) =>
 
 export const CashFlowTrendWidget: React.FC = () => {
   const { selectedUserId } = useUserView();
+  const tooltipBg = useColorModeValue('#FFFFFF', '#2D3748');
+  const tooltipBorder = useColorModeValue('#E2E8F0', '#4A5568');
 
   const { data } = useQuery({
     queryKey: ['dashboard', selectedUserId],
@@ -49,7 +51,7 @@ export const CashFlowTrendWidget: React.FC = () => {
             <YAxis />
             <Tooltip
               formatter={(v: number) => formatCurrency(v)}
-              contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc' }}
+              contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}` }}
             />
             <Legend />
             <Bar dataKey="income" fill="#48BB78" name="Income" />

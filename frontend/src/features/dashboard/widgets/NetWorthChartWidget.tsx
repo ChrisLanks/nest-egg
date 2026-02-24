@@ -18,6 +18,7 @@ import {
   ModalOverlay,
   Spinner,
   Text,
+  useColorModeValue,
   useDisclosure,
   VStack,
 } from '@chakra-ui/react';
@@ -48,6 +49,9 @@ type TimeRange = '1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM';
 
 export const NetWorthChartWidget: React.FC = () => {
   const { selectedUserId } = useUserView();
+  const overlayBg = useColorModeValue('whiteAlpha.800', 'blackAlpha.800');
+  const tooltipBg = useColorModeValue('#FFFFFF', '#2D3748');
+  const tooltipBorder = useColorModeValue('#E2E8F0', '#4A5568');
   const [timeRange, setTimeRange] = useState<TimeRange>(() => {
     const saved = localStorage.getItem('dashboard-timeRange');
     return (saved as TimeRange) || '1Y';
@@ -148,7 +152,7 @@ export const NetWorthChartWidget: React.FC = () => {
             left={0}
             right={0}
             bottom={0}
-            bg="whiteAlpha.800"
+            bg={overlayBg}
             zIndex={1}
             display="flex"
             alignItems="center"
@@ -173,7 +177,7 @@ export const NetWorthChartWidget: React.FC = () => {
 
         {!isLoading && chartData.length === 0 ? (
           <Box height={300} display="flex" alignItems="center" justifyContent="center">
-            <Text color="gray.500">No net worth data yet.</Text>
+            <Text color="text.muted">No net worth data yet.</Text>
           </Box>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
@@ -183,7 +187,7 @@ export const NetWorthChartWidget: React.FC = () => {
               <YAxis />
               <Tooltip
                 formatter={(v: number) => formatCurrency(v)}
-                contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc' }}
+                contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}` }}
               />
               <Legend />
               <defs>

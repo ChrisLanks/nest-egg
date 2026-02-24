@@ -373,7 +373,7 @@ export const RuleBuilderModal = ({
                     p={3}
                     borderWidth={1}
                     borderRadius="md"
-                    bg="gray.50"
+                    bg="bg.subtle"
                   >
                     <HStack spacing={2} align="start">
                       <FormControl flex={1}>
@@ -432,7 +432,7 @@ export const RuleBuilderModal = ({
                 ))}
 
                 {conditions.length === 0 && (
-                  <Text color="gray.500" textAlign="center" py={4}>
+                  <Text color="text.muted" textAlign="center" py={4}>
                     No conditions yet. Click "Add Condition" to get started.
                   </Text>
                 )}
@@ -464,7 +464,7 @@ export const RuleBuilderModal = ({
                     p={3}
                     borderWidth={1}
                     borderRadius="md"
-                    bg="gray.50"
+                    bg="bg.subtle"
                   >
                     <HStack spacing={2} align="start">
                       <FormControl flex={1}>
@@ -514,7 +514,7 @@ export const RuleBuilderModal = ({
                 ))}
 
                 {actions.length === 0 && (
-                  <Text color="gray.500" textAlign="center" py={4}>
+                  <Text color="text.muted" textAlign="center" py={4}>
                     No actions yet. Click "Add Action" to get started.
                   </Text>
                 )}

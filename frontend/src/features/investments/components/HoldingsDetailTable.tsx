@@ -267,7 +267,7 @@ export const HoldingsDetailTable = ({ holdings }: HoldingsDetailTableProps) => {
       cursor="pointer"
       onClick={() => handleSort(field)}
       isNumeric={isNumeric}
-      _hover={{ bg: 'gray.50' }}
+      _hover={{ bg: 'bg.subtle' }}
       userSelect="none"
     >
       <HStack spacing={1} justify={isNumeric ? 'flex-end' : 'flex-start'}>
@@ -283,7 +283,7 @@ export const HoldingsDetailTable = ({ holdings }: HoldingsDetailTableProps) => {
       <HStack spacing={4} mb={4}>
         <InputGroup flex={1} maxW="400px">
           <InputLeftElement pointerEvents="none">
-            <Icon as={FiSearch} color="gray.400" />
+            <Icon as={FiSearch} color="text.muted" />
           </InputLeftElement>
           <Input
             placeholder="Search by ticker or name..."
@@ -316,14 +316,14 @@ export const HoldingsDetailTable = ({ holdings }: HoldingsDetailTableProps) => {
       </HStack>
 
       {/* Results count */}
-      <Text fontSize="sm" color="gray.600" mb={2}>
+      <Text fontSize="sm" color="text.secondary" mb={2}>
         Showing {processedHoldings.length} of {holdings.length} holdings
       </Text>
 
       {/* Table */}
-      <Box overflowX="auto" border="1px" borderColor="gray.200" borderRadius="md">
+      <Box overflowX="auto" border="1px" borderColor="border.default" borderRadius="md">
         <Table variant="simple" size="sm">
-          <Thead bg="gray.50">
+          <Thead bg="bg.subtle">
             <Tr>
               <SortableTh field="ticker">Ticker</SortableTh>
               <SortableTh field="name">Name</SortableTh>
@@ -357,18 +357,18 @@ export const HoldingsDetailTable = ({ holdings }: HoldingsDetailTableProps) => {
           <Tbody>
             {processedHoldings.length === 0 ? (
               <Tr>
-                <Td colSpan={11} textAlign="center" py={8} color="gray.500">
+                <Td colSpan={11} textAlign="center" py={8} color="text.muted">
                   No holdings match your filters
                 </Td>
               </Tr>
             ) : (
               processedHoldings.map((holding, index) => (
-                <Tr key={`${holding.ticker}-${index}`} _hover={{ bg: 'gray.50' }}>
+                <Tr key={`${holding.ticker}-${index}`} _hover={{ bg: 'bg.subtle' }}>
                   <Td>
                     <Text fontWeight="bold">{holding.ticker}</Text>
                   </Td>
                   <Td>
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="text.secondary">
                       {holding.name || '-'}
                     </Text>
                   </Td>
@@ -388,10 +388,10 @@ export const HoldingsDetailTable = ({ holdings }: HoldingsDetailTableProps) => {
                     <Text
                       color={
                         holding.gain_loss && holding.gain_loss > 0
-                          ? 'green.600'
+                          ? 'finance.positive'
                           : holding.gain_loss && holding.gain_loss < 0
-                          ? 'red.600'
-                          : 'gray.600'
+                          ? 'finance.negative'
+                          : 'text.secondary'
                       }
                       fontWeight="medium"
                     >
@@ -403,11 +403,11 @@ export const HoldingsDetailTable = ({ holdings }: HoldingsDetailTableProps) => {
                       color={
                         holding.gain_loss_percent &&
                         holding.gain_loss_percent > 0
-                          ? 'green.600'
+                          ? 'finance.positive'
                           : holding.gain_loss_percent &&
                             holding.gain_loss_percent < 0
-                          ? 'red.600'
-                          : 'gray.600'
+                          ? 'finance.negative'
+                          : 'text.secondary'
                       }
                       fontWeight="medium"
                     >
@@ -427,7 +427,7 @@ export const HoldingsDetailTable = ({ holdings }: HoldingsDetailTableProps) => {
                       : '-'}
                   </Td>
                   <Td isNumeric>
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="text.secondary">
                       {formatCurrency(holding.annual_fee)}
                     </Text>
                   </Td>

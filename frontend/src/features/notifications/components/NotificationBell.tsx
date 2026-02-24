@@ -109,11 +109,11 @@ export default function NotificationBell() {
         <PopoverBody p={0}>
           {isLoading ? (
             <Box p={4}>
-              <Text color="gray.500">Loading...</Text>
+              <Text color="text.muted">Loading...</Text>
             </Box>
           ) : notifications.length === 0 ? (
             <Box p={4} textAlign="center">
-              <Text color="gray.500">No notifications</Text>
+              <Text color="text.muted">No notifications</Text>
             </Box>
           ) : (
             <VStack spacing={0} align="stretch">

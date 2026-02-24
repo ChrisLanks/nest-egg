@@ -151,13 +151,13 @@ export const LoginPage = () => {
         <VStack spacing={8}>
           <VStack spacing={2}>
             <Heading size="2xl">Nest Egg</Heading>
-            <Text color="gray.600">Your personal finance tracker</Text>
+            <Text color="text.secondary">Your personal finance tracker</Text>
           </VStack>
 
-          <Box w="full" bg="white" p={8} borderRadius="lg" boxShadow="md">
+          <Box w="full" bg="bg.surface" p={8} borderRadius="lg" boxShadow="md">
             <VStack spacing={6}>
               <Heading size="lg">Two-Factor Authentication</Heading>
-              <Text color="gray.600" textAlign="center" fontSize="sm">
+              <Text color="text.secondary" textAlign="center" fontSize="sm">
                 Enter the 6-digit code from your authenticator app.
               </Text>
 
@@ -213,12 +213,12 @@ export const LoginPage = () => {
       <VStack spacing={8}>
         <VStack spacing={2}>
           <Heading size="2xl">Nest Egg</Heading>
-          <Text color="gray.600">Your personal finance tracker</Text>
+          <Text color="text.secondary">Your personal finance tracker</Text>
         </VStack>
 
         <Box
           w="full"
-          bg="white"
+          bg="bg.surface"
           p={8}
           borderRadius="lg"
           boxShadow="md"
@@ -289,7 +289,7 @@ export const LoginPage = () => {
               </Stack>
             </form>
 
-            <Text color="gray.600">
+            <Text color="text.secondary">
               Don't have an account?{' '}
               <ChakraLink as={Link} to="/register" color="brand.500" fontWeight="semibold">
                 Register

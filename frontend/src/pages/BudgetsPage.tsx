@@ -81,7 +81,7 @@ export default function BudgetsPage() {
         <HStack justify="space-between">
           <VStack align="start" spacing={1}>
             <Heading size="lg">Budgets</Heading>
-            <Text color="gray.600">
+            <Text color="text.secondary">
               Track spending and stay within your budget goals
             </Text>
           </VStack>
@@ -159,7 +159,7 @@ export default function BudgetsPage() {
         {/* Empty state — filter returns nothing */}
         {!isLoading && budgets.length > 0 && filteredEmpty && (
           <Center py={8}>
-            <Text color="gray.500">
+            <Text color="text.muted">
               No budgets match the selected filter.
             </Text>
           </Center>

@@ -206,14 +206,14 @@ export default function TaxDeductiblePage() {
         {/* Header */}
         <Box>
           <Heading>Tax-Deductible Transactions</Heading>
-          <Text color="gray.600" mt={2}>
+          <Text color="text.secondary" mt={2}>
             Track and export deductible expenses for tax preparation
           </Text>
         </Box>
 
         {/* Initialize tax labels if needed */}
         {!taxLabelsExist && !initializeMutation.isPending && canEdit && (
-          <Card bg="blue.50" borderColor="blue.200">
+          <Card bg="bg.info" borderColor="blue.200">
             <CardBody>
               <VStack align="start" spacing={3}>
                 <HStack>
@@ -352,10 +352,10 @@ export default function TaxDeductiblePage() {
                           <Heading size="md">{summary.label_name}</Heading>
                         </HStack>
                         <VStack align="end" spacing={0}>
-                          <Text fontSize="2xl" fontWeight="bold" color="green.600">
+                          <Text fontSize="2xl" fontWeight="bold" color="finance.positive">
                             {formatCurrency(summary.total_amount)}
                           </Text>
-                          <Text fontSize="sm" color="gray.600">
+                          <Text fontSize="sm" color="text.secondary">
                             {summary.transaction_count} transaction
                             {summary.transaction_count !== 1 ? 's' : ''}
                           </Text>
@@ -381,7 +381,7 @@ export default function TaxDeductiblePage() {
                               <Td>
                                 <Text fontWeight="medium">{txn.merchant_name}</Text>
                                 {txn.description && (
-                                  <Text fontSize="xs" color="gray.600" noOfLines={1}>
+                                  <Text fontSize="xs" color="text.secondary" noOfLines={1}>
                                     {txn.description}
                                   </Text>
                                 )}
@@ -392,7 +392,7 @@ export default function TaxDeductiblePage() {
                                 </Badge>
                               </Td>
                               <Td>
-                                <Text fontSize="sm" color="gray.600">
+                                <Text fontSize="sm" color="text.secondary">
                                   {txn.account_name}
                                 </Text>
                               </Td>

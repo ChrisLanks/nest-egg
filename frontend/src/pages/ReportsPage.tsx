@@ -245,7 +245,7 @@ export default function ReportsPage() {
         <HStack justify="space-between">
           <Box>
             <Heading size="lg">📊 Custom Reports</Heading>
-            <Text color="gray.600">Create and manage custom financial reports</Text>
+            <Text color="text.secondary">Create and manage custom financial reports</Text>
           </Box>
           <Button colorScheme="blue" onClick={onBuilderOpen} isDisabled={!canEdit}>
             Create New Report
@@ -319,7 +319,7 @@ export default function ReportsPage() {
             <CardBody>
               <Center py={10}>
                 <VStack spacing={4}>
-                  <Text fontSize="lg" color="gray.600">
+                  <Text fontSize="lg" color="text.secondary">
                     No report templates yet
                   </Text>
                   <Button colorScheme="blue" onClick={onBuilderOpen}>
@@ -339,7 +339,7 @@ export default function ReportsPage() {
                 <HStack justify="space-between">
                   <Box>
                     <Heading size="md">{selectedTemplate.name}</Heading>
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="text.secondary">
                       {reportResult.dateRange.startDate} to {reportResult.dateRange.endDate}
                     </Text>
                   </Box>
@@ -352,9 +352,9 @@ export default function ReportsPage() {
                 {reportResult.metrics && (
                   <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
                     {reportResult.metrics.total_amount !== undefined && (
-                      <Card bg="blue.50">
+                      <Card bg="bg.info">
                         <CardBody>
-                          <Text fontSize="sm" color="gray.600">
+                          <Text fontSize="sm" color="text.secondary">
                             Total Amount
                           </Text>
                           <Text fontSize="2xl" fontWeight="bold">
@@ -364,9 +364,9 @@ export default function ReportsPage() {
                       </Card>
                     )}
                     {reportResult.metrics.total_transactions !== undefined && (
-                      <Card bg="green.50">
+                      <Card bg="bg.success">
                         <CardBody>
-                          <Text fontSize="sm" color="gray.600">
+                          <Text fontSize="sm" color="text.secondary">
                             Transactions
                           </Text>
                           <Text fontSize="2xl" fontWeight="bold">
@@ -378,7 +378,7 @@ export default function ReportsPage() {
                     {reportResult.metrics.total_items !== undefined && (
                       <Card bg="purple.50">
                         <CardBody>
-                          <Text fontSize="sm" color="gray.600">
+                          <Text fontSize="sm" color="text.secondary">
                             Items
                           </Text>
                           <Text fontSize="2xl" fontWeight="bold">

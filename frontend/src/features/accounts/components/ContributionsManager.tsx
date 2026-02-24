@@ -205,7 +205,7 @@ export const ContributionsManager = ({ accountId, accountName }: ContributionsMa
       </HStack>
 
       {isLoading ? (
-        <Text color="gray.600">Loading contributions...</Text>
+        <Text color="text.secondary">Loading contributions...</Text>
       ) : contributions && contributions.length > 0 ? (
         <Box overflowX="auto">
           <Table variant="simple" size="sm">
@@ -268,11 +268,11 @@ export const ContributionsManager = ({ accountId, accountName }: ContributionsMa
           </Table>
         </Box>
       ) : (
-        <Box p={8} textAlign="center" bg="gray.50" borderRadius="md" borderWidth={1}>
-          <Text color="gray.600" mb={4}>
+        <Box p={8} textAlign="center" bg="bg.subtle" borderRadius="md" borderWidth={1}>
+          <Text color="text.secondary" mb={4}>
             No recurring contributions set up for this account yet.
           </Text>
-          <Text fontSize="sm" color="gray.500" mb={4}>
+          <Text fontSize="sm" color="text.muted" mb={4}>
             Add recurring contributions to track regular deposits, share purchases, or growth rates.
           </Text>
           <Button

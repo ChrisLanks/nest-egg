@@ -176,10 +176,10 @@ export const RegisterPage = () => {
       <VStack spacing={8}>
         <VStack spacing={2}>
           <Heading size="2xl">Nest Egg</Heading>
-          <Text color="gray.600">Create your account</Text>
+          <Text color="text.secondary">Create your account</Text>
         </VStack>
 
-        <Box w="full" bg="white" p={8} borderRadius="lg" boxShadow="md">
+        <Box w="full" bg="bg.surface" p={8} borderRadius="lg" boxShadow="md">
           <VStack spacing={6}>
             <Heading size="lg">Register</Heading>
 
@@ -235,7 +235,7 @@ export const RegisterPage = () => {
                 </FormControl>
 
                 <FormControl isInvalid={!!errors.birth_year || !!errors.birth_month || !!errors.birth_day}>
-                  <FormLabel>Birthday <Text as="span" color="gray.400" fontWeight="normal">(optional)</Text></FormLabel>
+                  <FormLabel>Birthday <Text as="span" color="text.muted" fontWeight="normal">(optional)</Text></FormLabel>
                   <SimpleGrid columns={3} spacing={2}>
                     <Select
                       placeholder="Month"
@@ -295,7 +295,7 @@ export const RegisterPage = () => {
               </Stack>
             </form>
 
-            <Text color="gray.600">
+            <Text color="text.secondary">
               Already have an account?{' '}
               <ChakraLink as={Link} to="/login" color="brand.500" fontWeight="semibold">
                 Login

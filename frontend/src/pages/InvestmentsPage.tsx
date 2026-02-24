@@ -549,8 +549,8 @@ export const InvestmentsPage = () => {
           <Card>
             <CardBody>
               <VStack spacing={4}>
-                <Text color="gray.500">No investment accounts found.</Text>
-                <Text fontSize="sm" color="gray.600">
+                <Text color="text.muted">No investment accounts found.</Text>
+                <Text fontSize="sm" color="text.secondary">
                   Add investment accounts to see your portfolio here.
                 </Text>
               </VStack>
@@ -591,7 +591,7 @@ export const InvestmentsPage = () => {
           <VStack align="flex-start" spacing={0}>
             <Heading size="lg">Investments</Heading>
             {priceAgeLabel && (
-              <Text fontSize="xs" color="gray.500">{priceAgeLabel}</Text>
+              <Text fontSize="xs" color="text.muted">{priceAgeLabel}</Text>
             )}
           </VStack>
           <HStack spacing={4}>
@@ -608,7 +608,7 @@ export const InvestmentsPage = () => {
                 </MenuButton>
                 <MenuList minWidth="280px" maxHeight="400px" overflowY="auto">
                   <Box px={3} py={2}>
-                    <Text fontSize="sm" fontWeight="semibold" mb={3} color="gray.700">
+                    <Text fontSize="sm" fontWeight="semibold" mb={3} color="text.heading">
                       Select accounts to display:
                     </Text>
                     <VStack align="stretch" spacing={3}>
@@ -618,7 +618,7 @@ export const InvestmentsPage = () => {
                             fontSize="xs"
                             fontWeight="bold"
                             textTransform="uppercase"
-                            color="gray.500"
+                            color="text.muted"
                             mb={2}
                             letterSpacing="wide"
                           >
@@ -648,7 +648,7 @@ export const InvestmentsPage = () => {
                                   <Text fontSize="sm" fontWeight="medium">
                                     {account.name}
                                   </Text>
-                                  <Text fontSize="xs" color="gray.600">
+                                  <Text fontSize="xs" color="text.secondary">
                                     {formatCurrency(Number(account.current_balance) || 0)}
                                   </Text>
                                 </VStack>
@@ -730,7 +730,7 @@ export const InvestmentsPage = () => {
                   <StatLabel>Total Gain/Loss</StatLabel>
                   <StatNumber
                     fontSize="2xl"
-                    color={totalGainIsPositive ? 'green.600' : 'red.600'}
+                    color={totalGainIsPositive ? 'finance.positive' : 'finance.negative'}
                   >
                     {formatCurrency(portfolio.total_gain_loss)}
                   </StatNumber>
@@ -1041,7 +1041,7 @@ export const InvestmentsPage = () => {
                             <Stat>
                               <StatLabel fontSize="xs">30-Year Fee Drag</StatLabel>
                               <Tooltip label={`Opportunity cost of fees compounded at 7%/yr over 30 years (${FEE_DRAG_MULTIPLIER.toFixed(1)}× annual fees)`}>
-                                <StatNumber fontSize="lg" color="red.600">
+                                <StatNumber fontSize="lg" color="finance.negative">
                                   {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(feeDrag30yr)}
                                 </StatNumber>
                               </Tooltip>
@@ -1053,7 +1053,7 @@ export const InvestmentsPage = () => {
                           <CardBody py={3}>
                             <Stat>
                               <StatLabel fontSize="xs">Low-Cost Benchmark</StatLabel>
-                              <StatNumber fontSize="lg" color="green.600">
+                              <StatNumber fontSize="lg" color="finance.positive">
                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(benchmarkAnnualFees)}
                               </StatNumber>
                               <StatHelpText fontSize="xs">0.05% ER (Vanguard avg)</StatHelpText>
@@ -1064,7 +1064,7 @@ export const InvestmentsPage = () => {
                           <CardBody py={3}>
                             <Stat>
                               <StatLabel fontSize="xs">Potential Savings</StatLabel>
-                              <StatNumber fontSize="lg" color={feeSavingsPotential > 0 ? 'blue.600' : 'green.600'}>
+                              <StatNumber fontSize="lg" color={feeSavingsPotential > 0 ? 'blue.600' : 'finance.positive'}>
                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(feeSavingsPotential)}
                               </StatNumber>
                               <StatHelpText fontSize="xs">
@@ -1111,7 +1111,7 @@ export const InvestmentsPage = () => {
                                   <Td>
                                     <VStack align="flex-start" spacing={0}>
                                       <Text fontWeight="medium" fontSize="sm">{h.ticker}</Text>
-                                      {h.name && <Text fontSize="xs" color="gray.500" noOfLines={1}>{h.name}</Text>}
+                                      {h.name && <Text fontSize="xs" color="text.muted" noOfLines={1}>{h.name}</Text>}
                                     </VStack>
                                   </Td>
                                   <Td isNumeric fontSize="sm">
@@ -1168,7 +1168,7 @@ export const InvestmentsPage = () => {
               <VStack align="flex-start" spacing={1}>
                 <Heading size="md">Holdings by Account</Heading>
                 {selectedNode && (
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color="text.secondary">
                     Filtered by: {selectedNode.name}
                   </Text>
                 )}
@@ -1218,7 +1218,7 @@ export const InvestmentsPage = () => {
                                 {account.account_type}
                               </Badge>
                             </HStack>
-                            <Text fontSize="lg" fontWeight="bold" color="brand.600">
+                            <Text fontSize="lg" fontWeight="bold" color="brand.accent">
                               {formatCurrency(account.account_value)}
                             </Text>
                           </VStack>
@@ -1234,13 +1234,13 @@ export const InvestmentsPage = () => {
                           <Box mt={4} overflowX="auto">
                             {account.holdings.length === 0 ? (
                               <VStack spacing={2} py={4} align="center">
-                                <Text fontSize="sm" color="gray.600">
+                                <Text fontSize="sm" color="text.secondary">
                                   Holdings details not available for this account.
                                 </Text>
-                                <Text fontSize="xs" color="gray.500">
+                                <Text fontSize="xs" color="text.muted">
                                   Account balance: {formatCurrency(account.account_value)}
                                 </Text>
-                                <Text fontSize="xs" color="gray.500">
+                                <Text fontSize="xs" color="text.muted">
                                   Sync holdings data from your provider to see detailed breakdown.
                                 </Text>
                               </VStack>
@@ -1264,7 +1264,7 @@ export const InvestmentsPage = () => {
                                         <Text fontWeight="bold">{holding.ticker}</Text>
                                       </Td>
                                       <Td>
-                                        <Text fontSize="sm" color="gray.600">
+                                        <Text fontSize="sm" color="text.secondary">
                                           {holding.name || '-'}
                                         </Text>
                                       </Td>

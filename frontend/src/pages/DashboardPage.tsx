@@ -41,7 +41,7 @@ export const DashboardPage = () => {
       <HStack justify="space-between" mb={8} align="start">
         <Box>
           <Heading size="lg">Welcome back, {user?.first_name || 'User'}!</Heading>
-          <Text color="gray.600" mt={1}>
+          <Text color="text.secondary" mt={1}>
             Here's your financial overview
           </Text>
         </Box>

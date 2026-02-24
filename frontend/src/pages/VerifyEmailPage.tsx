@@ -67,9 +67,9 @@ export const VerifyEmailPage: React.FC = () => {
   };
 
   return (
-    <Center minH="100vh" bg="gray.50">
+    <Center minH="100vh" bg="bg.canvas">
       <Box
-        bg="white"
+        bg="bg.surface"
         borderRadius="xl"
         boxShadow="md"
         p={10}
@@ -80,7 +80,7 @@ export const VerifyEmailPage: React.FC = () => {
         {state === 'loading' && (
           <VStack spacing={4}>
             <Spinner size="xl" color="blue.500" thickness="4px" />
-            <Text color="gray.600">Verifying your email address…</Text>
+            <Text color="text.secondary">Verifying your email address…</Text>
           </VStack>
         )}
 
@@ -88,7 +88,7 @@ export const VerifyEmailPage: React.FC = () => {
           <VStack spacing={5} textAlign="center">
             <Icon as={CheckCircleIcon} boxSize={16} color="green.400" />
             <Heading size="md">Email verified!</Heading>
-            <Text color="gray.600">
+            <Text color="text.secondary">
               Your email address has been verified. You're all set.
             </Text>
             <Button
@@ -105,7 +105,7 @@ export const VerifyEmailPage: React.FC = () => {
           <VStack spacing={5} textAlign="center">
             <Icon as={WarningIcon} boxSize={16} color="red.400" />
             <Heading size="md">Link invalid or expired</Heading>
-            <Text color="gray.600">
+            <Text color="text.secondary">
               This verification link is no longer valid. Links expire after 24
               hours and can only be used once.
             </Text>

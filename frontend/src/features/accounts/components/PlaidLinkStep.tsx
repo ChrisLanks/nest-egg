@@ -146,7 +146,7 @@ export const PlaidLinkStep = ({ onSuccess, onBack }: PlaidLinkStepProps) => {
         <Center py={12}>
           <VStack spacing={4}>
             <Spinner size="xl" color="brand.500" />
-            <Text color="gray.600">Preparing connection...</Text>
+            <Text color="text.secondary">Preparing connection...</Text>
           </VStack>
         </Center>
       </VStack>
@@ -170,7 +170,7 @@ export const PlaidLinkStep = ({ onSuccess, onBack }: PlaidLinkStepProps) => {
         </HStack>
 
         <Box>
-          <Text fontSize="md" color="gray.600" mb={4}>
+          <Text fontSize="md" color="text.secondary" mb={4}>
             Select your bank to connect (Test Mode)
           </Text>
           <Text fontSize="sm" color="orange.600" mb={4}>
@@ -187,11 +187,11 @@ export const PlaidLinkStep = ({ onSuccess, onBack }: PlaidLinkStepProps) => {
               p={4}
               borderWidth={2}
               borderRadius="md"
-              borderColor={selectedInstitution === institution.id ? 'brand.500' : 'gray.200'}
-              bg={selectedInstitution === institution.id ? 'brand.50' : 'white'}
+              borderColor={selectedInstitution === institution.id ? 'brand.500' : 'border.default'}
+              bg={selectedInstitution === institution.id ? 'brand.subtle' : 'bg.surface'}
               _hover={{
                 borderColor: 'brand.500',
-                bg: 'brand.50',
+                bg: 'brand.subtle',
                 transform: 'translateY(-2px)',
                 shadow: 'sm',
               }}
@@ -214,7 +214,7 @@ export const PlaidLinkStep = ({ onSuccess, onBack }: PlaidLinkStepProps) => {
           ))}
         </SimpleGrid>
 
-        <Text fontSize="xs" color="gray.500" textAlign="center">
+        <Text fontSize="xs" color="text.muted" textAlign="center">
           In production, this will open the secure Plaid Link interface
         </Text>
       </VStack>
@@ -240,7 +240,7 @@ export const PlaidLinkStep = ({ onSuccess, onBack }: PlaidLinkStepProps) => {
           <Text fontSize="lg" fontWeight="medium">
             Connect Your Bank Account
           </Text>
-          <Text fontSize="sm" color="gray.600" textAlign="center" maxW="md">
+          <Text fontSize="sm" color="text.secondary" textAlign="center" maxW="md">
             Click below to securely connect your bank account through Plaid.
             Your credentials are never stored by us.
           </Text>
