@@ -449,6 +449,10 @@ class Account(Base):
     teller_enrollment = relationship("TellerEnrollment", back_populates="accounts")
     mx_member = relationship("MxMember", back_populates="accounts")
     transactions = relationship(
-        "Transaction", back_populates="account", cascade="all, delete-orphan"
+        "Transaction", back_populates="account", cascade="all, delete-orphan",
+        lazy="raise"
     )
-    holdings = relationship("Holding", back_populates="account", cascade="all, delete-orphan")
+    holdings = relationship(
+        "Holding", back_populates="account", cascade="all, delete-orphan",
+        lazy="raise"
+    )

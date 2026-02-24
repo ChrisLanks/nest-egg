@@ -6,7 +6,7 @@ from typing import List, Optional, Dict
 from uuid import UUID
 from collections import defaultdict
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -112,8 +112,15 @@ class RecurringDetectionService:
         # Get recent transactions
         cutoff_date = date.today() - timedelta(days=lookback_days)
 
+        # Fetch only needed columns, not full ORM objects
         result = await db.execute(
-            select(Transaction)
+            select(
+                Transaction.merchant_name,
+                Transaction.account_id,
+                Transaction.date,
+                Transaction.amount,
+                Transaction.id,
+            )
             .where(
                 and_(
                     Transaction.organization_id == user.organization_id,
@@ -121,15 +128,15 @@ class RecurringDetectionService:
                     Transaction.merchant_name.isnot(None),
                 )
             )
-            .order_by(Transaction.date)
+            .order_by(Transaction.merchant_name, Transaction.account_id, Transaction.date)
         )
-        transactions = list(result.scalars().all())
+        rows = result.all()
 
         # Group by merchant name and account
-        grouped: Dict[tuple, List[Transaction]] = defaultdict(list)
-        for txn in transactions:
-            key = (txn.merchant_name, txn.account_id)
-            grouped[key].append(txn)
+        grouped: Dict[tuple, List] = defaultdict(list)
+        for row in rows:
+            key = (row.merchant_name, row.account_id)
+            grouped[key].append(row)
 
         # Detect patterns
         patterns = []
@@ -139,14 +146,14 @@ class RecurringDetectionService:
                 continue
 
             # Calculate frequency
-            dates = [txn.date for txn in txns]
+            dates = [row.date for row in txns]
             frequency = RecurringDetectionService._calculate_frequency(dates)
 
             if frequency is None:
                 continue
 
             # Calculate average amount and variance
-            amounts = [abs(txn.amount) for txn in txns]
+            amounts = [abs(row.amount) for row in txns]
             avg_amount = sum(amounts) / len(amounts)
             amount_variance = max(amounts) - min(amounts)
 
@@ -557,8 +564,9 @@ class RecurringDetectionService:
         Skips transactions that already have the label.
         Returns the count of newly labelled transactions.
         """
+        # Fetch only IDs, not full ORM objects
         result = await db.execute(
-            select(Transaction).where(
+            select(Transaction.id).where(
                 and_(
                     Transaction.organization_id == organization_id,
                     Transaction.account_id == account_id,
@@ -566,17 +574,16 @@ class RecurringDetectionService:
                 )
             )
         )
-        transactions = result.scalars().all()
+        transaction_ids = [row[0] for row in result.all()]
 
         # Collect existing labelled transaction ids to avoid duplicates
-        if not transactions:
+        if not transaction_ids:
             return 0
 
-        txn_ids = [t.id for t in transactions]
         existing_result = await db.execute(
             select(TransactionLabel.transaction_id).where(
                 and_(
-                    TransactionLabel.transaction_id.in_(txn_ids),
+                    TransactionLabel.transaction_id.in_(transaction_ids),
                     TransactionLabel.label_id == label_id,
                 )
             )
@@ -584,10 +591,10 @@ class RecurringDetectionService:
         already_labelled = set(existing_result.scalars().all())
 
         count = 0
-        for txn in transactions:
-            if txn.id not in already_labelled:
+        for txn_id in transaction_ids:
+            if txn_id not in already_labelled:
                 db.add(TransactionLabel(
-                    transaction_id=txn.id,
+                    transaction_id=txn_id,
                     label_id=label_id,
                 ))
                 count += 1
@@ -603,7 +610,7 @@ class RecurringDetectionService:
     ) -> int:
         """Count transactions matching the given merchant + account (for UI preview)."""
         result = await db.execute(
-            select(Transaction).where(
+            select(func.count(Transaction.id)).where(
                 and_(
                     Transaction.organization_id == organization_id,
                     Transaction.account_id == account_id,
@@ -611,7 +618,7 @@ class RecurringDetectionService:
                 )
             )
         )
-        return len(result.scalars().all())
+        return result.scalar() or 0
 
 
 recurring_detection_service = RecurringDetectionService()

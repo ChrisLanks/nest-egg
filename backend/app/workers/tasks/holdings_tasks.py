@@ -2,12 +2,13 @@
 
 import asyncio
 import logging
-from datetime import date, datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, update
 
 from app.workers.celery_app import celery_app
 from app.core.database import AsyncSessionLocal as async_session_factory
+from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.user import User
 from app.models.holding import Holding
 from app.services.market_data import get_market_data_provider
@@ -135,11 +136,23 @@ async def _capture_snapshots_async():
 
             logger.info(f"Capturing holdings snapshots for {len(org_ids)} organizations")
 
-            today = date.today()
+            today = utc_now().date()
             total_snapshots = 0
 
             for org_id in org_ids:
                 try:
+                    # Idempotency check: skip if snapshot already captured today
+                    # (e.g. by the orchestrate_portfolio_snapshots Celery task)
+                    existing = await db.execute(
+                        select(PortfolioSnapshot.id).where(
+                            PortfolioSnapshot.organization_id == org_id,
+                            PortfolioSnapshot.snapshot_date == today,
+                        ).limit(1)
+                    )
+                    if existing.scalar_one_or_none():
+                        logger.debug(f"Snapshot already exists for org {org_id} on {today}, skipping")
+                        continue
+
                     # Get any user from this organization
                     user_result = await db.execute(
                         select(User).where(User.organization_id == org_id).limit(1)
@@ -196,8 +209,6 @@ async def _update_prices_async():
     hammered twice a day for active users while still covering orgs whose
     members haven't logged in.
     """
-    from datetime import timedelta
-
     STALE_AFTER_HOURS = 6
     cutoff = utc_now() - timedelta(hours=STALE_AFTER_HOURS)
 

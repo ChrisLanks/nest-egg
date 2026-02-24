@@ -5,11 +5,12 @@ from datetime import timedelta
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_, or_, case
+from sqlalchemy import select, and_, or_, case, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification, NotificationType, NotificationPriority
 from app.models.user import User
+from app.services.email_service import email_service
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -77,7 +78,6 @@ class NotificationService:
 
         # Fire-and-forget email notification
         try:
-            from app.services.email_service import email_service
             if email_service.is_configured and user_id:
                 # Look up the user to check email preference
                 user_result = await db.execute(select(User).where(User.id == user_id))
@@ -197,8 +197,6 @@ class NotificationService:
         user: User,
     ) -> int:
         """Mark all user notifications as read."""
-        from sqlalchemy import update
-
         stmt = (
             update(Notification)
             .where(
@@ -222,8 +220,6 @@ class NotificationService:
         user: User,
     ) -> int:
         """Get count of unread notifications."""
-        from sqlalchemy import func
-
         query = (
             select(func.count())
             .select_from(Notification)

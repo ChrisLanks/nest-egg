@@ -20,6 +20,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings as _settings
+from app.models.user import EmailVerificationToken, PasswordResetToken
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -43,8 +44,6 @@ async def create_verification_token(db: AsyncSession, user_id: UUID) -> str:
     that only the most-recently requested token is valid.  Returns the raw
     (unhashed) token — the caller must pass it to the email template.
     """
-    from app.models.user import EmailVerificationToken  # local import avoids circular dep
-
     # Invalidate any existing unused tokens for this user
     await db.execute(
         update(EmailVerificationToken)
@@ -75,8 +74,6 @@ async def create_password_reset_token(db: AsyncSession, user_id: UUID) -> str:
     (unhashed) token — the caller must pass it to the email template.
     Token expires in 1 hour (shorter window than email verification).
     """
-    from app.models.user import PasswordResetToken  # local import avoids circular dep
-
     # Invalidate any existing unused tokens for this user
     await db.execute(
         update(PasswordResetToken)
@@ -215,7 +212,8 @@ class EmailService:
     </a>
   </p>
   <p style="color: #718096; font-size: 14px;">
-    This link expires in <strong>1 hour</strong>. If you didn't request a password reset, you can safely ignore this email — your password will not change.
+    This link expires in <strong>1 hour</strong>. If you didn't request a password reset,
+    you can safely ignore this email — your password will not change.
   </p>
   <p style="color: #718096; font-size: 12px;">
     Or copy and paste this URL: {reset_url}

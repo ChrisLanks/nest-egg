@@ -4,6 +4,7 @@ import pyotp
 import qrcode
 import io
 import secrets
+from argon2 import PasswordHasher
 from base64 import b64encode
 from typing import List
 
@@ -106,9 +107,6 @@ class MFAService:
         """
         # Remove hyphen for consistency
         clean_code = code.replace("-", "")
-
-        from argon2 import PasswordHasher
-
         ph = PasswordHasher()
         return ph.hash(clean_code)
 
@@ -127,8 +125,6 @@ class MFAService:
         clean_code = code.replace("-", "")
 
         try:
-            from argon2 import PasswordHasher
-
             ph = PasswordHasher()
             ph.verify(hashed_code, clean_code)
             return True

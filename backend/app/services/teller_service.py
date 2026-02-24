@@ -131,6 +131,14 @@ class TellerService:
 
             if not account:
                 # Create new account
+                # Use ledger balance for accuracy (especially for credit cards/loans),
+                # falling back to current, then available
+                balance_data = account_data.get("balance", {})
+                balance_value = (
+                    balance_data.get("ledger")
+                    or balance_data.get("current")
+                    or balance_data.get("available", 0)
+                )
                 account = Account(
                     organization_id=enrollment.organization_id,
                     user_id=enrollment.user_id,
@@ -143,15 +151,20 @@ class TellerService:
                     account_source=AccountSource.TELLER,
                     mask=account_data.get("last_four"),
                     institution_name=account_data.get("institution", {}).get("name"),
-                    current_balance=Decimal(
-                        str(account_data.get("balance", {}).get("available", 0))
-                    ),
+                    current_balance=Decimal(str(balance_value)),
                 )
                 db.add(account)
             else:
                 # Update existing account balance
+                # Use ledger balance for accuracy (especially for credit cards/loans),
+                # falling back to current, then available
                 balance = account_data.get("balance", {})
-                account.current_balance = Decimal(str(balance.get("available", 0)))
+                balance_value = (
+                    balance.get("ledger")
+                    or balance.get("current")
+                    or balance.get("available", 0)
+                )
+                account.current_balance = Decimal(str(balance_value))
                 account.updated_at = utc_now()
 
             synced_accounts.append(account)
@@ -168,7 +181,12 @@ class TellerService:
         self, db: AsyncSession, account: Account, days_back: int = 90
     ) -> List[Transaction]:
         """Sync transactions from Teller."""
-        enrollment = account.teller_enrollment
+        # Use explicit async query instead of lazy-loaded relationship
+        # to avoid MissingGreenlet error in async context
+        enrollment_result = await db.execute(
+            select(TellerEnrollment).where(TellerEnrollment.id == account.teller_enrollment_id)
+        )
+        enrollment = enrollment_result.scalar_one_or_none()
         if not enrollment:
             raise ValueError("Account does not have Teller enrollment")
 

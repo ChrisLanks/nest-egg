@@ -155,7 +155,10 @@ class InsightsService:
                         {
                             "type": "category_increase",
                             "title": f"{category} spending up",
-                            "message": f"You spent ${current:.0f} on {category} this month, {change_pct:.0f}% more than last month (${previous:.0f})",
+                            "message": (
+                                f"You spent ${current:.0f} on {category} this month, "
+                                f"{change_pct:.0f}% more than last month (${previous:.0f})"
+                            ),
                             "category": category,
                             "amount": current,
                             "percentage_change": change_pct,
@@ -170,7 +173,10 @@ class InsightsService:
                         {
                             "type": "category_decrease",
                             "title": f"{category} spending down",
-                            "message": f"Great job! You spent ${current:.0f} on {category} this month, {abs(change_pct):.0f}% less than last month (${previous:.0f})",
+                            "message": (
+                                f"Great job! You spent ${current:.0f} on {category} this month, "
+                                f"{abs(change_pct):.0f}% less than last month (${previous:.0f})"
+                            ),
                             "category": category,
                             "amount": current,
                             "percentage_change": change_pct,
@@ -190,6 +196,9 @@ class InsightsService:
         """
         Find unusual transactions (>2 standard deviations from merchant average).
 
+        Uses SQL window functions to compute per-merchant statistics in the database
+        instead of loading all transactions into Python. Results are capped at 50.
+
         Returns insights for anomalous transactions in the last 30 days.
         """
         if not account_ids:
@@ -197,15 +206,25 @@ class InsightsService:
 
         # Look at last 30 days for anomalies
         lookback_date = date.today() - timedelta(days=30)
+        z_threshold = 2.0
 
-        # Get all transactions with merchant info
-        transactions_result = await db.execute(
+        # Use window functions to compute per-merchant stats in SQL
+        merchant_stats = (
             select(
                 Transaction.id,
                 Transaction.merchant_name,
                 Transaction.amount,
                 Transaction.date,
                 Transaction.category_primary,
+                func.count(Transaction.id)
+                .over(partition_by=Transaction.merchant_name)
+                .label("merchant_count"),
+                func.avg(func.abs(Transaction.amount))
+                .over(partition_by=Transaction.merchant_name)
+                .label("avg_amount"),
+                func.stddev(func.abs(Transaction.amount))
+                .over(partition_by=Transaction.merchant_name)
+                .label("stddev_amount"),
             )
             .select_from(Transaction)
             .join(Account)
@@ -221,53 +240,55 @@ class InsightsService:
                     Transaction.merchant_name.isnot(None),
                 )
             )
+        ).subquery()
+
+        # Filter for anomalies: merchant_count >= 4 and z-score > threshold
+        result = await db.execute(
+            select(
+                merchant_stats.c.id,
+                merchant_stats.c.merchant_name,
+                merchant_stats.c.amount,
+                merchant_stats.c.date,
+                merchant_stats.c.category_primary,
+                merchant_stats.c.avg_amount,
+                merchant_stats.c.stddev_amount,
+            )
+            .where(
+                and_(
+                    merchant_stats.c.merchant_count >= 4,
+                    merchant_stats.c.stddev_amount > 0,
+                    func.abs(func.abs(merchant_stats.c.amount) - merchant_stats.c.avg_amount)
+                    > z_threshold * merchant_stats.c.stddev_amount,
+                    # Only flag transactions that are ABOVE the mean (unusually expensive)
+                    func.abs(merchant_stats.c.amount) > merchant_stats.c.avg_amount,
+                )
+            )
+            .limit(50)
         )
-        transactions = transactions_result.all()
+        anomaly_rows = result.all()
 
-        # Group by merchant and calculate statistics
-        merchant_data: Dict[str, List[float]] = {}
-        for txn in transactions:
-            merchant = txn.merchant_name
-            amount = abs(float(txn.amount))
-            if merchant not in merchant_data:
-                merchant_data[merchant] = []
-            merchant_data[merchant].append(amount)
-
-        # Find anomalies using leave-one-out: exclude the candidate from its own stats
+        # Build insights from SQL results
         insights = []
-        for txn in transactions:
-            merchant = txn.merchant_name
-            amount = abs(float(txn.amount))
-            merchant_transactions = merchant_data[merchant]
+        for row in anomaly_rows:
+            amount = abs(float(row.amount))
+            avg = float(row.avg_amount)
+            std = float(row.stddev_amount)
+            z_score = (amount - avg) / std
 
-            # Need at least 4 transactions (3 others + the candidate) to establish a pattern
-            if len(merchant_transactions) < 4:
-                continue
-
-            # Leave-one-out: compute stats from all OTHER transactions for this merchant
-            others = [x for x in merchant_transactions if x != amount]
-            if not others:
-                others = merchant_transactions[:-1]  # fallback for duplicates
-
-            mean = sum(others) / len(others)
-            variance = sum((x - mean) ** 2 for x in others) / len(others)
-            std_dev = variance**0.5
-
-            # Check if this transaction is >2 standard deviations from mean
-            if std_dev > 0:
-                z_score = (amount - mean) / std_dev
-                if z_score > 2:  # More than 2 std devs above mean
-                    insights.append(
-                        {
-                            "type": "anomaly",
-                            "title": f"Unusual {merchant} charge",
-                            "message": f"You spent ${amount:.0f} at {merchant}, which is unusually high compared to your typical ${mean:.0f}",
-                            "category": txn.category_primary,
-                            "amount": amount,
-                            "priority": "high" if z_score > 3 else "medium",
-                            "icon": "⚠️",
-                            "priority_score": z_score * 30,  # z_score of 3 = priority 90
-                        }
-                    )
+            insights.append(
+                {
+                    "type": "anomaly",
+                    "title": f"Unusual {row.merchant_name} charge",
+                    "message": (
+                        f"You spent ${amount:.0f} at {row.merchant_name}, "
+                        f"which is unusually high compared to your typical ${avg:.0f}"
+                    ),
+                    "category": row.category_primary,
+                    "amount": amount,
+                    "priority": "high" if z_score > 3 else "medium",
+                    "icon": "\u26a0\ufe0f",
+                    "priority_score": z_score * 30,  # z_score of 3 = priority 90
+                }
+            )
 
         return insights

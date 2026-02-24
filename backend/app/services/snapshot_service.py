@@ -16,6 +16,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.schemas.holding import PortfolioSummary
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ class SnapshotService:
             Created or updated PortfolioSnapshot
         """
         if snapshot_date is None:
-            snapshot_date = date.today()
+            snapshot_date = utc_now().date()
 
         # Convert PortfolioSummary to snapshot data (JSON-serializable)
         snapshot_data = {

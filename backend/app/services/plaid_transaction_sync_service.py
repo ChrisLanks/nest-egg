@@ -159,10 +159,23 @@ class PlaidTransactionSyncService:
         merchant_name = txn_data.get("merchant_name") or txn_data.get("name", "")
         description = txn_data.get("name", "")
 
-        # Generate deduplication hash (include merchant for stronger dedup)
+        # Generate deduplication hash
+        # Use description as primary field for consistency with other providers (Teller),
+        # falling back to merchant_name only if description is empty.
+        hash_description = description or merchant_name or ""
         dedup_hash = self.generate_deduplication_hash(
-            account_id=account.id, txn_date=txn_date, amount=amount, description=merchant_name or description
+            account_id=account.id, txn_date=txn_date, amount=amount, description=hash_description
         )
+
+        # Check if we need to update existing transaction (by external_id in same account)
+        # This must come BEFORE the dedup skip checks so that modified transactions
+        # (e.g., pending→cleared, merchant name changes) actually get updated.
+        existing_txn = await self._get_transaction_by_external_id(db, account.id, external_id)
+
+        if existing_txn:
+            # Update existing transaction
+            await self._update_transaction(existing_txn, txn_data, stats)
+            return
 
         # Check if transaction already exists by external_id (cross-account check)
         if await self.check_external_id_exists(db, organization_id, external_id):
@@ -174,23 +187,16 @@ class PlaidTransactionSyncService:
             stats["skipped"] += 1
             return
 
-        # Check if we need to update existing transaction (by external_id in same account)
-        existing_txn = await self._get_transaction_by_external_id(db, account.id, external_id)
-
-        if existing_txn:
-            # Update existing transaction
-            await self._update_transaction(existing_txn, txn_data, stats)
-        else:
-            # Create new transaction
-            await self._create_transaction(
-                db=db,
-                organization_id=organization_id,
-                account=account,
-                external_id=external_id,
-                txn_data=txn_data,
-                dedup_hash=dedup_hash,
-                stats=stats,
-            )
+        # Create new transaction
+        await self._create_transaction(
+            db=db,
+            organization_id=organization_id,
+            account=account,
+            external_id=external_id,
+            txn_data=txn_data,
+            dedup_hash=dedup_hash,
+            stats=stats,
+        )
 
     async def _get_transaction_by_external_id(
         self, db: AsyncSession, account_id: UUID, external_id: str

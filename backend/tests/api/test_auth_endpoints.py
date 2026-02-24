@@ -30,7 +30,7 @@ class TestAuthEndpoints:
         assert "hashed_password" not in data  # Should not expose password
 
     def test_register_duplicate_email(self, client: TestClient, test_user):
-        """Test registration with duplicate email fails."""
+        """Test registration with duplicate email returns same response (anti-enumeration)."""
         response = client.post(
             "/api/v1/auth/register",
             json={
@@ -43,8 +43,9 @@ class TestAuthEndpoints:
             },
         )
 
-        assert response.status_code == 400
-        assert "already registered" in response.json()["detail"].lower()
+        # Returns 201 with a generic message to prevent user enumeration
+        assert response.status_code == 201
+        assert "message" in response.json()
 
     def test_register_weak_password(self, client: TestClient):
         """Test registration with weak password fails."""

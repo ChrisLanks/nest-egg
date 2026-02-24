@@ -2,7 +2,7 @@
 
 import pytest
 import time
-from app.core.rate_limiter import RateLimiter, check_rate_limit
+from app.core.rate_limiter import RateLimiter, AsyncRateLimiter, check_rate_limit
 from fastapi import HTTPException
 
 
@@ -130,44 +130,55 @@ class TestRateLimiter:
 
 
 class TestCheckRateLimitFunction:
-    """Test suite for check_rate_limit helper function."""
+    """Test suite for check_rate_limit helper function (async, uses AsyncRateLimiter)."""
 
-    def test_check_rate_limit_raises_http_exception(self):
+    @staticmethod
+    def _make_limiter(calls_per_minute: int) -> AsyncRateLimiter:
+        """Create an AsyncRateLimiter that skips Redis (uses in-memory fallback)."""
+        limiter = AsyncRateLimiter(calls_per_minute=calls_per_minute)
+        limiter._redis_initialized = True  # skip Redis connection attempt
+        limiter._redis_client = None  # force in-memory fallback
+        return limiter
+
+    @pytest.mark.asyncio
+    async def test_check_rate_limit_raises_http_exception(self):
         """Should raise HTTPException when limit exceeded."""
-        limiter = RateLimiter(calls_per_minute=5)
+        limiter = self._make_limiter(calls_per_minute=5)
 
-        # Use up the limit
+        # Use up the limit via the in-memory fallback path
         for _ in range(5):
-            limiter.is_allowed("user:testuser")
+            limiter._memory_is_allowed("user:testuser")
 
         # Next check should raise 429
         with pytest.raises(HTTPException) as exc_info:
-            check_rate_limit("testuser", limiter, "test_endpoint")
+            await check_rate_limit("testuser", limiter, "test_endpoint")
 
         assert exc_info.value.status_code == 429
         assert "Rate limit exceeded" in str(exc_info.value.detail)
 
-    def test_check_rate_limit_allows_under_limit(self):
+    @pytest.mark.asyncio
+    async def test_check_rate_limit_allows_under_limit(self):
         """Should not raise exception when under limit."""
-        limiter = RateLimiter(calls_per_minute=10)
+        limiter = self._make_limiter(calls_per_minute=10)
 
         # Should not raise
-        check_rate_limit("testuser", limiter, "test_endpoint")
+        await check_rate_limit("testuser", limiter, "test_endpoint")
 
-    def test_check_rate_limit_formats_key(self):
+    @pytest.mark.asyncio
+    async def test_check_rate_limit_formats_key(self):
         """Should format key with 'user:' prefix."""
-        limiter = RateLimiter(calls_per_minute=5)
+        limiter = self._make_limiter(calls_per_minute=5)
 
         # Use up the limit for user:testuser
         for _ in range(5):
-            limiter.is_allowed("user:testuser")
+            limiter._memory_is_allowed("user:testuser")
 
         # Should be blocked
         with pytest.raises(HTTPException):
-            check_rate_limit("testuser", limiter, "test_endpoint")
+            await check_rate_limit("testuser", limiter, "test_endpoint")
 
         # Different user should still work
-        check_rate_limit("otheruser", limiter, "test_endpoint")
+        await check_rate_limit("otheruser", limiter, "test_endpoint")
 
 
 @pytest.mark.slow

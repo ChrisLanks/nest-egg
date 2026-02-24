@@ -12,7 +12,6 @@ tracking when changing provider FKs.
 
 import hashlib
 import logging
-from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
@@ -162,9 +161,26 @@ class AccountMigrationService:
             return migration_log
 
         except Exception as e:
-            migration_log.status = MigrationStatus.FAILED
-            migration_log.error_message = str(e)[:2000]
-            migration_log.completed_at = utc_now()
+            await db.rollback()
+            # Write failure log in a clean transaction after rollback
+            # so the audit record survives even though the migration failed.
+            try:
+                failure_log = AccountMigrationLog(
+                    organization_id=org_id,
+                    account_id=acct_id,
+                    initiated_by_user_id=user.id,
+                    source_provider=source_value,
+                    target_provider=target_source.value,
+                    status=MigrationStatus.FAILED,
+                    error_message=str(e)[:2000],
+                    pre_migration_snapshot=pre_snapshot,
+                    target_enrollment_id=target_enrollment_id,
+                    completed_at=utc_now(),
+                )
+                db.add(failure_log)
+                await db.commit()
+            except Exception:
+                pass  # Don't fail the error handling if audit logging fails
             logger.error(
                 "Migration failed for account %s: %s",
                 acct_id,

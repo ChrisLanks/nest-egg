@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transaction import Transaction, TransactionSplit
@@ -181,6 +181,30 @@ class TransactionSplitService:
             split.category_id = category_id
 
         split.updated_at = utc_now()
+
+        # If the amount was changed, validate that all splits still sum to
+        # the parent transaction amount (same check used in create_splits)
+        if amount is not None:
+            # Flush so the updated amount is visible to the sum query
+            await db.flush()
+
+            all_splits_result = await db.execute(
+                select(func.sum(TransactionSplit.amount)).where(
+                    TransactionSplit.parent_transaction_id == split.parent_transaction_id
+                )
+            )
+            total = all_splits_result.scalar() or Decimal("0")
+
+            parent_result = await db.execute(
+                select(Transaction.amount).where(Transaction.id == split.parent_transaction_id)
+            )
+            parent_amount = parent_result.scalar()
+
+            if abs(Decimal(str(total)) - abs(Decimal(str(parent_amount)))) > Decimal("0.01"):
+                await db.rollback()
+                raise ValueError(
+                    f"Split amounts ({total}) must equal transaction amount ({abs(parent_amount)})"
+                )
 
         await db.commit()
         await db.refresh(split)

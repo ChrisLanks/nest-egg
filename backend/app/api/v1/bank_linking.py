@@ -24,6 +24,7 @@ from app.models.account import Account, AccountSource, MxMember, PlaidItem, Tell
 from app.models.user import User
 from app.schemas.plaid import PublicTokenExchangeRequest
 from app.services.plaid_service import PlaidService
+from app.services.mx_service import get_mx_service
 from app.services.rate_limit_service import rate_limit_service
 from app.services.teller_service import get_teller_service
 
@@ -131,8 +132,6 @@ async def create_link_token(
         elif request.provider == "mx":
             if not settings.MX_ENABLED:
                 raise HTTPException(status_code=400, detail="MX integration is not enabled")
-
-            from app.services.mx_service import get_mx_service
 
             mx_service = get_mx_service()
             mx_user_guid = await mx_service.get_or_create_user(db, current_user.id)
@@ -243,8 +242,6 @@ async def exchange_token(
             )
 
         elif request.provider == "mx":
-            from app.services.mx_service import get_mx_service
-
             mx_service = get_mx_service()
 
             # MX Connect widget callback provides member_guid via public_token
@@ -366,8 +363,6 @@ async def sync_transactions(
             }
 
         elif account.account_source == AccountSource.MX:
-            from app.services.mx_service import get_mx_service
-
             mx_service = get_mx_service()
 
             if not account.mx_member:
@@ -546,8 +541,6 @@ async def disconnect_account(
                 mx_member = mx_result.scalar_one_or_none()
                 if mx_member:
                     try:
-                        from app.services.mx_service import get_mx_service
-
                         mx_service = get_mx_service()
                         await mx_service.delete_member(
                             mx_member.mx_user_guid, mx_member.member_guid

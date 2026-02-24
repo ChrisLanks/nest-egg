@@ -1,5 +1,4 @@
-"""
-Storage service abstraction for file uploads.
+"""Storage service abstraction for file uploads.
 
 Supports two backends, selected by STORAGE_BACKEND env var:
   - "local" (default): stores files in LOCAL_UPLOAD_DIR — for dev and single-instance deployments
@@ -42,6 +41,7 @@ Prod (S3 with explicit credentials)::
 
 import asyncio
 import os
+import posixpath
 from typing import Protocol, runtime_checkable
 
 from app.config import settings
@@ -141,7 +141,12 @@ class S3StorageService:
         self._prefix = settings.AWS_S3_PREFIX
 
     def _full_key(self, key: str) -> str:
-        return f"{self._prefix}{key}"
+        # Prevent path traversal: normalize, strip ".." components and leading slashes
+        safe_key = posixpath.normpath(key).lstrip("/")
+        # After normpath, any remaining ".." means traversal above the prefix
+        if ".." in safe_key.split("/"):
+            raise ValueError("Path traversal detected")
+        return f"{self._prefix}{safe_key}"
 
     async def save(self, key: str, data: bytes, content_type: str = "text/csv") -> str:
         full_key = self._full_key(key)

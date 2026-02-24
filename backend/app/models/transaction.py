@@ -80,6 +80,9 @@ class Transaction(Base):
         Index("ix_transactions_account_date", "account_id", "date"),
         Index("ix_transactions_dedup", "account_id", "deduplication_hash", unique=True),
         Index("ix_transactions_org_category", "organization_id", "category_primary"),
+        Index("ix_transactions_org_date_amount", "organization_id", "date", "amount"),
+        Index("ix_transactions_org_acct_merchant", "organization_id", "account_id", "merchant_name"),
+        Index("ix_transactions_org_transfer_date", "organization_id", "is_transfer", "date"),
     )
 
 

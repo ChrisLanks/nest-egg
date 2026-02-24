@@ -1,7 +1,7 @@
 """Transaction API endpoints."""
 
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 from datetime import date, datetime
 import base64
 import json
@@ -11,7 +11,7 @@ from io import StringIO
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, func, tuple_
+from sqlalchemy import select, func, tuple_, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -92,8 +92,6 @@ async def create_transaction(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new transaction manually."""
-    from uuid import uuid4 as _uuid4
-
     # Validate account belongs to organization
     account_result = await db.execute(
         select(Account).where(
@@ -110,14 +108,20 @@ async def create_transaction(
         account_id=transaction_data.account_id,
         date=transaction_data.date,
         amount=transaction_data.amount,
-        merchant_name=input_sanitization_service.sanitize_html(transaction_data.merchant_name) if transaction_data.merchant_name else None,
-        description=input_sanitization_service.sanitize_html(transaction_data.description) if transaction_data.description else None,
+        merchant_name=(
+            input_sanitization_service.sanitize_html(transaction_data.merchant_name)
+            if transaction_data.merchant_name else None
+        ),
+        description=(
+            input_sanitization_service.sanitize_html(transaction_data.description)
+            if transaction_data.description else None
+        ),
         category_id=transaction_data.category_id,
         category_primary=transaction_data.category_primary,
         category_detailed=transaction_data.category_detailed,
         is_pending=transaction_data.is_pending,
         is_transfer=transaction_data.is_transfer,
-        deduplication_hash=str(_uuid4()),
+        deduplication_hash=str(uuid4()),
     )
     db.add(txn)
     await db.commit()
@@ -619,7 +623,6 @@ async def export_transactions_csv(
             joinedload(Transaction.labels).joinedload(TransactionLabel.label),
         )
         .where(Transaction.organization_id == current_user.organization_id)
-        .order_by(Transaction.date.desc(), Transaction.created_at.desc())
     )
 
     # Apply filters
@@ -658,14 +661,27 @@ async def export_transactions_csv(
 
         # Stream transactions in batches to avoid memory issues.
         # Cap at 500K rows to prevent runaway exports on very large datasets.
+        # Uses keyset/cursor pagination on (date, id) to avoid O(n^2) OFFSET.
         MAX_EXPORT_ROWS = 500_000
         batch_size = 1000
-        offset = 0
         total_exported = 0
+        last_date = None
+        last_id = None
 
         while total_exported < MAX_EXPORT_ROWS:
-            # Fetch batch
-            batch_query = query.offset(offset).limit(batch_size)
+            # Fetch batch using keyset pagination
+            batch_query = query.limit(batch_size)
+            if last_date is not None and last_id is not None:
+                # Keyset pagination: skip rows we've already seen
+                batch_query = batch_query.where(
+                    or_(
+                        Transaction.date < last_date,
+                        and_(Transaction.date == last_date, Transaction.id < last_id),
+                    )
+                )
+            batch_query = batch_query.order_by(
+                Transaction.date.desc(), Transaction.id.desc()
+            )
             result = await db.execute(batch_query)
             transactions = result.unique().scalars().all()
 
@@ -699,13 +715,13 @@ async def export_transactions_csv(
                 )
 
             total_exported += len(transactions)
+            last_date = transactions[-1].date
+            last_id = transactions[-1].id
 
             # Yield batch
             yield output.getvalue()
             output.seek(0)
             output.truncate(0)
-
-            offset += batch_size
 
     # Generate filename with date range (sanitize to prevent header injection)
     def _safe_date(val: str | None) -> str:

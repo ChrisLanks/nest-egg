@@ -288,22 +288,40 @@ class RuleEngine:
     async def apply_rule_to_transactions(
         self, rule: Rule, transaction_ids: List[str] = None
     ) -> int:
-        """Apply a rule to multiple transactions. Returns count of affected transactions."""
-        # Build query for transactions
-        query = select(Transaction).where(Transaction.organization_id == rule.organization_id)
+        """Apply a rule to multiple transactions. Returns count of affected transactions.
+
+        Processes transactions in batches to avoid loading the entire org's
+        transaction history into memory at once.
+        """
+        BATCH_SIZE = 500
+
+        # Build base query for transactions
+        base_query = (
+            select(Transaction)
+            .where(Transaction.organization_id == rule.organization_id)
+            .order_by(Transaction.id)  # Stable ordering for offset pagination
+        )
 
         # Filter by transaction IDs if provided
         if transaction_ids:
-            query = query.where(Transaction.id.in_(transaction_ids))
+            base_query = base_query.where(Transaction.id.in_(transaction_ids))
 
-        result = await self.db.execute(query)
-        transactions = result.scalars().all()
-
-        # Apply rule to each transaction
         count = 0
-        for transaction in transactions:
-            if await self.apply_rule_to_transaction(transaction, rule):
-                count += 1
+        offset = 0
+        while True:
+            result = await self.db.execute(
+                base_query.limit(BATCH_SIZE).offset(offset)
+            )
+            transactions = result.scalars().all()
+            if not transactions:
+                break
+
+            for transaction in transactions:
+                if await self.apply_rule_to_transaction(transaction, rule):
+                    count += 1
+
+            await self.db.flush()  # Flush each batch to free ORM memory
+            offset += BATCH_SIZE
 
         # Update rule statistics
         if count > 0:

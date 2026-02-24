@@ -65,6 +65,13 @@ def create_access_token(data: dict[str, Any], expires_delta: Optional[timedelta]
     return encoded_jwt
 
 
+def create_mfa_pending_token(user_id: str, expires_delta: timedelta) -> str:
+    """Create a short-lived token for MFA verification (NOT a valid access token)."""
+    expire = utc_now() + expires_delta
+    data = {"sub": user_id, "exp": expire, "type": "mfa_pending"}
+    return jwt.encode(data, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
 def create_refresh_token(user_id: str) -> tuple[str, str, datetime]:
     """
     Create a JWT refresh token.

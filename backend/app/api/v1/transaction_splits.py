@@ -64,12 +64,15 @@ async def update_split(
     db: AsyncSession = Depends(get_db),
 ):
     """Update a single split."""
-    split = await transaction_split_service.update_split(
-        db=db,
-        split_id=split_id,
-        user=current_user,
-        **split_data.model_dump(exclude_unset=True),
-    )
+    try:
+        split = await transaction_split_service.update_split(
+            db=db,
+            split_id=split_id,
+            user=current_user,
+            **split_data.model_dump(exclude_unset=True),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     if not split:
         raise HTTPException(status_code=404, detail="Split not found")

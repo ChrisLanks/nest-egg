@@ -1,5 +1,6 @@
 """Dashboard API endpoints."""
 
+import logging
 from datetime import date
 from typing import Optional
 from uuid import UUID
@@ -8,6 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import get as cache_get, setex as cache_setex
 from app.core.database import get_db
 from app.dependencies import (
     get_current_user,
@@ -22,6 +24,8 @@ from app.services.insights_service import InsightsService
 from app.services.forecast_service import ForecastService
 from app.schemas.transaction import CategorySummary, TransactionDetail
 from app.utils.date_validation import validate_date_range
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter()
@@ -163,6 +167,15 @@ async def get_dashboard_data(
     if start_date and end_date:
         validate_date_range(start_date, end_date)
 
+    # Check Redis cache first (60s TTL)
+    cache_key = f"dashboard:{current_user.organization_id}:{user_id}:{start_date}:{end_date}"
+    try:
+        cached = await cache_get(cache_key)
+        if cached is not None:
+            return cached
+    except Exception:
+        pass  # Cache miss or Redis down - continue with normal query
+
     # Get accounts based on user filter
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
@@ -245,7 +258,7 @@ async def get_dashboard_data(
             )
         )
 
-    return DashboardData(
+    response = DashboardData(
         summary=DashboardSummary(
             net_worth=float(net_worth),
             total_assets=float(total_assets),
@@ -267,6 +280,15 @@ async def get_dashboard_data(
             for cf in cash_flow_trend
         ],
     )
+
+    # Cache the response with 60-second TTL
+    try:
+        response_dict = response.model_dump(mode="json")
+        await cache_setex(cache_key, 60, response_dict)
+    except Exception:
+        logger.debug("Failed to write dashboard cache for key %s", cache_key)
+
+    return response
 
 
 @router.get("/insights", response_model=list[SpendingInsight])

@@ -117,14 +117,12 @@ class TestForecastService:
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
 class TestPrivateDebtProjections:
     """Test Private Debt cash flow projections."""
 
-    async def test_monthly_interest_income_calculation(self):
+    def test_monthly_interest_income_calculation(self):
         """Test monthly interest income is calculated correctly."""
         from app.models.account import Account, AccountType
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         # Create mock account with 6% annual interest on $10,000 principal
@@ -140,15 +138,9 @@ class TestPrivateDebtProjections:
             is_active=True,
         )
 
-        # Mock database
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [account]
-        db.execute = AsyncMock(return_value=result_mock)
-
         # Generate events
-        events = await ForecastService._get_future_private_debt_events(
-            db, uuid4(), None, days_ahead=90
+        events = ForecastService._get_future_private_debt_events(
+            [account], days_ahead=90
         )
 
         # Monthly interest = 10,000 * (6 / 100) / 12 = $50.00
@@ -159,10 +151,9 @@ class TestPrivateDebtProjections:
         assert len(interest_events) >= 3
         assert all(e["amount"] == expected_monthly_interest for e in interest_events)
 
-    async def test_principal_repayment_on_maturity(self):
+    def test_principal_repayment_on_maturity(self):
         """Test principal repayment event on maturity date."""
         from app.models.account import Account, AccountType
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         maturity_date = date.today() + timedelta(days=60)
@@ -180,15 +171,9 @@ class TestPrivateDebtProjections:
             is_active=True,
         )
 
-        # Mock database
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [account]
-        db.execute = AsyncMock(return_value=result_mock)
-
         # Generate events
-        events = await ForecastService._get_future_private_debt_events(
-            db, uuid4(), None, days_ahead=90
+        events = ForecastService._get_future_private_debt_events(
+            [account], days_ahead=90
         )
 
         # Find principal repayment event
@@ -197,10 +182,9 @@ class TestPrivateDebtProjections:
         assert principal_events[0]["amount"] == Decimal("25000.00")
         assert principal_events[0]["date"] == maturity_date
 
-    async def test_no_interest_rate_only_principal(self):
+    def test_no_interest_rate_only_principal(self):
         """Test projection with no interest rate (only principal repayment)."""
         from app.models.account import Account, AccountType
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         maturity_date = date.today() + timedelta(days=30)
@@ -218,15 +202,9 @@ class TestPrivateDebtProjections:
             is_active=True,
         )
 
-        # Mock database
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [account]
-        db.execute = AsyncMock(return_value=result_mock)
-
         # Generate events
-        events = await ForecastService._get_future_private_debt_events(
-            db, uuid4(), None, days_ahead=90
+        events = ForecastService._get_future_private_debt_events(
+            [account], days_ahead=90
         )
 
         # Should only have principal repayment, no interest events
@@ -234,10 +212,9 @@ class TestPrivateDebtProjections:
         assert "Principal Repayment" in events[0]["merchant"]
         assert events[0]["amount"] == Decimal("5000.00")
 
-    async def test_maturity_outside_forecast_window(self):
+    def test_maturity_outside_forecast_window(self):
         """Test that maturity date outside window is not included."""
         from app.models.account import Account, AccountType
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         # Maturity date beyond forecast window
@@ -255,15 +232,9 @@ class TestPrivateDebtProjections:
             is_active=True,
         )
 
-        # Mock database
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [account]
-        db.execute = AsyncMock(return_value=result_mock)
-
         # Generate events for 90 days
-        events = await ForecastService._get_future_private_debt_events(
-            db, uuid4(), None, days_ahead=90
+        events = ForecastService._get_future_private_debt_events(
+            [account], days_ahead=90
         )
 
         # Should have interest payments but no principal repayment
@@ -273,10 +244,9 @@ class TestPrivateDebtProjections:
         assert len(principal_events) == 0  # Maturity outside window
         assert len(interest_events) >= 3  # Still get interest payments
 
-    async def test_skip_zero_principal_accounts(self):
+    def test_skip_zero_principal_accounts(self):
         """Test that accounts with zero principal are skipped."""
         from app.models.account import Account, AccountType
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         account = Account(
@@ -291,24 +261,17 @@ class TestPrivateDebtProjections:
             is_active=True,
         )
 
-        # Mock database
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [account]
-        db.execute = AsyncMock(return_value=result_mock)
-
         # Generate events
-        events = await ForecastService._get_future_private_debt_events(
-            db, uuid4(), None, days_ahead=90
+        events = ForecastService._get_future_private_debt_events(
+            [account], days_ahead=90
         )
 
         # Should have no events
         assert len(events) == 0
 
-    async def test_multiple_private_debt_accounts(self):
+    def test_multiple_private_debt_accounts(self):
         """Test projection with multiple private debt accounts."""
         from app.models.account import Account, AccountType
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         org_id = uuid4()
@@ -339,15 +302,9 @@ class TestPrivateDebtProjections:
             is_active=True,
         )
 
-        # Mock database
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [account1, account2]
-        db.execute = AsyncMock(return_value=result_mock)
-
         # Generate events
-        events = await ForecastService._get_future_private_debt_events(
-            db, org_id, user_id, days_ahead=90
+        events = ForecastService._get_future_private_debt_events(
+            [account1, account2], days_ahead=90
         )
 
         # Should have events from both accounts
@@ -367,10 +324,9 @@ class TestPrivateDebtProjections:
         # Loan B: 15,000 * 6% / 12 = $75.00
         assert all(e["amount"] == Decimal("75.00") for e in loan_b_interest)
 
-    async def test_year_rollover_for_interest_payments(self):
+    def test_year_rollover_for_interest_payments(self):
         """Test that interest payments handle year rollover correctly."""
         from app.models.account import Account, AccountType
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         # Create account
@@ -386,15 +342,9 @@ class TestPrivateDebtProjections:
             is_active=True,
         )
 
-        # Mock database
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [account]
-        db.execute = AsyncMock(return_value=result_mock)
-
         # Generate events
-        events = await ForecastService._get_future_private_debt_events(
-            db, uuid4(), None, days_ahead=120  # 4 months
+        events = ForecastService._get_future_private_debt_events(
+            [account], days_ahead=120  # 4 months
         )
 
         # Should have interest events spanning months
@@ -407,14 +357,12 @@ class TestPrivateDebtProjections:
 
 
 @pytest.mark.unit
-@pytest.mark.asyncio
 class TestCDMaturityProjections:
     """Test CD maturity cash flow projections."""
 
-    async def test_cd_maturity_with_simple_interest(self):
+    def test_cd_maturity_with_simple_interest(self):
         """Test CD maturity with simple interest (at_maturity compounding)."""
         from app.models.account import Account, AccountType, CompoundingFrequency
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         maturity_date = date.today() + timedelta(days=365)
@@ -435,15 +383,9 @@ class TestCDMaturityProjections:
             is_active=True,
         )
 
-        # Mock database
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [account]
-        db.execute = AsyncMock(return_value=result_mock)
-
         # Generate events
-        events = await ForecastService._get_future_cd_maturity_events(
-            db, uuid4(), None, days_ahead=400
+        events = ForecastService._get_future_cd_maturity_events(
+            [account], days_ahead=400
         )
 
         # Should have 1 maturity event
@@ -455,10 +397,9 @@ class TestCDMaturityProjections:
         expected_value = Decimal("11000.00")
         assert abs(events[0]["amount"] - expected_value) < Decimal("1.00")
 
-    async def test_cd_maturity_with_monthly_compounding(self):
+    def test_cd_maturity_with_monthly_compounding(self):
         """Test CD maturity with monthly compounding."""
         from app.models.account import Account, AccountType, CompoundingFrequency
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         maturity_date = date.today() + timedelta(days=60)
@@ -479,15 +420,9 @@ class TestCDMaturityProjections:
             is_active=True,
         )
 
-        # Mock database
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [account]
-        db.execute = AsyncMock(return_value=result_mock)
-
         # Generate events
-        events = await ForecastService._get_future_cd_maturity_events(
-            db, uuid4(), None, days_ahead=90
+        events = ForecastService._get_future_cd_maturity_events(
+            [account], days_ahead=90
         )
 
         # Should have 1 maturity event
@@ -498,10 +433,9 @@ class TestCDMaturityProjections:
         expected_value = Decimal("10511.62")
         assert abs(events[0]["amount"] - expected_value) < Decimal("5.00")
 
-    async def test_cd_maturity_outside_forecast_window(self):
+    def test_cd_maturity_outside_forecast_window(self):
         """Test that CD maturity outside forecast window is not included."""
         from app.models.account import Account, AccountType, CompoundingFrequency
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         # Maturity date beyond forecast window
@@ -520,24 +454,17 @@ class TestCDMaturityProjections:
             is_active=True,
         )
 
-        # Mock database
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [account]
-        db.execute = AsyncMock(return_value=result_mock)
-
         # Generate events for 90 days
-        events = await ForecastService._get_future_cd_maturity_events(
-            db, uuid4(), None, days_ahead=90
+        events = ForecastService._get_future_cd_maturity_events(
+            [account], days_ahead=90
         )
 
         # Should have no events (maturity outside window)
         assert len(events) == 0
 
-    async def test_cd_without_interest_rate(self):
+    def test_cd_without_interest_rate(self):
         """Test CD without interest rate uses principal only."""
         from app.models.account import Account, AccountType
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         maturity_date = date.today() + timedelta(days=30)
@@ -554,25 +481,18 @@ class TestCDMaturityProjections:
             is_active=True,
         )
 
-        # Mock database
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [account]
-        db.execute = AsyncMock(return_value=result_mock)
-
         # Generate events
-        events = await ForecastService._get_future_cd_maturity_events(
-            db, uuid4(), None, days_ahead=90
+        events = ForecastService._get_future_cd_maturity_events(
+            [account], days_ahead=90
         )
 
         # Should have maturity event with principal only
         assert len(events) == 1
         assert events[0]["amount"] == Decimal("5000.00")
 
-    async def test_multiple_cd_accounts(self):
+    def test_multiple_cd_accounts(self):
         """Test projection with multiple CD accounts."""
         from app.models.account import Account, AccountType, CompoundingFrequency
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         org_id = uuid4()
@@ -607,15 +527,9 @@ class TestCDMaturityProjections:
             is_active=True,
         )
 
-        # Mock database
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [cd1, cd2]
-        db.execute = AsyncMock(return_value=result_mock)
-
         # Generate events
-        events = await ForecastService._get_future_cd_maturity_events(
-            db, org_id, user_id, days_ahead=90
+        events = ForecastService._get_future_cd_maturity_events(
+            [cd1, cd2], days_ahead=90
         )
 
         # Should have events from both CDs
@@ -634,10 +548,9 @@ class TestCDMaturityProjections:
 class TestMortgagePaymentProjections:
     """Test mortgage/loan payment cash flow projections."""
 
-    async def test_mortgage_payment_uses_amortization_formula(self):
+    def test_mortgage_payment_uses_amortization_formula(self):
         """Monthly payment calculated via standard amortization: M = P*r(1+r)^n / [(1+r)^n - 1]."""
         from app.models.account import Account, AccountType
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         # $400,000 mortgage at 7% APR, 30-year term (360 months)
@@ -654,13 +567,8 @@ class TestMortgagePaymentProjections:
             is_active=True,
         )
 
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [account]
-        db.execute = AsyncMock(return_value=result_mock)
-
-        events = await ForecastService._get_mortgage_payment_events(
-            db, uuid4(), None, days_ahead=90
+        events = ForecastService._get_mortgage_payment_events(
+            [account], days_ahead=90
         )
 
         # Should have ~3 monthly payments
@@ -679,10 +587,9 @@ class TestMortgagePaymentProjections:
             assert float(abs(event["amount"])) == pytest.approx(float(expected_payment), rel=0.001)
             assert "Loan Payment" in event["merchant"]
 
-    async def test_loan_payment_uses_remaining_term_from_origination(self):
+    def test_loan_payment_uses_remaining_term_from_origination(self):
         """Remaining term is calculated from origination date when available."""
         from app.models.account import Account, AccountType
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         # Loan taken out 60 months ago on a 120-month term → 60 months remaining
@@ -702,71 +609,35 @@ class TestMortgagePaymentProjections:
             is_active=True,
         )
 
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [account]
-        db.execute = AsyncMock(return_value=result_mock)
-
-        events = await ForecastService._get_mortgage_payment_events(
-            db, uuid4(), None, days_ahead=90
+        events = ForecastService._get_mortgage_payment_events(
+            [account], days_ahead=90
         )
 
         # Should have payments projected
         assert len(events) >= 3
         assert all(e["amount"] < 0 for e in events)
 
-    async def test_accounts_without_interest_rate_are_skipped(self):
+    def test_accounts_without_interest_rate_are_skipped(self):
         """Accounts with no interest_rate should not generate payment events."""
-        from app.models.account import Account, AccountType
-        from unittest.mock import AsyncMock, MagicMock
-        from uuid import uuid4
-
-        account = Account(
-            id=uuid4(),
-            organization_id=uuid4(),
-            user_id=uuid4(),
-            name="No-Rate Mortgage",
-            account_type=AccountType.MORTGAGE,
-            current_balance=Decimal("300000.00"),
-            interest_rate=None,  # No rate — skip
-            exclude_from_cash_flow=False,
-            is_active=True,
-        )
-
-        db = MagicMock()
-        result_mock = MagicMock()
-        # Query filters out accounts without interest_rate, so empty result
-        result_mock.scalars().all.return_value = []
-        db.execute = AsyncMock(return_value=result_mock)
-
-        events = await ForecastService._get_mortgage_payment_events(
-            db, uuid4(), None, days_ahead=90
+        # Pass empty list to simulate pre-filtered accounts without interest_rate
+        events = ForecastService._get_mortgage_payment_events(
+            [], days_ahead=90
         )
 
         assert events == []
 
-    async def test_accounts_excluded_from_cash_flow_are_skipped(self):
+    def test_accounts_excluded_from_cash_flow_are_skipped(self):
         """Accounts with exclude_from_cash_flow=True should not generate payment events."""
-        from app.models.account import Account, AccountType
-        from unittest.mock import AsyncMock, MagicMock
-        from uuid import uuid4
-
-        db = MagicMock()
-        result_mock = MagicMock()
-        # exclude_from_cash_flow filter in query returns nothing
-        result_mock.scalars().all.return_value = []
-        db.execute = AsyncMock(return_value=result_mock)
-
-        events = await ForecastService._get_mortgage_payment_events(
-            db, uuid4(), None, days_ahead=90
+        # Pass empty list to simulate pre-filtered accounts with exclude_from_cash_flow
+        events = ForecastService._get_mortgage_payment_events(
+            [], days_ahead=90
         )
 
         assert events == []
 
-    async def test_payment_uses_default_term_when_no_term_data(self):
+    def test_payment_uses_default_term_when_no_term_data(self):
         """Mortgage without term data defaults to 360 months; loan defaults to 120 months."""
         from app.models.account import Account, AccountType
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         mortgage = Account(
@@ -784,23 +655,17 @@ class TestMortgagePaymentProjections:
             is_active=True,
         )
 
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [mortgage]
-        db.execute = AsyncMock(return_value=result_mock)
-
-        events = await ForecastService._get_mortgage_payment_events(
-            db, uuid4(), None, days_ahead=90
+        events = ForecastService._get_mortgage_payment_events(
+            [mortgage], days_ahead=90
         )
 
         # Should still generate payments using 360-month default
         assert len(events) >= 3
         assert all(e["amount"] < 0 for e in events)
 
-    async def test_payment_events_on_correct_due_day(self):
+    def test_payment_events_on_correct_due_day(self):
         """Payments are scheduled on payment_due_day when set."""
         from app.models.account import Account, AccountType
-        from unittest.mock import AsyncMock, MagicMock
         from uuid import uuid4
 
         account = Account(
@@ -817,13 +682,8 @@ class TestMortgagePaymentProjections:
             is_active=True,
         )
 
-        db = MagicMock()
-        result_mock = MagicMock()
-        result_mock.scalars().all.return_value = [account]
-        db.execute = AsyncMock(return_value=result_mock)
-
-        events = await ForecastService._get_mortgage_payment_events(
-            db, uuid4(), None, days_ahead=90
+        events = ForecastService._get_mortgage_payment_events(
+            [account], days_ahead=90
         )
 
         # All payment dates should be on the 15th (or last day of month if shorter)

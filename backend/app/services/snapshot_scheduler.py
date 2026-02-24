@@ -13,11 +13,12 @@ from typing import Optional
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 
+from app.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.portfolio_snapshot import PortfolioSnapshot
-from app.models.user import Organization, User
+from app.models.user import Organization, User, PasswordResetToken, EmailVerificationToken
 from app.services.snapshot_service import snapshot_service
 from app.utils.datetime_utils import utc_now
 
@@ -186,7 +187,6 @@ class SnapshotScheduler:
         """
         try:
             import redis.asyncio as aioredis
-            from app.config import settings
 
             client = aioredis.from_url(
                 settings.REDIS_URL, encoding="utf-8", decode_responses=True
@@ -274,9 +274,6 @@ class SnapshotScheduler:
 
     async def cleanup_expired_tokens(self) -> None:
         """Delete expired password-reset and email-verification tokens."""
-        from sqlalchemy import delete
-        from app.models.user import PasswordResetToken, EmailVerificationToken
-
         async with AsyncSessionLocal() as db:
             try:
                 now = utc_now()

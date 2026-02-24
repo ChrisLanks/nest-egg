@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import select, func, and_, case
+from sqlalchemy import select, func, and_, case, exists, literal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -90,47 +90,32 @@ async def get_income_expense_summary(
 
     account_ids = [acc.id for acc in accounts]
 
-    # Get total income - only from active accounts
-    income_result = await db.execute(
-        select(func.sum(Transaction.amount))
+    # Base filters shared by totals and category queries
+    base_filters = [
+        Transaction.organization_id == current_user.organization_id,
+        Account.is_active.is_(True),
+        Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+        Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
+        Transaction.account_id.in_(account_ids),
+        Transaction.date >= start_date,
+        Transaction.date <= end_date,
+    ]
+
+    # Get total income and expenses in a single query using CASE WHEN
+    totals_result = await db.execute(
+        select(
+            func.coalesce(func.sum(case((Transaction.amount > 0, Transaction.amount))), 0).label("total_income"),
+            func.coalesce(func.sum(case((Transaction.amount < 0, func.abs(Transaction.amount)))), 0).label("total_expenses"),
+        )
         .select_from(Transaction)
         .join(Account)
-        .where(
-            Transaction.organization_id == current_user.organization_id,
-            Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(
-                False
-            ),  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
-            Transaction.account_id.in_(account_ids),
-            Transaction.date >= start_date,
-            Transaction.date <= end_date,
-            Transaction.amount > 0,
-        )
+        .where(*base_filters)
     )
-    total_income = float(income_result.scalar() or 0)
+    totals = totals_result.one()
+    total_income = float(totals.total_income)
+    total_expenses = float(totals.total_expenses)
 
-    # Get total expenses - only from active accounts
-    expense_result = await db.execute(
-        select(func.sum(Transaction.amount))
-        .select_from(Transaction)
-        .join(Account)
-        .where(
-            Transaction.organization_id == current_user.organization_id,
-            Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(
-                False
-            ),  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
-            Transaction.account_id.in_(account_ids),
-            Transaction.date >= start_date,
-            Transaction.date <= end_date,
-            Transaction.amount < 0,
-        )
-    )
-    total_expenses = abs(float(expense_result.scalar() or 0))
-
-    # Get income by category - only from active accounts
+    # Get income and expenses by category in a single query using CASE WHEN
     # Use hierarchical categories: show root category for child categories, otherwise show the category itself
     # Aliases for category matching
     ParentCategory = aliased(Category)
@@ -150,11 +135,13 @@ async def get_income_expense_summary(
         Transaction.category_primary  # Fallback to provider category
     ).label("category_name")
 
-    income_categories_result = await db.execute(
+    category_result = await db.execute(
         select(
             category_name_expr,
-            func.sum(Transaction.amount).label("total"),
-            func.count(Transaction.id).label("count"),
+            func.sum(case((Transaction.amount > 0, Transaction.amount), else_=literal(0))).label("income"),
+            func.sum(case((Transaction.amount < 0, func.abs(Transaction.amount)), else_=literal(0))).label("expenses"),
+            func.count(case((Transaction.amount > 0, Transaction.id))).label("income_count"),
+            func.count(case((Transaction.amount < 0, Transaction.id))).label("expense_count"),
         )
         .select_from(Transaction)
         .join(Account)
@@ -169,112 +156,57 @@ async def get_income_expense_summary(
         )
         .outerjoin(ParentByName, CategoryByName.parent_category_id == ParentByName.id)
         .where(
-            Transaction.organization_id == current_user.organization_id,
-            Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(
-                False
-            ),  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
-            Transaction.account_id.in_(account_ids),
-            Transaction.date >= start_date,
-            Transaction.date <= end_date,
-            Transaction.amount > 0,
+            *base_filters,
             # Include transactions with either custom category or provider category
             (Transaction.category_id.isnot(None)) | (Transaction.category_primary.isnot(None)),
         )
         .group_by(category_name_expr)
-        .order_by(func.sum(Transaction.amount).desc())
     )
 
     income_categories = []
-    for row in income_categories_result:
-        amount = float(row.total)
-        percentage = (amount / total_income * 100) if total_income > 0 else 0
-        income_categories.append(
-            CategoryBreakdown(
-                category=row.category_name, amount=amount, count=row.count, percentage=percentage
+    expense_categories = []
+    for row in category_result:
+        income_amt = float(row.income)
+        expense_amt = float(row.expenses)
+        if income_amt > 0:
+            percentage = (income_amt / total_income * 100) if total_income > 0 else 0
+            income_categories.append(
+                CategoryBreakdown(
+                    category=row.category_name, amount=income_amt, count=row.income_count, percentage=percentage
+                )
             )
-        )
+        if expense_amt > 0:
+            percentage = (expense_amt / total_expenses * 100) if total_expenses > 0 else 0
+            expense_categories.append(
+                CategoryBreakdown(
+                    category=row.category_name, amount=expense_amt, count=row.expense_count, percentage=percentage
+                )
+            )
+
+    # Sort: income descending by amount, expenses descending by amount
+    income_categories.sort(key=lambda c: c.amount, reverse=True)
+    expense_categories.sort(key=lambda c: c.amount, reverse=True)
 
     logger.info(f"[CATEGORY GROUPING] Found {len(income_categories)} income categories: {[c.category for c in income_categories]}")
-
-    # Get expenses by category - only from active accounts
-    # Use hierarchical categories: show root category for child categories
-    expense_categories_result = await db.execute(
-        select(
-            category_name_expr,
-            func.sum(Transaction.amount).label("total"),
-            func.count(Transaction.id).label("count"),
-        )
-        .select_from(Transaction)
-        .join(Account)
-        .outerjoin(Category, Transaction.category_id == Category.id)
-        .outerjoin(ParentCategory, Category.parent_category_id == ParentCategory.id)
-        .outerjoin(
-            CategoryByName,
-            and_(
-                Transaction.category_primary == CategoryByName.name,
-                CategoryByName.organization_id == current_user.organization_id
-            )
-        )
-        .outerjoin(ParentByName, CategoryByName.parent_category_id == ParentByName.id)
-        .where(
-            Transaction.organization_id == current_user.organization_id,
-            Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(
-                False
-            ),  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
-            Transaction.account_id.in_(account_ids),
-            Transaction.date >= start_date,
-            Transaction.date <= end_date,
-            Transaction.amount < 0,
-            # Include transactions with either custom category or provider category
-            (Transaction.category_id.isnot(None)) | (Transaction.category_primary.isnot(None)),
-        )
-        .group_by(category_name_expr)
-        .order_by(func.sum(Transaction.amount).asc())  # Most negative first
-    )
-
-    expense_categories = []
-    for row in expense_categories_result:
-        amount = abs(float(row.total))
-        percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
-        expense_categories.append(
-            CategoryBreakdown(
-                category=row.category_name, amount=amount, count=row.count, percentage=percentage
-            )
-        )
-
     logger.info(f"[CATEGORY GROUPING] Found {len(expense_categories)} expense categories: {[c.category for c in expense_categories]}")
 
     # Check which categories have children (for hierarchical drill-down)
+    # Batch fetch categories with children count in a single query
     all_category_names = set(c.category for c in income_categories + expense_categories)
-    categories_with_children = set()
-
-    for cat_name in all_category_names:
-        # Check if this category exists in our database and has children
-        cat_result = await db.execute(
-            select(Category.id)
-            .where(
-                Category.organization_id == current_user.organization_id,
-                Category.name == cat_name
-            )
+    child_cat = aliased(Category)
+    cats_result = await db.execute(
+        select(
+            Category.name,
+            func.count(child_cat.id).label("child_count")
         )
-        cat = cat_result.scalar_one_or_none()
-
-        if cat:
-            # Check if it has children
-            children_result = await db.execute(
-                select(func.count(Category.id))
-                .where(
-                    Category.organization_id == current_user.organization_id,
-                    Category.parent_category_id == cat
-                )
-            )
-            child_count = children_result.scalar()
-            if child_count > 0:
-                categories_with_children.add(cat_name)
+        .outerjoin(child_cat, child_cat.parent_category_id == Category.id)
+        .where(
+            Category.organization_id == current_user.organization_id,
+            Category.name.in_(all_category_names)
+        )
+        .group_by(Category.name)
+    )
+    categories_with_children = {row.name for row in cats_result.all() if row.child_count > 0}
 
     # Update has_children flag
     for cat in income_categories:
@@ -846,8 +778,10 @@ async def get_label_summary(
                 Transaction.date >= start_date,
                 Transaction.date <= end_date,
                 Transaction.amount > 0,
-                ~Transaction.id.in_(
-                    select(transaction_labels.c.transaction_id).select_from(transaction_labels)
+                ~exists(
+                    select(literal(1)).where(
+                        transaction_labels.c.transaction_id == Transaction.id
+                    )
                 ),
             )
         )
@@ -905,8 +839,10 @@ async def get_label_summary(
                 Transaction.date >= start_date,
                 Transaction.date <= end_date,
                 Transaction.amount < 0,
-                ~Transaction.id.in_(
-                    select(transaction_labels.c.transaction_id).select_from(transaction_labels)
+                ~exists(
+                    select(literal(1)).where(
+                        transaction_labels.c.transaction_id == Transaction.id
+                    )
                 ),
             )
         )
@@ -979,8 +915,10 @@ async def get_label_merchant_breakdown(
             )
             .where(
                 and_(*conditions),
-                ~Transaction.id.in_(
-                    select(transaction_labels.c.transaction_id).select_from(transaction_labels)
+                ~exists(
+                    select(literal(1)).where(
+                        transaction_labels.c.transaction_id == Transaction.id
+                    )
                 ),
             )
             .group_by(Transaction.merchant_name)
@@ -996,8 +934,10 @@ async def get_label_merchant_breakdown(
         total_result = await db.execute(
             select(func.sum(Transaction.amount)).where(
                 and_(*conditions),
-                ~Transaction.id.in_(
-                    select(transaction_labels.c.transaction_id).select_from(transaction_labels)
+                ~exists(
+                    select(literal(1)).where(
+                        transaction_labels.c.transaction_id == Transaction.id
+                    )
                 ),
             )
         )
@@ -1089,125 +1029,73 @@ async def get_merchant_summary(
 
     account_ids = [acc.id for acc in accounts]
 
-    # Get total income - only from active accounts
-    income_result = await db.execute(
-        select(func.sum(Transaction.amount))
-        .select_from(Transaction)
-        .join(Account)
-        .where(
-            Transaction.organization_id == current_user.organization_id,
-            Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(
-                False
-            ),  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
-            Transaction.account_id.in_(account_ids),
-            Transaction.date >= start_date,
-            Transaction.date <= end_date,
-            Transaction.amount > 0,
-        )
-    )
-    total_income = float(income_result.scalar() or 0)
+    # Base filters for merchant summary
+    merchant_base_filters = [
+        Transaction.organization_id == current_user.organization_id,
+        Account.is_active.is_(True),
+        Account.exclude_from_cash_flow.is_(False),  # Exclude loans/mortgages to prevent double-counting
+        Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
+        Transaction.account_id.in_(account_ids),
+        Transaction.date >= start_date,
+        Transaction.date <= end_date,
+        Transaction.merchant_name.isnot(None),
+    ]
 
-    # Get total expenses - only from active accounts
-    expense_result = await db.execute(
-        select(func.sum(Transaction.amount))
-        .select_from(Transaction)
-        .join(Account)
-        .where(
-            Transaction.organization_id == current_user.organization_id,
-            Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(
-                False
-            ),  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
-            Transaction.account_id.in_(account_ids),
-            Transaction.date >= start_date,
-            Transaction.date <= end_date,
-            Transaction.amount < 0,
-        )
-    )
-    total_expenses = abs(float(expense_result.scalar() or 0))
-
-    # Get income by merchant - only from active accounts
-    income_merchants_result = await db.execute(
+    # Single query: get income and expenses by merchant using CASE WHEN
+    merchant_result = await db.execute(
         select(
             Transaction.merchant_name,
-            func.sum(Transaction.amount).label("total"),
-            func.count(Transaction.id).label("count"),
+            func.sum(case((Transaction.amount > 0, Transaction.amount), else_=literal(0))).label("income"),
+            func.sum(case((Transaction.amount < 0, func.abs(Transaction.amount)), else_=literal(0))).label("expenses"),
+            func.count(case((Transaction.amount > 0, Transaction.id))).label("income_count"),
+            func.count(case((Transaction.amount < 0, Transaction.id))).label("expense_count"),
         )
         .select_from(Transaction)
         .join(Account)
-        .where(
-            Transaction.organization_id == current_user.organization_id,
-            Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(
-                False
-            ),  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
-            Transaction.account_id.in_(account_ids),
-            Transaction.date >= start_date,
-            Transaction.date <= end_date,
-            Transaction.amount > 0,
-            Transaction.merchant_name.isnot(None),
-        )
+        .where(*merchant_base_filters)
         .group_by(Transaction.merchant_name)
-        .order_by(func.sum(Transaction.amount).desc())
-        .limit(MAX_MERCHANT_RESULTS)
     )
 
+    # Build income and expense lists from the single query result, computing totals in Python
     income_categories = []
-    for row in income_merchants_result:
-        amount = float(row.total)
-        percentage = (amount / total_income * 100) if total_income > 0 else 0
-        income_categories.append(
-            CategoryBreakdown(
-                category=row.merchant_name or "Unknown",
-                amount=amount,
-                count=row.count,
-                percentage=percentage,
-            )
-        )
-
-    # Get expenses by merchant - only from active accounts
-    expense_merchants_result = await db.execute(
-        select(
-            Transaction.merchant_name,
-            func.sum(Transaction.amount).label("total"),
-            func.count(Transaction.id).label("count"),
-        )
-        .select_from(Transaction)
-        .join(Account)
-        .where(
-            Transaction.organization_id == current_user.organization_id,
-            Account.is_active.is_(True),
-            Account.exclude_from_cash_flow.is_(
-                False
-            ),  # Exclude loans/mortgages to prevent double-counting
-            Transaction.is_transfer.is_(False),  # Exclude transfers to prevent double-counting
-            Transaction.account_id.in_(account_ids),
-            Transaction.date >= start_date,
-            Transaction.date <= end_date,
-            Transaction.amount < 0,
-            Transaction.merchant_name.isnot(None),
-        )
-        .group_by(Transaction.merchant_name)
-        .order_by(func.sum(Transaction.amount).asc())  # Most negative first
-        .limit(MAX_MERCHANT_RESULTS)
-    )
-
     expense_categories = []
-    for row in expense_merchants_result:
-        amount = abs(float(row.total))
-        percentage = (amount / total_expenses * 100) if total_expenses > 0 else 0
-        expense_categories.append(
-            CategoryBreakdown(
-                category=row.merchant_name or "Unknown",
-                amount=amount,
-                count=row.count,
-                percentage=percentage,
+    total_income = 0.0
+    total_expenses = 0.0
+
+    for row in merchant_result:
+        income_amt = float(row.income)
+        expense_amt = float(row.expenses)
+        total_income += income_amt
+        total_expenses += expense_amt
+        if income_amt > 0:
+            income_categories.append(
+                CategoryBreakdown(
+                    category=row.merchant_name or "Unknown",
+                    amount=income_amt,
+                    count=row.income_count,
+                    percentage=0,  # will compute after totals are known
+                )
             )
-        )
+        if expense_amt > 0:
+            expense_categories.append(
+                CategoryBreakdown(
+                    category=row.merchant_name or "Unknown",
+                    amount=expense_amt,
+                    count=row.expense_count,
+                    percentage=0,  # will compute after totals are known
+                )
+            )
+
+    # Compute percentages now that totals are known, sort, and cap at MAX_MERCHANT_RESULTS
+    for cat in income_categories:
+        cat.percentage = (cat.amount / total_income * 100) if total_income > 0 else 0
+    for cat in expense_categories:
+        cat.percentage = (cat.amount / total_expenses * 100) if total_expenses > 0 else 0
+
+    income_categories.sort(key=lambda c: c.amount, reverse=True)
+    expense_categories.sort(key=lambda c: c.amount, reverse=True)
+    income_categories = income_categories[:MAX_MERCHANT_RESULTS]
+    expense_categories = expense_categories[:MAX_MERCHANT_RESULTS]
 
     return IncomeExpenseSummary(
         total_income=total_income,

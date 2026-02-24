@@ -11,7 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -24,12 +24,13 @@ from app.models.permission import PermissionGrant
 from app.models.recurring_transaction import RecurringTransaction
 from app.models.rule import Rule
 from app.models.transaction import Transaction
-from app.models.user import User, Organization
+from app.models.user import User, Organization, RefreshToken
 from app.schemas.user import UserUpdate, OrganizationUpdate
 from app.services.email_service import email_service, create_verification_token
 from app.services.password_validation_service import password_validation_service
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.rate_limit_service import get_rate_limit_service
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -221,6 +222,14 @@ async def change_password(
 
     # Update password
     current_user.password_hash = hash_password(password_data.new_password)
+
+    # Revoke all existing refresh tokens for this user
+    await db.execute(
+        sa_update(RefreshToken)
+        .where(RefreshToken.user_id == current_user.id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=utc_now())
+    )
+
     await db.commit()
 
     return {"message": "Password changed successfully"}

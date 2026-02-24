@@ -267,12 +267,12 @@ class AsyncRateLimiter:
 
 
 # Global rate limiters for different endpoint types
-market_data_limiter = RateLimiter(calls_per_minute=100)  # Market data endpoints (sync, per-process)
+market_data_limiter = AsyncRateLimiter(calls_per_minute=100)  # Market data endpoints (async, Redis-backed)
 api_limiter = AsyncRateLimiter(calls_per_minute=1000)  # Global middleware (async, Redis-backed)
 
 
-def check_rate_limit(
-    user_id: str, limiter: Optional[RateLimiter] = None, endpoint: str = "api"
+async def check_rate_limit(
+    user_id: str, limiter: Optional[AsyncRateLimiter] = None, endpoint: str = "api"
 ) -> None:
     """
     Check rate limit and raise HTTPException if exceeded.
@@ -290,8 +290,8 @@ def check_rate_limit(
 
     key = f"user:{user_id}"
 
-    if not limiter.is_allowed(key):
-        remaining = limiter.get_remaining_calls(key)
+    if not await limiter.is_allowed(key):
+        remaining = await limiter.get_remaining_calls(key)
         logger.warning(
             f"Rate limit exceeded for user {user_id} on {endpoint}. " f"Remaining: {remaining}"
         )
@@ -306,7 +306,7 @@ def check_rate_limit(
         )
 
     # Log rate limit status for monitoring
-    remaining = limiter.get_remaining_calls(key)
+    remaining = await limiter.get_remaining_calls(key)
     if remaining < 10:
         logger.info(
             f"User {user_id} approaching rate limit on {endpoint}. "

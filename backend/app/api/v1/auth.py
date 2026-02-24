@@ -7,6 +7,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select, update as sa_update
 from sqlalchemy.exc import SQLAlchemyError
@@ -17,6 +18,7 @@ from app.config import settings
 from app.core.database import AsyncSessionLocal, get_db
 from app.core.security import (
     create_access_token,
+    create_mfa_pending_token,
     create_refresh_token,
     decode_token,
     verify_password,
@@ -26,7 +28,7 @@ from app.crud.user import organization_crud, refresh_token_crud, user_crud
 from app.dependencies import get_current_user
 from app.models.holding import Holding
 from app.models.mfa import UserMFA
-from app.models.user import User, EmailVerificationToken, PasswordResetToken, UserConsent, ConsentType
+from app.models.user import User, EmailVerificationToken, PasswordResetToken, RefreshToken, UserConsent, ConsentType
 from app.schemas.auth import (
     AccessTokenResponse,
     LoginRequest,
@@ -123,7 +125,7 @@ async def create_auth_response(
         TokenResponse with access token and user data (refresh_token omitted from body)
     """
     # Generate tokens
-    access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
+    access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token_str, jti, expires_at = create_refresh_token(str(user.id))
 
     # Store refresh token hash
@@ -177,12 +179,13 @@ async def register(
         data.password, check_breach=True
     )
 
-    # Check if user already exists
+    # Check if user already exists — return same-shaped response to prevent enumeration.
+    # Use JSONResponse to bypass the TokenResponse response_model validation.
     existing_user = await user_crud.get_by_email(db, data.email)
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content={"message": "Registration successful. Please check your email to verify your account."},
         )
 
     # Create organization — use provided name or derive from display_name
@@ -280,6 +283,8 @@ async def login(
         # Account lockout — skipped in development to avoid locking devs out
         # during rapid iteration. In production, locks after MAX_LOGIN_ATTEMPTS
         # failed attempts for ACCOUNT_LOCKOUT_MINUTES.
+        if settings.ENVIRONMENT == "development":
+            logger.warning("Account lockout skipped in development mode")
         if settings.ENVIRONMENT != "development":
             locked_until = getattr(user, "locked_until", None)
             if locked_until and locked_until > utc_now():
@@ -345,14 +350,16 @@ async def login(
 
         # MFA enforcement — skipped in development so devs can log in without
         # configuring a TOTP app locally. Enforced in staging and production.
+        if settings.ENVIRONMENT == "development":
+            logger.warning("MFA enforcement skipped in development mode")
         if settings.ENVIRONMENT != "development":
             mfa_result = await db.execute(
                 select(UserMFA).where(UserMFA.user_id == user.id)
             )
             user_mfa = mfa_result.scalar_one_or_none()
             if user_mfa and user_mfa.is_enabled and user_mfa.is_verified:
-                mfa_token = create_access_token(
-                    data={"sub": str(user.id), "type": "mfa_pending"},
+                mfa_token = create_mfa_pending_token(
+                    user_id=str(user.id),
                     expires_delta=timedelta(minutes=5),
                 )
                 return MFAChallengeResponse(mfa_token=mfa_token)
@@ -660,7 +667,6 @@ async def refresh_access_token(
         access_token = create_access_token(
             data={
                 "sub": str(user.id),
-                "email": user.email,
             }
         )
 
@@ -861,6 +867,14 @@ async def reset_password(
     user.failed_login_attempts = 0
     user.locked_until = None
     record.used_at = utc_now()
+
+    # Revoke all existing refresh tokens for this user
+    await db.execute(
+        sa_update(RefreshToken)
+        .where(RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=utc_now())
+    )
+
     await db.commit()
 
     logger.info("Password reset completed for user %s", user.id)
@@ -904,55 +918,54 @@ async def get_current_user_info(
     return UserSchema.from_orm(current_user)
 
 
-@router.post("/debug/check-refresh-token")
-async def debug_check_refresh_token(
-    data: RefreshTokenRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Debug endpoint to check refresh token validity.
-    Only available in DEBUG mode and requires authentication.
-    """
-    if not settings.DEBUG:
-        raise HTTPException(status_code=404, detail="Not found")
+if settings.DEBUG:
 
-    try:
-        # Try to decode token
-        payload = decode_token(data.refresh_token)
-        jti = payload.get("jti")
-        token_type = payload.get("type")
-        user_id = payload.get("sub")
-        exp = payload.get("exp")
+    @router.post("/debug/check-refresh-token")
+    async def debug_check_refresh_token(
+        data: RefreshTokenRequest,
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+    ):
+        """
+        Debug endpoint to check refresh token validity.
+        Only available in DEBUG mode and requires authentication.
+        """
+        try:
+            # Try to decode token
+            payload = decode_token(data.refresh_token)
+            jti = payload.get("jti")
+            token_type = payload.get("type")
+            user_id = payload.get("sub")
+            exp = payload.get("exp")
 
-        # Check if token is in database
-        token_hash = hashlib.sha256(jti.encode()).hexdigest() if jti else None
-        db_token = (
-            await refresh_token_crud.get_by_token_hash(db, token_hash) if token_hash else None
-        )
+            # Check if token is in database
+            token_hash = hashlib.sha256(jti.encode()).hexdigest() if jti else None
+            db_token = (
+                await refresh_token_crud.get_by_token_hash(db, token_hash) if token_hash else None
+            )
 
-        return {
-            "decode_success": True,
-            "payload": {
-                "jti_prefix": jti[:16] if jti else None,
-                "type": token_type,
-                "user_id": user_id,
-                "exp": exp,
-            },
-            "token_hash_prefix": token_hash[:16] if token_hash else None,
-            "in_database": db_token is not None,
-            "db_token_info": (
-                {
-                    "expired": db_token.is_expired if db_token else None,
-                    "revoked": db_token.is_revoked if db_token else None,
-                    "expires_at": str(db_token.expires_at) if db_token else None,
-                }
-                if db_token
-                else None
-            ),
-        }
-    except Exception:
-        return {
-            "decode_success": False,
-            "error": "Token decode failed",
-        }
+            return {
+                "decode_success": True,
+                "payload": {
+                    "jti_prefix": jti[:16] if jti else None,
+                    "type": token_type,
+                    "user_id": user_id,
+                    "exp": exp,
+                },
+                "token_hash_prefix": token_hash[:16] if token_hash else None,
+                "in_database": db_token is not None,
+                "db_token_info": (
+                    {
+                        "expired": db_token.is_expired if db_token else None,
+                        "revoked": db_token.is_revoked if db_token else None,
+                        "expires_at": str(db_token.expires_at) if db_token else None,
+                    }
+                    if db_token
+                    else None
+                ),
+            }
+        except Exception:
+            return {
+                "decode_success": False,
+                "error": "Token decode failed",
+            }

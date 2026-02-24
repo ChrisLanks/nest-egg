@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import AsyncSessionLocal, get_db
+from app.utils.date_validation import validate_date_range
 from app.utils.datetime_utils import utc_now
 from app.utils.rmd_calculator import (
     calculate_age,
@@ -1364,7 +1365,6 @@ async def get_historical_snapshots(
         start_date = date.today() - timedelta(days=365)
 
     if start_date and end_date:
-        from app.utils.date_validation import validate_date_range
         validate_date_range(start_date, end_date)
 
     snapshots = await snapshot_service.get_snapshots(

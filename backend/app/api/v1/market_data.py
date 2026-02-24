@@ -148,7 +148,7 @@ async def get_quote(
     Works with stocks, ETFs, mutual funds, crypto, etc.
     """
     # Rate limit check
-    check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+    await check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
 
     validated = _validate_symbol(symbol)
     try:
@@ -179,7 +179,7 @@ async def get_quotes_batch(
     Returns dict mapping symbol to quote data.
     """
     # Rate limit check
-    check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+    await check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
 
     if len(symbols) > MAX_BATCH_SYMBOLS:
         raise HTTPException(
@@ -215,7 +215,7 @@ async def get_historical_prices(
 ):
     """Get historical price data for charts."""
     # Rate limit check
-    check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+    await check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
 
     validated = _validate_symbol(symbol)
     try:
@@ -241,7 +241,7 @@ async def search_symbols(
 ):
     """Search for stocks/securities by name or symbol."""
     # Rate limit check
-    check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+    await check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
 
     try:
         market_data = get_market_data_provider(provider)
@@ -261,7 +261,7 @@ async def get_provider_info(
 ):
     """Get information about the current market data provider."""
     # Rate limit check
-    check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+    await check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
 
     market_data = get_market_data_provider(provider)
 
@@ -284,7 +284,7 @@ async def refresh_holding_price(
     Updates current_price and last_price_update fields.
     """
     # Rate limit check
-    check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+    await check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
 
     # Get holding
     result = await db.execute(
@@ -347,7 +347,7 @@ async def refresh_all_holdings(
     Returns count of updated holdings.
     """
     # Rate limit check
-    check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+    await check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
 
     # Get all holdings
     query = select(Holding).where(Holding.organization_id == current_user.organization_id)
