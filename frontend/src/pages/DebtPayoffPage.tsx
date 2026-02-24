@@ -853,10 +853,10 @@ export default function DebtPayoffPage() {
 
                   {selectedStrategy.interest_saved_vs_current !== undefined && (
                     <Box bg="bg.success" p={4} borderRadius="md">
-                      <Text fontSize="md" fontWeight="semibold" color="green.700">
+                      <Text fontSize="md" fontWeight="semibold" color={successTextColor}>
                         💰 Save {formatCurrency(selectedStrategy.interest_saved_vs_current)} in interest
                       </Text>
-                      <Text fontSize="sm" color="green.700">
+                      <Text fontSize="sm" color={successTextColor}>
                         Become debt-free {selectedStrategy.months_saved_vs_current} months faster than minimum payments
                       </Text>
                     </Box>
