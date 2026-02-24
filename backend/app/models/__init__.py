@@ -16,6 +16,7 @@ from app.models.report_template import ReportTemplate
 from app.models.mfa import UserMFA
 from app.models.identity import UserIdentity
 from app.models.permission import PermissionGrant, PermissionGrantAudit
+from app.models.target_allocation import TargetAllocation
 
 __all__ = [
     "User",
@@ -43,4 +44,5 @@ __all__ = [
     "UserIdentity",
     "PermissionGrant",
     "PermissionGrantAudit",
+    "TargetAllocation",
 ]
