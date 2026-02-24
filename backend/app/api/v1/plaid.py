@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User, Organization
-from app.models.account import Account, PlaidItem, AccountType
+from app.models.account import Account, AccountSource, PlaidItem, AccountType
 from app.models.notification import NotificationType, NotificationPriority
 from app.schemas.plaid import (
     LinkTokenCreateRequest,
@@ -153,7 +153,7 @@ async def exchange_public_token(
                 external_account_id=plaid_account["account_id"],
                 name=plaid_account["name"],
                 account_type=account_type,
-                account_source="plaid",
+                account_source=AccountSource.PLAID,
                 institution_name=request.institution_name or "Unknown Institution",
                 mask=plaid_account.get("mask"),
                 plaid_item_hash=plaid_item_hash,
@@ -215,6 +215,8 @@ def _map_plaid_account_type(plaid_type: str, plaid_subtype: str) -> AccountType:
     elif plaid_type == "loan":
         if plaid_subtype in ["mortgage", "home_equity"]:
             return AccountType.MORTGAGE
+        elif plaid_subtype == "student":
+            return AccountType.STUDENT_LOAN
         else:
             return AccountType.LOAN
 
@@ -225,6 +227,8 @@ def _map_plaid_account_type(plaid_type: str, plaid_subtype: str) -> AccountType:
             return AccountType.RETIREMENT_IRA
         elif plaid_subtype == "roth":
             return AccountType.RETIREMENT_ROTH
+        elif plaid_subtype == "hsa":
+            return AccountType.BROKERAGE  # HSA with investment component
         elif plaid_subtype == "brokerage":
             return AccountType.BROKERAGE
         else:
@@ -346,7 +350,7 @@ async def handle_plaid_webhook(
 
         # Verify webhook signature to ensure it's from Plaid
         plaid_verification_header = request.headers.get("Plaid-Verification")
-        PlaidService.verify_webhook_signature(
+        await PlaidService.verify_webhook_signature(
             webhook_verification_header=plaid_verification_header, webhook_body=raw_body
         )
 

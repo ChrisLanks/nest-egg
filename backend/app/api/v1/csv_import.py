@@ -1,7 +1,7 @@
 """CSV import API endpoints."""
 
 import logging
-from typing import Dict
+from typing import Dict, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
@@ -48,7 +48,7 @@ def validate_csv_file(file: UploadFile) -> None:
         )
 
     # Check content type (allow both text/csv and application/vnd.ms-excel)
-    allowed_types = ["text/csv", "application/vnd.ms-excel", "application/csv"]
+    allowed_types = ["text/csv", "application/vnd.ms-excel", "application/csv", "text/plain"]
     if file.content_type:
         if file.content_type not in allowed_types:
             raise HTTPException(
@@ -98,7 +98,7 @@ async def validate_csv(
 async def preview_csv_import(
     http_request: Request,
     file: UploadFile = File(...),
-    column_mapping: Dict[str, str] = None,
+    column_mapping: Optional[Dict[str, str]] = None,
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -137,7 +137,7 @@ async def import_csv(
     account_id: UUID,
     http_request: Request,
     file: UploadFile = File(...),
-    column_mapping: Dict[str, str] = None,
+    column_mapping: Optional[Dict[str, str]] = None,
     skip_duplicates: bool = True,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

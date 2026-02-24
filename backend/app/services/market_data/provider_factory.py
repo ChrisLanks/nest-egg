@@ -32,7 +32,7 @@ class MarketDataProviderFactory:
             MarketDataProvider instance
 
         Raises:
-            ValueError: If provider not supported
+            ValueError: If provider not supported or not installed
         """
         # Use cached instance if no override
         if provider_name is None and cls._instance is not None:
@@ -48,15 +48,23 @@ class MarketDataProviderFactory:
         if provider_name == "yahoo_finance":
             provider = YahooFinanceProvider()
         elif provider_name == "alpha_vantage":
-            # Import only if needed
-            from .alpha_vantage_provider import AlphaVantageProvider
-
-            provider = AlphaVantageProvider()
+            try:
+                from .alpha_vantage_provider import AlphaVantageProvider
+                provider = AlphaVantageProvider()
+            except ImportError:
+                raise ValueError(
+                    "Alpha Vantage provider is not yet implemented. "
+                    "Configure ALPHA_VANTAGE_API_KEY and add the provider module."
+                )
         elif provider_name == "finnhub":
-            # Import only if needed
-            from .finnhub_provider import FinnhubProvider
-
-            provider = FinnhubProvider()
+            try:
+                from .finnhub_provider import FinnhubProvider
+                provider = FinnhubProvider()
+            except ImportError:
+                raise ValueError(
+                    "Finnhub provider is not yet implemented. "
+                    "Configure FINNHUB_API_KEY and add the provider module."
+                )
         else:
             raise ValueError(
                 f"Unsupported market data provider: {provider_name}. "

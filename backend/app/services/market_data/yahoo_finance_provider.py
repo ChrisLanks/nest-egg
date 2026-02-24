@@ -107,6 +107,8 @@ class YahooFinanceProvider(MarketDataProvider):
 
             # SECURITY: Validate response before returning
             validated = validate_quote_response(raw_quote, symbol)
+            if validated is None:
+                raise ValueError(f"Quote validation failed for {symbol}")
 
             # Convert validated data to QuoteData
             quote_data = QuoteData(**validated.model_dump())

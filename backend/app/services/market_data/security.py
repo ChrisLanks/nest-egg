@@ -13,8 +13,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Valid stock symbol pattern: uppercase alphanumeric, dots, hyphens only
-VALID_SYMBOL_PATTERN = re.compile(r"^[A-Z0-9\.\-]{1,10}$")
+# Valid stock symbol pattern: uppercase alphanumeric, dots, hyphens, caret (for indices like ^GSPC)
+VALID_SYMBOL_PATTERN = re.compile(r"^[A-Z0-9.\-\^]{1,15}$")
 
 # Dangerous patterns that could indicate injection attacks
 DANGEROUS_PATTERNS = ["../", "\\", "|", ";", "&", "$", "`", "<", ">", "{", "}"]
@@ -49,9 +49,9 @@ def validate_symbol(symbol: str) -> str:
     # Remove whitespace, convert to uppercase
     symbol = symbol.strip().upper()
 
-    # Check length (reasonable limit)
-    if len(symbol) > 10:
-        raise SymbolValidationError(f"Symbol too long: {len(symbol)} chars (max 10)")
+    # Check length (reasonable limit — some international tickers exceed 10 chars)
+    if len(symbol) > 15:
+        raise SymbolValidationError(f"Symbol too long: {len(symbol)} chars (max 15)")
 
     if len(symbol) < 1:
         raise SymbolValidationError("Symbol too short")

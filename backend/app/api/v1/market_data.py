@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.models.account import Account
 from app.models.holding import Holding
 from app.services.market_data import (
     get_market_data_provider,
@@ -353,7 +354,7 @@ async def refresh_all_holdings(
 
     if user_id:
         # Filter by user if specified
-        query = query.join(Holding.account).where(Holding.account.has(user_id=user_id))
+        query = query.join(Account).where(Account.user_id == user_id)
 
     result = await db.execute(query)
     holdings = result.scalars().all()

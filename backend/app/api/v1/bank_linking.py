@@ -6,7 +6,7 @@ to the frontend.
 """
 
 import logging
-from typing import List, Dict, Any, Literal
+from typing import List, Dict, Any, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -15,11 +15,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.plaid import exchange_public_token as plaid_exchange
+from app.api.v1.plaid import sync_plaid_holdings as plaid_sync_holdings
 from app.api.v1.plaid import sync_transactions as plaid_sync
 from app.config import settings
 from app.core.database import get_db
 from app.dependencies import get_current_user
-from app.models.account import Account, AccountSource
+from app.models.account import Account, AccountSource, PlaidItem, TellerEnrollment
 from app.models.user import User
 from app.schemas.plaid import PublicTokenExchangeRequest
 from app.services.plaid_service import PlaidService
@@ -52,6 +53,7 @@ class ExchangeTokenRequest(BaseModel):
 
     provider: Provider
     public_token: str  # Plaid: public_token, Teller: enrollment_id
+    access_token: Optional[str] = None  # Teller: separate access_token from Connect callback
     institution_id: str
     institution_name: str
     accounts: List[Dict[str, Any]]  # Provider-specific account metadata
@@ -193,12 +195,15 @@ async def exchange_token(
             teller_service = get_teller_service()
 
             # Create Teller enrollment
+            # Teller Connect callback provides both enrollment_id and access_token.
+            # public_token carries enrollment_id; access_token carries the real API token.
+            teller_access_token = request.access_token or request.public_token
             enrollment = await teller_service.create_enrollment(
                 db=db,
                 organization_id=current_user.organization_id,
                 user_id=current_user.id,
-                enrollment_id=request.public_token,  # Teller sends enrollment_id
-                access_token=request.public_token,  # In real flow, exchange this
+                enrollment_id=request.public_token,
+                access_token=teller_access_token,
                 institution_name=request.institution_name,
             )
 
@@ -315,6 +320,147 @@ async def sync_transactions(
     except Exception as e:
         logger.error(f"Sync error for account {account_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Sync failed")
+
+
+@router.post("/sync-holdings/{account_id}")
+async def sync_holdings(
+    account_id: UUID,
+    http_request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Sync investment holdings for an account.
+
+    Provider-agnostic endpoint that automatically determines the provider
+    from the account and routes to the appropriate service.
+
+    Rate limited to 5 requests per minute.
+    """
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=5,
+        window_seconds=60,
+    )
+
+    result = await db.execute(
+        select(Account).where(
+            Account.id == account_id, Account.organization_id == current_user.organization_id
+        )
+    )
+    account = result.scalar_one_or_none()
+
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    try:
+        if account.account_source == AccountSource.PLAID:
+            return await plaid_sync_holdings(
+                account_id=account_id,
+                http_request=http_request,
+                current_user=current_user,
+                db=db,
+            )
+
+        elif account.account_source == AccountSource.TELLER:
+            raise HTTPException(
+                status_code=501,
+                detail="Holdings sync is not yet supported for Teller accounts",
+            )
+
+        elif account.account_source == AccountSource.MANUAL:
+            raise HTTPException(
+                status_code=400, detail="Manual accounts cannot sync holdings automatically"
+            )
+
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported account source: {account.account_source.value}",
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Holdings sync error for account {account_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Holdings sync failed")
+
+
+@router.post("/disconnect/{account_id}")
+async def disconnect_account(
+    account_id: UUID,
+    http_request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Disconnect a linked bank account.
+
+    Provider-agnostic endpoint that revokes access and cleans up
+    provider-specific records (PlaidItem, TellerEnrollment).
+
+    Rate limited to 5 requests per minute.
+    """
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=5,
+        window_seconds=60,
+    )
+
+    result = await db.execute(
+        select(Account).where(
+            Account.id == account_id, Account.organization_id == current_user.organization_id
+        )
+    )
+    account = result.scalar_one_or_none()
+
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    try:
+        if account.account_source == AccountSource.PLAID:
+            # Mark PlaidItem as inactive (Plaid access token revocation
+            # requires calling /item/remove — done here if credentials are available)
+            if account.plaid_item_id:
+                item_result = await db.execute(
+                    select(PlaidItem).where(PlaidItem.id == account.plaid_item_id)
+                )
+                plaid_item = item_result.scalar_one_or_none()
+                if plaid_item:
+                    plaid_item.is_active = False
+
+        elif account.account_source == AccountSource.TELLER:
+            # Revoke Teller enrollment via API
+            if account.teller_enrollment_id:
+                enrollment_result = await db.execute(
+                    select(TellerEnrollment).where(
+                        TellerEnrollment.id == account.teller_enrollment_id
+                    )
+                )
+                enrollment = enrollment_result.scalar_one_or_none()
+                if enrollment:
+                    try:
+                        teller_service = get_teller_service()
+                        access_token = enrollment.get_decrypted_access_token()
+                        await teller_service._make_request(
+                            "DELETE",
+                            f"/enrollments/{enrollment.enrollment_id}",
+                            access_token=access_token,
+                        )
+                    except Exception as e:
+                        logger.warning(f"Teller enrollment revocation failed: {e}")
+
+        # Mark account as inactive regardless of provider
+        account.is_active = False
+        await db.commit()
+
+        return {"success": True, "account_id": str(account_id), "status": "disconnected"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Disconnect error for account {account_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Disconnect failed")
 
 
 @router.get("/providers")

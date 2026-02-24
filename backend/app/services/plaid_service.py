@@ -3,9 +3,10 @@
 import hashlib
 import logging
 from datetime import timedelta
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 import uuid
 import jwt
+from jwt import PyJWK
 import httpx
 from fastapi import HTTPException
 
@@ -21,6 +22,9 @@ _PLAID_BASE_URLS = {
     "development": "https://development.plaid.com",
     "production": "https://production.plaid.com",
 }
+
+# Cache for Plaid webhook verification JWK keys, keyed by key_id
+_jwk_cache: Dict[str, PyJWK] = {}
 
 
 class PlaidService:
@@ -39,66 +43,115 @@ class PlaidService:
         return user.email == "test@test.com"
 
     @staticmethod
-    def verify_webhook_signature(
+    async def _fetch_jwk(key_id: str) -> PyJWK:
+        """Fetch a webhook verification key from Plaid by key_id.
+
+        Plaid rotates keys; we cache them by key_id and fetch a new one
+        when an unknown key_id appears in a webhook JWT header.
+        """
+        if key_id in _jwk_cache:
+            return _jwk_cache[key_id]
+
+        base_url = _PLAID_BASE_URLS.get(
+            settings.PLAID_ENV, _PLAID_BASE_URLS["sandbox"]
+        )
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                f"{base_url}/webhook_verification_key/get",
+                json={
+                    "client_id": settings.PLAID_CLIENT_ID,
+                    "secret": settings.PLAID_SECRET,
+                    "key_id": key_id,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        jwk_data = data.get("key")
+        if not jwk_data:
+            raise ValueError(f"No key returned from Plaid for key_id={key_id}")
+
+        key = PyJWK(jwk_data)
+        _jwk_cache[key_id] = key
+        return key
+
+    @staticmethod
+    async def verify_webhook_signature(
         webhook_verification_header: Optional[str], webhook_body: bytes
     ) -> bool:
         """
-        Verify Plaid webhook signature using JWT verification.
+        Verify Plaid webhook signature using asymmetric JWT verification.
 
-        Plaid sends webhooks with a 'Plaid-Verification' header containing a JWT.
-        The JWT should be verified using the PLAID_WEBHOOK_SECRET.
+        Plaid signs webhooks with a rotating EC private key and sends
+        the JWT in the 'Plaid-Verification' header. Verification:
+        1. Decode JWT header (unverified) to get key_id
+        2. Fetch the matching public JWK from Plaid's endpoint (cached)
+        3. Verify JWT signature with the public key (ES256)
+        4. Verify request_body_sha256 claim matches actual body hash
 
         Args:
             webhook_verification_header: Value of 'Plaid-Verification' header
-            webhook_body: Webhook request body as dict
+            webhook_body: Raw webhook request body
 
         Returns:
             True if signature is valid, raises HTTPException otherwise
-
-        Security Note:
-            Webhook signature verification is ALWAYS required for security.
-            For development testing, use Plaid's webhook testing tools or set up
-            a proper webhook secret even in sandbox mode.
         """
-        # Webhook secret is REQUIRED for all webhooks
-        if not settings.PLAID_WEBHOOK_SECRET:
+        if not settings.PLAID_CLIENT_ID or not settings.PLAID_SECRET:
             raise HTTPException(
                 status_code=500,
-                detail="Webhook verification secret not configured. "
-                "Set PLAID_WEBHOOK_SECRET even in sandbox mode for security.",
+                detail="Plaid credentials not configured for webhook verification.",
             )
 
-        # Verify webhook signature header is present
         if not webhook_verification_header:
             raise HTTPException(status_code=401, detail="Missing Plaid-Verification header")
 
         try:
-            # Verify JWT signature
-            # The JWT contains claims about the webhook (webhook_code, item_id, etc.)
+            # 1. Decode header without verification to extract key_id
+            unverified_header = jwt.get_unverified_header(webhook_verification_header)
+            key_id = unverified_header.get("kid")
+            if not key_id:
+                raise HTTPException(
+                    status_code=401, detail="Missing kid in webhook JWT header"
+                )
+
+            # 2. Fetch the public key from Plaid (cached by key_id)
+            jwk = await PlaidService._fetch_jwk(key_id)
+
+            # 3. Verify JWT signature with the public key
             decoded = jwt.decode(
                 webhook_verification_header,
-                settings.PLAID_WEBHOOK_SECRET,
-                algorithms=["ES256"],  # Plaid uses ES256 (ECDSA with SHA-256)
+                jwk.key,
+                algorithms=["ES256"],
             )
 
-            # Verify webhook body hash matches JWT claims
+            # 4. Verify body hash
             body_hash_claim = decoded.get("request_body_sha256")
             if not body_hash_claim:
-                raise HTTPException(status_code=401, detail="Missing body hash claim in webhook JWT")
+                raise HTTPException(
+                    status_code=401, detail="Missing body hash claim in webhook JWT"
+                )
             body_hash = hashlib.sha256(webhook_body).hexdigest()
             if body_hash != body_hash_claim:
                 raise HTTPException(status_code=401, detail="Webhook body hash mismatch")
 
-            logger.info("Webhook signature verified")
+            logger.info("Webhook signature verified (key_id=%s)", key_id)
             return True
 
+        except HTTPException:
+            raise
         except jwt.ExpiredSignatureError:
             raise HTTPException(status_code=401, detail="Webhook verification token expired")
         except jwt.InvalidTokenError as e:
             logger.error("Invalid webhook JWT: %s", e, exc_info=True)
             raise HTTPException(status_code=401, detail="Invalid webhook signature")
+        except httpx.HTTPError as e:
+            logger.error("Failed to fetch Plaid JWK: %s", e, exc_info=True)
+            raise HTTPException(
+                status_code=502, detail="Failed to fetch webhook verification key from Plaid"
+            )
         except Exception as e:
-            logger.error(f"Webhook verification error: {str(e)}")
+            logger.error("Webhook verification error: %s", str(e), exc_info=True)
             raise HTTPException(status_code=401, detail="Webhook verification failed")
 
     async def create_link_token(self, user: User) -> Tuple[str, str]:
@@ -246,7 +299,7 @@ class PlaidService:
             return self._create_dummy_holdings()
 
         # For real users, call Plaid investments/holdings/get
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 f"{self._base_url}/investments/holdings/get",
                 json={

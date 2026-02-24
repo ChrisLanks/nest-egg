@@ -4,10 +4,10 @@ import hashlib
 import json
 import pytest
 from datetime import datetime, timedelta
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock, MagicMock
 from uuid import uuid4
 
-from app.services.plaid_service import PlaidService
+from app.services.plaid_service import PlaidService, _jwk_cache
 from app.models.user import User
 
 
@@ -94,168 +94,205 @@ class TestPlaidService:
         assert "credit" in account_types
         assert "investment" in account_types
 
-    def test_verify_webhook_signature_missing_secret(self, monkeypatch):
-        """Should raise error if webhook secret not configured in production."""
-        monkeypatch.setattr("app.config.settings.PLAID_WEBHOOK_SECRET", "")
-        monkeypatch.setattr("app.config.settings.DEBUG", False)
+    @pytest.mark.asyncio
+    async def test_verify_webhook_signature_missing_credentials(self, monkeypatch):
+        """Should raise error if Plaid credentials not configured."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "")
 
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            PlaidService.verify_webhook_signature(
-                webhook_verification_header="test_header", webhook_body={"test": "data"}
+            await PlaidService.verify_webhook_signature(
+                webhook_verification_header="test_header", webhook_body=b'{"test": "data"}'
             )
 
         assert exc_info.value.status_code == 500
         assert "not configured" in exc_info.value.detail
 
-    def test_verify_webhook_signature_missing_header_in_production(self, monkeypatch):
-        """Should raise error if signature header missing in production."""
-        monkeypatch.setattr("app.config.settings.PLAID_WEBHOOK_SECRET", "test_secret")
-        monkeypatch.setattr("app.config.settings.DEBUG", False)
+    @pytest.mark.asyncio
+    async def test_verify_webhook_signature_missing_header(self, monkeypatch):
+        """Should raise error if signature header missing."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
 
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            PlaidService.verify_webhook_signature(
-                webhook_verification_header=None, webhook_body={"test": "data"}
+            await PlaidService.verify_webhook_signature(
+                webhook_verification_header=None, webhook_body=b'{"test": "data"}'
             )
 
         assert exc_info.value.status_code == 401
         assert "Missing" in exc_info.value.detail
 
+    @pytest.mark.asyncio
     @patch("app.services.plaid_service.jwt.decode")
-    def test_verify_webhook_signature_valid_jwt(self, mock_jwt_decode, monkeypatch):
+    @patch("app.services.plaid_service.jwt.get_unverified_header")
+    @patch("app.services.plaid_service.PlaidService._fetch_jwk")
+    async def test_verify_webhook_signature_valid_jwt(
+        self, mock_fetch_jwk, mock_get_header, mock_jwt_decode, monkeypatch
+    ):
         """Should verify valid JWT signature."""
-        monkeypatch.setattr("app.config.settings.PLAID_WEBHOOK_SECRET", "test_secret")
-        monkeypatch.setattr("app.config.settings.DEBUG", False)
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
 
-        # Build body bytes and compute expected hash
         body = json.dumps({"item_id": "test_item_123"}).encode()
         body_hash = hashlib.sha256(body).hexdigest()
 
-        # Mock successful JWT verification with body hash claim
+        mock_get_header.return_value = {"kid": "test-key-id", "alg": "ES256"}
+        mock_jwk = MagicMock()
+        mock_jwk.key = "mock_public_key"
+        mock_fetch_jwk.return_value = mock_jwk
         mock_jwt_decode.return_value = {
             "item_id": "test_item_123",
-            "webhook_code": "DEFAULT_UPDATE",
             "request_body_sha256": body_hash,
         }
 
-        result = PlaidService.verify_webhook_signature(
+        result = await PlaidService.verify_webhook_signature(
             webhook_verification_header="valid.jwt.token", webhook_body=body
         )
 
         assert result is True
+        mock_fetch_jwk.assert_called_once_with("test-key-id")
         mock_jwt_decode.assert_called_once()
 
+    @pytest.mark.asyncio
+    @patch("app.services.plaid_service.jwt.get_unverified_header")
+    @patch("app.services.plaid_service.PlaidService._fetch_jwk")
     @patch("app.services.plaid_service.jwt.decode")
-    def test_verify_webhook_signature_expired_token(self, mock_jwt_decode, monkeypatch):
+    async def test_verify_webhook_signature_expired_token(
+        self, mock_jwt_decode, mock_fetch_jwk, mock_get_header, monkeypatch
+    ):
         """Should reject expired JWT token."""
-        monkeypatch.setattr("app.config.settings.PLAID_WEBHOOK_SECRET", "test_secret")
-        monkeypatch.setattr("app.config.settings.DEBUG", False)
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
 
-        # Mock JWT expiration error
         import jwt as jwt_module
 
+        mock_get_header.return_value = {"kid": "test-key-id"}
+        mock_jwk = MagicMock()
+        mock_fetch_jwk.return_value = mock_jwk
         mock_jwt_decode.side_effect = jwt_module.ExpiredSignatureError()
 
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            PlaidService.verify_webhook_signature(
-                webhook_verification_header="expired.jwt.token", webhook_body={"test": "data"}
+            await PlaidService.verify_webhook_signature(
+                webhook_verification_header="expired.jwt.token", webhook_body=b'{"test": "data"}'
             )
 
         assert exc_info.value.status_code == 401
         assert "expired" in exc_info.value.detail.lower()
 
+    @pytest.mark.asyncio
+    @patch("app.services.plaid_service.jwt.get_unverified_header")
+    @patch("app.services.plaid_service.PlaidService._fetch_jwk")
     @patch("app.services.plaid_service.jwt.decode")
-    def test_verify_webhook_signature_invalid_token(self, mock_jwt_decode, monkeypatch):
+    async def test_verify_webhook_signature_invalid_token(
+        self, mock_jwt_decode, mock_fetch_jwk, mock_get_header, monkeypatch
+    ):
         """Should reject invalid JWT token."""
-        monkeypatch.setattr("app.config.settings.PLAID_WEBHOOK_SECRET", "test_secret")
-        monkeypatch.setattr("app.config.settings.DEBUG", False)
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
 
-        # Mock JWT invalid token error
         import jwt as jwt_module
 
+        mock_get_header.return_value = {"kid": "test-key-id"}
+        mock_jwk = MagicMock()
+        mock_fetch_jwk.return_value = mock_jwk
         mock_jwt_decode.side_effect = jwt_module.InvalidTokenError("Bad signature")
 
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            PlaidService.verify_webhook_signature(
-                webhook_verification_header="invalid.jwt.token", webhook_body={"test": "data"}
+            await PlaidService.verify_webhook_signature(
+                webhook_verification_header="invalid.jwt.token", webhook_body=b'{"test": "data"}'
             )
 
         assert exc_info.value.status_code == 401
         assert "Invalid" in exc_info.value.detail
 
+    @pytest.mark.asyncio
     @patch("app.services.plaid_service.jwt.decode")
-    def test_verify_webhook_signature_with_body_hash(self, mock_jwt_decode, monkeypatch):
+    @patch("app.services.plaid_service.jwt.get_unverified_header")
+    @patch("app.services.plaid_service.PlaidService._fetch_jwk")
+    async def test_verify_webhook_signature_body_hash_verified(
+        self, mock_fetch_jwk, mock_get_header, mock_jwt_decode, monkeypatch
+    ):
         """Should verify webhook body hash if provided in JWT."""
-        monkeypatch.setattr("app.config.settings.PLAID_WEBHOOK_SECRET", "test_secret")
-        monkeypatch.setattr("app.config.settings.DEBUG", False)
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
 
-        import hashlib
-        import json
-
-        webhook_body = {"item_id": "test_123", "webhook_code": "UPDATE"}
-        # Simulate raw bytes as they'd arrive from request.body()
-        raw_body = json.dumps(webhook_body, separators=(",", ":"), sort_keys=True).encode()
+        raw_body = json.dumps({"item_id": "test_123"}, separators=(",", ":"), sort_keys=True).encode()
         body_hash = hashlib.sha256(raw_body).hexdigest()
 
-        # Mock JWT with body hash
+        mock_get_header.return_value = {"kid": "test-key-id"}
+        mock_jwk = MagicMock()
+        mock_jwk.key = "mock_key"
+        mock_fetch_jwk.return_value = mock_jwk
         mock_jwt_decode.return_value = {"item_id": "test_123", "request_body_sha256": body_hash}
 
-        result = PlaidService.verify_webhook_signature(
+        result = await PlaidService.verify_webhook_signature(
             webhook_verification_header="valid.jwt.with.hash", webhook_body=raw_body
         )
 
         assert result is True
 
+    @pytest.mark.asyncio
     @patch("app.services.plaid_service.jwt.decode")
-    def test_verify_webhook_signature_body_hash_mismatch(self, mock_jwt_decode, monkeypatch):
+    @patch("app.services.plaid_service.jwt.get_unverified_header")
+    @patch("app.services.plaid_service.PlaidService._fetch_jwk")
+    async def test_verify_webhook_signature_body_hash_mismatch(
+        self, mock_fetch_jwk, mock_get_header, mock_jwt_decode, monkeypatch
+    ):
         """Should reject webhook if body hash doesn't match."""
-        monkeypatch.setattr("app.config.settings.PLAID_WEBHOOK_SECRET", "test_secret")
-        monkeypatch.setattr("app.config.settings.DEBUG", False)
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
 
-        # Mock JWT with wrong body hash
+        mock_get_header.return_value = {"kid": "test-key-id"}
+        mock_jwk = MagicMock()
+        mock_fetch_jwk.return_value = mock_jwk
         mock_jwt_decode.return_value = {
             "item_id": "test_123",
-            "request_body_sha256": "wrong_hash_value_1234567890abcdef",
+            "request_body_sha256": "wrong_hash_value",
         }
 
-        import json
         from fastapi import HTTPException
 
         raw_body = json.dumps({"item_id": "test_123"}).encode()
         with pytest.raises(HTTPException) as exc_info:
-            PlaidService.verify_webhook_signature(
+            await PlaidService.verify_webhook_signature(
                 webhook_verification_header="valid.jwt.wrong.hash",
                 webhook_body=raw_body,
             )
 
         assert exc_info.value.status_code == 401
-        # The error could be specific "mismatch" or generic "failed" depending on exception handling
         assert (
             "mismatch" in exc_info.value.detail.lower() or "failed" in exc_info.value.detail.lower()
         )
 
-    def test_verify_webhook_signature_allows_missing_secret_in_debug(self, monkeypatch):
-        """Should allow missing secret in DEBUG mode (for testing)."""
-        monkeypatch.setattr("app.config.settings.PLAID_WEBHOOK_SECRET", "")
-        monkeypatch.setattr("app.config.settings.DEBUG", True)
+    @pytest.mark.asyncio
+    async def test_verify_webhook_signature_missing_kid(self, monkeypatch):
+        """Should reject JWT with missing kid in header."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
 
-        # In DEBUG mode with missing secret, should allow webhook
-        # (Current implementation requires secret even in DEBUG, but this tests the concept)
         from fastapi import HTTPException
 
-        # This will still raise because current implementation requires secret
-        # But in a more lenient DEBUG mode, it might not
-        with pytest.raises(HTTPException):
-            PlaidService.verify_webhook_signature(
-                webhook_verification_header="test", webhook_body={}
+        with pytest.raises(HTTPException) as exc_info:
+            # Use a minimal JWT-like string (header.payload.sig) so jwt.get_unverified_header
+            # can decode it — but with no kid field
+            import base64
+            header = base64.urlsafe_b64encode(json.dumps({"alg": "ES256"}).encode()).decode().rstrip("=")
+            payload = base64.urlsafe_b64encode(json.dumps({}).encode()).decode().rstrip("=")
+            fake_jwt = f"{header}.{payload}.fakesig"
+
+            await PlaidService.verify_webhook_signature(
+                webhook_verification_header=fake_jwt, webhook_body=b"test"
             )
+
+        assert exc_info.value.status_code == 401
 
     @pytest.mark.asyncio
     async def test_exchange_public_token_generates_unique_access_tokens(self):

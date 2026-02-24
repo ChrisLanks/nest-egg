@@ -29,11 +29,7 @@ class TellerService:
 
     def __init__(self):
         """Initialize Teller client."""
-        self.base_url = (
-            "https://api.teller.io"
-            if settings.TELLER_ENV == "production"
-            else "https://api.teller.io"
-        )
+        self.base_url = "https://api.teller.io"
         self.app_id = settings.TELLER_APP_ID
         self.api_key = settings.TELLER_API_KEY
         self.encryption_service = get_encryption_service()
@@ -141,7 +137,9 @@ class TellerService:
                     teller_enrollment_id=enrollment.id,
                     external_account_id=account_data["id"],
                     name=account_data.get("name", "Unknown Account"),
-                    account_type=self._map_account_type(account_data.get("type")),
+                    account_type=self._map_account_type(
+                        account_data.get("type"), account_data.get("subtype")
+                    ),
                     account_source=AccountSource.TELLER,
                     mask=account_data.get("last_four"),
                     institution_name=account_data.get("institution", {}).get("name"),
@@ -228,15 +226,31 @@ class TellerService:
         await db.commit()
         return synced_transactions
 
-    def _map_account_type(self, teller_type: Optional[str]) -> AccountType:
-        """Map Teller account type to our AccountType enum."""
-        mapping = {
-            "depository": AccountType.CHECKING,
-            "credit": AccountType.CREDIT_CARD,
-            "loan": AccountType.LOAN,
-            "investment": AccountType.BROKERAGE,
-        }
-        return mapping.get(teller_type, AccountType.OTHER)
+    def _map_account_type(
+        self, teller_type: Optional[str], teller_subtype: Optional[str] = None
+    ) -> AccountType:
+        """Map Teller account type + subtype to our AccountType enum.
+
+        Teller types: depository, credit, loan, investment
+        Teller subtypes: checking, savings, money_market, cd, brokerage, ira, etc.
+        """
+        if teller_type == "depository":
+            if teller_subtype in ("savings", "money_market", "cd"):
+                return AccountType.SAVINGS
+            return AccountType.CHECKING
+        elif teller_type == "credit":
+            return AccountType.CREDIT_CARD
+        elif teller_type == "loan":
+            return AccountType.LOAN
+        elif teller_type == "investment":
+            if teller_subtype in ("ira", "traditional_ira"):
+                return AccountType.RETIREMENT_IRA
+            elif teller_subtype == "roth":
+                return AccountType.RETIREMENT_ROTH
+            elif teller_subtype in ("401k", "403b", "457b"):
+                return AccountType.RETIREMENT_401K
+            return AccountType.BROKERAGE
+        return AccountType.OTHER
 
     def _generate_dedup_hash(self, account_id: UUID, txn_data: Dict) -> str:
         """Generate deduplication hash for transaction."""
