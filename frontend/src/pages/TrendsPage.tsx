@@ -297,7 +297,7 @@ export default function TrendsPage() {
                   >
                     {year}
                     {selectedYears.includes(year) && year === primaryYear && (
-                      <Badge ml={2} colorScheme="green" fontSize="2xs">
+                      <Badge ml={2} bg="whiteAlpha.300" color="white" fontSize="2xs">
                         Primary
                       </Badge>
                     )}
