@@ -122,6 +122,14 @@ class RebalancingService:
         if exclude_id is not None:
             conditions.append(TargetAllocation.id != exclude_id)
 
+        # Lock matching rows first to prevent race condition where two
+        # concurrent creates both deactivate and both insert active rows
+        await db.execute(
+            select(TargetAllocation.id)
+            .where(and_(*conditions))
+            .with_for_update()
+        )
+
         await db.execute(
             update(TargetAllocation)
             .where(and_(*conditions))

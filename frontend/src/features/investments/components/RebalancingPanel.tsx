@@ -42,7 +42,7 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { AddIcon, CloseIcon, CheckIcon } from '@chakra-ui/icons';
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ResponsiveContainer,
@@ -222,6 +222,18 @@ export const RebalancingPanel = () => {
     },
   });
 
+  // Deactivate allocation (return to setup view without deleting)
+  const deactivateAllocation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.patch(`/rebalancing/target-allocations/${id}`, { is_active: false });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['target-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['rebalancing-analysis'] });
+      toast({ title: 'Allocation deactivated — choose a new one', status: 'info', duration: 3000 });
+    },
+  });
+
   // Update drift threshold
   const updateThreshold = useMutation({
     mutationFn: async ({ id, threshold }: { id: string; threshold: number }) => {
@@ -235,6 +247,18 @@ export const RebalancingPanel = () => {
       queryClient.invalidateQueries({ queryKey: ['rebalancing-analysis'] });
     },
   });
+
+  // Debounce threshold updates to avoid API call per keystroke
+  const thresholdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedUpdateThreshold = useCallback(
+    (id: string, val: number) => {
+      if (thresholdTimerRef.current) clearTimeout(thresholdTimerRef.current);
+      thresholdTimerRef.current = setTimeout(() => {
+        updateThreshold.mutate({ id, threshold: val });
+      }, 600);
+    },
+    [updateThreshold],
+  );
 
   const customTotal = customSlices.reduce((s, c) => s + Number(c.target_percent), 0);
 
@@ -458,7 +482,8 @@ export const RebalancingPanel = () => {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => deleteAllocation.mutate(activeAllocation.id)}
+            onClick={() => deactivateAllocation.mutate(activeAllocation.id)}
+            isLoading={deactivateAllocation.isPending}
           >
             Switch Allocation
           </Button>
@@ -584,10 +609,10 @@ export const RebalancingPanel = () => {
                     Drift Threshold (%)
                   </FormLabel>
                   <NumberInput
-                    value={Number(activeAllocation.drift_threshold)}
+                    defaultValue={Number(activeAllocation.drift_threshold)}
                     onChange={(_, val) => {
                       if (!isNaN(val) && val >= 0 && val <= 50) {
-                        updateThreshold.mutate({ id: activeAllocation.id, threshold: val });
+                        debouncedUpdateThreshold(activeAllocation.id, val);
                       }
                     }}
                     min={1}

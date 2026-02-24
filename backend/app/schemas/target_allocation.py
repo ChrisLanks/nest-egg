@@ -20,7 +20,7 @@ class TargetAllocationCreate(BaseModel):
     """Schema for creating a target allocation."""
 
     name: str = Field(max_length=200)
-    allocations: List[AllocationSlice]
+    allocations: List[AllocationSlice] = Field(max_length=20)
     drift_threshold: Decimal = Field(default=Decimal("5.0"), ge=0, le=50)
 
     @model_validator(mode="after")
@@ -38,7 +38,7 @@ class TargetAllocationUpdate(BaseModel):
     """Schema for updating a target allocation."""
 
     name: Optional[str] = Field(None, max_length=200)
-    allocations: Optional[List[AllocationSlice]] = None
+    allocations: Optional[List[AllocationSlice]] = Field(None, max_length=20)
     drift_threshold: Optional[Decimal] = Field(None, ge=0, le=50)
     is_active: Optional[bool] = None
 

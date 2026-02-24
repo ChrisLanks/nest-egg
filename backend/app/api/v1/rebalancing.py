@@ -105,7 +105,7 @@ async def create_from_preset(
         valid_keys = ", ".join(PRESET_PORTFOLIOS.keys())
         raise HTTPException(
             status_code=400,
-            detail=f"Unknown preset key '{preset_key}'. Valid keys: {valid_keys}",
+            detail=f"Unknown preset key. Valid keys: {valid_keys}",
         )
 
     # Deactivate existing active allocations
@@ -149,7 +149,10 @@ async def update_target_allocation(
     if not allocation:
         raise HTTPException(status_code=404, detail="Target allocation not found")
 
-    if allocation.organization_id != current_user.organization_id:
+    if (
+        allocation.organization_id != current_user.organization_id
+        or allocation.user_id != current_user.id
+    ):
         raise HTTPException(status_code=403, detail="Access denied")
 
     # If setting is_active=True, deactivate others first
@@ -189,7 +192,10 @@ async def delete_target_allocation(
     if not allocation:
         raise HTTPException(status_code=404, detail="Target allocation not found")
 
-    if allocation.organization_id != current_user.organization_id:
+    if (
+        allocation.organization_id != current_user.organization_id
+        or allocation.user_id != current_user.id
+    ):
         raise HTTPException(status_code=403, detail="Access denied")
 
     await db.delete(allocation)

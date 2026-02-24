@@ -91,7 +91,8 @@ export const STRESS_SCENARIOS: Record<string, StressScenario> = {
  * This creates more realistic return patterns than uniform distribution.
  */
 function generateNormalReturn(mean: number, stdDev: number): number {
-  const u1 = Math.random();
+  // Clamp u1 away from 0 to prevent log(0) = -Infinity in Box-Muller
+  const u1 = Math.random() || 1e-10;
   const u2 = Math.random();
   const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
   return mean + z * stdDev;
@@ -147,6 +148,8 @@ export function runMonteCarloSimulation(params: SimulationParams): SimulationSum
     let depletionYear = Infinity;
     // If using withdrawalRate, compute the fixed withdrawal at retirement
     let fixedWithdrawalFromRate = 0;
+    // Track cumulative inflation for withdrawal adjustments year-over-year
+    let cumulativeInflation = 1;
 
     for (let year = 1; year <= years; year++) {
       if (depleted) {
@@ -178,8 +181,10 @@ export function runMonteCarloSimulation(params: SimulationParams): SimulationSum
         const baseWithdrawal = annualWithdrawal || fixedWithdrawalFromRate;
         let withdrawal = baseWithdrawal;
         if (inflationAdjustWithdrawals && yearsInRetirement > 0) {
+          // Compound cumulative inflation year-over-year (not single rate ^ years)
           const yearInflation = inflationOverrideMap.get(year) ?? inflationDecimal;
-          withdrawal = baseWithdrawal * Math.pow(1 + yearInflation, yearsInRetirement);
+          cumulativeInflation *= 1 + yearInflation;
+          withdrawal = baseWithdrawal * cumulativeInflation;
         }
 
         newValue = path[year - 1] * (1 + returnRate) - withdrawal;
