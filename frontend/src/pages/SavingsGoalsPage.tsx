@@ -112,12 +112,12 @@ interface AccountGroupProps {
 function AccountGroup({ accountName, goals, onEdit, canEdit = true }: AccountGroupProps) {
   return (
     <AccordionItem border="1px solid" borderColor="border.default" borderRadius="md" overflow="hidden">
-      <AccordionButton bg="bg.subtle" _expanded={{ bg: 'blue.50' }} py={3} px={4}>
+      <AccordionButton bg="bg.subtle" _expanded={{ bg: 'cyan.50', _dark: { bg: 'cyan.900' } }} py={3} px={4}>
         <HStack flex={1} textAlign="left" spacing={3}>
           <Text fontWeight="semibold" fontSize="md">
             {accountName}
           </Text>
-          <Badge colorScheme="blue" size="sm">
+          <Badge colorScheme="cyan" size="sm">
             {goals.length} {goals.length === 1 ? 'goal' : 'goals'}
           </Badge>
         </HStack>
@@ -302,7 +302,7 @@ export default function SavingsGoalsPage() {
           >
             <Button
               leftIcon={canEdit ? <AddIcon /> : <FiLock />}
-              colorScheme="blue"
+              colorScheme="cyan"
               onClick={handleCreate}
               isDisabled={!canEdit}
             >
@@ -319,14 +319,14 @@ export default function SavingsGoalsPage() {
               <Text fontSize="sm" fontWeight="medium" color="text.secondary">View:</Text>
               <ButtonGroup size="sm" isAttached variant="outline">
                 <Button
-                  colorScheme={viewMode === 'priority' ? 'blue' : 'gray'}
+                  colorScheme={viewMode === 'priority' ? 'cyan' : 'gray'}
                   variant={viewMode === 'priority' ? 'solid' : 'outline'}
                   onClick={() => setViewMode('priority')}
                 >
                   Priority Order
                 </Button>
                 <Button
-                  colorScheme={viewMode === 'account' ? 'blue' : 'gray'}
+                  colorScheme={viewMode === 'account' ? 'cyan' : 'gray'}
                   variant={viewMode === 'account' ? 'solid' : 'outline'}
                   onClick={() => setViewMode('account')}
                 >
@@ -341,14 +341,14 @@ export default function SavingsGoalsPage() {
                 <Text fontSize="sm" fontWeight="medium" color="text.secondary">Balance allocation:</Text>
                 <ButtonGroup size="sm" isAttached variant="outline">
                   <Button
-                    colorScheme={allocationMethod === 'waterfall' ? 'blue' : 'gray'}
+                    colorScheme={allocationMethod === 'waterfall' ? 'cyan' : 'gray'}
                     variant={allocationMethod === 'waterfall' ? 'solid' : 'outline'}
                     onClick={() => handleMethodChange('waterfall')}
                   >
                     Priority Waterfall
                   </Button>
                   <Button
-                    colorScheme={allocationMethod === 'proportional' ? 'blue' : 'gray'}
+                    colorScheme={allocationMethod === 'proportional' ? 'cyan' : 'gray'}
                     variant={allocationMethod === 'proportional' ? 'solid' : 'outline'}
                     onClick={() => handleMethodChange('proportional')}
                   >
@@ -391,22 +391,22 @@ export default function SavingsGoalsPage() {
 
         {/* Emergency Fund quick-start card */}
         {!goalsLoading && canEdit && !hasEmergencyFundGoal && (
-          <Card variant="outline" borderColor="blue.200" bg="blue.50">
+          <Card variant="outline" borderColor="cyan.200" bg="cyan.50" _dark={{ borderColor: 'cyan.700', bg: 'cyan.900' }}>
             <CardBody>
               <HStack justify="space-between" flexWrap="wrap" spacing={4}>
                 <HStack spacing={3}>
-                  <Icon as={FiShield} boxSize={6} color="blue.500" />
+                  <Icon as={FiShield} boxSize={6} color="cyan.500" />
                   <VStack align="start" spacing={0}>
-                    <Text fontWeight="semibold" color="blue.800">
+                    <Text fontWeight="semibold" color="cyan.800" _dark={{ color: 'cyan.200' }}>
                       Emergency Fund
                     </Text>
-                    <Text fontSize="sm" color="blue.600">
+                    <Text fontSize="sm" color="cyan.600" _dark={{ color: 'cyan.300' }}>
                       Auto-calculates your 6-month target from spending history
                     </Text>
                   </VStack>
                 </HStack>
                 <Button
-                  colorScheme="blue"
+                  colorScheme="cyan"
                   size="sm"
                   onClick={() => createFromTemplateMutation.mutate()}
                   isLoading={createFromTemplateMutation.isPending}
@@ -424,7 +424,7 @@ export default function SavingsGoalsPage() {
             <TabList>
               <Tab>
                 Active Goals{' '}
-                <Badge ml={2} colorScheme="blue">
+                <Badge ml={2} colorScheme="cyan">
                   {activeGoals.length}
                 </Badge>
               </Tab>

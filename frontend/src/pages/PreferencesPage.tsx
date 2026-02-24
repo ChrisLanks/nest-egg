@@ -27,11 +27,13 @@ import {
   Select,
   SimpleGrid,
   Stack,
+  Switch,
   Text,
   useDisclosure,
   useToast,
   VStack,
   FormHelperText,
+  HStack,
 } from '@chakra-ui/react';
 import { FiSun, FiMoon, FiMonitor } from 'react-icons/fi';
 import { useColorModePreference, type ColorModePreference } from '../hooks/useColorModePreference';
@@ -51,6 +53,78 @@ interface UpdateProfileData {
 interface ChangePasswordData {
   current_password: string;
   new_password: string;
+}
+
+function EmailNotificationsSection() {
+  const toast = useToast();
+
+  // Check if email is configured on the server
+  const { data: emailConfig } = useQuery({
+    queryKey: ['emailConfigured'],
+    queryFn: async () => {
+      const response = await api.get('/settings/email-configured');
+      return response.data as { configured: boolean };
+    },
+  });
+
+  // Fetch current preference
+  const { data: emailPref, isLoading } = useQuery({
+    queryKey: ['emailNotificationsPref'],
+    queryFn: async () => {
+      const response = await api.get('/settings/profile');
+      return response.data.email_notifications_enabled as boolean;
+    },
+    enabled: emailConfig?.configured === true,
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const response = await api.patch('/settings/email-notifications', null, {
+        params: { enabled },
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: data.email_notifications_enabled
+          ? 'Email notifications enabled'
+          : 'Email notifications disabled',
+        status: 'success',
+        duration: 3000,
+      });
+    },
+    onError: () => {
+      toast({ title: 'Failed to update preference', status: 'error', duration: 3000 });
+    },
+  });
+
+  // Don't render section if SMTP is not configured
+  if (!emailConfig?.configured) return null;
+
+  return (
+    <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
+      <Heading size="md" mb={1}>
+        Notifications
+      </Heading>
+      <Text color="text.secondary" fontSize="sm" mb={4}>
+        Control how you receive notifications.
+      </Text>
+      <FormControl>
+        <HStack justify="space-between">
+          <FormLabel mb={0}>Email Notifications</FormLabel>
+          <Switch
+            isChecked={emailPref ?? true}
+            isDisabled={isLoading || toggleMutation.isPending}
+            onChange={(e) => toggleMutation.mutate(e.target.checked)}
+            colorScheme="brand"
+          />
+        </HStack>
+        <FormHelperText>
+          Receive email alerts for budget thresholds, account sync issues, and other important events.
+        </FormHelperText>
+      </FormControl>
+    </Box>
+  );
 }
 
 export default function PreferencesPage() {
@@ -366,6 +440,9 @@ export default function PreferencesPage() {
             ))}
           </ButtonGroup>
         </Box>
+
+        {/* Email Notifications Section */}
+        <EmailNotificationsSection />
 
         {/* Export Data Section */}
         <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">

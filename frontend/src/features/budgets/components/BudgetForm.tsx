@@ -13,12 +13,14 @@ import {
   Button,
   FormControl,
   FormLabel,
+  FormHelperText,
   Input,
   Select,
   VStack,
   NumberInput,
   NumberInputField,
   Switch,
+  Checkbox,
   useToast,
   Slider,
   SliderTrack,
@@ -29,6 +31,7 @@ import {
   RadioGroup,
   Radio,
   Stack,
+  Box,
 } from '@chakra-ui/react';
 import React, { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
@@ -38,6 +41,8 @@ import { BudgetPeriod } from '../../../types/budget';
 import { budgetsApi } from '../../../api/budgets';
 import { categoriesApi } from '../../../api/categories';
 import { labelsApi } from '../../../api/labels';
+import { useHouseholdMembers } from '../../../hooks/useHouseholdMembers';
+import { useAuthStore } from '../../auth/stores/authStore';
 
 interface BudgetFormProps {
   isOpen: boolean;
@@ -70,11 +75,15 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
       label_id: budget.label_id ?? undefined,
       rollover_unused: budget.rollover_unused,
       alert_threshold: budget.alert_threshold,
+      is_shared: budget.is_shared,
+      shared_user_ids: budget.shared_user_ids ?? null,
     } : {
       period: BudgetPeriod.MONTHLY,
       rollover_unused: false,
       alert_threshold: 0.8,
       start_date: new Date().toISOString().split('T')[0],
+      is_shared: false,
+      shared_user_ids: null,
     },
   });
 
@@ -96,11 +105,15 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
         label_id: budget.label_id ?? undefined,
         rollover_unused: budget.rollover_unused,
         alert_threshold: budget.alert_threshold,
+        is_shared: budget.is_shared,
+        shared_user_ids: budget.shared_user_ids ?? null,
       } : {
         period: BudgetPeriod.MONTHLY,
         rollover_unused: false,
         alert_threshold: 0.8,
         start_date: new Date().toISOString().split('T')[0],
+        is_shared: false,
+        shared_user_ids: null,
       });
       setProviderCategoryName(null);
       setFilterBy(getInitialFilterBy(budget));
@@ -129,6 +142,17 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
     queryKey: ['labels'],
     queryFn: () => labelsApi.getAll(),
   });
+
+  // Household members for shared budget feature
+  const { data: householdMembers = [] } = useHouseholdMembers();
+  const currentUser = useAuthStore((s) => s.user);
+  const otherMembers = householdMembers.filter((m) => m.id !== currentUser?.id);
+  const showSharedSection = otherMembers.length > 0;
+
+  // Watch shared fields
+  const isShared = watch('is_shared');
+  const sharedUserIds = watch('shared_user_ids');
+  const allMembersSelected = sharedUserIds === null || sharedUserIds === undefined;
 
   // The current select value: UUID for custom categories, "provider::Name" for provider categories
   const watchedCategoryId = watch('category_id');
@@ -197,6 +221,8 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
       category_id: resolvedCategoryId,
       label_id: resolvedLabelId,
       end_date: data.end_date || undefined,
+      is_shared: data.is_shared ?? false,
+      shared_user_ids: data.is_shared ? (data.shared_user_ids ?? null) : null,
     });
   };
 
@@ -360,6 +386,72 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
                   Unused budget carries over to next period
                 </Text>
               </FormControl>
+
+              {/* Shared Budget */}
+              {showSharedSection && (
+                <FormControl>
+                  <HStack justify="space-between">
+                    <FormLabel mb={0}>Shared Budget</FormLabel>
+                    <Controller
+                      name="is_shared"
+                      control={control}
+                      render={({ field }) => (
+                        <Switch
+                          isChecked={!!field.value}
+                          onChange={(e) => {
+                            field.onChange(e.target.checked);
+                            if (!e.target.checked) {
+                              setValue('shared_user_ids', null);
+                            }
+                          }}
+                          colorScheme="teal"
+                        />
+                      )}
+                    />
+                  </HStack>
+                  <FormHelperText>
+                    Share this budget with household members
+                  </FormHelperText>
+
+                  {isShared && (
+                    <Box mt={3} pl={2}>
+                      <VStack align="start" spacing={2}>
+                        <Checkbox
+                          isChecked={allMembersSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setValue('shared_user_ids', null);
+                            } else {
+                              setValue('shared_user_ids', []);
+                            }
+                          }}
+                          colorScheme="teal"
+                        >
+                          All household members
+                        </Checkbox>
+
+                        {!allMembersSelected && otherMembers.map((member) => (
+                          <Checkbox
+                            key={member.id}
+                            isChecked={sharedUserIds?.includes(member.id) ?? false}
+                            onChange={(e) => {
+                              const current = sharedUserIds ?? [];
+                              if (e.target.checked) {
+                                setValue('shared_user_ids', [...current, member.id]);
+                              } else {
+                                setValue('shared_user_ids', current.filter((id) => id !== member.id));
+                              }
+                            }}
+                            colorScheme="teal"
+                          >
+                            {member.display_name || member.first_name || member.email}
+                          </Checkbox>
+                        ))}
+                      </VStack>
+                    </Box>
+                  )}
+                </FormControl>
+              )}
             </VStack>
           </ModalBody>
 

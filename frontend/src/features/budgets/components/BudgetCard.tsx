@@ -108,6 +108,11 @@ export default function BudgetCard({ budget, onEdit, canEdit = true }: BudgetCar
               <Badge colorScheme="blue" size="sm">
                 {formatPeriod(budget.period)}
               </Badge>
+              {budget.is_shared && (
+                <Badge colorScheme="teal" size="sm">
+                  Shared
+                </Badge>
+              )}
               {labelName && (
                 <Badge colorScheme="purple" size="sm">
                   {labelName}

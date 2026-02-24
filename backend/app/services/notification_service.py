@@ -1,5 +1,6 @@
 """Service for managing user notifications."""
 
+import logging
 from datetime import timedelta
 from typing import List, Optional
 from uuid import UUID
@@ -10,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.notification import Notification, NotificationType, NotificationPriority
 from app.models.user import User
 from app.utils.datetime_utils import utc_now
+
+logger = logging.getLogger(__name__)
 
 
 class NotificationService:
@@ -71,6 +74,24 @@ class NotificationService:
         db.add(notification)
         await db.commit()
         await db.refresh(notification)
+
+        # Fire-and-forget email notification
+        try:
+            from app.services.email_service import email_service
+            if email_service.is_configured and user_id:
+                # Look up the user to check email preference
+                user_result = await db.execute(select(User).where(User.id == user_id))
+                user = user_result.scalar_one_or_none()
+                if user and user.email_notifications_enabled and user.email:
+                    await email_service.send_notification_email(
+                        to_email=user.email,
+                        title=title,
+                        message=message,
+                        action_url=action_url,
+                        action_label=action_label,
+                    )
+        except Exception as e:
+            logger.warning(f"Failed to send notification email: {e}")
 
         return notification
 

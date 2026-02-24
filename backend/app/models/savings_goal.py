@@ -3,7 +3,7 @@
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, Numeric, Text, Index, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, JSON, Numeric, Text, Index, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -51,6 +51,10 @@ class SavingsGoal(Base):
     completed_at = Column(DateTime, nullable=True)
     is_funded = Column(Boolean, default=False, nullable=False)
     funded_at = Column(DateTime, nullable=True)
+
+    # Shared goal (household collaboration)
+    is_shared = Column(Boolean, default=False, nullable=False)
+    shared_user_ids = Column(JSON, nullable=True)  # List of user UUIDs, null = all org members
 
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)

@@ -53,7 +53,7 @@ A comprehensive multi-user personal finance application for tracking transaction
   - Year-end reporting with date range selection
 
 ### 💰 **Investment Analysis Dashboard**
-Comprehensive 6-tab portfolio analysis with **Yahoo Finance** integration:
+Comprehensive 9-tab portfolio analysis with **Yahoo Finance** integration:
 - **Real-Time Market Data**: Free, unlimited stock/ETF/mutual fund prices via Yahoo Finance
 - **Asset Allocation**: Interactive treemap visualization with drill-down
 - **Sector Breakdown**: Holdings by financial sector (Tech, Healthcare, Financials, etc.)
@@ -68,6 +68,8 @@ Comprehensive 6-tab portfolio analysis with **Yahoo Finance** integration:
   - Overall risk score (0-100) with color-coded badges
   - Asset class allocation breakdown
 - **Holdings Detail**: Sortable table with CSV export
+- **Roth Conversion Analyzer**: Model tax-efficient Roth conversion strategies
+- **Tax-Loss Harvesting**: Identify unrealized losses, estimate tax savings (27% combined rate), wash-sale rule warnings, and same-sector replacement suggestions
 
 ### 📈 **Cash Flow Analytics (Income vs Expenses)**
 - **Advanced Drill-Down**: Click any stat or chart element to filter
@@ -90,6 +92,7 @@ Comprehensive 6-tab portfolio analysis with **Yahoo Finance** integration:
   - Medium-priority warnings when approaching limit
 - **Budget Tracking**: Real-time spending vs budget with progress bars
 - **User-Specific**: Create budgets for household members or combined
+- **Shared Budgets**: Share budgets with specific household members or the entire household
 
 ### 🔔 **Smart Notification System**
 - **Real-Time Alerts**: Auto-refresh every 30 seconds
@@ -102,6 +105,7 @@ Comprehensive 6-tab portfolio analysis with **Yahoo Finance** integration:
 - **Notification Bell**: Unread count badge in top navigation
 - **Mark as Read**: Individual or bulk "mark all read" functionality
 - **Action Links**: Click notification to jump to relevant page
+- **Email Delivery**: Automatic email notifications when SMTP is configured (per-user opt-in/out toggle in Preferences)
 - **Test Endpoint**: `/api/v1/notifications/test` for testing (requires authentication)
 
 ### 📅 **Background Automation (Celery)**
@@ -170,8 +174,10 @@ Drop-in support for external identity providers alongside the built-in JWT syste
   - Property: RentCast (free), ATTOM (paid), or Zillow via RapidAPI (not recommended, see below)
   - Vehicle: MarketCheck (VIN-based) + NHTSA VIN decode (always free)
   - Multiple providers: UI shows a selector when more than one key is configured
+- **Valuation Adjustment**: User-defined percentage adjustment for property/vehicle valuations (e.g., negative for damage, positive for upgrades)
 - **Manual Balance Updates**: Update account balances directly
 - **Investment Holdings**: Manually add stocks, ETFs, bonds, etc.
+- **Plaid Holdings Sync**: Automatic investment holdings sync for Plaid-linked accounts (`POST /plaid/sync-holdings/{account_id}`)
 
 ### 🔮 **Predictive Features**
 - **Cash Flow Forecasting**: 30/60/90-day projections using recurring transaction patterns
@@ -1636,7 +1642,7 @@ Date,Merchant,Amount,Category,Description
 - [x] Label system for flexible tagging
 - [x] Budget management with alerts
 - [x] Notification system with real-time updates
-- [x] Investment tracking with 6-tab analysis
+- [x] Investment tracking with 9-tab analysis (including Tax-Loss Harvesting and Roth Conversion)
 - [x] Cash flow analytics with drill-down
 - [x] Tax-deductible transaction tracking
 - [x] CSV import with deduplication
@@ -1665,6 +1671,11 @@ Date,Merchant,Amount,Category,Description
 - [x] **Dark mode** — Light/Dark/System toggle with semantic color tokens across all 90+ components; zero-flash page load
 - [x] **Clean TypeScript build** — all 125 pre-existing TS errors resolved; strict-mode clean `npm run build`
 - [x] **Grant-based permission enforcement** — cross-user editing strictly governed by explicit grants (no org admin bypass); works correctly in Combined Household, Other-User, and Self views
+- [x] **Shared/collaborative budgets & goals** — share budgets and savings goals with specific household members or the entire household
+- [x] **Email notification delivery** — automatic email dispatch when SMTP is configured; per-user opt-in/out toggle
+- [x] **Plaid investment holdings sync** — pull holdings from Plaid-linked investment accounts
+- [x] **Tax-loss harvesting** — identify unrealized losses, estimate tax savings, wash-sale warnings, sector-based replacement suggestions
+- [x] **Valuation adjustment** — user-defined percentage adjustment for property and vehicle auto-valuations
 
 ### 🚧 In Progress
 
@@ -1759,4 +1770,4 @@ Built with:
 
 **Built with ❤️ for personal finance management**
 
-_Last Updated: February 2026 - Grant-based permission enforcement, dark mode, enterprise hardening (scalability, compliance, self-hosting), performance optimization, 5 security audit passes, and 10+ new features!_
+_Last Updated: February 2026 - Shared budgets/goals, email notifications, Plaid holdings sync, tax-loss harvesting, valuation adjustments, grant-based permissions, dark mode, enterprise hardening, and 15+ new features!_

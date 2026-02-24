@@ -6,6 +6,7 @@ from datetime import timedelta
 from typing import List, Optional, Tuple
 import uuid
 import jwt
+import httpx
 from fastapi import HTTPException
 
 from app.models.user import User
@@ -14,12 +15,24 @@ from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
+# Plaid API base URLs per environment
+_PLAID_BASE_URLS = {
+    "sandbox": "https://sandbox.plaid.com",
+    "development": "https://development.plaid.com",
+    "production": "https://production.plaid.com",
+}
+
 
 class PlaidService:
     """Service for interacting with Plaid API."""
 
     def __init__(self):
         """Initialize Plaid service."""
+        self._client_id = settings.PLAID_CLIENT_ID
+        self._secret = settings.PLAID_SECRET
+        self._base_url = _PLAID_BASE_URLS.get(
+            settings.PLAID_ENV, _PLAID_BASE_URLS["sandbox"]
+        )
 
     def is_test_user(self, user: User) -> bool:
         """Check if user is a test user (test@test.com)."""
@@ -232,15 +245,19 @@ class PlaidService:
             # Return dummy holdings for test user
             return self._create_dummy_holdings()
 
-        # TODO: For real users, call Plaid API
-        # from plaid import Client
-        # client = Client(client_id=..., secret=..., environment='sandbox')
-        # response = client.InvestmentsHoldings.get(access_token)
-        # holdings = response['holdings']
-        # securities = response['securities']
-        # return holdings, securities
-
-        raise NotImplementedError("Real Plaid holdings integration not yet implemented")
+        # For real users, call Plaid investments/holdings/get
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self._base_url}/investments/holdings/get",
+                json={
+                    "client_id": self._client_id,
+                    "secret": self._secret,
+                    "access_token": access_token,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data.get("holdings", []), data.get("securities", [])
 
     def _create_dummy_holdings(self) -> Tuple[List[dict], List[dict]]:
         """Create dummy investment holdings for testing."""

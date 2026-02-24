@@ -23,13 +23,17 @@ import {
   NumberInputField,
   Textarea,
   Switch,
+  Checkbox,
   useToast,
+  Box,
 } from '@chakra-ui/react';
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SavingsGoal, SavingsGoalCreate } from '../../../types/savings-goal';
 import { savingsGoalsApi } from '../../../api/savings-goals';
 import { accountsApi } from '../../../api/accounts';
+import { useHouseholdMembers } from '../../../hooks/useHouseholdMembers';
+import { useAuthStore } from '../../auth/stores/authStore';
 
 interface GoalFormProps {
   isOpen: boolean;
@@ -42,7 +46,7 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
   const queryClient = useQueryClient();
   const isEditing = !!goal;
 
-  const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting } } = useForm<SavingsGoalCreate>({
+  const { register, handleSubmit, control, watch, setValue, formState: { errors, isSubmitting } } = useForm<SavingsGoalCreate>({
     defaultValues: goal ? {
       name: goal.name,
       description: goal.description ?? undefined,
@@ -52,10 +56,14 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
       target_date: goal.target_date ?? undefined,
       account_id: goal.account_id ?? undefined,
       auto_sync: goal.auto_sync,
+      is_shared: goal.is_shared,
+      shared_user_ids: goal.shared_user_ids ?? null,
     } : {
       current_amount: 0,
       start_date: new Date().toISOString().split('T')[0],
       auto_sync: false,
+      is_shared: false,
+      shared_user_ids: null,
     },
   });
 
@@ -76,6 +84,17 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
     queryKey: ['accounts'],
     queryFn: accountsApi.getAccounts,
   });
+
+  // Household members for shared goal feature
+  const { data: householdMembers = [] } = useHouseholdMembers();
+  const currentUser = useAuthStore((s) => s.user);
+  const otherMembers = householdMembers.filter((m) => m.id !== currentUser?.id);
+  const showSharedSection = otherMembers.length > 0;
+
+  // Watch shared fields
+  const isShared = watch('is_shared');
+  const sharedUserIds = watch('shared_user_ids');
+  const allMembersSelected = sharedUserIds === null || sharedUserIds === undefined;
 
   // Create/update mutation
   const mutation = useMutation({
@@ -108,7 +127,11 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
   });
 
   const onSubmit = (data: SavingsGoalCreate) => {
-    mutation.mutate(data);
+    mutation.mutate({
+      ...data,
+      is_shared: data.is_shared ?? false,
+      shared_user_ids: data.is_shared ? (data.shared_user_ids ?? null) : null,
+    });
   };
 
   return (
@@ -191,13 +214,79 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
                       name="auto_sync"
                       control={control}
                       render={({ field: { value, onChange } }) => (
-                        <Switch isChecked={!!value} onChange={onChange} colorScheme="blue" />
+                        <Switch isChecked={!!value} onChange={onChange} colorScheme="cyan" />
                       )}
                     />
                   </HStack>
                   <FormHelperText>
                     When enabled, this goal's current amount is updated automatically from the linked account on page load.
                   </FormHelperText>
+                </FormControl>
+              )}
+
+              {/* Shared Goal */}
+              {showSharedSection && (
+                <FormControl>
+                  <HStack justify="space-between">
+                    <FormLabel mb={0}>Shared Goal</FormLabel>
+                    <Controller
+                      name="is_shared"
+                      control={control}
+                      render={({ field }) => (
+                        <Switch
+                          isChecked={!!field.value}
+                          onChange={(e) => {
+                            field.onChange(e.target.checked);
+                            if (!e.target.checked) {
+                              setValue('shared_user_ids', null);
+                            }
+                          }}
+                          colorScheme="teal"
+                        />
+                      )}
+                    />
+                  </HStack>
+                  <FormHelperText>
+                    Share this goal with household members
+                  </FormHelperText>
+
+                  {isShared && (
+                    <Box mt={3} pl={2}>
+                      <VStack align="start" spacing={2}>
+                        <Checkbox
+                          isChecked={allMembersSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setValue('shared_user_ids', null);
+                            } else {
+                              setValue('shared_user_ids', []);
+                            }
+                          }}
+                          colorScheme="teal"
+                        >
+                          All household members
+                        </Checkbox>
+
+                        {!allMembersSelected && otherMembers.map((member) => (
+                          <Checkbox
+                            key={member.id}
+                            isChecked={sharedUserIds?.includes(member.id) ?? false}
+                            onChange={(e) => {
+                              const current = sharedUserIds ?? [];
+                              if (e.target.checked) {
+                                setValue('shared_user_ids', [...current, member.id]);
+                              } else {
+                                setValue('shared_user_ids', current.filter((id) => id !== member.id));
+                              }
+                            }}
+                            colorScheme="teal"
+                          >
+                            {member.display_name || member.first_name || member.email}
+                          </Checkbox>
+                        ))}
+                      </VStack>
+                    </Box>
+                  )}
                 </FormControl>
               )}
 

@@ -126,6 +126,8 @@ class BudgetService:
         end_date: Optional[date] = None,
         rollover_unused: bool = False,
         alert_threshold: Decimal = Decimal("0.80"),
+        is_shared: bool = False,
+        shared_user_ids: Optional[list] = None,
     ) -> Budget:
         """Create a new budget."""
         budget = Budget(
@@ -139,6 +141,8 @@ class BudgetService:
             label_id=label_id,
             rollover_unused=rollover_unused,
             alert_threshold=alert_threshold,
+            is_shared=is_shared,
+            shared_user_ids=shared_user_ids,
         )
 
         db.add(budget)

@@ -24,6 +24,8 @@ class SavingsGoalCreate(SavingsGoalBase):
 
     current_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
     auto_sync: bool = False
+    is_shared: bool = False
+    shared_user_ids: Optional[List[str]] = None
 
 
 class SavingsGoalUpdate(BaseModel):
@@ -38,6 +40,8 @@ class SavingsGoalUpdate(BaseModel):
     account_id: Optional[UUID] = None
     auto_sync: Optional[bool] = None
     is_completed: Optional[bool] = None
+    is_shared: Optional[bool] = None
+    shared_user_ids: Optional[List[str]] = None
 
 
 class SavingsGoalResponse(SavingsGoalBase):
@@ -52,6 +56,8 @@ class SavingsGoalResponse(SavingsGoalBase):
     completed_at: Optional[datetime]
     is_funded: bool
     funded_at: Optional[datetime]
+    is_shared: bool
+    shared_user_ids: Optional[List[str]] = None
     created_at: datetime
     updated_at: datetime
 

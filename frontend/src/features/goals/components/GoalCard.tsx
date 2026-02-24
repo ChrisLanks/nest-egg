@@ -128,7 +128,7 @@ export default function GoalCard({
     if (goal.is_funded) return 'purple';
     if (goal.is_completed) return 'green';
     if (progress?.on_track === false) return 'orange';
-    return 'blue';
+    return 'cyan';
   };
 
   const formatCurrency = (amount: number) => {
@@ -158,6 +158,7 @@ export default function GoalCard({
             <VStack align="start" spacing={1} minW={0}>
             <HStack flexWrap="wrap">
               <Heading size="md" noOfLines={1}>{goal.name}</Heading>
+              {goal.is_shared && <Badge colorScheme="teal">Shared</Badge>}
               {goal.is_funded && <Badge colorScheme="purple">Funded</Badge>}
             </HStack>
             <Box minH="1.25rem">
@@ -308,8 +309,8 @@ export default function GoalCard({
                   <Text fontSize="xs" color="text.muted">{linkedAccount.name}</Text>
                 </HStack>
                 <HStack spacing={1.5}>
-                  <Icon as={FiRefreshCw} boxSize={3} color={goal.auto_sync ? 'blue.400' : 'text.muted'} />
-                  <Text fontSize="xs" color={goal.auto_sync ? 'blue.500' : 'text.muted'}>
+                  <Icon as={FiRefreshCw} boxSize={3} color={goal.auto_sync ? 'cyan.400' : 'text.muted'} />
+                  <Text fontSize="xs" color={goal.auto_sync ? 'cyan.500' : 'text.muted'}>
                     Auto-sync {goal.auto_sync ? 'on' : 'off'}
                   </Text>
                 </HStack>

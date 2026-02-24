@@ -18,6 +18,8 @@ export interface SavingsGoal {
   completed_at: string | null;
   is_funded: boolean;
   funded_at: string | null;
+  is_shared: boolean;
+  shared_user_ids: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +33,8 @@ export interface SavingsGoalCreate {
   target_date?: string | null;
   account_id?: string | null;
   auto_sync?: boolean;
+  is_shared?: boolean;
+  shared_user_ids?: string[] | null;
 }
 
 export interface SavingsGoalUpdate {
@@ -43,6 +47,8 @@ export interface SavingsGoalUpdate {
   account_id?: string | null;
   auto_sync?: boolean;
   is_completed?: boolean;
+  is_shared?: boolean;
+  shared_user_ids?: string[] | null;
 }
 
 export interface SavingsGoalProgress {

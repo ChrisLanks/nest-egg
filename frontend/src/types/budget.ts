@@ -21,6 +21,8 @@ export interface Budget {
   rollover_unused: boolean;
   alert_threshold: number;
   is_active: boolean;
+  is_shared: boolean;
+  shared_user_ids: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -35,6 +37,8 @@ export interface BudgetCreate {
   label_id?: string | null;
   rollover_unused?: boolean;
   alert_threshold?: number;
+  is_shared?: boolean;
+  shared_user_ids?: string[] | null;
 }
 
 export interface BudgetUpdate {
@@ -48,6 +52,8 @@ export interface BudgetUpdate {
   rollover_unused?: boolean;
   alert_threshold?: number;
   is_active?: boolean;
+  is_shared?: boolean;
+  shared_user_ids?: string[] | null;
 }
 
 export interface BudgetSpending {

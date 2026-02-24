@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -27,6 +27,9 @@ class BudgetBase(BaseModel):
 class BudgetCreate(BudgetBase):
     """Schema for creating a budget."""
 
+    is_shared: bool = False
+    shared_user_ids: Optional[List[str]] = None
+
 
 class BudgetUpdate(BaseModel):
     """Schema for updating a budget."""
@@ -41,6 +44,8 @@ class BudgetUpdate(BaseModel):
     rollover_unused: Optional[bool] = None
     alert_threshold: Optional[Decimal] = Field(None, ge=0, le=1)
     is_active: Optional[bool] = None
+    is_shared: Optional[bool] = None
+    shared_user_ids: Optional[List[str]] = None
 
 
 class BudgetResponse(BudgetBase):
@@ -49,6 +54,8 @@ class BudgetResponse(BudgetBase):
     id: UUID
     organization_id: UUID
     is_active: bool
+    is_shared: bool
+    shared_user_ids: Optional[List[str]] = None
     created_at: datetime
     updated_at: datetime
 

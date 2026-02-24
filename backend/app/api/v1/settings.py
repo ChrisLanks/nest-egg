@@ -48,6 +48,7 @@ class UserProfileResponse(BaseModel):
     birth_month: Optional[int] = None
     birth_year: Optional[int] = None
     is_org_admin: bool
+    email_notifications_enabled: bool = True
     dashboard_layout: Optional[List[Any]] = None
 
     model_config = {"from_attributes": True}
@@ -633,3 +634,21 @@ async def delete_account(
     http_response.delete_cookie(key="refresh_token", path="/api/v1/auth")
 
     return Response(status_code=204)
+
+
+@router.patch("/email-notifications")
+async def update_email_notifications(
+    enabled: bool,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Toggle email notifications for current user."""
+    current_user.email_notifications_enabled = enabled
+    await db.commit()
+    return {"email_notifications_enabled": enabled}
+
+
+@router.get("/email-configured")
+async def check_email_configured():
+    """Check if email (SMTP) is configured."""
+    return {"configured": email_service.is_configured}

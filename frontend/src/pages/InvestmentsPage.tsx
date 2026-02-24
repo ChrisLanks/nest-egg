@@ -61,6 +61,7 @@ import RiskAnalysisPanel from '../features/investments/components/RiskAnalysisPa
 import StyleBoxModal from '../features/investments/components/StyleBoxModal';
 import { RMDAlert } from '../features/investments/components/RMDAlert';
 import { RothConversionAnalyzer } from '../features/investments/components/RothConversionAnalyzer';
+import TaxLossHarvestingPanel from '../features/investments/components/TaxLossHarvestingPanel';
 
 interface Holding {
   id: string;
@@ -958,6 +959,7 @@ export const InvestmentsPage = () => {
                 <Tab>Holdings Detail</Tab>
                 <Tab>Fee Analyzer</Tab>
                 <Tab>Roth Conversion</Tab>
+                <Tab>Tax-Loss Harvesting</Tab>
               </TabList>
 
               <TabPanels>
@@ -1153,6 +1155,11 @@ export const InvestmentsPage = () => {
                 {/* Tab 8: Roth Conversion Analyzer */}
                 <TabPanel>
                   <RothConversionAnalyzer />
+                </TabPanel>
+
+                {/* Tab 9: Tax-Loss Harvesting */}
+                <TabPanel>
+                  <TaxLossHarvestingPanel />
                 </TabPanel>
               </TabPanels>
             </Tabs>

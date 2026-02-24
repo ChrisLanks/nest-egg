@@ -20,6 +20,11 @@ from app.models.user import User
 from app.models.report_template import ReportTemplate
 from app.services.report_service import ReportService
 from app.services.deduplication_service import DeduplicationService
+from app.services.tax_loss_harvesting_service import tax_loss_harvesting_service
+from app.schemas.tax_harvesting import (
+    TaxLossOpportunityResponse,
+    TaxLossHarvestingSummaryResponse,
+)
 from app.utils.datetime_utils import utc_now
 
 # Allowed characters in Content-Disposition filenames
@@ -432,4 +437,27 @@ async def export_report_csv(
         content=csv_data,
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/tax-loss-harvesting", response_model=TaxLossHarvestingSummaryResponse)
+async def get_tax_loss_harvesting(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get tax-loss harvesting opportunities."""
+    opportunities = await tax_loss_harvesting_service.get_opportunities(
+        db=db,
+        organization_id=current_user.organization_id,
+    )
+
+    total_losses = sum(o.unrealized_loss for o in opportunities)
+    total_savings = sum(o.estimated_tax_savings for o in opportunities)
+
+    return TaxLossHarvestingSummaryResponse(
+        opportunities=[
+            TaxLossOpportunityResponse(**vars(o)) for o in opportunities
+        ],
+        total_harvestable_losses=total_losses,
+        total_estimated_tax_savings=total_savings,
     )

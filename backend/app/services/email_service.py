@@ -267,6 +267,57 @@ class EmailService:
         )
         return await self.send_email(to_email, subject, html_body, text_body)
 
+    async def send_notification_email(
+        self,
+        to_email: str,
+        title: str,
+        message: str,
+        action_url: Optional[str] = None,
+        action_label: Optional[str] = None,
+    ) -> bool:
+        """Send an in-app notification as an email digest.
+
+        Returns True on success, False on failure (never raises).
+        """
+        # Build optional action button HTML
+        action_button_html = ""
+        action_button_text = ""
+        if action_url and action_label:
+            full_url = f"{self._base_url}{action_url}" if action_url.startswith("/") else action_url
+            action_button_html = f"""
+  <p style="margin: 30px 0;">
+    <a href="{full_url}"
+       style="background-color: #3182CE; color: white; padding: 12px 24px;
+              text-decoration: none; border-radius: 6px; display: inline-block;">
+      {action_label}
+    </a>
+  </p>"""
+            action_button_text = f"\n{action_label}: {full_url}\n"
+
+        subject = f"Nest Egg: {title}"
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <h2 style="color: #2D3748;">{title}</h2>
+  <p>{message}</p>{action_button_html}
+  <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;" />
+  <p style="color: #718096; font-size: 12px;">
+    You received this email because you have email notifications enabled in Nest Egg.
+    You can disable them in Settings.
+  </p>
+</body>
+</html>"""
+        text_body = (
+            f"{title}\n\n"
+            f"{message}\n"
+            f"{action_button_text}\n"
+            f"---\n"
+            f"You received this email because you have email notifications enabled in Nest Egg.\n"
+            f"You can disable them in Settings."
+        )
+        return await self.send_email(to_email, subject, html_body, text_body)
+
 
 # Module-level singleton — constructed once from loaded settings
 email_service = EmailService(

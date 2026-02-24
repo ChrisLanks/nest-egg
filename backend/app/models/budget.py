@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     Date,
     ForeignKey,
+    JSON,
     Numeric,
     Enum as SQLEnum,
     Index,
@@ -78,6 +79,10 @@ class Budget(Base):
 
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
+
+    # Shared budget (household collaboration)
+    is_shared = Column(Boolean, default=False, nullable=False)
+    shared_user_ids = Column(JSON, nullable=True)  # List of user UUIDs, null = all org members
 
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)

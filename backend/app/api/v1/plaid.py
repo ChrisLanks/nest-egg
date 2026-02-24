@@ -28,6 +28,7 @@ from app.services.plaid_transaction_sync_service import (
     PlaidTransactionSyncService,
     MockPlaidTransactionGenerator,
 )
+from app.services.plaid_holdings_sync_service import plaid_holdings_sync_service
 from app.services.notification_service import notification_service
 from app.services.deduplication_service import DeduplicationService
 from app.services.encryption_service import get_encryption_service
@@ -231,6 +232,90 @@ def _map_plaid_account_type(plaid_type: str, plaid_subtype: str) -> AccountType:
 
     else:
         return AccountType.OTHER  # Fallback
+
+
+@router.post("/sync-holdings/{account_id}")
+async def sync_plaid_holdings(
+    account_id: UUID,
+    http_request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Sync investment holdings from Plaid for a specific account.
+    Rate limited to 5 requests per minute to prevent excessive syncing.
+
+    Fetches the latest holdings data from Plaid and upserts them into the
+    local holdings table.
+    """
+    # Rate limit: 5 holdings sync requests per minute per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=5,
+        window_seconds=60,
+    )
+
+    # Fetch account and verify ownership
+    result = await db.execute(
+        select(Account).where(
+            Account.id == account_id,
+            Account.organization_id == current_user.organization_id,
+        )
+    )
+    account = result.scalar_one_or_none()
+
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # Verify it's a Plaid-linked account
+    if not account.plaid_item_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Account is not linked via Plaid",
+        )
+
+    # Get the PlaidItem to retrieve the access token
+    plaid_item_result = await db.execute(
+        select(PlaidItem).where(
+            PlaidItem.id == account.plaid_item_id,
+            PlaidItem.organization_id == current_user.organization_id,
+        )
+    )
+    plaid_item = plaid_item_result.scalar_one_or_none()
+
+    if not plaid_item:
+        raise HTTPException(status_code=404, detail="Plaid item not found")
+
+    try:
+        # Decrypt access token
+        access_token = encryption_service.decrypt_token(plaid_item.access_token)
+
+        # Fetch holdings from Plaid
+        plaid_service = PlaidService()
+        holdings, securities = await plaid_service.get_investment_holdings(
+            user=current_user,
+            access_token=access_token,
+        )
+
+        # Sync holdings into local database
+        count = await plaid_holdings_sync_service.sync_holdings(
+            db=db,
+            account=account,
+            plaid_holdings=holdings,
+            plaid_securities=securities,
+        )
+
+        return {
+            "success": True,
+            "synced": count,
+            "account_id": str(account_id),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Holdings sync error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Holdings sync failed")
 
 
 @router.post("/webhook")

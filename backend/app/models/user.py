@@ -90,6 +90,7 @@ class User(Base):
         Boolean, default=False, nullable=False
     )  # First user who created org
     email_verified = Column(Boolean, default=False, nullable=False)
+    email_notifications_enabled = Column(Boolean, default=True, nullable=False)
 
     # Account security fields
     failed_login_attempts = Column(

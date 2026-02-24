@@ -31,6 +31,8 @@ class SavingsGoalService:
         account_id: Optional[UUID] = None,
         current_amount: Decimal = Decimal("0.00"),
         auto_sync: bool = False,
+        is_shared: bool = False,
+        shared_user_ids: Optional[list] = None,
     ) -> SavingsGoal:
         """Create a new savings goal, assigning it the lowest priority."""
         # Assign priority = number of existing active goals + 1
@@ -57,6 +59,8 @@ class SavingsGoalService:
             account_id=account_id,
             auto_sync=auto_sync,
             priority=priority,
+            is_shared=is_shared,
+            shared_user_ids=shared_user_ids,
         )
 
         db.add(goal)
