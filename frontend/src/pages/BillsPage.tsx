@@ -50,6 +50,7 @@ import {
   Text,
   Tooltip,
   useDisclosure,
+  useColorModeValue,
   useToast,
   VStack,
 } from '@chakra-ui/react';
@@ -611,7 +612,7 @@ const BillsPage: React.FC = () => {
                             <Text
                               fontSize="sm"
                               fontWeight={isToday ? 'bold' : 'normal'}
-                              color={isToday ? 'blue.600' : 'text.heading'}
+                              color={isToday ? useColorModeValue('blue.600', 'blue.300') : 'text.heading'}
                               mb={1}
                             >
                               {day}
@@ -731,13 +732,17 @@ const RecurringCard: React.FC<RecurringCardProps> = ({
   const isManual = recurring.is_user_created;
   const isNoLongerFound = recurring.is_no_longer_found && !isManual;
   const attachedLabel = recurring.label_id ? labelMap.get(recurring.label_id) : undefined;
+  const noLongerFoundBg = useColorModeValue('orange.50', 'orange.900');
+  const noLongerFoundBorder = useColorModeValue('orange.200', 'orange.700');
+  const archiveBg = useColorModeValue('gray.50', 'gray.700');
+  const subtitleColor = useColorModeValue('gray.600', 'gray.400');
 
   return (
     <Card
       variant="outline"
       opacity={isArchiveView ? 0.75 : 1}
-      borderColor={isNoLongerFound ? 'orange.200' : undefined}
-      bg={isNoLongerFound ? 'orange.50' : isArchiveView ? 'gray.50' : 'white'}
+      borderColor={isNoLongerFound ? noLongerFoundBorder : undefined}
+      bg={isNoLongerFound ? noLongerFoundBg : isArchiveView ? archiveBg : 'bg.surface'}
     >
       <CardBody>
         <HStack justify="space-between" align="start">
@@ -802,7 +807,7 @@ const RecurringCard: React.FC<RecurringCardProps> = ({
               )}
             </HStack>
 
-            <Text fontSize="sm" color={isArchiveView ? 'gray.500' : 'gray.600'}>
+            <Text fontSize="sm" color={isArchiveView ? 'text.muted' : subtitleColor}>
               {recurring.frequency === 'on_demand' ? 'On Demand' : recurring.frequency.charAt(0).toUpperCase() + recurring.frequency.slice(1)} · {formatCurrency(recurring.average_amount)}
             </Text>
 
@@ -1115,7 +1120,7 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
 
             {/* Transaction tagging — only for new manual bills */}
             {!recurring && (
-              <Box w="full" borderWidth="1px" borderRadius="md" p={3} bg="teal.50" borderColor="teal.200">
+              <Box w="full" borderWidth="1px" borderRadius="md" p={3} bg={useColorModeValue('teal.50', 'teal.900')} borderColor={useColorModeValue('teal.200', 'teal.700')}>
                 <FormControl display="flex" alignItems="start">
                   <Switch
                     mt="3px"
