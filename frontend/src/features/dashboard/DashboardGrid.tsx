@@ -9,8 +9,6 @@
 import {
   Box,
   Button,
-  Card,
-  CardBody,
   HStack,
   Icon,
   IconButton,

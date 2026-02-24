@@ -236,7 +236,7 @@ const BillsPage: React.FC = () => {
   const applyLabelMutation = useMutation({
     mutationFn: ({ id, retroactive }: { id: string; retroactive: boolean }) =>
       recurringTransactionsApi.applyLabel(id, retroactive),
-    onSuccess: (data, variables) => {
+    onSuccess: (data, _variables) => {
       queryClient.invalidateQueries({ queryKey: ['recurring-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['labels'] });
       toast({

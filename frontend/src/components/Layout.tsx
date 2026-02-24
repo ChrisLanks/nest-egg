@@ -785,7 +785,7 @@ export const Layout = () => {
             <NotificationBell />
 
             <UserMenu
-              user={user}
+              user={user as { first_name?: string; last_name?: string; display_name?: string; email?: string } | null}
               onNavigate={navigateWithParams}
               onLogout={handleLogout}
             />

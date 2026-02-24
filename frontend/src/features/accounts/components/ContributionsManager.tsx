@@ -4,7 +4,6 @@
 
 import { useState } from 'react';
 import {
-  VStack,
   HStack,
   Box,
   Text,
@@ -44,7 +43,7 @@ interface ContributionsManagerProps {
   accountName: string;
 }
 
-export const ContributionsManager = ({ accountId, accountName }: ContributionsManagerProps) => {
+export const ContributionsManager = ({ accountId, accountName: _accountName }: ContributionsManagerProps) => {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();

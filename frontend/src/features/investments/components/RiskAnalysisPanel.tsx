@@ -40,9 +40,9 @@ interface Snapshot {
 
 interface HoldingSummary {
   ticker: string;
-  name?: string;
-  current_total_value?: number;
-  asset_type?: string;
+  name?: string | null;
+  current_total_value?: number | null;
+  asset_type?: string | null;
 }
 
 interface PortfolioSummary {
@@ -357,10 +357,10 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
                 />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={100} />
                 <RechartsTooltip
-                  formatter={(value: number) => [
+                  formatter={((value: number) => [
                     `$${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
                     'Value',
-                  ]}
+                  ]) as any}
                   labelStyle={{ color: '#000' }}
                 />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]}>

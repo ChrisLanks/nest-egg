@@ -417,7 +417,7 @@ export default function TrendsPage() {
                       style={{ fontSize: '12px' }}
                     />
                     <Tooltip
-                      formatter={(value: number) => formatCurrency(value)}
+                      formatter={((value: number) => formatCurrency(value)) as any}
                       contentStyle={{
                         backgroundColor: tooltipBg,
                         border: '1px solid #E2E8F0',

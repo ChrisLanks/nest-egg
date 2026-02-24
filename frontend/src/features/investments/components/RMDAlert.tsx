@@ -78,7 +78,7 @@ export const RMDAlert: React.FC<RMDAlertProps> = ({ userId = null }) => {
     },
     retry: false,
     // Don't show error if user doesn't have birthdate set
-    useErrorBoundary: false,
+    throwOnError: false,
   });
 
   // Format currency

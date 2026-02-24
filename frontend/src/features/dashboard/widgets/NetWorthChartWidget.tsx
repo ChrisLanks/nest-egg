@@ -186,7 +186,7 @@ export const NetWorthChartWidget: React.FC = () => {
               <XAxis dataKey="date" />
               <YAxis />
               <Tooltip
-                formatter={(v: number) => formatCurrency(v)}
+                formatter={((v: number) => formatCurrency(v)) as any}
                 contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}` }}
               />
               <Legend />

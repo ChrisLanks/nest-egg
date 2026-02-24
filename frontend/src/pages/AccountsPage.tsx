@@ -15,8 +15,6 @@ import {
   Tr,
   Th,
   Td,
-  Spinner,
-  Center,
   Button,
   IconButton,
   useToast,
@@ -38,9 +36,6 @@ import {
   useDisclosure,
   Tooltip,
   Icon,
-  Alert,
-  AlertIcon,
-  AlertDescription,
 } from '@chakra-ui/react';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -91,7 +86,7 @@ export const AccountsPage = () => {
   const navigate = useNavigate();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
-  const { canWriteResource, isOtherUserView, selectedUserId } = useUserView();
+  const { canWriteResource, selectedUserId } = useUserView();
   const canEdit = canWriteResource('account');
 
   // Fetch current user for permission checks
@@ -306,7 +301,7 @@ export const AccountsPage = () => {
       const response = await api.post(`/plaid/sync-transactions/${plaidItemId}`);
       return response.data;
     },
-    onSuccess: (data, plaidItemId) => {
+    onSuccess: (data, _plaidItemId) => {
       queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
@@ -327,7 +322,7 @@ export const AccountsPage = () => {
       });
       setSyncingItemId(null);
     },
-    onError: (error: any, plaidItemId) => {
+    onError: (error: any, _plaidItemId) => {
       const errorMessage = error?.response?.data?.detail || 'Failed to sync transactions';
       toast({
         title: 'Sync Failed',

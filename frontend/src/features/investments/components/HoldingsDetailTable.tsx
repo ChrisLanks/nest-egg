@@ -113,7 +113,7 @@ export const HoldingsDetailTable = ({ holdings }: HoldingsDetailTableProps) => {
 
   // Get unique asset types for filter
   const assetTypes = useMemo(() => {
-    const types = new Set(holdings.map((h) => h.asset_type).filter(Boolean));
+    const types = new Set(holdings.map((h) => h.asset_type).filter((t): t is string => Boolean(t)));
     return Array.from(types).sort();
   }, [holdings]);
 

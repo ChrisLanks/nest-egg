@@ -15,8 +15,6 @@ import {
   Tr,
   Th,
   Td,
-  Spinner,
-  Center,
   Button,
   IconButton,
   useToast,
@@ -288,7 +286,7 @@ export const CategoriesPage = () => {
       });
       return;
     }
-    updateMutation.mutate({ id: editingCategory.id, data: formData });
+    updateMutation.mutate({ id: editingCategory.id || '', data: formData });
   };
 
   const handleDelete = (category: Category) => {
@@ -314,7 +312,7 @@ export const CategoriesPage = () => {
     setCategoryToDelete(null);
   };
 
-  const renderCategoryRow = (category: CategoryWithChildren, isChild: boolean = false) => {
+  const renderCategoryRow = (category: CategoryWithChildren, isChild: boolean = false): JSX.Element => {
     const isPlaid = !category.is_custom;
 
     return (
@@ -381,7 +379,7 @@ export const CategoriesPage = () => {
             </HStack>
           </Td>
         </Tr>
-        {category.children?.map(child => renderCategoryRow(child, true))}
+        {category.children?.map((child: CategoryWithChildren) => renderCategoryRow(child, true))}
       </>
     );
   };
@@ -495,7 +493,7 @@ export const CategoriesPage = () => {
                   placeholder="None (Root level)"
                 >
                   {parentCategories.map((category) => (
-                    <option key={category.id} value={category.id}>
+                    <option key={category.id} value={category.id || ''}>
                       {category.name}
                     </option>
                   ))}
@@ -559,7 +557,7 @@ export const CategoriesPage = () => {
                   {parentCategories
                     .filter(c => c.id !== editingCategory?.id)
                     .map((category) => (
-                      <option key={category.id} value={category.id}>
+                      <option key={category.id} value={category.id || ''}>
                         {category.name}
                       </option>
                     ))}

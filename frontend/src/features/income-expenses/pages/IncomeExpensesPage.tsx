@@ -16,8 +16,6 @@ import {
   StatLabel,
   StatNumber,
   StatHelpText,
-  Spinner,
-  Center,
   Table,
   Thead,
   Tbody,
@@ -1019,7 +1017,7 @@ export const IncomeExpensesPage = () => {
               cx="50%"
               cy="52%"
               outerRadius={100}
-              label={(entry) => formatCurrency(entry.amount)}
+              label={(entry: any) => formatCurrency(entry.amount)}
               onClick={(entry) => {
                 if (drillDown.level === 'categories') {
                   // In merchant grouping mode, top-level items are merchants, not categories
@@ -1046,12 +1044,12 @@ export const IncomeExpensesPage = () => {
               }}
               style={{ cursor: 'pointer' }}
             >
-              {data.map((entry, index) => (
+              {data.map((_entry, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
             <Tooltip
-              formatter={(value: number) => formatCurrency(value)}
+              formatter={((value: number) => formatCurrency(value)) as any}
               content={({ active, payload }) => {
                 if (active && payload && payload.length) {
                   const data = payload[0].payload;
@@ -1151,18 +1149,18 @@ export const IncomeExpensesPage = () => {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis type="number" />
             <YAxis dataKey="category" type="category" width={150} />
-            <Tooltip formatter={(value: number) => formatCurrency(value)} />
+            <Tooltip formatter={((value: number) => formatCurrency(value)) as any} />
             <Bar
               dataKey="amount"
-              onClick={(entry) => {
+              onClick={(entry: any) => {
                 if (drillDown.level === 'categories') {
                   handleCategoryClick(entry.category, type, entry.has_children);
                 } else if (drillDown.level === 'merchants') {
                   // Check if this is a child category or a merchant based on metadata
-                  if ((entry as any)._isCategoryData) {
+                  if (entry._isCategoryData) {
                     // This is a child category, update the category for merchant drill-down
                     handleCategoryClick(entry.category, type, entry.has_children);
-                  } else if ((entry as any)._isMerchantData) {
+                  } else if (entry._isMerchantData) {
                     // This is a merchant, drill down to transactions
                     handleMerchantClick(entry.category, type);
                   }
@@ -1172,7 +1170,7 @@ export const IncomeExpensesPage = () => {
               }}
               style={{ cursor: 'pointer' }}
             >
-              {data.map((entry, index) => (
+              {data.map((_entry, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Bar>
@@ -1486,7 +1484,7 @@ export const IncomeExpensesPage = () => {
                             <XAxis dataKey="month" />
                             <YAxis />
                             <Tooltip
-                              formatter={(value: number) => formatCurrency(value)}
+                              formatter={((value: number) => formatCurrency(value)) as any}
                               contentStyle={{ backgroundColor: tooltipBg, border: '1px solid #ccc' }}
                             />
                             <Legend />

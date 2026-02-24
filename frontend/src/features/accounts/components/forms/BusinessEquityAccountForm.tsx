@@ -74,7 +74,6 @@ export const BusinessEquityAccountForm = ({
 
   const companyValuation = watch('company_valuation');
   const ownershipPercentage = watch('ownership_percentage');
-  const equityValue = watch('equity_value');
 
   // Calculate current balance based on input method
   const calculateBalance = (data: BusinessEquityAccountFormData): number => {

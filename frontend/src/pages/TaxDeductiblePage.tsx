@@ -329,7 +329,7 @@ export default function TaxDeductiblePage() {
             {/* Empty State */}
             {!isLoading && totalTransactions === 0 && (
               <EmptyState
-                icon="💼"
+                icon={"💼" as any}
                 title="No tax-deductible transactions"
                 description="Tag transactions with tax labels to track deductible expenses. Navigate to transactions and apply labels like 'Medical & Dental' or 'Business Expenses'."
               />

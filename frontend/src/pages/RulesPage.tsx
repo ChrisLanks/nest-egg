@@ -9,12 +9,6 @@ import {
   Text,
   VStack,
   HStack,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
   Badge,
   Spinner,
   Center,
@@ -26,7 +20,6 @@ import {
   CardBody,
   Divider,
   Collapse,
-  useDisclosure,
 } from '@chakra-ui/react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';

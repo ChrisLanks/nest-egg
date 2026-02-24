@@ -61,7 +61,6 @@ export const CDAccountForm = ({ onSubmit, onBack, isLoading }: CDAccountFormProp
     register,
     handleSubmit,
     control,
-    watch,
     formState: { errors },
   } = useForm<CDAccountFormData>({
     resolver: zodResolver(cdAccountSchema),
@@ -73,9 +72,6 @@ export const CDAccountForm = ({ onSubmit, onBack, isLoading }: CDAccountFormProp
     },
   });
 
-  const originalAmount = watch('original_amount');
-  const interestRate = watch('interest_rate');
-  const compoundingFrequency = watch('compounding_frequency');
 
   const handleFormSubmit = (data: CDAccountFormData) => {
     const submitData: any = {

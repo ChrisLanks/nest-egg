@@ -25,22 +25,23 @@ import {
   NumberInput,
   NumberInputField,
   useToast,
-  Badge,
 } from '@chakra-ui/react';
 import { AddIcon, DeleteIcon } from '@chakra-ui/icons';
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import api from '../../../services/api';
-import type {
-  Rule,
-  RuleCreate,
-  RuleCondition,
-  RuleAction,
+import {
   RuleMatchType,
   RuleApplyTo,
   ConditionField,
   ConditionOperator,
   ActionType,
+} from '../../../types/rule';
+import type {
+  Rule,
+  RuleCreate,
+  RuleCondition,
+  RuleAction,
 } from '../../../types/rule';
 import type { Label } from '../../../types/transaction';
 
@@ -54,8 +55,8 @@ interface RuleBuilderProps {
 export const RuleBuilder = ({ isOpen, onClose, rule, prefillMerchant }: RuleBuilderProps) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [matchType, setMatchType] = useState<RuleMatchType>('all');
-  const [applyTo, setApplyTo] = useState<RuleApplyTo>('new_only');
+  const [matchType, setMatchType] = useState<RuleMatchType>(RuleMatchType.ALL);
+  const [applyTo, setApplyTo] = useState<RuleApplyTo>(RuleApplyTo.NEW_ONLY);
   const [priority, setPriority] = useState(0);
   const [isActive, setIsActive] = useState(true);
   const [conditions, setConditions] = useState<Omit<RuleCondition, 'id' | 'rule_id' | 'created_at'>[]>([]);
@@ -103,8 +104,8 @@ export const RuleBuilder = ({ isOpen, onClose, rule, prefillMerchant }: RuleBuil
         // Create mode
         setName('');
         setDescription('');
-        setMatchType('all');
-        setApplyTo('new_only');
+        setMatchType(RuleMatchType.ALL);
+        setApplyTo(RuleApplyTo.NEW_ONLY);
         setPriority(0);
         setIsActive(true);
         
@@ -112,8 +113,8 @@ export const RuleBuilder = ({ isOpen, onClose, rule, prefillMerchant }: RuleBuil
         if (prefillMerchant) {
           setConditions([
             {
-              field: 'merchant_name',
-              operator: 'equals',
+              field: ConditionField.MERCHANT_NAME,
+              operator: ConditionOperator.EQUALS,
               value: prefillMerchant,
             },
           ]);
@@ -226,8 +227,8 @@ export const RuleBuilder = ({ isOpen, onClose, rule, prefillMerchant }: RuleBuil
     setConditions([
       ...conditions,
       {
-        field: 'merchant_name',
-        operator: 'contains',
+        field: ConditionField.MERCHANT_NAME,
+        operator: ConditionOperator.CONTAINS,
         value: '',
       },
     ]);
@@ -247,7 +248,7 @@ export const RuleBuilder = ({ isOpen, onClose, rule, prefillMerchant }: RuleBuil
     setActions([
       ...actions,
       {
-        action_type: 'add_label',
+        action_type: ActionType.ADD_LABEL,
         action_value: '',
       },
     ]);
@@ -264,10 +265,10 @@ export const RuleBuilder = ({ isOpen, onClose, rule, prefillMerchant }: RuleBuil
   };
 
   const getOperatorsForField = (field: ConditionField): ConditionOperator[] => {
-    if (field === 'amount' || field === 'amount_exact') {
-      return ['equals', 'greater_than', 'less_than', 'between'];
+    if (field === ConditionField.AMOUNT || field === ConditionField.AMOUNT_EXACT) {
+      return [ConditionOperator.EQUALS, ConditionOperator.GREATER_THAN, ConditionOperator.LESS_THAN, ConditionOperator.BETWEEN];
     }
-    return ['equals', 'contains', 'starts_with', 'ends_with', 'regex'];
+    return [ConditionOperator.EQUALS, ConditionOperator.CONTAINS, ConditionOperator.STARTS_WITH, ConditionOperator.ENDS_WITH, ConditionOperator.REGEX];
   };
 
   return (
@@ -395,7 +396,7 @@ export const RuleBuilder = ({ isOpen, onClose, rule, prefillMerchant }: RuleBuil
                         placeholder="Value"
                         size="sm"
                       />
-                      {condition.operator === 'between' && (
+                      {condition.operator === ConditionOperator.BETWEEN && (
                         <>
                           <Text fontSize="sm">and</Text>
                           <Input
@@ -448,8 +449,8 @@ export const RuleBuilder = ({ isOpen, onClose, rule, prefillMerchant }: RuleBuil
                         <option value="set_merchant">Set Merchant</option>
                       </Select>
 
-                      {(action.action_type === 'add_label' ||
-                        action.action_type === 'remove_label') && labels ? (
+                      {(action.action_type === ActionType.ADD_LABEL ||
+                        action.action_type === ActionType.REMOVE_LABEL) && labels ? (
                         <Select
                           value={action.action_value}
                           onChange={(e) => updateAction(index, { action_value: e.target.value })}

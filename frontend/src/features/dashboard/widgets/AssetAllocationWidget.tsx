@@ -87,7 +87,7 @@ export const AssetAllocationWidget: React.FC = () => {
               ))}
             </Pie>
             <Tooltip
-              formatter={(value: number) => [formatCurrency(value), '']}
+              formatter={((value: number) => [formatCurrency(value), '']) as any}
               contentStyle={{ fontSize: '12px' }}
             />
           </PieChart>

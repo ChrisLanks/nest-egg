@@ -397,7 +397,7 @@ export default function ReportsPage() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis tickFormatter={(value) => formatCurrency(value)} />
-                      <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                      <Tooltip formatter={((value: number) => formatCurrency(value)) as any} />
                       <Legend />
                       <Bar dataKey="amount" fill="#3182CE" />
                     </BarChart>
@@ -417,11 +417,11 @@ export default function ReportsPage() {
                         fill="#8884d8"
                         dataKey="amount"
                       >
-                        {reportResult.data.map((entry, index) => (
+                        {reportResult.data.map((_entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                      <Tooltip formatter={((value: number) => formatCurrency(value)) as any} />
                     </PieChart>
                   </ResponsiveContainer>
                 )}

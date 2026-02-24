@@ -50,7 +50,7 @@ export const CashFlowTrendWidget: React.FC = () => {
             <XAxis dataKey="month" />
             <YAxis />
             <Tooltip
-              formatter={(v: number) => formatCurrency(v)}
+              formatter={((v: number) => formatCurrency(v)) as any}
               contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}` }}
             />
             <Legend />

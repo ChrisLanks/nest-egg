@@ -16,8 +16,6 @@ import {
   Th,
   Td,
   Badge,
-  Spinner,
-  Center,
   Button,
   Checkbox,
   useToast,
@@ -383,7 +381,7 @@ export const TransactionsPage = () => {
         modified: ownedTransactionIds.length,
       };
     },
-    onSuccess: (result, variables) => {
+    onSuccess: (result, _variables) => {
       const skipped = result.attempted - result.modified;
       toast({
         title: `Label added to ${result.modified} transaction(s)`,
@@ -438,7 +436,7 @@ export const TransactionsPage = () => {
         modified: ownedTransactionIds.length,
       };
     },
-    onSuccess: (result, variables) => {
+    onSuccess: (result, _variables) => {
       const skipped = result.attempted - result.modified;
       toast({
         title: `Label removed from ${result.modified} transaction(s)`,
@@ -493,7 +491,7 @@ export const TransactionsPage = () => {
         modified: ownedTransactionIds.length,
       };
     },
-    onSuccess: (result, variables) => {
+    onSuccess: (result, _variables) => {
       const skipped = result.attempted - result.modified;
       toast({
         title: `Category updated for ${result.modified} transaction(s)`,
@@ -798,7 +796,6 @@ export const TransactionsPage = () => {
     // Function to get the month period key for a transaction date
     const getMonthPeriodKey = (dateStr: string): string => {
       const [year, month, day] = dateStr.split("-").map(Number);
-      const txnDate = new Date(year, month - 1, day);
 
       // Period runs from (monthlyStartDay + 1) to monthlyStartDay of next month
       // If the day is <= monthlyStartDay, the period started in the previous month
@@ -1043,6 +1040,8 @@ export const TransactionsPage = () => {
       date: new Date().toISOString(),
       account_id: selected[0]?.account_id || "",
       account_name: selected[0]?.account_name || "",
+      account_mask: selected[0]?.account_mask || null,
+      description: null,
       organization_id: selected[0]?.organization_id || "",
       is_pending: false,
       is_transfer: false,
@@ -1055,19 +1054,6 @@ export const TransactionsPage = () => {
     setIsRuleBuilderOpen(true);
   };
 
-  const handleBulkMarkTransfer = (isTransfer: boolean) => {
-    if (selectedTransactions.size === 0) {
-      toast({
-        title: "No transactions selected",
-        status: "warning",
-        duration: 3000,
-      });
-      return;
-    }
-
-    setBulkActionType(isTransfer ? "mark" : "unmark");
-    setIsConfirmDialogOpen(true);
-  };
 
   const confirmBulkAction = () => {
     if (bulkActionType !== null) {

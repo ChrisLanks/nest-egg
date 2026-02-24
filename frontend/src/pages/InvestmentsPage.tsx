@@ -41,7 +41,6 @@ import {
   Menu,
   MenuButton,
   MenuList,
-  MenuItem,
   Tabs,
   TabList,
   TabPanels,
@@ -160,7 +159,7 @@ export const InvestmentsPage = () => {
   const [expandedAccounts, setExpandedAccounts] = useState<string[]>([]);
 
   // Style Box modal
-  const { isOpen: isStyleBoxOpen, onOpen: onStyleBoxOpen, onClose: onStyleBoxClose } = useDisclosure();
+  const { isOpen: isStyleBoxOpen, onOpen: _onStyleBoxOpen, onClose: onStyleBoxClose } = useDisclosure();
 
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -344,8 +343,7 @@ export const InvestmentsPage = () => {
     // Recalculate treemap data based on visible accounts
     let newTreemapData = rawPortfolio.treemap_data;
     if (rawPortfolio.treemap_data && rawPortfolio.treemap_data.children) {
-      // Get visible account IDs and names for filtering
-      const visibleAccountIds = new Set(allVisibleAccounts.map((a: any) => a.id));
+      // Get visible account names for filtering
       const visibleAccountNames = new Set(allVisibleAccounts.map((a: any) => a.name));
 
       // Helper to recursively filter treemap nodes

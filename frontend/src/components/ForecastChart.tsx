@@ -177,8 +177,8 @@ export const ForecastChart = () => {
               style={{ fontSize: '12px' }}
             />
             <Tooltip
-              formatter={(value: number) => [formatCurrency(value), 'Balance']}
-              labelFormatter={(date: string) => formatFullDate(date)}
+              formatter={((value: number) => [formatCurrency(value), 'Balance']) as any}
+              labelFormatter={((date: string) => formatFullDate(date)) as any}
               contentStyle={{
                 backgroundColor: 'white',
                 border: '1px solid #E2E8F0',

@@ -40,6 +40,7 @@ interface TransactionDetailModalProps {
   transaction: Transaction | null;
   isOpen: boolean;
   onClose: () => void;
+  onCreateRule?: (transaction: Transaction) => void;
 }
 
 interface Label {
@@ -53,6 +54,7 @@ export const TransactionDetailModal = ({
   transaction,
   isOpen,
   onClose,
+  onCreateRule: _onCreateRule,
 }: TransactionDetailModalProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [merchantName, setMerchantName] = useState('');
@@ -277,7 +279,7 @@ export const TransactionDetailModal = ({
   };
 
   const handleToggleTransfer = () => {
-    toggleTransferMutation.mutate(!currentTransaction.is_transfer);
+    toggleTransferMutation.mutate(!currentTransaction!.is_transfer);
   };
 
   if (!currentTransaction) return null;

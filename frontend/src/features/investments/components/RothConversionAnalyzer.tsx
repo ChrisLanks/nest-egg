@@ -209,7 +209,7 @@ export const RothConversionAnalyzer: React.FC = () => {
                   type="number"
                   value={balanceInput !== '' ? balanceInput : fetchedBalance}
                   onChange={(e) => setBalanceInput(e.target.value)}
-                  onFocus={(e) => { if (balanceInput === '' && fetchedBalance > 0) setBalanceInput(String(fetchedBalance)); }}
+                  onFocus={() => { if (balanceInput === '' && fetchedBalance > 0) setBalanceInput(String(fetchedBalance)); }}
                   style={{
                     width: '100%',
                     padding: '6px 12px',

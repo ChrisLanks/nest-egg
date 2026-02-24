@@ -91,7 +91,7 @@ function SortableGoalCard({ goal, onEdit, method, canEdit = true }: SortableGoal
         showFundButton
         canEdit={canEdit}
         dragHandleListeners={listeners as Record<string, unknown>}
-        dragHandleAttributes={attributes as Record<string, unknown>}
+        dragHandleAttributes={attributes as unknown as Record<string, unknown>}
         method={method}
       />
     </div>

@@ -8,12 +8,8 @@
 
 import {
   Box,
-  Alert,
-  AlertIcon,
-  AlertDescription,
   Text,
   HStack,
-  Badge,
 } from '@chakra-ui/react';
 import { useMemo } from 'react';
 import {

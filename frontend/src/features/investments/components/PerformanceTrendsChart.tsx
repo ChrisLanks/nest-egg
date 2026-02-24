@@ -331,10 +331,10 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
               tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
             />
             <Tooltip
-              formatter={(value: number) => [
+              formatter={((value: number) => [
                 `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                 'Value',
-              ]}
+              ]) as any}
               labelStyle={{ color: '#000' }}
             />
             <Legend />

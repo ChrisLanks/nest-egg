@@ -20,18 +20,7 @@ interface AssetAllocationTreemapProps {
   onDrillDown?: (node: TreemapNode | null) => void;
 }
 
-const COLORS = {
-  stocks: '#4299E1', // blue
-  bonds: '#48BB78', // green
-  realEstate: '#ED8936', // orange
-  crypto: '#9F7AEA', // purple
-  cash: '#38B2AC', // teal
-  other: '#A0AEC0', // gray
-  domestic: '#3182CE',
-  international: '#805AD5',
-  etf: '#319795',
-  mutualFund: '#D69E2E',
-};
+
 
 export const AssetAllocationTreemap = ({ data, onDrillDown }: AssetAllocationTreemapProps) => {
   const [breadcrumbs, setBreadcrumbs] = useState<TreemapNode[]>([]);
