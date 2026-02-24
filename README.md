@@ -445,7 +445,10 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Setup PostgreSQL and Redis locally
-# Create database: createdb nestegg
+# Create database and role (must match DATABASE_URL in .env):
+#   createdb nestegg
+#   psql nestegg -c "CREATE ROLE nestegg WITH LOGIN PASSWORD 'nestegg_dev_password';"
+#   psql nestegg -c "GRANT ALL PRIVILEGES ON DATABASE nestegg TO nestegg;"
 
 # Run migrations
 alembic upgrade head
