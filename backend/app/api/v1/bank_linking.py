@@ -20,7 +20,7 @@ from app.api.v1.plaid import sync_transactions as plaid_sync
 from app.config import settings
 from app.core.database import get_db
 from app.dependencies import get_current_user
-from app.models.account import Account, AccountSource, PlaidItem, TellerEnrollment
+from app.models.account import Account, AccountSource, MxMember, PlaidItem, TellerEnrollment
 from app.models.user import User
 from app.schemas.plaid import PublicTokenExchangeRequest
 from app.services.plaid_service import PlaidService
@@ -31,7 +31,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # Type alias for supported providers
-Provider = Literal["plaid", "teller"]
+Provider = Literal["plaid", "teller", "mx"]
 
 
 class LinkTokenRequest(BaseModel):
@@ -126,6 +126,22 @@ async def create_link_token(
                 provider="teller",
                 link_token=link_url,
                 expiration="7d",  # Teller Connect URLs don't expire
+            )
+
+        elif request.provider == "mx":
+            if not settings.MX_ENABLED:
+                raise HTTPException(status_code=400, detail="MX integration is not enabled")
+
+            from app.services.mx_service import get_mx_service
+
+            mx_service = get_mx_service()
+            mx_user_guid = await mx_service.get_or_create_user(db, current_user.id)
+            widget_url, expiration = await mx_service.get_connect_widget_url(mx_user_guid)
+
+            return LinkTokenResponse(
+                provider="mx",
+                link_token=widget_url,
+                expiration=expiration,
             )
 
         else:
@@ -226,6 +242,51 @@ async def exchange_token(
                 ],
             )
 
+        elif request.provider == "mx":
+            from app.services.mx_service import get_mx_service
+
+            mx_service = get_mx_service()
+
+            # MX Connect widget callback provides member_guid via public_token
+            # and mx_user_guid via access_token field.
+            mx_user_guid = request.access_token  # Passed from frontend after widget completes
+            member_guid = request.public_token
+
+            if not mx_user_guid or not member_guid:
+                raise HTTPException(
+                    status_code=400,
+                    detail="MX requires mx_user_guid (access_token) and member_guid (public_token)",
+                )
+
+            member = await mx_service.create_member_record(
+                db=db,
+                organization_id=current_user.organization_id,
+                user_id=current_user.id,
+                mx_user_guid=mx_user_guid,
+                member_guid=member_guid,
+                institution_code=request.institution_id,
+                institution_name=request.institution_name,
+            )
+
+            # Sync accounts from MX
+            accounts = await mx_service.sync_accounts(db, member)
+
+            return ExchangeTokenResponse(
+                provider="mx",
+                item_id=member.member_guid,
+                accounts=[
+                    AccountItem(
+                        account_id=acc.external_account_id,
+                        name=acc.name,
+                        mask=acc.mask,
+                        type=acc.account_type.value,
+                        subtype=None,
+                        current_balance=float(acc.current_balance or 0),
+                    )
+                    for acc in accounts
+                ],
+            )
+
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported provider: {request.provider}")
 
@@ -304,6 +365,27 @@ async def sync_transactions(
                 },
             }
 
+        elif account.account_source == AccountSource.MX:
+            from app.services.mx_service import get_mx_service
+
+            mx_service = get_mx_service()
+
+            if not account.mx_member:
+                raise HTTPException(
+                    status_code=400, detail="Account is not linked to an MX member"
+                )
+
+            transactions = await mx_service.sync_transactions(
+                db=db, account=account, days_back=90
+            )
+
+            return {
+                "success": True,
+                "provider": "mx",
+                "message": "Transactions synced successfully",
+                "stats": {"added": len(transactions)},
+            }
+
         elif account.account_source == AccountSource.MANUAL:
             raise HTTPException(
                 status_code=400, detail="Manual accounts cannot be synced automatically"
@@ -366,6 +448,12 @@ async def sync_holdings(
             raise HTTPException(
                 status_code=501,
                 detail="Holdings sync is not yet supported for Teller accounts",
+            )
+
+        elif account.account_source == AccountSource.MX:
+            raise HTTPException(
+                status_code=501,
+                detail="Holdings sync is not yet supported for MX accounts",
             )
 
         elif account.account_source == AccountSource.MANUAL:
@@ -450,6 +538,23 @@ async def disconnect_account(
                     except Exception as e:
                         logger.warning(f"Teller enrollment revocation failed: {e}")
 
+        elif account.account_source == AccountSource.MX:
+            if account.mx_member_id:
+                mx_result = await db.execute(
+                    select(MxMember).where(MxMember.id == account.mx_member_id)
+                )
+                mx_member = mx_result.scalar_one_or_none()
+                if mx_member:
+                    try:
+                        from app.services.mx_service import get_mx_service
+
+                        mx_service = get_mx_service()
+                        await mx_service.delete_member(
+                            mx_member.mx_user_guid, mx_member.member_guid
+                        )
+                    except Exception as e:
+                        logger.warning(f"MX member deletion failed: {e}")
+
         # Mark account as inactive regardless of provider
         account.is_active = False
         await db.commit()
@@ -493,6 +598,17 @@ async def list_providers(
                 "description": "100 free accounts/month, then $1/account",
                 "coverage": "US (5,000+ banks)",
                 "features": ["checking", "savings", "credit_cards", "loans"],
+            }
+        )
+
+    if settings.MX_ENABLED:
+        providers.append(
+            {
+                "id": "mx",
+                "name": "MX",
+                "description": "Enterprise bank data aggregation",
+                "coverage": "US, Canada (16,000+ institutions)",
+                "features": ["checking", "savings", "credit_cards", "loans", "investments"],
             }
         )
 

@@ -167,7 +167,7 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
 
         {/* MX */}
         <Tooltip
-          label={!mxEnabled ? "MX integration coming soon" : ""}
+          label={!mxEnabled ? "MX credentials not configured" : ""}
           placement="top"
           hasArrow
         >
@@ -178,28 +178,38 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
             borderWidth={2}
             borderRadius="lg"
             borderColor="border.default"
+            _hover={mxEnabled ? {
+              borderColor: 'purple.500',
+              bg: 'purple.50',
+              transform: 'translateY(-2px)',
+              shadow: 'md',
+            } : {}}
             transition="all 0.2s"
-            cursor="not-allowed"
-            opacity={0.5}
+            cursor={mxEnabled ? 'pointer' : 'not-allowed'}
+            opacity={mxEnabled ? 1 : 0.5}
             position="relative"
           >
-            <Icon
-              as={FiAlertCircle}
-              position="absolute"
-              top={2}
-              right={2}
-              color="text.muted"
-              boxSize={5}
-            />
+            {!mxEnabled && (
+              <Icon
+                as={FiAlertCircle}
+                position="absolute"
+                top={2}
+                right={2}
+                color="orange.500"
+                boxSize={5}
+              />
+            )}
             <VStack spacing={3}>
-              <Icon as={FiLink} boxSize={8} color="brand.500" />
+              <Icon as={FiLink} boxSize={8} color="purple.500" />
               <Text fontWeight="bold">MX</Text>
               <Text fontSize="sm" color="text.secondary" textAlign="center">
-                Alternative provider
+                Enterprise aggregation. 16,000+ institutions.
               </Text>
-              <Badge colorScheme="gray" fontSize="xs">
-                Coming Soon
-              </Badge>
+              {!mxEnabled && (
+                <Badge colorScheme="orange" fontSize="xs">
+                  Not Configured
+                </Badge>
+              )}
             </VStack>
           </Box>
         </Tooltip>

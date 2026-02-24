@@ -203,6 +203,51 @@ class TellerEnrollment(Base):
         return encryption_service.decrypt_token(self.access_token)
 
 
+class MxMember(Base):
+    """MX Member represents a connected financial institution via MX Platform."""
+
+    __tablename__ = "mx_members"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    # MX identifiers
+    mx_user_guid = Column(String(255), nullable=False, index=True)  # USR-*
+    member_guid = Column(String(255), unique=True, nullable=False, index=True)  # MBR-*
+
+    # Institution info
+    institution_code = Column(String(255), nullable=True)
+    institution_name = Column(String(255), nullable=True)
+
+    # Connection status
+    connection_status = Column(String(50), nullable=True)  # CONNECTED, CHALLENGED, etc.
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    # Sync state
+    last_synced_at = Column(DateTime, nullable=True)
+
+    # Error tracking
+    last_error_code = Column(String(100), nullable=True)
+    last_error_message = Column(Text, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
+
+    # Relationships
+    accounts = relationship(
+        "Account", back_populates="mx_member", cascade="all, delete-orphan"
+    )
+
+
 class PlaidItem(Base):
     """Plaid Item represents a set of credentials at a financial institution."""
 
@@ -295,6 +340,12 @@ class Account(Base):
     teller_enrollment_id = Column(
         UUID(as_uuid=True),
         ForeignKey("teller_enrollments.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    mx_member_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("mx_members.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
@@ -395,6 +446,7 @@ class Account(Base):
     # Relationships
     plaid_item = relationship("PlaidItem", back_populates="accounts")
     teller_enrollment = relationship("TellerEnrollment", back_populates="accounts")
+    mx_member = relationship("MxMember", back_populates="accounts")
     transactions = relationship(
         "Transaction", back_populates="account", cascade="all, delete-orphan"
     )

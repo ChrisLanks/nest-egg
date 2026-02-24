@@ -10,6 +10,15 @@ from jwt import PyJWK
 import httpx
 from fastapi import HTTPException
 
+import plaid
+from plaid.api import plaid_api
+from plaid.model.link_token_create_request import LinkTokenCreateRequest
+from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
+from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
+from plaid.model.accounts_get_request import AccountsGetRequest
+from plaid.model.country_code import CountryCode
+from plaid.model.products import Products
+
 from app.models.user import User
 from app.config import settings
 from app.utils.datetime_utils import utc_now
@@ -21,6 +30,13 @@ _PLAID_BASE_URLS = {
     "sandbox": "https://sandbox.plaid.com",
     "development": "https://development.plaid.com",
     "production": "https://production.plaid.com",
+}
+
+# Map settings.PLAID_ENV to plaid.Environment
+_PLAID_ENVIRONMENTS = {
+    "sandbox": plaid.Environment.Sandbox,
+    "development": plaid.Environment.Development,
+    "production": plaid.Environment.Production,
 }
 
 # Cache for Plaid webhook verification JWK keys, keyed by key_id
@@ -37,6 +53,34 @@ class PlaidService:
         self._base_url = _PLAID_BASE_URLS.get(
             settings.PLAID_ENV, _PLAID_BASE_URLS["sandbox"]
         )
+        self._plaid_api: Optional[plaid_api.PlaidApi] = None
+
+    def _get_plaid_api(self) -> plaid_api.PlaidApi:
+        """Get or create Plaid API client.
+
+        Raises HTTPException 503 if credentials are not configured.
+        """
+        if self._plaid_api is not None:
+            return self._plaid_api
+
+        if not self._client_id or not self._secret:
+            raise HTTPException(
+                status_code=503,
+                detail="Plaid is not configured. Set PLAID_CLIENT_ID and PLAID_SECRET.",
+            )
+
+        configuration = plaid.Configuration(
+            host=_PLAID_ENVIRONMENTS.get(
+                settings.PLAID_ENV, plaid.Environment.Sandbox
+            ),
+            api_key={
+                "clientId": self._client_id,
+                "secret": self._secret,
+            },
+        )
+        api_client = plaid.ApiClient(configuration)
+        self._plaid_api = plaid_api.PlaidApi(api_client)
+        return self._plaid_api
 
     def is_test_user(self, user: User) -> bool:
         """Check if user is a test user (test@test.com)."""
@@ -159,24 +203,35 @@ class PlaidService:
         Create a Plaid Link token.
 
         For test@test.com users, returns a dummy token.
-        For real users, would call Plaid API.
+        For real users, calls Plaid API.
 
         Returns:
             Tuple of (link_token, expiration)
         """
         if self.is_test_user(user):
-            # Return dummy link token for test user
             dummy_token = f"link-sandbox-{uuid.uuid4()}"
             expiration = (utc_now() + timedelta(hours=4)).isoformat()
             return dummy_token, expiration
 
-        # TODO: For real users, call Plaid API
-        # from plaid import Client
-        # client = Client(client_id=..., secret=..., environment='sandbox')
-        # response = client.LinkToken.create({...})
-        # return response['link_token'], response['expiration']
+        client = self._get_plaid_api()
 
-        raise NotImplementedError("Real Plaid integration not yet implemented")
+        request = LinkTokenCreateRequest(
+            client_name="Nest Egg",
+            user=LinkTokenCreateRequestUser(client_user_id=str(user.id)),
+            products=[Products("transactions"), Products("investments")],
+            country_codes=[CountryCode("US")],
+            language="en",
+        )
+
+        try:
+            response = client.link_token_create(request)
+            return response.link_token, response.expiration
+        except plaid.ApiException as e:
+            logger.error("Plaid link_token_create failed: %s", e, exc_info=True)
+            raise HTTPException(
+                status_code=502,
+                detail="Failed to create Plaid link token",
+            )
 
     async def exchange_public_token(
         self,
@@ -190,32 +245,60 @@ class PlaidService:
         Exchange public token for access token and retrieve accounts.
 
         For test@test.com users, returns dummy data.
-        For real users, would call Plaid API.
+        For real users, calls Plaid API.
 
         Returns:
             Tuple of (access_token, accounts_list)
         """
         if self.is_test_user(user):
-            # Return dummy data for test user
             dummy_access_token = f"access-sandbox-{uuid.uuid4()}"
-
-            # Create dummy accounts based on institution
             dummy_accounts = self._create_dummy_accounts(institution_name or "Test Bank")
-
             return dummy_access_token, dummy_accounts
 
-        # TODO: For real users, call Plaid API
-        # from plaid import Client
-        # client = Client(client_id=..., secret=..., environment='sandbox')
-        # exchange_response = client.Item.public_token.exchange(public_token)
-        # access_token = exchange_response['access_token']
-        # item_id = exchange_response['item_id']
-        #
-        # accounts_response = client.Accounts.get(access_token)
-        # accounts = accounts_response['accounts']
-        # return access_token, accounts
+        client = self._get_plaid_api()
 
-        raise NotImplementedError("Real Plaid integration not yet implemented")
+        try:
+            # 1. Exchange public token for access token
+            exchange_request = ItemPublicTokenExchangeRequest(
+                public_token=public_token,
+            )
+            exchange_response = client.item_public_token_exchange(exchange_request)
+            access_token = exchange_response.access_token
+
+            # 2. Fetch accounts using the new access token
+            accounts_request = AccountsGetRequest(access_token=access_token)
+            accounts_response = client.accounts_get(accounts_request)
+
+            # 3. Normalize to the dict format expected by callers
+            accounts = self._normalize_plaid_accounts(accounts_response.accounts)
+
+            return access_token, accounts
+
+        except plaid.ApiException as e:
+            logger.error("Plaid exchange_public_token failed: %s", e, exc_info=True)
+            raise HTTPException(
+                status_code=502,
+                detail="Failed to exchange Plaid public token",
+            )
+
+    @staticmethod
+    def _normalize_plaid_accounts(plaid_accounts: list) -> List[dict]:
+        """Normalize Plaid SDK account objects to the dict format used throughout the app."""
+        accounts = []
+        for acc in plaid_accounts:
+            balances = acc.balances
+            accounts.append({
+                "account_id": acc.account_id,
+                "name": acc.name,
+                "mask": acc.mask,
+                "official_name": acc.official_name,
+                "type": acc.type.value if hasattr(acc.type, "value") else str(acc.type),
+                "subtype": acc.subtype.value if acc.subtype and hasattr(acc.subtype, "value") else str(acc.subtype) if acc.subtype else None,
+                "current_balance": float(balances.current) if balances.current is not None else None,
+                "available_balance": float(balances.available) if balances.available is not None else None,
+                "limit": float(balances.limit) if balances.limit is not None else None,
+            })
+        return accounts
 
     def _create_dummy_accounts(self, institution_name: str) -> List[dict]:
         """Create dummy account data for testing."""
@@ -270,20 +353,24 @@ class PlaidService:
         """
         Fetch accounts for a connected Plaid item.
 
-        For test@test.com users, returns cached dummy data.
-        For real users, would call Plaid API.
+        For test@test.com users, returns empty list.
+        For real users, calls Plaid API.
         """
         if self.is_test_user(user):
-            # For test users, just return empty list or cached accounts
             return []
 
-        # TODO: For real users, call Plaid API
-        # from plaid import Client
-        # client = Client(client_id=..., secret=..., environment='sandbox')
-        # response = client.Accounts.get(access_token)
-        # return response['accounts']
+        client = self._get_plaid_api()
 
-        raise NotImplementedError("Real Plaid integration not yet implemented")
+        try:
+            request = AccountsGetRequest(access_token=access_token)
+            response = client.accounts_get(request)
+            return self._normalize_plaid_accounts(response.accounts)
+        except plaid.ApiException as e:
+            logger.error("Plaid accounts_get failed: %s", e, exc_info=True)
+            raise HTTPException(
+                status_code=502,
+                detail="Failed to fetch Plaid accounts",
+            )
 
     async def get_investment_holdings(
         self, user: User, access_token: str

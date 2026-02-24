@@ -379,3 +379,216 @@ class TestPlaidService:
         assert "depository" in account_types
         assert "credit" in account_types
         assert "investment" in account_types
+
+
+class TestPlaidServiceRealAPI:
+    """Tests for real Plaid API calls (mocked SDK)."""
+
+    @pytest.mark.asyncio
+    async def test_create_link_token_real_user(self, monkeypatch):
+        """Should call Plaid SDK link_token_create for real users."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_client_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        service = PlaidService()
+        real_user = User(id=uuid4(), email="real@example.com", password_hash="hash")
+
+        # Mock the Plaid API client
+        mock_api = MagicMock()
+        mock_response = MagicMock()
+        mock_response.link_token = "link-sandbox-abc123"
+        mock_response.expiration = "2024-01-01T12:00:00Z"
+        mock_api.link_token_create.return_value = mock_response
+        service._plaid_api = mock_api
+
+        link_token, expiration = await service.create_link_token(real_user)
+
+        assert link_token == "link-sandbox-abc123"
+        assert expiration == "2024-01-01T12:00:00Z"
+        mock_api.link_token_create.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_exchange_public_token_real_user(self, monkeypatch):
+        """Should call Plaid SDK exchange + accounts_get for real users."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_client_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        service = PlaidService()
+        real_user = User(
+            id=uuid4(),
+            email="real@example.com",
+            password_hash="hash",
+            organization_id=uuid4(),
+        )
+
+        # Mock exchange response
+        mock_api = MagicMock()
+        mock_exchange = MagicMock()
+        mock_exchange.access_token = "access-sandbox-real-token"
+        mock_exchange.item_id = "item-abc123"
+        mock_api.item_public_token_exchange.return_value = mock_exchange
+
+        # Mock accounts_get response
+        mock_balance = MagicMock()
+        mock_balance.current = 5000.00
+        mock_balance.available = 4500.00
+        mock_balance.limit = None
+
+        mock_account = MagicMock()
+        mock_account.account_id = "acc_real_123"
+        mock_account.name = "Checking Account"
+        mock_account.mask = "1234"
+        mock_account.official_name = "Premium Checking"
+        mock_account.type = MagicMock(value="depository")
+        mock_account.subtype = MagicMock(value="checking")
+        mock_account.balances = mock_balance
+
+        mock_accounts_resp = MagicMock()
+        mock_accounts_resp.accounts = [mock_account]
+        mock_api.accounts_get.return_value = mock_accounts_resp
+
+        service._plaid_api = mock_api
+
+        access_token, accounts = await service.exchange_public_token(
+            user=real_user,
+            public_token="public-sandbox-token",
+            institution_id="ins_1",
+            institution_name="Test Bank",
+        )
+
+        assert access_token == "access-sandbox-real-token"
+        assert len(accounts) == 1
+        assert accounts[0]["account_id"] == "acc_real_123"
+        assert accounts[0]["name"] == "Checking Account"
+        assert accounts[0]["type"] == "depository"
+        assert accounts[0]["subtype"] == "checking"
+        assert accounts[0]["current_balance"] == 5000.00
+
+        mock_api.item_public_token_exchange.assert_called_once()
+        mock_api.accounts_get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_accounts_real_user(self, monkeypatch):
+        """Should call Plaid SDK accounts_get for real users."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_client_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        service = PlaidService()
+        real_user = User(id=uuid4(), email="real@example.com", password_hash="hash")
+
+        mock_api = MagicMock()
+
+        mock_balance = MagicMock()
+        mock_balance.current = 10000.00
+        mock_balance.available = 10000.00
+        mock_balance.limit = None
+
+        mock_account = MagicMock()
+        mock_account.account_id = "acc_savings_123"
+        mock_account.name = "Savings"
+        mock_account.mask = "5678"
+        mock_account.official_name = "High-Yield Savings"
+        mock_account.type = MagicMock(value="depository")
+        mock_account.subtype = MagicMock(value="savings")
+        mock_account.balances = mock_balance
+
+        mock_response = MagicMock()
+        mock_response.accounts = [mock_account]
+        mock_api.accounts_get.return_value = mock_response
+        service._plaid_api = mock_api
+
+        accounts = await service.get_accounts(real_user, "access-sandbox-token")
+
+        assert len(accounts) == 1
+        assert accounts[0]["account_id"] == "acc_savings_123"
+        assert accounts[0]["type"] == "depository"
+        assert accounts[0]["current_balance"] == 10000.00
+
+    @pytest.mark.asyncio
+    async def test_plaid_not_configured_raises_503(self, monkeypatch):
+        """Should raise 503 when Plaid credentials are not configured."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "")
+
+        from fastapi import HTTPException
+
+        service = PlaidService()
+        real_user = User(id=uuid4(), email="real@example.com", password_hash="hash")
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.create_link_token(real_user)
+        assert exc_info.value.status_code == 503
+        assert "not configured" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_plaid_api_error_raises_502(self, monkeypatch):
+        """Should raise 502 on Plaid API errors."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_client_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        import plaid
+
+        service = PlaidService()
+        real_user = User(id=uuid4(), email="real@example.com", password_hash="hash")
+
+        mock_api = MagicMock()
+        mock_api.link_token_create.side_effect = plaid.ApiException(
+            status=400, reason="Bad Request"
+        )
+        service._plaid_api = mock_api
+
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.create_link_token(real_user)
+        assert exc_info.value.status_code == 502
+
+    def test_normalize_plaid_accounts(self):
+        """Should normalize Plaid SDK account objects to dicts."""
+        mock_balance = MagicMock()
+        mock_balance.current = 5000.50
+        mock_balance.available = 4800.00
+        mock_balance.limit = None
+
+        mock_account = MagicMock()
+        mock_account.account_id = "acc_123"
+        mock_account.name = "My Checking"
+        mock_account.mask = "1234"
+        mock_account.official_name = "Premium Checking"
+        mock_account.type = MagicMock(value="depository")
+        mock_account.subtype = MagicMock(value="checking")
+        mock_account.balances = mock_balance
+
+        result = PlaidService._normalize_plaid_accounts([mock_account])
+
+        assert len(result) == 1
+        assert result[0]["account_id"] == "acc_123"
+        assert result[0]["name"] == "My Checking"
+        assert result[0]["mask"] == "1234"
+        assert result[0]["type"] == "depository"
+        assert result[0]["subtype"] == "checking"
+        assert result[0]["current_balance"] == 5000.50
+        assert result[0]["available_balance"] == 4800.00
+        assert result[0]["limit"] is None
+
+    def test_normalize_plaid_accounts_with_none_subtype(self):
+        """Should handle accounts with no subtype."""
+        mock_balance = MagicMock()
+        mock_balance.current = 1000.00
+        mock_balance.available = None
+        mock_balance.limit = 5000.00
+
+        mock_account = MagicMock()
+        mock_account.account_id = "acc_456"
+        mock_account.name = "Credit Card"
+        mock_account.mask = "9012"
+        mock_account.official_name = None
+        mock_account.type = MagicMock(value="credit")
+        mock_account.subtype = None
+        mock_account.balances = mock_balance
+
+        result = PlaidService._normalize_plaid_accounts([mock_account])
+
+        assert result[0]["subtype"] is None
+        assert result[0]["available_balance"] is None
+        assert result[0]["limit"] == 5000.00

@@ -50,6 +50,14 @@ class Settings(BaseSettings):
     TELLER_ENABLED: bool = True
     TELLER_CERT_PATH: str = ""  # Path to Teller-issued mTLS certificate (.pem) - required for API calls
 
+    # MX Platform API (enterprise — requires sales contract for production)
+    # Sandbox: https://int-api.mx.com, Production: https://api.mx.com
+    # Auth: HTTP Basic (client_id:api_key)
+    MX_CLIENT_ID: str = ""
+    MX_API_KEY: str = ""
+    MX_ENV: str = "sandbox"  # sandbox, production
+    MX_ENABLED: bool = False  # Disabled by default — requires enterprise agreement
+
     # Market Data Provider (for investment prices)
     MARKET_DATA_PROVIDER: str = "yahoo_finance"  # yahoo_finance, alpha_vantage, finnhub
     ALPHA_VANTAGE_API_KEY: Optional[str] = None  # Free: 500 calls/day, 25/min

@@ -29,6 +29,8 @@ flower==2.0.1
 # Financial APIs
 plaid-python==17.0.0
 yfinance==0.2.36  # Yahoo Finance for investment prices (FREE)
+finnhub-python>=2.4.20  # Finnhub market data (free: 60 calls/min)
+alpha_vantage>=3.0.0  # Alpha Vantage market data (free: 25 calls/day)
 
 # Utilities
 python-dateutil==2.8.2

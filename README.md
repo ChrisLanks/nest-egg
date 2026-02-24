@@ -22,11 +22,12 @@ A comprehensive multi-user personal finance application for tracking transaction
 
 ### 📊 **Transaction & Account Management**
 - **Multi-Source Data Import** — providers are optional and can all run simultaneously:
-  - 🏦 **Teller** (optional): Automatic bank sync with 5,000+ US institutions — 100 free accounts/month
   - 🏦 **Plaid** (optional): Automatic bank sync with 11,000+ institutions worldwide — paid after free tier
+  - 🏦 **Teller** (optional): Automatic bank sync with 5,000+ US institutions — 100 free accounts/month
+  - 🏦 **MX** (optional): Enterprise bank data aggregation with 16,000+ institutions (US & Canada) — requires sales contract
   - 📄 **CSV Import**: Manual upload for unsupported banks or historical data
-  - 💰 **Investment Data**: Yahoo Finance for free, unlimited stock/ETF/mutual fund prices
-  - Both Teller and Plaid can be active at the same time; the deduplication layer prevents double-counting
+  - 💰 **Investment Data**: Yahoo Finance (free, unlimited), Finnhub (60 calls/min free), or Alpha Vantage (25 calls/day free)
+  - All providers can be active at the same time; the deduplication layer prevents double-counting
 - **Smart Deduplication**: Multi-layer duplicate detection ensures no double-counting
   - Provider transaction IDs (Teller)
   - Content-based hashing (date + amount + merchant + account)
@@ -53,8 +54,8 @@ A comprehensive multi-user personal finance application for tracking transaction
   - Year-end reporting with date range selection
 
 ### 💰 **Investment Analysis Dashboard**
-Comprehensive 9-tab portfolio analysis with **Yahoo Finance** integration:
-- **Real-Time Market Data**: Free, unlimited stock/ETF/mutual fund prices via Yahoo Finance
+Comprehensive 9-tab portfolio analysis with **multi-provider** market data:
+- **Real-Time Market Data**: Yahoo Finance (free, unlimited), Finnhub (60/min free), or Alpha Vantage (25/day free)
 - **Asset Allocation**: Interactive treemap visualization with drill-down
 - **Sector Breakdown**: Holdings by financial sector (Tech, Healthcare, Financials, etc.)
 - **Future Growth**: Monte Carlo simulation with best/worst/median projections
@@ -192,7 +193,7 @@ Drop-in support for external identity providers alongside the built-in JWT syste
 - **Security Headers**: Strict CSP (no `unsafe-inline`/`unsafe-eval` in prod), HSTS, X-Frame-Options, X-XSS-Protection
 - **Input Sanitization**: HTML tag stripping + entity escaping on all user text fields; ILIKE wildcard escaping for search
 - **Encrypted PII**: VIN, property address/zip, annual salary encrypted at rest (Fernet AES-128-CBC)
-- **Encrypted Credentials**: Teller credentials encrypted at rest with AES-256
+- **Encrypted Credentials**: Plaid and Teller credentials encrypted at rest with AES-256; MX uses server-side Basic Auth (no stored token)
 - **JWT Authentication**: Secure token-based auth with httpOnly-cookie refresh tokens and automatic rotation
 - **Two-Factor Authentication (MFA)**: TOTP-based 2FA with backup codes; enforced at login in production
 - **Account Lockout**: Configurable failed-attempt lockout (default 5 attempts / 30 min)
@@ -209,6 +210,7 @@ Drop-in support for external identity providers alongside the built-in JWT syste
 - **OIDC/OAuth2 Support**: RS256 token validation via JWKS for Cognito, Keycloak, Okta, and Google (see IdP-Agnostic Authentication above)
 - **RBAC Audit Trail**: Immutable log of every permission grant change (actor, IP, before/after state)
 - **Webhook Signature Verification**: Plaid and Teller webhooks verified before processing (HMAC-SHA256)
+- **MX Sandbox Isolation**: MX defaults to disabled (`MX_ENABLED=false`) and uses sandbox endpoint (`int-api.mx.com`) for development
 
 ### **Scalability Safeguards**
 - **Date Range Validation**: Shared utility caps queries to ~50 years; applied to dashboard, income/expenses, and holdings endpoints
@@ -342,8 +344,12 @@ MARKETCHECK_API_KEY=your_marketcheck_key   # For vehicle valuation
 - **Celery** - Background task processing with Beat scheduler
 - **SQLAlchemy 2.0** - Async ORM with relationship loading
 - **Alembic** - Database migrations
-- **Teller API** - Financial institution integration (5,000+ banks, 100 free accounts/month)
+- **Plaid API** - Financial institution integration (11,000+ banks worldwide)
+- **Teller API** - Financial institution integration (5,000+ US banks, 100 free accounts/month)
+- **MX Platform API** - Enterprise bank data aggregation (16,000+ institutions, US & Canada)
 - **Yahoo Finance (yfinance)** - Free, unlimited investment data
+- **Finnhub** - Market data with 60 free calls/min
+- **Alpha Vantage** - Market data with 25 free calls/day
 - **Pydantic v2** - Request/response validation
 - **Passlib** - Password hashing with bcrypt
 - **python-jose** - JWT token management
@@ -373,10 +379,11 @@ MARKETCHECK_API_KEY=your_marketcheck_key   # For vehicle valuation
 - Node.js 18+ (for frontend development)
 - Python 3.11+ (for backend development without Docker)
 - **Banking providers are optional** — the app works without any of them (manual accounts + CSV import):
-  - Teller credentials ([sign up](https://teller.io/signup)) — 100 free accounts/month (US only)
   - Plaid credentials ([sign up](https://plaid.com)) — 11,000+ institutions worldwide
-  - Both can be enabled at the same time; set neither to use manual entry only
-- Yahoo Finance integration (free, no API key required)
+  - Teller credentials ([sign up](https://teller.io/signup)) — 100 free accounts/month (US only)
+  - MX credentials (enterprise — [contact sales](https://www.mx.com/products/platform-api)) — 16,000+ institutions (US & Canada)
+  - All three can be enabled at the same time; set none to use manual entry only
+- Yahoo Finance integration (free, no API key required), or Finnhub/Alpha Vantage with free API keys
 
 ### Setup with Docker (Recommended)
 
@@ -408,11 +415,14 @@ MARKETCHECK_API_KEY=your_marketcheck_key   # For vehicle valuation
    CELERY_BROKER_URL=redis://redis:6379/0
    CELERY_RESULT_BACKEND=redis://redis:6379/0
 
-   # Banking (optional — omit both to use manual accounts + CSV only)
-   # TELLER_APP_ID=your_teller_app_id        # teller.io — 100 free/month
-   # TELLER_API_KEY=your_teller_api_key
+   # Banking (optional — omit all to use manual accounts + CSV only)
    # PLAID_CLIENT_ID=your_plaid_client_id    # plaid.com — 11,000+ institutions
    # PLAID_SECRET=your_plaid_secret
+   # TELLER_APP_ID=your_teller_app_id        # teller.io — 100 free/month
+   # TELLER_API_KEY=your_teller_api_key
+   # MX_CLIENT_ID=your_mx_client_id          # mx.com — enterprise (sales contract)
+   # MX_API_KEY=your_mx_api_key
+   # MX_ENABLED=true
    ```
 
 3. **Start all services**
@@ -644,6 +654,17 @@ Plaid supports 11,000+ institutions. All optional — set `PLAID_ENABLED=false` 
 | `SYNC_RETRY_DELAY_SECONDS` | `300` | Delay between sync retries. |
 | `MAX_MANUAL_SYNCS_PER_HOUR` | `1` | Rate limit on user-triggered manual syncs. |
 
+#### Banking: MX *(optional — enterprise)*
+
+MX provides 16,000+ institution coverage across US and Canada. Requires a sales contract for production access. Disabled by default.
+
+| Variable | Default | Description |
+|---|---|---|
+| `MX_ENABLED` | `false` | Enable/disable MX integration. Must be explicitly enabled. |
+| `MX_CLIENT_ID` | `""` | MX Platform API client ID. |
+| `MX_API_KEY` | `""` | MX Platform API key. |
+| `MX_ENV` | `sandbox` | `sandbox` or `production`. Sandbox: `int-api.mx.com`, Production: `api.mx.com`. |
+
 #### Investment Price Data *(optional)*
 
 | Variable | Default | Description |
@@ -763,19 +784,19 @@ All banking providers are **optional** and can be **enabled simultaneously**. Th
 
 ### Provider Comparison
 
-| Feature | Plaid | Teller | Manual / CSV |
-|---------|-------|--------|--------------|
-| **Institution Coverage** | 11,000+ (US + int'l) | 5,000+ (US only) | Any |
-| **Cost** | Paid after free tier | 100 free accounts/month | Free |
-| **Transaction Categorization** | ✅ 350+ categories | ✅ Smart categorization | Manual |
-| **Investment Accounts** | ✅ Holdings sync | ⚠️ Manual tracking | Manual |
-| **Credit Cards** | ✅ | ✅ | ✅ |
-| **Auto Balance Updates** | ✅ | ✅ | Manual |
-| **Credentials Encrypted** | ✅ AES-256 at rest | ✅ AES-256 at rest | N/A |
+| Feature | Plaid | Teller | MX | Manual / CSV |
+|---------|-------|--------|-----|--------------|
+| **Institution Coverage** | 11,000+ (US + int'l) | 5,000+ (US only) | 16,000+ (US & Canada) | Any |
+| **Cost** | Paid after free tier | 100 free accounts/month | Enterprise (sales contract) | Free |
+| **Transaction Categorization** | ✅ 350+ categories | ✅ Smart categorization | ✅ Categorized | Manual |
+| **Investment Accounts** | ✅ Holdings sync | ⚠️ Manual tracking | ⚠️ Manual tracking | Manual |
+| **Credit Cards** | ✅ | ✅ | ✅ | ✅ |
+| **Auto Balance Updates** | ✅ | ✅ | ✅ | Manual |
+| **Credentials Encrypted** | ✅ AES-256 at rest | ✅ AES-256 at rest | ✅ (no stored token) | N/A |
 
 ### Enabling Providers
 
-Each provider is independently toggled via `.env`. Set **both** to run them side-by-side:
+Each provider is independently toggled via `.env`. Set **all three** to run them side-by-side:
 
 ```env
 # Plaid (optional — comment out to disable)
@@ -791,15 +812,23 @@ TELLER_API_KEY=your_teller_api_key
 TELLER_ENV=sandbox         # sandbox | production
 TELLER_CERT_PATH=/path/to/teller_cert.pem   # required for API calls
 
+# MX (optional — enterprise only, disabled by default)
+MX_ENABLED=true
+MX_CLIENT_ID=your_mx_client_id
+MX_API_KEY=your_mx_api_key
+MX_ENV=sandbox             # sandbox | production
+
 # Investment prices (always free)
-MARKET_DATA_PROVIDER=yahoo_finance
+MARKET_DATA_PROVIDER=yahoo_finance   # or: finnhub, alpha_vantage
+# FINNHUB_API_KEY=your_finnhub_key   # 60 calls/min free
+# ALPHA_VANTAGE_API_KEY=your_av_key  # 25 calls/day free
 ```
 
-When both are enabled, users see a provider picker in the "Connect Account" flow. Existing data from either provider is always preserved — switching or adding providers is purely additive.
+When multiple providers are enabled, users see a provider picker in the "Connect Account" flow. Existing data from any provider is always preserved — switching or adding providers is purely additive.
 
 ### Cross-Provider Deduplication
 
-When the same bank account is linked via multiple providers (e.g., Chase via Plaid **and** Teller), deduplication prevents double-counting:
+When the same bank account is linked via multiple providers (e.g., Chase via Plaid **and** Teller **and** MX), deduplication prevents double-counting:
 
 - **Account level**: SHA-256 hash of `institution_id + account_id` (`plaid_item_hash`) — first link becomes primary; duplicates flagged
 - **Transaction level**: SHA-256 hash of `date + amount + merchant + account_id` (`transaction_hash`) + provider transaction IDs — same transaction from two sources stored once
@@ -1267,7 +1296,7 @@ nest-egg/
 │   │   │   └── v1/               # API version 1
 │   │   │       ├── accounts.py           # Account management
 │   │   │       ├── auth.py               # Authentication + MFA
-│   │   │       ├── bank_linking.py       # Unified bank linking (Plaid + Teller)
+│   │   │       ├── bank_linking.py       # Unified bank linking (Plaid + Teller + MX)
 │   │   │       ├── bills.py              # Bills & recurring transactions
 │   │   │       ├── budgets.py            # Budget CRUD
 │   │   │       ├── categories.py         # Category management
@@ -1303,7 +1332,7 @@ nest-egg/
 │   │   │   ├── request_size_limit.py     # Body size enforcement
 │   │   │   └── security_headers.py       # CSP, HSTS, X-Frame-Options
 │   │   ├── models/               # SQLAlchemy models
-│   │   │   ├── account.py                # Account + TellerEnrollment
+│   │   │   ├── account.py                # Account + PlaidItem + TellerEnrollment + MxMember
 │   │   │   ├── transaction.py            # Transaction + Label + Category
 │   │   │   ├── budget.py                 # Budget model
 │   │   │   ├── contribution.py           # Contribution tracking
@@ -1327,6 +1356,8 @@ nest-egg/
 │   │   │   ├── deduplication_service.py  # Duplicate detection
 │   │   │   ├── notification_service.py   # Notification creation
 │   │   │   ├── teller_service.py         # Teller sync logic
+│   │   │   ├── mx_service.py            # MX Platform API integration
+│   │   │   ├── plaid_service.py         # Plaid SDK integration
 │   │   │   ├── rule_engine_service.py    # Rule evaluation
 │   │   │   ├── permission_service.py     # RBAC grant/check/revoke
 │   │   │   ├── identity/                 # IdP provider chain
@@ -1336,7 +1367,10 @@ nest-egg/
 │   │   │   │   └── chain.py              # IdentityProviderChain + build_chain()
 │   │   │   ├── market_data/              # Market data providers
 │   │   │   │   ├── base_provider.py      # Abstract provider
-│   │   │   │   └── yahoo_finance_provider.py  # Yahoo Finance impl
+│   │   │   │   ├── yahoo_finance_provider.py  # Yahoo Finance impl
+│   │   │   │   ├── finnhub_provider.py        # Finnhub impl (60/min free)
+│   │   │   │   ├── alpha_vantage_provider.py  # Alpha Vantage impl (25/day free)
+│   │   │   │   └── provider_factory.py        # Provider factory + caching
 │   │   │   └── ...                       # Other services
 │   │   ├── workers/              # Celery tasks
 │   │   │   ├── celery_app.py             # Celery configuration
@@ -1676,6 +1710,11 @@ Date,Merchant,Amount,Category,Description
 - [x] **Plaid investment holdings sync** — pull holdings from Plaid-linked investment accounts
 - [x] **Tax-loss harvesting** — identify unrealized losses, estimate tax savings, wash-sale warnings, sector-based replacement suggestions
 - [x] **Valuation adjustment** — user-defined percentage adjustment for property and vehicle auto-valuations
+- [x] **Full Plaid API implementation** — real plaid-python SDK calls replacing stubs (link token, exchange, accounts sync)
+- [x] **Finnhub market data provider** — 60 free calls/min with quote, historical, search, and holding metadata
+- [x] **Alpha Vantage market data provider** — 25 free calls/day fallback with daily/weekly/monthly OHLCV
+- [x] **MX Platform integration** — enterprise bank aggregation with httpx (16,000+ institutions, account & transaction sync)
+- [x] **Market data provider factory** — pluggable provider system with caching, auto-fallback to Yahoo Finance
 
 ### 🚧 In Progress
 
@@ -1758,8 +1797,12 @@ Built with:
 - **FastAPI** - Modern Python web framework
 - **React** - UI library
 - **Chakra UI** - Component library
+- **Plaid** - Financial data aggregation (11,000+ institutions)
 - **Teller** - Financial data aggregation (100 free accounts/month)
+- **MX** - Enterprise financial data aggregation (16,000+ institutions)
 - **Yahoo Finance (yfinance)** - Free, unlimited investment data
+- **Finnhub** - Market data (60 free calls/min)
+- **Alpha Vantage** - Market data (25 free calls/day)
 - **Celery** - Task queue
 - **PostgreSQL** - Database
 - **Redis** - Caching
@@ -1770,4 +1813,4 @@ Built with:
 
 **Built with ❤️ for personal finance management**
 
-_Last Updated: February 2026 - Shared budgets/goals, email notifications, Plaid holdings sync, tax-loss harvesting, valuation adjustments, grant-based permissions, dark mode, enterprise hardening, and 15+ new features!_
+_Last Updated: February 2026 - Full Plaid/MX/Teller/Finnhub/Alpha Vantage provider integrations, shared budgets/goals, email notifications, tax-loss harvesting, dark mode, enterprise hardening, and 20+ new features!_

@@ -1,7 +1,7 @@
 """SQLAlchemy models package."""
 
 from app.models.user import User, Organization, RefreshToken
-from app.models.account import Account, PlaidItem
+from app.models.account import Account, PlaidItem, TellerEnrollment, MxMember
 from app.models.transaction import Transaction, Label, TransactionLabel, Category
 from app.models.rule import Rule, RuleCondition, RuleAction
 from app.models.holding import Holding
@@ -24,6 +24,8 @@ __all__ = [
     "RefreshToken",
     "Account",
     "PlaidItem",
+    "TellerEnrollment",
+    "MxMember",
     "Transaction",
     "Label",
     "TransactionLabel",
