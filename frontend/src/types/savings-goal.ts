@@ -5,6 +5,7 @@
 export interface SavingsGoal {
   id: string;
   organization_id: string;
+  user_id: string | null;
   name: string;
   description: string | null;
   target_amount: number;

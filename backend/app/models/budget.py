@@ -80,6 +80,14 @@ class Budget(Base):
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
 
+    # Owner (who created this budget)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Shared budget (household collaboration)
     is_shared = Column(Boolean, default=False, nullable=False)
     shared_user_ids = Column(JSON, nullable=True)  # List of user UUIDs, null = all org members

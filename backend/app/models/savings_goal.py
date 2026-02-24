@@ -52,6 +52,14 @@ class SavingsGoal(Base):
     is_funded = Column(Boolean, default=False, nullable=False)
     funded_at = Column(DateTime, nullable=True)
 
+    # Owner (who created this goal)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Shared goal (household collaboration)
     is_shared = Column(Boolean, default=False, nullable=False)
     shared_user_ids = Column(JSON, nullable=True)  # List of user UUIDs, null = all org members

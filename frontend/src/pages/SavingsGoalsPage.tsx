@@ -31,6 +31,7 @@ import {
   AccordionButton,
   AccordionPanel,
   AccordionIcon,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
 import { FiLock, FiTarget, FiShield } from 'react-icons/fi';
@@ -55,6 +56,8 @@ import GoalCard from '../features/goals/components/GoalCard';
 import GoalForm from '../features/goals/components/GoalForm';
 import { useUserView } from '../contexts/UserViewContext';
 import { EmptyState } from '../components/EmptyState';
+import { useHouseholdMembers } from '../hooks/useHouseholdMembers';
+import { useAuthStore } from '../features/auth/stores/authStore';
 
 // ---------------------------------------------------------------------------
 // SortableGoalCard — wraps GoalCard with dnd-kit drag-and-drop support
@@ -110,14 +113,15 @@ interface AccountGroupProps {
 }
 
 function AccountGroup({ accountName, goals, onEdit, canEdit = true }: AccountGroupProps) {
+  const accent = useColorModeValue('blue', 'cyan');
   return (
     <AccordionItem border="1px solid" borderColor="border.default" borderRadius="md" overflow="hidden">
-      <AccordionButton bg="bg.subtle" _expanded={{ bg: 'cyan.50', _dark: { bg: 'cyan.900' } }} py={3} px={4}>
+      <AccordionButton bg="bg.subtle" _expanded={{ bg: 'blue.50', _dark: { bg: 'cyan.900' } }} py={3} px={4}>
         <HStack flex={1} textAlign="left" spacing={3}>
           <Text fontWeight="semibold" fontSize="md">
             {accountName}
           </Text>
-          <Badge colorScheme="cyan" size="sm">
+          <Badge colorScheme={accent} size="sm">
             {goals.length} {goals.length === 1 ? 'goal' : 'goals'}
           </Badge>
         </HStack>
@@ -144,10 +148,19 @@ export default function SavingsGoalsPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedGoal, setSelectedGoal] = useState<SavingsGoal | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('priority');
-  const { canWriteResource, isOtherUserView } = useUserView();
+  const [filterUserId, setFilterUserId] = useState<string | null>(null);
+  const { canWriteResource, isOtherUserView, isCombinedView, isSelfView, selectedUserId } = useUserView();
   const canEdit = canWriteResource('savings_goal');
   const queryClient = useQueryClient();
   const toast = useToast();
+
+  // Blue in light mode (matches budgets), cyan in dark mode (better visibility)
+  const accent = useColorModeValue('blue', 'cyan');
+
+  // Household members for user filter (only in combined view)
+  const { data: householdMembers = [] } = useHouseholdMembers();
+  const currentUser = useAuthStore((s) => s.user);
+  const showUserFilter = isCombinedView && householdMembers.length > 1;
 
   // Allocation method — persisted in localStorage
   const [allocationMethod, setAllocationMethod] = useState<'waterfall' | 'proportional'>(
@@ -203,9 +216,41 @@ export default function SavingsGoalsPage() {
     onClose();
   };
 
-  const activeGoals = goals.filter((g) => !g.is_completed && !g.is_funded);
-  const completedGoals = goals.filter((g) => g.is_completed || g.is_funded);
-  const hasAutoSyncGoals = activeGoals.some((g) => g.auto_sync && g.account_id);
+  // Apply view-based and user filter
+  const filteredGoals = (() => {
+    // Self view: show goals you created + shared goals you're part of
+    if (isSelfView && currentUser) {
+      return goals.filter(g => {
+        // Your own goal
+        if (g.user_id === currentUser.id) return true;
+        // Shared with all members
+        if (g.is_shared && !g.shared_user_ids) return true;
+        // Shared with you specifically
+        if (g.is_shared && g.shared_user_ids?.includes(currentUser.id)) return true;
+        // Legacy goals without user_id (pre-migration) — show them
+        if (!g.user_id) return true;
+        return false;
+      });
+    }
+    // Combined view with member filter active
+    if (filterUserId) {
+      return goals.filter(g => {
+        // Goal created by the selected member
+        if (g.user_id === filterUserId) return true;
+        // Shared with all members
+        if (g.is_shared && !g.shared_user_ids) return true;
+        // Shared with the selected member specifically
+        if (g.is_shared && g.shared_user_ids?.includes(filterUserId)) return true;
+        return false;
+      });
+    }
+    return goals;
+  })();
+
+  const activeGoals = filteredGoals.filter((g) => !g.is_completed && !g.is_funded);
+  const completedGoals = filteredGoals.filter((g) => g.is_completed || g.is_funded);
+  // Use unfiltered goals so the toggle doesn't disappear when member filter is active
+  const hasAutoSyncGoals = goals.some((g) => !g.is_completed && !g.is_funded && g.auto_sync && g.account_id);
 
   // Emergency Fund quick-start — hide if one already exists
   const hasEmergencyFundGoal = goals.some((g) =>
@@ -302,7 +347,7 @@ export default function SavingsGoalsPage() {
           >
             <Button
               leftIcon={canEdit ? <AddIcon /> : <FiLock />}
-              colorScheme="cyan"
+              colorScheme={accent}
               onClick={handleCreate}
               isDisabled={!canEdit}
             >
@@ -319,14 +364,14 @@ export default function SavingsGoalsPage() {
               <Text fontSize="sm" fontWeight="medium" color="text.secondary">View:</Text>
               <ButtonGroup size="sm" isAttached variant="outline">
                 <Button
-                  colorScheme={viewMode === 'priority' ? 'cyan' : 'gray'}
+                  colorScheme={viewMode === 'priority' ? accent : 'gray'}
                   variant={viewMode === 'priority' ? 'solid' : 'outline'}
                   onClick={() => setViewMode('priority')}
                 >
                   Priority Order
                 </Button>
                 <Button
-                  colorScheme={viewMode === 'account' ? 'cyan' : 'gray'}
+                  colorScheme={viewMode === 'account' ? accent : 'gray'}
                   variant={viewMode === 'account' ? 'solid' : 'outline'}
                   onClick={() => setViewMode('account')}
                 >
@@ -341,14 +386,14 @@ export default function SavingsGoalsPage() {
                 <Text fontSize="sm" fontWeight="medium" color="text.secondary">Balance allocation:</Text>
                 <ButtonGroup size="sm" isAttached variant="outline">
                   <Button
-                    colorScheme={allocationMethod === 'waterfall' ? 'cyan' : 'gray'}
+                    colorScheme={allocationMethod === 'waterfall' ? accent : 'gray'}
                     variant={allocationMethod === 'waterfall' ? 'solid' : 'outline'}
                     onClick={() => handleMethodChange('waterfall')}
                   >
                     Priority Waterfall
                   </Button>
                   <Button
-                    colorScheme={allocationMethod === 'proportional' ? 'cyan' : 'gray'}
+                    colorScheme={allocationMethod === 'proportional' ? accent : 'gray'}
                     variant={allocationMethod === 'proportional' ? 'solid' : 'outline'}
                     onClick={() => handleMethodChange('proportional')}
                   >
@@ -365,6 +410,32 @@ export default function SavingsGoalsPage() {
                 >
                   <Text fontSize="xs" color="text.muted" cursor="help">(?)</Text>
                 </Tooltip>
+              </HStack>
+            )}
+
+            {/* User filter */}
+            {showUserFilter && (
+              <HStack spacing={2}>
+                <Text fontSize="sm" fontWeight="medium" color="text.secondary">Member:</Text>
+                <ButtonGroup size="sm" isAttached variant="outline">
+                  <Button
+                    colorScheme={!filterUserId ? accent : 'gray'}
+                    variant={!filterUserId ? 'solid' : 'outline'}
+                    onClick={() => setFilterUserId(null)}
+                  >
+                    All
+                  </Button>
+                  {householdMembers.map((member) => (
+                    <Button
+                      key={member.id}
+                      colorScheme={filterUserId === member.id ? accent : 'gray'}
+                      variant={filterUserId === member.id ? 'solid' : 'outline'}
+                      onClick={() => setFilterUserId(member.id)}
+                    >
+                      {member.display_name || member.first_name || member.email.split('@')[0]}
+                    </Button>
+                  ))}
+                </ButtonGroup>
               </HStack>
             )}
           </HStack>
@@ -391,22 +462,22 @@ export default function SavingsGoalsPage() {
 
         {/* Emergency Fund quick-start card */}
         {!goalsLoading && canEdit && !hasEmergencyFundGoal && (
-          <Card variant="outline" borderColor="cyan.200" bg="cyan.50" _dark={{ borderColor: 'cyan.700', bg: 'cyan.900' }}>
+          <Card variant="outline" borderColor="blue.200" bg="blue.50" _dark={{ borderColor: 'cyan.700', bg: 'cyan.900' }}>
             <CardBody>
               <HStack justify="space-between" flexWrap="wrap" spacing={4}>
                 <HStack spacing={3}>
-                  <Icon as={FiShield} boxSize={6} color="cyan.500" />
+                  <Icon as={FiShield} boxSize={6} color="blue.500" _dark={{ color: 'cyan.400' }} />
                   <VStack align="start" spacing={0}>
-                    <Text fontWeight="semibold" color="cyan.800" _dark={{ color: 'cyan.200' }}>
+                    <Text fontWeight="semibold" color="blue.800" _dark={{ color: 'cyan.200' }}>
                       Emergency Fund
                     </Text>
-                    <Text fontSize="sm" color="cyan.600" _dark={{ color: 'cyan.300' }}>
+                    <Text fontSize="sm" color="blue.600" _dark={{ color: 'cyan.300' }}>
                       Auto-calculates your 6-month target from spending history
                     </Text>
                   </VStack>
                 </HStack>
                 <Button
-                  colorScheme="cyan"
+                  colorScheme={accent}
                   size="sm"
                   onClick={() => createFromTemplateMutation.mutate()}
                   isLoading={createFromTemplateMutation.isPending}
@@ -424,7 +495,7 @@ export default function SavingsGoalsPage() {
             <TabList>
               <Tab>
                 Active Goals{' '}
-                <Badge ml={2} colorScheme="cyan">
+                <Badge ml={2} colorScheme={accent}>
                   {activeGoals.length}
                 </Badge>
               </Tab>

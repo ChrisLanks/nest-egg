@@ -105,6 +105,12 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
       return savingsGoalsApi.create(data);
     },
     onSuccess: async (savedGoal) => {
+      if (isEditing) {
+        // Immediately update the cache so the next Edit click has fresh data
+        queryClient.setQueryData<SavingsGoal[]>(['goals'], (old) =>
+          old?.map(g => g.id === savedGoal.id ? savedGoal : g) ?? []
+        );
+      }
       if (savedGoal.auto_sync && savedGoal.account_id) {
         const method = (localStorage.getItem('savingsGoalAllocMethod') as 'waterfall' | 'proportional') ?? 'waterfall';
         await savingsGoalsApi.autoSync(method).catch(() => {});
@@ -129,6 +135,9 @@ export default function GoalForm({ isOpen, onClose, goal }: GoalFormProps) {
   const onSubmit = (data: SavingsGoalCreate) => {
     mutation.mutate({
       ...data,
+      target_date: data.target_date || undefined,
+      description: data.description || undefined,
+      account_id: data.account_id || undefined,
       is_shared: data.is_shared ?? false,
       shared_user_ids: data.is_shared ? (data.shared_user_ids ?? null) : null,
     });

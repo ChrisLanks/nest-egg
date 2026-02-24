@@ -50,6 +50,7 @@ class SavingsGoalService:
 
         goal = SavingsGoal(
             organization_id=user.organization_id,
+            user_id=user.id,
             name=name,
             description=description,
             target_amount=target_amount,

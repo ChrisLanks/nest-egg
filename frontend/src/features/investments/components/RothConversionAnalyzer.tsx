@@ -38,6 +38,7 @@ import {
   FormLabel,
   Tooltip,
   Icon,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
@@ -80,6 +81,8 @@ const formatCurrencyPrecise = (amount: number) =>
 
 export const RothConversionAnalyzer: React.FC = () => {
   const { selectedUserId } = useUserView();
+  const successTextColor = useColorModeValue('green.700', 'green.200');
+  const warningTextColor = useColorModeValue('yellow.700', 'yellow.200');
 
   const [currentBracket, setCurrentBracket] = useState(22);
   const [retirementBracket, setRetirementBracket] = useState(22);
@@ -339,7 +342,7 @@ export const RothConversionAnalyzer: React.FC = () => {
           <Card
             variant="outline"
             borderColor={isConversionBeneficial ? 'green.300' : 'yellow.300'}
-            bg={isConversionBeneficial ? 'bg.success' : 'yellow.50'}
+            bg={isConversionBeneficial ? 'bg.success' : 'bg.warning'}
           >
             <CardBody>
               <HStack justify="space-between" align="start">
@@ -354,7 +357,7 @@ export const RothConversionAnalyzer: React.FC = () => {
                       {isConversionBeneficial ? 'Recommended' : 'Consider Carefully'}
                     </Badge>
                   </HStack>
-                  <Text fontSize="sm" color={isConversionBeneficial ? 'green.700' : 'yellow.700'}>
+                  <Text fontSize="sm" color={isConversionBeneficial ? successTextColor : warningTextColor}>
                     {isConversionBeneficial
                       ? `With ${annualReturn}% growth over ${yearsUntilRmd} years, your retirement tax burden will likely exceed today's conversion cost.`
                       : `At the same tax bracket, conversions offer estate planning benefits but no immediate tax savings.`}

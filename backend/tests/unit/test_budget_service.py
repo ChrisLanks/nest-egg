@@ -922,6 +922,92 @@ class TestBudgetService:
         assert spending["spent"] == Decimal("0.00")
         assert spending["remaining"] == Decimal("150.00")
 
+    @pytest.mark.asyncio
+    async def test_create_shared_budget(self, db_session, test_user):
+        """Should create a shared budget with shared_user_ids."""
+        service = BudgetService()
+        other_user_id = str(uuid4())
+
+        budget = await service.create_budget(
+            db=db_session,
+            user=test_user,
+            name="Household Groceries",
+            amount=Decimal("800.00"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date.today(),
+            is_shared=True,
+            shared_user_ids=[other_user_id],
+        )
+
+        assert budget.is_shared is True
+        assert budget.shared_user_ids == [other_user_id]
+        assert budget.user_id == test_user.id
+
+    @pytest.mark.asyncio
+    async def test_create_budget_defaults_not_shared(self, db_session, test_user):
+        """Budget should default to not shared."""
+        service = BudgetService()
+
+        budget = await service.create_budget(
+            db=db_session,
+            user=test_user,
+            name="Personal",
+            amount=Decimal("100.00"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date.today(),
+        )
+
+        assert budget.is_shared is False
+        assert budget.shared_user_ids is None
+
+    @pytest.mark.asyncio
+    async def test_update_budget_shared_status(self, db, test_user):
+        """Should toggle is_shared via update."""
+        service = BudgetService()
+
+        budget = await service.create_budget(
+            db, test_user, "Toggle", Decimal("100"), BudgetPeriod.MONTHLY, date.today()
+        )
+        assert budget.is_shared is False
+
+        updated = await service.update_budget(db, budget.id, test_user, is_shared=True)
+        assert updated.is_shared is True
+
+        updated2 = await service.update_budget(db, budget.id, test_user, is_shared=False)
+        assert updated2.is_shared is False
+
+    @pytest.mark.asyncio
+    async def test_update_budget_shared_user_ids(self, db, test_user):
+        """Should update shared_user_ids list."""
+        service = BudgetService()
+        uid1, uid2 = str(uuid4()), str(uuid4())
+
+        budget = await service.create_budget(
+            db, test_user, "Shared", Decimal("500"), BudgetPeriod.MONTHLY,
+            date.today(), is_shared=True, shared_user_ids=[uid1],
+        )
+
+        updated = await service.update_budget(
+            db, budget.id, test_user, shared_user_ids=[uid1, uid2]
+        )
+        assert set(updated.shared_user_ids) == {uid1, uid2}
+
+    @pytest.mark.asyncio
+    async def test_budget_stores_user_id(self, db_session, test_user):
+        """Budget should store the creating user's ID."""
+        service = BudgetService()
+
+        budget = await service.create_budget(
+            db=db_session,
+            user=test_user,
+            name="User Budget",
+            amount=Decimal("300.00"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date.today(),
+        )
+
+        assert budget.user_id == test_user.id
+
     def test_singleton_instance(self):
         """Should provide singleton instance."""
         from app.services.budget_service import budget_service

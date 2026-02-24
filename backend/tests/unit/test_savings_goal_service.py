@@ -363,3 +363,74 @@ class TestGetGoalsByAccount:
         ids_in_order = [g.id for g in active]
 
         assert ids_in_order.index(goal_b.id) < ids_in_order.index(goal_a.id)
+
+
+@pytest.mark.unit
+class TestSharedGoals:
+    """Tests for shared goal creation and update."""
+
+    @pytest.mark.asyncio
+    async def test_create_shared_goal(self, db, test_user):
+        """Should create a shared savings goal."""
+        service = SavingsGoalService()
+        other_user_id = str(uuid4())
+
+        goal = await service.create_goal(
+            db=db,
+            user=test_user,
+            name="Family Vacation",
+            target_amount=Decimal("5000.00"),
+            start_date=date.today(),
+            is_shared=True,
+            shared_user_ids=[other_user_id],
+        )
+
+        assert goal.is_shared is True
+        assert goal.shared_user_ids == [other_user_id]
+        assert goal.user_id == test_user.id
+
+    @pytest.mark.asyncio
+    async def test_create_goal_defaults_not_shared(self, db, test_user):
+        """Goal should default to not shared."""
+        service = SavingsGoalService()
+
+        goal = await service.create_goal(
+            db=db,
+            user=test_user,
+            name="Personal",
+            target_amount=Decimal("1000.00"),
+            start_date=date.today(),
+        )
+
+        assert goal.is_shared is False
+        assert goal.shared_user_ids is None
+
+    @pytest.mark.asyncio
+    async def test_update_goal_shared_status(self, db, test_user):
+        """Should toggle is_shared via update."""
+        service = SavingsGoalService()
+
+        goal = await service.create_goal(
+            db, test_user, name="Toggle",
+            target_amount=Decimal("1000.00"),
+            start_date=date.today(),
+        )
+        assert goal.is_shared is False
+
+        updated = await service.update_goal(db, goal.id, test_user, is_shared=True)
+        assert updated.is_shared is True
+
+    @pytest.mark.asyncio
+    async def test_goal_stores_user_id(self, db, test_user):
+        """Goal should store the creating user's ID."""
+        service = SavingsGoalService()
+
+        goal = await service.create_goal(
+            db=db,
+            user=test_user,
+            name="My Goal",
+            target_amount=Decimal("2000.00"),
+            start_date=date.today(),
+        )
+
+        assert goal.user_id == test_user.id

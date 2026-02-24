@@ -571,3 +571,75 @@ class TestCheckBudgetAlerts:
 
             assert result["alerts_created"] == 0
             assert result["budgets_alerted"] == []
+
+
+@pytest.mark.unit
+class TestSharedBudgetFields:
+    """Test shared budget fields are passed through API layer."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_create_passes_shared_fields(self, mock_db, mock_user):
+        """Should pass is_shared and shared_user_ids to service on create."""
+        from datetime import date as date_type
+        uid = str(uuid4())
+
+        budget_data = BudgetCreate(
+            name="Shared Budget",
+            amount=Decimal("500.00"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date_type(2025, 1, 1),
+            is_shared=True,
+            shared_user_ids=[uid],
+        )
+
+        expected_budget = Mock(spec=Budget)
+        expected_budget.id = uuid4()
+
+        with patch(
+            "app.api.v1.budgets.budget_service.create_budget",
+            return_value=expected_budget,
+        ) as mock_create:
+            await create_budget(
+                budget_data=budget_data,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            call_kwargs = mock_create.call_args.kwargs
+            assert call_kwargs["is_shared"] is True
+            assert call_kwargs["shared_user_ids"] == [uid]
+
+    @pytest.mark.asyncio
+    async def test_update_passes_shared_fields(self, mock_db, mock_user):
+        """Should pass is_shared through update when set."""
+        budget_id = uuid4()
+        update_data = BudgetUpdate(is_shared=True)
+
+        updated_budget = Mock(spec=Budget)
+        updated_budget.id = budget_id
+        updated_budget.is_shared = True
+
+        with patch(
+            "app.api.v1.budgets.budget_service.update_budget",
+            return_value=updated_budget,
+        ) as mock_update:
+            await update_budget(
+                budget_id=budget_id,
+                budget_data=update_data,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            call_kwargs = mock_update.call_args.kwargs
+            assert call_kwargs["is_shared"] is True

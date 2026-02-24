@@ -44,6 +44,7 @@ import {
   IconButton,
   FormHelperText,
   Collapse,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useMemo } from 'react';
@@ -126,6 +127,10 @@ export default function DebtPayoffPage() {
   const { selectedUserId, canWriteResource } = useUserView();
   const canEdit = canWriteResource('account');
   const toast = useToast();
+  const infoTextColor = useColorModeValue('blue.700', 'blue.200');
+  const successTextColor = useColorModeValue('green.700', 'green.200');
+  const accentColor = useColorModeValue('blue.600', 'blue.300');
+  const linkColor = useColorModeValue('blue.500', 'blue.300');
   const queryClient = useQueryClient();
   const [extraPayment, setExtraPayment] = useState('500');
   // Initialize directly from localStorage so there's no flash or effect-ordering race
@@ -339,7 +344,7 @@ export default function DebtPayoffPage() {
     return {
       borderWidth: isSel || isRec ? 2 : 1,
       borderColor: isSel ? 'blue.500' : isRec ? 'blue.300' : 'border.default',
-      bg: isSel ? 'blue.50' : undefined,
+      bg: isSel ? 'bg.info' : undefined,
     };
   };
 
@@ -664,16 +669,16 @@ export default function DebtPayoffPage() {
 
                       {comparison.snowball.interest_saved_vs_current !== undefined && (
                         <Box bg="bg.success" p={3} borderRadius="md">
-                          <Text fontSize="xs" color="green.700" fontWeight="semibold">
+                          <Text fontSize="xs" color={successTextColor} fontWeight="semibold">
                             Save {formatCurrency(comparison.snowball.interest_saved_vs_current)} interest
                           </Text>
-                          <Text fontSize="xs" color="green.700">
+                          <Text fontSize="xs" color={successTextColor}>
                             {comparison.snowball.months_saved_vs_current} months faster
                           </Text>
                         </Box>
                       )}
 
-                      <Text fontSize="xs" color="blue.500" textAlign="center">
+                      <Text fontSize="xs" color={linkColor} textAlign="center">
                         {effectiveStrategyKey === 'snowball' ? '▲ Hide plan' : '▼ View plan'}
                       </Text>
                     </VStack>
@@ -728,16 +733,16 @@ export default function DebtPayoffPage() {
 
                       {comparison.avalanche.interest_saved_vs_current !== undefined && (
                         <Box bg="bg.info" p={3} borderRadius="md">
-                          <Text fontSize="xs" color="blue.700" fontWeight="semibold">
+                          <Text fontSize="xs" color={infoTextColor} fontWeight="semibold">
                             Save {formatCurrency(comparison.avalanche.interest_saved_vs_current)} interest
                           </Text>
-                          <Text fontSize="xs" color="blue.700">
+                          <Text fontSize="xs" color={infoTextColor}>
                             {comparison.avalanche.months_saved_vs_current} months faster
                           </Text>
                         </Box>
                       )}
 
-                      <Text fontSize="xs" color="blue.500" textAlign="center">
+                      <Text fontSize="xs" color={linkColor} textAlign="center">
                         {effectiveStrategyKey === 'avalanche' ? '▲ Hide plan' : '▼ View plan'}
                       </Text>
                     </VStack>
@@ -789,7 +794,7 @@ export default function DebtPayoffPage() {
                         <Text fontSize="xs" color="text.secondary">Baseline comparison</Text>
                       </Box>
 
-                      <Text fontSize="xs" color="blue.500" textAlign="center">
+                      <Text fontSize="xs" color={linkColor} textAlign="center">
                         {effectiveStrategyKey === 'current_pace' ? '▲ Hide plan' : '▼ View plan'}
                       </Text>
                     </VStack>
@@ -888,7 +893,7 @@ export default function DebtPayoffPage() {
                                   </Box>
                                   <Box textAlign="right">
                                     <Text fontSize="sm" color="text.secondary">Payoff Order</Text>
-                                    <Text fontSize="2xl" fontWeight="bold" color="blue.600">
+                                    <Text fontSize="2xl" fontWeight="bold" color={accentColor}>
                                       #{idx + 1}
                                     </Text>
                                   </Box>

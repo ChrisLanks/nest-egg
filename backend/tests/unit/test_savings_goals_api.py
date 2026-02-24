@@ -750,3 +750,73 @@ class TestFundGoal:
 
             call_kwargs = mock_fund.call_args.kwargs
             assert call_kwargs["method"] == "proportional"
+
+
+@pytest.mark.unit
+class TestSharedGoalFields:
+    """Test shared goal fields are passed through API layer."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_create_passes_shared_fields(self, mock_db, mock_user):
+        """Should pass is_shared and shared_user_ids to service on create."""
+        uid = str(uuid4())
+
+        goal_data = SavingsGoalCreate(
+            name="Shared Goal",
+            target_amount=Decimal("5000.00"),
+            start_date=date(2025, 1, 1),
+            is_shared=True,
+            shared_user_ids=[uid],
+        )
+
+        expected_goal = Mock(spec=SavingsGoal)
+        expected_goal.id = uuid4()
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.create_goal",
+            return_value=expected_goal,
+        ) as mock_create:
+            await create_goal(
+                goal_data=goal_data,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            call_kwargs = mock_create.call_args.kwargs
+            assert call_kwargs["is_shared"] is True
+            assert call_kwargs["shared_user_ids"] == [uid]
+
+    @pytest.mark.asyncio
+    async def test_update_passes_shared_fields(self, mock_db, mock_user):
+        """Should pass is_shared through update when set."""
+        goal_id = uuid4()
+        update_data = SavingsGoalUpdate(is_shared=True)
+
+        updated_goal = Mock(spec=SavingsGoal)
+        updated_goal.id = goal_id
+        updated_goal.is_shared = True
+
+        with patch(
+            "app.api.v1.savings_goals.savings_goal_service.update_goal",
+            return_value=updated_goal,
+        ) as mock_update:
+            await update_goal(
+                goal_id=goal_id,
+                goal_data=update_data,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            call_kwargs = mock_update.call_args.kwargs
+            assert call_kwargs["is_shared"] is True

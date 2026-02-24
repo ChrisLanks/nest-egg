@@ -11,6 +11,7 @@ export enum BudgetPeriod {
 export interface Budget {
   id: string;
   organization_id: string;
+  user_id: string | null;
   name: string;
   amount: number;
   period: BudgetPeriod;

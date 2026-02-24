@@ -23,6 +23,7 @@ import {
   Tooltip,
   Icon,
   Divider,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { EditIcon, DeleteIcon, SettingsIcon, RepeatIcon } from '@chakra-ui/icons';
 import { FiMove, FiCheckSquare, FiLink, FiRefreshCw } from 'react-icons/fi';
@@ -30,6 +31,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SavingsGoal } from '../../../types/savings-goal';
 import { savingsGoalsApi } from '../../../api/savings-goals';
 import { accountsApi } from '../../../api/accounts';
+import { useHouseholdMembers } from '../../../hooks/useHouseholdMembers';
 
 interface GoalCardProps {
   goal: SavingsGoal;
@@ -52,6 +54,18 @@ export default function GoalCard({
 }: GoalCardProps) {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { data: householdMembers = [] } = useHouseholdMembers();
+
+  // Build shared tooltip label
+  const sharedLabel = (() => {
+    if (!goal.is_shared) return '';
+    if (!goal.shared_user_ids) return 'Shared with all members';
+    const names = goal.shared_user_ids
+      .map(id => householdMembers.find(m => m.id === id))
+      .filter(Boolean)
+      .map(m => m!.display_name || m!.first_name || m!.email);
+    return `Shared with ${names.join(', ')}`;
+  })();
 
   // Get progress data
   const { data: progress } = useQuery({
@@ -124,11 +138,14 @@ export default function GoalCard({
     goal.target_amount > 0 ? (goal.current_amount / goal.target_amount) * 100 : 0
   );
 
+  // Blue in light mode (matches budgets), cyan in dark mode (better visibility)
+  const accent = useColorModeValue('blue', 'cyan');
+
   const getProgressColor = () => {
     if (goal.is_funded) return 'purple';
     if (goal.is_completed) return 'green';
     if (progress?.on_track === false) return 'orange';
-    return 'cyan';
+    return accent;
   };
 
   const formatCurrency = (amount: number) => {
@@ -158,7 +175,11 @@ export default function GoalCard({
             <VStack align="start" spacing={1} minW={0}>
             <HStack flexWrap="wrap">
               <Heading size="md" noOfLines={1}>{goal.name}</Heading>
-              {goal.is_shared && <Badge colorScheme="teal">Shared</Badge>}
+              {goal.is_shared && (
+                <Tooltip label={sharedLabel} placement="top">
+                  <Badge colorScheme="teal" cursor="default">Shared</Badge>
+                </Tooltip>
+              )}
               {goal.is_funded && <Badge colorScheme="purple">Funded</Badge>}
             </HStack>
             <Box minH="1.25rem">

@@ -14,6 +14,8 @@ from app.config import settings
 from app.core.database import get_db
 from app.dependencies import get_current_user, get_current_admin_user
 from app.models.account import Account
+from app.models.budget import Budget
+from app.models.savings_goal import SavingsGoal
 from app.models.transaction import Transaction
 from app.models.user import User, HouseholdInvitation, InvitationStatus, Organization
 from app.services.email_service import email_service
@@ -343,6 +345,66 @@ async def leave_household(
             .values(organization_id=new_org.id)
         )
         account.organization_id = new_org.id
+
+    # ---- Copy shared budgets the leaving user had access to ----
+    user_id_str = str(current_user.id)
+    migrated_account_ids = {str(a.id) for a in user_accounts}
+
+    shared_budgets_result = await db.execute(
+        select(Budget).where(
+            Budget.organization_id == current_user.organization_id,
+            Budget.is_shared.is_(True),
+        )
+    )
+    for budget in shared_budgets_result.scalars().all():
+        # Check if the user had access: shared_user_ids is null (all) or includes the user
+        if budget.shared_user_ids is not None and user_id_str not in budget.shared_user_ids:
+            continue
+        # Copy the budget to the new org
+        new_budget = Budget(
+            organization_id=new_org.id,
+            name=budget.name,
+            amount=budget.amount,
+            period=budget.period,
+            start_date=budget.start_date,
+            end_date=budget.end_date,
+            category_id=budget.category_id,
+            label_id=budget.label_id,
+            rollover_unused=budget.rollover_unused,
+            alert_threshold=budget.alert_threshold,
+            is_active=budget.is_active,
+            is_shared=False,  # Not shared in new solo household
+            shared_user_ids=None,
+        )
+        db.add(new_budget)
+
+    # ---- Copy shared goals the leaving user had access to ----
+    shared_goals_result = await db.execute(
+        select(SavingsGoal).where(
+            SavingsGoal.organization_id == current_user.organization_id,
+            SavingsGoal.is_shared.is_(True),
+        )
+    )
+    for goal in shared_goals_result.scalars().all():
+        if goal.shared_user_ids is not None and user_id_str not in goal.shared_user_ids:
+            continue
+        # For goals with linked accounts, only copy if the user owns that account
+        if goal.account_id and str(goal.account_id) not in migrated_account_ids:
+            continue
+        new_goal = SavingsGoal(
+            organization_id=new_org.id,
+            name=goal.name,
+            description=goal.description,
+            target_amount=goal.target_amount,
+            current_amount=goal.current_amount,
+            start_date=goal.start_date,
+            target_date=goal.target_date,
+            account_id=goal.account_id if goal.account_id and str(goal.account_id) in migrated_account_ids else None,
+            auto_sync=goal.auto_sync if goal.account_id and str(goal.account_id) in migrated_account_ids else False,
+            is_shared=False,
+            shared_user_ids=None,
+        )
+        db.add(new_goal)
 
     # Re-home the user
     current_user.organization_id = new_org.id

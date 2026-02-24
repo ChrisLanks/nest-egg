@@ -19,6 +19,7 @@ import {
   MenuItem,
   useToast,
   Box,
+  Tooltip,
 } from '@chakra-ui/react';
 import { EditIcon, DeleteIcon, SettingsIcon } from '@chakra-ui/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -26,6 +27,7 @@ import type { Budget } from '../../../types/budget';
 import { BudgetPeriod } from '../../../types/budget';
 import { budgetsApi } from '../../../api/budgets';
 import { labelsApi } from '../../../api/labels';
+import { useHouseholdMembers } from '../../../hooks/useHouseholdMembers';
 
 interface BudgetCardProps {
   budget: Budget;
@@ -36,6 +38,18 @@ interface BudgetCardProps {
 export default function BudgetCard({ budget, onEdit, canEdit = true }: BudgetCardProps) {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { data: householdMembers = [] } = useHouseholdMembers();
+
+  // Build shared tooltip label
+  const sharedLabel = (() => {
+    if (!budget.is_shared) return '';
+    if (!budget.shared_user_ids) return 'Shared with all members';
+    const names = budget.shared_user_ids
+      .map(id => householdMembers.find(m => m.id === id))
+      .filter(Boolean)
+      .map(m => m!.display_name || m!.first_name || m!.email);
+    return `Shared with ${names.join(', ')}`;
+  })();
 
   // Get spending data
   const { data: spending } = useQuery({
@@ -109,9 +123,11 @@ export default function BudgetCard({ budget, onEdit, canEdit = true }: BudgetCar
                 {formatPeriod(budget.period)}
               </Badge>
               {budget.is_shared && (
-                <Badge colorScheme="teal" size="sm">
-                  Shared
-                </Badge>
+                <Tooltip label={sharedLabel} placement="top">
+                  <Badge colorScheme="teal" size="sm" cursor="default">
+                    Shared
+                  </Badge>
+                </Tooltip>
               )}
               {labelName && (
                 <Badge colorScheme="purple" size="sm">

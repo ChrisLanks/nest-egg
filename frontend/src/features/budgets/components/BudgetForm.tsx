@@ -182,7 +182,13 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
       }
       return budgetsApi.create(data);
     },
-    onSuccess: () => {
+    onSuccess: (savedBudget) => {
+      if (isEditing) {
+        // Immediately update the cache so the next Edit click has fresh data
+        queryClient.setQueryData<Budget[]>(['budgets'], (old) =>
+          old?.map(b => b.id === savedBudget.id ? savedBudget : b) ?? []
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
       toast({
         title: isEditing ? 'Budget updated' : 'Budget created',

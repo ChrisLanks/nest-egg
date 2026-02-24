@@ -3,7 +3,8 @@
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 from uuid import uuid4
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 from fastapi import HTTPException
 
@@ -1301,7 +1302,15 @@ class TestLeaveHousehold:
 
         mock_accounts_result = Mock()
         mock_accounts_result.scalars.return_value.all.return_value = [mock_account]
-        mock_db.execute = AsyncMock(return_value=mock_accounts_result)
+
+        # Empty result for UPDATE invitations, UPDATE transactions, SELECT budgets, SELECT goals
+        mock_empty_result = Mock()
+        mock_empty_result.scalars.return_value.all.return_value = []
+
+        # execute calls: UPDATE invitations, SELECT accounts, UPDATE txns, SELECT budgets, SELECT goals
+        mock_db.execute = AsyncMock(
+            side_effect=[mock_empty_result, mock_accounts_result, mock_empty_result, mock_empty_result, mock_empty_result]
+        )
 
         captured_org = None
 
@@ -1331,9 +1340,10 @@ class TestLeaveHousehold:
         mock_db.flush = AsyncMock()
         mock_db.commit = AsyncMock()
 
-        mock_accounts_result = Mock()
-        mock_accounts_result.scalars.return_value.all.return_value = []
-        mock_db.execute = AsyncMock(return_value=mock_accounts_result)
+        mock_empty_result = Mock()
+        mock_empty_result.scalars.return_value.all.return_value = []
+        # execute calls: UPDATE invitations, SELECT accounts (empty), SELECT budgets, SELECT goals
+        mock_db.execute = AsyncMock(return_value=mock_empty_result)
         mock_db.add = Mock()
 
         await leave_household(current_user=user, db=mock_db)
@@ -1353,14 +1363,141 @@ class TestLeaveHousehold:
         mock_db.commit = AsyncMock()
         mock_db.add = Mock()
 
-        # execute is called twice: once for UPDATE invitations, once for SELECT accounts
-        mock_accounts_result = Mock()
-        mock_accounts_result.scalars.return_value.all.return_value = []
-        mock_db.execute = AsyncMock(return_value=mock_accounts_result)
+        # execute is called for: UPDATE invitations, SELECT accounts, SELECT budgets, SELECT goals
+        mock_empty_result = Mock()
+        mock_empty_result.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_empty_result)
 
         await leave_household(current_user=user, db=mock_db)
 
-        # The UPDATE call should have been made (execute called at least twice)
+        # The UPDATE call should have been made (execute called at least 4 times now)
         assert mock_db.execute.call_count >= 2
         # Commit should still happen
         mock_db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_leave_copies_shared_budgets(self):
+        """Leaving household should copy shared budgets the user had access to."""
+        from app.api.v1.household import leave_household
+        from app.models.budget import Budget, BudgetPeriod
+
+        user = self._make_user(is_primary=False)
+
+        mock_db = AsyncMock()
+        mock_db.flush = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        # Shared budget accessible to the user (no spec= so all attrs work)
+        shared_budget = Mock()
+        shared_budget.name = "Household Groceries"
+        shared_budget.amount = Decimal("500")
+        shared_budget.period = BudgetPeriod.MONTHLY
+        shared_budget.start_date = date(2026, 1, 1)
+        shared_budget.end_date = None
+        shared_budget.category_id = None
+        shared_budget.label_id = None
+        shared_budget.rollover_unused = False
+        shared_budget.alert_threshold = Decimal("0.80")
+        shared_budget.is_active = True
+        shared_budget.is_shared = True
+        shared_budget.shared_user_ids = None  # All members
+
+        # Budget NOT shared with this user
+        other_budget = Mock()
+        other_budget.is_shared = True
+        other_budget.shared_user_ids = [str(uuid4())]  # Different user only
+
+        # UPDATE invitations result
+        update_result = Mock()
+
+        # SELECT accounts (empty)
+        accounts_result = Mock()
+        accounts_result.scalars.return_value.all.return_value = []
+
+        # SELECT shared budgets
+        budget_result = Mock()
+        budget_result.scalars.return_value.all.return_value = [shared_budget, other_budget]
+
+        # SELECT shared goals (empty)
+        goal_result = Mock()
+        goal_result.scalars.return_value.all.return_value = []
+
+        added_objects = []
+        def capture_add(obj):
+            from app.models.user import Organization
+            if isinstance(obj, Organization):
+                obj.id = uuid4()
+            added_objects.append(obj)
+
+        mock_db.add = capture_add
+        # Flow: 1) UPDATE invitations, 2) SELECT accounts, 3) SELECT budgets, 4) SELECT goals
+        mock_db.execute = AsyncMock(
+            side_effect=[update_result, accounts_result, budget_result, goal_result]
+        )
+
+        await leave_household(current_user=user, db=mock_db)
+
+        # Should have copied the shared_budget (accessible) but not other_budget
+        budget_copies = [o for o in added_objects if isinstance(o, Budget)]
+        assert len(budget_copies) == 1
+        assert budget_copies[0].name == "Household Groceries"
+        assert budget_copies[0].is_shared is False  # Not shared in new solo household
+
+    @pytest.mark.asyncio
+    async def test_leave_copies_shared_goals(self):
+        """Leaving household should copy shared goals the user had access to."""
+        from app.api.v1.household import leave_household
+        from app.models.savings_goal import SavingsGoal
+
+        user = self._make_user(is_primary=False)
+
+        mock_db = AsyncMock()
+        mock_db.flush = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        shared_goal = Mock()
+        shared_goal.name = "Family Vacation"
+        shared_goal.description = "Trip to Hawaii"
+        shared_goal.target_amount = Decimal("5000")
+        shared_goal.current_amount = Decimal("1000")
+        shared_goal.start_date = date(2026, 1, 1)
+        shared_goal.target_date = date(2026, 12, 1)
+        shared_goal.account_id = None
+        shared_goal.auto_sync = False
+        shared_goal.is_shared = True
+        shared_goal.shared_user_ids = None  # All members
+
+        # UPDATE invitations result
+        update_result = Mock()
+
+        # SELECT accounts (empty)
+        accounts_result = Mock()
+        accounts_result.scalars.return_value.all.return_value = []
+
+        # SELECT shared budgets (empty)
+        budget_result = Mock()
+        budget_result.scalars.return_value.all.return_value = []
+
+        # SELECT shared goals
+        goal_result = Mock()
+        goal_result.scalars.return_value.all.return_value = [shared_goal]
+
+        added_objects = []
+        def capture_add(obj):
+            from app.models.user import Organization
+            if isinstance(obj, Organization):
+                obj.id = uuid4()
+            added_objects.append(obj)
+
+        mock_db.add = capture_add
+        # Flow: 1) UPDATE invitations, 2) SELECT accounts, 3) SELECT budgets, 4) SELECT goals
+        mock_db.execute = AsyncMock(
+            side_effect=[update_result, accounts_result, budget_result, goal_result]
+        )
+
+        await leave_household(current_user=user, db=mock_db)
+
+        goal_copies = [o for o in added_objects if isinstance(o, SavingsGoal)]
+        assert len(goal_copies) == 1
+        assert goal_copies[0].name == "Family Vacation"
+        assert goal_copies[0].is_shared is False

@@ -132,6 +132,7 @@ class BudgetService:
         """Create a new budget."""
         budget = Budget(
             organization_id=user.organization_id,
+            user_id=user.id,
             name=name,
             amount=amount,
             period=period,

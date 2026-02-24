@@ -27,6 +27,8 @@ import BudgetCard from '../features/budgets/components/BudgetCard';
 import BudgetForm from '../features/budgets/components/BudgetForm';
 import { useUserView } from '../contexts/UserViewContext';
 import { EmptyState } from '../components/EmptyState';
+import { useHouseholdMembers } from '../hooks/useHouseholdMembers';
+import { useAuthStore } from '../features/auth/stores/authStore';
 
 type FilterTab = 'all' | 'category' | 'label';
 
@@ -34,8 +36,14 @@ export default function BudgetsPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
-  const { canWriteResource, isOtherUserView } = useUserView();
+  const [filterUserId, setFilterUserId] = useState<string | null>(null);
+  const { canWriteResource, isOtherUserView, isCombinedView, isSelfView, selectedUserId } = useUserView();
   const canEdit = canWriteResource('budget');
+
+  // Household members for user filter (only in combined view)
+  const { data: householdMembers = [] } = useHouseholdMembers();
+  const currentUser = useAuthStore((s) => s.user);
+  const showUserFilter = isCombinedView && householdMembers.length > 1;
 
   // Get all budgets
   const { data: budgets = [], isLoading } = useQuery({
@@ -58,11 +66,43 @@ export default function BudgetsPage() {
     onClose();
   };
 
+  // Apply view-based and user filter
+  const filterByUser = (list: Budget[]) => {
+    // Self view: show budgets you created + shared budgets you're part of
+    if (isSelfView && currentUser) {
+      return list.filter(b => {
+        // Your own budget
+        if (b.user_id === currentUser.id) return true;
+        // Shared with all members
+        if (b.is_shared && !b.shared_user_ids) return true;
+        // Shared with you specifically
+        if (b.is_shared && b.shared_user_ids?.includes(currentUser.id)) return true;
+        // Legacy budgets without user_id (pre-migration) — show them
+        if (!b.user_id) return true;
+        return false;
+      });
+    }
+    // Combined view with member filter active
+    if (filterUserId) {
+      return list.filter(b => {
+        // Budget created by the selected member
+        if (b.user_id === filterUserId) return true;
+        // Shared with all members
+        if (b.is_shared && !b.shared_user_ids) return true;
+        // Shared with the selected member specifically
+        if (b.is_shared && b.shared_user_ids?.includes(filterUserId)) return true;
+        return false;
+      });
+    }
+    return list;
+  };
+
   // Apply filter tab
   const filterBudgets = (list: Budget[]) => {
-    if (filterTab === 'category') return list.filter(b => !!b.category_id);
-    if (filterTab === 'label') return list.filter(b => !!b.label_id);
-    return list;
+    let filtered = filterByUser(list);
+    if (filterTab === 'category') filtered = filtered.filter(b => !!b.category_id);
+    if (filterTab === 'label') filtered = filtered.filter(b => !!b.label_id);
+    return filtered;
   };
 
   const activeBudgets = filterBudgets(budgets.filter(b => b.is_active));
@@ -101,40 +141,72 @@ export default function BudgetsPage() {
           </Tooltip>
         </HStack>
 
-        {/* Filter tabs */}
+        {/* Filter row */}
         {!isLoading && budgets.length > 0 && (
-          <ButtonGroup size="sm" isAttached variant="outline">
-            <Button
-              colorScheme={filterTab === 'all' ? 'blue' : 'gray'}
-              variant={filterTab === 'all' ? 'solid' : 'outline'}
-              onClick={() => setFilterTab('all')}
-            >
-              All{' '}
-              <Badge ml={1} colorScheme={filterTab === 'all' ? 'blue' : 'gray'}>
-                {budgets.length}
-              </Badge>
-            </Button>
-            <Button
-              colorScheme={filterTab === 'category' ? 'blue' : 'gray'}
-              variant={filterTab === 'category' ? 'solid' : 'outline'}
-              onClick={() => setFilterTab('category')}
-            >
-              By Category{' '}
-              <Badge ml={1} colorScheme={filterTab === 'category' ? 'blue' : 'gray'}>
-                {categoryCount}
-              </Badge>
-            </Button>
-            <Button
-              colorScheme={filterTab === 'label' ? 'blue' : 'gray'}
-              variant={filterTab === 'label' ? 'solid' : 'outline'}
-              onClick={() => setFilterTab('label')}
-            >
-              By Label{' '}
-              <Badge ml={1} colorScheme={filterTab === 'label' ? 'blue' : 'gray'}>
-                {labelCount}
-              </Badge>
-            </Button>
-          </ButtonGroup>
+          <HStack spacing={6} flexWrap="wrap">
+            {/* Type filter */}
+            <HStack spacing={2}>
+              <Text fontSize="sm" fontWeight="medium" color="text.secondary">Filter:</Text>
+              <ButtonGroup size="sm" isAttached variant="outline">
+                <Button
+                  colorScheme={filterTab === 'all' ? 'blue' : 'gray'}
+                  variant={filterTab === 'all' ? 'solid' : 'outline'}
+                  onClick={() => setFilterTab('all')}
+                >
+                  All{' '}
+                  <Badge ml={1} colorScheme={filterTab === 'all' ? 'blue' : 'gray'}>
+                    {budgets.length}
+                  </Badge>
+                </Button>
+                <Button
+                  colorScheme={filterTab === 'category' ? 'blue' : 'gray'}
+                  variant={filterTab === 'category' ? 'solid' : 'outline'}
+                  onClick={() => setFilterTab('category')}
+                >
+                  By Category{' '}
+                  <Badge ml={1} colorScheme={filterTab === 'category' ? 'blue' : 'gray'}>
+                    {categoryCount}
+                  </Badge>
+                </Button>
+                <Button
+                  colorScheme={filterTab === 'label' ? 'blue' : 'gray'}
+                  variant={filterTab === 'label' ? 'solid' : 'outline'}
+                  onClick={() => setFilterTab('label')}
+                >
+                  By Label{' '}
+                  <Badge ml={1} colorScheme={filterTab === 'label' ? 'blue' : 'gray'}>
+                    {labelCount}
+                  </Badge>
+                </Button>
+              </ButtonGroup>
+            </HStack>
+
+            {/* User filter */}
+            {showUserFilter && (
+              <HStack spacing={2}>
+                <Text fontSize="sm" fontWeight="medium" color="text.secondary">Member:</Text>
+                <ButtonGroup size="sm" isAttached variant="outline">
+                  <Button
+                    colorScheme={!filterUserId ? 'blue' : 'gray'}
+                    variant={!filterUserId ? 'solid' : 'outline'}
+                    onClick={() => setFilterUserId(null)}
+                  >
+                    All
+                  </Button>
+                  {householdMembers.map((member) => (
+                    <Button
+                      key={member.id}
+                      colorScheme={filterUserId === member.id ? 'blue' : 'gray'}
+                      variant={filterUserId === member.id ? 'solid' : 'outline'}
+                      onClick={() => setFilterUserId(member.id)}
+                    >
+                      {member.display_name || member.first_name || member.email.split('@')[0]}
+                    </Button>
+                  ))}
+                </ButtonGroup>
+              </HStack>
+            )}
+          </HStack>
         )}
 
         {/* Loading state */}
@@ -200,8 +272,8 @@ export default function BudgetsPage() {
         )}
       </VStack>
 
-      {/* Budget form modal */}
-      <BudgetForm isOpen={isOpen} onClose={handleClose} budget={selectedBudget} />
+      {/* Budget form modal — key forces remount so defaultValues reset on each open */}
+      <BudgetForm key={selectedBudget?.id ?? 'new'} isOpen={isOpen} onClose={handleClose} budget={selectedBudget} />
     </Box>
   );
 }

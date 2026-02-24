@@ -49,6 +49,7 @@ class SavingsGoalResponse(SavingsGoalBase):
 
     id: UUID
     organization_id: UUID
+    user_id: Optional[UUID] = None
     current_amount: Decimal
     auto_sync: bool
     priority: Optional[int]

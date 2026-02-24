@@ -53,6 +53,7 @@ class BudgetResponse(BudgetBase):
 
     id: UUID
     organization_id: UUID
+    user_id: Optional[UUID] = None
     is_active: bool
     is_shared: bool
     shared_user_ids: Optional[List[str]] = None
