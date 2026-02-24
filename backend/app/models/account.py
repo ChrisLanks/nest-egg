@@ -383,6 +383,10 @@ class Account(Base):
 
     # Auto-valuation metadata (property + vehicle)
     last_auto_valued_at = Column(DateTime, nullable=True)   # When balance was last set by the API
+    # Percentage adjustment applied on top of provider estimates.
+    # e.g., -10 for 10% discount (damage), +15 for 15% premium (upgrades).
+    # NULL is treated as 0% (no adjustment).
+    valuation_adjustment_pct = Column(Numeric(5, 2), nullable=True)
 
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)

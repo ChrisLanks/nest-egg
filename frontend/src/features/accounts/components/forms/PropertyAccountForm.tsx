@@ -16,6 +16,7 @@ import {
   Text,
   Link,
   Box,
+  FormHelperText,
 } from '@chakra-ui/react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -195,6 +196,29 @@ export const PropertyAccountForm = ({
           <Text fontSize="xs" color="text.secondary" mt={1}>
             Leave blank if you own the property outright
           </Text>
+        </FormControl>
+
+        <FormControl isInvalid={!!errors.valuation_adjustment_pct}>
+          <FormLabel>Valuation Adjustment (%)</FormLabel>
+          <Controller
+            name="valuation_adjustment_pct"
+            control={control}
+            render={({ field: { onChange, value, ...field } }) => (
+              <NumberInput
+                {...field}
+                value={value as number ?? ''}
+                onChange={(valueString) => onChange(valueString ? parseFloat(valueString) : undefined)}
+                precision={2}
+                step={1}
+              >
+                <NumberInputField placeholder="0" />
+              </NumberInput>
+            )}
+          />
+          <FormErrorMessage>{errors.valuation_adjustment_pct?.message}</FormErrorMessage>
+          <FormHelperText>
+            Negative for damage/wear, positive for upgrades. Applied on top of auto-valuation estimates.
+          </FormHelperText>
         </FormControl>
 
         {mortgageBalance && mortgageBalance > 0 && (

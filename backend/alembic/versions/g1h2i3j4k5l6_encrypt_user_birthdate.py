@@ -10,7 +10,7 @@ date parsing when decryption fails (the value looks like "YYYY-MM-DD"),
 so data is not lost and users don't need to re-enter their birthday — it
 will be transparently re-encrypted the next time the row is saved.
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: g1h2i3j4k5l6
 Revises: fecf4db781a3
 Create Date: 2026-02-23 00:00:00.000000
 """
@@ -21,7 +21,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "a1b2c3d4e5f6"
+revision: str = "g1h2i3j4k5l6"
 down_revision: Union[str, None] = "fecf4db781a3"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

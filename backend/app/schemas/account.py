@@ -116,6 +116,9 @@ class ManualAccountCreate(BaseModel):
     vehicle_vin: Optional[str] = None
     vehicle_mileage: Optional[int] = None
 
+    # Valuation adjustment (property + vehicle)
+    valuation_adjustment_pct: Optional[Decimal] = None
+
 
 class AccountUpdate(BaseModel):
     """Account update schema."""
@@ -175,6 +178,9 @@ class AccountUpdate(BaseModel):
     # Vehicle auto-valuation
     vehicle_vin: Optional[str] = None
     vehicle_mileage: Optional[int] = None
+
+    # Valuation adjustment (property + vehicle)
+    valuation_adjustment_pct: Optional[Decimal] = None
 
 
 class Account(AccountBase):
@@ -245,6 +251,9 @@ class Account(AccountBase):
 
     # Auto-valuation metadata
     last_auto_valued_at: Optional[datetime] = None
+
+    # Valuation adjustment (property + vehicle)
+    valuation_adjustment_pct: Optional[Decimal] = None
 
     # Interest accrual tracking
     last_interest_accrued_at: Optional[date] = None

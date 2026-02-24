@@ -203,6 +203,28 @@ export const VehicleAccountForm = ({
           <FormErrorMessage>{errors.value?.message}</FormErrorMessage>
         </FormControl>
 
+        <FormControl isInvalid={!!errors.valuation_adjustment_pct}>
+          <FormLabel>Valuation Adjustment (%)</FormLabel>
+          <Controller
+            name="valuation_adjustment_pct"
+            control={control}
+            render={({ field: { onChange, value, ...field } }) => (
+              <NumberInput
+                {...field}
+                value={value as number ?? ''}
+                onChange={(valueString) => onChange(valueString ? parseFloat(valueString) : undefined)}
+                precision={2}
+                step={1}
+              >
+                <NumberInputField placeholder="0" />
+              </NumberInput>
+            )}
+          />
+          <FormHelperText>
+            Negative for damage/wear, positive for upgrades. Applied on top of auto-valuation estimates.
+          </FormHelperText>
+        </FormControl>
+
         <FormControl isInvalid={!!errors.loan_balance}>
           <FormLabel>Loan Balance (Optional)</FormLabel>
           <Controller

@@ -152,6 +152,7 @@ export const propertyAccountSchema = z.object({
   property_type: z.enum(['single_family', 'condo', 'townhouse', 'multi_family', 'other']).default('single_family'),
   value: z.number().or(z.string().transform((val) => parseFloat(val))).refine((val) => val > 0, 'Value must be greater than 0'),
   mortgage_balance: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
+  valuation_adjustment_pct: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
 });
 
 export type PropertyAccountFormData = z.infer<typeof propertyAccountSchema>;
@@ -167,6 +168,7 @@ export const vehicleAccountSchema = z.object({
   value: z.number().or(z.string().transform((val) => parseFloat(val))).refine((val) => val > 0, 'Value must be greater than 0'),
   loan_balance: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
   include_in_networth: z.boolean().optional(),
+  valuation_adjustment_pct: z.number().or(z.string().transform((val) => parseFloat(val))).optional(),
 });
 
 export type VehicleAccountFormData = z.infer<typeof vehicleAccountSchema>;

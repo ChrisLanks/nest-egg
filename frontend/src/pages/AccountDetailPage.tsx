@@ -79,6 +79,7 @@ interface Account {
   vehicle_vin: string | null;
   vehicle_mileage: number | null;
   last_auto_valued_at: string | null;
+  valuation_adjustment_pct: number | null;
   // Employer match fields (401k / 403b)
   employer_match_percent: number | null;
   employer_match_limit_percent: number | null;
@@ -163,6 +164,8 @@ export const AccountDetailPage = () => {
   const [empMatchPct, setEmpMatchPct] = useState('');
   const [empMatchLimitPct, setEmpMatchLimitPct] = useState('');
   const [empAnnualSalary, setEmpAnnualSalary] = useState('');
+  // Valuation adjustment state
+  const [adjustmentPct, setAdjustmentPct] = useState('');
 
   // Fetch account details
   const { data: account, isLoading } = useQuery<Account>({
@@ -227,7 +230,7 @@ export const AccountDetailPage = () => {
 
   // Update account mutation
   const updateAccountMutation = useMutation({
-    mutationFn: async (data: { name?: string; account_type?: string; is_active?: boolean; exclude_from_cash_flow?: boolean; include_in_networth?: boolean | null; interest_rate?: number | null; loan_term_months?: number | null; origination_date?: string | null; current_balance?: number; employer_match_percent?: number | null; employer_match_limit_percent?: number | null; annual_salary?: number | null; property_address?: string | null; property_zip?: string | null; vehicle_vin?: string | null; vehicle_mileage?: number | null }) => {
+    mutationFn: async (data: { name?: string; account_type?: string; is_active?: boolean; exclude_from_cash_flow?: boolean; include_in_networth?: boolean | null; interest_rate?: number | null; loan_term_months?: number | null; origination_date?: string | null; current_balance?: number; employer_match_percent?: number | null; employer_match_limit_percent?: number | null; annual_salary?: number | null; property_address?: string | null; property_zip?: string | null; vehicle_vin?: string | null; vehicle_mileage?: number | null; valuation_adjustment_pct?: number | null }) => {
       const response = await api.patch(`/accounts/${accountId}`, data);
       return response.data;
     },
@@ -284,11 +287,12 @@ export const AccountDetailPage = () => {
 
   // Update vehicle details mutation
   const updateVehicleMutation = useMutation({
-    mutationFn: async (data: { mileage?: number; balance?: number; vin?: string }) => {
+    mutationFn: async (data: { mileage?: number; balance?: number; vin?: string; valuation_adjustment_pct?: number }) => {
       const payload: any = {};
       if (data.mileage !== undefined) payload.vehicle_mileage = data.mileage;
       if (data.vin !== undefined) payload.vehicle_vin = data.vin.toUpperCase();
       if (data.balance !== undefined) payload.current_balance = data.balance;
+      if (data.valuation_adjustment_pct !== undefined) payload.valuation_adjustment_pct = data.valuation_adjustment_pct;
       const response = await api.patch(`/accounts/${accountId}`, payload);
       return response.data;
     },
@@ -303,6 +307,7 @@ export const AccountDetailPage = () => {
       setVehicleMileage('');
       setVehicleValue('');
       setVehicleVin('');
+      setAdjustmentPct('');
     },
     onError: (error: any) => {
       toast({
@@ -330,9 +335,12 @@ export const AccountDetailPage = () => {
       const rangeStr = data.low && data.high ? ` (range ${fmt(data.low)} – ${fmt(data.high)})` : '';
       const vinInfo = data.vin_info ? ` · ${data.vin_info.year} ${data.vin_info.make} ${data.vin_info.model}` : '';
       const providerLabel = data.provider ? ` via ${data.provider}` : '';
+      const adjStr = data.adjustment_pct && data.raw_value !== data.new_value
+        ? ` (provider: ${fmt(data.raw_value)}, adjusted ${data.adjustment_pct > 0 ? '+' : ''}${data.adjustment_pct}%)`
+        : '';
       toast({
         title: 'Valuation refreshed',
-        description: `Updated to ${fmt(data.new_value)}${rangeStr}${vinInfo}${providerLabel}`,
+        description: `Updated to ${fmt(data.new_value)}${adjStr}${rangeStr}${vinInfo}${providerLabel}`,
         status: 'success',
         duration: 5000,
       });
@@ -479,7 +487,7 @@ export const AccountDetailPage = () => {
   };
 
   const handleUpdateVehicle = () => {
-    const updates: { mileage?: number; balance?: number; vin?: string } = {};
+    const updates: { mileage?: number; balance?: number; vin?: string; valuation_adjustment_pct?: number } = {};
 
     if (vehicleMileage) {
       const mileage = parseInt(vehicleMileage);
@@ -495,6 +503,11 @@ export const AccountDetailPage = () => {
       updates.vin = vehicleVin.trim();
     }
 
+    if (adjustmentPct) {
+      const pct = parseFloat(adjustmentPct);
+      if (!isNaN(pct)) updates.valuation_adjustment_pct = pct;
+    }
+
     if (Object.keys(updates).length > 0) {
       updateVehicleMutation.mutate(updates);
     }
@@ -504,11 +517,16 @@ export const AccountDetailPage = () => {
     const payload: any = {};
     if (propertyAddress.trim()) payload.property_address = propertyAddress.trim();
     if (propertyZip.trim()) payload.property_zip = propertyZip.trim();
+    if (adjustmentPct) {
+      const pct = parseFloat(adjustmentPct);
+      if (!isNaN(pct)) payload.valuation_adjustment_pct = pct;
+    }
     if (Object.keys(payload).length > 0) {
       updateAccountMutation.mutate(payload, {
         onSuccess: () => {
           setPropertyAddress('');
           setPropertyZip('');
+          setAdjustmentPct('');
         },
       });
     }
@@ -974,6 +992,18 @@ export const AccountDetailPage = () => {
                       </Text>
                     </Box>
                   )}
+                  <Box>
+                    <Text fontSize="xs" color="text.muted">Valuation Adjustment</Text>
+                    <Text fontWeight="semibold" fontSize="sm" color={
+                      account.valuation_adjustment_pct != null && account.valuation_adjustment_pct !== 0
+                        ? (account.valuation_adjustment_pct > 0 ? 'finance.positive' : 'finance.negative')
+                        : undefined
+                    }>
+                      {account.valuation_adjustment_pct != null && account.valuation_adjustment_pct !== 0
+                        ? `${account.valuation_adjustment_pct > 0 ? '+' : ''}${account.valuation_adjustment_pct}%`
+                        : 'None'}
+                    </Text>
+                  </Box>
                 </HStack>
 
                 <Divider />
@@ -1062,13 +1092,33 @@ export const AccountDetailPage = () => {
                       </HStack>
                     </FormControl>
 
+                    {/* Valuation Adjustment */}
+                    <FormControl>
+                      <FormLabel fontSize="sm">Valuation Adjustment (%)</FormLabel>
+                      <HStack>
+                        <NumberInput
+                          value={adjustmentPct}
+                          onChange={setAdjustmentPct}
+                          precision={2}
+                          step={1}
+                          size="sm"
+                        >
+                          <NumberInputField placeholder={account.valuation_adjustment_pct != null ? String(account.valuation_adjustment_pct) : '0'} />
+                        </NumberInput>
+                        <Text fontSize="sm" color="text.secondary">%</Text>
+                      </HStack>
+                      <Text fontSize="xs" color="text.muted" mt={1}>
+                        Negative for damage/wear, positive for upgrades. Applied on top of auto-valuation estimates.
+                      </Text>
+                    </FormControl>
+
                     {/* Save Button */}
                     <Button
                       colorScheme="brand"
                       size="sm"
                       onClick={handleUpdateVehicle}
                       isLoading={updateVehicleMutation.isPending}
-                      isDisabled={!vehicleMileage && !vehicleValue && !vehicleVin.trim()}
+                      isDisabled={!vehicleMileage && !vehicleValue && !vehicleVin.trim() && !adjustmentPct}
                     >
                       Save Updates
                     </Button>
@@ -1141,6 +1191,18 @@ export const AccountDetailPage = () => {
                       </Text>
                     </Box>
                   )}
+                  <Box>
+                    <Text fontSize="xs" color="text.muted">Valuation Adjustment</Text>
+                    <Text fontWeight="semibold" fontSize="sm" color={
+                      account.valuation_adjustment_pct != null && account.valuation_adjustment_pct !== 0
+                        ? (account.valuation_adjustment_pct > 0 ? 'finance.positive' : 'finance.negative')
+                        : undefined
+                    }>
+                      {account.valuation_adjustment_pct != null && account.valuation_adjustment_pct !== 0
+                        ? `${account.valuation_adjustment_pct > 0 ? '+' : ''}${account.valuation_adjustment_pct}%`
+                        : 'None'}
+                    </Text>
+                  </Box>
                 </HStack>
 
                 {!canEditAccount ? (
@@ -1171,12 +1233,30 @@ export const AccountDetailPage = () => {
                         />
                       </FormControl>
                     </HStack>
+                    <FormControl>
+                      <FormLabel fontSize="sm">Valuation Adjustment (%)</FormLabel>
+                      <HStack>
+                        <NumberInput
+                          value={adjustmentPct}
+                          onChange={setAdjustmentPct}
+                          precision={2}
+                          step={1}
+                          size="sm"
+                        >
+                          <NumberInputField placeholder={account.valuation_adjustment_pct != null ? String(account.valuation_adjustment_pct) : '0'} />
+                        </NumberInput>
+                        <Text fontSize="sm" color="text.secondary">%</Text>
+                      </HStack>
+                      <Text fontSize="xs" color="text.muted" mt={1}>
+                        Negative for damage/wear, positive for upgrades. Applied on top of auto-valuation estimates.
+                      </Text>
+                    </FormControl>
                     <Button
                       colorScheme="brand"
                       size="sm"
                       onClick={handleUpdatePropertyDetails}
                       isLoading={updateAccountMutation.isPending}
-                      isDisabled={!propertyAddress.trim() && !propertyZip.trim()}
+                      isDisabled={!propertyAddress.trim() && !propertyZip.trim() && !adjustmentPct}
                     >
                       Save Property Details
                     </Button>

@@ -80,6 +80,10 @@ export interface Account {
   exclude_from_cash_flow: boolean;
   plaid_item_hash?: string | null;
 
+  // Auto-valuation metadata
+  last_auto_valued_at?: string | null;
+  valuation_adjustment_pct?: number | null;
+
   // Provider-agnostic sync status
   provider_item_id?: string | null;
   last_synced_at?: string | null;

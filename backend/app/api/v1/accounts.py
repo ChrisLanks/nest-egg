@@ -6,6 +6,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from datetime import datetime, timezone
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import delete, select, update
@@ -265,6 +266,8 @@ async def create_manual_account(
         company_valuation=account_data.company_valuation,
         ownership_percentage=account_data.ownership_percentage,
         equity_value=account_data.equity_value,
+        # Valuation adjustment (property + vehicle)
+        valuation_adjustment_pct=account_data.valuation_adjustment_pct,
     )
 
     db.add(account)
@@ -454,6 +457,10 @@ async def update_account(
     if account_data.vehicle_mileage is not None:
         account.vehicle_mileage = account_data.vehicle_mileage
 
+    # Valuation adjustment
+    if account_data.valuation_adjustment_pct is not None:
+        account.valuation_adjustment_pct = account_data.valuation_adjustment_pct
+
     await db.commit()
     await db.refresh(account)
 
@@ -573,6 +580,25 @@ async def refresh_account_valuation(
             detail="The valuation provider did not return a value. Please try again later.",
         )
 
+    # Apply valuation adjustment percentage if set
+    raw_value = valuation_result.value
+    adj = account.valuation_adjustment_pct
+    if adj is not None and adj != 0:
+        multiplier = 1 + adj / Decimal("100")
+        adjusted_value = (raw_value * multiplier).quantize(Decimal("0.01"))
+        adjusted_low = (
+            (valuation_result.low * multiplier).quantize(Decimal("0.01"))
+            if valuation_result.low else None
+        )
+        adjusted_high = (
+            (valuation_result.high * multiplier).quantize(Decimal("0.01"))
+            if valuation_result.high else None
+        )
+    else:
+        adjusted_value = raw_value
+        adjusted_low = valuation_result.low
+        adjusted_high = valuation_result.high
+
     now = datetime.now(timezone.utc)
     await db.execute(
         update(Account)
@@ -581,7 +607,7 @@ async def refresh_account_valuation(
             Account.organization_id == current_user.organization_id,
         )
         .values(
-            current_balance=valuation_result.value,
+            current_balance=adjusted_value,
             last_auto_valued_at=now,
             balance_as_of=now,
         )
@@ -590,10 +616,12 @@ async def refresh_account_valuation(
 
     return {
         "id": str(account.id),
-        "new_value": float(valuation_result.value),
+        "raw_value": float(raw_value),
+        "new_value": float(adjusted_value),
+        "adjustment_pct": float(adj) if adj else None,
         "provider": valuation_result.provider,
-        "low": float(valuation_result.low) if valuation_result.low else None,
-        "high": float(valuation_result.high) if valuation_result.high else None,
+        "low": float(adjusted_low) if adjusted_low else None,
+        "high": float(adjusted_high) if adjusted_high else None,
         "last_auto_valued_at": now.isoformat(),
         "vin_info": vin_info,
     }
