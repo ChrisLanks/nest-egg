@@ -46,7 +46,7 @@ import {
   useColorModeValue,
 } from '@chakra-ui/react';
 import { CloseIcon, AddIcon } from '@chakra-ui/icons';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -110,8 +110,15 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
   const [scenarios, setScenarios] = useState<ScenarioConfig[]>([makeDefaultScenario()]);
   const [activeScenarioIndex, setActiveScenarioIndex] = useState(0);
   const [showInflationAdjusted, setShowInflationAdjusted] = useState(true);
+  // Local slider state so dragging doesn't recompute simulations per pixel
+  const [sliderYears, setSliderYears] = useState(10);
 
   const activeScenario = scenarios[activeScenarioIndex] || scenarios[0];
+
+  // Keep slider in sync when active scenario changes
+  useEffect(() => {
+    setSliderYears(activeScenario.years);
+  }, [activeScenario.years]);
 
   // Dark mode colors
   const successBg = useColorModeValue('green.50', 'green.900');
@@ -540,11 +547,12 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
               {/* Years */}
               <FormControl>
                 <FormLabel>
-                  Years: <strong>{activeScenario.years}</strong>
+                  Years: <strong>{sliderYears}</strong>
                 </FormLabel>
                 <Slider
-                  value={activeScenario.years}
-                  onChange={(val) => updateField('years', val)}
+                  value={sliderYears}
+                  onChange={(val) => setSliderYears(val)}
+                  onChangeEnd={(val) => updateField('years', val)}
                   min={1}
                   max={100}
                   step={1}

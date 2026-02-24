@@ -2,7 +2,7 @@
 
 import uuid
 from decimal import Decimal
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -204,7 +204,6 @@ async def delete_target_allocation(
 
 @router.get("/analysis", response_model=RebalancingAnalysis)
 async def get_rebalancing_analysis(
-    user_id: Optional[UUID] = Query(None, description="Filter holdings by user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -213,6 +212,7 @@ async def get_rebalancing_analysis(
 
     Queries holdings grouped by asset_class and sums current_total_value.
     Returns drift items, trade recommendations, and rebalancing flag.
+    Scoped to the current user's accounts only.
     """
     # Get active allocation
     active = await RebalancingService.get_active_allocation(
@@ -224,22 +224,18 @@ async def get_rebalancing_analysis(
             detail="No active target allocation found. Create one first.",
         )
 
-    # Build holdings query: group by asset_class, sum current_total_value
+    # Build holdings query scoped to current user's accounts
+    from app.models.account import Account
+
     holdings_conditions = [
         Holding.organization_id == current_user.organization_id,
-    ]
-    if user_id is not None:
-        # Filter holdings by accounts owned by that user
-        from app.models.account import Account
-
-        holdings_conditions.append(
-            Holding.account_id.in_(
-                select(Account.id).where(
-                    Account.user_id == user_id,
-                    Account.organization_id == current_user.organization_id,
-                )
+        Holding.account_id.in_(
+            select(Account.id).where(
+                Account.user_id == current_user.id,
+                Account.organization_id == current_user.organization_id,
             )
-        )
+        ),
+    ]
 
     result = await db.execute(
         select(

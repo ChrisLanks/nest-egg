@@ -11,9 +11,9 @@ from pydantic import BaseModel, Field, model_validator
 class AllocationSlice(BaseModel):
     """A single slice of a target allocation."""
 
-    asset_class: str  # 'domestic', 'international', 'bond', 'cash', 'other'
+    asset_class: str = Field(max_length=50)  # 'domestic', 'international', 'bond', 'cash', 'other'
     target_percent: Decimal = Field(ge=0, le=100)
-    label: str
+    label: str = Field(max_length=100)
 
 
 class TargetAllocationCreate(BaseModel):
@@ -24,13 +24,16 @@ class TargetAllocationCreate(BaseModel):
     drift_threshold: Decimal = Field(default=Decimal("5.0"), ge=0, le=50)
 
     @model_validator(mode="after")
-    def validate_allocations_sum(self) -> "TargetAllocationCreate":
-        """Allocations must sum to 100 (within 0.01 tolerance)."""
+    def validate_allocations(self) -> "TargetAllocationCreate":
+        """Allocations must sum to 100 and have unique asset classes."""
         total = sum(s.target_percent for s in self.allocations)
         if abs(total - Decimal("100")) > Decimal("0.01"):
             raise ValueError(
                 f"Allocation percentages must sum to 100, got {total}"
             )
+        classes = [s.asset_class for s in self.allocations]
+        if len(classes) != len(set(classes)):
+            raise ValueError("Duplicate asset_class entries are not allowed")
         return self
 
 
@@ -43,14 +46,17 @@ class TargetAllocationUpdate(BaseModel):
     is_active: Optional[bool] = None
 
     @model_validator(mode="after")
-    def validate_allocations_sum(self) -> "TargetAllocationUpdate":
-        """If allocations provided, they must sum to 100 (within 0.01 tolerance)."""
+    def validate_allocations(self) -> "TargetAllocationUpdate":
+        """If allocations provided, they must sum to 100 and have unique asset classes."""
         if self.allocations is not None:
             total = sum(s.target_percent for s in self.allocations)
             if abs(total - Decimal("100")) > Decimal("0.01"):
                 raise ValueError(
                     f"Allocation percentages must sum to 100, got {total}"
                 )
+            classes = [s.asset_class for s in self.allocations]
+            if len(classes) != len(set(classes)):
+                raise ValueError("Duplicate asset_class entries are not allowed")
         return self
 
 

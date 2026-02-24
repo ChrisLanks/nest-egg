@@ -215,6 +215,84 @@ describe('runMonteCarloSimulation — stress overrides', () => {
   });
 });
 
+// ── Deterministic inflation compounding ──────────────────────────────────────
+
+describe('runMonteCarloSimulation — inflation-adjusted withdrawals', () => {
+  it('compounds withdrawal inflation year-over-year (not single rate ^ years)', () => {
+    // With 0 volatility and 0 return, the only variable is inflation on withdrawals.
+    // $100k portfolio, retire year 1, $10k/year withdrawal, 10% inflation, 5 years.
+    // Year 1 (yearsInRetirement=0): withdraw $10,000 (no inflation yet)
+    // Year 2 (yearsInRetirement=1): withdraw $10,000 * 1.10 = $11,000
+    // Year 3 (yearsInRetirement=2): withdraw $10,000 * 1.10 * 1.10 = $12,100
+    const params: SimulationParams = {
+      currentValue: 100000,
+      years: 3,
+      simulations: 1, // Single sim since volatility is 0
+      annualReturn: 0,
+      volatility: 0,
+      inflationRate: 10,
+      retirementYear: 1,
+      annualWithdrawal: 10000,
+      inflationAdjustWithdrawals: true,
+    };
+    const result = runMonteCarloSimulation(params);
+    // Year 0: 100,000
+    // Year 1: 100,000 * 1.0 - 10,000 = 90,000 (first retirement year, no inflation adjustment)
+    // Year 2: 90,000 * 1.0 - 10,000 * 1.10 = 90,000 - 11,000 = 79,000
+    // Year 3: 79,000 * 1.0 - 10,000 * 1.10 * 1.10 = 79,000 - 12,100 = 66,900
+    expect(result.projections[1].median).toBeCloseTo(90000, -1);
+    expect(result.projections[2].median).toBeCloseTo(79000, -1);
+    expect(result.projections[3].median).toBeCloseTo(66900, -1);
+  });
+
+  it('inflation override affects withdrawal compounding during stress years', () => {
+    // Same setup but year 2 has 20% inflation override instead of 10%
+    const params: SimulationParams = {
+      currentValue: 100000,
+      years: 3,
+      simulations: 1,
+      annualReturn: 0,
+      volatility: 0,
+      inflationRate: 10,
+      retirementYear: 1,
+      annualWithdrawal: 10000,
+      inflationAdjustWithdrawals: true,
+      stressOverrides: {
+        name: 'test',
+        description: 'test',
+        returnOverrides: [],
+        inflationOverrides: [{ yearOffset: 2, inflationOverride: 20 }],
+      },
+    };
+    const result = runMonteCarloSimulation(params);
+    // Year 1: 100,000 - 10,000 = 90,000
+    // Year 2: 90,000 - 10,000 * 1.20 = 90,000 - 12,000 = 78,000 (20% override)
+    // Year 3: 78,000 - 10,000 * 1.20 * 1.10 = 78,000 - 13,200 = 64,800 (back to 10%)
+    expect(result.projections[1].median).toBeCloseTo(90000, -1);
+    expect(result.projections[2].median).toBeCloseTo(78000, -1);
+    expect(result.projections[3].median).toBeCloseTo(64800, -1);
+  });
+
+  it('non-inflation-adjusted withdrawals stay constant', () => {
+    const params: SimulationParams = {
+      currentValue: 100000,
+      years: 3,
+      simulations: 1,
+      annualReturn: 0,
+      volatility: 0,
+      inflationRate: 10,
+      retirementYear: 1,
+      annualWithdrawal: 10000,
+      inflationAdjustWithdrawals: false,
+    };
+    const result = runMonteCarloSimulation(params);
+    // Each year just withdraws flat $10,000
+    expect(result.projections[1].median).toBeCloseTo(90000, -1);
+    expect(result.projections[2].median).toBeCloseTo(80000, -1);
+    expect(result.projections[3].median).toBeCloseTo(70000, -1);
+  });
+});
+
 // ── Backward compatibility ───────────────────────────────────────────────────
 
 describe('runSimulationProjections (backward-compatible wrapper)', () => {

@@ -1,10 +1,15 @@
-"""Tests for the rebalancing service drift calculations and presets."""
+"""Tests for the rebalancing service drift calculations and schema validation."""
 
 from decimal import Decimal
 
 import pytest
+from pydantic import ValidationError
 
-from app.schemas.target_allocation import AllocationSlice
+from app.schemas.target_allocation import (
+    AllocationSlice,
+    TargetAllocationCreate,
+    TargetAllocationUpdate,
+)
 from app.services.rebalancing_service import PRESET_PORTFOLIOS, RebalancingService
 
 
@@ -200,3 +205,99 @@ class TestCalculateDrift:
         )
 
         assert max_drift == Decimal("20.00")
+
+
+# ── Schema validation ────────────────────────────────────────────────────────
+
+
+class TestSchemaValidation:
+    """Test Pydantic schema validators for target allocations."""
+
+    def test_create_valid_allocation(self):
+        """Valid allocation passes validation."""
+        alloc = TargetAllocationCreate(
+            name="Test",
+            allocations=[
+                AllocationSlice(asset_class="domestic", target_percent=Decimal("60"), label="US"),
+                AllocationSlice(asset_class="bond", target_percent=Decimal("40"), label="Bonds"),
+            ],
+        )
+        assert alloc.name == "Test"
+        assert len(alloc.allocations) == 2
+
+    def test_create_rejects_sum_not_100(self):
+        """Allocations that don't sum to 100 are rejected."""
+        with pytest.raises(ValidationError, match="must sum to 100"):
+            TargetAllocationCreate(
+                name="Bad",
+                allocations=[
+                    AllocationSlice(asset_class="domestic", target_percent=Decimal("60"), label="US"),
+                    AllocationSlice(asset_class="bond", target_percent=Decimal("30"), label="Bonds"),
+                ],
+            )
+
+    def test_create_rejects_duplicate_asset_class(self):
+        """Duplicate asset_class entries are rejected."""
+        with pytest.raises(ValidationError, match="Duplicate asset_class"):
+            TargetAllocationCreate(
+                name="Duped",
+                allocations=[
+                    AllocationSlice(asset_class="domestic", target_percent=Decimal("50"), label="US A"),
+                    AllocationSlice(asset_class="domestic", target_percent=Decimal("50"), label="US B"),
+                ],
+            )
+
+    def test_update_rejects_duplicate_asset_class(self):
+        """Duplicate asset_class in update payload is rejected."""
+        with pytest.raises(ValidationError, match="Duplicate asset_class"):
+            TargetAllocationUpdate(
+                allocations=[
+                    AllocationSlice(asset_class="bond", target_percent=Decimal("50"), label="Bonds A"),
+                    AllocationSlice(asset_class="bond", target_percent=Decimal("50"), label="Bonds B"),
+                ],
+            )
+
+    def test_create_rejects_too_many_allocations(self):
+        """More than 20 allocation slices are rejected."""
+        slices = [
+            AllocationSlice(
+                asset_class=f"class_{i}",
+                target_percent=Decimal("4") if i < 20 else Decimal("0"),
+                label=f"Class {i}",
+            )
+            for i in range(21)
+        ]
+        with pytest.raises(ValidationError):
+            TargetAllocationCreate(name="TooMany", allocations=slices)
+
+    def test_asset_class_max_length(self):
+        """asset_class longer than 50 chars is rejected."""
+        with pytest.raises(ValidationError):
+            AllocationSlice(
+                asset_class="x" * 51,
+                target_percent=Decimal("100"),
+                label="Test",
+            )
+
+    def test_label_max_length(self):
+        """label longer than 100 chars is rejected."""
+        with pytest.raises(ValidationError):
+            AllocationSlice(
+                asset_class="domestic",
+                target_percent=Decimal("100"),
+                label="x" * 101,
+            )
+
+    def test_update_allows_partial_without_allocations(self):
+        """Update with only drift_threshold is valid (no allocation validation)."""
+        update = TargetAllocationUpdate(drift_threshold=Decimal("3.0"))
+        assert update.drift_threshold == Decimal("3.0")
+        assert update.allocations is None
+
+    def test_presets_have_no_duplicate_asset_classes(self):
+        """All preset portfolios have unique asset classes."""
+        for key, preset in PRESET_PORTFOLIOS.items():
+            classes = [a["asset_class"] for a in preset["allocations"]]
+            assert len(classes) == len(set(classes)), (
+                f"Preset '{key}' has duplicate asset_class entries"
+            )
