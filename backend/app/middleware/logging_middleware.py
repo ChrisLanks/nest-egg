@@ -50,7 +50,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         if forwarded_for:
             ips = [ip.strip() for ip in forwarded_for.split(",") if ip.strip()]
             if ips:
-                client_ip = ips[0]
+                client_ip = ips[-1]
 
         try:
             response = await call_next(request)

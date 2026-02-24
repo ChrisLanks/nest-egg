@@ -69,11 +69,12 @@ class PlaidService:
             )
 
             # Verify webhook body hash matches JWT claims
-            if decoded.get("request_body_sha256"):
-                body_hash = hashlib.sha256(webhook_body).hexdigest()
-
-                if body_hash != decoded["request_body_sha256"]:
-                    raise HTTPException(status_code=401, detail="Webhook body hash mismatch")
+            body_hash_claim = decoded.get("request_body_sha256")
+            if not body_hash_claim:
+                raise HTTPException(status_code=401, detail="Missing body hash claim in webhook JWT")
+            body_hash = hashlib.sha256(webhook_body).hexdigest()
+            if body_hash != body_hash_claim:
+                raise HTTPException(status_code=401, detail="Webhook body hash mismatch")
 
             logger.info("Webhook signature verified")
             return True

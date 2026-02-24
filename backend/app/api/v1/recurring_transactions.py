@@ -87,8 +87,8 @@ def _expand_occurrences(
 
 @router.post("/detect")
 async def detect_recurring_patterns(
-    min_occurrences: int = 3,
-    lookback_days: int = 180,
+    min_occurrences: int = Query(3, ge=2, le=50),
+    lookback_days: int = Query(180, ge=30, le=730),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

@@ -690,11 +690,26 @@ class TestDashboardService:
         # Should be ordered by account_type then name
         assert len(balances) == 2
 
-    @pytest.mark.skip(reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment")
     @pytest.mark.asyncio
     async def test_cross_organization_isolation(self, db, test_user):
         """Should not access data from other organizations."""
-        other_org_id = uuid4()
+        from app.models.user import Organization, User as UserModel
+
+        # Create the other org + user so FK constraints are satisfied
+        other_org = Organization(id=uuid4(), name="Other Org")
+        db.add(other_org)
+        await db.flush()
+
+        other_user = UserModel(
+            id=uuid4(),
+            organization_id=other_org.id,
+            email="other@example.com",
+            password_hash="fakehash",
+            first_name="Other",
+            last_name="User",
+        )
+        db.add(other_user)
+        await db.flush()
 
         # Account in test_user's org
         user_account = Account(
@@ -709,8 +724,8 @@ class TestDashboardService:
         # Account in other org
         other_account = Account(
             id=uuid4(),
-            organization_id=other_org_id,
-            user_id=uuid4(),
+            organization_id=other_org.id,
+            user_id=other_user.id,
             name="Other Account",
             account_type=AccountType.CHECKING,
             current_balance=Decimal("10000.00"),

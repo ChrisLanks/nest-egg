@@ -1,5 +1,7 @@
 """Tests for Plaid service."""
 
+import hashlib
+import json
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch
@@ -128,14 +130,19 @@ class TestPlaidService:
         monkeypatch.setattr("app.config.settings.PLAID_WEBHOOK_SECRET", "test_secret")
         monkeypatch.setattr("app.config.settings.DEBUG", False)
 
-        # Mock successful JWT verification
+        # Build body bytes and compute expected hash
+        body = json.dumps({"item_id": "test_item_123"}).encode()
+        body_hash = hashlib.sha256(body).hexdigest()
+
+        # Mock successful JWT verification with body hash claim
         mock_jwt_decode.return_value = {
             "item_id": "test_item_123",
             "webhook_code": "DEFAULT_UPDATE",
+            "request_body_sha256": body_hash,
         }
 
         result = PlaidService.verify_webhook_signature(
-            webhook_verification_header="valid.jwt.token", webhook_body={"item_id": "test_item_123"}
+            webhook_verification_header="valid.jwt.token", webhook_body=body
         )
 
         assert result is True

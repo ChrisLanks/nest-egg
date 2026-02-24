@@ -68,14 +68,6 @@ class TestCategoryHierarchicalGrouping:
             Mock(category_name="Food", total=-2500, count=20),  # Aggregated from children
         ])
 
-        # Mock debug categories query
-        debug_result = Mock()
-        debug_result.all.return_value = [
-            Mock(name="Food", parent_name=None),
-            Mock(name="Restaurants", parent_name="Food"),
-            Mock(name="Groceries", parent_name="Food"),
-        ]
-
         # Mock per-category has_children checks: one find + one count per unique category
         # Unique categories in results: "Food"
         food_cat_result = Mock()
@@ -87,7 +79,6 @@ class TestCategoryHierarchicalGrouping:
         mock_db.execute.side_effect = [
             income_total,  # Total income (accounts already patched via get_all_household_accounts)
             expense_total,  # Total expenses
-            debug_result,  # Debug categories
             income_cats_result,  # Income categories
             expense_cats_result,  # Expense categories
             food_cat_result,  # Find "Food" category by name
@@ -148,12 +139,6 @@ class TestCategoryHierarchicalGrouping:
             Mock(category_name="Food", total=-800, count=8),
         ])
 
-        debug_result = Mock()
-        debug_result.all.return_value = [
-            Mock(name="Food", parent_name=None),
-            Mock(name="Restaurants", parent_name="Food"),
-        ]
-
         # Mock per-category has_children checks for "Food"
         food_cat_result = Mock()
         food_cat_result.scalar_one_or_none.return_value = uuid4()
@@ -163,7 +148,6 @@ class TestCategoryHierarchicalGrouping:
         mock_db.execute.side_effect = [
             income_total,  # Total income (accounts already patched via get_all_household_accounts)
             expense_total,
-            debug_result,
             income_cats_result,
             expense_cats_result,
             food_cat_result,  # Find "Food" category by name
@@ -213,12 +197,6 @@ class TestCategoryHierarchicalGrouping:
             Mock(category_name="Utilities", total=-1500, count=5),
         ])
 
-        debug_result = Mock()
-        debug_result.all.return_value = [
-            Mock(name="Salary", parent_name=None),
-            Mock(name="Utilities", parent_name=None),
-        ]
-
         # Mock per-category has_children checks: "Salary" and "Utilities" (no children)
         salary_cat_result = Mock()
         salary_cat_result.scalar_one_or_none.return_value = uuid4()
@@ -233,7 +211,6 @@ class TestCategoryHierarchicalGrouping:
         mock_db.execute.side_effect = [
             income_total,  # Total income (accounts already patched via get_all_household_accounts)
             expense_total,
-            debug_result,
             income_cats_result,
             expense_cats_result,
             salary_cat_result,  # Find "Salary" category
@@ -287,9 +264,6 @@ class TestCategoryHierarchicalGrouping:
             Mock(category_name="Category Y", total=-300, count=3),
         ])
 
-        debug_result = Mock()
-        debug_result.all.return_value = []
-
         # Mock per-category has_children checks: 4 unique categories, none found in DB
         def make_not_found_result():
             r = Mock()
@@ -299,7 +273,6 @@ class TestCategoryHierarchicalGrouping:
         mock_db.execute.side_effect = [
             income_total,  # Total income (accounts already patched via get_all_household_accounts)
             expense_total,
-            debug_result,
             income_cats_result,
             expense_cats_result,
             make_not_found_result(),  # "Category A" not found in DB
@@ -355,14 +328,10 @@ class TestCategoryHierarchicalGrouping:
         expense_cats_result = Mock()
         expense_cats_result.__iter__ = lambda self: iter([])
 
-        debug_result = Mock()
-        debug_result.all.return_value = []
-
         # No categories → no per-category has_children checks needed
         mock_db.execute.side_effect = [
             income_total,  # Total income (accounts already patched via get_all_household_accounts)
             expense_total,
-            debug_result,
             income_cats_result,
             expense_cats_result,
         ]

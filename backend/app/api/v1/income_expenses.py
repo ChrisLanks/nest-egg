@@ -150,16 +150,6 @@ async def get_income_expense_summary(
         Transaction.category_primary  # Fallback to provider category
     ).label("category_name")
 
-    logger.info(f"[CATEGORY GROUPING] Querying income categories - org: {current_user.organization_id}, accounts: {len(account_ids)}, date range: {start_date} to {end_date}")
-
-    # Debug: Check what categories exist
-    debug_cats = await db.execute(
-        select(Category.name, Category.parent_category_id, ParentCategory.name.label("parent_name"))
-        .outerjoin(ParentCategory, Category.parent_category_id == ParentCategory.id)
-        .where(Category.organization_id == current_user.organization_id)
-    )
-    logger.info(f"[CATEGORY GROUPING] Available categories: {[(r.name, r.parent_name) for r in debug_cats.all()]}")
-
     income_categories_result = await db.execute(
         select(
             category_name_expr,
@@ -999,6 +989,7 @@ async def get_label_merchant_breakdown(
                 if transaction_type == "income"
                 else func.sum(Transaction.amount).asc()
             )
+            .limit(MAX_MERCHANT_RESULTS)
         )
 
         # Calculate total for percentage

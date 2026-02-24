@@ -111,7 +111,8 @@ class TestRequestLoggingMiddleware:
             await middleware.dispatch(mock_request, mock_call_next)
 
             log_message = mock_logger.info.call_args[0][0]
-            assert "192.168.1.1" in log_message
+            # Rightmost XFF IP is used (trusted proxy), not leftmost (spoofable)
+            assert "10.0.0.1" in log_message
 
     @pytest.mark.asyncio
     async def test_handles_missing_client(self, middleware, mock_request, mock_call_next):

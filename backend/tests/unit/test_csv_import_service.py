@@ -350,3 +350,65 @@ class TestCSVImportService:
         # Most financial systems use 2 decimal places
         rounded = round(precise, 2)
         assert rounded == Decimal("50.12")
+
+
+class TestParseAmountMethod:
+    """Tests for the actual _parse_amount static method."""
+
+    def test_simple_number(self):
+        assert CSVImportService._parse_amount("100.50") == Decimal("100.50")
+
+    def test_dollar_sign(self):
+        assert CSVImportService._parse_amount("$100.50") == Decimal("100.50")
+
+    def test_commas(self):
+        assert CSVImportService._parse_amount("1,234.56") == Decimal("1234.56")
+
+    def test_accounting_negative(self):
+        assert CSVImportService._parse_amount("(100.50)") == Decimal("-100.50")
+
+    def test_negative_sign(self):
+        assert CSVImportService._parse_amount("-50.00") == Decimal("-50.00")
+
+    def test_empty_returns_none(self):
+        assert CSVImportService._parse_amount("") is None
+
+    def test_none_returns_none(self):
+        assert CSVImportService._parse_amount(None) is None
+
+
+class TestDeduplicationHash:
+    """Tests for _generate_deduplication_hash."""
+
+    def test_consistent(self):
+        acct = uuid4()
+        h1 = CSVImportService._generate_deduplication_hash(acct, date(2024, 1, 1), Decimal("100"), "Test")
+        h2 = CSVImportService._generate_deduplication_hash(acct, date(2024, 1, 1), Decimal("100"), "Test")
+        assert h1 == h2
+
+    def test_different_inputs_different_hash(self):
+        acct = uuid4()
+        h1 = CSVImportService._generate_deduplication_hash(acct, date(2024, 1, 1), Decimal("100"), "A")
+        h2 = CSVImportService._generate_deduplication_hash(acct, date(2024, 1, 1), Decimal("100"), "B")
+        assert h1 != h2
+
+    def test_different_accounts_different_hash(self):
+        h1 = CSVImportService._generate_deduplication_hash(uuid4(), date(2024, 1, 1), Decimal("100"), "X")
+        h2 = CSVImportService._generate_deduplication_hash(uuid4(), date(2024, 1, 1), Decimal("100"), "X")
+        assert h1 != h2
+
+
+class TestPreviewCSV:
+    @pytest.mark.asyncio
+    async def test_preview_returns_sample(self):
+        csv_content = "Date,Amount,Description\n2024-01-01,100.00,Groceries\n2024-01-02,50.00,Gas\n"
+        result = await CSVImportService.preview_csv(csv_content)
+        assert len(result["preview_rows"]) == 2
+        assert result["total_rows"] == 2
+
+    @pytest.mark.asyncio
+    async def test_preview_caps_at_5(self):
+        rows = "\n".join(f"2024-01-{i:02d},100.00,Row{i}" for i in range(1, 20))
+        csv_content = f"Date,Amount,Description\n{rows}\n"
+        result = await CSVImportService.preview_csv(csv_content)
+        assert len(result["preview_rows"]) == 5
