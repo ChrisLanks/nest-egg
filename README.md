@@ -139,8 +139,16 @@ Fine-grained access delegation between household members:
 - **Expiry**: Optional `expires_at` date on any grant
 - **Immutable Audit Log**: Every grant creation, update, and revocation is logged with actor, IP, and before/after state
 - **`grant` is never delegatable**: Only the resource owner or an org admin can create/revoke grants — prevents privilege escalation
+- **No implicit admin bypass**: Org admin status allows grant management (create/revoke) but does NOT grant implicit write access to other users' resources — cross-user editing is strictly grant-based end to end
 - **Permissions Page**: `/permissions` — manage granted and received access with full audit history
 - **Per-Page Guards**: Edit/Create/Delete buttons are hidden on every page when the viewer does not have write access for that specific resource type
+
+### 🎨 **Dark Mode**
+- **Three-Way Toggle**: Light, Dark, or System (follows OS preference) — configurable in Personal Settings
+- **Semantic Color Tokens**: All 600+ color references use theme-aware tokens that auto-switch between light and dark palettes
+- **Zero Flash**: `ColorModeScript` in `index.html` prevents white flash on page load in dark mode
+- **Full Coverage**: Every page, modal, chart tooltip, and component supports both modes
+- **Persistent Preference**: Stored in `localStorage` — survives sessions without backend changes
 
 ### 🔐 **IdP-Agnostic Authentication**
 Drop-in support for external identity providers alongside the built-in JWT system:
@@ -343,7 +351,7 @@ MARKETCHECK_API_KEY=your_marketcheck_key   # For vehicle valuation
 - **React 18** - UI library with hooks
 - **TypeScript** - Type safety and IDE support
 - **Vite** - Lightning-fast build tool
-- **Chakra UI** - Accessible component library
+- **Chakra UI** - Accessible component library with dark mode support
 - **React Query (TanStack)** - Server state management with caching
 - **Zustand** - Client state management
 - **Recharts** - Data visualization and charts
@@ -1593,9 +1601,9 @@ There are two layers of permissions in the household:
 - Use the Permissions page to grant additional write access (`create`, `update`, `delete`) to specific resource types (accounts, transactions, bills, holdings, budgets, goals, rules, categories, etc.)
 - **All Sections** scope: grant the same write permissions across every resource type in one operation
 - **Full Edit** preset: instantly selects create+update+delete without checking each box manually
-- Edit/delete/create buttons on each page are disabled when the viewer lacks write access for that resource type
+- Edit/delete/create buttons on each page are disabled when the viewer lacks write access for that resource type — including Combined Household view, where per-resource ownership is checked against grants
 - Grants are per-action and can target all resources of a type or a specific resource by ID
-- Only the resource owner or an org admin can create/revoke grants
+- Only the resource owner or an org admin can create/revoke grants (admin status does NOT bypass resource access checks)
 - All grant changes are recorded in an immutable audit log
 
 ### 8. **CSV Import Format Requirements**
@@ -1654,6 +1662,9 @@ Date,Merchant,Amount,Category,Description
 - [x] **Enterprise hardening** — scalability safeguards (date range, pagination, merchant caps), streaming export, data retention, real health checks
 - [x] **Performance optimization** — dashboard query consolidation (9 queries → 5), O(n) forecast, single-query insights
 - [x] **Self-hosting documentation** — production checklist, backup/restore, scaling, encryption rotation (see `SELF_HOSTING.md`)
+- [x] **Dark mode** — Light/Dark/System toggle with semantic color tokens across all 90+ components; zero-flash page load
+- [x] **Clean TypeScript build** — all 125 pre-existing TS errors resolved; strict-mode clean `npm run build`
+- [x] **Grant-based permission enforcement** — cross-user editing strictly governed by explicit grants (no org admin bypass); works correctly in Combined Household, Other-User, and Self views
 
 ### 🚧 In Progress
 
@@ -1668,6 +1679,11 @@ Date,Merchant,Amount,Category,Description
 - [ ] White-label SaaS offering
 
 ## 🐛 Recent Bug Fixes
+
+### Combined Household View Permissions (Fixed)
+- **Issue**: Users in Combined Household view could not edit other members' resources even when explicit write grants existed; conversely, org admins could edit without any grants
+- **Root Cause**: (1) Permission grants were only fetched in other-user view, never in combined view; (2) Five frontend components used ownership-only checks instead of the grant system; (3) Both frontend and backend had an `is_org_admin` bypass that short-circuited grant checks
+- **Fix**: Fetch grants in all non-self views, added `canWriteOwnedResource()` for per-resource grant-aware checks, removed org admin bypass from both frontend and backend permission services — cross-user editing is now strictly grant-based end to end
 
 ### Navigation Dropdown Menu (Fixed)
 - **Issue**: Dropdown menus stayed open after clicking items
@@ -1743,4 +1759,4 @@ Built with:
 
 **Built with ❤️ for personal finance management**
 
-_Last Updated: February 2026 - Enterprise hardening (scalability, compliance, self-hosting), performance optimization, 5 security audit passes, and 10+ new features!_
+_Last Updated: February 2026 - Grant-based permission enforcement, dark mode, enterprise hardening (scalability, compliance, self-hosting), performance optimization, 5 security audit passes, and 10+ new features!_

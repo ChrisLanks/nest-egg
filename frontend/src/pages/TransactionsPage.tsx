@@ -188,7 +188,7 @@ export const TransactionsPage = () => {
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canWriteResource, isOtherUserView, selectedUserId } = useUserView();
+  const { canWriteResource, canWriteOwnedResource, isOtherUserView, selectedUserId } = useUserView();
   const canEdit = canWriteResource('transaction');
   const isMobile = useBreakpointValue({ base: true, md: false });
 
@@ -221,11 +221,12 @@ export const TransactionsPage = () => {
     return map;
   }, [accounts]);
 
-  // Check if user owns a transaction (via its account)
+  // Check if user can modify a transaction (owns the account or has a write grant)
   const canModifyTransaction = (transaction: Transaction): boolean => {
     if (!currentUser || !transaction.account_id) return false;
     const accountUserId = accountOwnershipMap.get(transaction.account_id);
-    return accountUserId === currentUser.id;
+    if (!accountUserId) return false;
+    return canWriteOwnedResource('transaction', accountUserId);
   };
 
   // Fetch organization preferences for monthly_start_day

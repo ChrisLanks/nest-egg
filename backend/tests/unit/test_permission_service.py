@@ -46,13 +46,18 @@ class TestPermissionServiceCheck:
         return AsyncMock()
 
     @pytest.mark.asyncio
-    async def test_org_admin_always_allowed(self, db):
-        """Org admin bypasses all grant checks."""
+    async def test_org_admin_without_grant_denied(self, db):
+        """Org admin status does NOT bypass grant checks for resource access."""
         actor = _make_user(is_org_admin=True)
-        svc = PermissionService()
-        result = await svc.check(db, actor, "delete", "account", owner_id=uuid4())
-        assert result is True
-        db.execute.assert_not_called()
+        owner = _make_user()
+
+        with patch(
+            "app.services.permission_service.permission_grant_crud.find_active",
+            new=AsyncMock(return_value=None),
+        ):
+            svc = PermissionService()
+            result = await svc.check(db, actor, "delete", "account", owner_id=owner.id)
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_owner_always_allowed(self, db):

@@ -375,10 +375,10 @@ async def test_permission_service_check_owner_always_allowed(
 
 
 @pytest.mark.asyncio
-async def test_permission_service_check_org_admin_always_allowed(
+async def test_permission_service_check_org_admin_denied_without_grant(
     db_session: AsyncSession,
 ):
-    """Org admin → True regardless of grants."""
+    """Org admin status does NOT bypass grant checks for resource access."""
     org = _org()
     admin = _user(org.id, is_org_admin=True)
     other = _user(org.id)
@@ -395,7 +395,7 @@ async def test_permission_service_check_org_admin_always_allowed(
         owner_id=other.id,
     )
 
-    assert result is True
+    assert result is False
 
 
 # ---------------------------------------------------------------------------
@@ -513,10 +513,10 @@ async def test_filter_allowed_resources_owner_always_allowed(
 
 
 @pytest.mark.asyncio
-async def test_filter_allowed_resources_org_admin_always_allowed(
+async def test_filter_allowed_resources_org_admin_denied_without_grant(
     db_session: AsyncSession,
 ):
-    """Org admin can access all resources regardless of grants."""
+    """Org admin status does NOT bypass grant checks for resource filtering."""
     org = _org()
     admin = _user(org.id, is_org_admin=True)
     other = _user(org.id)
@@ -531,7 +531,7 @@ async def test_filter_allowed_resources_org_admin_always_allowed(
         db_session, admin, "delete", "account", pairs,
     )
 
-    assert set(allowed) == set(acc_ids)
+    assert allowed == []
 
 
 @pytest.mark.asyncio

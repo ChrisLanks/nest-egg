@@ -86,8 +86,7 @@ export const AccountsPage = () => {
   const navigate = useNavigate();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
-  const { canWriteResource, selectedUserId } = useUserView();
-  const canEdit = canWriteResource('account');
+  const { canWriteOwnedResource, selectedUserId } = useUserView();
 
   // Fetch current user for permission checks
   const { data: currentUser } = useQuery({
@@ -159,15 +158,10 @@ export const AccountsPage = () => {
     return user.email.split('@')[0];
   };
 
-  // Check if current user can modify an account
+  // Check if current user can modify an account (owns it or has a write grant)
   const canModifyAccount = (account: Account): boolean => {
     if (!currentUser) return false;
-    // Combined view: can edit all household accounts
-    if (selectedUserId === null) return true;
-    // Self view: only own accounts
-    if (selectedUserId === currentUser.id) return account.user_id === currentUser.id;
-    // Other-user view: canEdit already evaluated grants in UserViewContext
-    return canEdit;
+    return canWriteOwnedResource('account', account.user_id);
   };
 
   // Bulk delete mutation

@@ -62,12 +62,9 @@ class PermissionService:
         """Return True if *actor* may perform *action* on the resource.
 
         Short-circuits in order:
-          1. org admin → always allowed
-          2. actor IS the owner → always allowed
-          3. active non-expired PermissionGrant → allowed if action is listed
+          1. actor IS the owner → always allowed
+          2. active non-expired PermissionGrant → allowed if action is listed
         """
-        if actor.is_org_admin:
-            return True
         if owner_id is not None and actor.id == owner_id:
             return True
 
@@ -122,9 +119,6 @@ class PermissionService:
         Returns:
             List of ``resource_id`` values the actor is allowed to act on.
         """
-        if actor.is_org_admin:
-            return [rid for rid, _ in resource_owner_pairs]
-
         allowed: list[UUID] = []
         non_owned: list[tuple[UUID, UUID]] = []
 

@@ -45,7 +45,6 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import api from '../services/api';
-import { useAuthStore } from '../features/auth/stores/authStore';
 import { useUserView } from '../contexts/UserViewContext';
 import type { Transaction } from '../types/transaction';
 import { ContributionsManager } from '../features/accounts/components/ContributionsManager';
@@ -138,9 +137,7 @@ export const AccountDetailPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
-  const { canWriteResource } = useUserView();
-  const canEdit = canWriteResource('account');
+  const { canWriteOwnedResource } = useUserView();
   const [searchParams] = useSearchParams();
   const selectedUserId = searchParams.get('user');
   const isCombinedView = !selectedUserId;
@@ -627,15 +624,10 @@ export const AccountDetailPage = () => {
       ).length > 1
     : false;
 
-  // Check if current user owns this account
-  const isOwner = account.user_id === user?.id;
-
   // Disable editing if:
-  // 1. User doesn't have edit permission (no ownership or grant), OR
-  // 2. In combined view and user doesn't own the account
-  //    (in other-user view, canEdit already validated the grant), OR
-  // 3. Account is shared AND in combined view (must edit in individual user view)
-  const canEditAccount = canEdit && (isOwner || !isCombinedView) && !isSharedAccount;
+  // 1. User doesn't own the account and has no write grant from the owner, OR
+  // 2. Account is shared (linked by multiple users) — must edit in individual user view
+  const canEditAccount = canWriteOwnedResource('account', account.user_id) && !isSharedAccount;
 
   const isAssetAccount = ASSET_ACCOUNT_TYPES.includes(account.account_type);
   const isManual = account.account_source === 'manual';

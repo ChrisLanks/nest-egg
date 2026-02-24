@@ -34,12 +34,19 @@ interface UserViewContextType {
    */
   canWriteResource: (resourceType: string) => boolean;
   /**
+   * Check if the current user can write a resource of the given type owned by ownerId.
+   * Use for per-resource checks (e.g., "can I edit this specific account?").
+   * Returns true if: ownerId is the current user, user is org admin, or an active
+   * write grant from ownerId exists for this resourceType.
+   */
+  canWriteOwnedResource: (resourceType: string, ownerId: string) => boolean;
+  /**
    * Check if current user can edit in this view (any resource type).
    * Prefer canWriteResource(type) for page-level guards.
    * @deprecated Use canWriteResource(resourceType) for accurate per-page checks.
    */
   canEdit: boolean;
-  /** Active grants received from the currently-viewed user (empty when not isOtherUserView) */
+  /** Active grants received from other household members (available in other-user and combined views) */
   receivedGrants: PermissionGrant[];
   /** True while the receivedGrants query is in its initial load */
   isLoadingGrants: boolean;
@@ -119,14 +126,15 @@ export const UserViewProvider = ({ children }: { children: ReactNode }) => {
   const isCombinedView = selectedUserId === null;
   const isOtherUserView = selectedUserId !== null && selectedUserId !== user?.id;
 
-  // Fetch received permission grants when viewing another user's data.
+  // Fetch received permission grants when viewing another user's data or combined
+  // household (where we need grants to determine per-resource edit permissions).
   // Guard with !!accessToken so the query never fires before ProtectedRoute
   // restores the session — prevents a race condition where two concurrent
   // /auth/refresh calls rotate the cookie and invalidate each other.
   const { data: receivedGrants = [], isLoading: isLoadingGrants } = useQuery({
     queryKey: ['permissions', 'received'],
     queryFn: permissionsApi.listReceived,
-    enabled: isOtherUserView && !!user && !!accessToken,
+    enabled: !isSelfView && !!user && !!accessToken,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -144,6 +152,20 @@ export const UserViewProvider = ({ children }: { children: ReactNode }) => {
       (g.actions.includes('create') || g.actions.includes('update') || g.actions.includes('delete'))
     );
   }, [isSelfView, isCombinedView, isOtherUserView, selectedUserId, receivedGrants]);
+
+  // canWriteOwnedResource: per-resource permission check — "can I write to this
+  // specific resource owned by ownerId?" Checks ownership and grants.
+  const canWriteOwnedResource = useCallback((resourceType: string, ownerId: string): boolean => {
+    if (user?.id === ownerId) return true;
+    const now = new Date();
+    return receivedGrants.some((g) =>
+      g.grantor_id === ownerId &&
+      g.resource_type === resourceType &&
+      g.is_active &&
+      (!g.expires_at || new Date(g.expires_at) > now) &&
+      (g.actions.includes('create') || g.actions.includes('update') || g.actions.includes('delete'))
+    );
+  }, [user, receivedGrants]);
 
   // canEdit: true if write access exists for ANY resource type.
   // Prefer canWriteResource(type) for accurate per-page guards.
@@ -163,10 +185,11 @@ export const UserViewProvider = ({ children }: { children: ReactNode }) => {
     isCombinedView,
     isOtherUserView,
     canWriteResource,
+    canWriteOwnedResource,
     canEdit,
     receivedGrants,
     isLoadingGrants,
-  }), [selectedUserId, setSelectedUserId, isSelfView, isCombinedView, isOtherUserView, canWriteResource, canEdit, receivedGrants, isLoadingGrants]);
+  }), [selectedUserId, setSelectedUserId, isSelfView, isCombinedView, isOtherUserView, canWriteResource, canWriteOwnedResource, canEdit, receivedGrants, isLoadingGrants]);
 
   return (
     <UserViewContext.Provider value={contextValue}>

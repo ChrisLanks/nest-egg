@@ -226,3 +226,173 @@ describe('canWriteResource — other-user view with grants', () => {
     expect(canWriteResource('rule', otherCtx(grants))).toBe(false);       // no grant
   });
 });
+
+// ===========================================================================
+// canWriteOwnedResource — per-resource permission check
+// ===========================================================================
+
+/**
+ * Pure function mirroring UserViewContext.canWriteOwnedResource.
+ *
+ * Answers: "Can the current user write to a resource of the given type
+ * owned by ownerId?" Checks ownership, org admin, and grants.
+ */
+function canWriteOwnedResource(
+  resourceType: string,
+  ownerId: string,
+  {
+    userId,
+    receivedGrants,
+  }: {
+    userId: string | undefined;
+    receivedGrants: PermissionGrant[];
+  },
+): boolean {
+  if (userId === ownerId) return true;
+  const now = new Date();
+  return receivedGrants.some(
+    (g) =>
+      g.grantor_id === ownerId &&
+      g.resource_type === resourceType &&
+      g.is_active &&
+      (!g.expires_at || new Date(g.expires_at) > now) &&
+      (g.actions.includes('create') ||
+        g.actions.includes('update') ||
+        g.actions.includes('delete')),
+  );
+}
+
+const ownedCtx = (grants: PermissionGrant[]) => ({
+  userId: VIEWER,
+  receivedGrants: grants,
+});
+
+// ---------------------------------------------------------------------------
+// Own data
+// ---------------------------------------------------------------------------
+
+describe('canWriteOwnedResource — own data', () => {
+  it('returns true when ownerId is the current user', () => {
+    expect(canWriteOwnedResource('account', VIEWER, ownedCtx([]))).toBe(true);
+  });
+
+  it('returns true for any resource type when owner', () => {
+    for (const rt of ['account', 'transaction', 'budget', 'rule', 'savings_goal']) {
+      expect(canWriteOwnedResource(rt, VIEWER, ownedCtx([]))).toBe(true);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Not owner, no grants
+// ---------------------------------------------------------------------------
+
+describe('canWriteOwnedResource — not owner, no grants', () => {
+  it('returns false even for org admins without explicit grants', () => {
+    // Org admin status does NOT bypass the grant system for cross-user editing
+    expect(canWriteOwnedResource('account', OWNER, ownedCtx([]))).toBe(false);
+  });
+
+  it('returns false for any resource type without grants', () => {
+    for (const rt of ['transaction', 'budget', 'category']) {
+      expect(canWriteOwnedResource(rt, OWNER, ownedCtx([]))).toBe(false);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Grant-based access (combined view scenario)
+// ---------------------------------------------------------------------------
+
+describe('canWriteOwnedResource — with grants', () => {
+  it('returns true when active write grant exists from ownerId', () => {
+    const grants = [makeGrant({ grantor_id: OWNER, resource_type: 'account', actions: ['update'] })];
+    expect(canWriteOwnedResource('account', OWNER, ownedCtx(grants))).toBe(true);
+  });
+
+  it('returns true with create grant', () => {
+    const grants = [makeGrant({ grantor_id: OWNER, resource_type: 'transaction', actions: ['create'] })];
+    expect(canWriteOwnedResource('transaction', OWNER, ownedCtx(grants))).toBe(true);
+  });
+
+  it('returns true with delete grant', () => {
+    const grants = [makeGrant({ grantor_id: OWNER, resource_type: 'account', actions: ['delete'] })];
+    expect(canWriteOwnedResource('account', OWNER, ownedCtx(grants))).toBe(true);
+  });
+
+  it('returns true with future expiry date', () => {
+    const grants = [makeGrant({ grantor_id: OWNER, resource_type: 'account', actions: ['update'], expires_at: futureDate() })];
+    expect(canWriteOwnedResource('account', OWNER, ownedCtx(grants))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// No access
+// ---------------------------------------------------------------------------
+
+describe('canWriteOwnedResource — no access', () => {
+  it('returns false when no grant and not owner or admin', () => {
+    expect(canWriteOwnedResource('account', OWNER, ownedCtx([]))).toBe(false);
+  });
+
+  it('returns false when grant is for different resource type', () => {
+    const grants = [makeGrant({ grantor_id: OWNER, resource_type: 'budget', actions: ['update'] })];
+    expect(canWriteOwnedResource('account', OWNER, ownedCtx(grants))).toBe(false);
+  });
+
+  it('returns false when grant is read-only', () => {
+    const grants = [makeGrant({ grantor_id: OWNER, resource_type: 'account', actions: ['read'] })];
+    expect(canWriteOwnedResource('account', OWNER, ownedCtx(grants))).toBe(false);
+  });
+
+  it('returns false when grant is expired', () => {
+    const grants = [makeGrant({ grantor_id: OWNER, resource_type: 'account', actions: ['update'], expires_at: pastDate() })];
+    expect(canWriteOwnedResource('account', OWNER, ownedCtx(grants))).toBe(false);
+  });
+
+  it('returns false when grant is inactive', () => {
+    const grants = [makeGrant({ grantor_id: OWNER, resource_type: 'account', actions: ['update'], is_active: false })];
+    expect(canWriteOwnedResource('account', OWNER, ownedCtx(grants))).toBe(false);
+  });
+
+  it('returns false when grant is from a different grantor', () => {
+    const grants = [makeGrant({ grantor_id: 'someone-else', resource_type: 'account', actions: ['update'] })];
+    expect(canWriteOwnedResource('account', OWNER, ownedCtx(grants))).toBe(false);
+  });
+
+  it('returns false when userId is undefined (not authenticated)', () => {
+    expect(canWriteOwnedResource('account', OWNER, { userId: undefined, isOrgAdmin: false, receivedGrants: [] })).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Combined view: multiple household members
+// ---------------------------------------------------------------------------
+
+describe('canWriteOwnedResource — combined view with multiple owners', () => {
+  const MEMBER_A = 'member-a-id';
+  const MEMBER_B = 'member-b-id';
+
+  it('allows editing member A resources with grant, denies member B without grant', () => {
+    const grants = [makeGrant({ grantor_id: MEMBER_A, resource_type: 'account', actions: ['update'] })];
+    expect(canWriteOwnedResource('account', MEMBER_A, ownedCtx(grants))).toBe(true);
+    expect(canWriteOwnedResource('account', MEMBER_B, ownedCtx(grants))).toBe(false);
+  });
+
+  it('allows editing own resources regardless of grants', () => {
+    expect(canWriteOwnedResource('account', VIEWER, ownedCtx([]))).toBe(true);
+  });
+
+  it('respects resource type isolation across members', () => {
+    const grants = [
+      makeGrant({ id: 'g1', grantor_id: MEMBER_A, resource_type: 'account', actions: ['update'] }),
+      makeGrant({ id: 'g2', grantor_id: MEMBER_B, resource_type: 'transaction', actions: ['create'] }),
+    ];
+    // Member A: account writable, transaction not
+    expect(canWriteOwnedResource('account', MEMBER_A, ownedCtx(grants))).toBe(true);
+    expect(canWriteOwnedResource('transaction', MEMBER_A, ownedCtx(grants))).toBe(false);
+    // Member B: transaction writable, account not
+    expect(canWriteOwnedResource('transaction', MEMBER_B, ownedCtx(grants))).toBe(true);
+    expect(canWriteOwnedResource('account', MEMBER_B, ownedCtx(grants))).toBe(false);
+  });
+});
