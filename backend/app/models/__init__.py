@@ -17,6 +17,7 @@ from app.models.mfa import UserMFA
 from app.models.identity import UserIdentity
 from app.models.permission import PermissionGrant, PermissionGrantAudit
 from app.models.target_allocation import TargetAllocation
+from app.models.account_migration import AccountMigrationLog, MigrationStatus
 
 __all__ = [
     "User",
@@ -47,4 +48,6 @@ __all__ = [
     "PermissionGrant",
     "PermissionGrantAudit",
     "TargetAllocation",
+    "AccountMigrationLog",
+    "MigrationStatus",
 ]

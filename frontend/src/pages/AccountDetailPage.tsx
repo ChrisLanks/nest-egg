@@ -39,8 +39,10 @@ import {
   NumberInputField,
   IconButton,
   Tooltip,
+  SimpleGrid,
+  Collapse,
 } from '@chakra-ui/react';
-import { FiEdit2, FiCheck, FiX, FiLock, FiRefreshCw, FiTrash2 } from 'react-icons/fi';
+import { FiEdit2, FiCheck, FiX, FiLock, FiRefreshCw, FiTrash2, FiRepeat } from 'react-icons/fi';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
@@ -145,7 +147,12 @@ export const AccountDetailPage = () => {
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const { isOpen: isAddTxnOpen, onOpen: onAddTxnOpen, onClose: onAddTxnClose } = useDisclosure();
   const { isOpen: isAddHoldingOpen, onOpen: onAddHoldingOpen, onClose: onAddHoldingClose } = useDisclosure();
+  const { isOpen: isMigrateOpen, onOpen: onMigrateOpen, onClose: onMigrateClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const migrateCancelRef = useRef<HTMLButtonElement>(null);
+  const [migrateStep, setMigrateStep] = useState<1 | 2>(1);
+  const [selectedTargetSource, setSelectedTargetSource] = useState<string | null>(null);
+  const [showMigrationHistory, setShowMigrationHistory] = useState(false);
   const [transactionsCursor, setTransactionsCursor] = useState<string | null>(null);
   const [vehicleMileage, setVehicleMileage] = useState('');
   const [vehicleValue, setVehicleValue] = useState('');
@@ -283,6 +290,70 @@ export const AccountDetailPage = () => {
         duration: 5000,
       });
     },
+  });
+
+  // Migrate account provider mutation
+  const migrateAccountMutation = useMutation({
+    mutationFn: async (targetSource: string) => {
+      const response = await api.post(`/accounts/${accountId}/migrate`, {
+        target_source: targetSource,
+        target_enrollment_id: null,
+        target_external_account_id: null,
+        confirm: true,
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['account', accountId] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['migration-history', accountId] });
+      toast({
+        title: 'Account migrated',
+        description: data.message || `Provider changed to ${selectedTargetSource}`,
+        status: 'success',
+        duration: 5000,
+      });
+      onMigrateClose();
+      setMigrateStep(1);
+      setSelectedTargetSource(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Migration failed',
+        description: error.response?.data?.detail || 'An error occurred',
+        status: 'error',
+        duration: 5000,
+      });
+    },
+  });
+
+  // Fetch migration history
+  interface MigrationLogEntry {
+    id: string;
+    source_provider: string;
+    target_provider: string;
+    status: string;
+    initiated_at: string;
+    completed_at: string | null;
+    error_message: string | null;
+  }
+
+  const { data: migrationHistory } = useQuery<MigrationLogEntry[]>({
+    queryKey: ['migration-history', accountId],
+    queryFn: async () => {
+      try {
+        const response = await api.get(`/accounts/${accountId}/migration-history`);
+        return response.data;
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!accountId,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Update vehicle details mutation
@@ -846,13 +917,66 @@ export const AccountDetailPage = () => {
 
               {/* Account Info */}
               <Box>
-                <Text fontSize="sm" fontWeight="medium" color="text.secondary">
-                  Account Source
-                </Text>
-                <Text fontSize="sm">
-                  {account.account_source.toUpperCase()}
-                  {account.institution_name && ` - ${account.institution_name}`}
-                </Text>
+                <HStack justify="space-between" align="start">
+                  <Box>
+                    <Text fontSize="sm" fontWeight="medium" color="text.secondary">
+                      Account Source
+                    </Text>
+                    <Text fontSize="sm">
+                      {account.account_source.toUpperCase()}
+                      {account.institution_name && ` - ${account.institution_name}`}
+                    </Text>
+                  </Box>
+                  {canEditAccount && account.is_active && (
+                    <Tooltip label="Change account provider" placement="top">
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        leftIcon={<FiRepeat />}
+                        onClick={() => {
+                          setMigrateStep(1);
+                          setSelectedTargetSource(null);
+                          onMigrateOpen();
+                        }}
+                      >
+                        Change Provider
+                      </Button>
+                    </Tooltip>
+                  )}
+                </HStack>
+                {migrationHistory && migrationHistory.length > 0 && (
+                  <Box mt={2}>
+                    <Button
+                      variant="link"
+                      size="xs"
+                      color="text.secondary"
+                      onClick={() => setShowMigrationHistory(!showMigrationHistory)}
+                    >
+                      {showMigrationHistory ? 'Hide' : 'Show'} migration history ({migrationHistory.length})
+                    </Button>
+                    <Collapse in={showMigrationHistory} animateOpacity>
+                      <VStack align="stretch" spacing={1} mt={2}>
+                        {migrationHistory.map((entry) => (
+                          <HStack key={entry.id} fontSize="xs" color="text.secondary" spacing={2}>
+                            <Text>
+                              {new Date(entry.initiated_at).toLocaleDateString()}
+                            </Text>
+                            <Text>
+                              {entry.source_provider.toUpperCase()} → {entry.target_provider.toUpperCase()}
+                            </Text>
+                            <Badge
+                              size="sm"
+                              colorScheme={entry.status === 'completed' ? 'green' : entry.status === 'failed' ? 'red' : 'yellow'}
+                              fontSize="2xs"
+                            >
+                              {entry.status}
+                            </Badge>
+                          </HStack>
+                        ))}
+                      </VStack>
+                    </Collapse>
+                  </Box>
+                )}
               </Box>
 
               {/* Sync Status - Only for Plaid accounts */}
@@ -1828,6 +1952,196 @@ export const AccountDetailPage = () => {
                 Delete
               </Button>
             </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      {/* Migrate Provider Dialog */}
+      <AlertDialog
+        isOpen={isMigrateOpen}
+        leastDestructiveRef={migrateCancelRef}
+        onClose={() => {
+          onMigrateClose();
+          setMigrateStep(1);
+          setSelectedTargetSource(null);
+        }}
+        size="lg"
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            {migrateStep === 1 ? (
+              <>
+                <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                  Migrate Account Provider
+                </AlertDialogHeader>
+
+                <AlertDialogBody>
+                  <VStack align="stretch" spacing={4}>
+                    <Box>
+                      <Text fontSize="sm" color="text.secondary" mb={1}>
+                        Current provider
+                      </Text>
+                      <Badge colorScheme="blue" fontSize="sm" px={2} py={1}>
+                        {account.account_source.toUpperCase()}
+                        {account.institution_name && ` - ${account.institution_name}`}
+                      </Badge>
+                    </Box>
+
+                    <Box>
+                      <Text fontSize="sm" color="text.secondary" mb={2}>
+                        Select target provider
+                      </Text>
+                      <SimpleGrid columns={2} spacing={3}>
+                        {account.account_source !== 'manual' && (
+                          <Box
+                            as="button"
+                            p={3}
+                            borderWidth="2px"
+                            borderRadius="md"
+                            borderColor={selectedTargetSource === 'manual' ? 'brand.500' : 'border.default'}
+                            bg={selectedTargetSource === 'manual' ? 'brand.50' : 'transparent'}
+                            _dark={selectedTargetSource === 'manual' ? { bg: 'brand.900' } : undefined}
+                            onClick={() => setSelectedTargetSource('manual')}
+                            textAlign="left"
+                            _hover={{ borderColor: 'brand.400' }}
+                          >
+                            <Text fontWeight="medium" fontSize="sm">Manual</Text>
+                            <Text fontSize="xs" color="text.secondary">
+                              Manage balance and transactions manually
+                            </Text>
+                          </Box>
+                        )}
+                        {account.account_source !== 'plaid' && (
+                          <Box
+                            p={3}
+                            borderWidth="2px"
+                            borderRadius="md"
+                            borderColor="border.default"
+                            opacity={0.5}
+                            cursor="not-allowed"
+                          >
+                            <Text fontWeight="medium" fontSize="sm">Plaid</Text>
+                            <Text fontSize="xs" color="text.muted">
+                              Requires active Plaid connection
+                            </Text>
+                          </Box>
+                        )}
+                        {account.account_source !== 'teller' && (
+                          <Box
+                            p={3}
+                            borderWidth="2px"
+                            borderRadius="md"
+                            borderColor="border.default"
+                            opacity={0.5}
+                            cursor="not-allowed"
+                          >
+                            <Text fontWeight="medium" fontSize="sm">Teller</Text>
+                            <Text fontSize="xs" color="text.muted">
+                              Requires active Teller connection
+                            </Text>
+                          </Box>
+                        )}
+                        {account.account_source !== 'mx' && (
+                          <Box
+                            p={3}
+                            borderWidth="2px"
+                            borderRadius="md"
+                            borderColor="border.default"
+                            opacity={0.5}
+                            cursor="not-allowed"
+                          >
+                            <Text fontWeight="medium" fontSize="sm">MX</Text>
+                            <Text fontSize="xs" color="text.muted">
+                              Requires active MX connection
+                            </Text>
+                          </Box>
+                        )}
+                      </SimpleGrid>
+                    </Box>
+                  </VStack>
+                </AlertDialogBody>
+
+                <AlertDialogFooter>
+                  <Button
+                    ref={migrateCancelRef}
+                    onClick={() => {
+                      onMigrateClose();
+                      setMigrateStep(1);
+                      setSelectedTargetSource(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    colorScheme="brand"
+                    ml={3}
+                    onClick={() => setMigrateStep(2)}
+                    isDisabled={!selectedTargetSource}
+                  >
+                    Next
+                  </Button>
+                </AlertDialogFooter>
+              </>
+            ) : (
+              <>
+                <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                  Confirm Migration
+                </AlertDialogHeader>
+
+                <AlertDialogBody>
+                  <VStack align="stretch" spacing={3}>
+                    <HStack spacing={3} justify="center" py={2}>
+                      <Badge colorScheme="gray" fontSize="sm" px={2} py={1}>
+                        {account.account_source.toUpperCase()}
+                      </Badge>
+                      <Text fontSize="lg" color="text.secondary">→</Text>
+                      <Badge colorScheme="brand" fontSize="sm" px={2} py={1}>
+                        {selectedTargetSource?.toUpperCase()}
+                      </Badge>
+                    </HStack>
+
+                    <Box bg="bg.subtle" p={3} borderRadius="md">
+                      <VStack align="stretch" spacing={2} fontSize="sm">
+                        <Text>
+                          All transactions, holdings, and contributions will be preserved.
+                        </Text>
+                        {selectedTargetSource === 'manual' && account.account_source !== 'manual' && (
+                          <Text>
+                            Automatic sync will stop. You will manage this account manually going forward.
+                          </Text>
+                        )}
+                        {selectedTargetSource !== 'manual' && account.account_source === 'manual' && (
+                          <Text>
+                            This account will begin syncing automatically with {selectedTargetSource?.toUpperCase()}.
+                          </Text>
+                        )}
+                        <Text color="text.secondary">
+                          You can migrate again later if needed.
+                        </Text>
+                      </VStack>
+                    </Box>
+                  </VStack>
+                </AlertDialogBody>
+
+                <AlertDialogFooter>
+                  <Button onClick={() => setMigrateStep(1)}>
+                    Back
+                  </Button>
+                  <Button
+                    colorScheme="brand"
+                    ml={3}
+                    onClick={() => {
+                      if (selectedTargetSource) {
+                        migrateAccountMutation.mutate(selectedTargetSource);
+                      }
+                    }}
+                    isLoading={migrateAccountMutation.isPending}
+                  >
+                    Migrate Account
+                  </Button>
+                </AlertDialogFooter>
+              </>
+            )}
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>

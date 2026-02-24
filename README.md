@@ -179,6 +179,11 @@ Drop-in support for external identity providers alongside the built-in JWT syste
 - **Manual Balance Updates**: Update account balances directly
 - **Investment Holdings**: Manually add stocks, ETFs, bonds, etc.
 - **Plaid Holdings Sync**: Automatic investment holdings sync for Plaid-linked accounts (`POST /plaid/sync-holdings/{account_id}`)
+- **Account Provider Migration**: Switch accounts between providers (Plaid → Manual, Teller → Manual, etc.)
+  - Two-step confirmation dialog on Account Detail page
+  - Preserves all transactions, holdings, and contributions
+  - Full migration audit log with history viewer
+  - Reversible — migrate back to a linked provider later
 
 ### 🔮 **Predictive Features**
 - **Cash Flow Forecasting**: 30/60/90-day projections using recurring transaction patterns
@@ -1359,6 +1364,7 @@ nest-egg/
 │   │   │   ├── mx_service.py            # MX Platform API integration
 │   │   │   ├── plaid_service.py         # Plaid SDK integration
 │   │   │   ├── rule_engine_service.py    # Rule evaluation
+│   │   │   ├── account_migration_service.py # Provider migration logic
 │   │   │   ├── permission_service.py     # RBAC grant/check/revoke
 │   │   │   ├── identity/                 # IdP provider chain
 │   │   │   │   ├── base.py               # AuthenticatedIdentity + abstract provider
@@ -1715,10 +1721,9 @@ Date,Merchant,Amount,Category,Description
 - [x] **Alpha Vantage market data provider** — 25 free calls/day fallback with daily/weekly/monthly OHLCV
 - [x] **MX Platform integration** — enterprise bank aggregation with httpx (16,000+ institutions, account & transaction sync)
 - [x] **Market data provider factory** — pluggable provider system with caching, auto-fallback to Yahoo Finance
+- [x] **Account provider migration** — switch accounts between providers (Plaid/Teller/MX/Manual) with two-step confirmation, full audit log, and migration history UI
 
 ### 🚧 In Progress
-
-- [ ] Manual account improvements
 - [ ] Mobile app (React Native)
 
 ### 🔮 Future Features

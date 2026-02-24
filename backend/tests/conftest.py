@@ -115,6 +115,10 @@ async def test_engine():
         recurring_transaction,
         report_template,
         transaction_merge,
+        identity,
+        permission,
+        target_allocation,
+        account_migration,
     )
 
     engine = create_async_engine(

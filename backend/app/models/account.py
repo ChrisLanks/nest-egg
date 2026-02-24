@@ -358,6 +358,7 @@ class Account(Base):
 
     # External identifiers
     external_account_id = Column(String(255), nullable=True, index=True)  # Plaid account_id
+    previous_external_account_id = Column(String(255), nullable=True)  # Preserved during provider migration
     mask = Column(String(10), nullable=True)  # Last 4 digits
     plaid_item_hash = Column(
         String(64), nullable=True, index=True

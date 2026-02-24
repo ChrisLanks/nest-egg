@@ -31,6 +31,15 @@ from app.schemas.account import (
     AccountUpdate,
     ManualAccountCreate,
 )
+from app.schemas.account_migration import (
+    MigrateAccountRequest,
+    MigrateAccountResponse,
+    MigrationLogResponse,
+)
+from app.services.account_migration_service import (
+    account_migration_service,
+    MigrationError,
+)
 from app.services.deduplication_service import DeduplicationService
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.permission_service import permission_service
@@ -666,3 +675,83 @@ async def bulk_delete_accounts(
     )
     await db.commit()
     return {"deleted_count": result.rowcount}
+
+
+@router.post("/{account_id}/migrate", response_model=MigrateAccountResponse)
+async def migrate_account(
+    account_id: UUID,
+    request_body: MigrateAccountRequest,
+    http_request: Request,
+    account: Account = Depends(get_verified_account),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Migrate an account from one provider to another.
+
+    This changes the account's data source (e.g., Plaid -> Manual)
+    while preserving ALL history (transactions, holdings, contributions, etc.).
+
+    Provider-specific sync state (cursor, last_synced_at) will be lost
+    for the old provider. The account will start syncing from the new provider
+    (or become manually managed if target is 'manual').
+    """
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=5,
+        window_seconds=60,
+    )
+
+    await permission_service.require(
+        db,
+        current_user,
+        "update",
+        "account",
+        resource_id=account.id,
+        owner_id=account.user_id,
+    )
+
+    if not request_body.confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="You must set confirm=true to proceed with migration.",
+        )
+
+    try:
+        migration_log = await account_migration_service.migrate_account(
+            db=db,
+            account_id=account_id,
+            user=current_user,
+            target_source=request_body.target_source,
+            target_enrollment_id=request_body.target_enrollment_id,
+            target_external_account_id=request_body.target_external_account_id,
+        )
+        await db.commit()
+
+        return MigrateAccountResponse(
+            migration_log=MigrationLogResponse.model_validate(migration_log),
+            message=(
+                f"Account successfully migrated from "
+                f"{migration_log.source_provider} to {migration_log.target_provider}."
+            ),
+        )
+
+    except MigrationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get(
+    "/{account_id}/migration-history",
+    response_model=List[MigrationLogResponse],
+)
+async def get_migration_history(
+    account_id: UUID,
+    account: Account = Depends(get_verified_account),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get the migration history for an account."""
+    return await account_migration_service.get_migration_history(
+        db=db,
+        account_id=account_id,
+        organization_id=current_user.organization_id,
+    )
