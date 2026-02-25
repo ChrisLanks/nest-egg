@@ -57,6 +57,7 @@ from app.workers.tasks import forecast_tasks  # noqa: F401
 from app.workers.tasks import holdings_tasks  # noqa: F401
 from app.workers.tasks import interest_accrual_tasks  # noqa: F401
 from app.workers.tasks import retention_tasks  # noqa: F401
+from app.workers.tasks import retirement_tasks  # noqa: F401
 from app.workers.tasks import snapshot_tasks  # noqa: F401
 
 # Beat schedule (periodic tasks)

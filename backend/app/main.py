@@ -38,6 +38,7 @@ from app.api.v1 import (
     plaid,
     recurring_transactions,
     reports,
+    retirement,
     rules,
     savings_goals,
     subscriptions,
@@ -392,3 +393,4 @@ app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
 app.include_router(debt_payoff.router, prefix="/api/v1/debt-payoff", tags=["Debt Payoff"])
 app.include_router(rebalancing.router, prefix="/api/v1/rebalancing", tags=["Rebalancing"])
 app.include_router(permissions.router, prefix="/api/v1/permissions", tags=["Permissions"])
+app.include_router(retirement.router, prefix="/api/v1/retirement", tags=["Retirement Planning"])

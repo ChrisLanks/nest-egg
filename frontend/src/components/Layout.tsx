@@ -464,6 +464,7 @@ export const Layout = () => {
   const planningMenuItems = [
     { label: "Budgets", path: "/budgets" },
     { label: "Goals", path: "/goals" },
+    { label: "Retirement", path: "/retirement" },
     { label: "Debt Payoff", path: "/debt-payoff" },
   ];
 

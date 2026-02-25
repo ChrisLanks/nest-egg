@@ -119,6 +119,7 @@ async def test_engine():
         permission,
         target_allocation,
         account_migration,
+        retirement,
     )
 
     engine = create_async_engine(

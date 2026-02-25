@@ -37,6 +37,7 @@ import {
   CardBody,
   Badge,
   IconButton,
+  Link,
   RadioGroup,
   Radio,
   Stack,
@@ -47,6 +48,7 @@ import {
 } from '@chakra-ui/react';
 import { CloseIcon, AddIcon } from '@chakra-ui/icons';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../../services/api';
 import {
@@ -781,6 +783,14 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                 Reset to Defaults
               </Button>
             </HStack>
+
+            {/* Link to Retirement Planner */}
+            <Text fontSize="sm" color="text.secondary">
+              Want a more detailed retirement plan with life events, Social Security, and tax-optimized withdrawals?{' '}
+              <Link as={RouterLink} to="/retirement" color="brand.500" fontWeight="medium">
+                Open Retirement Planner →
+              </Link>
+            </Text>
 
             {/* Disclaimer */}
             <Text fontSize="xs" color="text.muted" fontStyle="italic">

@@ -36,6 +36,7 @@ const TaxDeductiblePage = lazy(() => import('./pages/TaxDeductiblePage'));
 const TrendsPage = lazy(() => import('./pages/TrendsPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const DebtPayoffPage = lazy(() => import('./pages/DebtPayoffPage'));
+const RetirementPage = lazy(() => import('./features/retirement/pages/RetirementPage').then(m => ({ default: m.RetirementPage })));
 const HouseholdSettingsPage = lazy(() => import('./pages/HouseholdSettingsPage').then(m => ({ default: m.HouseholdSettingsPage })));
 const PermissionsPage = lazy(() => import('./features/permissions/pages/PermissionsPage').then(m => ({ default: m.PermissionsPage })));
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage').then(m => ({ default: m.AcceptInvitationPage })));
@@ -88,6 +89,7 @@ function App() {
                 <Route path="/bill-calendar" element={<Navigate to="/bills?tab=calendar" replace />} />
                 {/* Redirect old subscriptions route to recurring page */}
                 <Route path="/subscriptions" element={<Navigate to="/recurring" replace />} />
+                <Route path="/retirement" element={<RetirementPage />} />
                 <Route path="/debt-payoff" element={<DebtPayoffPage />} />
                 <Route path="/preferences" element={<PreferencesPage />} />
                 <Route path="/household" element={<HouseholdSettingsPage />} />

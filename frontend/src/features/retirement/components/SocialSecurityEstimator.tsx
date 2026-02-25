@@ -1,0 +1,164 @@
+/**
+ * Social Security benefit estimator card.
+ * Shows monthly benefit at different claiming ages with a slider.
+ */
+
+import {
+  Box,
+  FormControl,
+  FormLabel,
+  HStack,
+  Slider,
+  SliderFilledTrack,
+  SliderThumb,
+  SliderTrack,
+  Spinner,
+  Stat,
+  StatGroup,
+  StatLabel,
+  StatNumber,
+  Switch,
+  Text,
+  useColorModeValue,
+  VStack,
+} from '@chakra-ui/react';
+import { useCallback, useState } from 'react';
+import { useSocialSecurityEstimate } from '../hooks/useRetirementScenarios';
+
+interface SocialSecurityEstimatorProps {
+  currentIncome?: number | null;
+  claimingAge: number;
+  manualOverride?: number | null;
+  onClaimingAgeChange?: (age: number) => void;
+  onManualOverrideChange?: (amount: number | null) => void;
+}
+
+export function SocialSecurityEstimator({
+  currentIncome,
+  claimingAge,
+  manualOverride,
+  onClaimingAgeChange,
+  onManualOverrideChange,
+}: SocialSecurityEstimatorProps) {
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const labelColor = useColorModeValue('gray.500', 'gray.400');
+  const [localClaimingAge, setLocalClaimingAge] = useState(claimingAge);
+  const [useManual, setUseManual] = useState(!!manualOverride);
+
+  const { data: estimate, isLoading } = useSocialSecurityEstimate(
+    localClaimingAge,
+    currentIncome ?? undefined
+  );
+
+  const handleClaimingAgeEnd = useCallback(
+    (val: number) => {
+      setLocalClaimingAge(val);
+      onClaimingAgeChange?.(val);
+    },
+    [onClaimingAgeChange]
+  );
+
+  const formatMoney = (amount: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
+
+  return (
+    <Box bg={bgColor} p={5} borderRadius="xl" shadow="sm">
+      <VStack spacing={4} align="stretch">
+        <HStack justify="space-between">
+          <Text fontSize="lg" fontWeight="semibold">
+            Social Security
+          </Text>
+          {isLoading && <Spinner size="sm" />}
+        </HStack>
+
+        {/* Claiming age slider */}
+        <FormControl>
+          <HStack justify="space-between">
+            <FormLabel fontSize="sm" mb={0} color={labelColor}>
+              Claiming Age
+            </FormLabel>
+            <Text fontSize="sm" fontWeight="bold">
+              {localClaimingAge}
+            </Text>
+          </HStack>
+          <Slider
+            value={localClaimingAge}
+            min={62}
+            max={70}
+            step={1}
+            onChange={setLocalClaimingAge}
+            onChangeEnd={handleClaimingAgeEnd}
+          >
+            <SliderTrack>
+              <SliderFilledTrack bg="purple.400" />
+            </SliderTrack>
+            <SliderThumb />
+          </Slider>
+        </FormControl>
+
+        {/* Benefit estimates */}
+        {estimate && (
+          <>
+            <StatGroup>
+              <Stat size="sm">
+                <StatLabel fontSize="xs" color={labelColor}>
+                  At 62
+                </StatLabel>
+                <StatNumber fontSize="sm">{formatMoney(estimate.monthly_at_62)}/mo</StatNumber>
+              </Stat>
+              <Stat size="sm">
+                <StatLabel fontSize="xs" color={labelColor}>
+                  At FRA ({estimate.fra_age})
+                </StatLabel>
+                <StatNumber fontSize="sm">{formatMoney(estimate.monthly_at_fra)}/mo</StatNumber>
+              </Stat>
+              <Stat size="sm">
+                <StatLabel fontSize="xs" color={labelColor}>
+                  At 70
+                </StatLabel>
+                <StatNumber fontSize="sm">{formatMoney(estimate.monthly_at_70)}/mo</StatNumber>
+              </Stat>
+            </StatGroup>
+
+            <Box
+              bg={useColorModeValue('blue.50', 'blue.900')}
+              p={3}
+              borderRadius="md"
+            >
+              <HStack justify="space-between">
+                <Text fontSize="sm" color={labelColor}>
+                  Your Benefit at {localClaimingAge}
+                </Text>
+                <Text fontSize="md" fontWeight="bold" color="blue.500">
+                  {formatMoney(estimate.monthly_benefit)}/mo
+                </Text>
+              </HStack>
+              <Text fontSize="xs" color={labelColor}>
+                ({formatMoney(estimate.monthly_benefit * 12)}/year)
+              </Text>
+            </Box>
+
+            <Text fontSize="xs" color={labelColor}>
+              PIA (Primary Insurance Amount): {formatMoney(estimate.estimated_pia)}/mo
+            </Text>
+          </>
+        )}
+
+        {/* Manual override toggle */}
+        <FormControl display="flex" alignItems="center">
+          <FormLabel fontSize="xs" mb={0} color={labelColor}>
+            Manual Override
+          </FormLabel>
+          <Switch
+            size="sm"
+            isChecked={useManual}
+            onChange={(e) => {
+              setUseManual(e.target.checked);
+              if (!e.target.checked) onManualOverrideChange?.(null);
+            }}
+          />
+        </FormControl>
+      </VStack>
+    </Box>
+  );
+}

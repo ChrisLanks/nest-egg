@@ -63,6 +63,7 @@ import { RMDAlert } from '../features/investments/components/RMDAlert';
 import { RothConversionAnalyzer } from '../features/investments/components/RothConversionAnalyzer';
 import TaxLossHarvestingPanel from '../features/investments/components/TaxLossHarvestingPanel';
 import { RebalancingPanel } from '../features/investments/components/RebalancingPanel';
+import { useRetirementAccountData } from '../features/retirement/hooks/useRetirementScenarios';
 
 interface Holding {
   id: string;
@@ -150,6 +151,12 @@ export const InvestmentsPage = () => {
   // Use global user view context
   const { selectedUserId, canWriteResource } = useUserView();
   const canEdit = canWriteResource('holding');
+
+  // Retirement account data for monthly contribution in growth projections
+  const { data: retirementAccountData } = useRetirementAccountData();
+  const monthlyContribution = retirementAccountData
+    ? (retirementAccountData.annual_contributions + retirementAccountData.employer_match_annual) / 12
+    : undefined;
 
   // Drilled-down treemap node
   const [selectedNode, setSelectedNode] = useState<TreemapNode | null>(null);
@@ -989,6 +996,7 @@ export const InvestmentsPage = () => {
                 <TabPanel>
                   <GrowthProjectionsChart
                     currentValue={portfolio.total_value}
+                    monthlyContribution={monthlyContribution}
                   />
                 </TabPanel>
 

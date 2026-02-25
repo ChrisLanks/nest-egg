@@ -18,6 +18,7 @@ import { SubscriptionsWidget } from './widgets/SubscriptionsWidget';
 import { InvestmentPerformanceWidget } from './widgets/InvestmentPerformanceWidget';
 import { AssetAllocationWidget } from './widgets/AssetAllocationWidget';
 import { NetWorthProjectionWidget } from './widgets/NetWorthProjectionWidget';
+import { RetirementReadinessWidget } from './widgets/RetirementReadinessWidget';
 import type { LayoutItem, WidgetDefinition } from './types';
 
 export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
@@ -132,6 +133,13 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     description: 'Monte Carlo projection of total net worth over 5–20 years, including monthly savings contributions.',
     defaultSpan: 2,
     component: NetWorthProjectionWidget,
+  },
+  'retirement-readiness': {
+    id: 'retirement-readiness',
+    title: 'Retirement Readiness',
+    description: 'Retirement readiness score and success rate from your default scenario.',
+    defaultSpan: 1,
+    component: RetirementReadinessWidget,
   },
 };
 
