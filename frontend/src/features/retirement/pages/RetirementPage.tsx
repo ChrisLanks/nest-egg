@@ -11,11 +11,20 @@
 
 import {
   Alert,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
   AlertIcon,
   Box,
   Button,
+  ButtonGroup,
   Container,
   HStack,
+  IconButton,
+  Input,
   SimpleGrid,
   Spinner,
   Tab,
@@ -28,7 +37,10 @@ import {
   VStack,
 } from '@chakra-ui/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { FiEdit2, FiX } from 'react-icons/fi';
 import api from '../../../services/api';
+import { useUserView } from '../../../contexts/UserViewContext';
+import { useHouseholdMembers } from '../../../hooks/useHouseholdMembers';
 import { AccountDataSummary } from '../components/AccountDataSummary';
 import { HealthcareEstimator } from '../components/HealthcareEstimator';
 import { LifeEventEditor } from '../components/LifeEventEditor';
@@ -45,6 +57,7 @@ import {
   useAddLifeEventFromPreset,
   useCreateDefaultScenario,
   useDeleteLifeEvent,
+  useDeleteScenario,
   useDuplicateScenario,
   useRetirementScenario,
   useRetirementScenarios,
@@ -65,9 +78,26 @@ import type {
 export function RetirementPage() {
   const toast = useToast();
   const cardBg = useColorModeValue('white', 'gray.800');
+  const accent = useColorModeValue('blue', 'cyan');
+  const { isCombinedView, isSelfView, isOtherUserView, selectedUserId } = useUserView();
+  const { data: householdMembers = [] } = useHouseholdMembers();
+  const [filterUserId, setFilterUserId] = useState<string | null>(null);
+  const showMemberFilter = isCombinedView && householdMembers.length > 1;
+  const tabsRef = useRef<HTMLDivElement>(null);
 
-  // Fetch scenarios list
-  const { data: scenarios, isLoading: scenariosLoading } = useRetirementScenarios();
+  // Track whether settings changed since last simulation
+  const [settingsDirty, setSettingsDirty] = useState(false);
+
+  // Derive effective userId for fetching scenarios:
+  // - Non-combined view (Self / Other user): use the global selectedUserId
+  // - Combined view with member filter: use that member's ID
+  // - Combined view without filter ("All"): no fetch — retirement plans are per-person
+  const scenarioUserId = !isCombinedView
+    ? (selectedUserId ?? undefined)
+    : (filterUserId ?? undefined);
+  // In combined view with "All" selected, don't fetch any scenarios
+  const shouldFetchScenarios = !isCombinedView || !!filterUserId;
+  const { data: scenarios, isLoading: scenariosLoading } = useRetirementScenarios(scenarioUserId, shouldFetchScenarios);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(() => {
     try {
       return localStorage.getItem('retirement-active-scenario');
@@ -88,6 +118,7 @@ export function RetirementPage() {
   const updateMutation = useUpdateScenario();
   const simulateMutation = useRunSimulation();
   const duplicateMutation = useDuplicateScenario();
+  const deleteScenarioMutation = useDeleteScenario();
   const addLifeEventMutation = useAddLifeEvent();
   const addPresetMutation = useAddLifeEventFromPreset();
   const updateLifeEventMutation = useUpdateLifeEvent();
@@ -101,6 +132,19 @@ export function RetirementPage() {
   const [comparisonData, setComparisonData] = useState<ScenarioComparisonItem[] | null>(null);
   const [showComparison, setShowComparison] = useState(false);
 
+  // Tab rename state
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [editingTabName, setEditingTabName] = useState('');
+
+  // Delete confirmation state
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const deleteDialogCancelRef = useRef<HTMLButtonElement>(null);
+
+  // Scroll to top on initial page load to prevent browser dropping below chart
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   // Persist selected scenario to localStorage
   useEffect(() => {
     scenarioIdRef.current = selectedScenarioId;
@@ -110,6 +154,12 @@ export function RetirementPage() {
       } catch { /* ignore */ }
     }
   }, [selectedScenarioId]);
+
+  // Reset selection when the view/user changes (global or local filter)
+  useEffect(() => {
+    setSelectedScenarioId(null);
+    setSettingsDirty(false);
+  }, [scenarioUserId]);
 
   // Auto-select first scenario or default, and reset stale IDs
   useEffect(() => {
@@ -146,15 +196,37 @@ export function RetirementPage() {
     (updates: Record<string, unknown>) => {
       if (!selectedScenarioId) return;
       updateMutation.mutate({ id: selectedScenarioId, updates });
+      setSettingsDirty(true);
     },
     [selectedScenarioId, updateMutation]
   );
+
+  // Handle tab rename
+  const handleTabDoubleClick = useCallback(
+    (scenarioId: string, currentName: string) => {
+      setEditingTabId(scenarioId);
+      setEditingTabName(currentName);
+    },
+    []
+  );
+
+  const handleTabRenameSubmit = useCallback(() => {
+    if (editingTabId && editingTabName.trim()) {
+      updateMutation.mutate({ id: editingTabId, updates: { name: editingTabName.trim() } });
+    }
+    setEditingTabId(null);
+  }, [editingTabId, editingTabName, updateMutation]);
+
+  const handleTabRenameCancel = useCallback(() => {
+    setEditingTabId(null);
+  }, []);
 
   // Handle running simulation
   const handleSimulate = useCallback(async () => {
     if (!selectedScenarioId) return;
     try {
       await simulateMutation.mutateAsync(selectedScenarioId);
+      setSettingsDirty(false);
       toast({ title: 'Simulation complete', status: 'success', duration: 2000 });
     } catch (err: any) {
       toast({
@@ -172,6 +244,7 @@ export function RetirementPage() {
       if (scenarios && index < scenarios.length) {
         setSelectedScenarioId(scenarios[index].id);
         setShowComparison(false);
+        setSettingsDirty(false);
       }
     },
     [scenarios]
@@ -188,6 +261,27 @@ export function RetirementPage() {
       toast({ title: 'Failed to duplicate', status: 'error', duration: 3000 });
     }
   }, [selectedScenarioId, duplicateMutation, toast]);
+
+  // Handle delete scenario — opens confirmation dialog
+  const handleRequestDelete = useCallback((scenarioId: string) => {
+    setPendingDeleteId(scenarioId);
+  }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!pendingDeleteId) return;
+    const scenarioId = pendingDeleteId;
+    setPendingDeleteId(null);
+    try {
+      await deleteScenarioMutation.mutateAsync(scenarioId);
+      if (scenarioId === selectedScenarioId) {
+        setSelectedScenarioId(null);
+        try { localStorage.removeItem('retirement-active-scenario'); } catch { /* ignore */ }
+      }
+      toast({ title: 'Scenario deleted', status: 'success', duration: 2000 });
+    } catch {
+      toast({ title: 'Failed to delete scenario', status: 'error', duration: 3000 });
+    }
+  }, [pendingDeleteId, deleteScenarioMutation, selectedScenarioId, toast]);
 
   // Handle compare
   const handleCompare = useCallback(async () => {
@@ -217,6 +311,7 @@ export function RetirementPage() {
       try {
         await addPresetMutation.mutateAsync({ scenarioId: selectedScenarioId, presetKey });
         presetPicker.onClose();
+        setSettingsDirty(true);
         toast({ title: 'Life event added', status: 'success', duration: 2000 });
       } catch (err: any) {
         toast({
@@ -247,6 +342,7 @@ export function RetirementPage() {
         }
         eventEditor.onClose();
         setEditingEvent(null);
+        setSettingsDirty(true);
         toast({ title: editingEvent ? 'Event updated' : 'Event added', status: 'success', duration: 2000 });
       } catch (err: any) {
         toast({
@@ -272,6 +368,7 @@ export function RetirementPage() {
     async (eventId: string) => {
       try {
         await deleteLifeEventMutation.mutateAsync(eventId);
+        setSettingsDirty(true);
         toast({ title: 'Event removed', status: 'success', duration: 2000 });
       } catch {
         toast({ title: 'Failed to delete event', status: 'error', duration: 3000 });
@@ -313,32 +410,117 @@ export function RetirementPage() {
   const withdrawalComparison: WithdrawalComparison | null =
     results?.withdrawal_comparison as WithdrawalComparison | null;
 
-  // Empty state: no scenarios yet
+  // Combined "All" view: retirement plans are per-person, prompt to select a member
+  if (isCombinedView && !filterUserId) {
+    return (
+      <Container maxW="container.xl" py={8}>
+        <VStack spacing={6} align="stretch">
+          {showMemberFilter && (
+            <HStack spacing={2}>
+              <Text fontSize="sm" fontWeight="medium" color="gray.500">
+                Member:
+              </Text>
+              <ButtonGroup size="sm" isAttached variant="outline">
+                <Button colorScheme={accent} variant="solid">
+                  All
+                </Button>
+                {householdMembers.map((member) => (
+                  <Button
+                    key={member.id}
+                    variant="outline"
+                    onClick={() => setFilterUserId(member.id)}
+                  >
+                    {member.display_name || member.first_name || member.email.split('@')[0]}
+                  </Button>
+                ))}
+              </ButtonGroup>
+            </HStack>
+          )}
+          <VStack spacing={6} textAlign="center" py={16}>
+            <Text fontSize="2xl" fontWeight="bold">
+              Retirement Planner
+            </Text>
+            <Text color="gray.500" maxW="md">
+              Retirement plans are personal to each household member. Select a member above
+              to view or create their retirement scenarios.
+            </Text>
+          </VStack>
+        </VStack>
+      </Container>
+    );
+  }
+
+  // Empty state: no scenarios for the current view
   if (!scenariosLoading && (!scenarios || scenarios.length === 0)) {
     return (
       <Container maxW="container.xl" py={8}>
-        <VStack spacing={6} textAlign="center" py={16}>
-          <Text fontSize="2xl" fontWeight="bold">
-            Retirement Planner
-          </Text>
-          <Text color="gray.500" maxW="md">
-            Plan your retirement by modeling different scenarios with Monte Carlo simulation.
-            See how different retirement ages, spending levels, and life events affect your
-            financial future.
-          </Text>
-          <Button
-            colorScheme="blue"
-            size="lg"
-            onClick={handleCreateDefault}
-            isLoading={createDefaultMutation.isPending}
-            loadingText="Setting up..."
-          >
-            Create Your First Scenario
-          </Button>
-          <Alert status="info" borderRadius="md" maxW="md">
-            <AlertIcon />
-            Make sure your birthdate is set in Preferences for accurate projections.
-          </Alert>
+        <VStack spacing={6} align="stretch">
+          {/* Member filter — always visible in combined household view */}
+          {showMemberFilter && (
+            <HStack spacing={2}>
+              <Text fontSize="sm" fontWeight="medium" color="gray.500">
+                Member:
+              </Text>
+              <ButtonGroup size="sm" isAttached variant="outline">
+                <Button
+                  variant="outline"
+                  onClick={() => setFilterUserId(null)}
+                >
+                  All
+                </Button>
+                {householdMembers.map((member) => (
+                  <Button
+                    key={member.id}
+                    colorScheme={filterUserId === member.id ? accent : 'gray'}
+                    variant={filterUserId === member.id ? 'solid' : 'outline'}
+                    onClick={() => setFilterUserId(member.id)}
+                  >
+                    {member.display_name || member.first_name || member.email.split('@')[0]}
+                  </Button>
+                ))}
+              </ButtonGroup>
+            </HStack>
+          )}
+          <VStack spacing={6} textAlign="center" py={16}>
+            <Text fontSize="2xl" fontWeight="bold">
+              Retirement Planner
+            </Text>
+            {filterUserId || isOtherUserView ? (
+              <Text color="gray.500" maxW="md">
+                {(() => {
+                  if (isOtherUserView && selectedUserId) {
+                    const member = householdMembers.find((m) => m.id === selectedUserId);
+                    const name = member?.display_name || member?.first_name || 'This user';
+                    return `${name} doesn't have any retirement scenarios yet.`;
+                  }
+                  const member = householdMembers.find((m) => m.id === filterUserId);
+                  const name = member?.display_name || member?.first_name || 'This member';
+                  return `${name} doesn't have any retirement scenarios yet.`;
+                })()}
+              </Text>
+            ) : (
+              <>
+                <Text color="gray.500" maxW="md">
+                  Plan your retirement by modeling different scenarios with Monte Carlo simulation.
+                  See how different retirement ages, spending levels, and life events affect your
+                  financial future.
+                </Text>
+                <Button
+                  colorScheme="blue"
+                  size="lg"
+                  onClick={handleCreateDefault}
+                  isLoading={createDefaultMutation.isPending}
+                  loadingText="Setting up..."
+                >
+                  Create Your First Scenario
+                </Button>
+                <Alert status="info" borderRadius="md" maxW="md">
+                  <AlertIcon />
+                  Make sure your birthdate is set in Preferences for accurate projections.
+                </Alert>
+              </>
+            )}
+          </VStack>
         </VStack>
       </Container>
     );
@@ -356,7 +538,7 @@ export function RetirementPage() {
     <Container maxW="container.xl" py={6}>
       <VStack spacing={6} align="stretch">
         {/* Header */}
-        <HStack justify="space-between" align="center">
+        <HStack justify="space-between" align="center" wrap="wrap" gap={2}>
           <Text fontSize="2xl" fontWeight="bold">
             Retirement Planner
           </Text>
@@ -393,6 +575,34 @@ export function RetirementPage() {
           </HStack>
         </HStack>
 
+        {/* Member filter */}
+        {showMemberFilter && (
+          <HStack spacing={2}>
+            <Text fontSize="sm" fontWeight="medium" color="gray.500">
+              Member:
+            </Text>
+            <ButtonGroup size="sm" isAttached variant="outline">
+              <Button
+                colorScheme={!filterUserId ? accent : 'gray'}
+                variant={!filterUserId ? 'solid' : 'outline'}
+                onClick={() => setFilterUserId(null)}
+              >
+                All
+              </Button>
+              {householdMembers.map((member) => (
+                <Button
+                  key={member.id}
+                  colorScheme={filterUserId === member.id ? accent : 'gray'}
+                  variant={filterUserId === member.id ? 'solid' : 'outline'}
+                  onClick={() => setFilterUserId(member.id)}
+                >
+                  {member.display_name || member.first_name || member.email.split('@')[0]}
+                </Button>
+              ))}
+            </ButtonGroup>
+          </HStack>
+        )}
+
         {/* Readiness Score */}
         <RetirementScoreGauge
           score={results?.readiness_score ?? null}
@@ -408,6 +618,7 @@ export function RetirementPage() {
         {/* Scenario Tabs */}
         {scenarios && scenarios.length > 0 && (
           <Tabs
+            ref={tabsRef}
             index={selectedTabIndex >= 0 ? selectedTabIndex : 0}
             onChange={handleTabChange}
             variant="enclosed"
@@ -415,12 +626,70 @@ export function RetirementPage() {
           >
             <TabList>
               {scenarios.map((s: RetirementScenarioSummary) => (
-                <Tab key={s.id}>
-                  {s.name}
-                  {s.readiness_score !== null && (
-                    <Text as="span" ml={2} fontSize="xs" color="gray.500">
-                      ({s.readiness_score})
-                    </Text>
+                <Tab
+                  key={s.id}
+                  px={3}
+                  py={2}
+                >
+                  {editingTabId === s.id ? (
+                    <Input
+                      size="xs"
+                      value={editingTabName}
+                      onChange={(e) => setEditingTabName(e.target.value)}
+                      onBlur={handleTabRenameSubmit}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleTabRenameSubmit();
+                        if (e.key === 'Escape') handleTabRenameCancel();
+                      }}
+                      autoFocus
+                      width="auto"
+                      minW="60px"
+                      maxW="200px"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <HStack spacing={1}>
+                      <Text as="span">
+                        {s.name}
+                        {s.readiness_score !== null && (
+                          <Text as="span" ml={1} fontSize="xs" color="gray.500">
+                            ({s.readiness_score})
+                          </Text>
+                        )}
+                      </Text>
+                      <IconButton
+                        aria-label="Rename scenario"
+                        icon={<FiEdit2 />}
+                        size="xs"
+                        variant="ghost"
+                        minW="auto"
+                        h="auto"
+                        p={0.5}
+                        fontSize="10px"
+                        opacity={0.5}
+                        _hover={{ opacity: 1 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTabDoubleClick(s.id, s.name);
+                        }}
+                      />
+                      <IconButton
+                        aria-label="Delete scenario"
+                        icon={<FiX />}
+                        size="xs"
+                        variant="ghost"
+                        minW="auto"
+                        h="auto"
+                        p={0.5}
+                        fontSize="10px"
+                        opacity={0.5}
+                        _hover={{ opacity: 1, color: 'red.400' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRequestDelete(s.id);
+                        }}
+                      />
+                    </HStack>
                   )}
                 </Tab>
               ))}
@@ -468,18 +737,42 @@ export function RetirementPage() {
           </HStack>
         )}
 
+        {/* Run Simulation */}
+        {scenario && (
+          <VStack spacing={2} align="stretch">
+            <Button
+              colorScheme={settingsDirty ? 'orange' : 'blue'}
+              size="lg"
+              onClick={handleSimulate}
+              isLoading={simulateMutation.isPending}
+              loadingText="Running Simulation..."
+              isDisabled={!selectedScenarioId}
+              w="100%"
+            >
+              {settingsDirty ? 'Re-run Simulation' : 'Run Simulation'}
+            </Button>
+            {settingsDirty && (
+              <Text fontSize="xs" color="orange.400" textAlign="center">
+                Settings have changed since your last simulation. Click above to update results.
+              </Text>
+            )}
+          </VStack>
+        )}
+
         {/* Two-column: Settings + Details */}
         <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
           <VStack spacing={6} align="stretch">
             <ScenarioPanel
               scenario={scenario ?? null}
               onUpdate={handleUpdate}
-              onSimulate={handleSimulate}
-              isSimulating={simulateMutation.isPending}
             />
 
             {/* Account Data Summary */}
-            <AccountDataSummary />
+            <AccountDataSummary
+              scenario={scenario ?? null}
+              userId={scenarioUserId}
+              onTaxRateChange={(changes) => handleUpdate(changes)}
+            />
           </VStack>
 
           {/* Right column: SS, Healthcare, Withdrawal, Results */}
@@ -490,12 +783,24 @@ export function RetirementPage() {
               claimingAge={scenario?.social_security_start_age ?? 67}
               manualOverride={scenario?.social_security_monthly}
               onClaimingAgeChange={handleSsClaimingAgeChange}
+              onManualOverrideChange={(amount) =>
+                handleUpdate({
+                  social_security_monthly: amount,
+                  use_estimated_pia: amount === null,
+                })
+              }
             />
 
             {/* Healthcare Estimator */}
             <HealthcareEstimator
               retirementIncome={scenario?.annual_spending_retirement ?? 50000}
               medicalInflationRate={scenario?.medical_inflation_rate ?? 6}
+              onMedicalInflationChange={(rate) => handleUpdate({ medical_inflation_rate: rate })}
+              onRetirementIncomeChange={(income) => handleUpdate({ annual_spending_retirement: income })}
+              pre65Override={scenario?.healthcare_pre65_override ?? null}
+              medicareOverride={scenario?.healthcare_medicare_override ?? null}
+              ltcOverride={scenario?.healthcare_ltc_override ?? null}
+              onHealthcareOverridesChange={(overrides) => handleUpdate(overrides)}
             />
 
             {/* Withdrawal Strategy Comparison */}
@@ -503,6 +808,8 @@ export function RetirementPage() {
               <WithdrawalStrategyComparison
                 comparison={withdrawalComparison}
                 withdrawalRate={scenario?.withdrawal_rate ?? 4}
+                selectedStrategy={scenario?.withdrawal_strategy}
+                onStrategySelect={(strategy) => handleUpdate({ withdrawal_strategy: strategy })}
               />
             )}
 
@@ -598,6 +905,37 @@ export function RetirementPage() {
         existingEvent={editingEvent}
         isLoading={addLifeEventMutation.isPending || updateLifeEventMutation.isPending}
       />
+
+      {/* Delete scenario confirmation */}
+      <AlertDialog
+        isOpen={!!pendingDeleteId}
+        leastDestructiveRef={deleteDialogCancelRef}
+        onClose={() => setPendingDeleteId(null)}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Scenario
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              Are you sure you want to delete this retirement scenario? This action cannot be undone.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={deleteDialogCancelRef} onClick={() => setPendingDeleteId(null)}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={handleConfirmDelete}
+                ml={3}
+                isLoading={deleteScenarioMutation.isPending}
+              >
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Container>
   );
 }

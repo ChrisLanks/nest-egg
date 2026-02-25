@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -88,7 +88,12 @@ class RetirementPlannerService:
         db: AsyncSession,
         user: User,
     ) -> RetirementScenario:
-        """Auto-generate a starter scenario from existing user data."""
+        """Auto-generate a starter scenario from existing user data.
+
+        Household-aware: checks org member count to set married/couple defaults
+        for healthcare (ACA couple rates, married IRMAA thresholds) and higher
+        default spending. Single users get single-person defaults.
+        """
         current_age = calculate_age(user.birthdate) if user.birthdate else 35
 
         # Gather portfolio data for smart defaults
@@ -96,26 +101,49 @@ class RetirementPlannerService:
             db, str(user.organization_id), str(user.id)
         )
 
+        # Check household size (>1 user in org = household/couple)
+        member_count_result = await db.execute(
+            select(func.count(User.id)).where(
+                and_(
+                    User.organization_id == user.organization_id,
+                    User.is_active.is_(True),
+                )
+            )
+        )
+        household_size = member_count_result.scalar() or 1
+        is_household = household_size > 1
+
         # Try to get income from 401k salary fields
         annual_income = None
         if account_data.get("annual_income"):
             annual_income = account_data["annual_income"]
 
-        # Default retirement spending: 80% of income or $60K
-        default_spending = Decimal("60000")
+        # Default retirement spending: couples spend more
         if annual_income:
-            default_spending = Decimal(str(annual_income)) * Decimal("0.80")
+            spend_ratio = Decimal("0.85") if is_household else Decimal("0.80")
+            default_spending = Decimal(str(annual_income)) * spend_ratio
+        else:
+            default_spending = Decimal("80000") if is_household else Decimal("60000")
 
-        scenario = RetirementScenario(
+        # Household/couple defaults
+        scenario_kwargs = dict(
             organization_id=user.organization_id,
             user_id=user.id,
-            name="My Retirement Plan",
+            name="Our Retirement Plan" if is_household else "My Retirement Plan",
             is_default=True,
             retirement_age=67,
             life_expectancy=95,
             current_annual_income=annual_income,
             annual_spending_retirement=default_spending,
+            is_shared=is_household,
         )
+
+        # If household, also set spouse SS defaults
+        if is_household:
+            scenario_kwargs["spouse_social_security_monthly"] = None  # Will be estimated
+            scenario_kwargs["spouse_social_security_start_age"] = 67
+
+        scenario = RetirementScenario(**scenario_kwargs)
         db.add(scenario)
         await db.flush()
         await db.refresh(scenario, ["life_events"])

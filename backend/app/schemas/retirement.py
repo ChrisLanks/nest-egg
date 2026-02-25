@@ -97,8 +97,8 @@ class RetirementScenarioCreate(BaseModel):
 
     name: str = Field(max_length=200)
     description: Optional[str] = None
-    retirement_age: int = Field(ge=30, le=100)
-    life_expectancy: int = Field(default=95, ge=50, le=120)
+    retirement_age: int = Field(ge=15, le=95)
+    life_expectancy: int = Field(default=95, ge=15, le=120)
     current_annual_income: Optional[Decimal] = None
     annual_spending_retirement: Decimal = Field(gt=0)
 
@@ -125,6 +125,11 @@ class RetirementScenarioCreate(BaseModel):
     state_tax_rate: Decimal = Field(default=Decimal("5.00"), ge=0, le=20)
     capital_gains_rate: Decimal = Field(default=Decimal("15.00"), ge=0, le=30)
 
+    # Healthcare cost overrides (annual, None = use estimate)
+    healthcare_pre65_override: Optional[Decimal] = Field(None, ge=0)
+    healthcare_medicare_override: Optional[Decimal] = Field(None, ge=0)
+    healthcare_ltc_override: Optional[Decimal] = Field(None, ge=0)
+
     # Config
     num_simulations: int = Field(default=1000, ge=100, le=10000)
     is_shared: bool = True
@@ -135,8 +140,8 @@ class RetirementScenarioUpdate(BaseModel):
 
     name: Optional[str] = Field(None, max_length=200)
     description: Optional[str] = None
-    retirement_age: Optional[int] = Field(None, ge=30, le=100)
-    life_expectancy: Optional[int] = Field(None, ge=50, le=120)
+    retirement_age: Optional[int] = Field(None, ge=15, le=95)
+    life_expectancy: Optional[int] = Field(None, ge=15, le=120)
     current_annual_income: Optional[Decimal] = None
     annual_spending_retirement: Optional[Decimal] = Field(None, gt=0)
 
@@ -158,6 +163,10 @@ class RetirementScenarioUpdate(BaseModel):
     federal_tax_rate: Optional[Decimal] = Field(None, ge=0, le=50)
     state_tax_rate: Optional[Decimal] = Field(None, ge=0, le=20)
     capital_gains_rate: Optional[Decimal] = Field(None, ge=0, le=30)
+
+    healthcare_pre65_override: Optional[Decimal] = Field(None, ge=0)
+    healthcare_medicare_override: Optional[Decimal] = Field(None, ge=0)
+    healthcare_ltc_override: Optional[Decimal] = Field(None, ge=0)
 
     num_simulations: Optional[int] = Field(None, ge=100, le=10000)
     is_shared: Optional[bool] = None
@@ -196,6 +205,10 @@ class RetirementScenarioResponse(BaseModel):
     federal_tax_rate: Decimal
     state_tax_rate: Decimal
     capital_gains_rate: Decimal
+
+    healthcare_pre65_override: Optional[Decimal] = None
+    healthcare_medicare_override: Optional[Decimal] = None
+    healthcare_ltc_override: Optional[Decimal] = None
 
     num_simulations: int
     is_shared: bool
@@ -271,9 +284,9 @@ class QuickSimulationRequest(BaseModel):
 
     current_portfolio: Decimal = Field(gt=0)
     annual_contributions: Decimal = Field(default=Decimal("0"), ge=0)
-    retirement_age: int = Field(ge=30, le=100)
+    retirement_age: int = Field(ge=15, le=95)
     current_age: int = Field(ge=18, le=100)
-    life_expectancy: int = Field(default=95, ge=50, le=120)
+    life_expectancy: int = Field(default=95, ge=15, le=120)
     annual_spending: Decimal = Field(gt=0)
     pre_retirement_return: float = Field(default=7.0, ge=0, le=30)
     post_retirement_return: float = Field(default=5.0, ge=0, le=30)
@@ -365,6 +378,15 @@ class ScenarioComparisonResponse(BaseModel):
 # --- Account Data for Retirement Page ---
 
 
+class RetirementAccountItem(BaseModel):
+    """Individual account in the portfolio."""
+
+    name: str
+    balance: float
+    bucket: str  # "pre_tax", "roth", "taxable", "hsa", "cash"
+    account_type: str
+
+
 class RetirementAccountDataResponse(BaseModel):
     """Current account data summary for the retirement planner."""
 
@@ -373,7 +395,9 @@ class RetirementAccountDataResponse(BaseModel):
     pre_tax_balance: float
     roth_balance: float
     hsa_balance: float
+    cash_balance: float = 0
     pension_monthly: float
     annual_contributions: float
     employer_match_annual: float
     annual_income: float = 0
+    accounts: List[RetirementAccountItem] = []

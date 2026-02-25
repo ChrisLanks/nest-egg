@@ -72,6 +72,9 @@ def _compute_scenario_hash(scenario: RetirementScenario) -> str:
         str(scenario.federal_tax_rate),
         str(scenario.state_tax_rate),
         str(scenario.num_simulations),
+        str(scenario.healthcare_pre65_override),
+        str(scenario.healthcare_medicare_override),
+        str(scenario.healthcare_ltc_override),
     ]
     # Include life events in hash
     for event in sorted(scenario.life_events, key=lambda e: (e.start_age, e.name)):
@@ -155,8 +158,13 @@ class RetirementMonteCarloService:
             spouse_ss_monthly = float(scenario.spouse_social_security_monthly)
 
         # Healthcare cost schedule (pre-computed per age in today's dollars)
+        # Apply user overrides when set, otherwise use computed estimates
         healthcare_costs: dict[int, float] = {}
         retirement_income_estimate = annual_spending  # Approximate for IRMAA
+        pre65_override = float(scenario.healthcare_pre65_override) if scenario.healthcare_pre65_override is not None else None
+        medicare_override = float(scenario.healthcare_medicare_override) if scenario.healthcare_medicare_override is not None else None
+        ltc_override = float(scenario.healthcare_ltc_override) if scenario.healthcare_ltc_override is not None else None
+
         for age in range(current_age, life_expectancy + 1):
             if age >= retirement_age:
                 hc = estimate_annual_healthcare_cost(
@@ -165,7 +173,22 @@ class RetirementMonteCarloService:
                     current_age=current_age,
                     medical_inflation_rate=float(scenario.medical_inflation_rate),
                 )
-                healthcare_costs[age] = hc["total"]
+                total = hc["total"]
+                # Apply overrides by phase
+                if age < 65 and pre65_override is not None:
+                    total = pre65_override
+                elif 65 <= age < 85 and medicare_override is not None:
+                    total = medicare_override
+                elif age >= 85:
+                    # Age 85+: medicare + LTC components
+                    ltc_part = hc.get("long_term_care", 0)
+                    medicare_part = total - ltc_part
+                    if medicare_override is not None:
+                        medicare_part = medicare_override
+                    if ltc_override is not None:
+                        ltc_part = ltc_override
+                    total = medicare_part + ltc_part
+                healthcare_costs[age] = total
 
         # Build life event cost schedule: age -> (cost_this_year, is_medical_inflation)
         life_event_costs = RetirementMonteCarloService._build_life_event_schedule(
@@ -549,9 +572,11 @@ class RetirementMonteCarloService:
         pre_tax_balance = Decimal(0)
         roth_balance = Decimal(0)
         hsa_balance = Decimal(0)
+        cash_balance = Decimal(0)
         pension_monthly = Decimal(0)
         employer_match_annual = Decimal(0)
         annual_income = Decimal(0)
+        account_items: list[dict] = []
 
         for account in accounts:
             balance = account.current_balance or Decimal(0)
@@ -562,18 +587,37 @@ class RetirementMonteCarloService:
                 total_portfolio += balance
                 if tax_cat == "tax-deferred":
                     pre_tax_balance += balance
+                    bucket = "pre_tax"
                 elif tax_cat == "tax-free":
                     if account.account_type == AccountType.HSA:
                         hsa_balance += balance
+                        bucket = "hsa"
                     else:
                         roth_balance += balance
+                        bucket = "roth"
                 else:
                     taxable_balance += balance
+                    bucket = "taxable"
+                if balance > 0:
+                    account_items.append({
+                        "name": account.name or account.account_type.value,
+                        "balance": float(balance),
+                        "bucket": bucket,
+                        "account_type": account.account_type.value,
+                    })
 
             # Cash accounts count too
             if account.account_type in (AccountType.CHECKING, AccountType.SAVINGS, AccountType.MONEY_MARKET):
                 total_portfolio += balance
                 taxable_balance += balance
+                cash_balance += balance
+                if balance > 0:
+                    account_items.append({
+                        "name": account.name or account.account_type.value,
+                        "balance": float(balance),
+                        "bucket": "cash",
+                        "account_type": account.account_type.value,
+                    })
 
             # Pension income
             if account.monthly_benefit and account.account_type == AccountType.PENSION:
@@ -629,10 +673,12 @@ class RetirementMonteCarloService:
             "pre_tax_balance": pre_tax_balance,
             "roth_balance": roth_balance,
             "hsa_balance": hsa_balance,
+            "cash_balance": cash_balance,
             "pension_monthly": pension_monthly,
             "annual_contributions": annual_contributions,
             "employer_match_annual": employer_match_annual,
             "annual_income": annual_income,
+            "accounts": account_items,
         }
 
     @staticmethod

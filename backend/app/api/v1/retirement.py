@@ -76,8 +76,14 @@ async def list_scenarios(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all retirement scenarios for the organization."""
+    """List retirement scenarios for a specific user in the organization."""
     target_user = user_id or str(current_user.id)
+    # Verify target user belongs to the same organization
+    if user_id and user_id != str(current_user.id):
+        from app.models.user import User as UserModel
+        target = await db.get(UserModel, user_id)
+        if not target or str(target.organization_id) != str(current_user.organization_id):
+            raise HTTPException(status_code=403, detail="Cannot access another organization's data")
     scenarios = await RetirementPlannerService.list_scenarios(
         db=db,
         organization_id=str(current_user.organization_id),
@@ -195,6 +201,8 @@ async def add_life_event(
     )
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
+    if str(scenario.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Cannot modify another user's scenario")
 
     event = LifeEvent(scenario_id=scenario.id, **data.model_dump())
     db.add(event)
@@ -221,6 +229,8 @@ async def update_life_event(
     )
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
+    if str(scenario.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Cannot modify another user's scenario")
 
     for key, value in data.model_dump(exclude_unset=True).items():
         if value is not None:
@@ -247,6 +257,8 @@ async def add_life_event_from_preset(
     )
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
+    if str(scenario.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Cannot modify another user's scenario")
 
     start_age = data.start_age or scenario.retirement_age
     event_data = create_life_event_from_preset(data.preset_key, start_age)
@@ -276,6 +288,8 @@ async def delete_life_event(
     )
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
+    if str(scenario.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Cannot modify another user's scenario")
 
     await db.delete(event)
     await db.flush()
@@ -387,12 +401,20 @@ async def get_healthcare_estimate(
 
 @router.get("/account-data", response_model=RetirementAccountDataResponse)
 async def get_account_data(
+    user_id: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get current account balances and contributions for the retirement planner."""
+    target_user = user_id or str(current_user.id)
+    # Verify target user belongs to the same organization
+    if user_id and user_id != str(current_user.id):
+        from app.models.user import User as UserModel
+        target = await db.get(UserModel, user_id)
+        if not target or str(target.organization_id) != str(current_user.organization_id):
+            raise HTTPException(status_code=403, detail="Cannot access another organization's data")
     data = await RetirementMonteCarloService._gather_account_data(
-        db, str(current_user.organization_id), str(current_user.id)
+        db, str(current_user.organization_id), target_user
     )
     return RetirementAccountDataResponse(
         total_portfolio=float(data["total_portfolio"]),
@@ -400,10 +422,12 @@ async def get_account_data(
         pre_tax_balance=float(data["pre_tax_balance"]),
         roth_balance=float(data["roth_balance"]),
         hsa_balance=float(data["hsa_balance"]),
+        cash_balance=float(data.get("cash_balance", 0)),
         pension_monthly=float(data["pension_monthly"]),
         annual_contributions=float(data["annual_contributions"]),
         employer_match_annual=float(data["employer_match_annual"]),
         annual_income=float(data["annual_income"]),
+        accounts=data.get("accounts", []),
     )
 
 

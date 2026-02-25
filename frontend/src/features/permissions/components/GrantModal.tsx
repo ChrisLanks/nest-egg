@@ -57,6 +57,7 @@ const RESOURCE_TYPE_LABELS: Record<string, string> = {
   recurring_transaction: 'Recurring Transactions',
   report: 'Reports',
   org_settings: 'Household Settings',
+  retirement_scenario: 'Retirement Planner',
 };
 
 /** All grantable resource types (matches backend RESOURCE_TYPES). */

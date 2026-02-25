@@ -126,20 +126,50 @@ export default function BudgetsPage() {
             </Text>
           </VStack>
           <Tooltip
-            label={!canEdit ? "Read-only: You can only create budgets for your own data" : ""}
+            label={
+              filterUserId
+                ? "Switch to 'All' or your own view to create budgets"
+                : !canEdit ? "Read-only: You can only create budgets for your own data" : ""
+            }
             placement="top"
-            isDisabled={canEdit}
+            isDisabled={canEdit && !filterUserId}
           >
             <Button
-              leftIcon={canEdit ? <AddIcon /> : <FiLock />}
+              leftIcon={canEdit && !filterUserId ? <AddIcon /> : <FiLock />}
               colorScheme="blue"
               onClick={handleCreate}
-              isDisabled={!canEdit}
+              isDisabled={!canEdit || !!filterUserId}
             >
               New Budget
             </Button>
           </Tooltip>
         </HStack>
+
+        {/* Member filter — always visible in combined household view */}
+        {showUserFilter && (
+          <HStack spacing={2}>
+            <Text fontSize="sm" fontWeight="medium" color="text.secondary">Member:</Text>
+            <ButtonGroup size="sm" isAttached variant="outline">
+              <Button
+                colorScheme={!filterUserId ? 'blue' : 'gray'}
+                variant={!filterUserId ? 'solid' : 'outline'}
+                onClick={() => setFilterUserId(null)}
+              >
+                All
+              </Button>
+              {householdMembers.map((member) => (
+                <Button
+                  key={member.id}
+                  colorScheme={filterUserId === member.id ? 'blue' : 'gray'}
+                  variant={filterUserId === member.id ? 'solid' : 'outline'}
+                  onClick={() => setFilterUserId(member.id)}
+                >
+                  {member.display_name || member.first_name || member.email.split('@')[0]}
+                </Button>
+              ))}
+            </ButtonGroup>
+          </HStack>
+        )}
 
         {/* Filter row */}
         {!isLoading && budgets.length > 0 && (
@@ -180,32 +210,6 @@ export default function BudgetsPage() {
                 </Button>
               </ButtonGroup>
             </HStack>
-
-            {/* User filter */}
-            {showUserFilter && (
-              <HStack spacing={2}>
-                <Text fontSize="sm" fontWeight="medium" color="text.secondary">Member:</Text>
-                <ButtonGroup size="sm" isAttached variant="outline">
-                  <Button
-                    colorScheme={!filterUserId ? 'blue' : 'gray'}
-                    variant={!filterUserId ? 'solid' : 'outline'}
-                    onClick={() => setFilterUserId(null)}
-                  >
-                    All
-                  </Button>
-                  {householdMembers.map((member) => (
-                    <Button
-                      key={member.id}
-                      colorScheme={filterUserId === member.id ? 'blue' : 'gray'}
-                      variant={filterUserId === member.id ? 'solid' : 'outline'}
-                      onClick={() => setFilterUserId(member.id)}
-                    >
-                      {member.display_name || member.first_name || member.email.split('@')[0]}
-                    </Button>
-                  ))}
-                </ButtonGroup>
-              </HStack>
-            )}
           </HStack>
         )}
 
@@ -220,11 +224,15 @@ export default function BudgetsPage() {
         {!isLoading && budgets.length === 0 && (
           <EmptyState
             icon={FiDollarSign}
-            title={isOtherUserView ? "This user has no budgets yet" : "No budgets yet"}
+            title={
+              filterUserId
+                ? `${householdMembers.find((m) => m.id === filterUserId)?.display_name || householdMembers.find((m) => m.id === filterUserId)?.first_name || 'This member'} has no budgets yet`
+                : isOtherUserView ? "This user has no budgets yet" : "No budgets yet"
+            }
             description="Create budgets to track spending by category and stay on top of your financial goals."
             actionLabel="Create Your First Budget"
             onAction={handleCreate}
-            showAction={canEdit}
+            showAction={canEdit && !filterUserId}
           />
         )}
 

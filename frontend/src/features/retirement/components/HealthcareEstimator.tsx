@@ -1,33 +1,106 @@
 /**
  * Healthcare cost estimator card.
  * Shows cost phases: pre-65 insurance, Medicare at 65, IRMAA, LTC at 85+.
+ * Pencil icon to toggle edit mode for medical inflation rate, retirement income,
+ * and individual cost line overrides.
  */
 
 import {
   Box,
+  FormControl,
+  FormLabel,
   HStack,
+  IconButton,
+  NumberInput,
+  NumberInputField,
+  Slider,
+  SliderFilledTrack,
+  SliderThumb,
+  SliderTrack,
   Spinner,
   Text,
   useColorModeValue,
   VStack,
 } from '@chakra-ui/react';
+import { useCallback, useMemo, useState } from 'react';
+import { FiCheck, FiEdit2 } from 'react-icons/fi';
 import { useHealthcareEstimate } from '../hooks/useRetirementScenarios';
 
 interface HealthcareEstimatorProps {
   retirementIncome?: number;
   medicalInflationRate?: number;
+  onMedicalInflationChange?: (rate: number) => void;
+  onRetirementIncomeChange?: (income: number) => void;
+  /** Current override values from scenario (null = use estimate) */
+  pre65Override?: number | null;
+  medicareOverride?: number | null;
+  ltcOverride?: number | null;
+  /** Callback to persist overrides */
+  onHealthcareOverridesChange?: (overrides: {
+    healthcare_pre65_override?: number | null;
+    healthcare_medicare_override?: number | null;
+    healthcare_ltc_override?: number | null;
+  }) => void;
 }
 
 export function HealthcareEstimator({
   retirementIncome = 50000,
   medicalInflationRate = 6.0,
+  onMedicalInflationChange,
+  onRetirementIncomeChange,
+  pre65Override,
+  medicareOverride,
+  ltcOverride,
+  onHealthcareOverridesChange,
 }: HealthcareEstimatorProps) {
   const bgColor = useColorModeValue('white', 'gray.800');
   const labelColor = useColorModeValue('gray.500', 'gray.400');
+  const editBg = useColorModeValue('gray.50', 'gray.700');
+  const [isEditing, setIsEditing] = useState(false);
+  const [localInflation, setLocalInflation] = useState(medicalInflationRate);
+  const [localIncome, setLocalIncome] = useState(retirementIncome);
+  const [localPre65, setLocalPre65] = useState<number | null>(pre65Override ?? null);
+  const [localMedicare, setLocalMedicare] = useState<number | null>(medicareOverride ?? null);
+  const [localLtc, setLocalLtc] = useState<number | null>(ltcOverride ?? null);
+
   const { data: estimate, isLoading } = useHealthcareEstimate(
     retirementIncome,
     medicalInflationRate
   );
+
+  const handleToggleEdit = useCallback(() => {
+    if (isEditing) {
+      // Save changes
+      if (localInflation !== medicalInflationRate) {
+        onMedicalInflationChange?.(localInflation);
+      }
+      if (localIncome !== retirementIncome) {
+        onRetirementIncomeChange?.(localIncome);
+      }
+      // Save cost overrides
+      const overrides: {
+        healthcare_pre65_override?: number | null;
+        healthcare_medicare_override?: number | null;
+        healthcare_ltc_override?: number | null;
+      } = {};
+      if (localPre65 !== (pre65Override ?? null)) overrides.healthcare_pre65_override = localPre65;
+      if (localMedicare !== (medicareOverride ?? null)) overrides.healthcare_medicare_override = localMedicare;
+      if (localLtc !== (ltcOverride ?? null)) overrides.healthcare_ltc_override = localLtc;
+      if (Object.keys(overrides).length > 0) onHealthcareOverridesChange?.(overrides);
+    } else {
+      // Enter edit mode — sync local state
+      setLocalInflation(medicalInflationRate);
+      setLocalIncome(retirementIncome);
+      setLocalPre65(pre65Override ?? (estimate?.pre_65_annual ?? null));
+      setLocalMedicare(medicareOverride ?? (estimate?.medicare_annual ?? null));
+      setLocalLtc(ltcOverride ?? (estimate?.ltc_annual ?? null));
+    }
+    setIsEditing(!isEditing);
+  }, [
+    isEditing, localInflation, localIncome, localPre65, localMedicare, localLtc,
+    medicalInflationRate, retirementIncome, pre65Override, medicareOverride, ltcOverride,
+    estimate, onMedicalInflationChange, onRetirementIncomeChange, onHealthcareOverridesChange,
+  ]);
 
   const formatMoney = (amount: number) =>
     new Intl.NumberFormat('en-US', {
@@ -49,6 +122,46 @@ export function HealthcareEstimator({
     }
   };
 
+  // Use overrides when set, otherwise fall back to estimates
+  const displayPre65 = pre65Override ?? estimate?.pre_65_annual ?? 0;
+  const displayMedicare = medicareOverride ?? estimate?.medicare_annual ?? 0;
+  const displayLtc = ltcOverride ?? estimate?.ltc_annual ?? 0;
+
+  // Adjust sample ages when overrides are set
+  const adjustedSampleAges = useMemo(() => {
+    if (!estimate?.sample_ages?.length) return [];
+    const hasAnyOverride = pre65Override != null || medicareOverride != null || ltcOverride != null;
+    if (!hasAnyOverride) return estimate.sample_ages;
+
+    const pre65Scale =
+      pre65Override != null && estimate.pre_65_annual > 0
+        ? pre65Override / estimate.pre_65_annual
+        : 1;
+    const medicareScale =
+      medicareOverride != null && estimate.medicare_annual > 0
+        ? medicareOverride / estimate.medicare_annual
+        : 1;
+    const ltcScale =
+      ltcOverride != null && estimate.ltc_annual > 0
+        ? ltcOverride / estimate.ltc_annual
+        : 1;
+
+    return estimate.sample_ages.map((sample) => {
+      let adjustedTotal = sample.total;
+      if (sample.age < 65) {
+        adjustedTotal = sample.total * pre65Scale;
+      } else if (sample.age < 85) {
+        adjustedTotal = sample.total * medicareScale;
+      } else {
+        // 85+: scale medicare and LTC portions separately
+        const ltcPortion = sample.long_term_care || 0;
+        const medicarePortion = sample.total - ltcPortion;
+        adjustedTotal = medicarePortion * medicareScale + ltcPortion * ltcScale;
+      }
+      return { ...sample, total: adjustedTotal };
+    });
+  }, [estimate, pre65Override, medicareOverride, ltcOverride]);
+
   return (
     <Box bg={bgColor} p={5} borderRadius="xl" shadow="sm">
       <VStack spacing={4} align="stretch">
@@ -56,14 +169,67 @@ export function HealthcareEstimator({
           <Text fontSize="lg" fontWeight="semibold">
             Healthcare Costs
           </Text>
-          {isLoading && <Spinner size="sm" />}
+          <HStack spacing={2}>
+            {isLoading && <Spinner size="sm" />}
+            <IconButton
+              aria-label={isEditing ? 'Save healthcare settings' : 'Edit healthcare settings'}
+              icon={isEditing ? <FiCheck /> : <FiEdit2 />}
+              size="xs"
+              variant="ghost"
+              onClick={handleToggleEdit}
+            />
+          </HStack>
         </HStack>
 
-        {estimate && (
+        {/* Edit mode: inflation slider + income input */}
+        {isEditing && (
+          <VStack spacing={3} align="stretch" p={3} bg={editBg} borderRadius="md">
+            <FormControl>
+              <HStack justify="space-between">
+                <FormLabel fontSize="xs" mb={0} color={labelColor}>
+                  Medical Inflation Rate
+                </FormLabel>
+                <Text fontSize="xs" fontWeight="bold">
+                  {localInflation}%
+                </Text>
+              </HStack>
+              <Slider
+                value={localInflation}
+                min={0}
+                max={15}
+                step={0.5}
+                onChange={setLocalInflation}
+              >
+                <SliderTrack>
+                  <SliderFilledTrack bg="red.400" />
+                </SliderTrack>
+                <SliderThumb />
+              </Slider>
+            </FormControl>
+
+            <FormControl>
+              <FormLabel fontSize="xs" color={labelColor}>
+                Retirement Income (for IRMAA)
+              </FormLabel>
+              <NumberInput
+                value={localIncome}
+                min={0}
+                max={1000000}
+                step={5000}
+                onChange={(_, val) => { if (!isNaN(val)) setLocalIncome(val); }}
+                size="sm"
+              >
+                <NumberInputField />
+              </NumberInput>
+            </FormControl>
+          </VStack>
+        )}
+
+        {(estimate || isEditing) && (
           <>
-            {/* Cost phases */}
+            {/* Cost phases — editable when in edit mode */}
             <VStack spacing={2} align="stretch">
-              {estimate.pre_65_annual > 0 && (
+              {(displayPre65 > 0 || isEditing) && (
                 <HStack justify="space-between">
                   <HStack spacing={2}>
                     <Box w={2} h={2} borderRadius="full" bg={phaseColor('pre65')} />
@@ -71,9 +237,23 @@ export function HealthcareEstimator({
                       Pre-65 Insurance
                     </Text>
                   </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {formatMoney(estimate.pre_65_annual)}/yr
-                  </Text>
+                  {isEditing ? (
+                    <NumberInput
+                      value={localPre65 ?? 0}
+                      min={0}
+                      max={100000}
+                      step={100}
+                      size="xs"
+                      w="100px"
+                      onChange={(_, val) => { if (!isNaN(val)) setLocalPre65(val || null); }}
+                    >
+                      <NumberInputField textAlign="right" />
+                    </NumberInput>
+                  ) : (
+                    <Text fontSize="sm" fontWeight="medium">
+                      {formatMoney(displayPre65)}/yr
+                    </Text>
+                  )}
                 </HStack>
               )}
 
@@ -84,12 +264,26 @@ export function HealthcareEstimator({
                     Medicare (65+)
                   </Text>
                 </HStack>
-                <Text fontSize="sm" fontWeight="medium">
-                  {formatMoney(estimate.medicare_annual)}/yr
-                </Text>
+                {isEditing ? (
+                  <NumberInput
+                    value={localMedicare ?? 0}
+                    min={0}
+                    max={100000}
+                    step={100}
+                    size="xs"
+                    w="100px"
+                    onChange={(_, val) => { if (!isNaN(val)) setLocalMedicare(val || null); }}
+                  >
+                    <NumberInputField textAlign="right" />
+                  </NumberInput>
+                ) : (
+                  <Text fontSize="sm" fontWeight="medium">
+                    {formatMoney(displayMedicare)}/yr
+                  </Text>
+                )}
               </HStack>
 
-              {estimate.ltc_annual > 0 && (
+              {(displayLtc > 0 || isEditing) && (
                 <HStack justify="space-between">
                   <HStack spacing={2}>
                     <Box w={2} h={2} borderRadius="full" bg={phaseColor('ltc')} />
@@ -97,21 +291,35 @@ export function HealthcareEstimator({
                       Long-Term Care (85+)
                     </Text>
                   </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {formatMoney(estimate.ltc_annual)}/yr
-                  </Text>
+                  {isEditing ? (
+                    <NumberInput
+                      value={localLtc ?? 0}
+                      min={0}
+                      max={200000}
+                      step={100}
+                      size="xs"
+                      w="100px"
+                      onChange={(_, val) => { if (!isNaN(val)) setLocalLtc(val || null); }}
+                    >
+                      <NumberInputField textAlign="right" />
+                    </NumberInput>
+                  ) : (
+                    <Text fontSize="sm" fontWeight="medium">
+                      {formatMoney(displayLtc)}/yr
+                    </Text>
+                  )}
                 </HStack>
               )}
             </VStack>
 
-            {/* Sample age breakdown */}
-            {estimate.sample_ages.length > 0 && (
+            {/* Sample age breakdown (read-only), adjusted for overrides */}
+            {!isEditing && adjustedSampleAges.length > 0 && (
               <Box>
                 <Text fontSize="xs" fontWeight="semibold" color={labelColor} mb={2}>
                   Annual Cost by Age
                 </Text>
                 <VStack spacing={1} align="stretch">
-                  {estimate.sample_ages
+                  {adjustedSampleAges
                     .filter((s) => s.total > 0)
                     .slice(0, 5)
                     .map((sample) => (
@@ -125,7 +333,10 @@ export function HealthcareEstimator({
             )}
 
             <Text fontSize="xs" color={labelColor} pt={1}>
-              Assumes {medicalInflationRate}% medical inflation. Costs are in today's dollars.
+              Assumes {medicalInflationRate}% medical inflation.
+              {(pre65Override !== null || medicareOverride !== null || ltcOverride !== null) &&
+                ' Includes manual overrides.'}
+              {' '}Costs are in today's dollars.
             </Text>
           </>
         )}

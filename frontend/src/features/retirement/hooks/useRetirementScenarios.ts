@@ -2,7 +2,7 @@
  * TanStack Query hooks for retirement planning API.
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../../services/api';
 import type {
   HealthcareCostEstimate,
@@ -22,7 +22,7 @@ import type {
 
 const QUERY_KEY = 'retirement-scenarios';
 
-export function useRetirementScenarios(userId?: string) {
+export function useRetirementScenarios(userId?: string, enabled = true) {
   return useQuery<RetirementScenarioSummary[]>({
     queryKey: [QUERY_KEY, userId],
     queryFn: async () => {
@@ -30,6 +30,7 @@ export function useRetirementScenarios(userId?: string) {
       const { data } = await api.get<RetirementScenarioSummary[]>('/retirement/scenarios', { params });
       return data;
     },
+    enabled,
   });
 }
 
@@ -41,6 +42,7 @@ export function useRetirementScenario(scenarioId: string | null) {
       return data;
     },
     enabled: !!scenarioId,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -77,9 +79,10 @@ export function useUpdateScenario() {
       const { data } = await api.patch<RetirementScenario>(`/retirement/scenarios/${id}`, updates);
       return data;
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
+      // Immediately update the detail cache so the UI reflects changes without waiting for re-fetch
+      queryClient.setQueryData([QUERY_KEY, 'detail', variables.id], data);
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'detail', variables.id] });
     },
   });
 }
@@ -140,6 +143,7 @@ export function useSimulationResults(scenarioId: string | null) {
     },
     enabled: !!scenarioId,
     retry: false, // Don't retry 404s (no results yet)
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -272,11 +276,12 @@ export function useHealthcareEstimate(
 
 // --- Account Data ---
 
-export function useRetirementAccountData() {
+export function useRetirementAccountData(userId?: string) {
   return useQuery<RetirementAccountData>({
-    queryKey: [QUERY_KEY, 'account-data'],
+    queryKey: [QUERY_KEY, 'account-data', userId],
     queryFn: async () => {
-      const { data } = await api.get<RetirementAccountData>('/retirement/account-data');
+      const params = userId ? { user_id: userId } : {};
+      const { data } = await api.get<RetirementAccountData>('/retirement/account-data', { params });
       return data;
     },
   });

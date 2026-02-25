@@ -36,6 +36,7 @@ RESOURCE_TYPES: Final[tuple] = (
     "recurring_transaction",
     "report",
     "org_settings",
+    "retirement_scenario",
 )
 
 GRANT_ACTIONS: Final[tuple] = ("read", "create", "update", "delete")

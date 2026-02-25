@@ -85,6 +85,10 @@ export interface RetirementScenario {
   state_tax_rate: number;
   capital_gains_rate: number;
 
+  healthcare_pre65_override: number | null;
+  healthcare_medicare_override: number | null;
+  healthcare_ltc_override: number | null;
+
   num_simulations: number;
   is_shared: boolean;
 
@@ -226,16 +230,25 @@ export interface HealthcareCostEstimate {
 
 // --- Account Data ---
 
+export interface RetirementAccountItem {
+  name: string;
+  balance: number;
+  bucket: 'pre_tax' | 'roth' | 'taxable' | 'hsa' | 'cash';
+  account_type: string;
+}
+
 export interface RetirementAccountData {
   total_portfolio: number;
   taxable_balance: number;
   pre_tax_balance: number;
   roth_balance: number;
   hsa_balance: number;
+  cash_balance: number;
   pension_monthly: number;
   annual_contributions: number;
   employer_match_annual: number;
   annual_income: number;
+  accounts: RetirementAccountItem[];
 }
 
 // --- Withdrawal Comparison ---

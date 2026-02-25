@@ -4,7 +4,6 @@
 
 import {
   Box,
-  Button,
   FormControl,
   FormLabel,
   HStack,
@@ -24,11 +23,9 @@ import type { RetirementScenario } from '../types/retirement';
 interface ScenarioPanelProps {
   scenario: RetirementScenario | null;
   onUpdate: (updates: Partial<RetirementScenario>) => void;
-  onSimulate: () => void;
-  isSimulating?: boolean;
 }
 
-export function ScenarioPanel({ scenario, onUpdate, onSimulate, isSimulating }: ScenarioPanelProps) {
+export function ScenarioPanel({ scenario, onUpdate }: ScenarioPanelProps) {
   const bgColor = useColorModeValue('white', 'gray.800');
   const labelColor = useColorModeValue('gray.600', 'gray.400');
 
@@ -88,8 +85,8 @@ export function ScenarioPanel({ scenario, onUpdate, onSimulate, isSimulating }: 
           </HStack>
           <Slider
             value={retirementAge}
-            min={40}
-            max={80}
+            min={15}
+            max={95}
             step={1}
             onChange={setRetirementAge}
             onChangeEnd={(v) => handleSliderChange('retirement_age', v)}
@@ -113,7 +110,7 @@ export function ScenarioPanel({ scenario, onUpdate, onSimulate, isSimulating }: 
           </HStack>
           <Slider
             value={lifeExpectancy}
-            min={70}
+            min={15}
             max={110}
             step={1}
             onChange={setLifeExpectancy}
@@ -249,17 +246,6 @@ export function ScenarioPanel({ scenario, onUpdate, onSimulate, isSimulating }: 
           </Slider>
         </FormControl>
 
-        {/* Run Simulation Button */}
-        <Button
-          colorScheme="blue"
-          size="md"
-          onClick={onSimulate}
-          isLoading={isSimulating}
-          loadingText="Simulating..."
-          mt={2}
-        >
-          Run Simulation
-        </Button>
       </VStack>
     </Box>
   );

@@ -102,6 +102,11 @@ class RetirementScenario(Base):
     state_tax_rate = Column(Numeric(5, 2), default=Decimal("5.00"), nullable=False)
     capital_gains_rate = Column(Numeric(5, 2), default=Decimal("15.00"), nullable=False)
 
+    # Healthcare cost overrides (annual, nullable = use estimate)
+    healthcare_pre65_override = Column(Numeric(10, 2), nullable=True)
+    healthcare_medicare_override = Column(Numeric(10, 2), nullable=True)
+    healthcare_ltc_override = Column(Numeric(10, 2), nullable=True)
+
     # Simulation config
     num_simulations = Column(Integer, default=1000, nullable=False)
 

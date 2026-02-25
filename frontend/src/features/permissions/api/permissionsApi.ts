@@ -18,7 +18,8 @@ export type ResourceType =
   | 'contribution'
   | 'recurring_transaction'
   | 'report'
-  | 'org_settings';
+  | 'org_settings'
+  | 'retirement_scenario';
 
 export interface PermissionGrant {
   id: string;

@@ -27,6 +27,7 @@ export const ROUTE_TO_RESOURCE_TYPE: Record<string, string> = {
   '/reports': 'report',
   '/tax-deductible': 'report',
   '/debt-payoff': 'report',
+  '/retirement': 'retirement_scenario',
 };
 
 /** Human-friendly label for each resource type */
@@ -43,6 +44,7 @@ export const RESOURCE_TYPE_LABELS: Record<string, string> = {
   bill: 'Bills',
   contribution: 'Contributions',
   org_settings: 'Settings',
+  retirement_scenario: 'Retirement Planner',
 };
 
 /**

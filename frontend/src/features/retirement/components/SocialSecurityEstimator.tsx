@@ -8,6 +8,8 @@ import {
   FormControl,
   FormLabel,
   HStack,
+  NumberInput,
+  NumberInputField,
   Slider,
   SliderFilledTrack,
   SliderThumb,
@@ -44,6 +46,7 @@ export function SocialSecurityEstimator({
   const labelColor = useColorModeValue('gray.500', 'gray.400');
   const [localClaimingAge, setLocalClaimingAge] = useState(claimingAge);
   const [useManual, setUseManual] = useState(!!manualOverride);
+  const [manualAmount, setManualAmount] = useState(manualOverride ?? 2000);
 
   const { data: estimate, isLoading } = useSocialSecurityEstimate(
     localClaimingAge,
@@ -56,6 +59,28 @@ export function SocialSecurityEstimator({
       onClaimingAgeChange?.(val);
     },
     [onClaimingAgeChange]
+  );
+
+  const handleManualToggle = useCallback(
+    (checked: boolean) => {
+      setUseManual(checked);
+      if (checked) {
+        onManualOverrideChange?.(manualAmount);
+      } else {
+        onManualOverrideChange?.(null);
+      }
+    },
+    [manualAmount, onManualOverrideChange]
+  );
+
+  const handleManualAmountChange = useCallback(
+    (_: string, val: number) => {
+      if (!isNaN(val)) {
+        setManualAmount(val);
+        onManualOverrideChange?.(val);
+      }
+    },
+    [onManualOverrideChange]
   );
 
   const formatMoney = (amount: number) =>
@@ -96,8 +121,42 @@ export function SocialSecurityEstimator({
           </Slider>
         </FormControl>
 
-        {/* Benefit estimates */}
-        {estimate && (
+        {/* Manual override toggle */}
+        <FormControl display="flex" alignItems="center">
+          <FormLabel fontSize="xs" mb={0} color={labelColor}>
+            Manual Override
+          </FormLabel>
+          <Switch
+            size="sm"
+            isChecked={useManual}
+            onChange={(e) => handleManualToggle(e.target.checked)}
+          />
+        </FormControl>
+
+        {/* Manual override input */}
+        {useManual && (
+          <FormControl>
+            <FormLabel fontSize="xs" color={labelColor}>
+              Monthly SS Benefit ($)
+            </FormLabel>
+            <NumberInput
+              value={manualAmount}
+              min={0}
+              max={10000}
+              step={100}
+              onChange={handleManualAmountChange}
+              size="sm"
+            >
+              <NumberInputField />
+            </NumberInput>
+            <Text fontSize="xs" color={labelColor} mt={1}>
+              {formatMoney(manualAmount * 12)}/year
+            </Text>
+          </FormControl>
+        )}
+
+        {/* Benefit estimates (only when not in manual mode) */}
+        {!useManual && estimate && (
           <>
             <StatGroup>
               <Stat size="sm">
@@ -144,20 +203,26 @@ export function SocialSecurityEstimator({
           </>
         )}
 
-        {/* Manual override toggle */}
-        <FormControl display="flex" alignItems="center">
-          <FormLabel fontSize="xs" mb={0} color={labelColor}>
-            Manual Override
-          </FormLabel>
-          <Switch
-            size="sm"
-            isChecked={useManual}
-            onChange={(e) => {
-              setUseManual(e.target.checked);
-              if (!e.target.checked) onManualOverrideChange?.(null);
-            }}
-          />
-        </FormControl>
+        {/* Manual mode summary */}
+        {useManual && (
+          <Box
+            bg={useColorModeValue('purple.50', 'purple.900')}
+            p={3}
+            borderRadius="md"
+          >
+            <HStack justify="space-between">
+              <Text fontSize="sm" color={labelColor}>
+                Manual Benefit at {localClaimingAge}
+              </Text>
+              <Text fontSize="md" fontWeight="bold" color="purple.500">
+                {formatMoney(manualAmount)}/mo
+              </Text>
+            </HStack>
+            <Text fontSize="xs" color={labelColor}>
+              ({formatMoney(manualAmount * 12)}/year)
+            </Text>
+          </Box>
+        )}
       </VStack>
     </Box>
   );
