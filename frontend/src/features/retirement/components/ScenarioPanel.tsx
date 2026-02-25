@@ -23,9 +23,10 @@ import type { RetirementScenario } from '../types/retirement';
 interface ScenarioPanelProps {
   scenario: RetirementScenario | null;
   onUpdate: (updates: Partial<RetirementScenario>) => void;
+  readOnly?: boolean;
 }
 
-export function ScenarioPanel({ scenario, onUpdate }: ScenarioPanelProps) {
+export function ScenarioPanel({ scenario, onUpdate, readOnly }: ScenarioPanelProps) {
   const bgColor = useColorModeValue('white', 'gray.800');
   const labelColor = useColorModeValue('gray.600', 'gray.400');
 
@@ -90,6 +91,7 @@ export function ScenarioPanel({ scenario, onUpdate }: ScenarioPanelProps) {
             step={1}
             onChange={setRetirementAge}
             onChangeEnd={(v) => handleSliderChange('retirement_age', v)}
+            isDisabled={readOnly}
           >
             <SliderTrack>
               <SliderFilledTrack bg="blue.400" />
@@ -115,6 +117,7 @@ export function ScenarioPanel({ scenario, onUpdate }: ScenarioPanelProps) {
             step={1}
             onChange={setLifeExpectancy}
             onChangeEnd={(v) => handleSliderChange('life_expectancy', v)}
+            isDisabled={readOnly}
           >
             <SliderTrack>
               <SliderFilledTrack bg="blue.400" />
@@ -140,6 +143,7 @@ export function ScenarioPanel({ scenario, onUpdate }: ScenarioPanelProps) {
               }
             }}
             size="sm"
+            isDisabled={readOnly}
           >
             <NumberInputField />
           </NumberInput>
@@ -166,6 +170,7 @@ export function ScenarioPanel({ scenario, onUpdate }: ScenarioPanelProps) {
             step={0.5}
             onChange={setPreReturn}
             onChangeEnd={(v) => handleSliderChange('pre_retirement_return', v)}
+            isDisabled={readOnly}
           >
             <SliderTrack>
               <SliderFilledTrack bg="green.400" />
@@ -190,6 +195,7 @@ export function ScenarioPanel({ scenario, onUpdate }: ScenarioPanelProps) {
             step={0.5}
             onChange={setPostReturn}
             onChangeEnd={(v) => handleSliderChange('post_retirement_return', v)}
+            isDisabled={readOnly}
           >
             <SliderTrack>
               <SliderFilledTrack bg="green.400" />
@@ -214,6 +220,7 @@ export function ScenarioPanel({ scenario, onUpdate }: ScenarioPanelProps) {
             step={1}
             onChange={setVolatility}
             onChangeEnd={(v) => handleSliderChange('volatility', v)}
+            isDisabled={readOnly}
           >
             <SliderTrack>
               <SliderFilledTrack bg="orange.400" />
@@ -238,6 +245,7 @@ export function ScenarioPanel({ scenario, onUpdate }: ScenarioPanelProps) {
             step={0.5}
             onChange={setInflationRate}
             onChangeEnd={(v) => handleSliderChange('inflation_rate', v)}
+            isDisabled={readOnly}
           >
             <SliderTrack>
               <SliderFilledTrack bg="red.400" />

@@ -41,6 +41,7 @@ interface HealthcareEstimatorProps {
     healthcare_medicare_override?: number | null;
     healthcare_ltc_override?: number | null;
   }) => void;
+  readOnly?: boolean;
 }
 
 export function HealthcareEstimator({
@@ -52,6 +53,7 @@ export function HealthcareEstimator({
   medicareOverride,
   ltcOverride,
   onHealthcareOverridesChange,
+  readOnly,
 }: HealthcareEstimatorProps) {
   const bgColor = useColorModeValue('white', 'gray.800');
   const labelColor = useColorModeValue('gray.500', 'gray.400');
@@ -194,13 +196,15 @@ export function HealthcareEstimator({
           </Text>
           <HStack spacing={2}>
             {isLoading && <Spinner size="sm" />}
-            <IconButton
-              aria-label={isEditing ? 'Save healthcare settings' : 'Edit healthcare settings'}
-              icon={isEditing ? <FiCheck /> : <FiEdit2 />}
-              size="xs"
-              variant="ghost"
-              onClick={handleToggleEdit}
-            />
+            {!readOnly && (
+              <IconButton
+                aria-label={isEditing ? 'Save healthcare settings' : 'Edit healthcare settings'}
+                icon={isEditing ? <FiCheck /> : <FiEdit2 />}
+                size="xs"
+                variant="ghost"
+                onClick={handleToggleEdit}
+              />
+            )}
           </HStack>
         </HStack>
 

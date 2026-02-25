@@ -33,6 +33,7 @@ interface SocialSecurityEstimatorProps {
   manualOverride?: number | null;
   onClaimingAgeChange?: (age: number) => void;
   onManualOverrideChange?: (amount: number | null) => void;
+  readOnly?: boolean;
 }
 
 export function SocialSecurityEstimator({
@@ -41,6 +42,7 @@ export function SocialSecurityEstimator({
   manualOverride,
   onClaimingAgeChange,
   onManualOverrideChange,
+  readOnly,
 }: SocialSecurityEstimatorProps) {
   const bgColor = useColorModeValue('white', 'gray.800');
   const labelColor = useColorModeValue('gray.500', 'gray.400');
@@ -113,6 +115,7 @@ export function SocialSecurityEstimator({
             step={1}
             onChange={setLocalClaimingAge}
             onChangeEnd={handleClaimingAgeEnd}
+            isDisabled={readOnly}
           >
             <SliderTrack>
               <SliderFilledTrack bg="purple.400" />
@@ -130,6 +133,7 @@ export function SocialSecurityEstimator({
             size="sm"
             isChecked={useManual}
             onChange={(e) => handleManualToggle(e.target.checked)}
+            isDisabled={readOnly}
           />
         </FormControl>
 

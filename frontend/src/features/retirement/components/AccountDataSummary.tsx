@@ -25,9 +25,10 @@ interface AccountDataSummaryProps {
   scenario?: RetirementScenario | null;
   userId?: string;
   onTaxRateChange?: (updates: { federal_tax_rate?: number; state_tax_rate?: number; capital_gains_rate?: number }) => void;
+  readOnly?: boolean;
 }
 
-export function AccountDataSummary({ scenario, userId, onTaxRateChange }: AccountDataSummaryProps) {
+export function AccountDataSummary({ scenario, userId, onTaxRateChange, readOnly }: AccountDataSummaryProps) {
   const bgColor = useColorModeValue('white', 'gray.800');
   const labelColor = useColorModeValue('gray.500', 'gray.400');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -77,7 +78,7 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange }: Accoun
     roth: 'green',
     taxable: 'orange',
     hsa: 'teal',
-    cash: 'gray',
+    cash: 'purple',
   };
 
   const buckets = useMemo(() => {
@@ -89,7 +90,7 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange }: Accoun
       { key: 'roth', label: 'Roth', value: data.roth_balance, pct: (data.roth_balance / total) * 100, color: 'green' },
       { key: 'taxable', label: 'Taxable (Brokerage)', value: brokerageBalance, pct: (brokerageBalance / total) * 100, color: 'orange' },
       { key: 'hsa', label: 'HSA', value: data.hsa_balance, pct: (data.hsa_balance / total) * 100, color: 'teal' },
-      { key: 'cash', label: 'Cash (Checking/Savings)', value: data.cash_balance || 0, pct: ((data.cash_balance || 0) / total) * 100, color: 'gray' },
+      { key: 'cash', label: 'Cash (Checking/Savings)', value: data.cash_balance || 0, pct: ((data.cash_balance || 0) / total) * 100, color: 'purple' },
     ];
     return items.filter((b) => b.value > 0);
   }, [data]);
@@ -193,13 +194,15 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange }: Accoun
                   <Text fontSize="xs" fontWeight="semibold" color={labelColor}>
                     Tax Assumptions
                   </Text>
-                  <IconButton
-                    aria-label={isEditingTax ? 'Save tax rates' : 'Edit tax rates'}
-                    icon={isEditingTax ? <FiCheck /> : <FiEdit2 />}
-                    size="xs"
-                    variant="ghost"
-                    onClick={handleToggleTaxEdit}
-                  />
+                  {!readOnly && (
+                    <IconButton
+                      aria-label={isEditingTax ? 'Save tax rates' : 'Edit tax rates'}
+                      icon={isEditingTax ? <FiCheck /> : <FiEdit2 />}
+                      size="xs"
+                      variant="ghost"
+                      onClick={handleToggleTaxEdit}
+                    />
+                  )}
                 </HStack>
                 {isEditingTax ? (
                   <VStack spacing={2} align="stretch" p={2} bg={editBg} borderRadius="md">

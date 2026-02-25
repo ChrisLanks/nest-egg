@@ -19,6 +19,7 @@ interface WithdrawalStrategyComparisonProps {
   withdrawalRate: number;
   selectedStrategy?: WithdrawalStrategy;
   onStrategySelect?: (strategy: WithdrawalStrategy) => void;
+  readOnly?: boolean;
 }
 
 export function WithdrawalStrategyComparison({
@@ -26,6 +27,7 @@ export function WithdrawalStrategyComparison({
   withdrawalRate,
   selectedStrategy,
   onStrategySelect,
+  readOnly,
 }: WithdrawalStrategyComparisonProps) {
   const bgColor = useColorModeValue('white', 'gray.800');
   const labelColor = useColorModeValue('gray.500', 'gray.400');
@@ -63,9 +65,9 @@ export function WithdrawalStrategyComparison({
             bg={taxOptWins ? winnerBg : 'transparent'}
             border="2px solid"
             borderColor={isTaxOptSelected ? selectedBorder : taxOptWins ? 'green.200' : defaultBorder}
-            cursor="pointer"
-            onClick={() => onStrategySelect?.('tax_optimized')}
-            _hover={{ borderColor: selectedBorder, transition: 'border-color 0.2s' }}
+            cursor={readOnly ? 'default' : 'pointer'}
+            onClick={readOnly ? undefined : () => onStrategySelect?.('tax_optimized')}
+            _hover={readOnly ? undefined : { borderColor: selectedBorder, transition: 'border-color 0.2s' }}
           >
             <VStack spacing={2} align="stretch">
               <HStack justify="space-between">
@@ -115,9 +117,9 @@ export function WithdrawalStrategyComparison({
             bg={!taxOptWins ? winnerBg : 'transparent'}
             border="2px solid"
             borderColor={isSimpleSelected ? selectedBorder : !taxOptWins ? 'green.200' : defaultBorder}
-            cursor="pointer"
-            onClick={() => onStrategySelect?.('simple_rate')}
-            _hover={{ borderColor: selectedBorder, transition: 'border-color 0.2s' }}
+            cursor={readOnly ? 'default' : 'pointer'}
+            onClick={readOnly ? undefined : () => onStrategySelect?.('simple_rate')}
+            _hover={readOnly ? undefined : { borderColor: selectedBorder, transition: 'border-color 0.2s' }}
           >
             <VStack spacing={2} align="stretch">
               <HStack justify="space-between">

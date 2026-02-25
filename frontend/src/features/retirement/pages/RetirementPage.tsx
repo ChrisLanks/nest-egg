@@ -79,7 +79,8 @@ export function RetirementPage() {
   const toast = useToast();
   const cardBg = useColorModeValue('white', 'gray.800');
   const accent = useColorModeValue('blue', 'cyan');
-  const { isCombinedView, isSelfView, isOtherUserView, selectedUserId } = useUserView();
+  const { isCombinedView, isSelfView, isOtherUserView, selectedUserId, canWriteResource } = useUserView();
+  const readOnly = !canWriteResource('retirement_scenario');
   const { data: householdMembers = [] } = useHouseholdMembers();
   const [filterUserId, setFilterUserId] = useState<string | null>(null);
   const showMemberFilter = isCombinedView && householdMembers.length > 1;
@@ -561,15 +562,17 @@ export function RetirementPage() {
             Retirement Planner
           </Text>
           <HStack spacing={2}>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleDuplicate}
-              isLoading={duplicateMutation.isPending}
-              isDisabled={!selectedScenarioId}
-            >
-              Duplicate
-            </Button>
+            {!readOnly && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDuplicate}
+                isLoading={duplicateMutation.isPending}
+                isDisabled={!selectedScenarioId}
+              >
+                Duplicate
+              </Button>
+            )}
             {results && (
               <Button
                 size="sm"
@@ -675,38 +678,42 @@ export function RetirementPage() {
                           </Text>
                         )}
                       </Text>
-                      <IconButton
-                        aria-label="Rename scenario"
-                        icon={<FiEdit2 />}
-                        size="xs"
-                        variant="ghost"
-                        minW="auto"
-                        h="auto"
-                        p={0.5}
-                        fontSize="10px"
-                        opacity={0.5}
-                        _hover={{ opacity: 1 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleTabDoubleClick(s.id, s.name);
-                        }}
-                      />
-                      <IconButton
-                        aria-label="Delete scenario"
-                        icon={<FiX />}
-                        size="xs"
-                        variant="ghost"
-                        minW="auto"
-                        h="auto"
-                        p={0.5}
-                        fontSize="10px"
-                        opacity={0.5}
-                        _hover={{ opacity: 1, color: 'red.400' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRequestDelete(s.id);
-                        }}
-                      />
+                      {!readOnly && (
+                        <>
+                          <IconButton
+                            aria-label="Rename scenario"
+                            icon={<FiEdit2 />}
+                            size="xs"
+                            variant="ghost"
+                            minW="auto"
+                            h="auto"
+                            p={0.5}
+                            fontSize="10px"
+                            opacity={0.5}
+                            _hover={{ opacity: 1 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTabDoubleClick(s.id, s.name);
+                            }}
+                          />
+                          <IconButton
+                            aria-label="Delete scenario"
+                            icon={<FiX />}
+                            size="xs"
+                            variant="ghost"
+                            minW="auto"
+                            h="auto"
+                            p={0.5}
+                            fontSize="10px"
+                            opacity={0.5}
+                            _hover={{ opacity: 1, color: 'red.400' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRequestDelete(s.id);
+                            }}
+                          />
+                        </>
+                      )}
                     </HStack>
                   )}
                 </Tab>
@@ -731,13 +738,13 @@ export function RetirementPage() {
             events={scenario.life_events}
             retirementAge={scenario.retirement_age}
             lifeExpectancy={scenario.life_expectancy}
-            onEventClick={handleEditEvent}
-            onDeleteEvent={handleDeleteEvent}
+            onEventClick={readOnly ? undefined : handleEditEvent}
+            onDeleteEvent={readOnly ? undefined : handleDeleteEvent}
           />
         )}
 
         {/* Add Life Event Buttons */}
-        {scenario && (
+        {scenario && !readOnly && (
           <HStack spacing={2}>
             <Button size="sm" variant="outline" colorScheme="blue" onClick={presetPicker.onOpen}>
               + Add Life Event
@@ -764,12 +771,12 @@ export function RetirementPage() {
               onClick={handleSimulate}
               isLoading={simulateMutation.isPending}
               loadingText="Running Simulation..."
-              isDisabled={!selectedScenarioId}
+              isDisabled={!selectedScenarioId || readOnly}
               w="100%"
             >
               {settingsDirty ? 'Re-run Simulation' : 'Run Simulation'}
             </Button>
-            {settingsDirty && (
+            {settingsDirty && !readOnly && (
               <Text fontSize="xs" color="orange.400" textAlign="center">
                 Settings have changed since your last simulation. Click above to update results.
               </Text>
@@ -783,6 +790,7 @@ export function RetirementPage() {
             <ScenarioPanel
               scenario={scenario ?? null}
               onUpdate={handleUpdate}
+              readOnly={readOnly}
             />
 
             {/* Account Data Summary */}
@@ -790,6 +798,7 @@ export function RetirementPage() {
               scenario={scenario ?? null}
               userId={scenarioUserId}
               onTaxRateChange={(changes) => handleUpdate(changes)}
+              readOnly={readOnly}
             />
           </VStack>
 
@@ -807,6 +816,7 @@ export function RetirementPage() {
                   use_estimated_pia: amount === null,
                 })
               }
+              readOnly={readOnly}
             />
 
             {/* Healthcare Estimator */}
@@ -819,6 +829,7 @@ export function RetirementPage() {
               medicareOverride={scenario?.healthcare_medicare_override ?? null}
               ltcOverride={scenario?.healthcare_ltc_override ?? null}
               onHealthcareOverridesChange={(overrides) => handleUpdate(overrides)}
+              readOnly={readOnly}
             />
 
             {/* Withdrawal Strategy Comparison */}
@@ -828,6 +839,7 @@ export function RetirementPage() {
                 withdrawalRate={scenario?.withdrawal_rate ?? 4}
                 selectedStrategy={scenario?.withdrawal_strategy}
                 onStrategySelect={(strategy) => handleUpdate({ withdrawal_strategy: strategy })}
+                readOnly={readOnly}
               />
             )}
 
