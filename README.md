@@ -1,21 +1,64 @@
 # Nest Egg - Personal Finance Tracking Application
 
-A comprehensive multi-user personal finance application for tracking transactions, investments, budgets, and cash flow analysis with smart automation and proactive notifications.
+A comprehensive multi-user personal finance application for tracking transactions, investments, budgets, retirement planning, and cash flow analysis with smart automation and proactive notifications.
+
+The real power in this tool, is the ability to invite others to your household (up to 5). Doing so will allow all cashflow trends, retirement data, debt planning, etc to be analyzed together allowing an accurate, single, holistic view. However, individual views are still accesable. You can change this in the top right corner of the page always. You can see the financial data of your personal account, and/or a significant other. The tool is also smart enough to de-duplicate the accounts. If you both have the mortgage or the same credit card, it will only show up once in the merged, combined household, view. 
+In addition, a household member can grant permissions to other household members to specific tools, ensuring a household user's settings cannot be changed without permission. (See more detail below).
 
 
-<img width="1511" height="789" alt="image" src="https://github.com/user-attachments/assets/22a77cad-e244-4ad4-a775-b512f7ae5579" />
+## Screenshots. 
+Note: there is dark mode and light mode
 
-<img width="1512" height="982" alt="image" src="https://github.com/user-attachments/assets/09e0cf48-5d5e-47c3-a125-b54989f4c19a" />
+<img width="1512" height="860" alt="image" src="https://github.com/user-attachments/assets/bee8102d-25fd-4c2c-84a5-f8e738ea9318" />
 
-<img width="1512" height="982" alt="image" src="https://github.com/user-attachments/assets/97dae7d3-f55f-4d1b-98a2-efe192f189a1" />
+<img width="1512" height="863" alt="image" src="https://github.com/user-attachments/assets/08741b93-3644-44d3-a1fe-5b5f808782f7" />
 
-<img width="1512" height="797" alt="image" src="https://github.com/user-attachments/assets/3a2c1553-ce1e-4169-8933-8e3620357d47" />
+<img width="1512" height="864" alt="image" src="https://github.com/user-attachments/assets/8182c38e-d810-49db-9b58-a01d74b6061f" />
+
+<img width="1510" height="861" alt="image" src="https://github.com/user-attachments/assets/e74ce71d-93cf-4706-80e3-304665a36c6b" />
+
+<img width="1512" height="862" alt="image" src="https://github.com/user-attachments/assets/10066761-a116-4d4b-aa97-d33e9b2e954f" />
+
+<img width="1512" height="861" alt="image" src="https://github.com/user-attachments/assets/5dc2eede-b4a8-41e7-a85f-06530cee72ee" />
+
+<img width="1512" height="860" alt="image" src="https://github.com/user-attachments/assets/1bafa5e7-5146-4576-a363-99ee782033fa" />
+
 
 <img width="1511" height="790" alt="image" src="https://github.com/user-attachments/assets/3a6e813e-5bf2-4dd8-ad36-39cae2156b66" />
 
 <img width="1512" height="788" alt="image" src="https://github.com/user-attachments/assets/3f410abd-1fff-46a2-bb74-fb191cdc706e" />
 
+<img width="1512" height="863" alt="image" src="https://github.com/user-attachments/assets/4f5b17c6-64ca-4053-ad4c-3076e4cbab1d" />
+
+
 <img width="1512" height="789" alt="image" src="https://github.com/user-attachments/assets/90bf447e-65f6-4160-b353-d88e132dc855" />
+
+<img width="1512" height="863" alt="image" src="https://github.com/user-attachments/assets/0b1aa5c8-874e-46c8-8c01-d4a065543c52" />
+
+<img width="1511" height="860" alt="image" src="https://github.com/user-attachments/assets/e39f9043-138b-469f-9034-50565e8bfdf0" />
+
+<img width="1508" height="862" alt="image" src="https://github.com/user-attachments/assets/a35632c7-59c4-43b9-accb-3184be3cc262" />
+
+<img width="1512" height="860" alt="image" src="https://github.com/user-attachments/assets/b5958a54-728f-4351-9b51-0c778212bc57" />
+
+<img width="1512" height="861" alt="image" src="https://github.com/user-attachments/assets/60531ae3-8c1a-4cb4-9b2a-3ade7502e460" />
+
+
+## Views:
+
+<img width="1512" height="861" alt="image" src="https://github.com/user-attachments/assets/9e6765e0-a777-4515-8826-3093040ab9fe" />
+
+<img width="1512" height="860" alt="image" src="https://github.com/user-attachments/assets/d56f9f6f-03cb-4794-8a53-0680db50194a" />
+
+<img width="1512" height="859" alt="image" src="https://github.com/user-attachments/assets/26e7aec8-f0de-4041-8820-65343b397d73" />
+
+## Permissions:
+
+<img width="1512" height="860" alt="image" src="https://github.com/user-attachments/assets/94fb5578-fb31-4aa9-8275-0d1fab99f75f" />
+
+<img width="1512" height="861" alt="image" src="https://github.com/user-attachments/assets/dfc2cf4a-5095-40ff-97ae-02376c5f2442" />
+
+<img width="454" height="590" alt="image" src="https://github.com/user-attachments/assets/f5396561-8d8e-4730-a1f5-48aa58437095" />
 
 
 ## ✨ Features
