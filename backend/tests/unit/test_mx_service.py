@@ -6,7 +6,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from app.models.account import Account, AccountSource, AccountType, MxMember
+from app.models.account import Account, AccountSource, AccountType, MxMember, TaxTreatment
 
 
 class TestMxServiceInit:
@@ -394,37 +394,41 @@ class TestMxServiceAccountTypeMapping:
     """Test MX account type mapping."""
 
     def test_checking_type(self, mx_service):
-        assert mx_service._map_account_type("CHECKING") == AccountType.CHECKING
+        assert mx_service._map_account_type("CHECKING") == (AccountType.CHECKING, None)
 
     def test_savings_type(self, mx_service):
-        assert mx_service._map_account_type("SAVINGS") == AccountType.SAVINGS
+        assert mx_service._map_account_type("SAVINGS") == (AccountType.SAVINGS, None)
 
     def test_credit_card_type(self, mx_service):
-        assert mx_service._map_account_type("CREDIT_CARD") == AccountType.CREDIT_CARD
+        assert mx_service._map_account_type("CREDIT_CARD") == (AccountType.CREDIT_CARD, None)
 
     def test_mortgage_type(self, mx_service):
-        assert mx_service._map_account_type("MORTGAGE") == AccountType.MORTGAGE
+        assert mx_service._map_account_type("MORTGAGE") == (AccountType.MORTGAGE, None)
 
     def test_loan_type(self, mx_service):
-        assert mx_service._map_account_type("LOAN") == AccountType.LOAN
+        assert mx_service._map_account_type("LOAN") == (AccountType.LOAN, None)
 
     def test_student_loan_type(self, mx_service):
-        assert mx_service._map_account_type("STUDENT_LOAN") == AccountType.STUDENT_LOAN
+        assert mx_service._map_account_type("STUDENT_LOAN") == (AccountType.STUDENT_LOAN, None)
 
     def test_investment_type(self, mx_service):
-        assert mx_service._map_account_type("INVESTMENT") == AccountType.BROKERAGE
+        assert mx_service._map_account_type("INVESTMENT") == (AccountType.BROKERAGE, TaxTreatment.TAXABLE)
+
+    def test_retirement_defaults_to_pre_tax(self, mx_service):
+        """MX returns generic RETIREMENT — we default to PRE_TAX (traditional)."""
+        assert mx_service._map_account_type("RETIREMENT") == (AccountType.RETIREMENT_401K, TaxTreatment.PRE_TAX)
 
     def test_property_type(self, mx_service):
-        assert mx_service._map_account_type("PROPERTY") == AccountType.PROPERTY
+        assert mx_service._map_account_type("PROPERTY") == (AccountType.PROPERTY, None)
 
     def test_unknown_type_defaults_to_other(self, mx_service):
-        assert mx_service._map_account_type("UNKNOWN_TYPE") == AccountType.OTHER
+        assert mx_service._map_account_type("UNKNOWN_TYPE") == (AccountType.OTHER, None)
 
     def test_none_type_defaults_to_other(self, mx_service):
-        assert mx_service._map_account_type(None) == AccountType.OTHER
+        assert mx_service._map_account_type(None) == (AccountType.OTHER, None)
 
     def test_case_insensitive(self, mx_service):
-        assert mx_service._map_account_type("checking") == AccountType.CHECKING
+        assert mx_service._map_account_type("checking") == (AccountType.CHECKING, None)
 
 
 class TestMxServiceMakeRequest:

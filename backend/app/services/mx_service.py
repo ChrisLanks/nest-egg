@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.config import settings
-from app.models.account import Account, MxMember, AccountSource, AccountType
+from app.models.account import Account, MxMember, AccountSource, AccountType, TaxTreatment
 from app.models.transaction import Transaction
 from app.services.encryption_service import get_encryption_service
 from app.utils.datetime_utils import utc_now
@@ -193,13 +193,15 @@ class MxService:
             account = existing_accounts.get(mx_acc["guid"])
 
             if not account:
+                mapped_type, mapped_tax = self._map_account_type(mx_acc.get("type"))
                 account = Account(
                     organization_id=member.organization_id,
                     user_id=member.user_id,
                     mx_member_id=member.id,
                     external_account_id=mx_acc["guid"],
                     name=mx_acc.get("name", "Unknown Account"),
-                    account_type=self._map_account_type(mx_acc.get("type")),
+                    account_type=mapped_type,
+                    tax_treatment=mapped_tax,
                     account_source=AccountSource.MX,
                     mask=mx_acc.get("account_number")[-4:] if mx_acc.get("account_number") else None,
                     institution_name=member.institution_name,
@@ -289,27 +291,32 @@ class MxService:
 
     # ── Helpers ─────────────────────────────────────────────────────────────
 
-    def _map_account_type(self, mx_type: Optional[str]) -> AccountType:
-        """Map MX account type to our AccountType enum.
+    def _map_account_type(
+        self, mx_type: Optional[str]
+    ) -> tuple[AccountType, TaxTreatment | None]:
+        """Map MX account type to our AccountType enum and TaxTreatment.
 
         MX types: CHECKING, SAVINGS, LOAN, CREDIT_CARD, INVESTMENT,
                   MORTGAGE, PROPERTY, LINE_OF_CREDIT, etc.
+
+        Note: MX returns generic "RETIREMENT" without distinguishing Roth
+        vs Traditional. We default to PRE_TAX — users can override manually.
         """
-        type_map = {
-            "CHECKING": AccountType.CHECKING,
-            "SAVINGS": AccountType.SAVINGS,
-            "MONEY_MARKET": AccountType.MONEY_MARKET,
-            "CERTIFICATE_OF_DEPOSIT": AccountType.CD,
-            "CREDIT_CARD": AccountType.CREDIT_CARD,
-            "LOAN": AccountType.LOAN,
-            "STUDENT_LOAN": AccountType.STUDENT_LOAN,
-            "MORTGAGE": AccountType.MORTGAGE,
-            "LINE_OF_CREDIT": AccountType.LOAN,
-            "INVESTMENT": AccountType.BROKERAGE,
-            "RETIREMENT": AccountType.RETIREMENT_401K,
-            "PROPERTY": AccountType.PROPERTY,
+        type_map: dict[str, tuple[AccountType, TaxTreatment | None]] = {
+            "CHECKING": (AccountType.CHECKING, None),
+            "SAVINGS": (AccountType.SAVINGS, None),
+            "MONEY_MARKET": (AccountType.MONEY_MARKET, None),
+            "CERTIFICATE_OF_DEPOSIT": (AccountType.CD, None),
+            "CREDIT_CARD": (AccountType.CREDIT_CARD, None),
+            "LOAN": (AccountType.LOAN, None),
+            "STUDENT_LOAN": (AccountType.STUDENT_LOAN, None),
+            "MORTGAGE": (AccountType.MORTGAGE, None),
+            "LINE_OF_CREDIT": (AccountType.LOAN, None),
+            "INVESTMENT": (AccountType.BROKERAGE, TaxTreatment.TAXABLE),
+            "RETIREMENT": (AccountType.RETIREMENT_401K, TaxTreatment.PRE_TAX),
+            "PROPERTY": (AccountType.PROPERTY, None),
         }
-        return type_map.get((mx_type or "").upper(), AccountType.OTHER)
+        return type_map.get((mx_type or "").upper(), (AccountType.OTHER, None))
 
     def _generate_dedup_hash(self, account_id: UUID, txn: Dict) -> str:
         """Generate deduplication hash for transaction."""

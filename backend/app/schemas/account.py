@@ -15,6 +15,7 @@ from app.models.account import (
     CompanyStatus,
     ValuationMethod,
     CompoundingFrequency,
+    TaxTreatment,
 )
 
 
@@ -103,6 +104,9 @@ class ManualAccountCreate(BaseModel):
     )  # Percentage ownership (0-100)
     equity_value: Optional[Decimal] = None  # Direct equity value
 
+    # Tax treatment (retirement accounts)
+    tax_treatment: Optional[TaxTreatment] = None
+
     # Employer match fields (401k / 403b)
     employer_match_percent: Optional[Decimal] = None
     employer_match_limit_percent: Optional[Decimal] = None
@@ -165,6 +169,9 @@ class AccountUpdate(BaseModel):
     company_valuation: Optional[Decimal] = None
     ownership_percentage: Optional[Decimal] = None
     equity_value: Optional[Decimal] = None
+
+    # Tax treatment (retirement accounts)
+    tax_treatment: Optional[TaxTreatment] = None
 
     # Employer match fields (401k / 403b)
     employer_match_percent: Optional[Decimal] = None
@@ -236,6 +243,9 @@ class Account(AccountBase):
     ownership_percentage: Optional[Decimal] = None
     equity_value: Optional[Decimal] = None
 
+    # Tax treatment (retirement accounts)
+    tax_treatment: Optional[TaxTreatment] = None
+
     # Employer match fields (401k / 403b)
     employer_match_percent: Optional[Decimal] = None
     employer_match_limit_percent: Optional[Decimal] = None
@@ -268,6 +278,7 @@ class AccountSummary(BaseModel):
     user_id: UUID
     name: str
     account_type: AccountType
+    tax_treatment: Optional[TaxTreatment] = None
     account_source: AccountSource  # plaid, teller, mx, manual
     property_type: Optional[PropertyType] = None  # For PROPERTY accounts only
     institution_name: Optional[str] = None

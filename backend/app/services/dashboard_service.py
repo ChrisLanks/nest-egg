@@ -11,6 +11,7 @@ from sqlalchemy.orm import joinedload
 
 from app.models.account import Account, AccountType
 from app.models.transaction import Transaction, TransactionLabel, Category
+from app.utils.account_type_groups import NET_WORTH_EXCLUDED_BY_DEFAULT
 from app.utils.datetime_utils import utc_now
 
 
@@ -108,16 +109,7 @@ class DashboardService:
             return account.include_in_networth
 
         # Auto-determine based on account type
-        # Account types that default to excluded from net worth
-        EXCLUDED_BY_DEFAULT = {
-            AccountType.VEHICLE,  # Depreciating asset; opt-in for classics
-            AccountType.COLLECTIBLES,  # Uncertain value; opt-in
-            AccountType.OTHER,  # Unknown type; opt-in
-            AccountType.MANUAL,  # Unknown type; opt-in
-            AccountType.PENSION,  # Future income promise, not a liquid asset; opt-in
-        }
-
-        if account.account_type in EXCLUDED_BY_DEFAULT:
+        if account.account_type in NET_WORTH_EXCLUDED_BY_DEFAULT:
             return False
 
         if account.account_type == AccountType.PRIVATE_EQUITY:

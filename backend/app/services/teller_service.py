@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.config import settings
-from app.models.account import Account, TellerEnrollment, AccountSource, AccountType
+from app.models.account import Account, TellerEnrollment, AccountSource, AccountType, TaxTreatment
 from app.models.transaction import Transaction
 from app.services.encryption_service import get_encryption_service
 from app.utils.datetime_utils import utc_now
@@ -139,15 +139,17 @@ class TellerService:
                     or balance_data.get("current")
                     or balance_data.get("available", 0)
                 )
+                mapped_type, mapped_tax = self._map_account_type(
+                    account_data.get("type"), account_data.get("subtype")
+                )
                 account = Account(
                     organization_id=enrollment.organization_id,
                     user_id=enrollment.user_id,
                     teller_enrollment_id=enrollment.id,
                     external_account_id=account_data["id"],
                     name=account_data.get("name", "Unknown Account"),
-                    account_type=self._map_account_type(
-                        account_data.get("type"), account_data.get("subtype")
-                    ),
+                    account_type=mapped_type,
+                    tax_treatment=mapped_tax,
                     account_source=AccountSource.TELLER,
                     mask=account_data.get("last_four"),
                     institution_name=account_data.get("institution", {}).get("name"),
@@ -247,29 +249,43 @@ class TellerService:
 
     def _map_account_type(
         self, teller_type: Optional[str], teller_subtype: Optional[str] = None
-    ) -> AccountType:
-        """Map Teller account type + subtype to our AccountType enum.
+    ) -> tuple[AccountType, TaxTreatment | None]:
+        """Map Teller account type + subtype to our AccountType enum and TaxTreatment.
 
         Teller types: depository, credit, loan, investment
         Teller subtypes: checking, savings, money_market, cd, brokerage, ira, etc.
         """
         if teller_type == "depository":
             if teller_subtype in ("savings", "money_market", "cd"):
-                return AccountType.SAVINGS
-            return AccountType.CHECKING
+                return AccountType.SAVINGS, None
+            return AccountType.CHECKING, None
         elif teller_type == "credit":
-            return AccountType.CREDIT_CARD
+            return AccountType.CREDIT_CARD, None
         elif teller_type == "loan":
-            return AccountType.LOAN
+            return AccountType.LOAN, None
         elif teller_type == "investment":
             if teller_subtype in ("ira", "traditional_ira"):
-                return AccountType.RETIREMENT_IRA
-            elif teller_subtype == "roth":
-                return AccountType.RETIREMENT_ROTH
-            elif teller_subtype in ("401k", "403b", "457b"):
-                return AccountType.RETIREMENT_401K
-            return AccountType.BROKERAGE
-        return AccountType.OTHER
+                return AccountType.RETIREMENT_IRA, TaxTreatment.PRE_TAX
+            elif teller_subtype == "sep_ira":
+                return AccountType.RETIREMENT_SEP_IRA, TaxTreatment.PRE_TAX
+            elif teller_subtype == "simple_ira":
+                return AccountType.RETIREMENT_SIMPLE_IRA, TaxTreatment.PRE_TAX
+            elif teller_subtype in ("roth", "roth_ira"):
+                return AccountType.RETIREMENT_ROTH, TaxTreatment.ROTH
+            elif teller_subtype == "roth_401k":
+                return AccountType.RETIREMENT_401K, TaxTreatment.ROTH
+            elif teller_subtype == "roth_403b":
+                return AccountType.RETIREMENT_403B, TaxTreatment.ROTH
+            elif teller_subtype == "401k":
+                return AccountType.RETIREMENT_401K, TaxTreatment.PRE_TAX
+            elif teller_subtype == "403b":
+                return AccountType.RETIREMENT_403B, TaxTreatment.PRE_TAX
+            elif teller_subtype == "457b":
+                return AccountType.RETIREMENT_457B, TaxTreatment.PRE_TAX
+            elif teller_subtype == "hsa":
+                return AccountType.HSA, TaxTreatment.TAX_FREE
+            return AccountType.BROKERAGE, TaxTreatment.TAXABLE
+        return AccountType.OTHER, None
 
     def _generate_dedup_hash(self, account_id: UUID, txn_data: Dict) -> str:
         """Generate deduplication hash for transaction."""

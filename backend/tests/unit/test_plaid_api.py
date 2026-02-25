@@ -18,7 +18,7 @@ from app.api.v1.plaid import (
     _handle_auth_webhook,
 )
 from app.models.user import User
-from app.models.account import Account, PlaidItem, AccountType
+from app.models.account import Account, PlaidItem, AccountType, TaxTreatment
 from app.schemas.plaid import (
     LinkTokenCreateRequest,
     PublicTokenExchangeRequest,
@@ -52,47 +52,82 @@ class TestMapPlaidAccountType:
     def test_maps_checking_account(self):
         """Should map checking account correctly."""
         result = _map_plaid_account_type("depository", "checking")
-        assert result == AccountType.CHECKING
+        assert result == (AccountType.CHECKING, None)
 
     def test_maps_savings_account(self):
         """Should map savings account correctly."""
         result = _map_plaid_account_type("depository", "savings")
-        assert result == AccountType.SAVINGS
+        assert result == (AccountType.SAVINGS, None)
 
     def test_maps_credit_card(self):
         """Should map credit card correctly."""
         result = _map_plaid_account_type("credit", "credit_card")
-        assert result == AccountType.CREDIT_CARD
+        assert result == (AccountType.CREDIT_CARD, None)
 
     def test_maps_mortgage(self):
         """Should map mortgage correctly."""
         result = _map_plaid_account_type("loan", "mortgage")
-        assert result == AccountType.MORTGAGE
+        assert result == (AccountType.MORTGAGE, None)
 
-    def test_maps_401k(self):
-        """Should map 401k correctly."""
+    def test_maps_401k_as_pre_tax(self):
+        """Should map traditional 401k with PRE_TAX treatment."""
         result = _map_plaid_account_type("investment", "401k")
-        assert result == AccountType.RETIREMENT_401K
+        assert result == (AccountType.RETIREMENT_401K, TaxTreatment.PRE_TAX)
 
-    def test_maps_ira(self):
-        """Should map IRA correctly."""
+    def test_maps_roth_401k(self):
+        """Should map roth_401k to RETIREMENT_401K with ROTH treatment."""
+        result = _map_plaid_account_type("investment", "roth_401k")
+        assert result == (AccountType.RETIREMENT_401K, TaxTreatment.ROTH)
+
+    def test_maps_roth_403b(self):
+        """Should map roth_403b to RETIREMENT_403B with ROTH treatment."""
+        result = _map_plaid_account_type("investment", "roth_403b")
+        assert result == (AccountType.RETIREMENT_403B, TaxTreatment.ROTH)
+
+    def test_maps_403b_as_pre_tax(self):
+        """Should map traditional 403b with PRE_TAX treatment."""
+        result = _map_plaid_account_type("investment", "403b")
+        assert result == (AccountType.RETIREMENT_403B, TaxTreatment.PRE_TAX)
+
+    def test_maps_457b_as_pre_tax(self):
+        """Should map 457b with PRE_TAX treatment."""
+        result = _map_plaid_account_type("investment", "457b")
+        assert result == (AccountType.RETIREMENT_457B, TaxTreatment.PRE_TAX)
+
+    def test_maps_sep_ira(self):
+        """Should map SEP IRA with PRE_TAX treatment."""
+        result = _map_plaid_account_type("investment", "sep_ira")
+        assert result == (AccountType.RETIREMENT_SEP_IRA, TaxTreatment.PRE_TAX)
+
+    def test_maps_simple_ira(self):
+        """Should map SIMPLE IRA with PRE_TAX treatment."""
+        result = _map_plaid_account_type("investment", "simple_ira")
+        assert result == (AccountType.RETIREMENT_SIMPLE_IRA, TaxTreatment.PRE_TAX)
+
+    def test_maps_ira_as_pre_tax(self):
+        """Should map traditional IRA with PRE_TAX treatment."""
         result = _map_plaid_account_type("investment", "ira")
-        assert result == AccountType.RETIREMENT_IRA
+        assert result == (AccountType.RETIREMENT_IRA, TaxTreatment.PRE_TAX)
 
-    def test_maps_roth(self):
-        """Should map Roth correctly."""
+    def test_maps_roth_ira(self):
+        """Should map Roth IRA correctly."""
         result = _map_plaid_account_type("investment", "roth")
-        assert result == AccountType.RETIREMENT_ROTH
+        assert result == (AccountType.RETIREMENT_ROTH, TaxTreatment.ROTH)
+
+    def test_maps_hsa(self):
+        """Should map HSA with TAX_FREE treatment."""
+        result = _map_plaid_account_type("investment", "hsa")
+        assert result == (AccountType.HSA, TaxTreatment.TAX_FREE)
 
     def test_maps_brokerage(self):
         """Should map brokerage correctly."""
         result = _map_plaid_account_type("investment", "brokerage")
-        assert result == AccountType.BROKERAGE
+        assert result == (AccountType.BROKERAGE, TaxTreatment.TAXABLE)
 
     def test_defaults_unknown_to_other(self):
         """Should default unknown types to OTHER."""
         result = _map_plaid_account_type("unknown", "unknown")
-        assert result == AccountType.OTHER
+        assert result == (AccountType.OTHER, None)
 
 
 @pytest.mark.unit

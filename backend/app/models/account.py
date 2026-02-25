@@ -90,8 +90,12 @@ class AccountType(str, enum.Enum):
     # Investment Accounts
     BROKERAGE = "brokerage"
     RETIREMENT_401K = "retirement_401k"
+    RETIREMENT_403B = "retirement_403b"
+    RETIREMENT_457B = "retirement_457b"
     RETIREMENT_IRA = "retirement_ira"
     RETIREMENT_ROTH = "retirement_roth"
+    RETIREMENT_SEP_IRA = "retirement_sep_ira"
+    RETIREMENT_SIMPLE_IRA = "retirement_simple_ira"
     RETIREMENT_529 = "retirement_529"
     HSA = "hsa"
     PENSION = "pension"
@@ -142,6 +146,15 @@ class AccountType(str, enum.Enum):
     def is_debt(self) -> bool:
         """Check if this account type is a debt."""
         return self.category == AccountCategory.DEBT
+
+
+class TaxTreatment(str, enum.Enum):
+    """Tax treatment for retirement and investment accounts."""
+
+    PRE_TAX = "pre_tax"          # Traditional 401k, Traditional IRA
+    ROTH = "roth"                # Roth 401k, Roth IRA, Roth 403b
+    TAXABLE = "taxable"          # Brokerage, checking, savings, etc.
+    TAX_FREE = "tax_free"        # HSA (triple tax advantage), 529 (qualified)
 
 
 class AccountSource(str, enum.Enum):
@@ -355,6 +368,7 @@ class Account(Base):
     account_type = Column(SQLEnum(AccountType), nullable=False, index=True)
     property_type = Column(SQLEnum(PropertyType), nullable=True)  # Only for PROPERTY accounts
     account_source = Column(SQLEnum(AccountSource), default=AccountSource.PLAID, nullable=False)
+    tax_treatment = Column(SQLEnum(TaxTreatment), nullable=True)  # NULL for non-retirement accounts
 
     # External identifiers
     external_account_id = Column(String(255), nullable=True, index=True)  # Plaid account_id

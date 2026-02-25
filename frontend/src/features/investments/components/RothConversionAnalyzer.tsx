@@ -45,6 +45,7 @@ import { useState, useMemo } from 'react';
 import { FiInfo, FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
 import api from '../../../services/api';
 import { useUserView } from '../../../contexts/UserViewContext';
+import { formatAccountType } from '../../../utils/formatAccountType';
 
 interface RothAnalysisData {
   traditional_balance: number;
@@ -453,7 +454,7 @@ export const RothConversionAnalyzer: React.FC = () => {
               {data.accounts.map((acc) => (
                 <HStack key={acc.id} spacing={2}>
                   <Badge colorScheme="purple" variant="subtle">
-                    {acc.type === 'retirement_401k' ? '401(k)' : 'IRA'}
+                    {formatAccountType(acc.type)}
                   </Badge>
                   <Text fontSize="sm">{acc.name}</Text>
                   <Text fontSize="sm" fontWeight="semibold">

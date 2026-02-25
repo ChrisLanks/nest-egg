@@ -14,26 +14,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-
-// ── constants mirroring AccountDetailPage ─────────────────────────────────────
-
-const ASSET_ACCOUNT_TYPES = [
-  'property', 'vehicle', 'collectibles', 'precious_metals',
-  'business_equity', 'private_equity', 'private_debt', 'bond',
-  'life_insurance_cash_value', 'pension', 'annuity',
-];
-
-const CONTRIBUTION_ACCOUNT_TYPES = [
-  'savings', 'brokerage', 'retirement_401k', 'retirement_ira',
-  'retirement_roth', 'retirement_529', 'hsa',
-];
-
-const DEBT_ACCOUNT_TYPES = ['credit_card', 'loan', 'student_loan', 'mortgage'];
-
-const HOLDINGS_ACCOUNT_TYPES = [
-  'brokerage', 'retirement_401k', 'retirement_ira', 'retirement_roth',
-  'retirement_529', 'hsa', 'crypto',
-];
+import {
+  ASSET_ACCOUNT_TYPES,
+  CONTRIBUTION_ACCOUNT_TYPES,
+  DEBT_ACCOUNT_TYPES,
+  HOLDINGS_ACCOUNT_TYPES,
+} from '../../constants/accountTypeGroups';
 
 // ── helpers mirroring AccountDetailPage expressions ───────────────────────────
 
@@ -178,6 +164,22 @@ describe('showContributions', () => {
 
   it('shows for manual retirement_roth', () => {
     expect(showContributions('manual', 'retirement_roth')).toBe(true);
+  });
+
+  it('shows for manual retirement_403b', () => {
+    expect(showContributions('manual', 'retirement_403b')).toBe(true);
+  });
+
+  it('shows for manual retirement_457b', () => {
+    expect(showContributions('manual', 'retirement_457b')).toBe(true);
+  });
+
+  it('shows for manual retirement_sep_ira', () => {
+    expect(showContributions('manual', 'retirement_sep_ira')).toBe(true);
+  });
+
+  it('shows for manual retirement_simple_ira', () => {
+    expect(showContributions('manual', 'retirement_simple_ira')).toBe(true);
   });
 
   it('shows for manual retirement_529', () => {
@@ -337,6 +339,22 @@ describe('showHoldings', () => {
 
   it('shows for retirement_roth', () => {
     expect(showHoldings('retirement_roth')).toBe(true);
+  });
+
+  it('shows for retirement_403b', () => {
+    expect(showHoldings('retirement_403b')).toBe(true);
+  });
+
+  it('shows for retirement_457b', () => {
+    expect(showHoldings('retirement_457b')).toBe(true);
+  });
+
+  it('shows for retirement_sep_ira', () => {
+    expect(showHoldings('retirement_sep_ira')).toBe(true);
+  });
+
+  it('shows for retirement_simple_ira', () => {
+    expect(showHoldings('retirement_simple_ira')).toBe(true);
   });
 
   it('shows for retirement_529', () => {

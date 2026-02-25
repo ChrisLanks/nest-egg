@@ -53,12 +53,22 @@ import { ContributionsManager } from '../features/accounts/components/Contributi
 import { AddTransactionModal } from '../features/accounts/components/AddTransactionModal';
 import { AddHoldingModal } from '../features/accounts/components/AddHoldingModal';
 import { holdingsApi, type Holding } from '../api/holdings';
+import { formatAccountType } from '../utils/formatAccountType';
+import {
+  ASSET_ACCOUNT_TYPES,
+  CONTRIBUTION_ACCOUNT_TYPES,
+  DEBT_ACCOUNT_TYPES,
+  EMPLOYER_MATCH_TYPES,
+  HOLDINGS_ACCOUNT_TYPES,
+  TAX_TREATMENT_ACCOUNT_TYPES,
+} from '../constants/accountTypeGroups';
 
 interface Account {
   id: string;
   user_id: string;
   name: string;
   account_type: string;
+  tax_treatment: string | null;
   account_source: string;
   current_balance: number;
   balance_as_of: string | null;
@@ -94,46 +104,6 @@ interface Account {
 }
 
 const LOAN_ACCOUNT_TYPES = ['mortgage', 'loan', 'student_loan'];
-
-/** Asset accounts track a value, not a transaction flow. */
-const ASSET_ACCOUNT_TYPES = [
-  'property', 'vehicle', 'collectibles', 'precious_metals',
-  'business_equity', 'private_equity', 'private_debt', 'bond',
-  'life_insurance_cash_value', 'pension', 'annuity',
-];
-
-/** Manual accounts that make sense to schedule recurring contributions for. */
-const CONTRIBUTION_ACCOUNT_TYPES = [
-  'savings', 'brokerage', 'retirement_401k', 'retirement_ira',
-  'retirement_roth', 'retirement_529', 'hsa',
-];
-
-/** Debt account types — can update balance directly when manual. */
-const DEBT_ACCOUNT_TYPES = ['credit_card', 'loan', 'student_loan', 'mortgage'];
-
-/** Investment account types that support individual holdings (including crypto coins). */
-const HOLDINGS_ACCOUNT_TYPES = [
-  'brokerage', 'retirement_401k', 'retirement_ira', 'retirement_roth',
-  'retirement_529', 'hsa', 'crypto',
-];
-
-const accountTypeLabels: Record<string, string> = {
-  checking: 'Checking',
-  savings: 'Savings',
-  credit_card: 'Credit Card',
-  brokerage: 'Brokerage',
-  retirement_401k: '401(k)',
-  retirement_ira: 'IRA',
-  retirement_roth: 'Roth IRA',
-  hsa: 'HSA',
-  loan: 'Loan',
-  mortgage: 'Mortgage',
-  property: 'Property',
-  vehicle: 'Vehicle',
-  crypto: 'Crypto',
-  manual: 'Manual',
-  other: 'Other',
-};
 
 export const AccountDetailPage = () => {
   const { accountId } = useParams<{ accountId: string }>();
@@ -237,7 +207,7 @@ export const AccountDetailPage = () => {
 
   // Update account mutation
   const updateAccountMutation = useMutation({
-    mutationFn: async (data: { name?: string; account_type?: string; is_active?: boolean; exclude_from_cash_flow?: boolean; include_in_networth?: boolean | null; interest_rate?: number | null; loan_term_months?: number | null; origination_date?: string | null; current_balance?: number; employer_match_percent?: number | null; employer_match_limit_percent?: number | null; annual_salary?: number | null; property_address?: string | null; property_zip?: string | null; vehicle_vin?: string | null; vehicle_mileage?: number | null; valuation_adjustment_pct?: number | null }) => {
+    mutationFn: async (data: { name?: string; account_type?: string; tax_treatment?: string | null; is_active?: boolean; exclude_from_cash_flow?: boolean; include_in_networth?: boolean | null; interest_rate?: number | null; loan_term_months?: number | null; origination_date?: string | null; current_balance?: number; employer_match_percent?: number | null; employer_match_limit_percent?: number | null; annual_salary?: number | null; property_address?: string | null; property_zip?: string | null; vehicle_vin?: string | null; vehicle_mileage?: number | null; valuation_adjustment_pct?: number | null }) => {
       const response = await api.patch(`/accounts/${accountId}`, data);
       return response.data;
     },
@@ -819,7 +789,7 @@ export const AccountDetailPage = () => {
               </HStack>
             )}
             <Text color="text.secondary" mt={1}>
-              {accountTypeLabels[account.account_type] || account.account_type}
+              {formatAccountType(account.account_type, account.tax_treatment)}
               {account.mask && account.account_type !== 'vehicle' && ` ••${account.mask}`}
             </Text>
           </Box>
@@ -863,14 +833,53 @@ export const AccountDetailPage = () => {
                     size="sm"
                     isDisabled={!canEditAccount}
                   >
-                    {Object.entries(accountTypeLabels).map(([value, label]) => (
+                    {[
+                      'checking', 'savings', 'credit_card', 'brokerage',
+                      'retirement_401k', 'retirement_403b', 'retirement_457b',
+                      'retirement_ira', 'retirement_roth', 'retirement_sep_ira',
+                      'retirement_simple_ira', 'retirement_529', 'hsa',
+                      'loan', 'mortgage', 'property', 'vehicle', 'crypto',
+                      'manual', 'other',
+                    ].map((value) => (
                       <option key={value} value={value}>
-                        {label}
+                        {formatAccountType(value)}
                       </option>
                     ))}
                   </Select>
                 </Tooltip>
               </FormControl>
+
+              {/* Tax Treatment — for retirement/investment accounts */}
+              {(TAX_TREATMENT_ACCOUNT_TYPES as readonly string[]).includes(account.account_type) && (
+                <FormControl>
+                  <FormLabel fontSize="sm">Tax Treatment</FormLabel>
+                  <Tooltip
+                    label={!canEditAccount ? "You can only edit your own accounts" : account.account_source !== 'manual' ? "Override the provider's default if incorrect" : ""}
+                    placement="top"
+                    isDisabled={canEditAccount && account.account_source === 'manual'}
+                  >
+                    <Select
+                      value={account.tax_treatment || ''}
+                      onChange={(e) => {
+                        updateAccountMutation.mutate({ tax_treatment: e.target.value || null });
+                      }}
+                      size="sm"
+                      isDisabled={!canEditAccount}
+                    >
+                      <option value="">Not specified</option>
+                      <option value="pre_tax">Traditional (Pre-Tax)</option>
+                      <option value="roth">Roth (After-Tax)</option>
+                      <option value="taxable">Taxable</option>
+                      <option value="tax_free">Tax-Free (HSA/529)</option>
+                    </Select>
+                  </Tooltip>
+                  {account.account_source === 'mx' && !account.tax_treatment && (
+                    <Text fontSize="xs" color="orange.500" mt={1}>
+                      MX doesn't distinguish Roth vs Traditional. Please select the correct tax treatment.
+                    </Text>
+                  )}
+                </FormControl>
+              )}
 
               {/* Hide from Reports */}
               <FormControl display="flex" alignItems="center">
@@ -1504,7 +1513,7 @@ export const AccountDetailPage = () => {
         )}
 
         {/* Employer Match Section - For 401k / 403b accounts */}
-        {['retirement_401k', 'retirement_403b'].includes(account.account_type) && (
+        {(EMPLOYER_MATCH_TYPES as readonly string[]).includes(account.account_type) && (
           <Card>
             <CardBody>
               <Heading size="md" mb={1}>Employer Match</Heading>

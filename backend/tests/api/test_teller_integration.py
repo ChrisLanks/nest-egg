@@ -7,7 +7,7 @@ from decimal import Decimal
 from datetime import date
 from uuid import uuid4
 
-from app.models.account import TellerEnrollment, Account, AccountSource, AccountType
+from app.models.account import TellerEnrollment, Account, AccountSource, AccountType, TaxTreatment
 from app.services.teller_service import TellerService
 
 pytestmark = pytest.mark.asyncio
@@ -251,11 +251,22 @@ class TestTellerService:
         """Should map Teller account types to internal AccountType."""
         service = TellerService()
 
-        assert service._map_account_type("depository") == AccountType.CHECKING
-        assert service._map_account_type("credit") == AccountType.CREDIT_CARD
-        assert service._map_account_type("loan") == AccountType.LOAN
-        assert service._map_account_type("investment") == AccountType.BROKERAGE
-        assert service._map_account_type("unknown") == AccountType.OTHER
+        assert service._map_account_type("depository") == (AccountType.CHECKING, None)
+        assert service._map_account_type("credit") == (AccountType.CREDIT_CARD, None)
+        assert service._map_account_type("loan") == (AccountType.LOAN, None)
+        assert service._map_account_type("investment") == (AccountType.BROKERAGE, TaxTreatment.TAXABLE)
+        assert service._map_account_type("unknown") == (AccountType.OTHER, None)
+        # Roth subtypes
+        assert service._map_account_type("investment", "roth_401k") == (AccountType.RETIREMENT_401K, TaxTreatment.ROTH)
+        assert service._map_account_type("investment", "401k") == (AccountType.RETIREMENT_401K, TaxTreatment.PRE_TAX)
+        assert service._map_account_type("investment", "roth") == (AccountType.RETIREMENT_ROTH, TaxTreatment.ROTH)
+        assert service._map_account_type("investment", "ira") == (AccountType.RETIREMENT_IRA, TaxTreatment.PRE_TAX)
+        # New retirement subtypes
+        assert service._map_account_type("investment", "403b") == (AccountType.RETIREMENT_403B, TaxTreatment.PRE_TAX)
+        assert service._map_account_type("investment", "roth_403b") == (AccountType.RETIREMENT_403B, TaxTreatment.ROTH)
+        assert service._map_account_type("investment", "457b") == (AccountType.RETIREMENT_457B, TaxTreatment.PRE_TAX)
+        assert service._map_account_type("investment", "sep_ira") == (AccountType.RETIREMENT_SEP_IRA, TaxTreatment.PRE_TAX)
+        assert service._map_account_type("investment", "simple_ira") == (AccountType.RETIREMENT_SIMPLE_IRA, TaxTreatment.PRE_TAX)
 
     async def test_generate_dedup_hash_deterministic(self, test_account):
         """Should generate deterministic hash for transaction deduplication."""

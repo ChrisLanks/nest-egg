@@ -24,8 +24,12 @@ export enum AccountType {
   // Investment Accounts
   BROKERAGE = 'brokerage',
   RETIREMENT_401K = 'retirement_401k',
+  RETIREMENT_403B = 'retirement_403b',
+  RETIREMENT_457B = 'retirement_457b',
   RETIREMENT_IRA = 'retirement_ira',
   RETIREMENT_ROTH = 'retirement_roth',
+  RETIREMENT_SEP_IRA = 'retirement_sep_ira',
+  RETIREMENT_SIMPLE_IRA = 'retirement_simple_ira',
   RETIREMENT_529 = 'retirement_529',
   HSA = 'hsa',
   PENSION = 'pension',
@@ -33,6 +37,7 @@ export enum AccountType {
   // Alternative Investments
   CRYPTO = 'crypto',
   PRIVATE_EQUITY = 'private_equity',
+  PRIVATE_DEBT = 'private_debt',
   COLLECTIBLES = 'collectibles',
   PRECIOUS_METALS = 'precious_metals',
 

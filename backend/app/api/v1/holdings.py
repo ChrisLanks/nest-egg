@@ -33,8 +33,15 @@ from app.dependencies import (
 )
 from app.models.user import User
 from app.models.holding import Holding
-from app.models.account import Account, AccountType
+from app.models.account import Account, AccountType, TaxTreatment
 from app.schemas.rmd import RMDSummary, AccountRMD
+from app.utils.account_type_groups import (
+    ALL_RETIREMENT_TYPES,
+    CASH_ACCOUNT_TYPES,
+    INVESTMENT_ACCOUNT_TYPES,
+    RMD_ACCOUNT_TYPES,
+    ROTH_CONVERSION_ELIGIBLE_TYPES,
+)
 from app.services.market_data import get_market_data_provider
 from app.services.snapshot_service import snapshot_service
 from app.services.deduplication_service import deduplication_service
@@ -88,18 +95,8 @@ async def get_portfolio_summary(
         accounts = deduplication_service.deduplicate_accounts(accounts)
 
     # Filter accounts for investment accounts only
-    investment_account_types = [
-        AccountType.BROKERAGE,
-        AccountType.RETIREMENT_401K,
-        AccountType.RETIREMENT_IRA,
-        AccountType.RETIREMENT_ROTH,
-        AccountType.HSA,
-        AccountType.CRYPTO,
-        AccountType.MANUAL,  # Private stocks, private investments
-        AccountType.OTHER,  # 529 plans, other investment types
-    ]
     investment_account_ids = [
-        acc.id for acc in accounts if acc.account_type in investment_account_types
+        acc.id for acc in accounts if acc.account_type in INVESTMENT_ACCOUNT_TYPES
     ]
 
     # Fetch holdings for the filtered investment accounts (capped at 10 000 rows as
@@ -266,18 +263,11 @@ async def get_portfolio_summary(
     else:
         sector_breakdown = None
 
-    # Calculate category breakdown (Retirement vs Taxable)
-    retirement_types = [
-        AccountType.RETIREMENT_401K,
-        AccountType.RETIREMENT_IRA,
-        AccountType.RETIREMENT_ROTH,
-        AccountType.HSA,
-    ]
-
+    # Calculate category breakdown (Retirement vs Taxable) using tax_treatment field
     retirement_value = Decimal("0")
     taxable_value = Decimal("0")
 
-    # Group holdings by account type
+    # Group holdings by account
     holdings_by_account: dict[UUID, list] = {}
     for holding in holdings:
         if holding.account_id not in holdings_by_account:
@@ -285,18 +275,27 @@ async def get_portfolio_summary(
         holdings_by_account[holding.account_id].append(holding)
 
     for account in accounts:
-        if account.account_type in retirement_types:
-            # Sum holdings in this retirement account
-            if account.id in holdings_by_account:
-                for holding in holdings_by_account[account.id]:
-                    if holding.current_total_value:
-                        retirement_value += holding.current_total_value
-        elif account.account_type == AccountType.BROKERAGE:
-            # Sum holdings in taxable brokerage
-            if account.id in holdings_by_account:
-                for holding in holdings_by_account[account.id]:
-                    if holding.current_total_value:
-                        taxable_value += holding.current_total_value
+        acct_value = Decimal("0")
+        if account.id in holdings_by_account:
+            for holding in holdings_by_account[account.id]:
+                if holding.current_total_value:
+                    acct_value += holding.current_total_value
+
+        if acct_value == 0:
+            continue
+
+        # Use tax_treatment to classify: PRE_TAX/ROTH/TAX_FREE → retirement, TAXABLE → taxable
+        if account.tax_treatment in (TaxTreatment.PRE_TAX, TaxTreatment.ROTH, TaxTreatment.TAX_FREE):
+            retirement_value += acct_value
+        elif account.tax_treatment == TaxTreatment.TAXABLE:
+            taxable_value += acct_value
+        else:
+            # Fallback for accounts without tax_treatment set — use account_type
+            retirement_types = ALL_RETIREMENT_TYPES
+            if account.account_type in retirement_types:
+                retirement_value += acct_value
+            elif account.account_type == AccountType.BROKERAGE:
+                taxable_value += acct_value
 
     category_breakdown = CategoryBreakdown(
         retirement_value=retirement_value,
@@ -557,7 +556,7 @@ async def get_portfolio_summary(
     investment_accounts_without_holdings_dict = {}  # {account_name: value}
 
     for account in accounts:
-        if account.account_type in investment_account_types and account.current_balance:
+        if account.account_type in INVESTMENT_ACCOUNT_TYPES and account.current_balance:
             # Check if this account has any holdings
             if account.id not in holdings_by_account or len(holdings_by_account[account.id]) == 0:
                 # Account has a balance but no holdings - include it
@@ -1046,21 +1045,10 @@ async def get_portfolio_summary(
 
     # Group holdings by account for detailed view
     # Include investment and investment-like accounts (exclude checking, credit cards, loans)
-    investment_account_types = [
-        AccountType.BROKERAGE,
-        AccountType.RETIREMENT_401K,
-        AccountType.RETIREMENT_IRA,
-        AccountType.RETIREMENT_ROTH,
-        AccountType.HSA,
-        AccountType.CRYPTO,
-        AccountType.MANUAL,  # Private stocks, private investments
-        AccountType.OTHER,  # 529 plans, other investment types
-    ]
-
     holdings_by_account_list = []
     for account in accounts:
         # Skip non-investment accounts
-        if account.account_type not in investment_account_types:
+        if account.account_type not in INVESTMENT_ACCOUNT_TYPES:
             continue
 
         # Get holdings for this account (empty list if none)
@@ -1149,15 +1137,7 @@ async def create_holding(
         raise HTTPException(status_code=404, detail="Account not found")
 
     # Verify account is an investment or crypto type
-    if account.account_type not in [
-        AccountType.BROKERAGE,
-        AccountType.RETIREMENT_401K,
-        AccountType.RETIREMENT_IRA,
-        AccountType.RETIREMENT_ROTH,
-        AccountType.RETIREMENT_529,
-        AccountType.HSA,
-        AccountType.CRYPTO,
-    ]:
+    if account.account_type not in INVESTMENT_ACCOUNT_TYPES:
         logger.warning(
             "create_holding: invalid account type account_id=%s type=%s user_id=%s",
             account.id,
@@ -1404,28 +1384,14 @@ async def get_style_box_breakdown(
         h
         for h in holdings
         if h.account
-        and h.account.account_type
-        in [
-            AccountType.BROKERAGE,
-            AccountType.RETIREMENT_401K,
-            AccountType.RETIREMENT_IRA,
-            AccountType.RETIREMENT_ROTH,
-            AccountType.RETIREMENT_529,
-            AccountType.MANUAL,
-        ]
+        and h.account.account_type in INVESTMENT_ACCOUNT_TYPES
     ]
 
     # Also get cash accounts for Cash breakdown
     cash_accounts_result = await db.execute(
         select(Account).where(
             Account.organization_id == current_user.organization_id,
-            Account.account_type.in_(
-                [
-                    AccountType.CHECKING,
-                    AccountType.SAVINGS,
-                    AccountType.MONEY_MARKET,
-                ]
-            ),
+            Account.account_type.in_(CASH_ACCOUNT_TYPES),
             Account.is_active.is_(True),
         )
     )
@@ -1743,13 +1709,9 @@ async def get_rmd_summary(
     For combined household view: Returns combined RMD for all household members with birthdates.
     Only applicable if user has birthdate set and is age 73+.
     """
-    # RMD-applicable retirement accounts (Traditional IRA, 401k, SEP, SIMPLE)
+    # RMD-applicable retirement accounts (Traditional IRA, 401k, 403b, 457b, SEP, SIMPLE, Pension)
     # Roth accounts do NOT require RMDs during owner's lifetime
-    rmd_account_types = [
-        AccountType.RETIREMENT_401K,
-        AccountType.RETIREMENT_IRA,  # Traditional IRA
-        AccountType.PENSION,
-    ]
+    rmd_account_types = RMD_ACCOUNT_TYPES
 
     # Individual user view
     if user_id:
@@ -1786,9 +1748,12 @@ async def get_rmd_summary(
         # Get user's accounts
         accounts = await get_user_accounts(db, user_id, current_user.organization_id)
 
-        # Filter for RMD-applicable accounts
+        # Filter for RMD-applicable accounts (exclude Roth — no RMDs during owner's lifetime)
         accounts = [
-            acc for acc in accounts if acc.account_type in rmd_account_types and acc.is_active
+            acc for acc in accounts
+            if acc.account_type in rmd_account_types
+            and acc.is_active
+            and acc.tax_treatment != TaxTreatment.ROTH
         ]
 
         total_required = Decimal("0")
@@ -1866,11 +1831,13 @@ async def get_rmd_summary(
             # Get member's accounts
             member_accounts = await get_user_accounts(db, member.id, current_user.organization_id)
 
-            # Filter for RMD-applicable accounts
+            # Filter for RMD-applicable accounts (exclude Roth — no RMDs during owner's lifetime)
             member_accounts = [
                 acc
                 for acc in member_accounts
-                if acc.account_type in rmd_account_types and acc.is_active
+                if acc.account_type in rmd_account_types
+                and acc.is_active
+                and acc.tax_treatment != TaxTreatment.ROTH
             ]
 
             for account in member_accounts:
@@ -1933,9 +1900,13 @@ async def get_roth_analysis(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return traditional IRA/401k balance data for Roth conversion analysis."""
-    # Traditional retirement accounts (Roth IRA does NOT appear here)
-    traditional_types = [AccountType.RETIREMENT_401K, AccountType.RETIREMENT_IRA]
+    """Return traditional IRA/401k balance data for Roth conversion analysis.
+
+    Uses the tax_treatment field to distinguish Traditional (pre_tax) from Roth
+    accounts. A Roth 401(k) will NOT appear here — only pre-tax retirement
+    accounts are eligible for Roth conversion.
+    """
+    retirement_types = ROTH_CONVERSION_ELIGIBLE_TYPES
 
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
@@ -1947,9 +1918,14 @@ async def get_roth_analysis(
         accounts = deduplication_service.deduplicate_accounts(accounts)
         target_user = current_user
 
+    # Only include pre-tax retirement accounts (eligible for Roth conversion).
+    # Accounts with tax_treatment=ROTH are already Roth and excluded.
+    # Accounts with NULL tax_treatment on retirement types default to traditional.
     traditional_accounts = [
         acc for acc in accounts
-        if acc.account_type in traditional_types and acc.is_active
+        if acc.account_type in retirement_types
+        and acc.is_active
+        and acc.tax_treatment != TaxTreatment.ROTH
     ]
 
     traditional_balance = sum(
@@ -1975,6 +1951,7 @@ async def get_roth_analysis(
                 "name": acc.name,
                 "balance": float(acc.current_balance or 0),
                 "type": acc.account_type.value,
+                "tax_treatment": acc.tax_treatment.value if acc.tax_treatment else None,
             }
             for acc in traditional_accounts
         ],

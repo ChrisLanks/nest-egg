@@ -48,6 +48,7 @@ import {
   getBannerAccess,
   getResourceTypeForPath,
 } from "../utils/permissionBannerUtils";
+import { ACCOUNT_TYPE_SIDEBAR_CONFIG } from "../constants/accountTypeGroups";
 
 interface Account {
   id: string;
@@ -421,25 +422,7 @@ const AccountItem = ({
   );
 };
 
-const accountTypeConfig: Record<string, { label: string; order: number }> = {
-  checking: { label: "Cash", order: 1 },
-  savings: { label: "Cash", order: 1 },
-  credit_card: { label: "Credit Cards", order: 2 },
-  brokerage: { label: "Investments", order: 3 },
-  private_equity: { label: "Investments", order: 3 },
-  retirement_401k: { label: "Retirement", order: 4 },
-  retirement_ira: { label: "Retirement", order: 4 },
-  retirement_roth: { label: "Retirement", order: 4 },
-  retirement_529: { label: "Retirement", order: 4 },
-  hsa: { label: "Retirement", order: 4 },
-  loan: { label: "Loans", order: 5 },
-  mortgage: { label: "Loans", order: 5 },
-  property: { label: "Property", order: 6 },
-  vehicle: { label: "Property", order: 6 },
-  crypto: { label: "Crypto", order: 7 },
-  manual: { label: "Other", order: 8 },
-  other: { label: "Other", order: 8 },
-};
+const accountTypeConfig = ACCOUNT_TYPE_SIDEBAR_CONFIG;
 
 
 export const Layout = () => {

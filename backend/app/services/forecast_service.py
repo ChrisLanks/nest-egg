@@ -15,6 +15,7 @@ from uuid import UUID
 from app.models.user import User
 from app.utils.datetime_utils import utc_now
 from app.models.account import Account, AccountType
+from app.utils.account_type_groups import AMORTIZING_LOAN_TYPES, NET_WORTH_EXCLUDED_BY_DEFAULT
 from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
 from app.services.recurring_detection_service import RecurringDetectionService
 from app.services.notification_service import NotificationService
@@ -170,20 +171,13 @@ class ForecastService:
         today = utc_now().date()
 
         # Account types that default to excluded from net worth when include_in_networth is None
-        EXCLUDED_BY_DEFAULT = {
-            AccountType.VEHICLE,
-            AccountType.COLLECTIBLES,
-            AccountType.OTHER,
-            AccountType.MANUAL,
-            AccountType.PENSION,
-        }
 
         for account in accounts:
             # Check if account should be included
             include = account.include_in_networth
             if include is None:
                 # Auto-determine
-                if account.account_type in EXCLUDED_BY_DEFAULT:
+                if account.account_type in NET_WORTH_EXCLUDED_BY_DEFAULT:
                     include = False
                 elif account.account_type == AccountType.PRIVATE_EQUITY:
                     include = bool(
@@ -545,7 +539,7 @@ class ForecastService:
 
         Only runs for accounts with interest_rate set and exclude_from_cash_flow = False.
         """
-        loan_types = {AccountType.MORTGAGE, AccountType.LOAN, AccountType.STUDENT_LOAN}
+        loan_types = AMORTIZING_LOAN_TYPES
 
         # Filter to loan accounts with interest rates, not excluded from cash flow
         accounts = [

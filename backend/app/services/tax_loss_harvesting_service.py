@@ -9,6 +9,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.account import Account, TaxTreatment
 from app.models.holding import Holding
 
 logger = logging.getLogger(__name__)
@@ -61,11 +62,41 @@ class TaxLossHarvestingService:
         db: AsyncSession,
         organization_id: UUID,
     ) -> List[TaxLossOpportunity]:
-        """Find all holdings with unrealized losses that could be harvested."""
-        # Get all holdings with cost basis data
+        """Find holdings with unrealized losses in taxable accounts only.
+
+        Tax-loss harvesting only applies to taxable accounts (brokerage, etc.).
+        Losses in retirement accounts (401k, IRA, HSA, 529) cannot be claimed.
+        """
+        # Get taxable account IDs — only these are eligible for tax-loss harvesting
+        acct_result = await db.execute(
+            select(Account.id).where(
+                Account.organization_id == organization_id,
+                Account.is_active.is_(True),
+                Account.tax_treatment == TaxTreatment.TAXABLE,
+            )
+        )
+        taxable_account_ids = {row[0] for row in acct_result.all()}
+
+        # Also include accounts with NULL tax_treatment that look taxable (brokerage, crypto)
+        from app.models.account import AccountType
+        fallback_result = await db.execute(
+            select(Account.id).where(
+                Account.organization_id == organization_id,
+                Account.is_active.is_(True),
+                Account.tax_treatment.is_(None),
+                Account.account_type.in_([AccountType.BROKERAGE, AccountType.CRYPTO]),
+            )
+        )
+        taxable_account_ids.update(row[0] for row in fallback_result.all())
+
+        if not taxable_account_ids:
+            return []
+
+        # Get holdings in taxable accounts with cost basis data
         result = await db.execute(
             select(Holding).where(
                 Holding.organization_id == organization_id,
+                Holding.account_id.in_(taxable_account_ids),
                 Holding.total_cost_basis.isnot(None),
                 Holding.current_total_value.isnot(None),
             )

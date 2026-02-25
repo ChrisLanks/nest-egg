@@ -22,7 +22,8 @@ from app.dependencies import (
     get_verified_account,
     verify_household_member,
 )
-from app.models.account import Account, AccountType
+from app.models.account import Account, AccountType, TaxTreatment
+from app.utils.account_type_groups import MANUAL_EXCLUDE_CASH_FLOW_TYPES, TAX_TREATMENT_DEFAULTS
 from app.models.holding import Holding
 from app.models.user import User
 from app.schemas.account import (
@@ -207,12 +208,12 @@ async def create_manual_account(
 
     # Determine if account should be excluded from cash flow by default
     # Loans and mortgages are excluded to prevent double-counting (payment from checking + loan balance decrease)
-    exclude_from_cash_flow = account_data.account_type in [
-        AccountType.MORTGAGE,
-        AccountType.LOAN,
-        AccountType.STUDENT_LOAN,
-        AccountType.CREDIT_CARD,
-    ]
+    exclude_from_cash_flow = account_data.account_type in MANUAL_EXCLUDE_CASH_FLOW_TYPES
+
+    # Determine tax treatment: use explicit value, or infer from account type
+    tax_treatment = account_data.tax_treatment
+    if tax_treatment is None:
+        tax_treatment = TAX_TREATMENT_DEFAULTS.get(account_data.account_type)
 
     # Create the account
     account = Account(
@@ -220,6 +221,7 @@ async def create_manual_account(
         user_id=current_user.id,
         name=input_sanitization_service.sanitize_html(account_data.name),
         account_type=account_data.account_type,
+        tax_treatment=tax_treatment,
         property_type=account_data.property_type,
         account_source=account_data.account_source,
         institution_name=account_data.institution,
@@ -386,6 +388,10 @@ async def update_account(
         account.mask = account_data.mask
     if account_data.exclude_from_cash_flow is not None:
         account.exclude_from_cash_flow = account_data.exclude_from_cash_flow
+
+    # Update tax treatment
+    if account_data.tax_treatment is not None:
+        account.tax_treatment = account_data.tax_treatment
 
     # Update Debt/Loan fields
     if account_data.interest_rate is not None:

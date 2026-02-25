@@ -150,8 +150,12 @@ export const InvestmentAccountForm = ({
           <Select {...register('account_type')}>
             <option value={ACCOUNT_TYPES.BROKERAGE}>Brokerage</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_401K}>401(k)</option>
+            <option value={ACCOUNT_TYPES.RETIREMENT_403B}>403(b)</option>
+            <option value={ACCOUNT_TYPES.RETIREMENT_457B}>457(b)</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_IRA}>IRA</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_ROTH}>Roth IRA</option>
+            <option value={ACCOUNT_TYPES.RETIREMENT_SEP_IRA}>SEP IRA</option>
+            <option value={ACCOUNT_TYPES.RETIREMENT_SIMPLE_IRA}>SIMPLE IRA</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_529}>529 Plan</option>
             <option value={ACCOUNT_TYPES.HSA}>HSA</option>
           </Select>

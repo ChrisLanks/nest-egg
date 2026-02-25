@@ -14,7 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User, Organization
-from app.models.account import Account, AccountSource, PlaidItem, AccountType
+from app.models.account import Account, AccountSource, PlaidItem, AccountType, TaxTreatment
+from app.utils.account_type_groups import PLAID_EXCLUDE_CASH_FLOW_TYPES
 from app.models.notification import NotificationType, NotificationPriority
 from app.schemas.plaid import (
     LinkTokenCreateRequest,
@@ -126,8 +127,8 @@ async def exchange_public_token(
         created_accounts: List[PlaidAccount] = []
 
         for plaid_account in plaid_accounts:
-            # Map Plaid account type to our AccountType enum
-            account_type = _map_plaid_account_type(
+            # Map Plaid account type to our AccountType enum and tax treatment
+            account_type, tax_treatment = _map_plaid_account_type(
                 plaid_account.get("type"),
                 plaid_account.get("subtype"),
             )
@@ -140,11 +141,7 @@ async def exchange_public_token(
             # Determine if account should be excluded from cash flow by default
             # Loans and mortgages are excluded to prevent double-counting
             # Credit cards are INCLUDED - we want to see purchases, and payments are filtered via is_transfer
-            exclude_from_cash_flow = account_type in [
-                AccountType.MORTGAGE,
-                AccountType.LOAN,
-                AccountType.STUDENT_LOAN,
-            ]
+            exclude_from_cash_flow = account_type in PLAID_EXCLUDE_CASH_FLOW_TYPES
 
             account = Account(
                 organization_id=current_user.organization_id,
@@ -153,6 +150,7 @@ async def exchange_public_token(
                 external_account_id=plaid_account["account_id"],
                 name=plaid_account["name"],
                 account_type=account_type,
+                tax_treatment=tax_treatment,
                 account_source=AccountSource.PLAID,
                 institution_name=request.institution_name or "Unknown Institution",
                 mask=plaid_account.get("mask"),
@@ -193,49 +191,73 @@ async def exchange_public_token(
         raise HTTPException(status_code=500, detail="Failed to exchange token")
 
 
-def _map_plaid_account_type(plaid_type: str, plaid_subtype: str) -> AccountType:
-    """Map Plaid account type/subtype to our AccountType enum."""
-    # Mapping based on Plaid's account types
+def _map_plaid_account_type(
+    plaid_type: str, plaid_subtype: str
+) -> tuple[AccountType, TaxTreatment | None]:
+    """Map Plaid account type/subtype to our AccountType enum and TaxTreatment.
+
+    Returns (account_type, tax_treatment). tax_treatment is None for
+    non-retirement accounts.
+    """
     # https://plaid.com/docs/api/accounts/#account-type-schema
 
     if plaid_type == "depository":
         if plaid_subtype == "checking":
-            return AccountType.CHECKING
+            return AccountType.CHECKING, None
         elif plaid_subtype == "savings":
-            return AccountType.SAVINGS
+            return AccountType.SAVINGS, None
         else:
-            return AccountType.CHECKING  # Default for depository
+            return AccountType.CHECKING, None
 
     elif plaid_type == "credit":
         if plaid_subtype == "credit_card":
-            return AccountType.CREDIT_CARD
+            return AccountType.CREDIT_CARD, None
         else:
-            return AccountType.LOAN  # Other credit types
+            return AccountType.LOAN, None
 
     elif plaid_type == "loan":
         if plaid_subtype in ["mortgage", "home_equity"]:
-            return AccountType.MORTGAGE
+            return AccountType.MORTGAGE, None
         elif plaid_subtype == "student":
-            return AccountType.STUDENT_LOAN
+            return AccountType.STUDENT_LOAN, None
         else:
-            return AccountType.LOAN
+            return AccountType.LOAN, None
 
     elif plaid_type == "investment":
-        if plaid_subtype in ["401k", "403b", "457b"]:
-            return AccountType.RETIREMENT_401K
+        # Traditional employer-sponsored retirement
+        if plaid_subtype == "401k":
+            return AccountType.RETIREMENT_401K, TaxTreatment.PRE_TAX
+        elif plaid_subtype == "403b":
+            return AccountType.RETIREMENT_403B, TaxTreatment.PRE_TAX
+        elif plaid_subtype == "457b":
+            return AccountType.RETIREMENT_457B, TaxTreatment.PRE_TAX
+        # Traditional IRA variants
         elif plaid_subtype in ["ira", "traditional_ira"]:
-            return AccountType.RETIREMENT_IRA
-        elif plaid_subtype == "roth":
-            return AccountType.RETIREMENT_ROTH
+            return AccountType.RETIREMENT_IRA, TaxTreatment.PRE_TAX
+        elif plaid_subtype == "sep_ira":
+            return AccountType.RETIREMENT_SEP_IRA, TaxTreatment.PRE_TAX
+        elif plaid_subtype == "simple_ira":
+            return AccountType.RETIREMENT_SIMPLE_IRA, TaxTreatment.PRE_TAX
+        # Roth variants
+        elif plaid_subtype in ["roth", "roth_ira"]:
+            return AccountType.RETIREMENT_ROTH, TaxTreatment.ROTH
+        elif plaid_subtype == "roth_401k":
+            return AccountType.RETIREMENT_401K, TaxTreatment.ROTH
+        elif plaid_subtype == "roth_403b":
+            return AccountType.RETIREMENT_403B, TaxTreatment.ROTH
+        # Tax-advantaged
         elif plaid_subtype == "hsa":
-            return AccountType.BROKERAGE  # HSA with investment component
+            return AccountType.HSA, TaxTreatment.TAX_FREE
+        elif plaid_subtype in ["529", "education_savings"]:
+            return AccountType.RETIREMENT_529, TaxTreatment.TAX_FREE
+        # Taxable
         elif plaid_subtype == "brokerage":
-            return AccountType.BROKERAGE
+            return AccountType.BROKERAGE, TaxTreatment.TAXABLE
         else:
-            return AccountType.BROKERAGE  # Default for investment
+            return AccountType.BROKERAGE, TaxTreatment.TAXABLE
 
     else:
-        return AccountType.OTHER  # Fallback
+        return AccountType.OTHER, None
 
 
 @router.post("/sync-holdings/{account_id}")
