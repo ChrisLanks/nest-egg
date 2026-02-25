@@ -157,8 +157,13 @@ class RetirementPlannerService:
     ) -> RetirementScenario:
         """Update a scenario with partial data."""
         for key, value in updates.items():
-            if value is not None and hasattr(scenario, key):
-                setattr(scenario, key, value)
+            if not hasattr(scenario, key):
+                continue
+            # Allow explicit null for nullable fields (e.g. healthcare overrides);
+            # skip null for non-nullable fields to avoid DB integrity errors.
+            if value is None and not key.endswith('_override'):
+                continue
+            setattr(scenario, key, value)
         scenario.updated_at = utc_now()
         await db.flush()
         return scenario

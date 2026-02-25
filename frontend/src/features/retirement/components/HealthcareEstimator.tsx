@@ -22,7 +22,7 @@ import {
   useColorModeValue,
   VStack,
 } from '@chakra-ui/react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FiCheck, FiEdit2 } from 'react-icons/fi';
 import { useHealthcareEstimate } from '../hooks/useRetirementScenarios';
 
@@ -63,6 +63,23 @@ export function HealthcareEstimator({
   const [localMedicare, setLocalMedicare] = useState<number | null>(medicareOverride ?? null);
   const [localLtc, setLocalLtc] = useState<number | null>(ltcOverride ?? null);
 
+  // Optimistic display: retain saved values until props catch up from the PATCH response
+  const [savedOverrides, setSavedOverrides] = useState<{
+    pre65: number | null;
+    medicare: number | null;
+    ltc: number | null;
+  } | null>(null);
+
+  // Clear optimistic state when override props actually change (PATCH response arrived)
+  const prevOverrideProps = useRef({ pre65: pre65Override, medicare: medicareOverride, ltc: ltcOverride });
+  useEffect(() => {
+    const prev = prevOverrideProps.current;
+    if (prev.pre65 !== pre65Override || prev.medicare !== medicareOverride || prev.ltc !== ltcOverride) {
+      setSavedOverrides(null);
+    }
+    prevOverrideProps.current = { pre65: pre65Override, medicare: medicareOverride, ltc: ltcOverride };
+  }, [pre65Override, medicareOverride, ltcOverride]);
+
   const { data: estimate, isLoading } = useHealthcareEstimate(
     retirementIncome,
     medicalInflationRate
@@ -87,6 +104,8 @@ export function HealthcareEstimator({
       if (localMedicare !== (medicareOverride ?? null)) overrides.healthcare_medicare_override = localMedicare;
       if (localLtc !== (ltcOverride ?? null)) overrides.healthcare_ltc_override = localLtc;
       if (Object.keys(overrides).length > 0) onHealthcareOverridesChange?.(overrides);
+      // Show saved values immediately without waiting for PATCH response
+      setSavedOverrides({ pre65: localPre65, medicare: localMedicare, ltc: localLtc });
     } else {
       // Enter edit mode — sync local state
       setLocalInflation(medicalInflationRate);
@@ -122,28 +141,32 @@ export function HealthcareEstimator({
     }
   };
 
-  // Use overrides when set, otherwise fall back to estimates
-  const displayPre65 = pre65Override ?? estimate?.pre_65_annual ?? 0;
-  const displayMedicare = medicareOverride ?? estimate?.medicare_annual ?? 0;
-  const displayLtc = ltcOverride ?? estimate?.ltc_annual ?? 0;
+  // Effective overrides: prefer optimistic saved values > props (with Number() for Decimal string safety)
+  const effectivePre65 = savedOverrides !== null ? savedOverrides.pre65 : (pre65Override != null ? Number(pre65Override) : null);
+  const effectiveMedicare = savedOverrides !== null ? savedOverrides.medicare : (medicareOverride != null ? Number(medicareOverride) : null);
+  const effectiveLtc = savedOverrides !== null ? savedOverrides.ltc : (ltcOverride != null ? Number(ltcOverride) : null);
+
+  const displayPre65 = effectivePre65 ?? estimate?.pre_65_annual ?? 0;
+  const displayMedicare = effectiveMedicare ?? estimate?.medicare_annual ?? 0;
+  const displayLtc = effectiveLtc ?? estimate?.ltc_annual ?? 0;
 
   // Adjust sample ages when overrides are set
   const adjustedSampleAges = useMemo(() => {
     if (!estimate?.sample_ages?.length) return [];
-    const hasAnyOverride = pre65Override != null || medicareOverride != null || ltcOverride != null;
+    const hasAnyOverride = effectivePre65 != null || effectiveMedicare != null || effectiveLtc != null;
     if (!hasAnyOverride) return estimate.sample_ages;
 
     const pre65Scale =
-      pre65Override != null && estimate.pre_65_annual > 0
-        ? pre65Override / estimate.pre_65_annual
+      effectivePre65 != null && estimate.pre_65_annual > 0
+        ? effectivePre65 / estimate.pre_65_annual
         : 1;
     const medicareScale =
-      medicareOverride != null && estimate.medicare_annual > 0
-        ? medicareOverride / estimate.medicare_annual
+      effectiveMedicare != null && estimate.medicare_annual > 0
+        ? effectiveMedicare / estimate.medicare_annual
         : 1;
     const ltcScale =
-      ltcOverride != null && estimate.ltc_annual > 0
-        ? ltcOverride / estimate.ltc_annual
+      effectiveLtc != null && estimate.ltc_annual > 0
+        ? effectiveLtc / estimate.ltc_annual
         : 1;
 
     return estimate.sample_ages.map((sample) => {
@@ -160,7 +183,7 @@ export function HealthcareEstimator({
       }
       return { ...sample, total: adjustedTotal };
     });
-  }, [estimate, pre65Override, medicareOverride, ltcOverride]);
+  }, [estimate, effectivePre65, effectiveMedicare, effectiveLtc]);
 
   return (
     <Box bg={bgColor} p={5} borderRadius="xl" shadow="sm">
@@ -334,7 +357,7 @@ export function HealthcareEstimator({
 
             <Text fontSize="xs" color={labelColor} pt={1}>
               Assumes {medicalInflationRate}% medical inflation.
-              {(pre65Override !== null || medicareOverride !== null || ltcOverride !== null) &&
+              {(effectivePre65 != null || effectiveMedicare != null || effectiveLtc != null) &&
                 ' Includes manual overrides.'}
               {' '}Costs are in today's dollars.
             </Text>

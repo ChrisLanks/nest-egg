@@ -188,8 +188,33 @@ Drop-in support for external identity providers alongside the built-in JWT syste
 ### 🔮 **Predictive Features**
 - **Cash Flow Forecasting**: 30/60/90-day projections using recurring transaction patterns
 - **Monte Carlo Simulations**: Investment growth modeling with uncertainty
-- **Retirement Planning**: RMD calculations based on IRS tables
 - **Negative Balance Alerts**: Proactive warnings when forecast shows insufficient funds
+
+### 🏖️ **Retirement Planner**
+Full retirement planning suite with Monte Carlo simulation, life event modeling, and household support:
+- **Monte Carlo Fan Chart**: 1,000-run simulation with P10/P25/P50/P75/P90 percentile bands
+- **Readiness Score**: 0-100 score with color-coded gauge showing retirement preparedness
+- **Multiple Scenarios**: Create, duplicate, rename (double-click tab), and compare up to 3 scenarios side-by-side
+- **Life Event Timeline**: Add preset events (child, home purchase, career change, elder care, etc.) or create custom events
+  - Events automatically re-run simulation so the chart updates immediately
+  - Visual timeline with edit and delete inline
+- **Social Security Estimator**: Automatic PIA estimation from income, or manual override toggle with custom monthly amount
+  - Claiming age slider (62-70) with benefit comparison at 62, FRA, and 70
+- **Healthcare Cost Modeling**: Pre-65 insurance, Medicare (65+), and long-term care (85+) phases
+  - Editable cost overrides per phase with pencil icon toggle
+  - Medical inflation rate slider (0-15%)
+  - IRMAA surcharge modeling based on retirement income
+  - Optimistic display shows saved values immediately
+- **Withdrawal Strategy Comparison**: Tax-optimized vs. simple rate strategies with clickable selection
+  - "Better" badge highlights the more efficient strategy
+- **Portfolio Summary**: Real-time breakdown by tax treatment (Pre-Tax, Roth, Taxable, HSA, Cash)
+  - Individual account drill-down under each bucket
+  - Editable tax rate assumptions (federal, state, capital gains)
+  - Savings rate indicator with color-coded threshold
+- **Scenario Settings Panel**: Adjustable sliders for retirement age (15-95), plan-through age, spending, returns, volatility, inflation, and withdrawal rate
+- **Household View**: Per-member retirement plans with member filter in combined view
+- **CSV Export**: Download projection data for external analysis
+- **Smart Scroll**: Page loads at top; tab switching preserves scroll position
 
 ### 🔒 **Security Features**
 - **Redis-Backed Rate Limiting**: 1000 req/min per user/IP — distributed sliding window (safe across multiple workers/instances)

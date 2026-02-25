@@ -140,10 +140,19 @@ export function RetirementPage() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const deleteDialogCancelRef = useRef<HTMLButtonElement>(null);
 
-  // Scroll to top on initial page load to prevent browser dropping below chart
+  // Scroll to top after first scenario data loads (not on mount, which fires before content renders)
+  const isInitialLoad = useRef(true);
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+    if (isInitialLoad.current && scenario) {
+      isInitialLoad.current = false;
+      // Double rAF ensures the DOM has fully painted after data-driven render
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.scrollTo(0, 0);
+        });
+      });
+    }
+  }, [scenario]);
 
   // Persist selected scenario to localStorage
   useEffect(() => {
@@ -238,6 +247,14 @@ export function RetirementPage() {
     }
   }, [selectedScenarioId, simulateMutation, toast]);
 
+  // Auto-run simulation (used after life event changes to update chart immediately)
+  const autoSimulate = useCallback(() => {
+    if (!selectedScenarioId) return;
+    simulateMutation.mutateAsync(selectedScenarioId)
+      .then(() => setSettingsDirty(false))
+      .catch(() => {}); // Swallow errors for auto-simulate
+  }, [selectedScenarioId, simulateMutation]);
+
   // Handle tab selection
   const handleTabChange = useCallback(
     (index: number) => {
@@ -245,6 +262,7 @@ export function RetirementPage() {
         setSelectedScenarioId(scenarios[index].id);
         setShowComparison(false);
         setSettingsDirty(false);
+        window.scrollTo(0, 0);
       }
     },
     [scenarios]
@@ -311,8 +329,8 @@ export function RetirementPage() {
       try {
         await addPresetMutation.mutateAsync({ scenarioId: selectedScenarioId, presetKey });
         presetPicker.onClose();
-        setSettingsDirty(true);
         toast({ title: 'Life event added', status: 'success', duration: 2000 });
+        autoSimulate();
       } catch (err: any) {
         toast({
           title: 'Failed to add event',
@@ -322,7 +340,7 @@ export function RetirementPage() {
         });
       }
     },
-    [selectedScenarioId, addPresetMutation, presetPicker, toast]
+    [selectedScenarioId, addPresetMutation, presetPicker, toast, autoSimulate]
   );
 
   const handleSaveEvent = useCallback(
@@ -342,8 +360,8 @@ export function RetirementPage() {
         }
         eventEditor.onClose();
         setEditingEvent(null);
-        setSettingsDirty(true);
         toast({ title: editingEvent ? 'Event updated' : 'Event added', status: 'success', duration: 2000 });
+        autoSimulate();
       } catch (err: any) {
         toast({
           title: 'Failed to save event',
@@ -353,7 +371,7 @@ export function RetirementPage() {
         });
       }
     },
-    [selectedScenarioId, editingEvent, addLifeEventMutation, updateLifeEventMutation, eventEditor, toast]
+    [selectedScenarioId, editingEvent, addLifeEventMutation, updateLifeEventMutation, eventEditor, toast, autoSimulate]
   );
 
   const handleEditEvent = useCallback(
@@ -368,13 +386,13 @@ export function RetirementPage() {
     async (eventId: string) => {
       try {
         await deleteLifeEventMutation.mutateAsync(eventId);
-        setSettingsDirty(true);
         toast({ title: 'Event removed', status: 'success', duration: 2000 });
+        autoSimulate();
       } catch {
         toast({ title: 'Failed to delete event', status: 'error', duration: 3000 });
       }
     },
-    [deleteLifeEventMutation, toast]
+    [deleteLifeEventMutation, toast, autoSimulate]
   );
 
   const handleSsClaimingAgeChange = useCallback(
