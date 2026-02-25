@@ -7,7 +7,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from app.dependencies import get_current_user, get_db
+from app.models.account import Account
 from app.models.user import User
 from app.schemas.csv_import import (
     CSVPreviewResponse,
@@ -161,6 +164,16 @@ async def import_csv(
         max_requests=10,
         window_seconds=3600,  # 1 hour
     )
+
+    # Verify account belongs to current user's organization (IDOR prevention)
+    account_result = await db.execute(
+        select(Account.id).where(
+            Account.id == account_id,
+            Account.organization_id == current_user.organization_id,
+        )
+    )
+    if not account_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Account not found")
 
     # Validate file upload security
     validate_csv_file(file)

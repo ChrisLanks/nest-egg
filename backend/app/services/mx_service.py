@@ -179,16 +179,18 @@ class MxService:
         )
         mx_accounts = data.get("accounts", [])
 
+        # Pre-fetch existing accounts for this member to avoid N+1 queries
+        existing_result = await db.execute(
+            select(Account).where(Account.mx_member_id == member.id)
+        )
+        existing_accounts = {
+            acc.external_account_id: acc for acc in existing_result.scalars().all()
+        }
+
         synced: List[Account] = []
         for mx_acc in mx_accounts:
-            # Check for existing account
-            result = await db.execute(
-                select(Account).where(
-                    Account.mx_member_id == member.id,
-                    Account.external_account_id == mx_acc["guid"],
-                )
-            )
-            account = result.scalar_one_or_none()
+            # Check for existing account using pre-fetched map
+            account = existing_accounts.get(mx_acc["guid"])
 
             if not account:
                 account = Account(
@@ -241,15 +243,18 @@ class MxService:
         )
         mx_transactions = data.get("transactions", [])
 
+        # Pre-fetch existing external IDs for this account to avoid N+1 queries
+        ext_result = await db.execute(
+            select(Transaction.external_transaction_id).where(
+                Transaction.account_id == account.id,
+                Transaction.external_transaction_id.isnot(None),
+            )
+        )
+        existing_ext_ids = {row[0] for row in ext_result.all()}
+
         synced: List[Transaction] = []
         for txn in mx_transactions:
-            result = await db.execute(
-                select(Transaction).where(
-                    Transaction.account_id == account.id,
-                    Transaction.external_transaction_id == txn["guid"],
-                )
-            )
-            if result.scalar_one_or_none():
+            if txn["guid"] in existing_ext_ids:
                 continue  # Already imported
 
             transaction = Transaction(

@@ -218,6 +218,17 @@ class CSVImportService:
         skipped = 0
         errors = []
 
+        # Pre-fetch existing dedup hashes for this account to avoid N+1 queries
+        existing_hashes = set()
+        if skip_duplicates:
+            hash_result = await db.execute(
+                select(Transaction.deduplication_hash).where(
+                    Transaction.account_id == account_id,
+                    Transaction.deduplication_hash.isnot(None),
+                )
+            )
+            existing_hashes = {row[0] for row in hash_result.all()}
+
         for i, row in enumerate(reader, start=2):  # Start at 2 (header is row 1)
             try:
                 # Parse fields
@@ -244,14 +255,10 @@ class CSVImportService:
                     description,
                 )
 
-                # Check for duplicate
-                if skip_duplicates:
-                    existing_result = await db.execute(
-                        select(Transaction).where(Transaction.deduplication_hash == dedup_hash)
-                    )
-                    if existing_result.scalar_one_or_none():
-                        skipped += 1
-                        continue
+                # Check for duplicate using pre-fetched set
+                if skip_duplicates and dedup_hash in existing_hashes:
+                    skipped += 1
+                    continue
 
                 # Create transaction
                 transaction = Transaction(

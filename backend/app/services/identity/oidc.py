@@ -19,6 +19,7 @@ from app.models.user import Organization, User
 from app.models.user import UserConsent, ConsentType
 from app.services.identity.base import AuthenticatedIdentity, IdentityProvider
 from app.utils.datetime_utils import utc_now
+from app.utils.logging_utils import redact_email
 
 logger = logging.getLogger(__name__)
 
@@ -238,7 +239,7 @@ class OIDCIdentityProvider(IdentityProvider):
                 "Auto-provisioned user from %s: user_id=%s email=%s",
                 self.config.provider_name,
                 user.id,
-                email,
+                redact_email(email),
             )
             return user.id
 

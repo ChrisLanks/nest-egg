@@ -205,17 +205,18 @@ class TellerService:
 
         synced_transactions = []
 
-        for txn_data in transactions_data:
-            # Check if transaction already exists
-            result = await db.execute(
-                select(Transaction).where(
-                    Transaction.account_id == account.id,
-                    Transaction.external_transaction_id == txn_data["id"],
-                )
+        # Pre-fetch existing external IDs for this account to avoid N+1 queries
+        ext_result = await db.execute(
+            select(Transaction.external_transaction_id).where(
+                Transaction.account_id == account.id,
+                Transaction.external_transaction_id.isnot(None),
             )
-            existing_txn = result.scalar_one_or_none()
+        )
+        existing_ext_ids = {row[0] for row in ext_result.all()}
 
-            if not existing_txn:
+        for txn_data in transactions_data:
+            # Check if transaction already exists using pre-fetched set
+            if txn_data["id"] not in existing_ext_ids:
                 # Extract category from Teller response (details.category)
                 details = txn_data.get("details", {})
                 teller_category = details.get("category") if isinstance(details, dict) else None

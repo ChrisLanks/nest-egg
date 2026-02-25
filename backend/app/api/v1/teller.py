@@ -44,61 +44,40 @@ def verify_teller_webhook_signature(
         True if signature is valid, raises HTTPException otherwise
 
     Security Note:
-        Webhook signature verification is REQUIRED for production.
-        In development with DEBUG=True, signature verification is logged but not enforced.
+        Webhook signature verification is ALWAYS enforced.
+        There is no DEBUG bypass — production and development both require valid signatures.
     """
-    # DEBUG bypass is only allowed in non-production environments
-    _debug_bypass = settings.DEBUG and settings.ENVIRONMENT != "production"
-
     if not secret:
-        if _debug_bypass:
-            logger.warning(
-                "⚠️  TELLER_WEBHOOK_SECRET not set - webhook verification disabled in DEBUG mode"
-            )
-            return True
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail="Webhook verification secret not configured. Set TELLER_WEBHOOK_SECRET for security.",
-            )
+        raise HTTPException(
+            status_code=500,
+            detail="Webhook verification secret not configured. "
+            "Set TELLER_WEBHOOK_SECRET.",
+        )
 
     if not signature_header:
-        if _debug_bypass:
-            logger.warning("⚠️  Missing Teller-Signature header - allowing in DEBUG mode")
-            return True
-        else:
-            raise HTTPException(status_code=401, detail="Missing Teller-Signature header")
+        raise HTTPException(
+            status_code=401, detail="Missing Teller-Signature header"
+        )
 
     try:
-        # Compute expected signature using HMAC-SHA256
         expected_signature = hmac.new(
             secret.encode("utf-8"), webhook_body, hashlib.sha256
         ).hexdigest()
 
-        # Compare signatures using constant-time comparison to prevent timing attacks
-        is_valid = hmac.compare_digest(expected_signature, signature_header)
+        if not hmac.compare_digest(expected_signature, signature_header):
+            raise HTTPException(
+                status_code=401, detail="Invalid webhook signature"
+            )
 
-        if not is_valid:
-            if _debug_bypass:
-                logger.warning("⚠️  Teller webhook signature mismatch - allowing in DEBUG mode")
-                logger.debug(
-                    f"Expected: {expected_signature[:16]}... Got: {signature_header[:16]}..."
-                )
-                return True
-            else:
-                raise HTTPException(status_code=401, detail="Invalid webhook signature")
-
-        if settings.DEBUG:
-            logger.info("✅ Teller webhook signature verified")
         return True
 
+    except HTTPException:
+        raise
     except Exception as e:
-        if _debug_bypass:
-            logger.warning(f"⚠️  Webhook verification error in DEBUG mode: {str(e)}")
-            return True
-        else:
-            logger.error(f"❌ Webhook verification error: {str(e)}")
-            raise HTTPException(status_code=401, detail="Webhook verification failed")
+        logger.error("Webhook verification error: %s", e)
+        raise HTTPException(
+            status_code=401, detail="Webhook verification failed"
+        )
 
 
 @router.post("/webhook")

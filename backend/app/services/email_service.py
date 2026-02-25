@@ -7,6 +7,7 @@ to surface a different UX path (e.g. expose a join link instead of an email).
 """
 
 import hashlib
+import html
 import logging
 import secrets
 from datetime import timedelta
@@ -157,7 +158,7 @@ class EmailService:
                                       display_name: str) -> bool:
         """Send an email-address verification link."""
         verify_url = f"{self._base_url}/verify-email?token={token}"
-        greeting = display_name or to_email
+        greeting = html.escape(display_name or to_email)
 
         subject = "Verify your Nest Egg email address"
         html_body = f"""
@@ -194,7 +195,7 @@ class EmailService:
                                         display_name: str) -> bool:
         """Send a password-reset link."""
         reset_url = f"{self._base_url}/reset-password?token={token}"
-        greeting = display_name or to_email
+        greeting = html.escape(display_name or to_email)
 
         subject = "Reset your Nest Egg password"
         html_body = f"""
@@ -232,6 +233,8 @@ class EmailService:
                                     invited_by: str, org_name: str) -> bool:
         """Send a household invitation email with a join link."""
         join_url = f"{self._base_url}/accept-invite?code={invitation_code}"
+        safe_invited_by = html.escape(invited_by)
+        safe_org_name = html.escape(org_name)
 
         subject = f"You're invited to join {org_name} on Nest Egg"
         html_body = f"""
@@ -239,7 +242,7 @@ class EmailService:
 <html>
 <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
   <h2 style="color: #2D3748;">You're invited!</h2>
-  <p><strong>{invited_by}</strong> has invited you to join <strong>{org_name}</strong>
+  <p><strong>{safe_invited_by}</strong> has invited you to join <strong>{safe_org_name}</strong>
      on Nest Egg — a personal finance tracker for households.</p>
   <p style="margin: 30px 0;">
     <a href="{join_url}"
@@ -278,16 +281,19 @@ class EmailService:
         Returns True on success, False on failure (never raises).
         """
         # Build optional action button HTML
+        safe_title = html.escape(title)
+        safe_message = html.escape(message)
         action_button_html = ""
         action_button_text = ""
         if action_url and action_label:
             full_url = f"{self._base_url}{action_url}" if action_url.startswith("/") else action_url
+            safe_action_label = html.escape(action_label)
             action_button_html = f"""
   <p style="margin: 30px 0;">
     <a href="{full_url}"
        style="background-color: #3182CE; color: white; padding: 12px 24px;
               text-decoration: none; border-radius: 6px; display: inline-block;">
-      {action_label}
+      {safe_action_label}
     </a>
   </p>"""
             action_button_text = f"\n{action_label}: {full_url}\n"
@@ -297,8 +303,8 @@ class EmailService:
 <!DOCTYPE html>
 <html>
 <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <h2 style="color: #2D3748;">{title}</h2>
-  <p>{message}</p>{action_button_html}
+  <h2 style="color: #2D3748;">{safe_title}</h2>
+  <p>{safe_message}</p>{action_button_html}
   <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;" />
   <p style="color: #718096; font-size: 12px;">
     You received this email because you have email notifications enabled in Nest Egg.

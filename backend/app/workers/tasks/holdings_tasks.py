@@ -242,25 +242,30 @@ async def _update_prices_async():
             skipped_count = 0
             now = datetime.now(timezone.utc)
 
-            for holding in holdings:
-                if holding.ticker in quotes:
+            # Batch UPDATE per ticker instead of per holding
+            for ticker in tickers:
+                if ticker in quotes:
                     try:
-                        quote = quotes[holding.ticker]
-                        await db.execute(
+                        quote = quotes[ticker]
+                        result = await db.execute(
                             update(Holding)
-                            .where(Holding.id == holding.id)
+                            .where(
+                                Holding.ticker == ticker,
+                                (Holding.price_as_of.is_(None))
+                                | (Holding.price_as_of < now - timedelta(hours=1)),
+                            )
                             .values(
                                 current_price_per_share=quote.price,
                                 price_as_of=now,
                             )
                         )
-                        updated_count += 1
+                        updated_count += result.rowcount
                     except Exception as e:
                         logger.error(
-                            f"Error updating holding {holding.id} ({holding.ticker}): {e}"
+                            f"Error updating holdings for ticker {ticker}: {e}"
                         )
                 else:
-                    logger.warning(f"No quote available for {holding.ticker}")
+                    logger.warning(f"No quote available for {ticker}")
                     skipped_count += 1
 
             await db.commit()

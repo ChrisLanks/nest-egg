@@ -1,5 +1,6 @@
 """Rule engine for evaluating and applying rules to transactions."""
 
+import logging
 import re
 from datetime import datetime
 from typing import List
@@ -20,6 +21,8 @@ from app.models.rule import (
     RuleMatchType,
 )
 from app.models.transaction import Transaction, Label, TransactionLabel
+
+logger = logging.getLogger(__name__)
 
 
 class RuleEngine:
@@ -264,7 +267,7 @@ class RuleEngine:
                 return False
 
         except Exception as e:
-            print(f"Error applying action: {e}")
+            logger.error("Error applying action: %s", e)
             return False
 
         return False

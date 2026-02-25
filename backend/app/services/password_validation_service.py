@@ -1,10 +1,14 @@
 """Password validation service with strength checking and breach detection."""
 
-import re
 import hashlib
+import logging
+import re
 from typing import List, Tuple, Optional
-from fastapi import HTTPException, status
+
 import httpx
+from fastapi import HTTPException, status
+
+logger = logging.getLogger(__name__)
 
 
 class PasswordValidationService:
@@ -154,7 +158,7 @@ class PasswordValidationService:
             if response.status_code != 200:
                 # If API fails, log but don't block registration
                 # Better to allow signup than block legitimate users
-                print(f"⚠️  HIBP API error: {response.status_code}")
+                logger.warning("HIBP API error: status=%s", response.status_code)
                 return False, None
 
             # Parse response: each line is "SUFFIX:COUNT"
@@ -172,11 +176,11 @@ class PasswordValidationService:
 
         except httpx.TimeoutException:
             # Timeout - don't block user registration
-            print("⚠️  HIBP API timeout - skipping breach check")
+            logger.warning("HIBP API timeout - skipping breach check")
             return False, None
         except Exception as e:
             # Any other error - fail open (allow registration)
-            print(f"⚠️  HIBP API error: {str(e)}")
+            logger.warning("HIBP API error: %s", e)
             return False, None
 
     @staticmethod

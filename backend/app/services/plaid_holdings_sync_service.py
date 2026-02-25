@@ -98,10 +98,15 @@ class PlaidHoldingsSyncService:
                 )
                 db.add(new_holding)
 
-        # Remove holdings that are no longer in Plaid
-        for ticker, holding in existing.items():
-            if ticker not in synced_tickers:
-                await db.delete(holding)
+        # Remove holdings that are no longer in Plaid (bulk delete)
+        stale_tickers = set(existing.keys()) - synced_tickers
+        if stale_tickers:
+            await db.execute(
+                delete(Holding).where(
+                    Holding.account_id == account.id,
+                    Holding.ticker.in_(stale_tickers),
+                )
+            )
 
         # Update account balance
         account.current_balance = total_value

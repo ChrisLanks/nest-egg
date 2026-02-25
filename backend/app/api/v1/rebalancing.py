@@ -142,18 +142,16 @@ async def update_target_allocation(
     If setting is_active=True, deactivate other active allocations first.
     """
     result = await db.execute(
-        select(TargetAllocation).where(TargetAllocation.id == allocation_id)
+        select(TargetAllocation).where(
+            TargetAllocation.id == allocation_id,
+            TargetAllocation.organization_id == current_user.organization_id,
+            TargetAllocation.user_id == current_user.id,
+        )
     )
     allocation = result.scalar_one_or_none()
 
     if not allocation:
         raise HTTPException(status_code=404, detail="Target allocation not found")
-
-    if (
-        allocation.organization_id != current_user.organization_id
-        or allocation.user_id != current_user.id
-    ):
-        raise HTTPException(status_code=403, detail="Access denied")
 
     # If setting is_active=True, deactivate others first
     if payload.is_active is True:
@@ -185,18 +183,16 @@ async def delete_target_allocation(
 ):
     """Delete a target allocation. Verify ownership (same org)."""
     result = await db.execute(
-        select(TargetAllocation).where(TargetAllocation.id == allocation_id)
+        select(TargetAllocation).where(
+            TargetAllocation.id == allocation_id,
+            TargetAllocation.organization_id == current_user.organization_id,
+            TargetAllocation.user_id == current_user.id,
+        )
     )
     allocation = result.scalar_one_or_none()
 
     if not allocation:
         raise HTTPException(status_code=404, detail="Target allocation not found")
-
-    if (
-        allocation.organization_id != current_user.organization_id
-        or allocation.user_id != current_user.id
-    ):
-        raise HTTPException(status_code=403, detail="Access denied")
 
     await db.delete(allocation)
     await db.commit()

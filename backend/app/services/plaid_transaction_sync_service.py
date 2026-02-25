@@ -108,6 +108,33 @@ class PlaidTransactionSyncService:
         )
         accounts = {acc.external_account_id: acc for acc in accounts_result.scalars().all()}
 
+        # Pre-fetch existing external IDs and dedup hashes to avoid N+1 queries
+        account_ids = [acc.id for acc in accounts.values()]
+        ext_id_result = await db.execute(
+            select(
+                Transaction.account_id,
+                Transaction.external_transaction_id,
+            ).where(
+                Transaction.organization_id == organization_id,
+                Transaction.external_transaction_id.isnot(None),
+            )
+        )
+        existing_ext_ids = {
+            (row[0], row[1]) for row in ext_id_result.all()
+        }
+        # Also build org-level set for cross-account dedup
+        org_ext_ids = {row[1] for row in existing_ext_ids}
+
+        dedup_result = await db.execute(
+            select(
+                Transaction.account_id,
+                Transaction.deduplication_hash,
+            ).where(Transaction.account_id.in_(account_ids))
+        )
+        existing_dedup_hashes = {
+            (row[0], row[1]) for row in dedup_result.all()
+        }
+
         stats = {"added": 0, "updated": 0, "skipped": 0, "errors": 0}
 
         for txn_data in transactions_data:
@@ -118,6 +145,9 @@ class PlaidTransactionSyncService:
                     accounts=accounts,
                     txn_data=txn_data,
                     stats=stats,
+                    existing_ext_ids=existing_ext_ids,
+                    org_ext_ids=org_ext_ids,
+                    existing_dedup_hashes=existing_dedup_hashes,
                 )
             except Exception as e:
                 logger.error(f"Error processing transaction {txn_data.get('transaction_id')}: {e}")
@@ -140,6 +170,9 @@ class PlaidTransactionSyncService:
         accounts: Dict[str, Account],
         txn_data: Dict[str, Any],
         stats: Dict[str, int],
+        existing_ext_ids: set = None,
+        org_ext_ids: set = None,
+        existing_dedup_hashes: set = None,
     ) -> None:
         """Process a single transaction from Plaid."""
         # Extract transaction data
@@ -170,20 +203,34 @@ class PlaidTransactionSyncService:
         # Check if we need to update existing transaction (by external_id in same account)
         # This must come BEFORE the dedup skip checks so that modified transactions
         # (e.g., pending→cleared, merchant name changes) actually get updated.
-        existing_txn = await self._get_transaction_by_external_id(db, account.id, external_id)
-
-        if existing_txn:
-            # Update existing transaction
-            await self._update_transaction(existing_txn, txn_data, stats)
-            return
+        if existing_ext_ids is not None and (account.id, external_id) in existing_ext_ids:
+            # Fetch the actual record for update (only when we know it exists)
+            existing_txn = await self._get_transaction_by_external_id(db, account.id, external_id)
+            if existing_txn:
+                await self._update_transaction(existing_txn, txn_data, stats)
+                return
+        elif existing_ext_ids is None:
+            # Fallback for callers that don't pass pre-fetched sets
+            existing_txn = await self._get_transaction_by_external_id(db, account.id, external_id)
+            if existing_txn:
+                await self._update_transaction(existing_txn, txn_data, stats)
+                return
 
         # Check if transaction already exists by external_id (cross-account check)
-        if await self.check_external_id_exists(db, organization_id, external_id):
+        if org_ext_ids is not None:
+            if external_id in org_ext_ids:
+                stats["skipped"] += 1
+                return
+        elif await self.check_external_id_exists(db, organization_id, external_id):
             stats["skipped"] += 1
             return
 
         # Check if transaction exists by deduplication hash
-        if await self.transaction_exists(db, account.id, dedup_hash):
+        if existing_dedup_hashes is not None:
+            if (account.id, dedup_hash) in existing_dedup_hashes:
+                stats["skipped"] += 1
+                return
+        elif await self.transaction_exists(db, account.id, dedup_hash):
             stats["skipped"] += 1
             return
 

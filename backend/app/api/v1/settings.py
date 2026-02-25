@@ -154,14 +154,27 @@ async def update_user_profile(
     await db.commit()
     await db.refresh(current_user)
 
-    # If email was changed, send a verification email to the new address
+    # If email was changed, revoke all sessions and send verification email
     if email_changed:
+        await db.execute(
+            sa_update(RefreshToken)
+            .where(
+                RefreshToken.user_id == current_user.id,
+                RefreshToken.revoked_at.is_(None),
+            )
+            .values(revoked_at=utc_now())
+        )
+        await db.commit()
         try:
             raw_token = await create_verification_token(db, current_user.id)
             await email_service.send_verification_email(
                 to_email=current_user.email,
                 token=raw_token,
-                display_name=current_user.display_name or current_user.first_name or current_user.email,
+                display_name=(
+                    current_user.display_name
+                    or current_user.first_name
+                    or current_user.email
+                ),
             )
         except Exception:
             pass  # Never fail a profile update because of email sending

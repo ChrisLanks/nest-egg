@@ -46,7 +46,9 @@ import {
   useColorModeValue,
 } from '@chakra-ui/react';
 import { CloseIcon, AddIcon } from '@chakra-ui/icons';
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import api from '../../../services/api';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -92,6 +94,14 @@ interface ScenarioConfig {
 const SCENARIO_COLORS = ['#4299E1', '#ED8936', '#48BB78'];
 let scenarioCounter = 0;
 
+const STORAGE_KEY = 'nest-egg-growth-projections';
+
+interface PersistedState {
+  scenarios: ScenarioConfig[];
+  activeScenarioIndex: number;
+  showInflationAdjusted: boolean;
+}
+
 const makeDefaultScenario = (overrides?: Partial<ScenarioConfig>): ScenarioConfig => ({
   id: `scenario-${++scenarioCounter}`,
   name: 'Base Case',
@@ -105,13 +115,89 @@ const makeDefaultScenario = (overrides?: Partial<ScenarioConfig>): ScenarioConfi
   ...overrides,
 });
 
+function loadPersistedState(): PersistedState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.scenarios) && parsed.scenarios.length > 0) {
+      // Restore scenarioCounter so new scenarios get unique IDs
+      const maxId = parsed.scenarios.reduce((max: number, s: ScenarioConfig) => {
+        const num = parseInt(s.id.replace('scenario-', ''), 10);
+        return isNaN(num) ? max : Math.max(max, num);
+      }, 0);
+      scenarioCounter = maxId;
+      return parsed as PersistedState;
+    }
+  } catch { /* ignore corrupt localStorage */ }
+  return null;
+}
+
+function savePersistedState(state: PersistedState): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch { /* ignore */ }
+}
+
+function computeDefaultYears(birthYear: number | null | undefined): number {
+  if (!birthYear) return 10;
+  const currentYear = new Date().getFullYear();
+  const age = currentYear - birthYear;
+  const yearsUntilRetirement = Math.round(59.5 - age);
+  return Math.max(1, yearsUntilRetirement);
+}
+
 export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }: GrowthProjectionsChartProps) => {
-  // Scenario management
-  const [scenarios, setScenarios] = useState<ScenarioConfig[]>([makeDefaultScenario()]);
-  const [activeScenarioIndex, setActiveScenarioIndex] = useState(0);
-  const [showInflationAdjusted, setShowInflationAdjusted] = useState(true);
+  // Fetch user birth year for smart default
+  const { data: profile } = useQuery<{ birth_year?: number | null }>({
+    queryKey: ['userProfile'],
+    queryFn: async () => {
+      const response = await api.get('/settings/profile');
+      return response.data;
+    },
+    retry: false,
+    staleTime: Infinity,
+  });
+
+  // Initialize state from localStorage or defaults
+  const initialized = useRef(false);
+
+  const [scenarios, setScenarios] = useState<ScenarioConfig[]>(() => {
+    const persisted = loadPersistedState();
+    if (persisted) return persisted.scenarios;
+    return [makeDefaultScenario()];
+  });
+  const [activeScenarioIndex, setActiveScenarioIndex] = useState(() => {
+    const persisted = loadPersistedState();
+    return persisted?.activeScenarioIndex ?? 0;
+  });
+  const [showInflationAdjusted, setShowInflationAdjusted] = useState(() => {
+    const persisted = loadPersistedState();
+    return persisted?.showInflationAdjusted ?? true;
+  });
   // Local slider state so dragging doesn't recompute simulations per pixel
-  const [sliderYears, setSliderYears] = useState(10);
+  const [sliderYears, setSliderYears] = useState(() => {
+    const persisted = loadPersistedState();
+    if (persisted) return persisted.scenarios[persisted.activeScenarioIndex]?.years ?? 10;
+    return 10;
+  });
+
+  // Once profile loads, apply smart default years if no persisted state
+  useEffect(() => {
+    if (initialized.current || !profile) return;
+    initialized.current = true;
+    const persisted = loadPersistedState();
+    if (!persisted && profile.birth_year) {
+      const years = computeDefaultYears(profile.birth_year);
+      setScenarios((prev) => prev.map((s) => ({ ...s, years })));
+      setSliderYears(years);
+    }
+  }, [profile]);
+
+  // Persist state changes to localStorage
+  useEffect(() => {
+    savePersistedState({ scenarios, activeScenarioIndex, showInflationAdjusted });
+  }, [scenarios, activeScenarioIndex, showInflationAdjusted]);
 
   const activeScenario = scenarios[activeScenarioIndex] || scenarios[0];
 
@@ -202,10 +288,10 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
     [scenarios.length, activeScenario.years]
   );
 
-  // Remove scenario
+  // Remove scenario (Base Case at index 0 is protected)
   const removeScenario = useCallback(
     (idx: number) => {
-      if (scenarios.length <= 1) return;
+      if (scenarios.length <= 1 || idx === 0) return;
       setScenarios((prev) => prev.filter((_, i) => i !== idx));
       setActiveScenarioIndex((prev) => (prev >= idx ? Math.max(0, prev - 1) : prev));
     },
@@ -372,7 +458,7 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                       Stress
                     </Badge>
                   )}
-                  {scenarios.length > 1 && (
+                  {scenarios.length > 1 && i > 0 && (
                     <IconButton
                       aria-label="Remove scenario"
                       icon={<CloseIcon />}

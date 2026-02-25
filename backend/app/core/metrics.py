@@ -82,7 +82,7 @@ celery_tasks_total = Counter(
 rate_limit_hits_total = Counter(
     "rate_limit_hits_total",
     "Total rate limit hits (requests blocked)",
-    ["endpoint", "ip"],
+    ["endpoint"],
 )
 
 rate_limit_requests_total = Counter(
@@ -238,9 +238,9 @@ class MetricsMiddleware:
         await self.app(scope, receive, send)
 
 
-def track_rate_limit_hit(endpoint: str, ip: str) -> None:
+def track_rate_limit_hit(endpoint: str, ip: str = "") -> None:
     """Track when a rate limit is hit."""
-    rate_limit_hits_total.labels(endpoint=endpoint, ip=ip).inc()
+    rate_limit_hits_total.labels(endpoint=endpoint).inc()
 
 
 def track_rate_limit_request(endpoint: str) -> None:

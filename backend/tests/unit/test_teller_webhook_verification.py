@@ -50,20 +50,23 @@ class TestTellerWebhookVerification:
         assert exc_info.value.status_code == 500
         assert "not configured" in exc_info.value.detail
 
-    def test_missing_secret_in_debug_mode_allows_with_warning(self, monkeypatch, caplog):
-        """Missing webhook secret in DEBUG mode should allow with warning."""
+    def test_missing_secret_always_raises_even_in_debug(self, monkeypatch):
+        """Missing webhook secret should raise 500 regardless of DEBUG mode."""
         import app.api.v1.teller
 
         monkeypatch.setattr(app.api.v1.teller.settings, "DEBUG", True)
 
         webhook_body = b'{"test": "data"}'
 
-        # Should not raise exception in DEBUG mode
-        result = verify_teller_webhook_signature(
-            signature_header="some_signature", webhook_body=webhook_body, secret=""  # Empty secret
-        )
+        with pytest.raises(HTTPException) as exc_info:
+            verify_teller_webhook_signature(
+                signature_header="some_signature",
+                webhook_body=webhook_body,
+                secret="",
+            )
 
-        assert result is True
+        assert exc_info.value.status_code == 500
+        assert "not configured" in exc_info.value.detail
 
     def test_missing_signature_header_in_production_raises_error(self, monkeypatch):
         """Missing Teller-Signature header in production should raise 401 error."""
@@ -83,20 +86,23 @@ class TestTellerWebhookVerification:
         assert exc_info.value.status_code == 401
         assert "Missing" in exc_info.value.detail
 
-    def test_missing_signature_header_in_debug_mode_allows(self, monkeypatch):
-        """Missing signature header in DEBUG mode should allow with warning."""
+    def test_missing_signature_header_always_raises_even_in_debug(self, monkeypatch):
+        """Missing signature header should raise 401 regardless of DEBUG mode."""
         import app.api.v1.teller
 
         monkeypatch.setattr(app.api.v1.teller.settings, "DEBUG", True)
 
         webhook_body = b'{"test": "data"}'
 
-        # Should not raise exception in DEBUG mode
-        result = verify_teller_webhook_signature(
-            signature_header=None, webhook_body=webhook_body, secret="test_secret"
-        )
+        with pytest.raises(HTTPException) as exc_info:
+            verify_teller_webhook_signature(
+                signature_header=None,
+                webhook_body=webhook_body,
+                secret="test_secret",
+            )
 
-        assert result is True
+        assert exc_info.value.status_code == 401
+        assert "Missing" in exc_info.value.detail
 
     def test_invalid_signature_in_production_raises_error(self, monkeypatch):
         """Invalid signature in production should raise 401 error."""
@@ -119,24 +125,24 @@ class TestTellerWebhookVerification:
         # The HTTPException is caught and re-raised as "Webhook verification failed"
         assert "Invalid" in exc_info.value.detail or "failed" in exc_info.value.detail.lower()
 
-    def test_invalid_signature_in_debug_mode_allows(self, monkeypatch):
-        """Invalid signature in DEBUG mode should allow with warning."""
+    def test_invalid_signature_always_raises_even_in_debug(self, monkeypatch):
+        """Invalid signature should raise 401 regardless of DEBUG mode."""
         import app.api.v1.teller
 
         monkeypatch.setattr(app.api.v1.teller.settings, "DEBUG", True)
 
         secret = "test_webhook_secret"
         webhook_body = b'{"event":"test"}'
-
-        # Use wrong signature
         wrong_signature = "wrong_signature_value"
 
-        # Should not raise exception in DEBUG mode
-        result = verify_teller_webhook_signature(
-            signature_header=wrong_signature, webhook_body=webhook_body, secret=secret
-        )
+        with pytest.raises(HTTPException) as exc_info:
+            verify_teller_webhook_signature(
+                signature_header=wrong_signature,
+                webhook_body=webhook_body,
+                secret=secret,
+            )
 
-        assert result is True
+        assert exc_info.value.status_code == 401
 
     def test_hmac_sha256_algorithm_used(self, monkeypatch):
         """Verification should use HMAC-SHA256 algorithm."""
@@ -331,24 +337,23 @@ class TestTellerWebhookVerification:
         assert verify_teller_webhook_signature(sig1, webhook_body, secret) is True
         assert verify_teller_webhook_signature(sig2, webhook_body, secret) is True
 
-    def test_exception_in_verification_handled_in_debug(self, monkeypatch):
-        """Exceptions during verification in DEBUG mode should be caught and logged."""
+    def test_invalid_signature_in_debug_raises_401(self, monkeypatch):
+        """Invalid signature should raise 401 even in DEBUG mode (no bypass)."""
         import app.api.v1.teller
 
         monkeypatch.setattr(app.api.v1.teller.settings, "DEBUG", True)
 
-        # This will cause an exception in the try block
-        # (trying to encode None will fail)
         secret = "test"
         webhook_body = b"test"
 
-        # Even with an exception, DEBUG mode should allow
-        result = verify_teller_webhook_signature(
-            signature_header="test", webhook_body=webhook_body, secret=secret
-        )
+        with pytest.raises(HTTPException) as exc_info:
+            verify_teller_webhook_signature(
+                signature_header="test",
+                webhook_body=webhook_body,
+                secret=secret,
+            )
 
-        # Should still return True in DEBUG mode despite internal processing
-        assert result is True
+        assert exc_info.value.status_code == 401
 
     def test_production_mode_rejects_invalid_without_fallback(self, monkeypatch):
         """Production mode should strictly reject invalid signatures."""

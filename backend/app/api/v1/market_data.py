@@ -337,7 +337,7 @@ async def refresh_holding_price(
 
 @router.post("/holdings/refresh-all")
 async def refresh_all_holdings(
-    user_id: Optional[UUID] = Query(None, description="Specific user (admins only)"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user within organization"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -365,24 +365,26 @@ async def refresh_all_holdings(
     # Get unique symbols
     symbols = list(set(h.symbol for h in holdings))
 
-    # Batch fetch quotes
+    # Batch fetch quotes from market data provider
     market_data = get_market_data_provider()
     quotes = await market_data.get_quotes_batch(symbols)
 
-    # Update holdings
+    # Build mapping: symbol -> price, then batch update per symbol
+    now = utc_now()
     updated_count = 0
-    for holding in holdings:
-        if holding.symbol in quotes:
-            quote = quotes[holding.symbol]
-            await db.execute(
-                update(Holding)
-                .where(Holding.id == holding.id)
-                .values(
-                    current_price=quote.price,
-                    last_price_update=utc_now(),
-                )
+    for symbol, quote in quotes.items():
+        result = await db.execute(
+            update(Holding)
+            .where(
+                Holding.organization_id == current_user.organization_id,
+                Holding.symbol == symbol,
             )
-            updated_count += 1
+            .values(
+                current_price=quote.price,
+                last_price_update=now,
+            )
+        )
+        updated_count += result.rowcount
 
     await db.commit()
 
