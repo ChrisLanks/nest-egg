@@ -19,23 +19,21 @@ Thank you for contributing to Nest Egg! This guide will help you get started.
    cd nest-egg
    ```
 
-2. **Backend Setup**
+2. **Run the dev setup script**
    ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
+   ./scripts/dev-setup.sh
+   ```
+   This installs backend and frontend dependencies, sets up pre-commit hooks, and configures `.env` files.
+
+   Optionally seed test data:
+   ```bash
+   ./scripts/dev-setup.sh --seed-user          # seed test@test.com
+   ./scripts/dev-setup.sh --seed-user --seed-user2  # seed both test users
    ```
 
-3. **Install pre-commit hooks**
+3. **Start development servers**
    ```bash
-   pre-commit install
-   ```
-
-4. **Frontend Setup**
-   ```bash
-   cd frontend
-   npm install
+   ./scripts/dev-run.sh
    ```
 
 ## Development Workflow

@@ -54,7 +54,7 @@ help:
 
 install:
 	@echo "🚀 Running one-shot installation..."
-	./setup.sh
+	./scripts/dev-setup.sh
 
 clean:
 	@echo "🧹 Cleaning build artifacts..."
@@ -70,14 +70,7 @@ clean:
 
 dev:
 	@echo "🚀 Starting all development services..."
-	@echo "   This will start: Backend API, Frontend, Celery Worker, Celery Beat"
-	@echo ""
-	@trap 'kill 0' SIGINT; \
-	(cd backend && source venv/bin/activate && uvicorn app.main:app --reload) & \
-	(cd backend && source venv/bin/activate && celery -A app.workers.celery_app worker --loglevel=info) & \
-	(cd backend && source venv/bin/activate && celery -A app.workers.celery_app beat --loglevel=info) & \
-	(cd frontend && npm run dev) & \
-	wait
+	./scripts/dev-run.sh
 
 dev-backend:
 	@echo "🚀 Starting backend API..."
