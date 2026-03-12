@@ -78,7 +78,7 @@ class TestAuthService:
     def test_verify_token_invalid(self):
         """Test token verification with invalid token."""
         from app.core.security import decode_token
-        from jose import JWTError
+        from jwt.exceptions import InvalidTokenError as JWTError
 
         invalid_token = "invalid.token.here"
 
@@ -91,7 +91,7 @@ class TestAuthService:
     def test_verify_token_expired(self):
         """Test token verification with expired token."""
         from app.core.security import decode_token
-        from jose import JWTError
+        from jwt.exceptions import InvalidTokenError as JWTError
 
         user_id = "test-user-id"
         token = create_access_token(

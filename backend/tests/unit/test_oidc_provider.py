@@ -91,10 +91,18 @@ class TestOIDCProviderValidateToken:
         mock_result.scalar_one_or_none = Mock(return_value=mock_identity_row)
         mock_db.execute = AsyncMock(return_value=mock_result)
 
+        mock_jwk = Mock()
+        mock_jwk.key_id = "key1"
+        mock_jwk.key = "fake-key"
+        mock_jwk_set = Mock()
+        mock_jwk_set.keys = [mock_jwk]
+
         with patch.object(provider, "_get_jwks", new=AsyncMock(return_value={"keys": []})):
-            with patch("app.services.identity.oidc.jose_jwt") as mock_jwt:
-                mock_jwt.decode = Mock(return_value=claims)
+            with patch("app.services.identity.oidc.jose_jwt") as mock_jwt, \
+                 patch("app.services.identity.oidc.PyJWKSet") as mock_pyjwkset:
+                mock_pyjwkset.from_dict = Mock(return_value=mock_jwk_set)
                 mock_jwt.get_unverified_header = Mock(return_value={"alg": "RS256", "kid": "key1"})
+                mock_jwt.decode = Mock(return_value=claims)
 
                 identity = await provider.validate_token("fake.oidc.token", mock_db)
 
@@ -105,10 +113,18 @@ class TestOIDCProviderValidateToken:
     @pytest.mark.asyncio
     async def test_invalid_signature_returns_none(self, provider, mock_db):
         """Should return None when JWT verification fails."""
-        from jose import JWTError
+        from jwt.exceptions import InvalidTokenError as JWTError
+
+        mock_jwk = Mock()
+        mock_jwk.key_id = "key1"
+        mock_jwk.key = "fake-key"
+        mock_jwk_set = Mock()
+        mock_jwk_set.keys = [mock_jwk]
 
         with patch.object(provider, "_get_jwks", new=AsyncMock(return_value={"keys": []})):
-            with patch("app.services.identity.oidc.jose_jwt") as mock_jwt:
+            with patch("app.services.identity.oidc.jose_jwt") as mock_jwt, \
+                 patch("app.services.identity.oidc.PyJWKSet") as mock_pyjwkset:
+                mock_pyjwkset.from_dict = Mock(return_value=mock_jwk_set)
                 mock_jwt.get_unverified_header = Mock(return_value={"alg": "RS256", "kid": "key1"})
                 mock_jwt.decode = Mock(side_effect=JWTError("bad signature"))
 

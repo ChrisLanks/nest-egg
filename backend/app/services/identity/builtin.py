@@ -4,7 +4,8 @@ import logging
 from typing import Optional
 from uuid import UUID
 
-from jose import JWTError, jwt as jose_jwt
+import jwt as jose_jwt
+from jwt.exceptions import InvalidTokenError as JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decode_token

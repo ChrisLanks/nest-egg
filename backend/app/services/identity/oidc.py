@@ -8,7 +8,9 @@ from typing import Optional
 from uuid import UUID
 
 import httpx
-from jose import JWTError, jwt as jose_jwt
+import jwt as jose_jwt
+from jwt import PyJWKSet
+from jwt.exceptions import InvalidTokenError as JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -75,7 +77,7 @@ class OIDCIdentityProvider(IdentityProvider):
         try:
             unverified = jose_jwt.decode(
                 token,
-                key="",
+                algorithms=["RS256"],
                 options={"verify_signature": False, "verify_exp": False},
             )
             return unverified.get("iss") == self.config.issuer
@@ -87,10 +89,21 @@ class OIDCIdentityProvider(IdentityProvider):
     ) -> Optional[AuthenticatedIdentity]:
         """Validate RS256 OIDC token and return authenticated identity."""
         try:
-            jwks = await self._get_jwks()
+            jwks_data = await self._get_jwks()
+            jwk_set = PyJWKSet.from_dict(jwks_data)
+            header = jose_jwt.get_unverified_header(token)
+            kid = header.get("kid")
+            signing_key = None
+            for jwk in jwk_set.keys:
+                if jwk.key_id == kid:
+                    signing_key = jwk.key
+                    break
+            if signing_key is None:
+                logger.debug("No matching JWK kid=%s for %s", kid, self.config.provider_name)
+                return None
             payload = jose_jwt.decode(
                 token,
-                jwks,
+                signing_key,
                 algorithms=["RS256"],
                 audience=[self.config.client_id] + self.config.extra_audiences,
                 issuer=self.config.issuer,

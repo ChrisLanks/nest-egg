@@ -4,14 +4,17 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from jose import jwt
-from passlib.context import CryptContext
+import jwt
+from jwt.exceptions import InvalidTokenError as JWTError  # noqa: F401 — re-exported
+from pwdlib import PasswordHash
+from pwdlib.hashers.argon2 import Argon2Hasher
+from pwdlib.hashers.bcrypt import BcryptHasher
 
 from app.config import settings
 from app.utils.datetime_utils import utc_now
 
-# Password hashing context using Argon2 (bcrypt kept as deprecated for legacy hashes)
-pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
+# Password hashing context using Argon2 (bcrypt kept as fallback for legacy hashes)
+pwd_context = PasswordHash((Argon2Hasher(), BcryptHasher()))
 
 
 def hash_password(password: str) -> str:

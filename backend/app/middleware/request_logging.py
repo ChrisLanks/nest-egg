@@ -6,7 +6,7 @@ import uuid
 from typing import Callable
 
 from fastapi import Request, Response
-from jose import JWTError
+from jwt.exceptions import InvalidTokenError as JWTError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 

@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch, PropertyMock
 from fastapi import Request, Response
-from jose import JWTError
+from jwt.exceptions import InvalidTokenError as JWTError
 
 from app.middleware.request_logging import (
     UserContextMiddleware,

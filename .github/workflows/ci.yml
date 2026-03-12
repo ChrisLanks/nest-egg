@@ -29,7 +29,7 @@ jobs:
 
       - name: Check linting
         working-directory: ./backend
-        run: ruff check app --ignore E402
+        run: ruff check app tests
 
   test-backend:
     name: Test Backend
