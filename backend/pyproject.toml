@@ -11,7 +11,7 @@ ignore = ["E402"]
 known-first-party = ["app"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
