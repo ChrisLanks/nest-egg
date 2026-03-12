@@ -1,13 +1,14 @@
 """Tests for shared budget/goal schema fields."""
 
-import pytest
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from uuid import uuid4
 
-from app.schemas.budget import BudgetCreate, BudgetUpdate, BudgetResponse
-from app.schemas.savings_goal import SavingsGoalCreate, SavingsGoalUpdate, SavingsGoalResponse
+import pytest
+
 from app.models.budget import BudgetPeriod
+from app.schemas.budget import BudgetCreate, BudgetResponse, BudgetUpdate
+from app.schemas.savings_goal import SavingsGoalCreate, SavingsGoalResponse, SavingsGoalUpdate
 
 
 @pytest.mark.unit
@@ -64,8 +65,8 @@ class TestBudgetSchemaSharedFields:
             is_active=True,
             is_shared=False,
             shared_user_ids=None,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         assert resp.user_id == uid
 
@@ -125,7 +126,7 @@ class TestSavingsGoalSchemaSharedFields:
             funded_at=None,
             is_shared=False,
             shared_user_ids=None,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         assert resp.user_id == uid

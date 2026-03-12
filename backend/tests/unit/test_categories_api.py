@@ -1,20 +1,15 @@
 """Unit tests for categories API endpoints."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
-from datetime import datetime
 
+import pytest
 from fastapi import HTTPException
 
-from app.api.v1.categories import (
-    list_categories,
-    create_category,
-    update_category,
-    delete_category,
-)
-from app.models.user import User
+from app.api.v1.categories import create_category, delete_category, list_categories, update_category
 from app.models.transaction import Category
+from app.models.user import User
 from app.schemas.transaction import CategoryCreate, CategoryUpdate
 
 
@@ -43,8 +38,8 @@ class TestListCategories:
         category.color = "#FF5733"
         category.parent_category_id = None
         category.plaid_category_name = None
-        category.created_at = datetime.utcnow()
-        category.updated_at = datetime.utcnow()
+        category.created_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        category.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         # Mock custom categories query result
         custom_result = Mock()
@@ -100,8 +95,8 @@ class TestListCategories:
         category.color = "#FF5733"
         category.parent_category_id = None
         category.plaid_category_name = "Food and Drink"
-        category.created_at = datetime.utcnow()
-        category.updated_at = datetime.utcnow()
+        category.created_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        category.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         custom_result = Mock()
         custom_result.all.return_value = [(category, 5)]

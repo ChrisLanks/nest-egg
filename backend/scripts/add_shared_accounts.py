@@ -2,9 +2,9 @@
 
 import asyncio
 import sys
-from pathlib import Path
+from datetime import datetime, timezone
 from decimal import Decimal
-from datetime import datetime
+from pathlib import Path
 from uuid import uuid4
 
 # Add backend directory to path
@@ -12,9 +12,10 @@ backend_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(backend_dir))
 
 from sqlalchemy import select
+
 from app.core.database import AsyncSessionLocal
+from app.models.account import Account, AccountSource, AccountType
 from app.models.user import User
-from app.models.account import Account, AccountType, AccountSource
 from app.services.deduplication_service import DeduplicationService
 
 dedup_service = DeduplicationService()
@@ -67,7 +68,7 @@ async def add_shared_accounts():
             plaid_item_hash=quicksilver_hash,
             is_manual=True,
             is_active=True,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(quicksilver1)
 
@@ -85,7 +86,7 @@ async def add_shared_accounts():
             plaid_item_hash=quicksilver_hash,
             is_manual=True,
             is_active=True,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(quicksilver2)
 
@@ -117,7 +118,7 @@ async def add_shared_accounts():
             plaid_item_hash=property_hash,
             is_manual=True,
             is_active=True,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(property1)
 
@@ -135,7 +136,7 @@ async def add_shared_accounts():
             plaid_item_hash=property_hash,
             is_manual=True,
             is_active=True,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(property2)
 

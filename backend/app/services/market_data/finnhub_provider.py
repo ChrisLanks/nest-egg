@@ -22,8 +22,8 @@ import finnhub
 from app.config import settings
 
 from .base_provider import (
-    HoldingMetadata,
     HistoricalPrice,
+    HoldingMetadata,
     MarketDataProvider,
     QuoteData,
     SearchResult,
@@ -175,7 +175,7 @@ class FinnhubProvider(MarketDataProvider):
         resolution = resolution_map.get(interval, "D")
 
         import calendar
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         from_ts = int(
             calendar.timegm(datetime(start_date.year, start_date.month, start_date.day).timetuple())
@@ -209,7 +209,7 @@ class FinnhubProvider(MarketDataProvider):
 
             prices = []
             for i in range(len(candles["t"])):
-                dt = datetime.utcfromtimestamp(candles["t"][i]).date()
+                dt = datetime.fromtimestamp(candles["t"][i], tz=timezone.utc).replace(tzinfo=None).date()
                 prices.append(
                     HistoricalPrice(
                         date=dt,

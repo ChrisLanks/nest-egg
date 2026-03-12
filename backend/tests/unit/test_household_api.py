@@ -1,26 +1,26 @@
 """Unit tests for household API endpoints."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from uuid import uuid4
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
+import pytest
 from fastapi import HTTPException
 
 from app.api.v1.household import (
-    list_household_members,
-    invite_member,
-    list_invitations,
-    remove_member,
+    MAX_HOUSEHOLD_MEMBERS,
+    InviteMemberRequest,
+    accept_invitation,
     cancel_invitation,
     get_invitation_details,
-    accept_invitation,
-    InviteMemberRequest,
-    MAX_HOUSEHOLD_MEMBERS,
+    invite_member,
+    list_household_members,
+    list_invitations,
+    remove_member,
     router,
 )
-from app.models.user import User, HouseholdInvitation, InvitationStatus
+from app.models.user import HouseholdInvitation, InvitationStatus, User
 
 
 @pytest.mark.unit
@@ -372,8 +372,8 @@ class TestListInvitations:
         invitation1.invited_by_user_id = uuid4()
         invitation1.invitation_code = "code1"
         invitation1.status = InvitationStatus.PENDING
-        invitation1.expires_at = datetime.utcnow() + timedelta(days=7)
-        invitation1.created_at = datetime.utcnow()
+        invitation1.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
+        invitation1.created_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         # Mock invited_by user
         invited_by = Mock(spec=User)
@@ -577,7 +577,7 @@ class TestGetInvitationDetails:
         invitation.email = "invited@example.com"
         invitation.invited_by_user_id = uuid4()
         invitation.status = InvitationStatus.PENDING
-        invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+        invitation.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
 
         invited_by = Mock(spec=User)
         invited_by.display_name = "Admin User"
@@ -655,7 +655,7 @@ class TestAcceptInvitation:
         invitation.email = "newuser@example.com"
         invitation.organization_id = uuid4()
         invitation.status = InvitationStatus.PENDING
-        invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+        invitation.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
 
         current_user = Mock(spec=User)
         current_user.email = "newuser@example.com"
@@ -717,7 +717,7 @@ class TestAcceptInvitation:
 
         invitation = Mock(spec=HouseholdInvitation)
         invitation.status = InvitationStatus.ACCEPTED  # Already accepted
-        invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+        invitation.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
 
         result = Mock()
         result.scalar_one_or_none.return_value = invitation
@@ -747,7 +747,7 @@ class TestAcceptInvitation:
 
         invitation = Mock(spec=HouseholdInvitation)
         invitation.status = InvitationStatus.PENDING
-        invitation.expires_at = datetime.utcnow() - timedelta(days=1)  # Expired
+        invitation.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)  # Expired
 
         result = Mock()
         result.scalar_one_or_none.return_value = invitation
@@ -779,7 +779,7 @@ class TestAcceptInvitation:
         invitation = Mock(spec=HouseholdInvitation)
         invitation.email = "invited@example.com"
         invitation.status = InvitationStatus.PENDING
-        invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+        invitation.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
 
         invitation_result = Mock()
         invitation_result.scalar_one_or_none.return_value = invitation
@@ -814,7 +814,7 @@ class TestAcceptInvitation:
         invitation.email = "solo@example.com"
         invitation.organization_id = new_org_id
         invitation.status = InvitationStatus.PENDING
-        invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+        invitation.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
 
         current_user = Mock(spec=User)
         current_user.email = "solo@example.com"
@@ -909,7 +909,7 @@ class TestAcceptInvitation:
         invitation.email = "user@example.com"
         invitation.organization_id = new_org_id
         invitation.status = InvitationStatus.PENDING
-        invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+        invitation.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
 
         current_user = Mock(spec=User)
         current_user.email = "user@example.com"
@@ -965,7 +965,7 @@ class TestAcceptInvitation:
         invitation.email = "user@example.com"
         invitation.organization_id = new_org_id
         invitation.status = InvitationStatus.PENDING
-        invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+        invitation.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
 
         current_user = Mock(spec=User)
         current_user.email = "user@example.com"
@@ -1019,7 +1019,7 @@ class TestAcceptInvitation:
         invitation.email = "user@example.com"
         invitation.organization_id = org_id
         invitation.status = InvitationStatus.PENDING
-        invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+        invitation.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
 
         current_user = Mock(spec=User)
         current_user.email = "user@example.com"
@@ -1057,7 +1057,7 @@ class TestAcceptInvitation:
         invitation.email = "user@example.com"
         invitation.organization_id = new_org_id
         invitation.status = InvitationStatus.PENDING
-        invitation.expires_at = datetime.utcnow() + timedelta(days=7)
+        invitation.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
 
         current_user = Mock(spec=User)
         current_user.email = "user@example.com"
@@ -1118,8 +1118,8 @@ class TestInviteEmail:
         inv.email = "invite@example.com"
         inv.invitation_code = secrets.token_urlsafe(32)
         inv.status = InvitationStatus.PENDING
-        inv.expires_at = datetime.utcnow() + timedelta(days=7)
-        inv.created_at = datetime.utcnow()
+        inv.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
+        inv.created_at = datetime.now(timezone.utc).replace(tzinfo=None)
         return inv
 
     @pytest.mark.asyncio

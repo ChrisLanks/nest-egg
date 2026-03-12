@@ -1,9 +1,10 @@
 """Tests for GET /reports/templates pagination."""
 
-import pytest
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
-from datetime import datetime
+
+import pytest
 
 
 @pytest.mark.unit
@@ -21,8 +22,8 @@ class TestListReportTemplatesPagination:
         t.config = {}
         t.is_shared = False
         t.created_by_user_id = uuid4()
-        t.created_at = datetime.utcnow()
-        t.updated_at = datetime.utcnow()
+        t.created_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        t.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         return t
 
     @pytest.mark.asyncio

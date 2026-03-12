@@ -1,16 +1,16 @@
 """Create a test investment account with holdings for test@test.com."""
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal, init_db
-from app.models.user import User
-from app.models.account import Account, AccountType, AccountSource
+from app.models.account import Account, AccountSource, AccountType
 from app.models.holding import Holding
+from app.models.user import User
 
 
 async def create_test_investment_account():
@@ -115,7 +115,7 @@ async def create_test_investment_account():
                 total_cost_basis=total_cost,
                 current_price_per_share=current_price,
                 current_total_value=current_value,
-                price_as_of=datetime.utcnow(),
+                price_as_of=datetime.now(timezone.utc).replace(tzinfo=None),
                 asset_type=holding_data["asset_type"],
             )
 
@@ -132,7 +132,7 @@ async def create_test_investment_account():
 
         # Set account balance to total portfolio value
         account.current_balance = total_value
-        account.balance_as_of = datetime.utcnow()
+        account.balance_as_of = datetime.now(timezone.utc).replace(tzinfo=None)
 
         await db.commit()
 

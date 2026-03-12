@@ -19,7 +19,7 @@ repos:
     hooks:
       - id: black
         files: ^backend/
-        language_version: python3.11
+        language_version: python3
 
   # Python import sorting
   - repo: https://github.com/pycqa/isort

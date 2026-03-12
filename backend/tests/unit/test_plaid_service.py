@@ -2,13 +2,14 @@
 
 import hashlib
 import json
-import pytest
-from datetime import datetime, timedelta
-from unittest.mock import patch, AsyncMock, MagicMock
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from app.services.plaid_service import PlaidService, _jwk_cache
+import pytest
+
 from app.models.user import User
+from app.services.plaid_service import PlaidService, _jwk_cache
 
 
 class TestPlaidService:
@@ -50,7 +51,7 @@ class TestPlaidService:
 
         # Should have future expiration
         expiration_dt = datetime.fromisoformat(expiration.replace("Z", "+00:00"))
-        assert expiration_dt > datetime.utcnow()
+        assert expiration_dt > datetime.now(timezone.utc).replace(tzinfo=None)
 
     @pytest.mark.asyncio
     async def test_exchange_public_token_for_test_user(self):
@@ -335,9 +336,9 @@ class TestPlaidService:
         service = PlaidService()
         test_user = User(id=uuid4(), email="test@test.com", password_hash="hash")
 
-        before_call = datetime.utcnow()
+        before_call = datetime.now(timezone.utc).replace(tzinfo=None)
         _, expiration = await service.create_link_token(test_user)
-        after_call = datetime.utcnow()
+        after_call = datetime.now(timezone.utc).replace(tzinfo=None)
 
         # Parse expiration
         expiration_dt = datetime.fromisoformat(expiration.replace("Z", "+00:00"))

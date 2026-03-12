@@ -2,10 +2,10 @@
 
 import asyncio
 import sys
-from pathlib import Path
-from datetime import datetime
-from decimal import Decimal
 import uuid
+from datetime import datetime, timezone
+from decimal import Decimal
+from pathlib import Path
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -13,9 +13,9 @@ sys.path.append(str(Path(__file__).parent.parent))
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
-from app.models.user import User
-from app.models.account import Account, AccountType, AccountSource
+from app.models.account import Account, AccountSource, AccountType
 from app.models.holding import Holding
+from app.models.user import User
 
 
 async def seed_investment_holdings():
@@ -140,7 +140,7 @@ async def seed_investment_holdings():
                 institution_name=account_data["institution"],
                 mask=account_data["mask"],
                 current_balance=account_data["balance"],
-                balance_as_of=datetime.utcnow(),
+                balance_as_of=datetime.now(timezone.utc).replace(tzinfo=None),
                 is_active=True,
                 is_manual=True,
             )
@@ -160,7 +160,7 @@ async def seed_investment_holdings():
                     shares=holding_data["shares"],
                     current_price_per_share=holding_data["price"],
                     current_total_value=holding_data["shares"] * holding_data["price"],
-                    price_as_of=datetime.utcnow(),
+                    price_as_of=datetime.now(timezone.utc).replace(tzinfo=None),
                     total_cost_basis=holding_data["cost_basis"],
                     cost_basis_per_share=holding_data["cost_basis"] / holding_data["shares"] if holding_data["shares"] > 0 else Decimal("0"),
                     # Alpha Vantage-style metadata for accurate classification

@@ -1,30 +1,45 @@
 """Unit tests for rules API endpoints."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from uuid import uuid4
+from datetime import date, datetime, timezone
 from decimal import Decimal
-from datetime import date, datetime
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
+import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
 from app.api.v1.rules import (
-    list_rules,
-    create_rule,
-    get_rule,
-    update_rule,
-    delete_rule,
-    apply_rule,
-    preview_rule,
-    test_rule as rule_test_endpoint,
     ApplyRuleRequest,
+    apply_rule,
+    create_rule,
+    delete_rule,
+    get_rule,
+    list_rules,
+    preview_rule,
     router,
 )
-from app.models.user import User
-from app.models.rule import Rule, RuleCondition, RuleAction, RuleMatchType, RuleApplyTo, ConditionField, ConditionOperator, ActionType
+from app.api.v1.rules import test_rule as rule_test_endpoint
+from app.api.v1.rules import update_rule
+from app.models.rule import (
+    ActionType,
+    ConditionField,
+    ConditionOperator,
+    Rule,
+    RuleAction,
+    RuleApplyTo,
+    RuleCondition,
+    RuleMatchType,
+)
 from app.models.transaction import Transaction
-from app.schemas.rule import RuleCreate, RuleUpdate, RuleConditionCreate, RuleActionCreate, RuleActionResponse
+from app.models.user import User
+from app.schemas.rule import (
+    RuleActionCreate,
+    RuleActionResponse,
+    RuleConditionCreate,
+    RuleCreate,
+    RuleUpdate,
+)
 
 
 @pytest.mark.unit
@@ -865,6 +880,6 @@ class TestRuleActionSchema:
             rule_id=uuid4(),
             action_type=ActionType.SET_CATEGORY,
             action_value="",
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         assert response.action_value == ""

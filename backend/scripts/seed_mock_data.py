@@ -1,23 +1,23 @@
 """Seed database with mock Plaid data for testing."""
 
 import asyncio
-import sys
-from pathlib import Path
-from datetime import datetime, timedelta, date
-from decimal import Decimal
-import uuid
 import hashlib
+import sys
+import uuid
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
+from pathlib import Path
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
-from app.models.user import User
-from app.models.account import Account, PlaidItem, AccountType, AccountSource
+from app.models.account import Account, AccountSource, AccountType, PlaidItem
 from app.models.transaction import Transaction
+from app.models.user import User
 
 
 async def generate_deduplication_hash(account_id: uuid.UUID, date: date, amount: Decimal, merchant: str) -> str:
@@ -54,7 +54,7 @@ async def seed_mock_data():
             institution_name="Chase",
             is_active=True,
             needs_reauth=False,
-            last_synced_at=datetime.utcnow(),
+            last_synced_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(plaid_item)
         await db.flush()
@@ -74,7 +74,7 @@ async def seed_mock_data():
             institution_name="Chase",
             current_balance=Decimal("5432.50"),
             available_balance=Decimal("5432.50"),
-            balance_as_of=datetime.utcnow(),
+            balance_as_of=datetime.now(timezone.utc).replace(tzinfo=None),
             is_active=True,
             is_manual=False,
         )
@@ -97,7 +97,7 @@ async def seed_mock_data():
             current_balance=Decimal("-1245.67"),  # Negative = you owe this
             available_balance=Decimal("8754.33"),
             limit=Decimal("10000.00"),
-            balance_as_of=datetime.utcnow(),
+            balance_as_of=datetime.now(timezone.utc).replace(tzinfo=None),
             is_active=True,
             is_manual=False,
         )

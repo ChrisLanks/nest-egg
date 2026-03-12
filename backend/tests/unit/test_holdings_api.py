@@ -1,28 +1,28 @@
 """Unit tests for holdings API endpoints."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from uuid import uuid4, UUID
+from datetime import date, datetime, timezone
 from decimal import Decimal
-from datetime import date, datetime
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import UUID, uuid4
 
+import pytest
 from fastapi import HTTPException
 
 from app.api.v1.holdings import (
-    get_account_holdings,
-    create_holding,
-    update_holding,
-    delete_holding,
     capture_portfolio_snapshot,
+    create_holding,
+    delete_holding,
+    get_account_holdings,
     get_historical_snapshots,
     get_portfolio_summary,
-    get_style_box_breakdown,
     get_rmd_summary,
+    get_style_box_breakdown,
     router,
+    update_holding,
 )
-from app.models.user import User
 from app.models.account import Account, AccountType
 from app.models.holding import Holding
+from app.models.user import User
 
 
 @pytest.mark.unit
@@ -397,7 +397,7 @@ class TestCapturePortfolioSnapshot:
             total_cost_basis=Decimal("90000"),
             total_gain_loss=Decimal("10000"),
             total_gain_loss_percent=Decimal("11.11"),
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
         with patch(
@@ -448,7 +448,7 @@ class TestGetHistoricalSnapshots:
                 total_cost_basis=Decimal("85000"),
                 total_gain_loss=Decimal("5000"),
                 total_gain_loss_percent=Decimal("5.88"),
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc).replace(tzinfo=None),
             ),
             SnapshotResponse(
                 id=uuid4(),
@@ -458,7 +458,7 @@ class TestGetHistoricalSnapshots:
                 total_cost_basis=Decimal("90000"),
                 total_gain_loss=Decimal("10000"),
                 total_gain_loss_percent=Decimal("11.11"),
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc).replace(tzinfo=None),
             ),
         ]
 
@@ -831,10 +831,10 @@ class TestGetPortfolioSummaryComprehensive:
         holding.asset_class = asset_class
         holding.sector = sector
         holding.country = "US"  # Add country for Pydantic validation
-        holding.price_as_of = datetime.utcnow()  # Add price_as_of for comparison logic
+        holding.price_as_of = datetime.now(timezone.utc).replace(tzinfo=None)  # Add price_as_of for comparison logic
         holding.expense_ratio = Decimal("0.03")  # Default 0.03% expense ratio
-        holding.created_at = datetime.utcnow()  # Add created_at for Pydantic validation
-        holding.updated_at = datetime.utcnow()  # Add updated_at for Pydantic validation
+        holding.created_at = datetime.now(timezone.utc).replace(tzinfo=None)  # Add created_at for Pydantic validation
+        holding.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)  # Add updated_at for Pydantic validation
         # Add other fields that Pydantic might validate
         holding.industry = "Technology" if sector == "Technology" else None
         holding.market_cap = None
@@ -2234,10 +2234,10 @@ class TestInvestmentAccountsWithoutHoldings:
         holding.account_id = account_with_holdings_id
         holding.name = "Vanguard Total Market"
         holding.country = "US"
-        holding.price_as_of = datetime.utcnow()
+        holding.price_as_of = datetime.now(timezone.utc).replace(tzinfo=None)
         holding.expense_ratio = Decimal("0.03")
-        holding.created_at = datetime.utcnow()
-        holding.updated_at = datetime.utcnow()
+        holding.created_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        holding.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         holding.asset_type = "Stock"
         holding.asset_class = None
         holding.sector = None

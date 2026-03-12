@@ -8,9 +8,9 @@ Creates test2@test.com user with dummy data including:
 
 import asyncio
 import sys
-from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from datetime import datetime, timedelta
+from pathlib import Path
 from uuid import uuid4
 
 # Add backend directory to path
@@ -22,9 +22,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import hash_password
-from app.models.user import User, Organization
-from app.models.account import Account, AccountType, AccountSource
+from app.models.account import Account, AccountSource, AccountType
 from app.models.transaction import Transaction
+from app.models.user import Organization, User
 from app.services.deduplication_service import DeduplicationService
 
 dedup_service = DeduplicationService()
@@ -46,7 +46,7 @@ async def create_test_user_2(db: AsyncSession):
     org = Organization(
         id=uuid4(),
         name="Test2 Household",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     db.add(org)
     await db.flush()
@@ -62,7 +62,7 @@ async def create_test_user_2(db: AsyncSession):
         is_org_admin=True,
         is_primary_household_member=True,
         is_active=True,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     db.add(user)
     await db.commit()
@@ -116,7 +116,7 @@ async def create_unique_accounts(db: AsyncSession, user: User):
             mask=acc_data["mask"],
             institution_name=acc_data["institution_name"],
             is_active=True,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(account)
         created_accounts.append(account)
@@ -177,7 +177,7 @@ async def create_overlapping_accounts(db: AsyncSession, user2: User, user1_accou
             external_account_id=acc.external_account_id,  # KEY: Same external ID
             plaid_item_id=acc.plaid_item_id,  # KEY: Same plaid item
             is_active=True,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
         # Calculate and set plaid_item_hash for duplicate detection
@@ -203,7 +203,7 @@ async def create_transactions(db: AsyncSession, accounts: list):
     print("\n5. Creating sample transactions...")
 
     transaction_count = 0
-    base_date = datetime.utcnow().date()
+    base_date = datetime.now(timezone.utc).replace(tzinfo=None).date()
 
     for account in accounts:
         # Skip credit cards for simplicity
@@ -296,7 +296,7 @@ async def create_transactions(db: AsyncSession, accounts: list):
                 description=txn_data["description"],
                 category_primary=txn_data["category_primary"],
                 is_pending=False,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc).replace(tzinfo=None),
             )
             db.add(transaction)
             transaction_count += 1

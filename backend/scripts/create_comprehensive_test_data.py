@@ -1,16 +1,16 @@
 """Create comprehensive test portfolio for test@test.com matching Plaid structure."""
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal, init_db
-from app.models.user import User
-from app.models.account import Account, AccountType, AccountSource
+from app.models.account import Account, AccountSource, AccountType
 from app.models.holding import Holding
+from app.models.user import User
 
 
 async def create_comprehensive_test_portfolio():
@@ -338,7 +338,7 @@ async def create_comprehensive_test_portfolio():
             is_manual=False,
             is_active=True,
             current_balance=Decimal("15000.00"),
-            balance_as_of=datetime.utcnow(),
+            balance_as_of=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(money_market)
         await db.flush()
@@ -371,7 +371,7 @@ async def create_comprehensive_test_portfolio():
             is_manual=True,
             is_active=True,
             current_balance=Decimal("450000.00"),
-            balance_as_of=datetime.utcnow(),
+            balance_as_of=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(property_account)
 
@@ -386,7 +386,7 @@ async def create_comprehensive_test_portfolio():
             is_manual=True,
             is_active=True,
             current_balance=Decimal("38500.00"),
-            balance_as_of=datetime.utcnow(),
+            balance_as_of=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(vehicle_account)
 
@@ -467,7 +467,7 @@ async def create_comprehensive_test_portfolio():
                     total_cost_basis=total_cost,
                     current_price_per_share=current_price,
                     current_total_value=current_value,
-                    price_as_of=datetime.utcnow(),
+                    price_as_of=datetime.now(timezone.utc).replace(tzinfo=None),
                     asset_type=holding_data["asset_type"],
                 )
 
@@ -490,7 +490,7 @@ async def create_comprehensive_test_portfolio():
             )
             account = account_result.scalar_one()
             account.current_balance = account_value
-            account.balance_as_of = datetime.utcnow()
+            account.balance_as_of = datetime.now(timezone.utc).replace(tzinfo=None)
 
         # Add property and vehicle to total
         total_portfolio_value += property_account.current_balance + vehicle_account.current_balance
