@@ -1013,7 +1013,9 @@ export const Layout = () => {
             >
               <HStack spacing={3}>
                 <Text fontSize="sm" fontWeight="semibold" color="text.primary">
-                  👥 {sectionLabel} Permissions:
+                  {isAllSelected
+                    ? `🏠 Household View — ${sectionLabel} Permissions:`
+                    : `👥 ${sectionLabel} Permissions:`}
                 </Text>
                 <HStack spacing={2} flexWrap="wrap">
                   {memberAccess.map(({ memberId, access }) => {
