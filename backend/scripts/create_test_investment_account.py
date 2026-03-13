@@ -1,11 +1,15 @@
 """Create a test investment account with holdings for test@test.com."""
 
 import asyncio
+import sys
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
+
+# Add parent directory to path
+sys.path.append(str(Path(__file__).parent.parent))
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal, init_db
 from app.models.account import Account, AccountSource, AccountType
@@ -20,9 +24,7 @@ async def create_test_investment_account():
 
     async with AsyncSessionLocal() as db:
         # Find test user
-        result = await db.execute(
-            select(User).where(User.email == "test@test.com")
-        )
+        result = await db.execute(select(User).where(User.email == "test@test.com"))
         user = result.scalar_one_or_none()
 
         if not user:
@@ -127,8 +129,12 @@ async def create_test_investment_account():
             gain_loss = current_value - total_cost
             gain_loss_pct = (gain_loss / total_cost * 100) if total_cost > 0 else 0
 
-            print(f"  ✅ {holding_data['ticker']}: {shares} shares @ ${current_price} = ${current_value:.2f} "
-                  f"(gain: ${gain_loss:.2f} / {gain_loss_pct:.1f}%)")
+            ticker = holding_data["ticker"]
+            print(
+                f"  ✅ {ticker}: {shares} shares"
+                f" @ ${current_price} = ${current_value:.2f}"
+                f" (gain: ${gain_loss:.2f} / {gain_loss_pct:.1f}%)"
+            )
 
         # Set account balance to total portfolio value
         account.current_balance = total_value
@@ -136,12 +142,14 @@ async def create_test_investment_account():
 
         await db.commit()
 
-        print(f"\n💰 Portfolio Summary:")
+        print("\n💰 Portfolio Summary:")
         print(f"   Total Value: ${total_value:.2f}")
         print(f"   Total Cost Basis: ${total_cost_basis:.2f}")
-        print(f"   Total Gain/Loss: ${total_value - total_cost_basis:.2f} ({((total_value - total_cost_basis) / total_cost_basis * 100):.1f}%)")
-        print(f"\n✅ Test investment account created successfully!")
-        print(f"\n🎯 Now visit /investments to see your portfolio!")
+        gl = total_value - total_cost_basis
+        gl_pct = (gl / total_cost_basis * 100) if total_cost_basis > 0 else 0
+        print(f"   Total Gain/Loss: ${gl:.2f} ({gl_pct:.1f}%)")
+        print("\n✅ Test investment account created successfully!")
+        print("\n🎯 Now visit /investments to see your portfolio!")
 
 
 if __name__ == "__main__":

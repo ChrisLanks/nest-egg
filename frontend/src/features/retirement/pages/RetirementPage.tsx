@@ -20,7 +20,6 @@ import {
   AlertIcon,
   Box,
   Button,
-  ButtonGroup,
   Container,
   HStack,
   IconButton,
@@ -35,23 +34,25 @@ import {
   useDisclosure,
   useToast,
   VStack,
-} from '@chakra-ui/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { FiEdit2, FiX } from 'react-icons/fi';
-import api from '../../../services/api';
-import { useUserView } from '../../../contexts/UserViewContext';
-import { useHouseholdMembers } from '../../../hooks/useHouseholdMembers';
-import { AccountDataSummary } from '../components/AccountDataSummary';
-import { HealthcareEstimator } from '../components/HealthcareEstimator';
-import { LifeEventEditor } from '../components/LifeEventEditor';
-import { LifeEventPresetPicker } from '../components/LifeEventPresetPicker';
-import { LifeEventTimeline } from '../components/LifeEventTimeline';
-import { RetirementFanChart } from '../components/RetirementFanChart';
-import { RetirementScoreGauge } from '../components/RetirementScoreGauge';
-import { ScenarioComparisonView } from '../components/ScenarioComparisonView';
-import { ScenarioPanel } from '../components/ScenarioPanel';
-import { SocialSecurityEstimator } from '../components/SocialSecurityEstimator';
-import { WithdrawalStrategyComparison } from '../components/WithdrawalStrategyComparison';
+} from "@chakra-ui/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { FiEdit2, FiX } from "react-icons/fi";
+import api from "../../../services/api";
+import { useUserView } from "../../../contexts/UserViewContext";
+import { useHouseholdMembers } from "../../../hooks/useHouseholdMembers";
+import { useMultiMemberFilter } from "../../../hooks/useMultiMemberFilter";
+import { MemberMultiSelect } from "../../../components/MemberMultiSelect";
+import { AccountDataSummary } from "../components/AccountDataSummary";
+import { HealthcareEstimator } from "../components/HealthcareEstimator";
+import { LifeEventEditor } from "../components/LifeEventEditor";
+import { LifeEventPresetPicker } from "../components/LifeEventPresetPicker";
+import { LifeEventTimeline } from "../components/LifeEventTimeline";
+import { RetirementFanChart } from "../components/RetirementFanChart";
+import { RetirementScoreGauge } from "../components/RetirementScoreGauge";
+import { ScenarioComparisonView } from "../components/ScenarioComparisonView";
+import { ScenarioPanel } from "../components/ScenarioPanel";
+import { SocialSecurityEstimator } from "../components/SocialSecurityEstimator";
+import { WithdrawalStrategyComparison } from "../components/WithdrawalStrategyComparison";
 import {
   useAddLifeEvent,
   useAddLifeEventFromPreset,
@@ -66,24 +67,35 @@ import {
   useSimulationResults,
   useUpdateLifeEvent,
   useUpdateScenario,
-} from '../hooks/useRetirementScenarios';
+} from "../hooks/useRetirementScenarios";
 import type {
   LifeEvent,
   LifeEventCreate,
   RetirementScenarioSummary,
   ScenarioComparisonItem,
   WithdrawalComparison,
-} from '../types/retirement';
+} from "../types/retirement";
 
 export function RetirementPage() {
   const toast = useToast();
-  const cardBg = useColorModeValue('white', 'gray.800');
-  const accent = useColorModeValue('blue', 'cyan');
-  const { isCombinedView, isSelfView, isOtherUserView, selectedUserId, canWriteResource } = useUserView();
-  const readOnly = !canWriteResource('retirement_scenario');
+  const cardBg = useColorModeValue("white", "gray.800");
+  const { isCombinedView, isOtherUserView, selectedUserId, canWriteResource } =
+    useUserView();
+  const readOnly = !canWriteResource("retirement_scenario");
   const { data: householdMembers = [] } = useHouseholdMembers();
-  const [filterUserId, setFilterUserId] = useState<string | null>(null);
-  const showMemberFilter = isCombinedView && householdMembers.length > 1;
+  const {
+    selectedIds,
+    toggleMember,
+    selectAll,
+    isAllSelected,
+    showFilter,
+    members,
+  } = useMultiMemberFilter();
+
+  // Retirement is per-person: only show scenarios when exactly one member is selected
+  const singleSelectedId = selectedIds.size === 1 ? [...selectedIds][0] : null;
+  const filterUserId = isCombinedView ? singleSelectedId : null;
+  const showMemberFilter = showFilter;
   const tabsRef = useRef<HTMLDivElement>(null);
 
   // Track whether settings changed since last simulation
@@ -98,21 +110,25 @@ export function RetirementPage() {
     : (filterUserId ?? undefined);
   // In combined view with "All" selected, don't fetch any scenarios
   const shouldFetchScenarios = !isCombinedView || !!filterUserId;
-  const { data: scenarios, isLoading: scenariosLoading } = useRetirementScenarios(scenarioUserId, shouldFetchScenarios);
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem('retirement-active-scenario');
-    } catch {
-      return null;
-    }
-  });
+  const { data: scenarios, isLoading: scenariosLoading } =
+    useRetirementScenarios(scenarioUserId, shouldFetchScenarios);
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(
+    () => {
+      try {
+        return localStorage.getItem("retirement-active-scenario");
+      } catch {
+        return null;
+      }
+    },
+  );
   const scenarioIdRef = useRef(selectedScenarioId);
 
   // Fetch selected scenario detail
   const { data: scenario } = useRetirementScenario(selectedScenarioId);
 
   // Fetch simulation results for selected scenario
-  const { data: results, isLoading: resultsLoading } = useSimulationResults(selectedScenarioId);
+  const { data: results, isLoading: resultsLoading } =
+    useSimulationResults(selectedScenarioId);
 
   // Mutations
   const createDefaultMutation = useCreateDefaultScenario();
@@ -130,12 +146,14 @@ export function RetirementPage() {
   const presetPicker = useDisclosure();
   const eventEditor = useDisclosure();
   const [editingEvent, setEditingEvent] = useState<LifeEvent | null>(null);
-  const [comparisonData, setComparisonData] = useState<ScenarioComparisonItem[] | null>(null);
+  const [comparisonData, setComparisonData] = useState<
+    ScenarioComparisonItem[] | null
+  >(null);
   const [showComparison, setShowComparison] = useState(false);
 
   // Tab rename state
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
-  const [editingTabName, setEditingTabName] = useState('');
+  const [editingTabName, setEditingTabName] = useState("");
 
   // Delete confirmation state
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -160,12 +178,15 @@ export function RetirementPage() {
     scenarioIdRef.current = selectedScenarioId;
     if (selectedScenarioId) {
       try {
-        localStorage.setItem('retirement-active-scenario', selectedScenarioId);
-      } catch { /* ignore */ }
+        localStorage.setItem("retirement-active-scenario", selectedScenarioId);
+      } catch {
+        /* ignore */
+      }
     }
   }, [selectedScenarioId]);
 
   // Reset selection when the view/user changes (global or local filter)
+  /* eslint-disable react-hooks/set-state-in-effect -- intentional: sync state to prop changes */
   useEffect(() => {
     setSelectedScenarioId(null);
     setSettingsDirty(false);
@@ -176,7 +197,10 @@ export function RetirementPage() {
     if (!scenarios?.length) return;
 
     // If current selection exists in the fetched list, keep it
-    if (selectedScenarioId && scenarios.find((s) => s.id === selectedScenarioId)) {
+    if (
+      selectedScenarioId &&
+      scenarios.find((s) => s.id === selectedScenarioId)
+    ) {
       return;
     }
 
@@ -184,18 +208,21 @@ export function RetirementPage() {
     const defaultScenario = scenarios.find((s) => s.is_default);
     setSelectedScenarioId(defaultScenario?.id ?? scenarios[0].id);
   }, [scenarios, selectedScenarioId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Handle creating first scenario
   const handleCreateDefault = useCallback(async () => {
     try {
       const newScenario = await createDefaultMutation.mutateAsync();
       setSelectedScenarioId(newScenario.id);
-      toast({ title: 'Scenario created', status: 'success', duration: 2000 });
+      toast({ title: "Scenario created", status: "success", duration: 2000 });
     } catch (err: any) {
       toast({
-        title: 'Failed to create scenario',
-        description: err?.response?.data?.detail || 'Please set your birthdate in preferences.',
-        status: 'error',
+        title: "Failed to create scenario",
+        description:
+          err?.response?.data?.detail ||
+          "Please set your birthdate in preferences.",
+        status: "error",
         duration: 4000,
       });
     }
@@ -208,7 +235,7 @@ export function RetirementPage() {
       updateMutation.mutate({ id: selectedScenarioId, updates });
       setSettingsDirty(true);
     },
-    [selectedScenarioId, updateMutation]
+    [selectedScenarioId, updateMutation],
   );
 
   // Handle tab rename
@@ -217,12 +244,15 @@ export function RetirementPage() {
       setEditingTabId(scenarioId);
       setEditingTabName(currentName);
     },
-    []
+    [],
   );
 
   const handleTabRenameSubmit = useCallback(() => {
     if (editingTabId && editingTabName.trim()) {
-      updateMutation.mutate({ id: editingTabId, updates: { name: editingTabName.trim() } });
+      updateMutation.mutate({
+        id: editingTabId,
+        updates: { name: editingTabName.trim() },
+      });
     }
     setEditingTabId(null);
   }, [editingTabId, editingTabName, updateMutation]);
@@ -237,12 +267,16 @@ export function RetirementPage() {
     try {
       await simulateMutation.mutateAsync(selectedScenarioId);
       setSettingsDirty(false);
-      toast({ title: 'Simulation complete', status: 'success', duration: 2000 });
+      toast({
+        title: "Simulation complete",
+        status: "success",
+        duration: 2000,
+      });
     } catch (err: any) {
       toast({
-        title: 'Simulation failed',
-        description: err?.response?.data?.detail || 'An error occurred.',
-        status: 'error',
+        title: "Simulation failed",
+        description: err?.response?.data?.detail || "An error occurred.",
+        status: "error",
         duration: 4000,
       });
     }
@@ -251,7 +285,8 @@ export function RetirementPage() {
   // Auto-run simulation (used after life event changes to update chart immediately)
   const autoSimulate = useCallback(() => {
     if (!selectedScenarioId) return;
-    simulateMutation.mutateAsync(selectedScenarioId)
+    simulateMutation
+      .mutateAsync(selectedScenarioId)
       .then(() => setSettingsDirty(false))
       .catch(() => {}); // Swallow errors for auto-simulate
   }, [selectedScenarioId, simulateMutation]);
@@ -266,18 +301,24 @@ export function RetirementPage() {
         window.scrollTo(0, 0);
       }
     },
-    [scenarios]
+    [scenarios],
   );
 
   // Handle duplicate
   const handleDuplicate = useCallback(async () => {
     if (!selectedScenarioId) return;
     try {
-      const dup = await duplicateMutation.mutateAsync({ id: selectedScenarioId });
+      const dup = await duplicateMutation.mutateAsync({
+        id: selectedScenarioId,
+      });
       setSelectedScenarioId(dup.id);
-      toast({ title: 'Scenario duplicated', status: 'success', duration: 2000 });
+      toast({
+        title: "Scenario duplicated",
+        status: "success",
+        duration: 2000,
+      });
     } catch {
-      toast({ title: 'Failed to duplicate', status: 'error', duration: 3000 });
+      toast({ title: "Failed to duplicate", status: "error", duration: 3000 });
     }
   }, [selectedScenarioId, duplicateMutation, toast]);
 
@@ -294,18 +335,30 @@ export function RetirementPage() {
       await deleteScenarioMutation.mutateAsync(scenarioId);
       if (scenarioId === selectedScenarioId) {
         setSelectedScenarioId(null);
-        try { localStorage.removeItem('retirement-active-scenario'); } catch { /* ignore */ }
+        try {
+          localStorage.removeItem("retirement-active-scenario");
+        } catch {
+          /* ignore */
+        }
       }
-      toast({ title: 'Scenario deleted', status: 'success', duration: 2000 });
+      toast({ title: "Scenario deleted", status: "success", duration: 2000 });
     } catch {
-      toast({ title: 'Failed to delete scenario', status: 'error', duration: 3000 });
+      toast({
+        title: "Failed to delete scenario",
+        status: "error",
+        duration: 3000,
+      });
     }
   }, [pendingDeleteId, deleteScenarioMutation, selectedScenarioId, toast]);
 
   // Handle compare
   const handleCompare = useCallback(async () => {
     if (!scenarios || scenarios.length < 2) {
-      toast({ title: 'Need at least 2 scenarios to compare', status: 'warning', duration: 3000 });
+      toast({
+        title: "Need at least 2 scenarios to compare",
+        status: "warning",
+        duration: 3000,
+      });
       return;
     }
     try {
@@ -315,9 +368,11 @@ export function RetirementPage() {
       setShowComparison(true);
     } catch (err: any) {
       toast({
-        title: 'Comparison failed',
-        description: err?.response?.data?.detail || 'Run simulations on all scenarios first.',
-        status: 'error',
+        title: "Comparison failed",
+        description:
+          err?.response?.data?.detail ||
+          "Run simulations on all scenarios first.",
+        status: "error",
         duration: 4000,
       });
     }
@@ -328,20 +383,23 @@ export function RetirementPage() {
     async (presetKey: string) => {
       if (!selectedScenarioId) return;
       try {
-        await addPresetMutation.mutateAsync({ scenarioId: selectedScenarioId, presetKey });
+        await addPresetMutation.mutateAsync({
+          scenarioId: selectedScenarioId,
+          presetKey,
+        });
         presetPicker.onClose();
-        toast({ title: 'Life event added', status: 'success', duration: 2000 });
+        toast({ title: "Life event added", status: "success", duration: 2000 });
         autoSimulate();
       } catch (err: any) {
         toast({
-          title: 'Failed to add event',
-          description: err?.response?.data?.detail || 'An error occurred.',
-          status: 'error',
+          title: "Failed to add event",
+          description: err?.response?.data?.detail || "An error occurred.",
+          status: "error",
           duration: 3000,
         });
       }
     },
-    [selectedScenarioId, addPresetMutation, presetPicker, toast, autoSimulate]
+    [selectedScenarioId, addPresetMutation, presetPicker, toast, autoSimulate],
   );
 
   const handleSaveEvent = useCallback(
@@ -361,18 +419,30 @@ export function RetirementPage() {
         }
         eventEditor.onClose();
         setEditingEvent(null);
-        toast({ title: editingEvent ? 'Event updated' : 'Event added', status: 'success', duration: 2000 });
+        toast({
+          title: editingEvent ? "Event updated" : "Event added",
+          status: "success",
+          duration: 2000,
+        });
         autoSimulate();
       } catch (err: any) {
         toast({
-          title: 'Failed to save event',
-          description: err?.response?.data?.detail || 'An error occurred.',
-          status: 'error',
+          title: "Failed to save event",
+          description: err?.response?.data?.detail || "An error occurred.",
+          status: "error",
           duration: 3000,
         });
       }
     },
-    [selectedScenarioId, editingEvent, addLifeEventMutation, updateLifeEventMutation, eventEditor, toast, autoSimulate]
+    [
+      selectedScenarioId,
+      editingEvent,
+      addLifeEventMutation,
+      updateLifeEventMutation,
+      eventEditor,
+      toast,
+      autoSimulate,
+    ],
   );
 
   const handleEditEvent = useCallback(
@@ -380,27 +450,31 @@ export function RetirementPage() {
       setEditingEvent(event);
       eventEditor.onOpen();
     },
-    [eventEditor]
+    [eventEditor],
   );
 
   const handleDeleteEvent = useCallback(
     async (eventId: string) => {
       try {
         await deleteLifeEventMutation.mutateAsync(eventId);
-        toast({ title: 'Event removed', status: 'success', duration: 2000 });
+        toast({ title: "Event removed", status: "success", duration: 2000 });
         autoSimulate();
       } catch {
-        toast({ title: 'Failed to delete event', status: 'error', duration: 3000 });
+        toast({
+          title: "Failed to delete event",
+          status: "error",
+          duration: 3000,
+        });
       }
     },
-    [deleteLifeEventMutation, toast, autoSimulate]
+    [deleteLifeEventMutation, toast, autoSimulate],
   );
 
   const handleSsClaimingAgeChange = useCallback(
     (age: number) => {
       handleUpdate({ social_security_start_age: age });
     },
-    [handleUpdate]
+    [handleUpdate],
   );
 
   // CSV export
@@ -409,59 +483,48 @@ export function RetirementPage() {
     try {
       const response = await api.get(
         `/retirement/scenarios/${selectedScenarioId}/export-csv`,
-        { responseType: 'blob' }
+        { responseType: "blob" },
       );
-      const blob = new Blob([response.data], { type: 'text/csv' });
+      const blob = new Blob([response.data], { type: "text/csv" });
       const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
       link.download = `retirement_projections.csv`;
       link.click();
       window.URL.revokeObjectURL(url);
     } catch {
-      toast({ title: 'Export failed', status: 'error', duration: 3000 });
+      toast({ title: "Export failed", status: "error", duration: 3000 });
     }
   }, [selectedScenarioId, toast]);
 
-  const selectedTabIndex = scenarios?.findIndex((s) => s.id === selectedScenarioId) ?? 0;
+  const selectedTabIndex =
+    scenarios?.findIndex((s) => s.id === selectedScenarioId) ?? 0;
 
   // Parse withdrawal comparison from results
   const withdrawalComparison: WithdrawalComparison | null =
     results?.withdrawal_comparison as WithdrawalComparison | null;
 
-  // Combined "All" view: retirement plans are per-person, prompt to select a member
+  // Combined view with multiple members selected: retirement plans are per-person, prompt to select one
   if (isCombinedView && !filterUserId) {
     return (
       <Container maxW="container.xl" py={8}>
         <VStack spacing={6} align="stretch">
           {showMemberFilter && (
-            <HStack spacing={2}>
-              <Text fontSize="sm" fontWeight="medium" color="gray.500">
-                Member:
-              </Text>
-              <ButtonGroup size="sm" isAttached variant="outline">
-                <Button colorScheme={accent} variant="solid">
-                  All
-                </Button>
-                {householdMembers.map((member) => (
-                  <Button
-                    key={member.id}
-                    variant="outline"
-                    onClick={() => setFilterUserId(member.id)}
-                  >
-                    {member.display_name || member.first_name || member.email.split('@')[0]}
-                  </Button>
-                ))}
-              </ButtonGroup>
-            </HStack>
+            <MemberMultiSelect
+              selectedIds={selectedIds}
+              members={members}
+              isAllSelected={isAllSelected}
+              onToggle={toggleMember}
+              onSelectAll={selectAll}
+            />
           )}
           <VStack spacing={6} textAlign="center" py={16}>
             <Text fontSize="2xl" fontWeight="bold">
               Retirement Planner
             </Text>
             <Text color="gray.500" maxW="md">
-              Retirement plans are personal to each household member. Select a member above
-              to view or create their retirement scenarios.
+              Retirement plans are personal to each household member. Select a
+              single member above to view or create their retirement scenarios.
             </Text>
           </VStack>
         </VStack>
@@ -476,29 +539,13 @@ export function RetirementPage() {
         <VStack spacing={6} align="stretch">
           {/* Member filter — always visible in combined household view */}
           {showMemberFilter && (
-            <HStack spacing={2}>
-              <Text fontSize="sm" fontWeight="medium" color="gray.500">
-                Member:
-              </Text>
-              <ButtonGroup size="sm" isAttached variant="outline">
-                <Button
-                  variant="outline"
-                  onClick={() => setFilterUserId(null)}
-                >
-                  All
-                </Button>
-                {householdMembers.map((member) => (
-                  <Button
-                    key={member.id}
-                    colorScheme={filterUserId === member.id ? accent : 'gray'}
-                    variant={filterUserId === member.id ? 'solid' : 'outline'}
-                    onClick={() => setFilterUserId(member.id)}
-                  >
-                    {member.display_name || member.first_name || member.email.split('@')[0]}
-                  </Button>
-                ))}
-              </ButtonGroup>
-            </HStack>
+            <MemberMultiSelect
+              selectedIds={selectedIds}
+              members={members}
+              isAllSelected={isAllSelected}
+              onToggle={toggleMember}
+              onSelectAll={selectAll}
+            />
           )}
           <VStack spacing={6} textAlign="center" py={16}>
             <Text fontSize="2xl" fontWeight="bold">
@@ -508,21 +555,27 @@ export function RetirementPage() {
               <Text color="gray.500" maxW="md">
                 {(() => {
                   if (isOtherUserView && selectedUserId) {
-                    const member = householdMembers.find((m) => m.id === selectedUserId);
-                    const name = member?.display_name || member?.first_name || 'This user';
+                    const member = householdMembers.find(
+                      (m) => m.id === selectedUserId,
+                    );
+                    const name =
+                      member?.display_name || member?.first_name || "This user";
                     return `${name} doesn't have any retirement scenarios yet.`;
                   }
-                  const member = householdMembers.find((m) => m.id === filterUserId);
-                  const name = member?.display_name || member?.first_name || 'This member';
+                  const member = householdMembers.find(
+                    (m) => m.id === filterUserId,
+                  );
+                  const name =
+                    member?.display_name || member?.first_name || "This member";
                   return `${name} doesn't have any retirement scenarios yet.`;
                 })()}
               </Text>
             ) : (
               <>
                 <Text color="gray.500" maxW="md">
-                  Plan your retirement by modeling different scenarios with Monte Carlo simulation.
-                  See how different retirement ages, spending levels, and life events affect your
-                  financial future.
+                  Plan your retirement by modeling different scenarios with
+                  Monte Carlo simulation. See how different retirement ages,
+                  spending levels, and life events affect your financial future.
                 </Text>
                 <Button
                   colorScheme="blue"
@@ -535,7 +588,8 @@ export function RetirementPage() {
                 </Button>
                 <Alert status="info" borderRadius="md" maxW="md">
                   <AlertIcon />
-                  Make sure your birthdate is set in Preferences for accurate projections.
+                  Make sure your birthdate is set in Preferences for accurate
+                  projections.
                 </Alert>
               </>
             )}
@@ -574,23 +628,21 @@ export function RetirementPage() {
               </Button>
             )}
             {results && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleExportCsv}
-              >
+              <Button size="sm" variant="outline" onClick={handleExportCsv}>
                 Export CSV
               </Button>
             )}
             {scenarios && scenarios.length >= 2 && (
               <Button
                 size="sm"
-                variant={showComparison ? 'solid' : 'outline'}
+                variant={showComparison ? "solid" : "outline"}
                 colorScheme="purple"
-                onClick={() => (showComparison ? setShowComparison(false) : handleCompare())}
+                onClick={() =>
+                  showComparison ? setShowComparison(false) : handleCompare()
+                }
                 isLoading={comparisonMutation.isPending}
               >
-                {showComparison ? 'Hide Comparison' : 'Compare Scenarios'}
+                {showComparison ? "Hide Comparison" : "Compare Scenarios"}
               </Button>
             )}
           </HStack>
@@ -598,30 +650,13 @@ export function RetirementPage() {
 
         {/* Member filter */}
         {showMemberFilter && (
-          <HStack spacing={2}>
-            <Text fontSize="sm" fontWeight="medium" color="gray.500">
-              Member:
-            </Text>
-            <ButtonGroup size="sm" isAttached variant="outline">
-              <Button
-                colorScheme={!filterUserId ? accent : 'gray'}
-                variant={!filterUserId ? 'solid' : 'outline'}
-                onClick={() => setFilterUserId(null)}
-              >
-                All
-              </Button>
-              {householdMembers.map((member) => (
-                <Button
-                  key={member.id}
-                  colorScheme={filterUserId === member.id ? accent : 'gray'}
-                  variant={filterUserId === member.id ? 'solid' : 'outline'}
-                  onClick={() => setFilterUserId(member.id)}
-                >
-                  {member.display_name || member.first_name || member.email.split('@')[0]}
-                </Button>
-              ))}
-            </ButtonGroup>
-          </HStack>
+          <MemberMultiSelect
+            selectedIds={selectedIds}
+            members={members}
+            isAllSelected={isAllSelected}
+            onToggle={toggleMember}
+            onSelectAll={selectAll}
+          />
         )}
 
         {/* Readiness Score */}
@@ -647,11 +682,7 @@ export function RetirementPage() {
           >
             <TabList>
               {scenarios.map((s: RetirementScenarioSummary) => (
-                <Tab
-                  key={s.id}
-                  px={3}
-                  py={2}
-                >
+                <Tab key={s.id} px={3} py={2}>
                   {editingTabId === s.id ? (
                     <Input
                       size="xs"
@@ -659,8 +690,8 @@ export function RetirementPage() {
                       onChange={(e) => setEditingTabName(e.target.value)}
                       onBlur={handleTabRenameSubmit}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleTabRenameSubmit();
-                        if (e.key === 'Escape') handleTabRenameCancel();
+                        if (e.key === "Enter") handleTabRenameSubmit();
+                        if (e.key === "Escape") handleTabRenameCancel();
                       }}
                       autoFocus
                       width="auto"
@@ -706,7 +737,7 @@ export function RetirementPage() {
                             p={0.5}
                             fontSize="10px"
                             opacity={0.5}
-                            _hover={{ opacity: 1, color: 'red.400' }}
+                            _hover={{ opacity: 1, color: "red.400" }}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleRequestDelete(s.id);
@@ -727,7 +758,9 @@ export function RetirementPage() {
           <RetirementFanChart
             projections={results?.projections ?? []}
             retirementAge={scenario?.retirement_age ?? 67}
-            socialSecurityStartAge={scenario?.social_security_start_age ?? undefined}
+            socialSecurityStartAge={
+              scenario?.social_security_start_age ?? undefined
+            }
             isLoading={simulateMutation.isPending}
           />
         )}
@@ -746,7 +779,12 @@ export function RetirementPage() {
         {/* Add Life Event Buttons */}
         {scenario && !readOnly && (
           <HStack spacing={2}>
-            <Button size="sm" variant="outline" colorScheme="blue" onClick={presetPicker.onOpen}>
+            <Button
+              size="sm"
+              variant="outline"
+              colorScheme="blue"
+              onClick={presetPicker.onOpen}
+            >
               + Add Life Event
             </Button>
             <Button
@@ -766,7 +804,7 @@ export function RetirementPage() {
         {scenario && (
           <VStack spacing={2} align="stretch">
             <Button
-              colorScheme={settingsDirty ? 'orange' : 'blue'}
+              colorScheme={settingsDirty ? "orange" : "blue"}
               size="lg"
               onClick={handleSimulate}
               isLoading={simulateMutation.isPending}
@@ -774,11 +812,12 @@ export function RetirementPage() {
               isDisabled={!selectedScenarioId || readOnly}
               w="100%"
             >
-              {settingsDirty ? 'Re-run Simulation' : 'Run Simulation'}
+              {settingsDirty ? "Re-run Simulation" : "Run Simulation"}
             </Button>
             {settingsDirty && !readOnly && (
               <Text fontSize="xs" color="orange.400" textAlign="center">
-                Settings have changed since your last simulation. Click above to update results.
+                Settings have changed since your last simulation. Click above to
+                update results.
               </Text>
             )}
           </VStack>
@@ -823,12 +862,18 @@ export function RetirementPage() {
             <HealthcareEstimator
               retirementIncome={scenario?.annual_spending_retirement ?? 50000}
               medicalInflationRate={scenario?.medical_inflation_rate ?? 6}
-              onMedicalInflationChange={(rate) => handleUpdate({ medical_inflation_rate: rate })}
-              onRetirementIncomeChange={(income) => handleUpdate({ annual_spending_retirement: income })}
+              onMedicalInflationChange={(rate) =>
+                handleUpdate({ medical_inflation_rate: rate })
+              }
+              onRetirementIncomeChange={(income) =>
+                handleUpdate({ annual_spending_retirement: income })
+              }
               pre65Override={scenario?.healthcare_pre65_override ?? null}
               medicareOverride={scenario?.healthcare_medicare_override ?? null}
               ltcOverride={scenario?.healthcare_ltc_override ?? null}
-              onHealthcareOverridesChange={(overrides) => handleUpdate(overrides)}
+              onHealthcareOverridesChange={(overrides) =>
+                handleUpdate(overrides)
+              }
               readOnly={readOnly}
             />
 
@@ -838,7 +883,9 @@ export function RetirementPage() {
                 comparison={withdrawalComparison}
                 withdrawalRate={scenario?.withdrawal_rate ?? 4}
                 selectedStrategy={scenario?.withdrawal_strategy}
-                onStrategySelect={(strategy) => handleUpdate({ withdrawal_strategy: strategy })}
+                onStrategySelect={(strategy) =>
+                  handleUpdate({ withdrawal_strategy: strategy })
+                }
                 readOnly={readOnly}
               />
             )}
@@ -852,13 +899,19 @@ export function RetirementPage() {
                 <VStack spacing={2} align="stretch" fontSize="sm">
                   <HStack justify="space-between">
                     <Text color="gray.500">Success Rate</Text>
-                    <Text fontWeight="bold">{results.success_rate.toFixed(1)}%</Text>
+                    <Text fontWeight="bold">
+                      {results.success_rate.toFixed(1)}%
+                    </Text>
                   </HStack>
                   {results.median_portfolio_at_retirement && (
                     <HStack justify="space-between">
                       <Text color="gray.500">Portfolio at Retirement</Text>
                       <Text fontWeight="bold">
-                        ${(results.median_portfolio_at_retirement / 1000000).toFixed(2)}M
+                        $
+                        {(
+                          results.median_portfolio_at_retirement / 1000000
+                        ).toFixed(2)}
+                        M
                       </Text>
                     </HStack>
                   )}
@@ -866,7 +919,9 @@ export function RetirementPage() {
                     <HStack justify="space-between">
                       <Text color="gray.500">Portfolio at End</Text>
                       <Text fontWeight="bold">
-                        ${(results.median_portfolio_at_end / 1000000).toFixed(2)}M
+                        $
+                        {(results.median_portfolio_at_end / 1000000).toFixed(2)}
+                        M
                       </Text>
                     </HStack>
                   )}
@@ -893,7 +948,9 @@ export function RetirementPage() {
                   {results.compute_time_ms && (
                     <HStack justify="space-between">
                       <Text color="gray.500">Compute Time</Text>
-                      <Text>{(results.compute_time_ms / 1000).toFixed(1)}s</Text>
+                      <Text>
+                        {(results.compute_time_ms / 1000).toFixed(1)}s
+                      </Text>
                     </HStack>
                   )}
                 </VStack>
@@ -911,9 +968,9 @@ export function RetirementPage() {
 
         {/* Disclaimer */}
         <Text fontSize="xs" color="gray.400" textAlign="center" pt={4}>
-          This retirement planner uses Monte Carlo simulation for educational purposes only.
-          Results are hypothetical and do not guarantee future performance. Consult a financial
-          advisor for personalized advice.
+          This retirement planner uses Monte Carlo simulation for educational
+          purposes only. Results are hypothetical and do not guarantee future
+          performance. Consult a financial advisor for personalized advice.
         </Text>
       </VStack>
 
@@ -933,7 +990,9 @@ export function RetirementPage() {
         }}
         onSave={handleSaveEvent}
         existingEvent={editingEvent}
-        isLoading={addLifeEventMutation.isPending || updateLifeEventMutation.isPending}
+        isLoading={
+          addLifeEventMutation.isPending || updateLifeEventMutation.isPending
+        }
       />
 
       {/* Delete scenario confirmation */}
@@ -948,10 +1007,14 @@ export function RetirementPage() {
               Delete Scenario
             </AlertDialogHeader>
             <AlertDialogBody>
-              Are you sure you want to delete this retirement scenario? This action cannot be undone.
+              Are you sure you want to delete this retirement scenario? This
+              action cannot be undone.
             </AlertDialogBody>
             <AlertDialogFooter>
-              <Button ref={deleteDialogCancelRef} onClick={() => setPendingDeleteId(null)}>
+              <Button
+                ref={deleteDialogCancelRef}
+                onClick={() => setPendingDeleteId(null)}
+              >
                 Cancel
               </Button>
               <Button

@@ -7,6 +7,7 @@ Creates test2@test.com user with dummy data including:
 """
 
 import asyncio
+import hashlib
 import sys
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -27,7 +28,11 @@ from app.models.transaction import Transaction
 from app.models.user import Organization, User
 from app.services.deduplication_service import DeduplicationService
 
-dedup_service = DeduplicationService()
+
+def _dedup_hash(account_id, date, amount, merchant):
+    """Generate a deduplication hash for seed transactions."""
+    hash_input = f"{account_id}|{date.isoformat()}|{abs(amount):.2f}|{merchant.lower().strip()}"
+    return hashlib.sha256(hash_input.encode()).hexdigest()[:16]
 
 
 async def create_test_user_2(db: AsyncSession):
@@ -77,6 +82,17 @@ async def create_test_user_2(db: AsyncSession):
 async def create_unique_accounts(db: AsyncSession, user: User):
     """Create unique accounts for test2 (not shared with test@test.com)."""
     print("\n2. Creating unique accounts for test2@test.com...")
+
+    # Check if accounts already exist (idempotent)
+    existing = await db.execute(
+        select(Account).where(Account.user_id == user.id, Account.is_active.is_(True)).limit(1)
+    )
+    if existing.scalar_one_or_none():
+        print("   ⚠️  Accounts already exist for test2. Skipping.")
+        result = await db.execute(
+            select(Account).where(Account.user_id == user.id, Account.is_active.is_(True))
+        )
+        return result.scalars().all()
 
     accounts = [
         {
@@ -182,17 +198,16 @@ async def create_overlapping_accounts(db: AsyncSession, user2: User, user1_accou
 
         # Calculate and set plaid_item_hash for duplicate detection
         if acc.plaid_item_id and acc.external_account_id:
-            overlap_account.plaid_item_hash = dedup_service.calculate_account_hash(
-                acc.plaid_item_id, acc.external_account_id
+            overlap_account.plaid_item_hash = DeduplicationService.calculate_plaid_hash(
+                str(acc.plaid_item_id), acc.external_account_id
             )
 
         db.add(overlap_account)
         overlapping_accounts.append(overlap_account)
 
         print(f"   ✓ Created overlap: {acc.name}")
-        print(
-            f"     Hash: {overlap_account.plaid_item_hash[:16] if overlap_account.plaid_item_hash else 'None'}..."
-        )
+        h = overlap_account.plaid_item_hash
+        print(f"     Hash: {h[:16] if h else 'None'}...")
 
     await db.commit()
     return overlapping_accounts
@@ -295,6 +310,12 @@ async def create_transactions(db: AsyncSession, accounts: list):
                 merchant_name=txn_data["merchant_name"],
                 description=txn_data["description"],
                 category_primary=txn_data["category_primary"],
+                deduplication_hash=_dedup_hash(
+                    account.id,
+                    txn_data["date"],
+                    txn_data["amount"],
+                    txn_data["merchant_name"],
+                ),
                 is_pending=False,
                 created_at=datetime.now(timezone.utc).replace(tzinfo=None),
             )

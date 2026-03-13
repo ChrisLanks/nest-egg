@@ -1,11 +1,15 @@
 """Create comprehensive test portfolio for test@test.com matching Plaid structure."""
 
 import asyncio
+import sys
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
+
+# Add parent directory to path
+sys.path.append(str(Path(__file__).parent.parent))
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal, init_db
 from app.models.account import Account, AccountSource, AccountType
@@ -20,9 +24,7 @@ async def create_comprehensive_test_portfolio():
 
     async with AsyncSessionLocal() as db:
         # Find test user
-        result = await db.execute(
-            select(User).where(User.email == "test@test.com")
-        )
+        result = await db.execute(select(User).where(User.email == "test@test.com"))
         user = result.scalar_one_or_none()
 
         if not user:
@@ -35,16 +37,18 @@ async def create_comprehensive_test_portfolio():
         existing_accounts = await db.execute(
             select(Account).where(
                 Account.organization_id == user.organization_id,
-                Account.account_type.in_([
-                    AccountType.BROKERAGE,
-                    AccountType.RETIREMENT_401K,
-                    AccountType.RETIREMENT_IRA,
-                    AccountType.RETIREMENT_ROTH,
-                    AccountType.HSA,
-                    AccountType.PROPERTY,
-                    AccountType.VEHICLE,
-                    AccountType.CRYPTO,
-                ])
+                Account.account_type.in_(
+                    [
+                        AccountType.BROKERAGE,
+                        AccountType.RETIREMENT_401K,
+                        AccountType.RETIREMENT_IRA,
+                        AccountType.RETIREMENT_ROTH,
+                        AccountType.HSA,
+                        AccountType.PROPERTY,
+                        AccountType.VEHICLE,
+                        AccountType.CRYPTO,
+                    ]
+                ),
             )
         )
         for account in existing_accounts.scalars().all():
@@ -479,15 +483,20 @@ async def create_comprehensive_test_portfolio():
                 gain_loss = current_value - total_cost
                 gain_loss_pct = (gain_loss / total_cost * 100) if total_cost > 0 else 0
 
-                print(f"  ✅ {account_name}: {holding_data['ticker']} - {shares} shares @ ${current_price} = ${current_value:.2f} (gain: ${gain_loss:.2f} / {gain_loss_pct:.1f}%)")
+                ticker = holding_data["ticker"]
+                print(
+                    f"  ✅ {account_name}: {ticker}"
+                    f" - {shares} shares @ ${current_price}"
+                    f" = ${current_value:.2f}"
+                    f" (gain: ${gain_loss:.2f}"
+                    f" / {gain_loss_pct:.1f}%)"
+                )
 
             total_portfolio_value += account_value
             total_cost_basis += account_cost
 
             # Update account balance
-            account_result = await db.execute(
-                select(Account).where(Account.id == account_id)
-            )
+            account_result = await db.execute(select(Account).where(Account.id == account_id))
             account = account_result.scalar_one()
             account.current_balance = account_value
             account.balance_as_of = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -501,25 +510,32 @@ async def create_comprehensive_test_portfolio():
         # SUMMARY
         # ============================================================================
 
-        print(f"\n💰 Portfolio Summary:")
-        print(f"   Investment Accounts Total: ${total_portfolio_value - property_account.current_balance - vehicle_account.current_balance:.2f}")
+        print("\n💰 Portfolio Summary:")
+        inv_total = (
+            total_portfolio_value
+            - property_account.current_balance
+            - vehicle_account.current_balance
+        )
+        print(f"   Investment Accounts Total: ${inv_total:.2f}")
         print(f"   Property Value: ${property_account.current_balance:.2f}")
         print(f"   Vehicle Value: ${vehicle_account.current_balance:.2f}")
-        print(f"   ─────────────────────────")
+        print("   ─────────────────────────")
         print(f"   Total Portfolio Value: ${total_portfolio_value:.2f}")
         print(f"   Total Cost Basis: ${total_cost_basis:.2f}")
-        print(f"   Total Gain/Loss: ${total_portfolio_value - total_cost_basis - property_account.current_balance - vehicle_account.current_balance:.2f} ({((total_portfolio_value - total_cost_basis - property_account.current_balance - vehicle_account.current_balance) / total_cost_basis * 100):.1f}%)")
-        print(f"\n✅ Comprehensive test portfolio created successfully!")
-        print(f"\n🎯 Account Breakdown:")
-        print(f"   - 2x 401(k) accounts (Traditional + Roth)")
-        print(f"   - 2x IRA accounts (Traditional + Roth)")
-        print(f"   - 1x HSA")
-        print(f"   - 2x Taxable Brokerage")
-        print(f"   - 1x Money Market")
-        print(f"   - 1x Crypto")
-        print(f"   - 1x Property")
-        print(f"   - 1x Vehicle")
-        print(f"\n🎯 Now visit /investments to see your comprehensive portfolio!")
+        gl = inv_total - total_cost_basis
+        gl_pct = (gl / total_cost_basis * 100) if total_cost_basis > 0 else 0
+        print(f"   Total Gain/Loss: ${gl:.2f} ({gl_pct:.1f}%)")
+        print("\n✅ Comprehensive test portfolio created successfully!")
+        print("\n🎯 Account Breakdown:")
+        print("   - 2x 401(k) accounts (Traditional + Roth)")
+        print("   - 2x IRA accounts (Traditional + Roth)")
+        print("   - 1x HSA")
+        print("   - 2x Taxable Brokerage")
+        print("   - 1x Money Market")
+        print("   - 1x Crypto")
+        print("   - 1x Property")
+        print("   - 1x Vehicle")
+        print("\n🎯 Now visit /investments to see your comprehensive portfolio!")
 
 
 if __name__ == "__main__":

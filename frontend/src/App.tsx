@@ -10,7 +10,6 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { theme } from "./styles/theme";
 import { queryClient } from "./services/queryClient";
 import { UserViewProvider } from "./contexts/UserViewContext";
-
 // Eager-loaded components (critical for initial render)
 import { LoginPage } from "./features/auth/pages/LoginPage";
 import { RegisterPage } from "./features/auth/pages/RegisterPage";

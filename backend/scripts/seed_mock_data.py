@@ -12,7 +12,6 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
 from app.models.account import Account, AccountSource, AccountType, PlaidItem
@@ -20,7 +19,9 @@ from app.models.transaction import Transaction
 from app.models.user import User
 
 
-async def generate_deduplication_hash(account_id: uuid.UUID, date: date, amount: Decimal, merchant: str) -> str:
+async def generate_deduplication_hash(
+    account_id: uuid.UUID, date: date, amount: Decimal, merchant: str
+) -> str:
     """Generate deduplication hash for transaction."""
     hash_input = f"{account_id}|{date.isoformat()}|{abs(amount):.2f}|{merchant.lower().strip()}"
     return hashlib.sha256(hash_input.encode()).hexdigest()[:16]
@@ -30,9 +31,7 @@ async def seed_mock_data():
     """Seed mock data for test@test.com user."""
     async with AsyncSessionLocal() as db:
         # Find the test user
-        result = await db.execute(
-            select(User).where(User.email == "test@test.com")
-        )
+        result = await db.execute(select(User).where(User.email == "test@test.com"))
         user = result.scalar_one_or_none()
 
         if not user:
@@ -42,6 +41,14 @@ async def seed_mock_data():
         print(f"✅ Found user: {user.email}")
         print(f"   Organization ID: {user.organization_id}")
         print(f"   User ID: {user.id}")
+
+        # Check if mock data already exists (idempotent)
+        existing_item = await db.execute(
+            select(PlaidItem).where(PlaidItem.item_id == "mock_plaid_item_chase")
+        )
+        if existing_item.scalar_one_or_none():
+            print("⚠️  Mock Plaid data already exists. Skipping seed.")
+            return
 
         # Create mock Plaid item
         plaid_item = PlaidItem(
@@ -58,7 +65,7 @@ async def seed_mock_data():
         )
         db.add(plaid_item)
         await db.flush()
-        print(f"\n✅ Created mock Plaid item: Chase")
+        print("\n✅ Created mock Plaid item: Chase")
 
         # Create mock checking account
         checking_account = Account(
@@ -106,37 +113,155 @@ async def seed_mock_data():
         print(f"✅ Created account: {credit_card.name} (****{credit_card.mask})")
 
         # Generate mock transactions for the last 60 days
-        print(f"\n📊 Generating mock transactions...")
+        print("\n📊 Generating mock transactions...")
         transactions_data = []
         today = date.today()
 
         # Checking account transactions
         checking_txns = [
             # Recent transactions (last week)
-            {"days_ago": 1, "amount": -45.32, "merchant": "Whole Foods Market", "category": "Food and Drink", "pending": False},
-            {"days_ago": 2, "amount": -12.50, "merchant": "Starbucks", "category": "Food and Drink", "pending": False},
-            {"days_ago": 3, "amount": -89.99, "merchant": "Shell Gas Station", "category": "Travel", "pending": False},
-            {"days_ago": 4, "amount": -156.78, "merchant": "Target", "category": "Shops", "pending": False},
-            {"days_ago": 5, "amount": 3500.00, "merchant": "Direct Deposit Salary", "category": "Income", "pending": False},
-            {"days_ago": 6, "amount": -67.43, "merchant": "Amazon.com", "category": "Shops", "pending": False},
-            {"days_ago": 7, "amount": -125.00, "merchant": "Electric Company", "category": "Bills and Utilities", "pending": False},
-
+            {
+                "days_ago": 1,
+                "amount": -45.32,
+                "merchant": "Whole Foods Market",
+                "category": "Food and Drink",
+                "pending": False,
+            },
+            {
+                "days_ago": 2,
+                "amount": -12.50,
+                "merchant": "Starbucks",
+                "category": "Food and Drink",
+                "pending": False,
+            },
+            {
+                "days_ago": 3,
+                "amount": -89.99,
+                "merchant": "Shell Gas Station",
+                "category": "Travel",
+                "pending": False,
+            },
+            {
+                "days_ago": 4,
+                "amount": -156.78,
+                "merchant": "Target",
+                "category": "Shops",
+                "pending": False,
+            },
+            {
+                "days_ago": 5,
+                "amount": 3500.00,
+                "merchant": "Direct Deposit Salary",
+                "category": "Income",
+                "pending": False,
+            },
+            {
+                "days_ago": 6,
+                "amount": -67.43,
+                "merchant": "Amazon.com",
+                "category": "Shops",
+                "pending": False,
+            },
+            {
+                "days_ago": 7,
+                "amount": -125.00,
+                "merchant": "Electric Company",
+                "category": "Bills and Utilities",
+                "pending": False,
+            },
             # Last month
-            {"days_ago": 15, "amount": -1250.00, "merchant": "Rent Payment", "category": "Bills and Utilities", "pending": False},
-            {"days_ago": 18, "amount": -78.90, "merchant": "Verizon Wireless", "category": "Bills and Utilities", "pending": False},
-            {"days_ago": 20, "amount": -234.56, "merchant": "Costco", "category": "Shops", "pending": False},
-            {"days_ago": 22, "amount": -45.00, "merchant": "Planet Fitness", "category": "Recreation", "pending": False},
-            {"days_ago": 25, "amount": -189.99, "merchant": "Best Buy", "category": "Shops", "pending": False},
-            {"days_ago": 28, "amount": -67.50, "merchant": "Chipotle", "category": "Food and Drink", "pending": False},
-            {"days_ago": 30, "amount": 3500.00, "merchant": "Direct Deposit Salary", "category": "Income", "pending": False},
-
+            {
+                "days_ago": 15,
+                "amount": -1250.00,
+                "merchant": "Rent Payment",
+                "category": "Bills and Utilities",
+                "pending": False,
+            },
+            {
+                "days_ago": 18,
+                "amount": -78.90,
+                "merchant": "Verizon Wireless",
+                "category": "Bills and Utilities",
+                "pending": False,
+            },
+            {
+                "days_ago": 20,
+                "amount": -234.56,
+                "merchant": "Costco",
+                "category": "Shops",
+                "pending": False,
+            },
+            {
+                "days_ago": 22,
+                "amount": -45.00,
+                "merchant": "Planet Fitness",
+                "category": "Recreation",
+                "pending": False,
+            },
+            {
+                "days_ago": 25,
+                "amount": -189.99,
+                "merchant": "Best Buy",
+                "category": "Shops",
+                "pending": False,
+            },
+            {
+                "days_ago": 28,
+                "amount": -67.50,
+                "merchant": "Chipotle",
+                "category": "Food and Drink",
+                "pending": False,
+            },
+            {
+                "days_ago": 30,
+                "amount": 3500.00,
+                "merchant": "Direct Deposit Salary",
+                "category": "Income",
+                "pending": False,
+            },
             # 2 months ago
-            {"days_ago": 35, "amount": -1250.00, "merchant": "Rent Payment", "category": "Bills and Utilities", "pending": False},
-            {"days_ago": 38, "amount": -156.78, "merchant": "Safeway", "category": "Food and Drink", "pending": False},
-            {"days_ago": 42, "amount": -89.00, "merchant": "Netflix", "category": "Entertainment", "pending": False},
-            {"days_ago": 45, "amount": 3500.00, "merchant": "Direct Deposit Salary", "category": "Income", "pending": False},
-            {"days_ago": 50, "amount": -523.45, "merchant": "Car Insurance", "category": "Bills and Utilities", "pending": False},
-            {"days_ago": 55, "amount": -234.90, "merchant": "Whole Foods Market", "category": "Food and Drink", "pending": False},
+            {
+                "days_ago": 35,
+                "amount": -1250.00,
+                "merchant": "Rent Payment",
+                "category": "Bills and Utilities",
+                "pending": False,
+            },
+            {
+                "days_ago": 38,
+                "amount": -156.78,
+                "merchant": "Safeway",
+                "category": "Food and Drink",
+                "pending": False,
+            },
+            {
+                "days_ago": 42,
+                "amount": -89.00,
+                "merchant": "Netflix",
+                "category": "Entertainment",
+                "pending": False,
+            },
+            {
+                "days_ago": 45,
+                "amount": 3500.00,
+                "merchant": "Direct Deposit Salary",
+                "category": "Income",
+                "pending": False,
+            },
+            {
+                "days_ago": 50,
+                "amount": -523.45,
+                "merchant": "Car Insurance",
+                "category": "Bills and Utilities",
+                "pending": False,
+            },
+            {
+                "days_ago": 55,
+                "amount": -234.90,
+                "merchant": "Whole Foods Market",
+                "category": "Food and Drink",
+                "pending": False,
+            },
         ]
 
         for txn_data in checking_txns:
@@ -145,7 +270,7 @@ async def seed_mock_data():
                 checking_account.id,
                 txn_date,
                 Decimal(str(txn_data["amount"])),
-                txn_data["merchant"]
+                txn_data["merchant"],
             )
 
             transaction = Transaction(
@@ -165,25 +290,82 @@ async def seed_mock_data():
 
         # Credit card transactions
         cc_txns = [
-            {"days_ago": 1, "amount": -87.65, "merchant": "Amazon Prime", "category": "Service", "pending": True},
-            {"days_ago": 2, "amount": -234.50, "merchant": "Delta Airlines", "category": "Travel", "pending": False},
-            {"days_ago": 3, "amount": -45.00, "merchant": "Uber", "category": "Travel", "pending": False},
-            {"days_ago": 5, "amount": -156.78, "merchant": "Hotel.com", "category": "Travel", "pending": False},
-            {"days_ago": 8, "amount": -89.99, "merchant": "Apple Store", "category": "Shops", "pending": False},
-            {"days_ago": 12, "amount": -67.43, "merchant": "Spotify Premium", "category": "Entertainment", "pending": False},
-            {"days_ago": 15, "amount": -234.90, "merchant": "Restaurant", "category": "Food and Drink", "pending": False},
-            {"days_ago": 20, "amount": -456.78, "merchant": "Home Depot", "category": "Shops", "pending": False},
-            {"days_ago": 25, "amount": -123.45, "merchant": "CVS Pharmacy", "category": "Healthcare", "pending": False},
-            {"days_ago": 30, "amount": -89.00, "merchant": "Gas Station", "category": "Travel", "pending": False},
+            {
+                "days_ago": 1,
+                "amount": -87.65,
+                "merchant": "Amazon Prime",
+                "category": "Service",
+                "pending": True,
+            },
+            {
+                "days_ago": 2,
+                "amount": -234.50,
+                "merchant": "Delta Airlines",
+                "category": "Travel",
+                "pending": False,
+            },
+            {
+                "days_ago": 3,
+                "amount": -45.00,
+                "merchant": "Uber",
+                "category": "Travel",
+                "pending": False,
+            },
+            {
+                "days_ago": 5,
+                "amount": -156.78,
+                "merchant": "Hotel.com",
+                "category": "Travel",
+                "pending": False,
+            },
+            {
+                "days_ago": 8,
+                "amount": -89.99,
+                "merchant": "Apple Store",
+                "category": "Shops",
+                "pending": False,
+            },
+            {
+                "days_ago": 12,
+                "amount": -67.43,
+                "merchant": "Spotify Premium",
+                "category": "Entertainment",
+                "pending": False,
+            },
+            {
+                "days_ago": 15,
+                "amount": -234.90,
+                "merchant": "Restaurant",
+                "category": "Food and Drink",
+                "pending": False,
+            },
+            {
+                "days_ago": 20,
+                "amount": -456.78,
+                "merchant": "Home Depot",
+                "category": "Shops",
+                "pending": False,
+            },
+            {
+                "days_ago": 25,
+                "amount": -123.45,
+                "merchant": "CVS Pharmacy",
+                "category": "Healthcare",
+                "pending": False,
+            },
+            {
+                "days_ago": 30,
+                "amount": -89.00,
+                "merchant": "Gas Station",
+                "category": "Travel",
+                "pending": False,
+            },
         ]
 
         for txn_data in cc_txns:
             txn_date = today - timedelta(days=txn_data["days_ago"])
             dedup_hash = await generate_deduplication_hash(
-                credit_card.id,
-                txn_date,
-                Decimal(str(txn_data["amount"])),
-                txn_data["merchant"]
+                credit_card.id, txn_date, Decimal(str(txn_data["amount"])), txn_data["merchant"]
             )
 
             transaction = Transaction(
@@ -208,7 +390,7 @@ async def seed_mock_data():
         print(f"✅ Created {len(checking_txns)} transactions for {checking_account.name}")
         print(f"✅ Created {len(cc_txns)} transactions for {credit_card.name}")
         print(f"\n🎉 Total: {len(transactions_data)} mock transactions created!")
-        print(f"\n💡 You can now view these transactions in the app!")
+        print("\n💡 You can now view these transactions in the app!")
 
 
 if __name__ == "__main__":

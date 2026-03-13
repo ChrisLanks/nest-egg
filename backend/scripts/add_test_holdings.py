@@ -1,11 +1,15 @@
 """Add test holdings for test@test.com user's investment accounts."""
 
 import asyncio
+import sys
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
+
+# Add parent directory to path
+sys.path.append(str(Path(__file__).parent.parent))
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal, init_db
 from app.models.account import Account, AccountType
@@ -20,9 +24,7 @@ async def add_test_holdings():
 
     async with AsyncSessionLocal() as db:
         # Find test user
-        result = await db.execute(
-            select(User).where(User.email == "test@test.com")
-        )
+        result = await db.execute(select(User).where(User.email == "test@test.com"))
         user = result.scalar_one_or_none()
 
         if not user:
@@ -35,12 +37,14 @@ async def add_test_holdings():
         result = await db.execute(
             select(Account).where(
                 Account.organization_id == user.organization_id,
-                Account.account_type.in_([
-                    AccountType.BROKERAGE,
-                    AccountType.RETIREMENT_401K,
-                    AccountType.RETIREMENT_IRA,
-                    AccountType.RETIREMENT_ROTH,
-                ])
+                Account.account_type.in_(
+                    [
+                        AccountType.BROKERAGE,
+                        AccountType.RETIREMENT_401K,
+                        AccountType.RETIREMENT_IRA,
+                        AccountType.RETIREMENT_ROTH,
+                    ]
+                ),
             )
         )
         investment_accounts = result.scalars().all()
@@ -100,13 +104,13 @@ async def add_test_holdings():
         print(f"\n📊 Adding holdings to: {account.name}")
 
         # Check if holdings already exist
-        result = await db.execute(
-            select(Holding).where(Holding.account_id == account.id)
-        )
+        result = await db.execute(select(Holding).where(Holding.account_id == account.id))
         existing_holdings = result.scalars().all()
 
         if existing_holdings:
-            print(f"⚠️  Account already has {len(existing_holdings)} holdings. Deleting them first...")
+            print(
+                f"⚠️  Account already has {len(existing_holdings)} holdings. Deleting them first..."
+            )
             for holding in existing_holdings:
                 await db.delete(holding)
             await db.commit()
@@ -145,8 +149,12 @@ async def add_test_holdings():
             gain_loss = current_value - total_cost
             gain_loss_pct = (gain_loss / total_cost * 100) if total_cost > 0 else 0
 
-            print(f"  ✅ {holding_data['ticker']}: {shares} shares @ ${current_price} = ${current_value:.2f} "
-                  f"(gain: ${gain_loss:.2f} / {gain_loss_pct:.1f}%)")
+            ticker = holding_data["ticker"]
+            print(
+                f"  ✅ {ticker}: {shares} shares"
+                f" @ ${current_price} = ${current_value:.2f}"
+                f" (gain: ${gain_loss:.2f} / {gain_loss_pct:.1f}%)"
+            )
 
         # Update account balance to match total portfolio value
         account.current_balance = total_value
@@ -154,11 +162,13 @@ async def add_test_holdings():
 
         await db.commit()
 
-        print(f"\n💰 Portfolio Summary:")
+        print("\n💰 Portfolio Summary:")
         print(f"   Total Value: ${total_value:.2f}")
         print(f"   Total Cost Basis: ${total_cost_basis:.2f}")
-        print(f"   Total Gain/Loss: ${total_value - total_cost_basis:.2f} ({((total_value - total_cost_basis) / total_cost_basis * 100):.1f}%)")
-        print(f"\n✅ Test holdings added successfully!")
+        gl = total_value - total_cost_basis
+        gl_pct = (gl / total_cost_basis * 100) if total_cost_basis > 0 else 0
+        print(f"   Total Gain/Loss: ${gl:.2f} ({gl_pct:.1f}%)")
+        print("\n✅ Test holdings added successfully!")
 
 
 if __name__ == "__main__":

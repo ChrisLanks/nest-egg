@@ -7,7 +7,13 @@ This script identifies accounts without user_id and either:
 """
 
 import asyncio
-from sqlalchemy import select, func
+import sys
+from pathlib import Path
+
+# Add parent directory to path
+sys.path.append(str(Path(__file__).parent.parent))
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
@@ -17,20 +23,14 @@ from app.models.user import User
 
 async def find_accounts_without_user_id(db: AsyncSession):
     """Find all accounts that don't have user_id set."""
-    result = await db.execute(
-        select(Account)
-        .where(Account.user_id.is_(None))
-    )
+    result = await db.execute(select(Account).where(Account.user_id.is_(None)))
     return result.scalars().all()
 
 
 async def get_oldest_user_in_org(db: AsyncSession, org_id):
     """Get the oldest (first created) user in an organization."""
     result = await db.execute(
-        select(User)
-        .where(User.organization_id == org_id)
-        .order_by(User.created_at.asc())
-        .limit(1)
+        select(User).where(User.organization_id == org_id).order_by(User.created_at.asc()).limit(1)
     )
     return result.scalar_one_or_none()
 
@@ -64,8 +64,8 @@ async def fix_accounts():
             oldest_user = await get_oldest_user_in_org(db, org_id)
 
             if not oldest_user:
-                print(f"  ⚠️  No users found in this organization - cannot assign accounts")
-                print(f"     You should delete these accounts manually")
+                print("  ⚠️  No users found in this organization - cannot assign accounts")
+                print("     You should delete these accounts manually")
                 for acc in org_accounts_list:
                     print(f"     - {acc.name} (ID: {acc.id})")
                 continue
@@ -79,7 +79,7 @@ async def fix_accounts():
             # Ask for confirmation
             response = input("\n  Assign these accounts to this user? (y/n): ")
 
-            if response.lower() == 'y':
+            if response.lower() == "y":
                 for acc in org_accounts_list:
                     acc.user_id = oldest_user.id
                 await db.commit()

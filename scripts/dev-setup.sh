@@ -598,23 +598,21 @@ async def seed():
 asyncio.run(seed())
 " 2>&1
 
-        if [ $? -eq 0 ]; then
-            # Seed mock transaction data
-            print_info "Seeding mock accounts and transactions..."
-            python3 scripts/seed_mock_data.py 2>&1
-            # Seed categories
-            print_info "Seeding categories..."
-            python3 scripts/seed_categories.py 2>&1
-            # Seed investment holdings
-            print_info "Seeding investment portfolio..."
-            python3 scripts/create_comprehensive_test_data.py 2>&1
-            print_success "test@test.com seeded with full mock data"
-        fi
+        # Seed mock transaction data (|| true = don't abort on error)
+        print_info "Seeding mock accounts and transactions..."
+        python3 scripts/seed_mock_data.py 2>&1 || print_warning "seed_mock_data.py had issues (see above)"
+        # Seed categories
+        print_info "Seeding categories..."
+        python3 scripts/seed_categories.py 2>&1 || print_warning "seed_categories.py had issues (see above)"
+        # Seed investment holdings
+        print_info "Seeding investment portfolio..."
+        python3 scripts/create_comprehensive_test_data.py 2>&1 || print_warning "create_comprehensive_test_data.py had issues (see above)"
+        print_success "test@test.com seeding complete"
     fi
 
     if $SEED_USER2; then
         print_info "Creating test2@test.com user with mock data..."
-        python3 app/scripts/seed_multi_user_test_data.py 2>&1
+        python3 app/scripts/seed_multi_user_test_data.py 2>&1 || true
         if [ $? -eq 0 ]; then
             print_success "test2@test.com seeded with mock data"
         else

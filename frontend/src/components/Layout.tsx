@@ -42,6 +42,7 @@ import { AddAccountModal } from "../features/accounts/components/AddAccountModal
 import NotificationBell from "../features/notifications/components/NotificationBell";
 import { UserViewToggle } from "./UserViewToggle";
 import { useUserView } from "../contexts/UserViewContext";
+import { MemberFilterProvider } from "../contexts/MemberFilterContext";
 import { EmailVerificationBanner } from "./EmailVerificationBanner";
 import {
   RESOURCE_TYPE_LABELS,
@@ -720,115 +721,210 @@ export const Layout = () => {
   };
 
   return (
-    <Flex h="100vh" flexDirection="column" overflow="hidden">
-      {/* Email verification banner — shown when user's email is not yet verified */}
-      <EmailVerificationBanner />
+    <MemberFilterProvider>
+      <Flex h="100vh" flexDirection="column" overflow="hidden">
+        {/* Email verification banner — shown when user's email is not yet verified */}
+        <EmailVerificationBanner />
 
-      {/* Top Header */}
-      <Box
-        bg="bg.surface"
-        borderBottomWidth={1}
-        borderColor="border.default"
-        px={6}
-        py={3}
-        position="sticky"
-        top={0}
-        zIndex={10}
-      >
-        <HStack justify="space-between">
-          {/* Left: Logo + Navigation */}
-          <HStack spacing={8}>
-            <Text
-              fontSize="xl"
-              fontWeight="bold"
-              color="brand.accent"
-              whiteSpace="nowrap"
-            >
-              Nest Egg
-            </Text>
-            <HStack spacing={1} ml={36}>
-              {/* Overview */}
-              <TopNavItem
-                label="Overview"
-                isActive={location.pathname === "/overview"}
-                onClick={() => navigateWithParams("/overview")}
-              />
+        {/* Top Header */}
+        <Box
+          bg="bg.surface"
+          borderBottomWidth={1}
+          borderColor="border.default"
+          px={6}
+          py={3}
+          position="sticky"
+          top={0}
+          zIndex={10}
+        >
+          <HStack justify="space-between">
+            {/* Left: Logo + Navigation */}
+            <HStack spacing={8}>
+              <Text
+                fontSize="xl"
+                fontWeight="bold"
+                color="brand.accent"
+                whiteSpace="nowrap"
+              >
+                Nest Egg
+              </Text>
+              <HStack spacing={1} ml={36}>
+                {/* Overview */}
+                <TopNavItem
+                  label="Overview"
+                  isActive={location.pathname === "/overview"}
+                  onClick={() => navigateWithParams("/overview")}
+                />
 
-              {/* Planning & Goals Dropdown */}
-              <NavDropdown
-                label="Planning & Goals"
-                items={planningMenuItems}
-                currentPath={location.pathname}
+                {/* Planning & Goals Dropdown */}
+                <NavDropdown
+                  label="Planning & Goals"
+                  items={planningMenuItems}
+                  currentPath={location.pathname}
+                  onNavigate={navigateWithParams}
+                />
+
+                {/* Analytics Dropdown */}
+                <NavDropdown
+                  label="Analytics"
+                  items={analyticsMenuItems}
+                  currentPath={location.pathname}
+                  onNavigate={navigateWithParams}
+                />
+
+                {/* Transactions Dropdown */}
+                <NavDropdown
+                  label="Transactions"
+                  items={transactionsMenuItems}
+                  currentPath={location.pathname}
+                  onNavigate={navigateWithParams}
+                />
+
+                {/* Investments */}
+                <TopNavItem
+                  label="Investments"
+                  isActive={location.pathname === "/investments"}
+                  onClick={() => navigateWithParams("/investments")}
+                />
+
+                {/* Accounts */}
+                <TopNavItem
+                  label="Accounts"
+                  isActive={location.pathname === "/accounts"}
+                  onClick={() => navigateWithParams("/accounts")}
+                />
+              </HStack>
+            </HStack>
+
+            {/* Right: User View Toggle, Notification Bell and User Menu */}
+            <HStack spacing={4}>
+              <Box ml={10}>
+                <UserViewToggle />
+              </Box>
+              <NotificationBell />
+
+              <UserMenu
+                user={
+                  user as {
+                    first_name?: string;
+                    last_name?: string;
+                    display_name?: string;
+                    email?: string;
+                  } | null
+                }
                 onNavigate={navigateWithParams}
-              />
-
-              {/* Analytics Dropdown */}
-              <NavDropdown
-                label="Analytics"
-                items={analyticsMenuItems}
-                currentPath={location.pathname}
-                onNavigate={navigateWithParams}
-              />
-
-              {/* Transactions Dropdown */}
-              <NavDropdown
-                label="Transactions"
-                items={transactionsMenuItems}
-                currentPath={location.pathname}
-                onNavigate={navigateWithParams}
-              />
-
-              {/* Investments */}
-              <TopNavItem
-                label="Investments"
-                isActive={location.pathname === "/investments"}
-                onClick={() => navigateWithParams("/investments")}
-              />
-
-              {/* Accounts */}
-              <TopNavItem
-                label="Accounts"
-                isActive={location.pathname === "/accounts"}
-                onClick={() => navigateWithParams("/accounts")}
+                onLogout={handleLogout}
               />
             </HStack>
           </HStack>
+        </Box>
 
-          {/* Right: User View Toggle, Notification Bell and User Menu */}
-          <HStack spacing={4}>
-            <Box ml={10}>
-              <UserViewToggle />
-            </Box>
-            <NotificationBell />
+        {/* View Indicator Banner */}
+        {!isCombinedView &&
+          members &&
+          members.length > 1 &&
+          (() => {
+            if (!isOtherUserView || isSelfOnlyPage) {
+              // Own-view banner (blue) — also shown on self-only pages regardless of selected view
+              return (
+                <Box
+                  bg="bg.info"
+                  borderBottomWidth={1}
+                  borderColor="border.default"
+                  px={8}
+                  py={2}
+                >
+                  <HStack spacing={3}>
+                    <Text
+                      fontSize="sm"
+                      fontWeight="semibold"
+                      color="text.primary"
+                    >
+                      📊 Your View:
+                    </Text>
+                    <Badge
+                      size="sm"
+                      fontSize="xs"
+                      px={2}
+                      py={1}
+                      borderRadius="md"
+                      bg={getUserColor(user?.id || "")}
+                      color="white"
+                      fontWeight="bold"
+                    >
+                      {getUserInitials(user?.id || "")}
+                    </Badge>
+                    <Text
+                      fontSize="sm"
+                      fontWeight="medium"
+                      color="text.heading"
+                    >
+                      {getUserName(user?.id || "")}'s Accounts
+                    </Text>
+                  </HStack>
+                </Box>
+              );
+            }
 
-            <UserMenu
-              user={
-                user as {
-                  first_name?: string;
-                  last_name?: string;
-                  display_name?: string;
-                  email?: string;
-                } | null
-              }
-              onNavigate={navigateWithParams}
-              onLogout={handleLogout}
-            />
-          </HStack>
-        </HStack>
-      </Box>
+            // Other-user banner: check page-specific access
+            if (isLoadingGrants) {
+              return (
+                <Box
+                  bg="bg.subtle"
+                  borderBottomWidth={1}
+                  borderColor="border.default"
+                  px={8}
+                  py={2}
+                >
+                  <HStack spacing={3}>
+                    <Spinner size="xs" color="text.muted" />
+                    <Text fontSize="sm" color="text.muted">
+                      Loading permissions…
+                    </Text>
+                  </HStack>
+                </Box>
+              );
+            }
 
-      {/* View Indicator Banner */}
-      {!isCombinedView &&
-        members &&
-        members.length > 1 &&
-        (() => {
-          if (!isOtherUserView || isSelfOnlyPage) {
-            // Own-view banner (blue) — also shown on self-only pages regardless of selected view
+            const pageResourceType = getResourceTypeForPath(location.pathname);
+            const access = getBannerAccess(
+              receivedGrants,
+              selectedUserId ?? "",
+              pageResourceType,
+            );
+            const sectionLabel = pageResourceType
+              ? (RESOURCE_TYPE_LABELS[pageResourceType] ?? pageResourceType)
+              : "Data";
+            const viewedName = getUserName(selectedUserId ?? "");
+
+            // Household members always have at least read access — 'none' (no explicit grant)
+            // still means read-only, not blocked.
+            const canWrite = access === "write";
+            const bannerConfig = canWrite
+              ? {
+                  bg: "bg.success",
+                  border: "border.default",
+                  headColor: "text.primary",
+                  textColor: "text.heading",
+                  icon: "✏️",
+                  prefix: "Can Edit:",
+                  suffix: `'s ${sectionLabel}`,
+                }
+              : {
+                  bg: "bg.info",
+                  border: "border.default",
+                  headColor: "text.primary",
+                  textColor: "text.heading",
+                  icon: "👁️",
+                  prefix: "Read Only:",
+                  suffix: `'s ${sectionLabel}`,
+                };
+
             return (
               <Box
-                bg="bg.info"
+                bg={bannerConfig.bg}
                 borderBottomWidth={1}
-                borderColor="border.default"
+                borderColor={bannerConfig.border}
                 px={8}
                 py={2}
               >
@@ -836,9 +932,9 @@ export const Layout = () => {
                   <Text
                     fontSize="sm"
                     fontWeight="semibold"
-                    color="text.primary"
+                    color={bannerConfig.headColor}
                   >
-                    📊 Your View:
+                    {bannerConfig.icon} {bannerConfig.prefix}
                   </Text>
                   <Badge
                     size="sm"
@@ -846,336 +942,250 @@ export const Layout = () => {
                     px={2}
                     py={1}
                     borderRadius="md"
-                    bg={getUserColor(user?.id || "")}
+                    bg={getUserColor(selectedUserId ?? "")}
                     color="white"
                     fontWeight="bold"
                   >
-                    {getUserInitials(user?.id || "")}
+                    {getUserInitials(selectedUserId ?? "")}
                   </Badge>
-                  <Text fontSize="sm" fontWeight="medium" color="text.heading">
-                    {getUserName(user?.id || "")}'s Accounts
+                  <Text
+                    fontSize="sm"
+                    fontWeight="medium"
+                    color={bannerConfig.textColor}
+                  >
+                    {viewedName}
+                    {bannerConfig.suffix}
                   </Text>
                 </HStack>
               </Box>
             );
-          }
+          })()}
 
-          // Other-user banner: check page-specific access
-          if (isLoadingGrants) {
-            return (
-              <Box
-                bg="bg.subtle"
-                borderBottomWidth={1}
-                borderColor="border.default"
-                px={8}
-                py={2}
-              >
-                <HStack spacing={3}>
-                  <Spinner size="xs" color="text.muted" />
-                  <Text fontSize="sm" color="text.muted">
-                    Loading permissions…
+        <Flex flex={1} overflow="hidden">
+          {/* Left Sidebar - Accounts */}
+          <Box
+            w="280px"
+            bg="bg.surface"
+            borderRightWidth={1}
+            borderColor="border.default"
+            overflowY="auto"
+            p={3}
+          >
+            <VStack align="stretch" spacing={2} mb={3}>
+              <HStack justify="space-between">
+                <VStack align="start" spacing={0}>
+                  <Text
+                    fontSize="sm"
+                    fontWeight="bold"
+                    textTransform="uppercase"
+                    color="text.heading"
+                    letterSpacing="wide"
+                  >
+                    Accounts
                   </Text>
-                </HStack>
-              </Box>
-            );
-          }
-
-          const pageResourceType = getResourceTypeForPath(location.pathname);
-          const access = getBannerAccess(
-            receivedGrants,
-            selectedUserId ?? "",
-            pageResourceType,
-          );
-          const sectionLabel = pageResourceType
-            ? (RESOURCE_TYPE_LABELS[pageResourceType] ?? pageResourceType)
-            : "Data";
-          const viewedName = getUserName(selectedUserId ?? "");
-
-          // Household members always have at least read access — 'none' (no explicit grant)
-          // still means read-only, not blocked.
-          const canWrite = access === "write";
-          const bannerConfig = canWrite
-            ? {
-                bg: "bg.success",
-                border: "border.default",
-                headColor: "text.primary",
-                textColor: "text.heading",
-                icon: "✏️",
-                prefix: "Can Edit:",
-                suffix: `'s ${sectionLabel}`,
-              }
-            : {
-                bg: "bg.info",
-                border: "border.default",
-                headColor: "text.primary",
-                textColor: "text.heading",
-                icon: "👁️",
-                prefix: "Read Only:",
-                suffix: `'s ${sectionLabel}`,
-              };
-
-          return (
-            <Box
-              bg={bannerConfig.bg}
-              borderBottomWidth={1}
-              borderColor={bannerConfig.border}
-              px={8}
-              py={2}
-            >
-              <HStack spacing={3}>
-                <Text
-                  fontSize="sm"
-                  fontWeight="semibold"
-                  color={bannerConfig.headColor}
-                >
-                  {bannerConfig.icon} {bannerConfig.prefix}
-                </Text>
-                <Badge
-                  size="sm"
-                  fontSize="xs"
-                  px={2}
-                  py={1}
-                  borderRadius="md"
-                  bg={getUserColor(selectedUserId ?? "")}
-                  color="white"
-                  fontWeight="bold"
-                >
-                  {getUserInitials(selectedUserId ?? "")}
-                </Badge>
-                <Text
-                  fontSize="sm"
-                  fontWeight="medium"
-                  color={bannerConfig.textColor}
-                >
-                  {viewedName}
-                  {bannerConfig.suffix}
-                </Text>
-              </HStack>
-            </Box>
-          );
-        })()}
-
-      <Flex flex={1} overflow="hidden">
-        {/* Left Sidebar - Accounts */}
-        <Box
-          w="280px"
-          bg="bg.surface"
-          borderRightWidth={1}
-          borderColor="border.default"
-          overflowY="auto"
-          p={3}
-        >
-          <VStack align="stretch" spacing={2} mb={3}>
-            <HStack justify="space-between">
-              <VStack align="start" spacing={0}>
-                <Text
-                  fontSize="sm"
-                  fontWeight="bold"
-                  textTransform="uppercase"
-                  color="text.heading"
-                  letterSpacing="wide"
-                >
-                  Accounts
-                </Text>
-                {!isCombinedView && members && members.length > 1 && (
-                  <HStack spacing={1} mt={1}>
-                    <Badge
-                      size="sm"
-                      fontSize="2xs"
-                      px={1.5}
-                      py={0.5}
-                      borderRadius="md"
-                      bg={getUserColor(selectedUserId || user?.id || "")}
-                      color="white"
-                      fontWeight="bold"
-                    >
-                      {getUserInitials(selectedUserId || user?.id || "")}
-                    </Badge>
-                    <Text fontSize="2xs" color="text.secondary">
-                      {getUserName(selectedUserId || user?.id || "")}
-                    </Text>
-                  </HStack>
+                  {!isCombinedView && members && members.length > 1 && (
+                    <HStack spacing={1} mt={1}>
+                      <Badge
+                        size="sm"
+                        fontSize="2xs"
+                        px={1.5}
+                        py={0.5}
+                        borderRadius="md"
+                        bg={getUserColor(selectedUserId || user?.id || "")}
+                        color="white"
+                        fontWeight="bold"
+                      >
+                        {getUserInitials(selectedUserId || user?.id || "")}
+                      </Badge>
+                      <Text fontSize="2xs" color="text.secondary">
+                        {getUserName(selectedUserId || user?.id || "")}
+                      </Text>
+                    </HStack>
+                  )}
+                </VStack>
+                {dashboardSummary?.net_worth !== undefined && (
+                  <Text
+                    fontSize="md"
+                    fontWeight="bold"
+                    color={
+                      dashboardSummary.net_worth >= 0
+                        ? "finance.positive"
+                        : "finance.negative"
+                    }
+                  >
+                    {formatCurrency(Number(dashboardSummary.net_worth))}
+                  </Text>
                 )}
-              </VStack>
-              {dashboardSummary?.net_worth !== undefined && (
+              </HStack>
+            </VStack>
+
+            {/* User color legend in combined view */}
+            {isCombinedView && members && members.length > 1 && (
+              <Box mb={3} p={2} bg="bg.subtle" borderRadius="md">
                 <Text
-                  fontSize="md"
-                  fontWeight="bold"
-                  color={
-                    dashboardSummary.net_worth >= 0
-                      ? "finance.positive"
-                      : "finance.negative"
-                  }
+                  fontSize="2xs"
+                  fontWeight="semibold"
+                  color="text.secondary"
+                  mb={1.5}
                 >
-                  {formatCurrency(Number(dashboardSummary.net_worth))}
+                  HOUSEHOLD MEMBERS
                 </Text>
-              )}
-            </HStack>
-          </VStack>
+                <VStack spacing={1} align="stretch">
+                  {members.map((member, index) => (
+                    <HStack key={member.id} spacing={2}>
+                      <Badge
+                        size="sm"
+                        fontSize="2xs"
+                        px={1.5}
+                        py={0.5}
+                        borderRadius="md"
+                        bg={userColors[index % userColors.length]}
+                        color="white"
+                        fontWeight="bold"
+                      >
+                        {getUserInitials(member.id)}
+                      </Badge>
+                      <Text fontSize="2xs" color="text.heading">
+                        {getUserName(member.id)}
+                      </Text>
+                    </HStack>
+                  ))}
+                </VStack>
+              </Box>
+            )}
 
-          {/* User color legend in combined view */}
-          {isCombinedView && members && members.length > 1 && (
-            <Box mb={3} p={2} bg="bg.subtle" borderRadius="md">
-              <Text
-                fontSize="2xs"
-                fontWeight="semibold"
-                color="text.secondary"
-                mb={1.5}
-              >
-                HOUSEHOLD MEMBERS
-              </Text>
-              <VStack spacing={1} align="stretch">
-                {members.map((member, index) => (
-                  <HStack key={member.id} spacing={2}>
-                    <Badge
-                      size="sm"
-                      fontSize="2xs"
-                      px={1.5}
-                      py={0.5}
-                      borderRadius="md"
-                      bg={userColors[index % userColors.length]}
-                      color="white"
-                      fontWeight="bold"
-                    >
-                      {getUserInitials(member.id)}
-                    </Badge>
-                    <Text fontSize="2xs" color="text.heading">
-                      {getUserName(member.id)}
-                    </Text>
-                  </HStack>
-                ))}
-              </VStack>
-            </Box>
-          )}
+            {accountsLoading ? (
+              <Center py={8}>
+                <Spinner size="sm" color="brand.500" />
+              </Center>
+            ) : (
+              <VStack spacing={2} align="stretch">
+                {sortedGroups.map(([groupName, groupAccounts]) => {
+                  const groupTotal = groupAccounts.reduce(
+                    (sum, account) => sum + Number(account.current_balance),
+                    0,
+                  );
+                  const isCollapsed = collapsedSections[groupName];
 
-          {accountsLoading ? (
-            <Center py={8}>
-              <Spinner size="sm" color="brand.500" />
-            </Center>
-          ) : (
-            <VStack spacing={2} align="stretch">
-              {sortedGroups.map(([groupName, groupAccounts]) => {
-                const groupTotal = groupAccounts.reduce(
-                  (sum, account) => sum + Number(account.current_balance),
-                  0,
-                );
-                const isCollapsed = collapsedSections[groupName];
-
-                return (
-                  <Box key={groupName}>
-                    <HStack
-                      justify="space-between"
-                      mb={1}
-                      px={2}
-                      py={1.5}
-                      cursor="pointer"
-                      _hover={{ bg: "bg.subtle" }}
-                      borderRadius="md"
-                      onClick={() => toggleSection(groupName)}
-                    >
-                      <HStack spacing={2}>
-                        {isCollapsed ? (
-                          <ChevronRightIcon
-                            boxSize={3.5}
-                            color="text.secondary"
-                          />
-                        ) : (
-                          <ChevronDownIcon
-                            boxSize={3.5}
-                            color="text.secondary"
-                          />
-                        )}
+                  return (
+                    <Box key={groupName}>
+                      <HStack
+                        justify="space-between"
+                        mb={1}
+                        px={2}
+                        py={1.5}
+                        cursor="pointer"
+                        _hover={{ bg: "bg.subtle" }}
+                        borderRadius="md"
+                        onClick={() => toggleSection(groupName)}
+                      >
+                        <HStack spacing={2}>
+                          {isCollapsed ? (
+                            <ChevronRightIcon
+                              boxSize={3.5}
+                              color="text.secondary"
+                            />
+                          ) : (
+                            <ChevronDownIcon
+                              boxSize={3.5}
+                              color="text.secondary"
+                            />
+                          )}
+                          <Text
+                            fontSize="sm"
+                            fontWeight="bold"
+                            color="text.heading"
+                            textTransform="uppercase"
+                            letterSpacing="wide"
+                          >
+                            {groupName}
+                          </Text>
+                        </HStack>
                         <Text
                           fontSize="sm"
                           fontWeight="bold"
-                          color="text.heading"
-                          textTransform="uppercase"
-                          letterSpacing="wide"
+                          color={
+                            groupTotal < 0 ? "finance.negative" : "text.primary"
+                          }
                         >
-                          {groupName}
+                          {formatCurrency(groupTotal)}
                         </Text>
                       </HStack>
-                      <Text
-                        fontSize="sm"
-                        fontWeight="bold"
-                        color={
-                          groupTotal < 0 ? "finance.negative" : "text.primary"
-                        }
-                      >
-                        {formatCurrency(groupTotal)}
-                      </Text>
-                    </HStack>
-                    <Collapse in={!isCollapsed} animateOpacity>
-                      <VStack spacing={0.5} align="stretch" mb={2}>
-                        {groupAccounts.map((account) => (
-                          <AccountItem
-                            key={account.id}
-                            account={account}
-                            isMultiUser={!!members && members.length > 1}
-                            onAccountClick={handleAccountClick}
-                            currentUserId={user?.id}
-                            getUserColor={getUserColor}
-                            getUserBgColor={getUserBgColor}
-                            getUserInitials={getUserInitials}
-                            getUserName={getUserName}
-                            isCombinedView={isCombinedView}
-                            membersLoaded={!!members}
-                          />
-                        ))}
-                      </VStack>
-                    </Collapse>
-                  </Box>
-                );
-              })}
+                      <Collapse in={!isCollapsed} animateOpacity>
+                        <VStack spacing={0.5} align="stretch" mb={2}>
+                          {groupAccounts.map((account) => (
+                            <AccountItem
+                              key={account.id}
+                              account={account}
+                              isMultiUser={!!members && members.length > 1}
+                              onAccountClick={handleAccountClick}
+                              currentUserId={user?.id}
+                              getUserColor={getUserColor}
+                              getUserBgColor={getUserBgColor}
+                              getUserInitials={getUserInitials}
+                              getUserName={getUserName}
+                              isCombinedView={isCombinedView}
+                              membersLoaded={!!members}
+                            />
+                          ))}
+                        </VStack>
+                      </Collapse>
+                    </Box>
+                  );
+                })}
 
-              {(!sortedGroups || sortedGroups.length === 0) && (
-                <Text
-                  fontSize="sm"
-                  color="text.muted"
-                  textAlign="center"
-                  py={8}
-                >
-                  {isOtherUserView
-                    ? "This user has no accounts yet."
-                    : "No accounts yet. Connect an account to get started."}
-                </Text>
-              )}
-
-              {!isOtherUserView && (
-                <Tooltip
-                  label={
-                    !canEdit
-                      ? "You can only add accounts for yourself or in combined view"
-                      : ""
-                  }
-                  placement="top"
-                  isDisabled={canEdit}
-                >
-                  <Button
-                    leftIcon={<AddIcon />}
-                    colorScheme="brand"
-                    size="sm"
-                    onClick={onAddAccountOpen}
-                    mt={2}
-                    w="full"
-                    isDisabled={!canEdit}
+                {(!sortedGroups || sortedGroups.length === 0) && (
+                  <Text
+                    fontSize="sm"
+                    color="text.muted"
+                    textAlign="center"
+                    py={8}
                   >
-                    Add Account
-                  </Button>
-                </Tooltip>
-              )}
-            </VStack>
-          )}
-        </Box>
+                    {isOtherUserView
+                      ? "This user has no accounts yet."
+                      : "No accounts yet. Connect an account to get started."}
+                  </Text>
+                )}
 
-        {/* Main content area */}
-        <Box flex={1} overflowY="auto" bg="bg.canvas" pl={8}>
-          <Outlet />
-        </Box>
+                {!isOtherUserView && (
+                  <Tooltip
+                    label={
+                      !canEdit
+                        ? "You can only add accounts for yourself or in combined view"
+                        : ""
+                    }
+                    placement="top"
+                    isDisabled={canEdit}
+                  >
+                    <Button
+                      leftIcon={<AddIcon />}
+                      colorScheme="brand"
+                      size="sm"
+                      onClick={onAddAccountOpen}
+                      mt={2}
+                      w="full"
+                      isDisabled={!canEdit}
+                    >
+                      Add Account
+                    </Button>
+                  </Tooltip>
+                )}
+              </VStack>
+            )}
+          </Box>
+
+          {/* Main content area */}
+          <Box flex={1} overflowY="auto" bg="bg.canvas" pl={8}>
+            <Outlet />
+          </Box>
+        </Flex>
+
+        {/* Add Account Modal */}
+        <AddAccountModal
+          isOpen={isAddAccountOpen}
+          onClose={onAddAccountClose}
+        />
       </Flex>
-
-      {/* Add Account Modal */}
-      <AddAccountModal isOpen={isAddAccountOpen} onClose={onAddAccountClose} />
-    </Flex>
+    </MemberFilterProvider>
   );
 };

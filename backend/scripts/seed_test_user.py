@@ -1,18 +1,24 @@
 """Automatically seed test user with mock data on startup if needed."""
+
 import asyncio
-from sqlalchemy import select, func
+import sys
+from pathlib import Path
+
+# Add parent directory to path
+sys.path.append(str(Path(__file__).parent.parent))
+
+from sqlalchemy import func, select
+
 from app.core.database import AsyncSessionLocal
-from app.models.user import User
 from app.models.transaction import Transaction
+from app.models.user import User
 
 
 async def seed_test_user_if_needed():
     """Check if test@test.com exists and has data, seed if not."""
     async with AsyncSessionLocal() as db:
         # Check for test user
-        result = await db.execute(
-            select(User).where(User.email == "test@test.com")
-        )
+        result = await db.execute(select(User).where(User.email == "test@test.com"))
         user = result.scalar_one_or_none()
 
         if not user:

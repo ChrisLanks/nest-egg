@@ -46,24 +46,31 @@ import {
   TabPanels,
   Tab,
   TabPanel,
-} from '@chakra-ui/react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { FiChevronDown, FiChevronUp, FiFilter, FiRefreshCw } from 'react-icons/fi';
-import api from '../services/api';
-import { useUserView } from '../contexts/UserViewContext';
-import { AssetAllocationTreemap } from '../features/investments/components/AssetAllocationTreemap';
-import { HoldingsDetailTable } from '../features/investments/components/HoldingsDetailTable';
-import { GrowthProjectionsChart } from '../features/investments/components/GrowthProjectionsChart';
-import { SectorBreakdownChart } from '../features/investments/components/SectorBreakdownChart';
-import PerformanceTrendsChart from '../features/investments/components/PerformanceTrendsChart';
-import RiskAnalysisPanel from '../features/investments/components/RiskAnalysisPanel';
-import StyleBoxModal from '../features/investments/components/StyleBoxModal';
-import { RMDAlert } from '../features/investments/components/RMDAlert';
-import { RothConversionAnalyzer } from '../features/investments/components/RothConversionAnalyzer';
-import TaxLossHarvestingPanel from '../features/investments/components/TaxLossHarvestingPanel';
-import { RebalancingPanel } from '../features/investments/components/RebalancingPanel';
-import { useRetirementAccountData } from '../features/retirement/hooks/useRetirementScenarios';
+} from "@chakra-ui/react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useMemo, useRef } from "react";
+import {
+  FiChevronDown,
+  FiChevronUp,
+  FiFilter,
+  FiRefreshCw,
+} from "react-icons/fi";
+import api from "../services/api";
+import { useUserView } from "../contexts/UserViewContext";
+import { useMultiMemberFilter } from "../hooks/useMultiMemberFilter";
+import { MemberMultiSelect } from "../components/MemberMultiSelect";
+import { AssetAllocationTreemap } from "../features/investments/components/AssetAllocationTreemap";
+import { HoldingsDetailTable } from "../features/investments/components/HoldingsDetailTable";
+import { GrowthProjectionsChart } from "../features/investments/components/GrowthProjectionsChart";
+import { SectorBreakdownChart } from "../features/investments/components/SectorBreakdownChart";
+import PerformanceTrendsChart from "../features/investments/components/PerformanceTrendsChart";
+import RiskAnalysisPanel from "../features/investments/components/RiskAnalysisPanel";
+import StyleBoxModal from "../features/investments/components/StyleBoxModal";
+import { RMDAlert } from "../features/investments/components/RMDAlert";
+import { RothConversionAnalyzer } from "../features/investments/components/RothConversionAnalyzer";
+import TaxLossHarvestingPanel from "../features/investments/components/TaxLossHarvestingPanel";
+import { RebalancingPanel } from "../features/investments/components/RebalancingPanel";
+import { useRetirementAccountData } from "../features/retirement/hooks/useRetirementScenarios";
 
 interface Holding {
   id: string;
@@ -148,56 +155,86 @@ interface PortfolioSummary {
 }
 
 export const InvestmentsPage = () => {
-  // Use global user view context
-  const { selectedUserId, canWriteResource } = useUserView();
-  const canEdit = canWriteResource('holding');
+  // Use global user view context + multi-member filter
+  const { selectedUserId, canWriteResource, isCombinedView } = useUserView();
+  const canEdit = canWriteResource("holding");
+  const {
+    selectedIds,
+    toggleMember,
+    selectAll,
+    isAllSelected,
+    showFilter,
+    members,
+    effectiveUserId: multiEffectiveUserId,
+    selectedIdsKey,
+  } = useMultiMemberFilter();
+
+  // In combined view, use multi-member filter; otherwise use global selectedUserId
+  const activeUserId = isCombinedView
+    ? (multiEffectiveUserId ?? null)
+    : selectedUserId;
 
   // Retirement account data for monthly contribution in growth projections
   const { data: retirementAccountData } = useRetirementAccountData();
   const monthlyContribution = retirementAccountData
-    ? (retirementAccountData.annual_contributions + retirementAccountData.employer_match_annual) / 12
+    ? (retirementAccountData.annual_contributions +
+        retirementAccountData.employer_match_annual) /
+      12
     : undefined;
 
   // Drilled-down treemap node
   const [selectedNode, setSelectedNode] = useState<TreemapNode | null>(null);
 
   // Expanded sections state
-  const [expandedSections, setExpandedSections] = useState<string[]>(['summary', 'breakdown', 'treemap', 'holdings']);
+  const [expandedSections, setExpandedSections] = useState<string[]>([
+    "summary",
+    "breakdown",
+    "treemap",
+    "holdings",
+  ]);
 
   // Expanded accounts state (default: all expanded)
   const [expandedAccounts, setExpandedAccounts] = useState<string[]>([]);
 
   // Style Box modal
-  const { isOpen: isStyleBoxOpen, onOpen: _onStyleBoxOpen, onClose: onStyleBoxClose } = useDisclosure();
+  const { isOpen: isStyleBoxOpen, onClose: onStyleBoxClose } = useDisclosure();
 
   const toast = useToast();
   const queryClient = useQueryClient();
 
   const refreshPricesMutation = useMutation({
     mutationFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
-      const response = await api.post('/market-data/holdings/refresh-all', null, { params });
+      const params = activeUserId ? { user_id: activeUserId } : {};
+      const response = await api.post(
+        "/market-data/holdings/refresh-all",
+        null,
+        { params },
+      );
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
       toast({
         title: `Prices refreshed`,
         description: `Updated ${data.updated} of ${data.total} holdings via ${data.provider}`,
-        status: 'success',
+        status: "success",
         duration: 4000,
         isClosable: true,
       });
     },
     onError: () => {
-      toast({ title: 'Failed to refresh prices', status: 'error', duration: 3000 });
+      toast({
+        title: "Failed to refresh prices",
+        status: "error",
+        duration: 3000,
+      });
     },
   });
 
   // Hidden accounts state (persisted to localStorage)
   const [hiddenAccountIds, setHiddenAccountIds] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('hiddenAccounts');
+      const saved = localStorage.getItem("hiddenAccounts");
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -206,18 +243,18 @@ export const InvestmentsPage = () => {
 
   // Save hidden accounts to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('hiddenAccounts', JSON.stringify(hiddenAccountIds));
+    localStorage.setItem("hiddenAccounts", JSON.stringify(hiddenAccountIds));
   }, [hiddenAccountIds]);
 
   // Selected tab index (persisted to localStorage)
   const [selectedTabIndex, setSelectedTabIndex] = useState<number>(() => {
-    const saved = localStorage.getItem('investmentsTabIndex');
+    const saved = localStorage.getItem("investmentsTabIndex");
     return saved ? parseInt(saved, 10) : 0;
   });
 
   // Save selected tab index to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('investmentsTabIndex', selectedTabIndex.toString());
+    localStorage.setItem("investmentsTabIndex", selectedTabIndex.toString());
   }, [selectedTabIndex]);
 
   // Helper to convert string numbers to actual numbers in treemap data
@@ -233,10 +270,10 @@ export const InvestmentsPage = () => {
 
   // Fetch all accounts for filtering (backend deduplicates shared accounts)
   const { data: allAccounts } = useQuery({
-    queryKey: ['accounts', selectedUserId],
+    queryKey: ["accounts", activeUserId, selectedIdsKey],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
-      const response = await api.get('/accounts', { params });
+      const params = activeUserId ? { user_id: activeUserId } : {};
+      const response = await api.get("/accounts", { params });
       return response.data;
     },
   });
@@ -245,10 +282,13 @@ export const InvestmentsPage = () => {
   const hasInitializedDefaults = useRef(false);
 
   // Set default hidden accounts on first load (hide property and vehicles)
+  /* eslint-disable react-hooks/set-state-in-effect -- intentional: one-time init from localStorage */
   useEffect(() => {
     if (allAccounts && !hasInitializedDefaults.current) {
-      const savedState = localStorage.getItem('hiddenAccounts');
-      const savedMigrationFlag = localStorage.getItem('hiddenAccounts_migratedV1');
+      const savedState = localStorage.getItem("hiddenAccounts");
+      const savedMigrationFlag = localStorage.getItem(
+        "hiddenAccounts_migratedV1",
+      );
 
       // Get non-investment property and vehicle account IDs to hide
       // Hide: personal residences, vacation homes, and vehicles
@@ -256,12 +296,14 @@ export const InvestmentsPage = () => {
       const nonInvestmentAssets = allAccounts
         .filter((account: any) => {
           // Hide all vehicles
-          if (account.account_type === 'vehicle') return true;
+          if (account.account_type === "vehicle") return true;
 
           // For properties, only hide personal residences and vacation homes
-          if (account.account_type === 'property') {
-            return account.property_type === 'personal_residence' ||
-                   account.property_type === 'vacation_home';
+          if (account.account_type === "property") {
+            return (
+              account.property_type === "personal_residence" ||
+              account.property_type === "vacation_home"
+            );
           }
 
           return false;
@@ -272,25 +314,28 @@ export const InvestmentsPage = () => {
       if (!savedState || !savedMigrationFlag) {
         if (nonInvestmentAssets.length > 0) {
           setHiddenAccountIds(nonInvestmentAssets);
-          localStorage.setItem('hiddenAccounts_migratedV1', 'true');
+          localStorage.setItem("hiddenAccounts_migratedV1", "true");
         }
       }
 
       hasInitializedDefaults.current = true;
     }
   }, [allAccounts]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Fetch portfolio summary
   const { data: rawPortfolio, isLoading } = useQuery<PortfolioSummary>({
-    queryKey: ['portfolio', selectedUserId],
+    queryKey: ["portfolio", activeUserId, selectedIdsKey],
     queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
-      const response = await api.get('/holdings/portfolio', { params });
+      const params = activeUserId ? { user_id: activeUserId } : {};
+      const response = await api.get("/holdings/portfolio", { params });
 
       // Convert treemap data to use numbers instead of strings
       if (response.data.treemap_data) {
-        response.data.treemap_data = convertTreemapNode(response.data.treemap_data);
-        console.log('🗺️ Treemap Data (converted):', response.data.treemap_data);
+        response.data.treemap_data = convertTreemapNode(
+          response.data.treemap_data,
+        );
+        console.log("🗺️ Treemap Data (converted):", response.data.treemap_data);
       }
 
       return response.data;
@@ -308,15 +353,17 @@ export const InvestmentsPage = () => {
 
     // Filter accounts
     const visibleAccounts = rawPortfolio.holdings_by_account.filter(
-      (account) => !hiddenAccountIds.includes(account.account_id)
+      (account) => !hiddenAccountIds.includes(account.account_id),
     );
 
     // Filter holdings by ticker to only include visible accounts
-    const visibleHoldingsByTicker = rawPortfolio.holdings_by_ticker.filter((holding) => {
-      return visibleAccounts.some((account) =>
-        account.holdings.some((h) => h.ticker === holding.ticker)
-      );
-    });
+    const visibleHoldingsByTicker = rawPortfolio.holdings_by_ticker.filter(
+      (holding) => {
+        return visibleAccounts.some((account) =>
+          account.holdings.some((h) => h.ticker === holding.ticker),
+        );
+      },
+    );
 
     // Recalculate total value by subtracting hidden accounts from backend total
     // This avoids needing to replicate the backend's complex portfolio calculation logic
@@ -327,13 +374,13 @@ export const InvestmentsPage = () => {
     // Subtract value of hidden accounts
     if (hiddenAccountIds.length > 0 && allAccounts) {
       const hiddenAccounts = allAccounts.filter((account: any) =>
-        hiddenAccountIds.includes(account.id)
+        hiddenAccountIds.includes(account.id),
       );
 
       hiddenAccounts.forEach((account: any) => {
         // For investment accounts, use account_value from holdings_by_account if available
         const holdingsAccount = rawPortfolio.holdings_by_account.find(
-          (h) => h.account_id === account.id
+          (h) => h.account_id === account.id,
         );
         if (holdingsAccount) {
           newTotalValue -= Number(holdingsAccount.account_value || 0);
@@ -345,15 +392,18 @@ export const InvestmentsPage = () => {
     }
 
     // Get visible accounts (all accounts minus hidden ones)
-    const allVisibleAccounts = allAccounts?.filter(
-      (account: any) => !hiddenAccountIds.includes(account.id)
-    ) || [];
+    const allVisibleAccounts =
+      allAccounts?.filter(
+        (account: any) => !hiddenAccountIds.includes(account.id),
+      ) || [];
 
     // Recalculate treemap data based on visible accounts
     let newTreemapData = rawPortfolio.treemap_data;
     if (rawPortfolio.treemap_data && rawPortfolio.treemap_data.children) {
       // Get visible account names for filtering
-      const visibleAccountNames = new Set(allVisibleAccounts.map((a: any) => a.name));
+      const visibleAccountNames = new Set(
+        allVisibleAccounts.map((a: any) => a.name),
+      );
 
       // Helper to recursively filter treemap nodes
       const filterTreemapNode = (node: any, categoryName: string): any => {
@@ -365,29 +415,34 @@ export const InvestmentsPage = () => {
             // Base case: leaf node (individual account or ticker)
             if (!child.children) {
               // For Cash accounts, check if visible by name
-              if (categoryName === 'Cash') {
+              if (categoryName === "Cash") {
                 return visibleAccountNames.has(child.name) ? child : null;
               }
               // For Investment Accounts, check if visible by name (strip "(Holdings Unknown)" suffix)
-              if (categoryName === 'Investment Accounts') {
-                const accountName = child.name.replace(' (Holdings Unknown)', '');
+              if (categoryName === "Investment Accounts") {
+                const accountName = child.name.replace(
+                  " (Holdings Unknown)",
+                  "",
+                );
                 return visibleAccountNames.has(accountName) ? child : null;
               }
               // For account-based leaves (Property, Vehicles), check if visible by name
-              if (categoryName === 'Property & Vehicles') {
+              if (categoryName === "Property & Vehicles") {
                 return visibleAccountNames.has(child.name) ? child : null;
               }
               // For Crypto, check if ticker is in visible crypto accounts
-              if (categoryName === 'Crypto') {
+              if (categoryName === "Crypto") {
                 const hasTicker = visibleAccounts.some((account) =>
-                  account.holdings.some((h: any) => h.ticker === child.name)
+                  account.holdings.some((h: any) => h.ticker === child.name),
                 );
                 return hasTicker ? child : null;
               }
               // For holdings-based leaves (tickers), check if in visible accounts
               return visibleAccounts.some((account) =>
-                account.holdings.some((h: any) => h.ticker === child.name)
-              ) ? child : null;
+                account.holdings.some((h: any) => h.ticker === child.name),
+              )
+                ? child
+                : null;
             }
 
             // Recursive case: intermediate node (cap sizes, asset types, etc.)
@@ -397,7 +452,10 @@ export const InvestmentsPage = () => {
           .filter((c: any) => c !== null);
 
         // Recalculate value and percent for this node
-        const newValue = filteredChildren.reduce((sum: number, c: any) => sum + c.value, 0);
+        const newValue = filteredChildren.reduce(
+          (sum: number, c: any) => sum + c.value,
+          0,
+        );
 
         return {
           ...node,
@@ -414,10 +472,11 @@ export const InvestmentsPage = () => {
           // Recalculate percent relative to new total
           return {
             ...filtered,
-            percent: newTotalValue > 0 ? (filtered.value / newTotalValue) * 100 : 0,
+            percent:
+              newTotalValue > 0 ? (filtered.value / newTotalValue) * 100 : 0,
           };
         })
-        .filter(cat => cat.value > 0); // Remove categories with 0 value
+        .filter((cat) => cat.value > 0); // Remove categories with 0 value
 
       newTreemapData = {
         ...rawPortfolio.treemap_data,
@@ -437,28 +496,28 @@ export const InvestmentsPage = () => {
   }, [rawPortfolio, allAccounts, hiddenAccountIds]);
 
   const formatCurrency = (amount: number | null) => {
-    if (amount === null || amount === undefined) return 'N/A';
+    if (amount === null || amount === undefined) return "N/A";
     const num = Number(amount);
-    if (isNaN(num)) return 'N/A';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    if (isNaN(num)) return "N/A";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(num);
   };
 
   const formatPercent = (percent: number | null) => {
-    if (percent === null || percent === undefined) return 'N/A';
+    if (percent === null || percent === undefined) return "N/A";
     const num = Number(percent);
-    if (isNaN(num)) return 'N/A';
-    return `${num >= 0 ? '+' : ''}${num.toFixed(2)}%`;
+    if (isNaN(num)) return "N/A";
+    return `${num >= 0 ? "+" : ""}${num.toFixed(2)}%`;
   };
 
   const formatShares = (shares: number) => {
     const num = Number(shares);
-    if (isNaN(num)) return '0';
-    return new Intl.NumberFormat('en-US', {
+    if (isNaN(num)) return "0";
+    return new Intl.NumberFormat("en-US", {
       minimumFractionDigits: 0,
       maximumFractionDigits: 6,
     }).format(num);
@@ -466,14 +525,15 @@ export const InvestmentsPage = () => {
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev) =>
-      prev.includes(section) ? prev.filter((s) => s !== section) : [...prev, section]
+      prev.includes(section)
+        ? prev.filter((s) => s !== section)
+        : [...prev, section],
     );
   };
 
   const handleTreemapDrillDown = (node: TreemapNode | null) => {
     setSelectedNode(node);
   };
-
 
   // Group accounts by type for organized display
   const groupedAccounts = useMemo(() => {
@@ -483,7 +543,7 @@ export const InvestmentsPage = () => {
 
     // Group all accounts dynamically by their type
     allAccounts.forEach((account: any) => {
-      const type = account.account_type?.toLowerCase() || 'other';
+      const type = account.account_type?.toLowerCase() || "other";
       if (!groups[type]) {
         groups[type] = [];
       }
@@ -491,17 +551,23 @@ export const InvestmentsPage = () => {
     });
 
     // Sort groups by preferred order
-    const typeOrder = ['retirement', 'taxable', 'crypto', 'property', 'vehicle'];
+    const typeOrder = [
+      "retirement",
+      "taxable",
+      "crypto",
+      "property",
+      "vehicle",
+    ];
     const sortedGroups: Record<string, any[]> = {};
 
-    typeOrder.forEach(type => {
+    typeOrder.forEach((type) => {
       if (groups[type]) {
         sortedGroups[type] = groups[type];
       }
     });
 
     // Add any remaining types not in the order
-    Object.keys(groups).forEach(type => {
+    Object.keys(groups).forEach((type) => {
       if (!typeOrder.includes(type)) {
         sortedGroups[type] = groups[type];
       }
@@ -521,22 +587,23 @@ export const InvestmentsPage = () => {
     return dates.reduce((oldest, d) => (d < oldest ? d : oldest));
   }, [portfolio]);
 
+  const [now] = useState(() => Date.now());
   const priceAgeLabel = useMemo(() => {
     if (!oldestPriceAsOf) return null;
-    const diffMs = Date.now() - oldestPriceAsOf.getTime();
+    const diffMs = now - oldestPriceAsOf.getTime();
     const diffH = Math.floor(diffMs / 3_600_000);
-    if (diffH < 1) return 'Prices updated < 1h ago';
+    if (diffH < 1) return "Prices updated < 1h ago";
     if (diffH < 24) return `Prices updated ${diffH}h ago`;
     const diffD = Math.floor(diffH / 24);
     return `Prices updated ${diffD}d ago`;
-  }, [oldestPriceAsOf]);
+  }, [oldestPriceAsOf, now]);
 
   const holdingsWithFees = useMemo(
     () =>
       (portfolio?.holdings_by_ticker ?? [])
         .filter((h) => h.expense_ratio !== null && h.annual_fee !== null)
         .sort((a, b) => (b.expense_ratio ?? 0) - (a.expense_ratio ?? 0)),
-    [portfolio]
+    [portfolio],
   );
 
   if (isLoading) {
@@ -548,7 +615,12 @@ export const InvestmentsPage = () => {
   }
 
   // Show empty state only if no portfolio data AND no accounts with balances
-  if (!portfolio || (portfolio.holdings_by_ticker.length === 0 && portfolio.holdings_by_account.length === 0 && portfolio.total_value === 0)) {
+  if (
+    !portfolio ||
+    (portfolio.holdings_by_ticker.length === 0 &&
+      portfolio.holdings_by_account.length === 0 &&
+      portfolio.total_value === 0)
+  ) {
     return (
       <Container maxW="container.lg" py={8}>
         <VStack spacing={6} align="stretch">
@@ -568,13 +640,15 @@ export const InvestmentsPage = () => {
     );
   }
 
-  const totalGainIsPositive = portfolio.total_gain_loss !== null && portfolio.total_gain_loss >= 0;
+  const totalGainIsPositive =
+    portfolio.total_gain_loss !== null && portfolio.total_gain_loss >= 0;
 
   // --- Fee Analyzer helpers ---
   // 30-year opportunity cost of fees assuming 7% market growth
   const GROWTH_RATE = 0.07;
   const YEARS = 30;
-  const FEE_DRAG_MULTIPLIER = ((Math.pow(1 + GROWTH_RATE, YEARS) - 1) / GROWTH_RATE); // ≈ 94.5
+  const FEE_DRAG_MULTIPLIER =
+    (Math.pow(1 + GROWTH_RATE, YEARS) - 1) / GROWTH_RATE; // ≈ 94.5
   const HIGH_FEE_THRESHOLD = 0.005; // 0.5% expense ratio
   const VANGUARD_BENCHMARK = 0.0005; // 0.05% — low-cost benchmark
 
@@ -583,29 +657,51 @@ export const InvestmentsPage = () => {
   const weightedAvgER =
     portfolio.total_value > 0
       ? holdingsWithFees.reduce(
-          (sum, h) => sum + (h.expense_ratio ?? 0) * (h.current_total_value ?? 0),
-          0
+          (sum, h) =>
+            sum + (h.expense_ratio ?? 0) * (h.current_total_value ?? 0),
+          0,
         ) / portfolio.total_value
       : 0;
   const benchmarkAnnualFees = portfolio.total_value * VANGUARD_BENCHMARK;
-  const feeSavingsPotential = Math.max(0, totalAnnualFees - benchmarkAnnualFees);
+  const feeSavingsPotential = Math.max(
+    0,
+    totalAnnualFees - benchmarkAnnualFees,
+  );
 
   return (
     <Container maxW="container.xl" py={8}>
       <VStack spacing={6} align="stretch">
+        {/* Multi-select member filter — visible in combined household view */}
+        {showFilter && (
+          <MemberMultiSelect
+            selectedIds={selectedIds}
+            members={members}
+            isAllSelected={isAllSelected}
+            onToggle={toggleMember}
+            onSelectAll={selectAll}
+          />
+        )}
+
         {/* Header with Date Filter and Category Toggles */}
         <HStack justify="space-between" align="flex-start">
           <VStack align="flex-start" spacing={0}>
             <Heading size="lg">Investments</Heading>
             {priceAgeLabel && (
-              <Text fontSize="xs" color="text.muted">{priceAgeLabel}</Text>
+              <Text fontSize="xs" color="text.muted">
+                {priceAgeLabel}
+              </Text>
             )}
           </VStack>
           <HStack spacing={4}>
             {/* Account Filter */}
             {allAccounts && allAccounts.length > 0 && (
               <Menu closeOnSelect={false}>
-                <MenuButton as={Button} size="sm" variant="outline" leftIcon={<FiFilter />}>
+                <MenuButton
+                  as={Button}
+                  size="sm"
+                  variant="outline"
+                  leftIcon={<FiFilter />}
+                >
                   Filter Accounts
                   {hiddenAccountIds.length > 0 && (
                     <Badge ml={2} colorScheme="red" fontSize="xs">
@@ -615,55 +711,75 @@ export const InvestmentsPage = () => {
                 </MenuButton>
                 <MenuList minWidth="280px" maxHeight="400px" overflowY="auto">
                   <Box px={3} py={2}>
-                    <Text fontSize="sm" fontWeight="semibold" mb={3} color="text.heading">
+                    <Text
+                      fontSize="sm"
+                      fontWeight="semibold"
+                      mb={3}
+                      color="text.heading"
+                    >
                       Select accounts to display:
                     </Text>
                     <VStack align="stretch" spacing={3}>
-                      {Object.entries(groupedAccounts).map(([type, accounts]: [string, any]) => (
-                        <Box key={type}>
-                          <Text
-                            fontSize="xs"
-                            fontWeight="bold"
-                            textTransform="uppercase"
-                            color="text.muted"
-                            mb={2}
-                            letterSpacing="wide"
-                          >
-                            {type === 'retirement' ? 'Retirement' :
-                             type === 'taxable' ? 'Taxable' :
-                             type === 'crypto' ? 'Crypto' :
-                             type === 'property' ? 'Property' :
-                             type === 'vehicle' ? 'Vehicles' :
-                             type.charAt(0).toUpperCase() + type.slice(1)}
-                          </Text>
-                          <Stack spacing={2} ml={2}>
-                            {accounts.map((account: any) => (
-                              <Checkbox
-                                key={account.id}
-                                isChecked={!hiddenAccountIds.includes(account.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setHiddenAccountIds((prev) =>
-                                      prev.filter((id) => id !== account.id)
-                                    );
-                                  } else {
-                                    setHiddenAccountIds((prev) => [...prev, account.id]);
+                      {Object.entries(groupedAccounts).map(
+                        ([type, accounts]: [string, any]) => (
+                          <Box key={type}>
+                            <Text
+                              fontSize="xs"
+                              fontWeight="bold"
+                              textTransform="uppercase"
+                              color="text.muted"
+                              mb={2}
+                              letterSpacing="wide"
+                            >
+                              {type === "retirement"
+                                ? "Retirement"
+                                : type === "taxable"
+                                  ? "Taxable"
+                                  : type === "crypto"
+                                    ? "Crypto"
+                                    : type === "property"
+                                      ? "Property"
+                                      : type === "vehicle"
+                                        ? "Vehicles"
+                                        : type.charAt(0).toUpperCase() +
+                                          type.slice(1)}
+                            </Text>
+                            <Stack spacing={2} ml={2}>
+                              {accounts.map((account: any) => (
+                                <Checkbox
+                                  key={account.id}
+                                  isChecked={
+                                    !hiddenAccountIds.includes(account.id)
                                   }
-                                }}
-                              >
-                                <VStack align="flex-start" spacing={0}>
-                                  <Text fontSize="sm" fontWeight="medium">
-                                    {account.name}
-                                  </Text>
-                                  <Text fontSize="xs" color="text.secondary">
-                                    {formatCurrency(Number(account.current_balance) || 0)}
-                                  </Text>
-                                </VStack>
-                              </Checkbox>
-                            ))}
-                          </Stack>
-                        </Box>
-                      ))}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setHiddenAccountIds((prev) =>
+                                        prev.filter((id) => id !== account.id),
+                                      );
+                                    } else {
+                                      setHiddenAccountIds((prev) => [
+                                        ...prev,
+                                        account.id,
+                                      ]);
+                                    }
+                                  }}
+                                >
+                                  <VStack align="flex-start" spacing={0}>
+                                    <Text fontSize="sm" fontWeight="medium">
+                                      {account.name}
+                                    </Text>
+                                    <Text fontSize="xs" color="text.secondary">
+                                      {formatCurrency(
+                                        Number(account.current_balance) || 0,
+                                      )}
+                                    </Text>
+                                  </VStack>
+                                </Checkbox>
+                              ))}
+                            </Stack>
+                          </Box>
+                        ),
+                      )}
                     </VStack>
                     {hiddenAccountIds.length > 0 && (
                       <Button
@@ -681,7 +797,13 @@ export const InvestmentsPage = () => {
                 </MenuList>
               </Menu>
             )}
-            <Tooltip label={canEdit ? "Fetch latest prices from Yahoo Finance" : "Read-only: cannot refresh prices"}>
+            <Tooltip
+              label={
+                canEdit
+                  ? "Fetch latest prices from Yahoo Finance"
+                  : "Read-only: cannot refresh prices"
+              }
+            >
               <Button
                 leftIcon={<FiRefreshCw />}
                 size="sm"
@@ -697,7 +819,7 @@ export const InvestmentsPage = () => {
         </HStack>
 
         {/* RMD Alert (if applicable) */}
-        <RMDAlert userId={selectedUserId} />
+        <RMDAlert userId={activeUserId} />
 
         {/* Portfolio Summary Cards */}
         <Card>
@@ -706,102 +828,137 @@ export const InvestmentsPage = () => {
               <Heading size="md">Portfolio Summary</Heading>
               <IconButton
                 aria-label="Toggle summary"
-                icon={expandedSections.includes('summary') ? <FiChevronUp /> : <FiChevronDown />}
+                icon={
+                  expandedSections.includes("summary") ? (
+                    <FiChevronUp />
+                  ) : (
+                    <FiChevronDown />
+                  )
+                }
                 size="sm"
                 variant="ghost"
-                onClick={() => toggleSection('summary')}
+                onClick={() => toggleSection("summary")}
               />
             </HStack>
-            <Collapse in={expandedSections.includes('summary')}>
+            <Collapse in={expandedSections.includes("summary")}>
               <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4}>
-          {/* Total Value */}
-          <Card>
-            <CardBody>
-              <Stat>
-                <StatLabel>Total Portfolio Value</StatLabel>
-                <StatNumber fontSize="2xl">{formatCurrency(portfolio.total_value)}</StatNumber>
-                {portfolio.total_cost_basis && (
-                  <StatHelpText fontSize="sm">
-                    Cost Basis: {formatCurrency(portfolio.total_cost_basis)}
-                  </StatHelpText>
+                {/* Total Value */}
+                <Card>
+                  <CardBody>
+                    <Stat>
+                      <StatLabel>Total Portfolio Value</StatLabel>
+                      <StatNumber fontSize="2xl">
+                        {formatCurrency(portfolio.total_value)}
+                      </StatNumber>
+                      {portfolio.total_cost_basis && (
+                        <StatHelpText fontSize="sm">
+                          Cost Basis:{" "}
+                          {formatCurrency(portfolio.total_cost_basis)}
+                        </StatHelpText>
+                      )}
+                    </Stat>
+                  </CardBody>
+                </Card>
+
+                {/* Total Gain/Loss */}
+                {portfolio.total_gain_loss !== null && (
+                  <Card>
+                    <CardBody>
+                      <Stat>
+                        <StatLabel>Total Gain/Loss</StatLabel>
+                        <StatNumber
+                          fontSize="2xl"
+                          color={
+                            totalGainIsPositive
+                              ? "finance.positive"
+                              : "finance.negative"
+                          }
+                        >
+                          {formatCurrency(portfolio.total_gain_loss)}
+                        </StatNumber>
+                        {portfolio.total_gain_loss_percent !== null && (
+                          <StatHelpText>
+                            <StatArrow
+                              type={
+                                totalGainIsPositive ? "increase" : "decrease"
+                              }
+                            />
+                            {formatPercent(portfolio.total_gain_loss_percent)}
+                          </StatHelpText>
+                        )}
+                      </Stat>
+                    </CardBody>
+                  </Card>
                 )}
-              </Stat>
-            </CardBody>
-          </Card>
 
-          {/* Total Gain/Loss */}
-          {portfolio.total_gain_loss !== null && (
-            <Card>
-              <CardBody>
-                <Stat>
-                  <StatLabel>Total Gain/Loss</StatLabel>
-                  <StatNumber
-                    fontSize="2xl"
-                    color={totalGainIsPositive ? 'finance.positive' : 'finance.negative'}
-                  >
-                    {formatCurrency(portfolio.total_gain_loss)}
-                  </StatNumber>
-                  {portfolio.total_gain_loss_percent !== null && (
-                    <StatHelpText>
-                      <StatArrow type={totalGainIsPositive ? 'increase' : 'decrease'} />
-                      {formatPercent(portfolio.total_gain_loss_percent)}
-                    </StatHelpText>
+                {/* Annual Fees */}
+                {portfolio.total_annual_fees !== null &&
+                  portfolio.total_annual_fees > 0 && (
+                    <Card>
+                      <CardBody>
+                        <Stat>
+                          <StatLabel>Annual Fees</StatLabel>
+                          <StatNumber fontSize="2xl" color="orange.600">
+                            {formatCurrency(portfolio.total_annual_fees)}
+                          </StatNumber>
+                          <StatHelpText>
+                            {(
+                              (portfolio.total_annual_fees /
+                                portfolio.total_value) *
+                              100
+                            ).toFixed(3)}
+                            % of portfolio
+                          </StatHelpText>
+                        </Stat>
+                      </CardBody>
+                    </Card>
                   )}
-                </Stat>
-              </CardBody>
-            </Card>
-          )}
 
-          {/* Annual Fees */}
-          {portfolio.total_annual_fees !== null && portfolio.total_annual_fees > 0 && (
-            <Card>
-              <CardBody>
-                <Stat>
-                  <StatLabel>Annual Fees</StatLabel>
-                  <StatNumber fontSize="2xl" color="orange.600">
-                    {formatCurrency(portfolio.total_annual_fees)}
-                  </StatNumber>
-                  <StatHelpText>
-                    {((portfolio.total_annual_fees / portfolio.total_value) * 100).toFixed(3)}% of portfolio
-                  </StatHelpText>
-                </Stat>
-              </CardBody>
-            </Card>
-          )}
+                {/* Stocks */}
+                {portfolio.stocks_value > 0 && (
+                  <Card>
+                    <CardBody>
+                      <Stat>
+                        <StatLabel>Stocks</StatLabel>
+                        <StatNumber fontSize="xl">
+                          {formatCurrency(portfolio.stocks_value)}
+                        </StatNumber>
+                        <StatHelpText>
+                          {(
+                            (portfolio.stocks_value / portfolio.total_value) *
+                            100
+                          ).toFixed(1)}
+                          %
+                        </StatHelpText>
+                      </Stat>
+                    </CardBody>
+                  </Card>
+                )}
 
-          {/* Stocks */}
-          {portfolio.stocks_value > 0 && (
-            <Card>
-              <CardBody>
-                <Stat>
-                  <StatLabel>Stocks</StatLabel>
-                  <StatNumber fontSize="xl">{formatCurrency(portfolio.stocks_value)}</StatNumber>
-                  <StatHelpText>
-                    {((portfolio.stocks_value / portfolio.total_value) * 100).toFixed(1)}%
-                  </StatHelpText>
-                </Stat>
-              </CardBody>
-            </Card>
-          )}
-
-          {/* ETFs */}
-          {portfolio.etf_value > 0 && (
-            <Card>
-              <CardBody>
-                <Stat>
-                  <StatLabel>ETFs</StatLabel>
-                  <StatNumber fontSize="xl">{formatCurrency(portfolio.etf_value)}</StatNumber>
-                  <StatHelpText>
-                    {((portfolio.etf_value / portfolio.total_value) * 100).toFixed(1)}%
-                  </StatHelpText>
-                </Stat>
-              </CardBody>
-            </Card>
-          )}
-        </SimpleGrid>
-              </Collapse>
-            </CardBody>
-          </Card>
+                {/* ETFs */}
+                {portfolio.etf_value > 0 && (
+                  <Card>
+                    <CardBody>
+                      <Stat>
+                        <StatLabel>ETFs</StatLabel>
+                        <StatNumber fontSize="xl">
+                          {formatCurrency(portfolio.etf_value)}
+                        </StatNumber>
+                        <StatHelpText>
+                          {(
+                            (portfolio.etf_value / portfolio.total_value) *
+                            100
+                          ).toFixed(1)}
+                          %
+                        </StatHelpText>
+                      </Stat>
+                    </CardBody>
+                  </Card>
+                )}
+              </SimpleGrid>
+            </Collapse>
+          </CardBody>
+        </Card>
 
         {/* Category & Geographic Breakdown */}
         {portfolio.category_breakdown && (
@@ -811,13 +968,19 @@ export const InvestmentsPage = () => {
                 <Heading size="md">Category Breakdown</Heading>
                 <IconButton
                   aria-label="Toggle breakdown"
-                  icon={expandedSections.includes('breakdown') ? <FiChevronUp /> : <FiChevronDown />}
+                  icon={
+                    expandedSections.includes("breakdown") ? (
+                      <FiChevronUp />
+                    ) : (
+                      <FiChevronDown />
+                    )
+                  }
                   size="sm"
                   variant="ghost"
-                  onClick={() => toggleSection('breakdown')}
+                  onClick={() => toggleSection("breakdown")}
                 />
               </HStack>
-              <Collapse in={expandedSections.includes('breakdown')}>
+              <Collapse in={expandedSections.includes("breakdown")}>
                 <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={4}>
                   {/* Retirement */}
                   {portfolio.category_breakdown.retirement_value > 0 && (
@@ -826,12 +989,14 @@ export const InvestmentsPage = () => {
                         <Stat>
                           <StatLabel>Retirement Accounts</StatLabel>
                           <StatNumber fontSize="xl">
-                            {formatCurrency(portfolio.category_breakdown.retirement_value)}
+                            {formatCurrency(
+                              portfolio.category_breakdown.retirement_value,
+                            )}
                           </StatNumber>
                           <StatHelpText>
                             {portfolio.category_breakdown.retirement_percent
                               ? `${Number(portfolio.category_breakdown.retirement_percent).toFixed(1)}%`
-                              : 'N/A'}
+                              : "N/A"}
                           </StatHelpText>
                         </Stat>
                       </CardBody>
@@ -845,12 +1010,14 @@ export const InvestmentsPage = () => {
                         <Stat>
                           <StatLabel>Taxable Accounts</StatLabel>
                           <StatNumber fontSize="xl">
-                            {formatCurrency(portfolio.category_breakdown.taxable_value)}
+                            {formatCurrency(
+                              portfolio.category_breakdown.taxable_value,
+                            )}
                           </StatNumber>
                           <StatHelpText>
                             {portfolio.category_breakdown.taxable_percent
                               ? `${Number(portfolio.category_breakdown.taxable_percent).toFixed(1)}%`
-                              : 'N/A'}
+                              : "N/A"}
                           </StatHelpText>
                         </Stat>
                       </CardBody>
@@ -864,12 +1031,14 @@ export const InvestmentsPage = () => {
                         <Stat>
                           <StatLabel>Other Assets</StatLabel>
                           <StatNumber fontSize="xl">
-                            {formatCurrency(portfolio.category_breakdown.other_value)}
+                            {formatCurrency(
+                              portfolio.category_breakdown.other_value,
+                            )}
                           </StatNumber>
                           <StatHelpText>
                             {portfolio.category_breakdown.other_percent
                               ? `${Number(portfolio.category_breakdown.other_percent).toFixed(1)}%`
-                              : 'N/A'}
+                              : "N/A"}
                           </StatHelpText>
                         </Stat>
                       </CardBody>
@@ -892,12 +1061,14 @@ export const InvestmentsPage = () => {
                             <Stat>
                               <StatLabel>Domestic</StatLabel>
                               <StatNumber fontSize="lg">
-                                {formatCurrency(portfolio.geographic_breakdown.domestic_value)}
+                                {formatCurrency(
+                                  portfolio.geographic_breakdown.domestic_value,
+                                )}
                               </StatNumber>
                               <StatHelpText>
                                 {portfolio.geographic_breakdown.domestic_percent
                                   ? `${Number(portfolio.geographic_breakdown.domestic_percent).toFixed(1)}%`
-                                  : 'N/A'}
+                                  : "N/A"}
                               </StatHelpText>
                             </Stat>
                           </CardBody>
@@ -905,18 +1076,23 @@ export const InvestmentsPage = () => {
                       )}
 
                       {/* International */}
-                      {portfolio.geographic_breakdown.international_value > 0 && (
+                      {portfolio.geographic_breakdown.international_value >
+                        0 && (
                         <Card variant="outline">
                           <CardBody>
                             <Stat>
                               <StatLabel>International</StatLabel>
                               <StatNumber fontSize="lg">
-                                {formatCurrency(portfolio.geographic_breakdown.international_value)}
+                                {formatCurrency(
+                                  portfolio.geographic_breakdown
+                                    .international_value,
+                                )}
                               </StatNumber>
                               <StatHelpText>
-                                {portfolio.geographic_breakdown.international_percent
+                                {portfolio.geographic_breakdown
+                                  .international_percent
                                   ? `${Number(portfolio.geographic_breakdown.international_percent).toFixed(1)}%`
-                                  : 'N/A'}
+                                  : "N/A"}
                               </StatHelpText>
                             </Stat>
                           </CardBody>
@@ -930,12 +1106,14 @@ export const InvestmentsPage = () => {
                             <Stat>
                               <StatLabel>Other/Unknown</StatLabel>
                               <StatNumber fontSize="lg">
-                                {formatCurrency(portfolio.geographic_breakdown.unknown_value)}
+                                {formatCurrency(
+                                  portfolio.geographic_breakdown.unknown_value,
+                                )}
                               </StatNumber>
                               <StatHelpText>
                                 {portfolio.geographic_breakdown.unknown_percent
                                   ? `${Number(portfolio.geographic_breakdown.unknown_percent).toFixed(1)}%`
-                                  : 'N/A'}
+                                  : "N/A"}
                               </StatHelpText>
                             </Stat>
                           </CardBody>
@@ -977,7 +1155,7 @@ export const InvestmentsPage = () => {
                   {portfolio.treemap_data && (
                     <>
                       <AssetAllocationTreemap
-                        key={`treemap-${hiddenAccountIds.join('-')}`}
+                        key={`treemap-${hiddenAccountIds.join("-")}`}
                         data={portfolio.treemap_data}
                         onDrillDown={handleTreemapDrillDown}
                       />
@@ -1009,9 +1187,7 @@ export const InvestmentsPage = () => {
 
                 {/* Tab 5: Risk Analysis */}
                 <TabPanel>
-                  <RiskAnalysisPanel
-                    portfolio={portfolio}
-                  />
+                  <RiskAnalysisPanel portfolio={portfolio} />
                 </TabPanel>
 
                 {/* Tab 6: Holdings Detail */}
@@ -1026,8 +1202,8 @@ export const InvestmentsPage = () => {
                   {holdingsWithFees.length === 0 ? (
                     <Alert status="info">
                       <AlertIcon />
-                      No expense ratio data available yet. Metadata is enriched daily — check back
-                      after prices refresh.
+                      No expense ratio data available yet. Metadata is enriched
+                      daily — check back after prices refresh.
                     </Alert>
                   ) : (
                     <VStack spacing={6} align="stretch">
@@ -1038,10 +1214,14 @@ export const InvestmentsPage = () => {
                             <Stat>
                               <StatLabel fontSize="xs">Annual Fees</StatLabel>
                               <StatNumber fontSize="lg" color="orange.600">
-                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalAnnualFees)}
+                                {new Intl.NumberFormat("en-US", {
+                                  style: "currency",
+                                  currency: "USD",
+                                }).format(totalAnnualFees)}
                               </StatNumber>
                               <StatHelpText fontSize="xs">
-                                {(weightedAvgER * 100).toFixed(3)}% weighted avg ER
+                                {(weightedAvgER * 100).toFixed(3)}% weighted avg
+                                ER
                               </StatHelpText>
                             </Stat>
                           </CardBody>
@@ -1049,36 +1229,73 @@ export const InvestmentsPage = () => {
                         <Card variant="outline">
                           <CardBody py={3}>
                             <Stat>
-                              <StatLabel fontSize="xs">30-Year Fee Drag</StatLabel>
-                              <Tooltip label={`Opportunity cost of fees compounded at 7%/yr over 30 years (${FEE_DRAG_MULTIPLIER.toFixed(1)}× annual fees)`}>
-                                <StatNumber fontSize="lg" color="finance.negative">
-                                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(feeDrag30yr)}
+                              <StatLabel fontSize="xs">
+                                30-Year Fee Drag
+                              </StatLabel>
+                              <Tooltip
+                                label={`Opportunity cost of fees compounded at 7%/yr over 30 years (${FEE_DRAG_MULTIPLIER.toFixed(1)}× annual fees)`}
+                              >
+                                <StatNumber
+                                  fontSize="lg"
+                                  color="finance.negative"
+                                >
+                                  {new Intl.NumberFormat("en-US", {
+                                    style: "currency",
+                                    currency: "USD",
+                                    maximumFractionDigits: 0,
+                                  }).format(feeDrag30yr)}
                                 </StatNumber>
                               </Tooltip>
-                              <StatHelpText fontSize="xs">vs investing those fees at 7%</StatHelpText>
+                              <StatHelpText fontSize="xs">
+                                vs investing those fees at 7%
+                              </StatHelpText>
                             </Stat>
                           </CardBody>
                         </Card>
                         <Card variant="outline">
                           <CardBody py={3}>
                             <Stat>
-                              <StatLabel fontSize="xs">Low-Cost Benchmark</StatLabel>
-                              <StatNumber fontSize="lg" color="finance.positive">
-                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(benchmarkAnnualFees)}
-                              </StatNumber>
-                              <StatHelpText fontSize="xs">0.05% ER (Vanguard avg)</StatHelpText>
-                            </Stat>
-                          </CardBody>
-                        </Card>
-                        <Card variant="outline">
-                          <CardBody py={3}>
-                            <Stat>
-                              <StatLabel fontSize="xs">Potential Savings</StatLabel>
-                              <StatNumber fontSize="lg" color={feeSavingsPotential > 0 ? 'blue.600' : 'finance.positive'}>
-                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(feeSavingsPotential)}
+                              <StatLabel fontSize="xs">
+                                Low-Cost Benchmark
+                              </StatLabel>
+                              <StatNumber
+                                fontSize="lg"
+                                color="finance.positive"
+                              >
+                                {new Intl.NumberFormat("en-US", {
+                                  style: "currency",
+                                  currency: "USD",
+                                }).format(benchmarkAnnualFees)}
                               </StatNumber>
                               <StatHelpText fontSize="xs">
-                                {feeSavingsPotential > 0 ? 'vs switching to low-cost index funds' : 'Already low-cost!'}
+                                0.05% ER (Vanguard avg)
+                              </StatHelpText>
+                            </Stat>
+                          </CardBody>
+                        </Card>
+                        <Card variant="outline">
+                          <CardBody py={3}>
+                            <Stat>
+                              <StatLabel fontSize="xs">
+                                Potential Savings
+                              </StatLabel>
+                              <StatNumber
+                                fontSize="lg"
+                                color={
+                                  feeSavingsPotential > 0
+                                    ? "blue.600"
+                                    : "finance.positive"
+                                }
+                              >
+                                {new Intl.NumberFormat("en-US", {
+                                  style: "currency",
+                                  currency: "USD",
+                                }).format(feeSavingsPotential)}
+                              </StatNumber>
+                              <StatHelpText fontSize="xs">
+                                {feeSavingsPotential > 0
+                                  ? "vs switching to low-cost index funds"
+                                  : "Already low-cost!"}
                               </StatHelpText>
                             </Stat>
                           </CardBody>
@@ -1086,11 +1303,14 @@ export const InvestmentsPage = () => {
                       </SimpleGrid>
 
                       {/* High-cost warning */}
-                      {holdingsWithFees.some((h) => (h.expense_ratio ?? 0) > HIGH_FEE_THRESHOLD) && (
+                      {holdingsWithFees.some(
+                        (h) => (h.expense_ratio ?? 0) > HIGH_FEE_THRESHOLD,
+                      ) && (
                         <Alert status="warning">
                           <AlertIcon />
-                          Some holdings have expense ratios above 0.5%. Consider low-cost index fund
-                          alternatives to reduce long-term drag.
+                          Some holdings have expense ratios above 0.5%. Consider
+                          low-cost index fund alternatives to reduce long-term
+                          drag.
                         </Alert>
                       )}
 
@@ -1120,36 +1340,79 @@ export const InvestmentsPage = () => {
                                 <Tr key={h.ticker}>
                                   <Td>
                                     <VStack align="flex-start" spacing={0}>
-                                      <Text fontWeight="medium" fontSize="sm">{h.ticker}</Text>
-                                      {h.name && <Text fontSize="xs" color="text.muted" noOfLines={1}>{h.name}</Text>}
+                                      <Text fontWeight="medium" fontSize="sm">
+                                        {h.ticker}
+                                      </Text>
+                                      {h.name && (
+                                        <Text
+                                          fontSize="xs"
+                                          color="text.muted"
+                                          noOfLines={1}
+                                        >
+                                          {h.name}
+                                        </Text>
+                                      )}
                                     </VStack>
                                   </Td>
                                   <Td isNumeric fontSize="sm">
-                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(h.current_total_value ?? 0)}
+                                    {new Intl.NumberFormat("en-US", {
+                                      style: "currency",
+                                      currency: "USD",
+                                      maximumFractionDigits: 0,
+                                    }).format(h.current_total_value ?? 0)}
                                   </Td>
                                   <Td isNumeric>
                                     <VStack align="flex-end" spacing={1}>
-                                      <Text fontSize="sm">{(er * 100).toFixed(3)}%</Text>
+                                      <Text fontSize="sm">
+                                        {(er * 100).toFixed(3)}%
+                                      </Text>
                                       <Progress
                                         value={progressVal}
                                         size="xs"
                                         width="60px"
-                                        colorScheme={isHigh ? 'red' : isLow ? 'green' : 'yellow'}
+                                        colorScheme={
+                                          isHigh
+                                            ? "red"
+                                            : isLow
+                                              ? "green"
+                                              : "yellow"
+                                        }
                                       />
                                     </VStack>
                                   </Td>
-                                  <Td isNumeric fontSize="sm" color="orange.600">
-                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(annualFee)}
+                                  <Td
+                                    isNumeric
+                                    fontSize="sm"
+                                    color="orange.600"
+                                  >
+                                    {new Intl.NumberFormat("en-US", {
+                                      style: "currency",
+                                      currency: "USD",
+                                    }).format(annualFee)}
                                   </Td>
                                   <Td isNumeric fontSize="sm" color="red.500">
-                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(drag)}
+                                    {new Intl.NumberFormat("en-US", {
+                                      style: "currency",
+                                      currency: "USD",
+                                      maximumFractionDigits: 0,
+                                    }).format(drag)}
                                   </Td>
                                   <Td>
                                     <Badge
-                                      colorScheme={isHigh ? 'red' : isLow ? 'green' : 'yellow'}
+                                      colorScheme={
+                                        isHigh
+                                          ? "red"
+                                          : isLow
+                                            ? "green"
+                                            : "yellow"
+                                      }
                                       fontSize="xs"
                                     >
-                                      {isHigh ? 'High' : isLow ? 'Low' : 'Moderate'}
+                                      {isHigh
+                                        ? "High"
+                                        : isLow
+                                          ? "Low"
+                                          : "Moderate"}
                                     </Badge>
                                   </Td>
                                 </Tr>
@@ -1205,17 +1468,25 @@ export const InvestmentsPage = () => {
                 )}
                 <IconButton
                   aria-label="Toggle holdings"
-                  icon={expandedSections.includes('holdings') ? <FiChevronUp /> : <FiChevronDown />}
+                  icon={
+                    expandedSections.includes("holdings") ? (
+                      <FiChevronUp />
+                    ) : (
+                      <FiChevronDown />
+                    )
+                  }
                   size="sm"
                   variant="ghost"
-                  onClick={() => toggleSection('holdings')}
+                  onClick={() => toggleSection("holdings")}
                 />
               </HStack>
             </HStack>
-            <Collapse in={expandedSections.includes('holdings')}>
+            <Collapse in={expandedSections.includes("holdings")}>
               <VStack spacing={4} align="stretch">
                 {portfolio.holdings_by_account.map((account) => {
-                  const isExpanded = expandedAccounts.includes(account.account_id);
+                  const isExpanded = expandedAccounts.includes(
+                    account.account_id,
+                  );
 
                   return (
                     <Card key={account.account_id} variant="outline">
@@ -1227,24 +1498,32 @@ export const InvestmentsPage = () => {
                             setExpandedAccounts((prev) =>
                               prev.includes(account.account_id)
                                 ? prev.filter((id) => id !== account.account_id)
-                                : [...prev, account.account_id]
+                                : [...prev, account.account_id],
                             );
                           }}
                         >
                           <VStack align="flex-start" spacing={0}>
                             <HStack>
-                              <Heading size="sm">{account.account_name}</Heading>
+                              <Heading size="sm">
+                                {account.account_name}
+                              </Heading>
                               <Badge colorScheme="purple" size="sm">
                                 {account.account_type}
                               </Badge>
                             </HStack>
-                            <Text fontSize="lg" fontWeight="bold" color="brand.accent">
+                            <Text
+                              fontSize="lg"
+                              fontWeight="bold"
+                              color="brand.accent"
+                            >
                               {formatCurrency(account.account_value)}
                             </Text>
                           </VStack>
                           <IconButton
-                            aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                            icon={isExpanded ? <FiChevronUp /> : <FiChevronDown />}
+                            aria-label={isExpanded ? "Collapse" : "Expand"}
+                            icon={
+                              isExpanded ? <FiChevronUp /> : <FiChevronDown />
+                            }
                             size="sm"
                             variant="ghost"
                           />
@@ -1255,13 +1534,16 @@ export const InvestmentsPage = () => {
                             {account.holdings.length === 0 ? (
                               <VStack spacing={2} py={4} align="center">
                                 <Text fontSize="sm" color="text.secondary">
-                                  Holdings details not available for this account.
+                                  Holdings details not available for this
+                                  account.
                                 </Text>
                                 <Text fontSize="xs" color="text.muted">
-                                  Account balance: {formatCurrency(account.account_value)}
+                                  Account balance:{" "}
+                                  {formatCurrency(account.account_value)}
                                 </Text>
                                 <Text fontSize="xs" color="text.muted">
-                                  Sync holdings data from your provider to see detailed breakdown.
+                                  Sync holdings data from your provider to see
+                                  detailed breakdown.
                                 </Text>
                               </VStack>
                             ) : (
@@ -1281,25 +1563,40 @@ export const InvestmentsPage = () => {
                                   {account.holdings.map((holding) => (
                                     <Tr key={holding.id}>
                                       <Td>
-                                        <Text fontWeight="bold">{holding.ticker}</Text>
-                                      </Td>
-                                      <Td>
-                                        <Text fontSize="sm" color="text.secondary">
-                                          {holding.name || '-'}
+                                        <Text fontWeight="bold">
+                                          {holding.ticker}
                                         </Text>
                                       </Td>
-                                      <Td isNumeric>{formatShares(holding.shares)}</Td>
+                                      <Td>
+                                        <Text
+                                          fontSize="sm"
+                                          color="text.secondary"
+                                        >
+                                          {holding.name || "-"}
+                                        </Text>
+                                      </Td>
+                                      <Td isNumeric>
+                                        {formatShares(holding.shares)}
+                                      </Td>
                                       <Td isNumeric>
                                         {holding.current_price_per_share
-                                          ? formatCurrency(holding.current_price_per_share)
-                                          : 'N/A'}
+                                          ? formatCurrency(
+                                              holding.current_price_per_share,
+                                            )
+                                          : "N/A"}
                                       </Td>
                                       <Td isNumeric>
                                         <Text fontWeight="semibold">
-                                          {formatCurrency(holding.current_total_value)}
+                                          {formatCurrency(
+                                            holding.current_total_value,
+                                          )}
                                         </Text>
                                       </Td>
-                                      <Td isNumeric>{formatCurrency(holding.total_cost_basis)}</Td>
+                                      <Td isNumeric>
+                                        {formatCurrency(
+                                          holding.total_cost_basis,
+                                        )}
+                                      </Td>
                                       <Td>
                                         {holding.asset_type && (
                                           <Badge colorScheme="blue" size="sm">

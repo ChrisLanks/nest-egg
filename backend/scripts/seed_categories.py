@@ -2,29 +2,26 @@
 
 import asyncio
 import sys
-from pathlib import Path
 import uuid
+from pathlib import Path
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
-from app.models.user import User
 from app.models.transaction import Category
+from app.models.user import User
+
 # Import all models to avoid relationship errors
-from app.models import account, holding, transaction, budget, savings_goal, recurring_transaction, notification
 
 
 async def seed_categories():
     """Seed custom categories for test@test.com user."""
     async with AsyncSessionLocal() as db:
         # Find the test user
-        result = await db.execute(
-            select(User).where(User.email == "test@test.com")
-        )
+        result = await db.execute(select(User).where(User.email == "test@test.com"))
         user = result.scalar_one_or_none()
 
         if not user:
@@ -36,9 +33,7 @@ async def seed_categories():
 
         # Check if categories already exist
         existing = await db.execute(
-            select(Category).where(
-                Category.organization_id == user.organization_id
-            ).limit(1)
+            select(Category).where(Category.organization_id == user.organization_id).limit(1)
         )
         if existing.scalar_one_or_none():
             print("⚠️  Categories already exist. Skipping seed.")

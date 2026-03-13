@@ -30,9 +30,9 @@ import {
   Badge,
   useToast,
   useColorModeValue,
-} from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
-import { useState, useMemo } from 'react';
+} from "@chakra-ui/react";
+import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -42,9 +42,11 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-} from 'recharts';
-import api from '../services/api';
-import { useUserView } from '../contexts/UserViewContext';
+} from "recharts";
+import api from "../services/api";
+import { useUserView } from "../contexts/UserViewContext";
+import { useMultiMemberFilter } from "../hooks/useMultiMemberFilter";
+import { MemberMultiSelect } from "../components/MemberMultiSelect";
 
 interface YearOverYearData {
   month: number;
@@ -82,9 +84,22 @@ interface AnnualSummary {
 }
 
 export default function TrendsPage() {
-  const { selectedUserId } = useUserView();
+  const { selectedUserId, isCombinedView } = useUserView();
+  const {
+    selectedIds,
+    toggleMember,
+    selectAll,
+    isAllSelected,
+    showFilter,
+    members,
+    effectiveUserId: multiEffectiveUserId,
+    selectedIdsKey,
+  } = useMultiMemberFilter();
+  const activeUserId = isCombinedView
+    ? (multiEffectiveUserId ?? null)
+    : selectedUserId;
   const toast = useToast();
-  const tooltipBg = useColorModeValue('#FFFFFF', '#2D3748');
+  const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
 
   // Default to current year and 2 previous years
   const currentYear = new Date().getFullYear();
@@ -106,35 +121,44 @@ export default function TrendsPage() {
   }, [currentYear]);
 
   // Fetch year-over-year comparison
-  const { data: yoyData, isLoading: yoyLoading } = useQuery<YearOverYearData[]>({
-    queryKey: ['year-over-year', selectedYears, selectedUserId],
-    queryFn: async () => {
-      const params: any = {
-        years: selectedYears,
-      };
-      if (selectedUserId) params.user_id = selectedUserId;
+  const { data: yoyData, isLoading: yoyLoading } = useQuery<YearOverYearData[]>(
+    {
+      queryKey: ["year-over-year", selectedYears, activeUserId, selectedIdsKey],
+      queryFn: async () => {
+        const params: any = {
+          years: selectedYears,
+        };
+        if (activeUserId) params.user_id = activeUserId;
 
-      const response = await api.get('/income-expenses/year-over-year', {
-        params,
-        paramsSerializer: {
-          indexes: null, // Use repeat format: years=2024&years=2023 instead of years[0]=2024
-        },
-      });
-      return response.data;
+        const response = await api.get("/income-expenses/year-over-year", {
+          params,
+          paramsSerializer: {
+            indexes: null, // Use repeat format: years=2024&years=2023 instead of years[0]=2024
+          },
+        });
+        return response.data;
+      },
+      enabled: selectedYears.length > 0,
     },
-    enabled: selectedYears.length > 0,
-  });
+  );
 
   // Fetch quarterly summary
-  const { data: quarterlyData, isLoading: quarterlyLoading } = useQuery<QuarterlySummary[]>({
-    queryKey: ['quarterly-summary', selectedYears, selectedUserId],
+  const { data: quarterlyData, isLoading: quarterlyLoading } = useQuery<
+    QuarterlySummary[]
+  >({
+    queryKey: [
+      "quarterly-summary",
+      selectedYears,
+      activeUserId,
+      selectedIdsKey,
+    ],
     queryFn: async () => {
       const params: any = {
         years: selectedYears,
       };
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (activeUserId) params.user_id = activeUserId;
 
-      const response = await api.get('/income-expenses/quarterly-summary', {
+      const response = await api.get("/income-expenses/quarterly-summary", {
         params,
         paramsSerializer: {
           indexes: null, // Use repeat format: years=2024&years=2023 instead of years[0]=2024
@@ -146,17 +170,21 @@ export default function TrendsPage() {
   });
 
   // Fetch annual summaries
-  const { data: annualSummaries, isLoading: annualLoading } = useQuery<AnnualSummary[]>({
-    queryKey: ['annual-summaries', selectedYears, selectedUserId],
+  const { data: annualSummaries, isLoading: annualLoading } = useQuery<
+    AnnualSummary[]
+  >({
+    queryKey: ["annual-summaries", selectedYears, activeUserId, selectedIdsKey],
     queryFn: async () => {
       const summaries = await Promise.all(
         selectedYears.map(async (year) => {
           const params: any = { year };
-          if (selectedUserId) params.user_id = selectedUserId;
+          if (activeUserId) params.user_id = activeUserId;
 
-          const response = await api.get('/income-expenses/annual-summary', { params });
+          const response = await api.get("/income-expenses/annual-summary", {
+            params,
+          });
           return response.data;
-        })
+        }),
       );
       return summaries;
     },
@@ -164,9 +192,9 @@ export default function TrendsPage() {
   });
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
@@ -181,9 +209,9 @@ export default function TrendsPage() {
         }
       } else {
         toast({
-          title: 'At least one year required',
-          description: 'You must select at least one year to compare.',
-          status: 'warning',
+          title: "At least one year required",
+          description: "You must select at least one year to compare.",
+          status: "warning",
           duration: 3000,
         });
       }
@@ -192,9 +220,9 @@ export default function TrendsPage() {
         setSelectedYears([...selectedYears, year].sort((a, b) => b - a));
       } else {
         toast({
-          title: 'Maximum 3 years',
-          description: 'You can compare up to 3 years at once.',
-          status: 'info',
+          title: "Maximum 3 years",
+          description: "You can compare up to 3 years at once.",
+          status: "info",
           duration: 3000,
         });
       }
@@ -202,7 +230,10 @@ export default function TrendsPage() {
   };
 
   // Calculate growth rates
-  const calculateGrowthRate = (current: number, previous: number): number | null => {
+  const calculateGrowthRate = (
+    current: number,
+    previous: number,
+  ): number | null => {
     if (previous === 0) return null;
     return ((current - previous) / previous) * 100;
   };
@@ -210,16 +241,24 @@ export default function TrendsPage() {
   // Get primary year summary
   const primarySummary = annualSummaries?.find((s) => s.year === primaryYear);
   const comparisonYear = selectedYears.find((y) => y !== primaryYear);
-  const comparisonSummary = annualSummaries?.find((s) => s.year === comparisonYear);
+  const comparisonSummary = annualSummaries?.find(
+    (s) => s.year === comparisonYear,
+  );
 
   const expenseGrowth =
     primarySummary && comparisonSummary
-      ? calculateGrowthRate(primarySummary.total_expenses, comparisonSummary.total_expenses)
+      ? calculateGrowthRate(
+          primarySummary.total_expenses,
+          comparisonSummary.total_expenses,
+        )
       : null;
 
   const incomeGrowth =
     primarySummary && comparisonSummary
-      ? calculateGrowthRate(primarySummary.total_income, comparisonSummary.total_income)
+      ? calculateGrowthRate(
+          primarySummary.total_income,
+          comparisonSummary.total_income,
+        )
       : null;
 
   // Prepare chart data for expenses trend
@@ -248,12 +287,12 @@ export default function TrendsPage() {
       selectedYears.some((year) => {
         const value = month[String(year)];
         return value && value > 0;
-      })
+      }),
     );
   }, [expensesTrendData, selectedYears]);
 
   // Color palette for years
-  const yearColors = ['#3182CE', '#38A169', '#DD6B20'];
+  const yearColors = ["#3182CE", "#38A169", "#DD6B20"];
 
   if (yoyLoading || quarterlyLoading || annualLoading) {
     return (
@@ -273,8 +312,21 @@ export default function TrendsPage() {
           <Heading size="lg" mb={2}>
             📊 Multi-Year Trends
           </Heading>
-          <Text color="text.secondary">Year-over-year spending analysis and comparisons</Text>
+          <Text color="text.secondary">
+            Year-over-year spending analysis and comparisons
+          </Text>
         </Box>
+
+        {/* Multi-select member filter — visible in combined household view */}
+        {showFilter && (
+          <MemberMultiSelect
+            selectedIds={selectedIds}
+            members={members}
+            isAllSelected={isAllSelected}
+            onToggle={toggleMember}
+            onSelectAll={selectAll}
+          />
+        )}
 
         {/* Year Selector */}
         <Card>
@@ -291,13 +343,18 @@ export default function TrendsPage() {
                   <Button
                     key={year}
                     size="sm"
-                    variant={selectedYears.includes(year) ? 'solid' : 'outline'}
-                    colorScheme={selectedYears.includes(year) ? 'blue' : 'gray'}
+                    variant={selectedYears.includes(year) ? "solid" : "outline"}
+                    colorScheme={selectedYears.includes(year) ? "blue" : "gray"}
                     onClick={() => handleYearToggle(year)}
                   >
                     {year}
                     {selectedYears.includes(year) && year === primaryYear && (
-                      <Badge ml={2} bg="whiteAlpha.300" color="white" fontSize="2xs">
+                      <Badge
+                        ml={2}
+                        bg="whiteAlpha.300"
+                        color="white"
+                        fontSize="2xs"
+                      >
                         Primary
                       </Badge>
                     )}
@@ -334,10 +391,14 @@ export default function TrendsPage() {
               <CardBody>
                 <Stat>
                   <StatLabel>Total Expenses ({primaryYear})</StatLabel>
-                  <StatNumber>{formatCurrency(primarySummary.total_expenses)}</StatNumber>
+                  <StatNumber>
+                    {formatCurrency(primarySummary.total_expenses)}
+                  </StatNumber>
                   {expenseGrowth !== null && comparisonYear && (
                     <StatHelpText>
-                      <StatArrow type={expenseGrowth > 0 ? 'increase' : 'decrease'} />
+                      <StatArrow
+                        type={expenseGrowth > 0 ? "increase" : "decrease"}
+                      />
                       {Math.abs(expenseGrowth).toFixed(1)}% vs {comparisonYear}
                     </StatHelpText>
                   )}
@@ -354,7 +415,9 @@ export default function TrendsPage() {
                   </StatNumber>
                   {incomeGrowth !== null && comparisonYear && (
                     <StatHelpText>
-                      <StatArrow type={incomeGrowth > 0 ? 'increase' : 'decrease'} />
+                      <StatArrow
+                        type={incomeGrowth > 0 ? "increase" : "decrease"}
+                      />
                       {Math.abs(incomeGrowth).toFixed(1)}% vs {comparisonYear}
                     </StatHelpText>
                   )}
@@ -366,7 +429,9 @@ export default function TrendsPage() {
               <CardBody>
                 <Stat>
                   <StatLabel>Avg Monthly Expenses</StatLabel>
-                  <StatNumber>{formatCurrency(primarySummary.avg_monthly_expenses)}</StatNumber>
+                  <StatNumber>
+                    {formatCurrency(primarySummary.avg_monthly_expenses)}
+                  </StatNumber>
                   <StatHelpText>Per month in {primaryYear}</StatHelpText>
                 </Stat>
               </CardBody>
@@ -377,12 +442,12 @@ export default function TrendsPage() {
                 <Stat>
                   <StatLabel>Peak Expense Month</StatLabel>
                   <StatNumber fontSize="lg">
-                    {primarySummary.peak_expense_month || 'N/A'}
+                    {primarySummary.peak_expense_month || "N/A"}
                   </StatNumber>
                   <StatHelpText>
                     {primarySummary.peak_expense_amount > 0
                       ? formatCurrency(primarySummary.peak_expense_amount)
-                      : 'No data'}
+                      : "No data"}
                   </StatHelpText>
                 </Stat>
               </CardBody>
@@ -409,19 +474,21 @@ export default function TrendsPage() {
                     <XAxis
                       dataKey="month"
                       stroke="#718096"
-                      style={{ fontSize: '12px' }}
+                      style={{ fontSize: "12px" }}
                     />
                     <YAxis
                       tickFormatter={(value: number) => formatCurrency(value)}
                       stroke="#718096"
-                      style={{ fontSize: '12px' }}
+                      style={{ fontSize: "12px" }}
                     />
                     <Tooltip
-                      formatter={((value: number) => formatCurrency(value)) as any}
+                      formatter={
+                        ((value: number) => formatCurrency(value)) as any
+                      }
                       contentStyle={{
                         backgroundColor: tooltipBg,
-                        border: '1px solid #E2E8F0',
-                        borderRadius: '8px',
+                        border: "1px solid #E2E8F0",
+                        borderRadius: "8px",
                       }}
                     />
                     <Legend />
@@ -441,12 +508,18 @@ export default function TrendsPage() {
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
-                <Box textAlign="center" py={12} bg="bg.subtle" borderRadius="md">
+                <Box
+                  textAlign="center"
+                  py={12}
+                  bg="bg.subtle"
+                  borderRadius="md"
+                >
                   <Text color="text.secondary" fontSize="lg" mb={2}>
                     No transaction data for selected years
                   </Text>
                   <Text color="text.muted" fontSize="sm">
-                    Try selecting different years or add more historical transactions to see trends.
+                    Try selecting different years or add more historical
+                    transactions to see trends.
                   </Text>
                 </Box>
               )}
@@ -485,7 +558,8 @@ export default function TrendsPage() {
                           <Td fontWeight="medium">{quarter.quarter_name}</Td>
                           {selectedYears.map((year) => {
                             const yearStr = String(year);
-                            const expenses = quarter.data[yearStr]?.expenses || 0;
+                            const expenses =
+                              quarter.data[yearStr]?.expenses || 0;
                             return (
                               <Td key={year} isNumeric>
                                 {formatCurrency(expenses)}
