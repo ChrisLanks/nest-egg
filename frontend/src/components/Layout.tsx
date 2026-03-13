@@ -1015,49 +1015,54 @@ export const Layout = () => {
                 <Text fontSize="sm" fontWeight="semibold" color="text.primary">
                   👥 {sectionLabel} Permissions:
                 </Text>
-                {memberAccess.map(({ memberId, access }, index) => {
-                  const canWrite = access === "write";
-                  return (
-                    <HStack
-                      key={memberId}
-                      spacing={1.5}
-                      pl={index > 0 ? 3 : 0}
-                      borderLeftWidth={index > 0 ? 1 : 0}
-                      borderColor="border.default"
-                    >
-                      <Badge
-                        size="sm"
-                        fontSize="xs"
-                        px={2}
+                <HStack spacing={2} flexWrap="wrap">
+                  {memberAccess.map(({ memberId, access }) => {
+                    const canWrite = access === "write";
+                    return (
+                      <HStack
+                        key={memberId}
+                        spacing={2}
+                        px={2.5}
                         py={0.5}
+                        borderWidth={1}
+                        borderColor="border.default"
                         borderRadius="md"
-                        bg={getUserColor(memberId)}
-                        color="white"
-                        fontWeight="bold"
+                        bg="bg.surface"
                       >
-                        {getUserInitials(memberId)}
-                      </Badge>
-                      <Text
-                        fontSize="sm"
-                        color="text.heading"
-                        fontWeight="medium"
-                      >
-                        {getUserName(memberId)}
-                      </Text>
-                      <Badge
-                        fontSize="2xs"
-                        px={1.5}
-                        py={0}
-                        borderRadius="full"
-                        colorScheme={canWrite ? "green" : "blue"}
-                        variant="subtle"
-                        lineHeight="tall"
-                      >
-                        {canWrite ? "✏️ Edit" : "👁️ Read"}
-                      </Badge>
-                    </HStack>
-                  );
-                })}
+                        <Badge
+                          size="sm"
+                          fontSize="xs"
+                          px={1.5}
+                          py={0.5}
+                          borderRadius="md"
+                          bg={getUserColor(memberId)}
+                          color="white"
+                          fontWeight="bold"
+                        >
+                          {getUserInitials(memberId)}
+                        </Badge>
+                        <Text
+                          fontSize="sm"
+                          color="text.heading"
+                          fontWeight="medium"
+                        >
+                          {getUserName(memberId)}
+                        </Text>
+                        <Badge
+                          fontSize="2xs"
+                          px={1.5}
+                          py={0}
+                          borderRadius="full"
+                          colorScheme={canWrite ? "green" : "blue"}
+                          variant="subtle"
+                          lineHeight="tall"
+                        >
+                          {canWrite ? "✏️ Edit" : "👁️ Read"}
+                        </Badge>
+                      </HStack>
+                    );
+                  })}
+                </HStack>
               </HStack>
             </Box>
           );
