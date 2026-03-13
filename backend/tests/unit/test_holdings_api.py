@@ -17,7 +17,6 @@ from app.api.v1.holdings import (
     get_portfolio_summary,
     get_rmd_summary,
     get_style_box_breakdown,
-    router,
     update_holding,
 )
 from app.models.account import Account, AccountType
@@ -101,9 +100,7 @@ class TestCreateHolding:
         )
 
     @pytest.mark.asyncio
-    async def test_creates_holding_successfully(
-        self, mock_db, mock_user, holding_create_data
-    ):
+    async def test_creates_holding_successfully(self, mock_db, mock_user, holding_create_data):
         """Should create a new holding for a brokerage account."""
         # Mock account lookup
         account = Mock(spec=Account)
@@ -126,9 +123,7 @@ class TestCreateHolding:
         assert mock_db.commit.called
 
     @pytest.mark.asyncio
-    async def test_raises_404_when_account_not_found(
-        self, mock_db, mock_user, holding_create_data
-    ):
+    async def test_raises_404_when_account_not_found(self, mock_db, mock_user, holding_create_data):
         """Should raise 404 when account doesn't exist."""
         account_result = Mock()
         account_result.scalar_one_or_none.return_value = None
@@ -186,9 +181,7 @@ class TestCreateHolding:
         assert mock_db.add.called
 
     @pytest.mark.asyncio
-    async def test_normalizes_ticker_to_uppercase(
-        self, mock_db, mock_user, holding_create_data
-    ):
+    async def test_normalizes_ticker_to_uppercase(self, mock_db, mock_user, holding_create_data):
         """Should convert ticker to uppercase."""
         holding_create_data.ticker = "aapl"  # lowercase
 
@@ -234,9 +227,7 @@ class TestUpdateHolding:
         )
 
     @pytest.mark.asyncio
-    async def test_updates_holding_successfully(
-        self, mock_db, mock_user, holding_update_data
-    ):
+    async def test_updates_holding_successfully(self, mock_db, mock_user, holding_update_data):
         """Should update holding shares and price."""
         holding_id = uuid4()
         holding = Mock(spec=Holding)
@@ -262,9 +253,7 @@ class TestUpdateHolding:
         assert mock_db.commit.called
 
     @pytest.mark.asyncio
-    async def test_raises_404_when_holding_not_found(
-        self, mock_db, mock_user, holding_update_data
-    ):
+    async def test_raises_404_when_holding_not_found(self, mock_db, mock_user, holding_update_data):
         """Should raise 404 when holding doesn't exist."""
         holding_id = uuid4()
 
@@ -284,9 +273,7 @@ class TestUpdateHolding:
         assert "Holding not found" in exc_info.value.detail
 
     @pytest.mark.asyncio
-    async def test_recalculates_cost_basis_on_share_update(
-        self, mock_db, mock_user
-    ):
+    async def test_recalculates_cost_basis_on_share_update(self, mock_db, mock_user):
         """Should recalculate total cost basis when shares or cost_basis_per_share changes."""
         from app.schemas.holding import HoldingUpdate
 
@@ -340,9 +327,7 @@ class TestDeleteHolding:
         holding_result.scalar_one_or_none.return_value = holding
         mock_db.execute.return_value = holding_result
 
-        result = await delete_holding(
-            holding_id=holding_id, current_user=mock_user, db=mock_db
-        )
+        result = await delete_holding(holding_id=holding_id, current_user=mock_user, db=mock_db)
 
         assert result is None
         assert mock_db.delete.called
@@ -358,9 +343,7 @@ class TestDeleteHolding:
         mock_db.execute.return_value = holding_result
 
         with pytest.raises(HTTPException) as exc_info:
-            await delete_holding(
-                holding_id=holding_id, current_user=mock_user, db=mock_db
-            )
+            await delete_holding(holding_id=holding_id, current_user=mock_user, db=mock_db)
 
         assert exc_info.value.status_code == 404
         assert "Holding not found" in exc_info.value.detail
@@ -400,16 +383,12 @@ class TestCapturePortfolioSnapshot:
             created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
-        with patch(
-            "app.api.v1.holdings.get_portfolio_summary", return_value=mock_portfolio
-        ):
+        with patch("app.api.v1.holdings.get_portfolio_summary", return_value=mock_portfolio):
             with patch(
                 "app.api.v1.holdings.snapshot_service.capture_snapshot",
                 return_value=mock_snapshot,
             ) as mock_capture:
-                result = await capture_portfolio_snapshot(
-                    current_user=mock_user, db=mock_db
-                )
+                result = await capture_portfolio_snapshot(current_user=mock_user, db=mock_db)
 
                 assert result == mock_snapshot
                 mock_capture.assert_called_once_with(
@@ -528,9 +507,7 @@ class TestGetPortfolioSummary:
     @pytest.mark.asyncio
     async def test_returns_empty_portfolio_when_no_holdings(self, mock_db, mock_user):
         """Should return empty portfolio summary when no holdings exist."""
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[],
@@ -554,9 +531,7 @@ class TestGetPortfolioSummary:
         account.account_type = AccountType.BROKERAGE
         account.current_balance = None  # Avoid Mock arithmetic errors
 
-        with patch(
-            "app.api.v1.holdings.verify_household_member", return_value=None
-        ) as mock_verify:
+        with patch("app.api.v1.holdings.verify_household_member", return_value=None) as mock_verify:
             with patch(
                 "app.api.v1.holdings.get_user_accounts", return_value=[account]
             ) as mock_get_user_accounts:
@@ -564,13 +539,9 @@ class TestGetPortfolioSummary:
                 mock_result.scalars.return_value.all.return_value = []
                 mock_db.execute.return_value = mock_result
 
-                await get_portfolio_summary(
-                    user_id=user_id, current_user=mock_user, db=mock_db
-                )
+                await get_portfolio_summary(user_id=user_id, current_user=mock_user, db=mock_db)
 
-                mock_verify.assert_called_once_with(
-                    mock_db, user_id, mock_user.organization_id
-                )
+                mock_verify.assert_called_once_with(mock_db, user_id, mock_user.organization_id)
                 mock_get_user_accounts.assert_called_once_with(
                     mock_db, user_id, mock_user.organization_id
                 )
@@ -595,13 +566,9 @@ class TestGetPortfolioSummary:
                 mock_result.scalars.return_value.all.return_value = []
                 mock_db.execute.return_value = mock_result
 
-                await get_portfolio_summary(
-                    user_id=None, current_user=mock_user, db=mock_db
-                )
+                await get_portfolio_summary(user_id=None, current_user=mock_user, db=mock_db)
 
-                mock_get_all.assert_called_once_with(
-                    mock_db, mock_user.organization_id
-                )
+                mock_get_all.assert_called_once_with(mock_db, mock_user.organization_id)
                 mock_dedupe.assert_called_once_with([account])
 
 
@@ -702,25 +669,19 @@ class TestGetRMDSummary:
         mock_db.execute.return_value = user_result
 
         with patch("app.api.v1.holdings.verify_household_member", return_value=None):
-            result = await get_rmd_summary(
-                user_id=user_id, current_user=current_user, db=mock_db
-            )
+            result = await get_rmd_summary(user_id=user_id, current_user=current_user, db=mock_db)
 
             assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_household_has_no_birthdates(
-        self, mock_db, mock_user
-    ):
+    async def test_returns_none_when_household_has_no_birthdates(self, mock_db, mock_user):
         """Should return None when combined household view has no members with birthdates."""
         # Mock household members query - no members with birthdates
         members_result = Mock()
         members_result.scalars.return_value.all.return_value = []
         mock_db.execute.return_value = members_result
 
-        result = await get_rmd_summary(
-            user_id=None, current_user=mock_user, db=mock_db
-        )
+        result = await get_rmd_summary(user_id=None, current_user=mock_user, db=mock_db)
 
         assert result is None
 
@@ -741,9 +702,7 @@ class TestGetRMDSummary:
         mock_db.execute.return_value = user_result
 
         with patch("app.api.v1.holdings.verify_household_member", return_value=None):
-            result = await get_rmd_summary(
-                user_id=user_id, current_user=current_user, db=mock_db
-            )
+            result = await get_rmd_summary(user_id=user_id, current_user=current_user, db=mock_db)
 
             assert result.requires_rmd is False
             assert result.user_age == 60
@@ -775,9 +734,7 @@ class TestGetRMDSummary:
         mock_db.execute.return_value = user_result
 
         with patch("app.api.v1.holdings.verify_household_member", return_value=None):
-            with patch(
-                "app.api.v1.holdings.get_user_accounts", return_value=[account]
-            ):
+            with patch("app.api.v1.holdings.get_user_accounts", return_value=[account]):
                 result = await get_rmd_summary(
                     user_id=user_id, current_user=current_user, db=mock_db
                 )
@@ -817,6 +774,7 @@ class TestGetPortfolioSummaryComprehensive:
         """Helper to create mock holding with common attributes."""
         from datetime import datetime
         from uuid import uuid4
+
         holding = Mock(spec=Holding)
         holding.id = uuid4()  # Add id for Pydantic validation
         holding.organization_id = uuid4()  # Add organization_id for Pydantic validation
@@ -831,10 +789,16 @@ class TestGetPortfolioSummaryComprehensive:
         holding.asset_class = asset_class
         holding.sector = sector
         holding.country = "US"  # Add country for Pydantic validation
-        holding.price_as_of = datetime.now(timezone.utc).replace(tzinfo=None)  # Add price_as_of for comparison logic
+        holding.price_as_of = datetime.now(timezone.utc).replace(
+            tzinfo=None
+        )  # Add price_as_of for comparison logic
         holding.expense_ratio = Decimal("0.03")  # Default 0.03% expense ratio
-        holding.created_at = datetime.now(timezone.utc).replace(tzinfo=None)  # Add created_at for Pydantic validation
-        holding.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)  # Add updated_at for Pydantic validation
+        holding.created_at = datetime.now(timezone.utc).replace(
+            tzinfo=None
+        )  # Add created_at for Pydantic validation
+        holding.updated_at = datetime.now(timezone.utc).replace(
+            tzinfo=None
+        )  # Add updated_at for Pydantic validation
         # Add other fields that Pydantic might validate
         holding.industry = "Technology" if sector == "Technology" else None
         holding.market_cap = None
@@ -861,14 +825,18 @@ class TestGetPortfolioSummaryComprehensive:
 
         # Create holdings - Large cap domestic stocks
         holdings = [
-            self.create_mock_holding("AAPL", Decimal("100"), Decimal("150"), account_id, "Apple Inc"),
-            self.create_mock_holding("MSFT", Decimal("50"), Decimal("300"), account_id, "Microsoft Corp"),
-            self.create_mock_holding("GOOGL", Decimal("20"), Decimal("100"), account_id, "Alphabet Inc"),
+            self.create_mock_holding(
+                "AAPL", Decimal("100"), Decimal("150"), account_id, "Apple Inc"
+            ),
+            self.create_mock_holding(
+                "MSFT", Decimal("50"), Decimal("300"), account_id, "Microsoft Corp"
+            ),
+            self.create_mock_holding(
+                "GOOGL", Decimal("20"), Decimal("100"), account_id, "Alphabet Inc"
+            ),
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -922,9 +890,7 @@ class TestGetPortfolioSummaryComprehensive:
             ),
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -940,10 +906,7 @@ class TestGetPortfolioSummaryComprehensive:
                 # Verify international classification via treemap
                 assert result.treemap_data is not None
                 assert result.treemap_data.children is not None
-                assert any(
-                    "International" in child.name
-                    for child in result.treemap_data.children
-                )
+                assert any("International" in child.name for child in result.treemap_data.children)
 
     @pytest.mark.asyncio
     async def test_portfolio_with_bonds(self, mock_db, mock_user):
@@ -975,9 +938,7 @@ class TestGetPortfolioSummaryComprehensive:
             ),
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -993,9 +954,7 @@ class TestGetPortfolioSummaryComprehensive:
                 # Verify bonds classification via treemap
                 assert result.treemap_data is not None
                 assert result.treemap_data.children is not None
-                assert any(
-                    "Bond" in child.name for child in result.treemap_data.children
-                )
+                assert any("Bond" in child.name for child in result.treemap_data.children)
 
     @pytest.mark.asyncio
     async def test_portfolio_with_cash(self, mock_db, mock_user):
@@ -1020,9 +979,7 @@ class TestGetPortfolioSummaryComprehensive:
             ),
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -1038,9 +995,7 @@ class TestGetPortfolioSummaryComprehensive:
                 # Verify cash classification via treemap
                 assert result.treemap_data is not None
                 assert result.treemap_data.children is not None
-                assert any(
-                    "Cash" in child.name for child in result.treemap_data.children
-                )
+                assert any("Cash" in child.name for child in result.treemap_data.children)
 
     @pytest.mark.asyncio
     async def test_portfolio_market_cap_classification(self, mock_db, mock_user):
@@ -1079,9 +1034,7 @@ class TestGetPortfolioSummaryComprehensive:
             ),
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -1130,9 +1083,7 @@ class TestGetPortfolioSummaryComprehensive:
                 # Verify property in treemap
                 assert result.treemap_data is not None
                 assert result.treemap_data.children is not None
-                assert any(
-                    "Property" in child.name for child in result.treemap_data.children
-                )
+                assert any("Property" in child.name for child in result.treemap_data.children)
 
     @pytest.mark.asyncio
     async def test_portfolio_with_crypto(self, mock_db, mock_user):
@@ -1163,9 +1114,7 @@ class TestGetPortfolioSummaryComprehensive:
                 # Verify crypto in treemap
                 assert result.treemap_data is not None
                 assert result.treemap_data.children is not None
-                assert any(
-                    "Crypto" in child.name for child in result.treemap_data.children
-                )
+                assert any("Crypto" in child.name for child in result.treemap_data.children)
 
     @pytest.mark.asyncio
     async def test_portfolio_retirement_vs_taxable_breakdown(self, mock_db, mock_user):
@@ -1189,12 +1138,8 @@ class TestGetPortfolioSummaryComprehensive:
 
         # Holdings split between retirement and taxable
         holdings = [
-            self.create_mock_holding(
-                "VTI", Decimal("100"), Decimal("200"), retirement_id
-            ),
-            self.create_mock_holding(
-                "AAPL", Decimal("50"), Decimal("150"), taxable_id
-            ),
+            self.create_mock_holding("VTI", Decimal("100"), Decimal("200"), retirement_id),
+            self.create_mock_holding("AAPL", Decimal("50"), Decimal("150"), taxable_id),
         ]
 
         with patch(
@@ -1250,9 +1195,7 @@ class TestGetPortfolioSummaryComprehensive:
             ),
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -1353,9 +1296,7 @@ class TestGetPortfolioSummaryComprehensive:
                 # Verify cash in treemap
                 assert result.treemap_data is not None
                 assert result.treemap_data.children is not None
-                assert any(
-                    "Cash" in child.name for child in result.treemap_data.children
-                )
+                assert any("Cash" in child.name for child in result.treemap_data.children)
 
     @pytest.mark.asyncio
     async def test_portfolio_excludes_credit_cards_and_loans(self, mock_db, mock_user):
@@ -1408,17 +1349,11 @@ class TestGetPortfolioSummaryComprehensive:
 
         # Mix of assets with known values
         holdings = [
-            self.create_mock_holding(
-                "VTI", Decimal("250"), Decimal("200"), account_id
-            ),  # $50,000
-            self.create_mock_holding(
-                "BND", Decimal("500"), Decimal("80"), account_id
-            ),  # $40,000
+            self.create_mock_holding("VTI", Decimal("250"), Decimal("200"), account_id),  # $50,000
+            self.create_mock_holding("BND", Decimal("500"), Decimal("80"), account_id),  # $40,000
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -1434,9 +1369,7 @@ class TestGetPortfolioSummaryComprehensive:
                 # Verify treemap percentages add up close to 100%
                 assert result.treemap_data is not None
                 assert result.treemap_data.children is not None
-                total_percentage = sum(
-                    child.percent for child in result.treemap_data.children
-                )
+                total_percentage = sum(child.percent for child in result.treemap_data.children)
                 assert 99.0 <= total_percentage <= 101.0  # Allow small rounding errors
 
     @pytest.mark.asyncio
@@ -1452,22 +1385,32 @@ class TestGetPortfolioSummaryComprehensive:
 
         holdings = [
             self.create_mock_holding(
-                "AAPL", Decimal("100"), Decimal("150"), account_id,
-                name="Apple Inc", sector="Technology"
+                "AAPL",
+                Decimal("100"),
+                Decimal("150"),
+                account_id,
+                name="Apple Inc",
+                sector="Technology",
             ),
             self.create_mock_holding(
-                "MSFT", Decimal("50"), Decimal("300"), account_id,
-                name="Microsoft", sector="Technology"
+                "MSFT",
+                Decimal("50"),
+                Decimal("300"),
+                account_id,
+                name="Microsoft",
+                sector="Technology",
             ),
             self.create_mock_holding(
-                "JNJ", Decimal("200"), Decimal("160"), account_id,
-                name="Johnson & Johnson", sector="Healthcare"
+                "JNJ",
+                Decimal("200"),
+                Decimal("160"),
+                account_id,
+                name="Johnson & Johnson",
+                sector="Healthcare",
             ),
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -1481,7 +1424,7 @@ class TestGetPortfolioSummaryComprehensive:
                 )
 
                 # Verify treemap data structure exists
-                assert hasattr(result, 'treemap_data')
+                assert hasattr(result, "treemap_data")
                 assert result.treemap_data is not None
                 assert result.treemap_data.children is not None
                 assert len(result.treemap_data.children) > 0
@@ -1503,26 +1446,24 @@ class TestGetPortfolioSummaryComprehensive:
 
         holdings = [
             self.create_mock_holding(
-                "VTI", Decimal("200"), Decimal("200"), account_id,
-                name="Vanguard Total Stock Market"
+                "VTI",
+                Decimal("200"),
+                Decimal("200"),
+                account_id,
+                name="Vanguard Total Stock Market",
             ),  # US
             self.create_mock_holding(
-                "VEA", Decimal("150"), Decimal("100"), account_id,
-                name="Vanguard Developed Markets"
+                "VEA", Decimal("150"), Decimal("100"), account_id, name="Vanguard Developed Markets"
             ),  # International Developed
             self.create_mock_holding(
-                "VWO", Decimal("100"), Decimal("100"), account_id,
-                name="Vanguard Emerging Markets"
+                "VWO", Decimal("100"), Decimal("100"), account_id, name="Vanguard Emerging Markets"
             ),  # Emerging Markets
             self.create_mock_holding(
-                "BABA", Decimal("50"), Decimal("100"), account_id,
-                name="Alibaba Group"
+                "BABA", Decimal("50"), Decimal("100"), account_id, name="Alibaba Group"
             ),  # China
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -1552,26 +1493,40 @@ class TestGetPortfolioSummaryComprehensive:
 
         holdings = [
             self.create_mock_holding(
-                "XLF", Decimal("100"), Decimal("100"), account_id,
-                name="Financial Select Sector SPDR", sector="Financial"
+                "XLF",
+                Decimal("100"),
+                Decimal("100"),
+                account_id,
+                name="Financial Select Sector SPDR",
+                sector="Financial",
             ),
             self.create_mock_holding(
-                "XLE", Decimal("100"), Decimal("100"), account_id,
-                name="Energy Select Sector SPDR", sector="Energy"
+                "XLE",
+                Decimal("100"),
+                Decimal("100"),
+                account_id,
+                name="Energy Select Sector SPDR",
+                sector="Energy",
             ),
             self.create_mock_holding(
-                "XLU", Decimal("100"), Decimal("100"), account_id,
-                name="Utilities Select Sector SPDR", sector="Utilities"
+                "XLU",
+                Decimal("100"),
+                Decimal("100"),
+                account_id,
+                name="Utilities Select Sector SPDR",
+                sector="Utilities",
             ),
             self.create_mock_holding(
-                "UNKNOWN", Decimal("100"), Decimal("100"), account_id,
-                name="Unknown Sector Fund", sector=None
+                "UNKNOWN",
+                Decimal("100"),
+                Decimal("100"),
+                account_id,
+                name="Unknown Sector Fund",
+                sector=None,
             ),
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -1601,18 +1556,14 @@ class TestGetPortfolioSummaryComprehensive:
 
         holdings = [
             self.create_mock_holding(
-                "VTI", Decimal("500"), Decimal("100"), account_id,
-                name="Vanguard Total Market"
+                "VTI", Decimal("500"), Decimal("100"), account_id, name="Vanguard Total Market"
             ),  # $50,000 @ 0.03% expense ratio
             self.create_mock_holding(
-                "BND", Decimal("500"), Decimal("80"), account_id,
-                name="Vanguard Total Bond"
+                "BND", Decimal("500"), Decimal("80"), account_id, name="Vanguard Total Bond"
             ),  # $40,000 @ 0.035% expense ratio
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -1641,18 +1592,18 @@ class TestGetPortfolioSummaryComprehensive:
 
         holdings = [
             self.create_mock_holding(
-                "VYM", Decimal("200"), Decimal("100"), account_id,
-                name="Vanguard High Dividend Yield"
+                "VYM",
+                Decimal("200"),
+                Decimal("100"),
+                account_id,
+                name="Vanguard High Dividend Yield",
             ),  # High yield
             self.create_mock_holding(
-                "SCHD", Decimal("200"), Decimal("80"), account_id,
-                name="Schwab US Dividend Equity"
+                "SCHD", Decimal("200"), Decimal("80"), account_id, name="Schwab US Dividend Equity"
             ),  # High yield
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -1681,22 +1632,32 @@ class TestGetPortfolioSummaryComprehensive:
 
         holdings = [
             self.create_mock_holding(
-                "GLD", Decimal("50"), Decimal("180"), account_id,
-                name="SPDR Gold Trust", asset_class="Commodity"
+                "GLD",
+                Decimal("50"),
+                Decimal("180"),
+                account_id,
+                name="SPDR Gold Trust",
+                asset_class="Commodity",
             ),  # Gold
             self.create_mock_holding(
-                "REIT", Decimal("100"), Decimal("100"), account_id,
-                name="Real Estate Fund", asset_class="RealEstate"
+                "REIT",
+                Decimal("100"),
+                Decimal("100"),
+                account_id,
+                name="Real Estate Fund",
+                asset_class="RealEstate",
             ),  # REIT
             self.create_mock_holding(
-                "PDBC", Decimal("200"), Decimal("50"), account_id,
-                name="Invesco Commodities", asset_class="Commodity"
+                "PDBC",
+                Decimal("200"),
+                Decimal("50"),
+                account_id,
+                name="Invesco Commodities",
+                asset_class="Commodity",
             ),  # Broad commodities
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -1736,9 +1697,7 @@ class TestGetPortfolioSummaryComprehensive:
             ),  # Zero value
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -1767,22 +1726,17 @@ class TestGetPortfolioSummaryComprehensive:
 
         holdings = [
             self.create_mock_holding(
-                "VTI", Decimal("100"), Decimal("200"), account_id,
-                name="Vanguard Total Market"
+                "VTI", Decimal("100"), Decimal("200"), account_id, name="Vanguard Total Market"
             ),
             self.create_mock_holding(
-                "CASH", Decimal("50"), Decimal("100"), account_id,
-                name="Cash Position"
+                "CASH", Decimal("50"), Decimal("100"), account_id, name="Cash Position"
             ),  # Short ticker
             self.create_mock_holding(
-                "MANUAL", Decimal("50"), Decimal("100"), account_id,
-                name="Manual Entry"
+                "MANUAL", Decimal("50"), Decimal("100"), account_id, name="Manual Entry"
             ),  # Unknown ticker
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -1811,22 +1765,17 @@ class TestGetPortfolioSummaryComprehensive:
 
         holdings = [
             self.create_mock_holding(
-                "AAPL", Decimal("100"), Decimal("150"), account_id,
-                name="Apple Inc"
+                "AAPL", Decimal("100"), Decimal("150"), account_id, name="Apple Inc"
             ),  # Large cap
             self.create_mock_holding(
-                "VB", Decimal("200"), Decimal("200"), account_id,
-                name="Vanguard Small-Cap ETF"
+                "VB", Decimal("200"), Decimal("200"), account_id, name="Vanguard Small-Cap ETF"
             ),  # Small cap
             self.create_mock_holding(
-                "VO", Decimal("150"), Decimal("200"), account_id,
-                name="Vanguard Mid-Cap ETF"
+                "VO", Decimal("150"), Decimal("200"), account_id, name="Vanguard Mid-Cap ETF"
             ),  # Mid cap
         ]
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -1859,14 +1808,11 @@ class TestGetPortfolioSummaryComprehensive:
         for i in range(50):
             holdings.append(
                 self.create_mock_holding(
-                    f"STOCK{i}", Decimal("100"), Decimal("100"), account_id,
-                    name=f"Stock {i}"
+                    f"STOCK{i}", Decimal("100"), Decimal("100"), account_id, name=f"Stock {i}"
                 )
             )
 
-        with patch(
-            "app.api.v1.holdings.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.holdings.get_all_household_accounts", return_value=[account]):
             with patch(
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
@@ -1907,9 +1853,7 @@ class TestGetRmdSummary:
         members_result.scalars.return_value.all.return_value = []
         mock_db.execute.return_value = members_result
 
-        result = await get_rmd_summary(
-            user_id=None, current_user=mock_user, db=mock_db
-        )
+        result = await get_rmd_summary(user_id=None, current_user=mock_user, db=mock_db)
 
         assert result is None
 
@@ -1949,9 +1893,7 @@ class TestGetRmdSummary:
         accounts_result = Mock()
         accounts_result.scalars.return_value.all.return_value = []
 
-        result = await get_rmd_summary(
-            user_id=None, current_user=mock_user, db=mock_db
-        )
+        result = await get_rmd_summary(user_id=None, current_user=mock_user, db=mock_db)
 
         # Under 73 should return summary with requires_rmd=False
         assert result is not None
@@ -1993,9 +1935,7 @@ class TestGetRmdSummary:
                 "app.api.v1.holdings.get_user_accounts",
                 return_value=[account1, account2],
             ):
-                result = await get_rmd_summary(
-                    user_id=None, current_user=mock_user, db=mock_db
-                )
+                result = await get_rmd_summary(user_id=None, current_user=mock_user, db=mock_db)
 
                 # Should return RMD calculation
                 assert result is not None
@@ -2019,9 +1959,7 @@ class TestInvestmentAccountsWithoutHoldings:
         return user
 
     @pytest.mark.asyncio
-    async def test_includes_investment_accounts_without_holdings(
-        self, mock_db, mock_user
-    ):
+    async def test_includes_investment_accounts_without_holdings(self, mock_db, mock_user):
         """Should include investment accounts with balances but no holdings data."""
         # Create investment account with balance but no holdings
         brokerage_account = Mock(spec=Account)
@@ -2040,9 +1978,7 @@ class TestInvestmentAccountsWithoutHoldings:
             holdings_result.scalars.return_value.all.return_value = []
             mock_db.execute.return_value = holdings_result
 
-            result = await get_portfolio_summary(
-                user_id=None, current_user=mock_user, db=mock_db
-            )
+            result = await get_portfolio_summary(user_id=None, current_user=mock_user, db=mock_db)
 
             # Verify account balance included in total
             assert result.total_value == Decimal("45680.25")
@@ -2067,12 +2003,13 @@ class TestInvestmentAccountsWithoutHoldings:
             # Verify children have "(Holdings Unknown)" suffix
             assert investment_accounts_category.children is not None
             assert len(investment_accounts_category.children) > 0
-            assert investment_accounts_category.children[0].name == "Chase Bank Brokerage (Holdings Unknown)"
+            assert (
+                investment_accounts_category.children[0].name
+                == "Chase Bank Brokerage (Holdings Unknown)"
+            )
 
     @pytest.mark.asyncio
-    async def test_treemap_with_cash_and_investment_accounts(
-        self, mock_db, mock_user
-    ):
+    async def test_treemap_with_cash_and_investment_accounts(self, mock_db, mock_user):
         """Should show both Cash and Investment Accounts categories in treemap."""
         # Create checking account (Cash category)
         checking = Mock(spec=Account)
@@ -2106,9 +2043,7 @@ class TestInvestmentAccountsWithoutHoldings:
             holdings_result.scalars.return_value.all.return_value = []
             mock_db.execute.return_value = holdings_result
 
-            result = await get_portfolio_summary(
-                user_id=None, current_user=mock_user, db=mock_db
-            )
+            result = await get_portfolio_summary(user_id=None, current_user=mock_user, db=mock_db)
 
             # Verify total includes all accounts
             expected_total = Decimal("5000") + Decimal("20000") + Decimal("45680.25")
@@ -2125,9 +2060,7 @@ class TestInvestmentAccountsWithoutHoldings:
 
             # Verify Cash category has checking and savings
             cash_category = next(
-                child
-                for child in result.treemap_data.children
-                if child.name == "Cash"
+                child for child in result.treemap_data.children if child.name == "Cash"
             )
             assert cash_category.value == Decimal("25000")
             assert len(cash_category.children) == 2
@@ -2145,14 +2078,11 @@ class TestInvestmentAccountsWithoutHoldings:
             assert investment_category.color == "#4299E1"  # Blue color
             assert len(investment_category.children) == 1
             assert (
-                investment_category.children[0].name
-                == "Wells Fargo Brokerage (Holdings Unknown)"
+                investment_category.children[0].name == "Wells Fargo Brokerage (Holdings Unknown)"
             )
 
     @pytest.mark.asyncio
-    async def test_multiple_investment_accounts_without_holdings(
-        self, mock_db, mock_user
-    ):
+    async def test_multiple_investment_accounts_without_holdings(self, mock_db, mock_user):
         """Should handle multiple investment accounts without holdings."""
         # Create two brokerages without holdings
         brokerage1 = Mock(spec=Account)
@@ -2177,9 +2107,7 @@ class TestInvestmentAccountsWithoutHoldings:
             holdings_result.scalars.return_value.all.return_value = []
             mock_db.execute.return_value = holdings_result
 
-            result = await get_portfolio_summary(
-                user_id=None, current_user=mock_user, db=mock_db
-            )
+            result = await get_portfolio_summary(user_id=None, current_user=mock_user, db=mock_db)
 
             # Verify total
             assert result.total_value == Decimal("91360.50")
@@ -2198,9 +2126,7 @@ class TestInvestmentAccountsWithoutHoldings:
             assert "Wells Fargo Brokerage (Holdings Unknown)" in child_names
 
     @pytest.mark.asyncio
-    async def test_mixed_investment_accounts_with_and_without_holdings(
-        self, mock_db, mock_user
-    ):
+    async def test_mixed_investment_accounts_with_and_without_holdings(self, mock_db, mock_user):
         """Should handle mix of investment accounts with and without holdings."""
         # Account with holdings
         account_with_holdings_id = uuid4()
@@ -2258,11 +2184,9 @@ class TestInvestmentAccountsWithoutHoldings:
             holdings_result.scalars.return_value.all.return_value = [holding]
             mock_db.execute.return_value = holdings_result
 
-            result = await get_portfolio_summary(
-                user_id=None, current_user=mock_user, db=mock_db
-            )
+            result = await get_portfolio_summary(user_id=None, current_user=mock_user, db=mock_db)
 
-            # Should have holdings-based category (either Domestic Stocks or Other) and Investment Accounts
+            # Should have holdings-based category and Investment Accounts
             category_names = {child.name for child in result.treemap_data.children}
             assert "Investment Accounts" in category_names
             # VTI will be classified based on its metadata - could be Domestic Stocks or Other
@@ -2276,7 +2200,93 @@ class TestInvestmentAccountsWithoutHoldings:
             )
             assert investment_category.value == Decimal("50000")
             assert len(investment_category.children) == 1
-            assert (
-                investment_category.children[0].name
-                == "Chase Brokerage (Holdings Unknown)"
+            assert investment_category.children[0].name == "Chase Brokerage (Holdings Unknown)"
+
+
+# ---------------------------------------------------------------------------
+# Portfolio summary — Redis cache hit / miss
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGetPortfolioSummaryCaching:
+    """Verify cache hit/miss behaviour in get_portfolio_summary."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_returns_cached_data(self, mock_db, mock_user):
+        """When cache contains data, return it directly without querying accounts."""
+        cached_response = {"total_value": "123456.78", "holdings_by_ticker": []}
+
+        with patch(
+            "app.api.v1.holdings.cache_get",
+            new_callable=AsyncMock,
+            return_value=cached_response,
+        ) as mock_cache_get:
+            result = await get_portfolio_summary(user_id=None, current_user=mock_user, db=mock_db)
+
+        mock_cache_get.assert_called_once()
+        # DB should not have been queried for accounts
+        mock_db.execute.assert_not_called()
+        assert result == cached_response
+
+    @pytest.mark.asyncio
+    async def test_cache_miss_computes_and_caches(self, mock_db, mock_user):
+        """When cache returns None, compute result and call cache_setex."""
+        with (
+            patch(
+                "app.api.v1.holdings.cache_get",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.api.v1.holdings.cache_setex",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_cache_setex,
+            patch(
+                "app.api.v1.holdings.get_all_household_accounts",
+                return_value=[],
+            ),
+            patch(
+                "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
+                return_value=[],
+            ),
+        ):
+            result = await get_portfolio_summary(user_id=None, current_user=mock_user, db=mock_db)
+
+        # cache_setex should have been called with key, ttl=300, and serialised summary
+        mock_cache_setex.assert_called_once()
+        call_args = mock_cache_setex.call_args[0]
+        assert call_args[1] == 300  # TTL
+        # The result should be a PortfolioSummary (not the cached dict)
+        assert result.total_value == Decimal("0")
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_with_user_id_filter(self, mock_db, mock_user):
+        """Cache hit should work when filtering by user_id too."""
+        user_id = uuid4()
+        cached_response = {"total_value": "999.99"}
+
+        with patch(
+            "app.api.v1.holdings.cache_get",
+            new_callable=AsyncMock,
+            return_value=cached_response,
+        ):
+            result = await get_portfolio_summary(
+                user_id=user_id, current_user=mock_user, db=mock_db
             )
+
+        # Should return cached data without calling verify_household_member
+        mock_db.execute.assert_not_called()
+        assert result == cached_response

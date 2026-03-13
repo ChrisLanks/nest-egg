@@ -48,7 +48,7 @@ import {
   TabPanel,
 } from "@chakra-ui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, memo } from "react";
 import {
   FiChevronDown,
   FiChevronUp,
@@ -151,6 +151,202 @@ interface PortfolioSummary {
   treemap_data: TreemapNode | null;
   total_annual_fees: number | null;
 }
+
+// ─── Memoized row components for .map() rendering ────────────────────────────
+
+interface HoldingFeeRowProps {
+  h: HoldingSummary;
+  highFeeThreshold: number;
+  vanguardBenchmark: number;
+  feeDragMultiplier: number;
+}
+
+const HoldingFeeRow = memo(
+  ({
+    h,
+    highFeeThreshold,
+    vanguardBenchmark,
+    feeDragMultiplier,
+  }: HoldingFeeRowProps) => {
+    const er = h.expense_ratio ?? 0;
+    const annualFee = h.annual_fee ?? 0;
+    const drag = annualFee * feeDragMultiplier;
+    const isHigh = er > highFeeThreshold;
+    const isLow = er <= vanguardBenchmark * 2;
+    const progressVal = Math.min(er / 0.01, 1) * 100;
+    return (
+      <Tr>
+        <Td>
+          <VStack align="flex-start" spacing={0}>
+            <Text fontWeight="medium" fontSize="sm">
+              {h.ticker}
+            </Text>
+            {h.name && (
+              <Text fontSize="xs" color="text.muted" noOfLines={1}>
+                {h.name}
+              </Text>
+            )}
+          </VStack>
+        </Td>
+        <Td isNumeric fontSize="sm">
+          {new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            maximumFractionDigits: 0,
+          }).format(h.current_total_value ?? 0)}
+        </Td>
+        <Td isNumeric>
+          <VStack align="flex-end" spacing={1}>
+            <Text fontSize="sm">{(er * 100).toFixed(3)}%</Text>
+            <Progress
+              value={progressVal}
+              size="xs"
+              width="60px"
+              colorScheme={isHigh ? "red" : isLow ? "green" : "yellow"}
+            />
+          </VStack>
+        </Td>
+        <Td isNumeric fontSize="sm" color="orange.600">
+          {new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+          }).format(annualFee)}
+        </Td>
+        <Td isNumeric fontSize="sm" color="red.500">
+          {new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            maximumFractionDigits: 0,
+          }).format(drag)}
+        </Td>
+        <Td>
+          <Badge
+            colorScheme={isHigh ? "red" : isLow ? "green" : "yellow"}
+            fontSize="xs"
+          >
+            {isHigh ? "High" : isLow ? "Low" : "Moderate"}
+          </Badge>
+        </Td>
+      </Tr>
+    );
+  },
+);
+HoldingFeeRow.displayName = "HoldingFeeRow";
+
+interface AccountHoldingsCardProps {
+  account: AccountHoldings;
+  isExpanded: boolean;
+  onToggleExpand: (accountId: string) => void;
+  formatCurrency: (amount: number | null) => string;
+  formatShares: (shares: number) => string;
+}
+
+const AccountHoldingsCard = memo(
+  ({
+    account,
+    isExpanded,
+    onToggleExpand,
+    formatCurrency,
+    formatShares,
+  }: AccountHoldingsCardProps) => (
+    <Card variant="outline">
+      <CardBody>
+        <HStack
+          justify="space-between"
+          cursor="pointer"
+          onClick={() => onToggleExpand(account.account_id)}
+        >
+          <VStack align="flex-start" spacing={0}>
+            <HStack>
+              <Heading size="sm">{account.account_name}</Heading>
+              <Badge colorScheme="purple" size="sm">
+                {account.account_type}
+              </Badge>
+            </HStack>
+            <Text fontSize="lg" fontWeight="bold" color="brand.accent">
+              {formatCurrency(account.account_value)}
+            </Text>
+          </VStack>
+          <IconButton
+            aria-label={isExpanded ? "Collapse" : "Expand"}
+            icon={isExpanded ? <FiChevronUp /> : <FiChevronDown />}
+            size="sm"
+            variant="ghost"
+          />
+        </HStack>
+
+        <Collapse in={isExpanded}>
+          <Box mt={4} overflowX="auto">
+            {account.holdings.length === 0 ? (
+              <VStack spacing={2} py={4} align="center">
+                <Text fontSize="sm" color="text.secondary">
+                  Holdings details not available for this account.
+                </Text>
+                <Text fontSize="xs" color="text.muted">
+                  Account balance: {formatCurrency(account.account_value)}
+                </Text>
+                <Text fontSize="xs" color="text.muted">
+                  Sync holdings data from your provider to see detailed
+                  breakdown.
+                </Text>
+              </VStack>
+            ) : (
+              <Table variant="simple" size="sm">
+                <Thead>
+                  <Tr>
+                    <Th>Ticker</Th>
+                    <Th>Name</Th>
+                    <Th isNumeric>Shares</Th>
+                    <Th isNumeric>Price</Th>
+                    <Th isNumeric>Value</Th>
+                    <Th isNumeric>Cost Basis</Th>
+                    <Th>Type</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {account.holdings.map((holding) => (
+                    <Tr key={holding.id}>
+                      <Td>
+                        <Text fontWeight="bold">{holding.ticker}</Text>
+                      </Td>
+                      <Td>
+                        <Text fontSize="sm" color="text.secondary">
+                          {holding.name || "-"}
+                        </Text>
+                      </Td>
+                      <Td isNumeric>{formatShares(holding.shares)}</Td>
+                      <Td isNumeric>
+                        {holding.current_price_per_share
+                          ? formatCurrency(holding.current_price_per_share)
+                          : "N/A"}
+                      </Td>
+                      <Td isNumeric>
+                        <Text fontWeight="semibold">
+                          {formatCurrency(holding.current_total_value)}
+                        </Text>
+                      </Td>
+                      <Td isNumeric>
+                        {formatCurrency(holding.total_cost_basis)}
+                      </Td>
+                      <Td>
+                        {holding.asset_type && (
+                          <Badge colorScheme="blue" size="sm">
+                            {holding.asset_type}
+                          </Badge>
+                        )}
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            )}
+          </Box>
+        </Collapse>
+      </CardBody>
+    </Card>
+  ),
+);
+AccountHoldingsCard.displayName = "AccountHoldingsCard";
 
 export const InvestmentsPage = () => {
   // Use global user view context + multi-member filter
@@ -1313,96 +1509,15 @@ export const InvestmentsPage = () => {
                             </Tr>
                           </Thead>
                           <Tbody>
-                            {holdingsWithFees.map((h) => {
-                              const er = h.expense_ratio ?? 0;
-                              const annualFee = h.annual_fee ?? 0;
-                              const drag = annualFee * FEE_DRAG_MULTIPLIER;
-                              const isHigh = er > HIGH_FEE_THRESHOLD;
-                              const isLow = er <= VANGUARD_BENCHMARK * 2;
-                              // Progress bar: 0% at 0 ER, 100% at 1%+ ER
-                              const progressVal = Math.min(er / 0.01, 1) * 100;
-                              return (
-                                <Tr key={h.ticker}>
-                                  <Td>
-                                    <VStack align="flex-start" spacing={0}>
-                                      <Text fontWeight="medium" fontSize="sm">
-                                        {h.ticker}
-                                      </Text>
-                                      {h.name && (
-                                        <Text
-                                          fontSize="xs"
-                                          color="text.muted"
-                                          noOfLines={1}
-                                        >
-                                          {h.name}
-                                        </Text>
-                                      )}
-                                    </VStack>
-                                  </Td>
-                                  <Td isNumeric fontSize="sm">
-                                    {new Intl.NumberFormat("en-US", {
-                                      style: "currency",
-                                      currency: "USD",
-                                      maximumFractionDigits: 0,
-                                    }).format(h.current_total_value ?? 0)}
-                                  </Td>
-                                  <Td isNumeric>
-                                    <VStack align="flex-end" spacing={1}>
-                                      <Text fontSize="sm">
-                                        {(er * 100).toFixed(3)}%
-                                      </Text>
-                                      <Progress
-                                        value={progressVal}
-                                        size="xs"
-                                        width="60px"
-                                        colorScheme={
-                                          isHigh
-                                            ? "red"
-                                            : isLow
-                                              ? "green"
-                                              : "yellow"
-                                        }
-                                      />
-                                    </VStack>
-                                  </Td>
-                                  <Td
-                                    isNumeric
-                                    fontSize="sm"
-                                    color="orange.600"
-                                  >
-                                    {new Intl.NumberFormat("en-US", {
-                                      style: "currency",
-                                      currency: "USD",
-                                    }).format(annualFee)}
-                                  </Td>
-                                  <Td isNumeric fontSize="sm" color="red.500">
-                                    {new Intl.NumberFormat("en-US", {
-                                      style: "currency",
-                                      currency: "USD",
-                                      maximumFractionDigits: 0,
-                                    }).format(drag)}
-                                  </Td>
-                                  <Td>
-                                    <Badge
-                                      colorScheme={
-                                        isHigh
-                                          ? "red"
-                                          : isLow
-                                            ? "green"
-                                            : "yellow"
-                                      }
-                                      fontSize="xs"
-                                    >
-                                      {isHigh
-                                        ? "High"
-                                        : isLow
-                                          ? "Low"
-                                          : "Moderate"}
-                                    </Badge>
-                                  </Td>
-                                </Tr>
-                              );
-                            })}
+                            {holdingsWithFees.map((h) => (
+                              <HoldingFeeRow
+                                key={h.ticker}
+                                h={h}
+                                highFeeThreshold={HIGH_FEE_THRESHOLD}
+                                vanguardBenchmark={VANGUARD_BENCHMARK}
+                                feeDragMultiplier={FEE_DRAG_MULTIPLIER}
+                              />
+                            ))}
                           </Tbody>
                         </Table>
                       </Box>
@@ -1468,138 +1583,22 @@ export const InvestmentsPage = () => {
             </HStack>
             <Collapse in={expandedSections.includes("holdings")}>
               <VStack spacing={4} align="stretch">
-                {portfolio.holdings_by_account.map((account) => {
-                  const isExpanded = expandedAccounts.includes(
-                    account.account_id,
-                  );
-
-                  return (
-                    <Card key={account.account_id} variant="outline">
-                      <CardBody>
-                        <HStack
-                          justify="space-between"
-                          cursor="pointer"
-                          onClick={() => {
-                            setExpandedAccounts((prev) =>
-                              prev.includes(account.account_id)
-                                ? prev.filter((id) => id !== account.account_id)
-                                : [...prev, account.account_id],
-                            );
-                          }}
-                        >
-                          <VStack align="flex-start" spacing={0}>
-                            <HStack>
-                              <Heading size="sm">
-                                {account.account_name}
-                              </Heading>
-                              <Badge colorScheme="purple" size="sm">
-                                {account.account_type}
-                              </Badge>
-                            </HStack>
-                            <Text
-                              fontSize="lg"
-                              fontWeight="bold"
-                              color="brand.accent"
-                            >
-                              {formatCurrency(account.account_value)}
-                            </Text>
-                          </VStack>
-                          <IconButton
-                            aria-label={isExpanded ? "Collapse" : "Expand"}
-                            icon={
-                              isExpanded ? <FiChevronUp /> : <FiChevronDown />
-                            }
-                            size="sm"
-                            variant="ghost"
-                          />
-                        </HStack>
-
-                        <Collapse in={isExpanded}>
-                          <Box mt={4} overflowX="auto">
-                            {account.holdings.length === 0 ? (
-                              <VStack spacing={2} py={4} align="center">
-                                <Text fontSize="sm" color="text.secondary">
-                                  Holdings details not available for this
-                                  account.
-                                </Text>
-                                <Text fontSize="xs" color="text.muted">
-                                  Account balance:{" "}
-                                  {formatCurrency(account.account_value)}
-                                </Text>
-                                <Text fontSize="xs" color="text.muted">
-                                  Sync holdings data from your provider to see
-                                  detailed breakdown.
-                                </Text>
-                              </VStack>
-                            ) : (
-                              <Table variant="simple" size="sm">
-                                <Thead>
-                                  <Tr>
-                                    <Th>Ticker</Th>
-                                    <Th>Name</Th>
-                                    <Th isNumeric>Shares</Th>
-                                    <Th isNumeric>Price</Th>
-                                    <Th isNumeric>Value</Th>
-                                    <Th isNumeric>Cost Basis</Th>
-                                    <Th>Type</Th>
-                                  </Tr>
-                                </Thead>
-                                <Tbody>
-                                  {account.holdings.map((holding) => (
-                                    <Tr key={holding.id}>
-                                      <Td>
-                                        <Text fontWeight="bold">
-                                          {holding.ticker}
-                                        </Text>
-                                      </Td>
-                                      <Td>
-                                        <Text
-                                          fontSize="sm"
-                                          color="text.secondary"
-                                        >
-                                          {holding.name || "-"}
-                                        </Text>
-                                      </Td>
-                                      <Td isNumeric>
-                                        {formatShares(holding.shares)}
-                                      </Td>
-                                      <Td isNumeric>
-                                        {holding.current_price_per_share
-                                          ? formatCurrency(
-                                              holding.current_price_per_share,
-                                            )
-                                          : "N/A"}
-                                      </Td>
-                                      <Td isNumeric>
-                                        <Text fontWeight="semibold">
-                                          {formatCurrency(
-                                            holding.current_total_value,
-                                          )}
-                                        </Text>
-                                      </Td>
-                                      <Td isNumeric>
-                                        {formatCurrency(
-                                          holding.total_cost_basis,
-                                        )}
-                                      </Td>
-                                      <Td>
-                                        {holding.asset_type && (
-                                          <Badge colorScheme="blue" size="sm">
-                                            {holding.asset_type}
-                                          </Badge>
-                                        )}
-                                      </Td>
-                                    </Tr>
-                                  ))}
-                                </Tbody>
-                              </Table>
-                            )}
-                          </Box>
-                        </Collapse>
-                      </CardBody>
-                    </Card>
-                  );
-                })}
+                {portfolio.holdings_by_account.map((account) => (
+                  <AccountHoldingsCard
+                    key={account.account_id}
+                    account={account}
+                    isExpanded={expandedAccounts.includes(account.account_id)}
+                    onToggleExpand={(accountId) => {
+                      setExpandedAccounts((prev) =>
+                        prev.includes(accountId)
+                          ? prev.filter((id) => id !== accountId)
+                          : [...prev, accountId],
+                      );
+                    }}
+                    formatCurrency={formatCurrency}
+                    formatShares={formatShares}
+                  />
+                ))}
               </VStack>
             </Collapse>
           </CardBody>

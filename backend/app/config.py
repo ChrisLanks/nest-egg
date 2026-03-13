@@ -31,9 +31,10 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     MASTER_ENCRYPTION_KEY: str  # Current key — used for all new writes
     # Key rotation: when rotating, move MASTER_ENCRYPTION_KEY → ENCRYPTION_KEY_V1 and set new key.
-    # Old rows encrypted with V1 continue to decrypt; new writes use the new key + incremented version.
+    # Old rows encrypted with V1 continue to decrypt;
+    # new writes use the new key + incremented version.
     ENCRYPTION_KEY_V1: Optional[str] = None  # Previous key — decryption only
-    ENCRYPTION_CURRENT_VERSION: int = 1      # Version prefix for new writes (increment on rotation)
+    ENCRYPTION_CURRENT_VERSION: int = 1  # Version prefix for new writes (increment on rotation)
 
     # Plaid API
     PLAID_CLIENT_ID: str = ""
@@ -48,7 +49,9 @@ class Settings(BaseSettings):
     TELLER_ENV: str = "sandbox"  # sandbox, production
     TELLER_WEBHOOK_SECRET: str = ""
     TELLER_ENABLED: bool = True
-    TELLER_CERT_PATH: str = ""  # Path to Teller-issued mTLS certificate (.pem) - required for API calls
+    TELLER_CERT_PATH: str = (
+        ""  # Path to Teller-issued mTLS certificate (.pem) - required for API calls
+    )
 
     # MX Platform API (enterprise — requires sales contract for production)
     # Sandbox: https://int-api.mx.com, Production: https://api.mx.com
@@ -151,9 +154,9 @@ class Settings(BaseSettings):
     # Prometheus Metrics
     METRICS_ENABLED: bool = True
     METRICS_INCLUDE_IN_SCHEMA: bool = False  # Hide from Swagger docs
-    METRICS_ADMIN_PORT: int = 9090           # Separate port for /metrics endpoint
-    METRICS_USERNAME: str = "admin"           # Basic auth username — override in prod
-    METRICS_PASSWORD: str = "metrics_admin"   # Basic auth password — CHANGE IN PROD
+    METRICS_ADMIN_PORT: int = 9090  # Separate port for /metrics endpoint
+    METRICS_USERNAME: str = "admin"  # Basic auth username — override in prod
+    METRICS_PASSWORD: str = "metrics_admin"  # Basic auth password — CHANGE IN PROD
 
     # Compliance
     TERMS_VERSION: str = "2026-02"  # Bump when Terms of Service or Privacy Policy changes
@@ -173,26 +176,26 @@ class Settings(BaseSettings):
     IDENTITY_PROVIDER_CHAIN: list[str] = ["builtin"]
 
     # --- AWS Cognito (add 'cognito' to IDENTITY_PROVIDER_CHAIN to enable) ---
-    IDP_COGNITO_ISSUER: Optional[str] = None      # https://cognito-idp.{region}.amazonaws.com/{pool-id}
+    IDP_COGNITO_ISSUER: Optional[str] = None  # https://cognito-idp.{region}.amazonaws.com/{pool-id}
     IDP_COGNITO_CLIENT_ID: Optional[str] = None
     IDP_COGNITO_ADMIN_GROUP: str = "nest-egg-admins"
 
     # --- Keycloak (add 'keycloak' to IDENTITY_PROVIDER_CHAIN to enable) ---
-    IDP_KEYCLOAK_ISSUER: Optional[str] = None     # https://keycloak.example.com/realms/{realm}
+    IDP_KEYCLOAK_ISSUER: Optional[str] = None  # https://keycloak.example.com/realms/{realm}
     IDP_KEYCLOAK_CLIENT_ID: Optional[str] = None
     IDP_KEYCLOAK_ADMIN_GROUP: str = "nest-egg-admins"
     IDP_KEYCLOAK_GROUPS_CLAIM: str = "groups"
 
     # --- Okta (add 'okta' to IDENTITY_PROVIDER_CHAIN to enable) ---
-    IDP_OKTA_ISSUER: Optional[str] = None         # https://company.okta.com/oauth2/default
+    IDP_OKTA_ISSUER: Optional[str] = None  # https://company.okta.com/oauth2/default
     IDP_OKTA_CLIENT_ID: Optional[str] = None
     IDP_OKTA_GROUPS_CLAIM: str = "groups"
 
     # --- Google (add 'google' to IDENTITY_PROVIDER_CHAIN to enable) ---
-    IDP_GOOGLE_CLIENT_ID: Optional[str] = None    # Google OAuth2 client ID (validates aud claim)
+    IDP_GOOGLE_CLIENT_ID: Optional[str] = None  # Google OAuth2 client ID (validates aud claim)
 
     # Storage (CSV uploads, attachments)
-    STORAGE_BACKEND: str = "local"           # "local" or "s3"
+    STORAGE_BACKEND: str = "local"  # "local" or "s3"
     LOCAL_UPLOAD_DIR: str = "/tmp/nestegg-uploads"  # nosec B108 — override via env var in production
     AWS_S3_BUCKET: Optional[str] = None
     AWS_REGION: str = "us-east-1"
@@ -208,6 +211,7 @@ class Settings(BaseSettings):
         """Allow comma-separated strings in env vars (e.g. 'http://a.com,http://b.com')."""
         if isinstance(v, str):
             import json
+
             try:
                 return json.loads(v)
             except (json.JSONDecodeError, ValueError):
@@ -266,6 +270,24 @@ class Settings(BaseSettings):
                 "ALLOWED_HOSTS=['*'] is insecure in production! "
                 "Set specific domains like ['app.nestegg.com', 'api.nestegg.com']"
             )
+
+        return v
+
+    @field_validator("CORS_ORIGINS")
+    @classmethod
+    def validate_cors_origins(cls, v: list[str]) -> list[str]:
+        """Reject localhost CORS origins in production."""
+        import os
+
+        environment = os.getenv("ENVIRONMENT", "development")
+
+        if environment == "production":
+            localhost_origins = [o for o in v if "localhost" in o or "127.0.0.1" in o]
+            if localhost_origins:
+                raise ValueError(
+                    f"CORS_ORIGINS contains localhost entries in production: {localhost_origins}. "
+                    "Set to your public domain(s), e.g. ['https://app.nestegg.com']"
+                )
 
         return v
 

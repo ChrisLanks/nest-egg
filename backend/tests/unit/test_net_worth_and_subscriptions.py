@@ -386,3 +386,139 @@ class TestYearOverYearComparison:
         item = result[0]
         assert item["previous_amount"] is None
         assert item["amount_change_pct"] is None
+
+
+# ---------------------------------------------------------------------------
+# NetWorthService — Redis caching for get_history
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestNetWorthServiceCaching:
+    """Verify cache hit/miss behaviour in NetWorthService.get_history."""
+
+    @pytest.mark.asyncio
+    async def test_get_history_cache_miss_computes_and_caches(self):
+        """On cache miss, get_history should query DB and call cache_setex."""
+        from app.services.net_worth_service import NetWorthService
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        # DB returns an empty result set (no snapshots)
+        db_result = MagicMock()
+        db_result.scalars.return_value.all.return_value = []
+        db.execute.return_value = db_result
+
+        with (
+            patch(
+                "app.services.net_worth_service.cache_get",
+                new_callable=AsyncMock,
+                return_value=None,
+            ) as mock_cache_get,
+            patch(
+                "app.services.net_worth_service.cache_setex",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_cache_setex,
+        ):
+            svc = NetWorthService()
+            result = await svc.get_history(db, org_id)
+
+        # cache_get was called once
+        mock_cache_get.assert_called_once()
+        # cache_setex was called with key, ttl=300, and the computed data
+        mock_cache_setex.assert_called_once()
+        args = mock_cache_setex.call_args
+        assert args[0][1] == 300  # TTL
+        assert args[0][2] == []  # empty result list
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_get_history_cache_hit_skips_db(self):
+        """On cache hit, get_history should return cached data without querying DB."""
+        from app.services.net_worth_service import NetWorthService
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        cached_data = [
+            {
+                "date": "2026-01-01",
+                "total_net_worth": 100000.0,
+                "total_assets": 150000.0,
+                "total_liabilities": 50000.0,
+            }
+        ]
+
+        with patch(
+            "app.services.net_worth_service.cache_get",
+            new_callable=AsyncMock,
+            return_value=cached_data,
+        ) as mock_cache_get:
+            svc = NetWorthService()
+            result = await svc.get_history(db, org_id)
+
+        mock_cache_get.assert_called_once()
+        # DB should NOT have been queried
+        db.execute.assert_not_called()
+        assert result == cached_data
+
+    @pytest.mark.asyncio
+    async def test_get_current_breakdown_cache_miss(self):
+        """On cache miss, get_current_breakdown should query DB and cache result."""
+        from app.services.net_worth_service import NetWorthService
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        db_result = MagicMock()
+        db_result.scalars.return_value.all.return_value = []
+        db.execute.return_value = db_result
+
+        with (
+            patch(
+                "app.services.net_worth_service.cache_get",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.services.net_worth_service.cache_setex",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_cache_setex,
+        ):
+            svc = NetWorthService()
+            result = await svc.get_current_breakdown(db, org_id)
+
+        mock_cache_setex.assert_called_once()
+        assert result["total_net_worth"] == 0.0
+        assert result["total_assets"] == 0.0
+        assert result["total_liabilities"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_get_current_breakdown_cache_hit(self):
+        """On cache hit, get_current_breakdown should return cached data without DB query."""
+        from app.services.net_worth_service import NetWorthService
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        cached_data = {
+            "total_net_worth": 200000.0,
+            "total_assets": 250000.0,
+            "total_liabilities": 50000.0,
+            "categories": {},
+            "accounts": [],
+        }
+
+        with patch(
+            "app.services.net_worth_service.cache_get",
+            new_callable=AsyncMock,
+            return_value=cached_data,
+        ):
+            svc = NetWorthService()
+            result = await svc.get_current_breakdown(db, org_id)
+
+        db.execute.assert_not_called()
+        assert result == cached_data

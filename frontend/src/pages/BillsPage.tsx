@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   Alert,
   AlertDescription,
@@ -53,17 +53,32 @@ import {
   useColorModeValue,
   useToast,
   VStack,
-} from '@chakra-ui/react';
-import { AddIcon, BellIcon, CalendarIcon } from '@chakra-ui/icons';
-import { FiChevronLeft, FiChevronRight, FiRefreshCw, FiArchive, FiRotateCcw, FiUser, FiZap, FiTag } from 'react-icons/fi';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
-import { recurringTransactionsApi, type CalendarEntry } from '../api/recurring-transactions';
-import type { RecurringTransaction, UpcomingBill } from '../types/recurring-transaction';
-import { labelsApi } from '../api/labels';
-import type { Label } from '../types/transaction';
-import api from '../services/api';
-import { useUserView } from '../contexts/UserViewContext';
+} from "@chakra-ui/react";
+import { AddIcon, BellIcon, CalendarIcon } from "@chakra-ui/icons";
+import {
+  FiChevronLeft,
+  FiChevronRight,
+  FiRefreshCw,
+  FiArchive,
+  FiRotateCcw,
+  FiUser,
+  FiZap,
+  FiTag,
+} from "react-icons/fi";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
+import {
+  recurringTransactionsApi,
+  type CalendarEntry,
+} from "../api/recurring-transactions";
+import type {
+  RecurringTransaction,
+  UpcomingBill,
+} from "../types/recurring-transaction";
+import { labelsApi } from "../api/labels";
+import type { Label } from "../types/transaction";
+import api from "../services/api";
+import { useUserView } from "../contexts/UserViewContext";
 
 interface Account {
   id: string;
@@ -72,21 +87,79 @@ interface Account {
 
 // ─── Calendar helpers ─────────────────────────────────────────────────────────
 
-const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const formatCurrencyShort = (amount: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
 
 const amountColor = (amount: number) => {
-  if (amount < 50) return 'gray';
-  if (amount < 200) return 'yellow';
-  return 'red';
+  if (amount < 50) return "gray";
+  if (amount < 200) return "yellow";
+  return "red";
 };
+
+const getDueDateColor = (daysUntilDue: number, isOverdue: boolean) => {
+  if (isOverdue) return "red";
+  if (daysUntilDue <= 3) return "orange";
+  if (daysUntilDue <= 7) return "yellow";
+  return "green";
+};
+
+// ─── Memoized bill card for .map() rendering ─────────────────────────────────
+
+interface UpcomingBillCardProps {
+  bill: UpcomingBill;
+  formatDate: (dateStr: string) => string;
+  formatCurrency: (amount: number) => string;
+}
+
+const UpcomingBillCard = React.memo(
+  ({ bill, formatDate, formatCurrency }: UpcomingBillCardProps) => (
+    <Card variant="outline">
+      <CardBody>
+        <HStack justify="space-between">
+          <VStack align="start" spacing={1}>
+            <Text fontWeight="bold" fontSize="lg">
+              {bill.merchant_name}
+            </Text>
+            <HStack>
+              <Icon as={CalendarIcon} color="text.muted" />
+              <Text fontSize="sm" color="text.secondary">
+                Due: {formatDate(bill.next_expected_date)}
+              </Text>
+            </HStack>
+          </VStack>
+          <HStack spacing={4}>
+            <VStack align="end" spacing={0}>
+              <Text fontWeight="bold" fontSize="xl">
+                {formatCurrency(bill.average_amount)}
+              </Text>
+              <Badge
+                colorScheme={getDueDateColor(
+                  bill.days_until_due,
+                  bill.is_overdue,
+                )}
+                fontSize="sm"
+              >
+                {bill.is_overdue
+                  ? `${Math.abs(bill.days_until_due)} days overdue`
+                  : bill.days_until_due === 0
+                    ? "Due today"
+                    : `${bill.days_until_due} days`}
+              </Badge>
+            </VStack>
+          </HStack>
+        </HStack>
+      </CardBody>
+    </Card>
+  ),
+);
+UpcomingBillCard.displayName = "UpcomingBillCard";
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
@@ -94,19 +167,23 @@ const BillsPage: React.FC = () => {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { canWriteResource } = useUserView();
-  const canEdit = canWriteResource('recurring_transaction');
+  const canEdit = canWriteResource("recurring_transaction");
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const [selectedRecurring, setSelectedRecurring] = useState<RecurringTransaction | null>(null);
+  const [selectedRecurring, setSelectedRecurring] =
+    useState<RecurringTransaction | null>(null);
 
   // Outer tab: bills list vs calendar — persisted in URL
   const [searchParams, setSearchParams] = useSearchParams();
-  const outerTabIndex = searchParams.get('tab') === 'calendar' ? 1 : 0;
+  const outerTabIndex = searchParams.get("tab") === "calendar" ? 1 : 0;
   const handleOuterTabChange = (index: number) => {
-    setSearchParams(index === 1 ? { tab: 'calendar' } : {});
+    setSearchParams(index === 1 ? { tab: "calendar" } : {});
   };
 
   // Inner tab: active vs archive — local state only
   const [innerTabIndex, setInnerTabIndex] = useState(0);
+
+  // Hoisted color mode value (cannot call hooks inside callbacks)
+  const todayTextColor = useColorModeValue("blue.600", "blue.300");
 
   // Calendar state
   const today = new Date();
@@ -115,41 +192,46 @@ const BillsPage: React.FC = () => {
 
   // ── Queries ──────────────────────────────────────────────────────────────────
 
-  const { data: upcomingBills, isLoading: billsLoading } = useQuery<UpcomingBill[]>({
-    queryKey: ['upcoming-bills'],
+  const { data: upcomingBills, isLoading: billsLoading } = useQuery<
+    UpcomingBill[]
+  >({
+    queryKey: ["upcoming-bills"],
     queryFn: () => recurringTransactionsApi.getUpcomingBills(30),
   });
 
-  const { data: recurringTransactions = [], isLoading: recurringLoading } = useQuery<RecurringTransaction[]>({
-    queryKey: ['recurring-transactions'],
-    queryFn: () => recurringTransactionsApi.getAll(),
-  });
+  const { data: recurringTransactions = [], isLoading: recurringLoading } =
+    useQuery<RecurringTransaction[]>({
+      queryKey: ["recurring-transactions"],
+      queryFn: () => recurringTransactionsApi.getAll(),
+    });
 
   const { data: accounts } = useQuery<Account[]>({
-    queryKey: ['accounts'],
+    queryKey: ["accounts"],
     queryFn: async () => {
-      const response = await api.get('/accounts/');
+      const response = await api.get("/accounts/");
       return response.data;
     },
   });
 
-  const { data: calendarEntries = [], isLoading: calendarLoading } = useQuery<CalendarEntry[]>({
-    queryKey: ['bill-calendar'],
+  const { data: calendarEntries = [], isLoading: calendarLoading } = useQuery<
+    CalendarEntry[]
+  >({
+    queryKey: ["bill-calendar"],
     queryFn: () => recurringTransactionsApi.getCalendar(365),
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: labels = [] } = useQuery<Label[]>({
-    queryKey: ['labels'],
+    queryKey: ["labels"],
     queryFn: () => labelsApi.getAll(),
     staleTime: 60 * 1000,
   });
 
   // Fetch all unique merchant names once — filtered client-side in the modal
   const { data: merchantData } = useQuery<{ merchants: string[] }>({
-    queryKey: ['transaction-merchants'],
+    queryKey: ["transaction-merchants"],
     queryFn: async () => {
-      const response = await api.get('/transactions/merchants');
+      const response = await api.get("/transactions/merchants");
       return response.data;
     },
     staleTime: 5 * 60 * 1000,
@@ -158,17 +240,17 @@ const BillsPage: React.FC = () => {
 
   const labelMap = useMemo(
     () => new Map(labels.map((l) => [l.id, l])),
-    [labels]
+    [labels],
   );
 
   // Partition active vs archived
   const activeRecurring = useMemo(
     () => recurringTransactions.filter((r) => !r.is_archived),
-    [recurringTransactions]
+    [recurringTransactions],
   );
   const archivedRecurring = useMemo(
     () => recurringTransactions.filter((r) => r.is_archived),
-    [recurringTransactions]
+    [recurringTransactions],
   );
 
   // ── Auto-detect mutation ──────────────────────────────────────────────────────
@@ -176,18 +258,22 @@ const BillsPage: React.FC = () => {
   const detectMutation = useMutation({
     mutationFn: () => recurringTransactionsApi.detectPatterns(),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['recurring-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['upcoming-bills'] });
-      queryClient.invalidateQueries({ queryKey: ['bill-calendar'] });
+      queryClient.invalidateQueries({ queryKey: ["recurring-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["upcoming-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["bill-calendar"] });
       toast({
-        title: 'Auto-detection complete',
-        description: `Found ${data.detected_patterns} pattern${data.detected_patterns !== 1 ? 's' : ''}`,
-        status: 'success',
+        title: "Auto-detection complete",
+        description: `Found ${data.detected_patterns} pattern${data.detected_patterns !== 1 ? "s" : ""}`,
+        status: "success",
         duration: 4000,
       });
     },
     onError: () => {
-      toast({ title: 'Auto-detection failed', status: 'error', duration: 3000 });
+      toast({
+        title: "Auto-detection failed",
+        status: "error",
+        duration: 3000,
+      });
     },
   });
 
@@ -197,17 +283,17 @@ const BillsPage: React.FC = () => {
     mutationFn: async (data: { id: string; updates: any }) =>
       recurringTransactionsApi.update(data.id, data.updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recurring-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['upcoming-bills'] });
-      queryClient.invalidateQueries({ queryKey: ['bill-calendar'] });
-      toast({ title: 'Bill updated', status: 'success', duration: 3000 });
+      queryClient.invalidateQueries({ queryKey: ["recurring-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["upcoming-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["bill-calendar"] });
+      toast({ title: "Bill updated", status: "success", duration: 3000 });
       onClose();
     },
     onError: (error: any) => {
       toast({
-        title: 'Error updating bill',
-        description: error.response?.data?.detail || 'Failed to update bill',
-        status: 'error',
+        title: "Error updating bill",
+        description: error.response?.data?.detail || "Failed to update bill",
+        status: "error",
         duration: 5000,
       });
     },
@@ -216,19 +302,20 @@ const BillsPage: React.FC = () => {
   const createRecurringMutation = useMutation({
     mutationFn: async (data: any) => recurringTransactionsApi.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recurring-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['upcoming-bills'] });
-      queryClient.invalidateQueries({ queryKey: ['bill-calendar'] });
-      toast({ title: 'Bill created', status: 'success', duration: 3000 });
+      queryClient.invalidateQueries({ queryKey: ["recurring-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["upcoming-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["bill-calendar"] });
+      toast({ title: "Bill created", status: "success", duration: 3000 });
       onClose();
     },
     onError: (error: any) => {
       const detail = error.response?.data?.detail;
-      const description = typeof detail === 'string' ? detail : 'Failed to create bill';
+      const description =
+        typeof detail === "string" ? detail : "Failed to create bill";
       toast({
-        title: 'Error creating bill',
+        title: "Error creating bill",
         description,
-        status: 'error',
+        status: "error",
         duration: 5000,
       });
     },
@@ -238,17 +325,21 @@ const BillsPage: React.FC = () => {
     mutationFn: ({ id, retroactive }: { id: string; retroactive: boolean }) =>
       recurringTransactionsApi.applyLabel(id, retroactive),
     onSuccess: (data, _variables) => {
-      queryClient.invalidateQueries({ queryKey: ['recurring-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['labels'] });
+      queryClient.invalidateQueries({ queryKey: ["recurring-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["labels"] });
       toast({
-        title: 'Label applied',
-        description: `Tagged ${data.applied_count} transaction${data.applied_count !== 1 ? 's' : ''} as "Recurring Bill"`,
-        status: 'success',
+        title: "Label applied",
+        description: `Tagged ${data.applied_count} transaction${data.applied_count !== 1 ? "s" : ""} as "Recurring Bill"`,
+        status: "success",
         duration: 4000,
       });
     },
     onError: () => {
-      toast({ title: 'Failed to apply label', status: 'error', duration: 3000 });
+      toast({
+        title: "Failed to apply label",
+        status: "error",
+        duration: 3000,
+      });
     },
   });
 
@@ -268,11 +359,18 @@ const BillsPage: React.FC = () => {
     // Sanitize numeric fields — NumberInput returns NaN when empty
     const sanitized = {
       ...formData,
-      average_amount: isNaN(formData.average_amount) ? 0 : formData.average_amount,
-      amount_variance: isNaN(formData.amount_variance) ? 0 : formData.amount_variance,
+      average_amount: isNaN(formData.average_amount)
+        ? 0
+        : formData.average_amount,
+      amount_variance: isNaN(formData.amount_variance)
+        ? 0
+        : formData.amount_variance,
     };
     if (selectedRecurring) {
-      updateRecurringMutation.mutate({ id: selectedRecurring.id, updates: sanitized });
+      updateRecurringMutation.mutate({
+        id: selectedRecurring.id,
+        updates: sanitized,
+      });
     } else {
       createRecurringMutation.mutate(sanitized, {
         onSuccess: (created) => {
@@ -295,32 +393,32 @@ const BillsPage: React.FC = () => {
   // ── Formatters ────────────────────────────────────────────────────────────────
 
   const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount);
 
   const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+    new Date(dateString).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
-
-  const getDueDateColor = (daysUntilDue: number, isOverdue: boolean) => {
-    if (isOverdue) return 'red';
-    if (daysUntilDue <= 3) return 'orange';
-    if (daysUntilDue <= 7) return 'yellow';
-    return 'green';
-  };
 
   // ── Calendar helpers ──────────────────────────────────────────────────────────
 
   const prevMonth = () => {
-    if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
-    else setCalMonth(m => m - 1);
+    if (calMonth === 0) {
+      setCalMonth(11);
+      setCalYear((y) => y - 1);
+    } else setCalMonth((m) => m - 1);
   };
 
   const nextMonth = () => {
-    if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
-    else setCalMonth(m => m + 1);
+    if (calMonth === 11) {
+      setCalMonth(0);
+      setCalYear((y) => y + 1);
+    } else setCalMonth((m) => m + 1);
   };
 
   const byDate = useMemo(() => {
@@ -343,15 +441,15 @@ const BillsPage: React.FC = () => {
   const monthTotal = useMemo(() => {
     let total = 0;
     for (let d = 1; d <= daysInMonth; d++) {
-      const key = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const key = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       for (const entry of byDate.get(key) ?? []) total += entry.amount;
     }
     return total;
   }, [byDate, calYear, calMonth, daysInMonth]);
 
-  const monthName = new Date(calYear, calMonth, 1).toLocaleString('en-US', {
-    month: 'long',
-    year: 'numeric',
+  const monthName = new Date(calYear, calMonth, 1).toLocaleString("en-US", {
+    month: "long",
+    year: "numeric",
   });
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -359,7 +457,9 @@ const BillsPage: React.FC = () => {
   if (billsLoading || recurringLoading) {
     return (
       <Container maxW="container.xl" py={8}>
-        <Center><Spinner /></Center>
+        <Center>
+          <Spinner />
+        </Center>
       </Container>
     );
   }
@@ -369,7 +469,12 @@ const BillsPage: React.FC = () => {
       <VStack spacing={6} align="stretch">
         <HStack justify="space-between">
           <Heading size="lg">Bills</Heading>
-          <Button leftIcon={<AddIcon />} colorScheme="blue" isDisabled={!canEdit} onClick={handleCreateNew}>
+          <Button
+            leftIcon={<AddIcon />}
+            colorScheme="blue"
+            isDisabled={!canEdit}
+            onClick={handleCreateNew}
+          >
             Add Bill
           </Button>
         </HStack>
@@ -394,40 +499,12 @@ const BillsPage: React.FC = () => {
                   {upcomingBills && upcomingBills.length > 0 ? (
                     <VStack spacing={3} align="stretch">
                       {upcomingBills.map((bill) => (
-                        <Card key={bill.recurring_transaction_id} variant="outline">
-                          <CardBody>
-                            <HStack justify="space-between">
-                              <VStack align="start" spacing={1}>
-                                <Text fontWeight="bold" fontSize="lg">
-                                  {bill.merchant_name}
-                                </Text>
-                                <HStack>
-                                  <Icon as={CalendarIcon} color="text.muted" />
-                                  <Text fontSize="sm" color="text.secondary">
-                                    Due: {formatDate(bill.next_expected_date)}
-                                  </Text>
-                                </HStack>
-                              </VStack>
-                              <HStack spacing={4}>
-                                <VStack align="end" spacing={0}>
-                                  <Text fontWeight="bold" fontSize="xl">
-                                    {formatCurrency(bill.average_amount)}
-                                  </Text>
-                                  <Badge
-                                    colorScheme={getDueDateColor(bill.days_until_due, bill.is_overdue)}
-                                    fontSize="sm"
-                                  >
-                                    {bill.is_overdue
-                                      ? `${Math.abs(bill.days_until_due)} days overdue`
-                                      : bill.days_until_due === 0
-                                      ? 'Due today'
-                                      : `${bill.days_until_due} days`}
-                                  </Badge>
-                                </VStack>
-                              </HStack>
-                            </HStack>
-                          </CardBody>
-                        </Card>
+                        <UpcomingBillCard
+                          key={bill.recurring_transaction_id}
+                          bill={bill}
+                          formatDate={formatDate}
+                          formatCurrency={formatCurrency}
+                        />
                       ))}
                     </VStack>
                   ) : (
@@ -435,7 +512,8 @@ const BillsPage: React.FC = () => {
                       <AlertIcon />
                       <AlertTitle>No upcoming bills</AlertTitle>
                       <AlertDescription>
-                        No bills due in the next 30 days. Mark a recurring transaction as a bill to track it here.
+                        No bills due in the next 30 days. Mark a recurring
+                        transaction as a bill to track it here.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -461,7 +539,13 @@ const BillsPage: React.FC = () => {
                     </Tooltip>
                   </HStack>
 
-                  <Tabs index={innerTabIndex} onChange={setInnerTabIndex} size="sm" variant="soft-rounded" colorScheme="gray">
+                  <Tabs
+                    index={innerTabIndex}
+                    onChange={setInnerTabIndex}
+                    size="sm"
+                    variant="soft-rounded"
+                    colorScheme="gray"
+                  >
                     <TabList mb={4}>
                       <Tab>
                         Active
@@ -494,7 +578,12 @@ const BillsPage: React.FC = () => {
                                 formatDate={formatDate}
                                 onEdit={handleEditRecurring}
                                 onArchive={handleArchive}
-                                onApplyLabel={(id) => applyLabelMutation.mutate({ id, retroactive: true })}
+                                onApplyLabel={(id) =>
+                                  applyLabelMutation.mutate({
+                                    id,
+                                    retroactive: true,
+                                  })
+                                }
                                 isUpdating={updateRecurringMutation.isPending}
                                 isApplyingLabel={applyLabelMutation.isPending}
                                 labelMap={labelMap}
@@ -507,7 +596,9 @@ const BillsPage: React.FC = () => {
                             <AlertIcon />
                             <AlertTitle>No recurring transactions</AlertTitle>
                             <AlertDescription>
-                              Click <strong>Auto-detect</strong> to find patterns in your transactions, or add one manually.
+                              Click <strong>Auto-detect</strong> to find
+                              patterns in your transactions, or add one
+                              manually.
                             </AlertDescription>
                           </Alert>
                         )}
@@ -534,7 +625,9 @@ const BillsPage: React.FC = () => {
                         ) : (
                           <Alert status="info">
                             <AlertIcon />
-                            <AlertDescription>No archived bills.</AlertDescription>
+                            <AlertDescription>
+                              No archived bills.
+                            </AlertDescription>
                           </Alert>
                         )}
                       </TabPanel>
@@ -547,25 +640,41 @@ const BillsPage: React.FC = () => {
             {/* ── Tab 1: Calendar ── */}
             <TabPanel px={0}>
               {calendarLoading ? (
-                <Center py={12}><Spinner size="xl" /></Center>
+                <Center py={12}>
+                  <Spinner size="xl" />
+                </Center>
               ) : (
                 <VStack align="stretch" spacing={4}>
                   <HStack justify="space-between">
                     <Text color="text.secondary" fontSize="sm">
-                      {monthName} · Total: <strong>{formatCurrencyShort(monthTotal)}</strong>
+                      {monthName} · Total:{" "}
+                      <strong>{formatCurrencyShort(monthTotal)}</strong>
                     </Text>
                     <HStack>
-                      <Button size="sm" variant="outline" onClick={prevMonth} leftIcon={<FiChevronLeft />}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={prevMonth}
+                        leftIcon={<FiChevronLeft />}
+                      >
                         Prev
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => { setCalMonth(today.getMonth()); setCalYear(today.getFullYear()); }}
+                        onClick={() => {
+                          setCalMonth(today.getMonth());
+                          setCalYear(today.getFullYear());
+                        }}
                       >
                         Today
                       </Button>
-                      <Button size="sm" variant="outline" onClick={nextMonth} rightIcon={<FiChevronRight />}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={nextMonth}
+                        rightIcon={<FiChevronRight />}
+                      >
                         Next
                       </Button>
                     </HStack>
@@ -573,9 +682,20 @@ const BillsPage: React.FC = () => {
 
                   <Box borderWidth="1px" borderRadius="lg" overflow="hidden">
                     <Grid templateColumns="repeat(7, 1fr)">
-                      {DAYS_OF_WEEK.map(d => (
-                        <GridItem key={d} bg="bg.subtle" p={2} textAlign="center">
-                          <Text fontSize="xs" fontWeight="bold" color="text.muted">{d}</Text>
+                      {DAYS_OF_WEEK.map((d) => (
+                        <GridItem
+                          key={d}
+                          bg="bg.subtle"
+                          p={2}
+                          textAlign="center"
+                        >
+                          <Text
+                            fontSize="xs"
+                            fontWeight="bold"
+                            color="text.muted"
+                          >
+                            {d}
+                          </Text>
                         </GridItem>
                       ))}
                     </Grid>
@@ -592,7 +712,7 @@ const BillsPage: React.FC = () => {
                             />
                           );
                         }
-                        const key = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        const key = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                         const dayEntries = byDate.get(key) ?? [];
                         const isToday =
                           day === today.getDate() &&
@@ -605,21 +725,26 @@ const BillsPage: React.FC = () => {
                             minH="90px"
                             p={1.5}
                             borderTop="1px solid"
-                            borderLeft={idx % 7 !== 0 ? '1px solid' : undefined}
+                            borderLeft={idx % 7 !== 0 ? "1px solid" : undefined}
                             borderColor="border.subtle"
-                            bg={isToday ? 'bg.info' : 'bg.surface'}
+                            bg={isToday ? "bg.info" : "bg.surface"}
                           >
                             <Text
                               fontSize="sm"
-                              fontWeight={isToday ? 'bold' : 'normal'}
-                              color={isToday ? useColorModeValue('blue.600', 'blue.300') : 'text.heading'}
+                              fontWeight={isToday ? "bold" : "normal"}
+                              color={isToday ? todayTextColor : "text.heading"}
                               mb={1}
                             >
                               {day}
                             </Text>
 
                             {dayEntries.slice(0, 2).map((entry, i) => (
-                              <Popover key={i} trigger="hover" placement="top" isLazy>
+                              <Popover
+                                key={i}
+                                trigger="hover"
+                                placement="top"
+                                isLazy
+                              >
                                 <PopoverTrigger>
                                   <Badge
                                     display="block"
@@ -635,12 +760,19 @@ const BillsPage: React.FC = () => {
                                 <PopoverContent width="200px">
                                   <PopoverArrow />
                                   <PopoverCloseButton />
-                                  <PopoverHeader fontSize="sm" fontWeight="bold">
+                                  <PopoverHeader
+                                    fontSize="sm"
+                                    fontWeight="bold"
+                                  >
                                     {entry.merchant_name}
                                   </PopoverHeader>
                                   <PopoverBody fontSize="sm">
-                                    <Text>{formatCurrencyShort(entry.amount)}</Text>
-                                    <Text color="text.muted" fontSize="xs">{entry.frequency}</Text>
+                                    <Text>
+                                      {formatCurrencyShort(entry.amount)}
+                                    </Text>
+                                    <Text color="text.muted" fontSize="xs">
+                                      {entry.frequency}
+                                    </Text>
                                   </PopoverBody>
                                 </PopoverContent>
                               </Popover>
@@ -649,22 +781,38 @@ const BillsPage: React.FC = () => {
                             {dayEntries.length > 2 && (
                               <Popover trigger="hover" placement="top" isLazy>
                                 <PopoverTrigger>
-                                  <Badge fontSize="2xs" colorScheme="purple" cursor="pointer">
+                                  <Badge
+                                    fontSize="2xs"
+                                    colorScheme="purple"
+                                    cursor="pointer"
+                                  >
                                     +{dayEntries.length - 2} more
                                   </Badge>
                                 </PopoverTrigger>
                                 <PopoverContent width="220px">
                                   <PopoverArrow />
                                   <PopoverCloseButton />
-                                  <PopoverHeader fontSize="sm" fontWeight="bold">
+                                  <PopoverHeader
+                                    fontSize="sm"
+                                    fontWeight="bold"
+                                  >
                                     All bills on {key}
                                   </PopoverHeader>
                                   <PopoverBody>
                                     <VStack align="stretch" spacing={1}>
                                       {dayEntries.map((e, i) => (
-                                        <HStack key={i} justify="space-between" fontSize="sm">
-                                          <Text noOfLines={1}>{e.merchant_name}</Text>
-                                          <Text fontWeight="bold" flexShrink={0}>
+                                        <HStack
+                                          key={i}
+                                          justify="space-between"
+                                          fontSize="sm"
+                                        >
+                                          <Text noOfLines={1}>
+                                            {e.merchant_name}
+                                          </Text>
+                                          <Text
+                                            fontWeight="bold"
+                                            flexShrink={0}
+                                          >
                                             {formatCurrencyShort(e.amount)}
                                           </Text>
                                         </HStack>
@@ -715,175 +863,213 @@ interface RecurringCardProps {
   canEdit?: boolean;
 }
 
-const RecurringCard: React.FC<RecurringCardProps> = ({
-  recurring,
-  formatCurrency,
-  formatDate,
-  onEdit,
-  onArchive,
-  onRestore,
-  onApplyLabel,
-  isUpdating,
-  isApplyingLabel = false,
-  labelMap,
-  isArchiveView = false,
-  canEdit = true,
-}) => {
-  const isManual = recurring.is_user_created;
-  const isNoLongerFound = recurring.is_no_longer_found && !isManual;
-  const attachedLabel = recurring.label_id ? labelMap.get(recurring.label_id) : undefined;
-  const noLongerFoundBg = useColorModeValue('orange.50', 'orange.900');
-  const noLongerFoundBorder = useColorModeValue('orange.200', 'orange.700');
-  const archiveBg = useColorModeValue('gray.50', 'gray.700');
-  const subtitleColor = useColorModeValue('gray.600', 'gray.400');
+const RecurringCard: React.FC<RecurringCardProps> = React.memo(
+  ({
+    recurring,
+    formatCurrency,
+    formatDate,
+    onEdit,
+    onArchive,
+    onRestore,
+    onApplyLabel,
+    isUpdating,
+    isApplyingLabel = false,
+    labelMap,
+    isArchiveView = false,
+    canEdit = true,
+  }) => {
+    const isManual = recurring.is_user_created;
+    const isNoLongerFound = recurring.is_no_longer_found && !isManual;
+    const attachedLabel = recurring.label_id
+      ? labelMap.get(recurring.label_id)
+      : undefined;
+    const noLongerFoundBg = useColorModeValue("orange.50", "orange.900");
+    const noLongerFoundBorder = useColorModeValue("orange.200", "orange.700");
+    const archiveBg = useColorModeValue("gray.50", "gray.700");
+    const subtitleColor = useColorModeValue("gray.600", "gray.400");
 
-  return (
-    <Card
-      variant="outline"
-      opacity={isArchiveView ? 0.75 : 1}
-      borderColor={isNoLongerFound ? noLongerFoundBorder : undefined}
-      bg={isNoLongerFound ? noLongerFoundBg : isArchiveView ? archiveBg : 'bg.surface'}
-    >
-      <CardBody>
-        <HStack justify="space-between" align="start">
-          <VStack align="start" spacing={1} flex={1} minW={0}>
-            <HStack flexWrap="wrap" spacing={2}>
-              <Text fontWeight="bold" noOfLines={1}>{recurring.merchant_name}</Text>
+    return (
+      <Card
+        variant="outline"
+        opacity={isArchiveView ? 0.75 : 1}
+        borderColor={isNoLongerFound ? noLongerFoundBorder : undefined}
+        bg={
+          isNoLongerFound
+            ? noLongerFoundBg
+            : isArchiveView
+              ? archiveBg
+              : "bg.surface"
+        }
+      >
+        <CardBody>
+          <HStack justify="space-between" align="start">
+            <VStack align="start" spacing={1} flex={1} minW={0}>
+              <HStack flexWrap="wrap" spacing={2}>
+                <Text fontWeight="bold" noOfLines={1}>
+                  {recurring.merchant_name}
+                </Text>
 
-              {/* Manual vs Auto badge */}
-              <Tooltip label={isManual ? 'Manually created' : 'Auto-detected from transactions'}>
-                <Badge
-                  colorScheme={isManual ? 'purple' : 'blue'}
-                  variant="subtle"
-                  fontSize="2xs"
-                  display="flex"
-                  alignItems="center"
-                  gap="1"
+                {/* Manual vs Auto badge */}
+                <Tooltip
+                  label={
+                    isManual
+                      ? "Manually created"
+                      : "Auto-detected from transactions"
+                  }
                 >
-                  <Icon as={isManual ? FiUser : FiZap} boxSize="2.5" />
-                  {isManual ? 'Manual' : 'Auto-synced'}
-                </Badge>
-              </Tooltip>
-
-              {/* Bill badge */}
-              {recurring.is_bill && (
-                <Badge colorScheme="orange" variant="subtle" fontSize="2xs">
-                  <Icon as={BellIcon} mr="1" />
-                  Bill
-                </Badge>
-              )}
-
-              {/* Label tag */}
-              {attachedLabel && (
-                <Tooltip label={`Matching transactions tagged "${attachedLabel.name}"`}>
                   <Badge
-                    colorScheme="teal"
+                    colorScheme={isManual ? "purple" : "blue"}
                     variant="subtle"
                     fontSize="2xs"
                     display="flex"
                     alignItems="center"
                     gap="1"
-                    style={{ backgroundColor: attachedLabel.color ? `${attachedLabel.color}22` : undefined,
-                             color: attachedLabel.color ?? undefined }}
                   >
-                    <Icon as={FiTag} boxSize="2.5" />
-                    {attachedLabel.name}
+                    <Icon as={isManual ? FiUser : FiZap} boxSize="2.5" />
+                    {isManual ? "Manual" : "Auto-synced"}
                   </Badge>
                 </Tooltip>
-              )}
 
-              {/* No longer found */}
-              {isNoLongerFound && (
-                <Tooltip label="This pattern was not found in your recent transactions. It may have been cancelled.">
-                  <Badge colorScheme="orange" variant="solid" fontSize="2xs">
-                    No longer found
+                {/* Bill badge */}
+                {recurring.is_bill && (
+                  <Badge colorScheme="orange" variant="subtle" fontSize="2xs">
+                    <Icon as={BellIcon} mr="1" />
+                    Bill
                   </Badge>
-                </Tooltip>
+                )}
+
+                {/* Label tag */}
+                {attachedLabel && (
+                  <Tooltip
+                    label={`Matching transactions tagged "${attachedLabel.name}"`}
+                  >
+                    <Badge
+                      colorScheme="teal"
+                      variant="subtle"
+                      fontSize="2xs"
+                      display="flex"
+                      alignItems="center"
+                      gap="1"
+                      style={{
+                        backgroundColor: attachedLabel.color
+                          ? `${attachedLabel.color}22`
+                          : undefined,
+                        color: attachedLabel.color ?? undefined,
+                      }}
+                    >
+                      <Icon as={FiTag} boxSize="2.5" />
+                      {attachedLabel.name}
+                    </Badge>
+                  </Tooltip>
+                )}
+
+                {/* No longer found */}
+                {isNoLongerFound && (
+                  <Tooltip label="This pattern was not found in your recent transactions. It may have been cancelled.">
+                    <Badge colorScheme="orange" variant="solid" fontSize="2xs">
+                      No longer found
+                    </Badge>
+                  </Tooltip>
+                )}
+
+                {/* Inactive */}
+                {!recurring.is_active && !isArchiveView && (
+                  <Badge colorScheme="gray" fontSize="2xs">
+                    Inactive
+                  </Badge>
+                )}
+              </HStack>
+
+              <Text
+                fontSize="sm"
+                color={isArchiveView ? "text.muted" : subtitleColor}
+              >
+                {recurring.frequency === "on_demand"
+                  ? "On Demand"
+                  : recurring.frequency.charAt(0).toUpperCase() +
+                    recurring.frequency.slice(1)}{" "}
+                · {formatCurrency(recurring.average_amount)}
+              </Text>
+
+              {recurring.next_expected_date && !isArchiveView && (
+                <Text fontSize="xs" color="text.muted">
+                  Next: {formatDate(recurring.next_expected_date)}
+                </Text>
               )}
 
-              {/* Inactive */}
-              {!recurring.is_active && !isArchiveView && (
-                <Badge colorScheme="gray" fontSize="2xs">Inactive</Badge>
+              {isArchiveView && recurring.last_occurrence && (
+                <Text fontSize="xs" color="text.muted">
+                  Last seen: {formatDate(recurring.last_occurrence)}
+                </Text>
+              )}
+            </VStack>
+
+            <HStack spacing={2} flexShrink={0}>
+              {isArchiveView ? (
+                canEdit && (
+                  <Tooltip label="Move back to active">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      leftIcon={<FiRotateCcw />}
+                      onClick={() => onRestore?.(recurring.id)}
+                      isLoading={isUpdating}
+                      colorScheme="blue"
+                    >
+                      Restore
+                    </Button>
+                  </Tooltip>
+                )
+              ) : (
+                <>
+                  {canEdit && !attachedLabel && (
+                    <Tooltip label='Tag matching transactions as "Recurring Bill"'>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        leftIcon={<FiTag />}
+                        onClick={() => onApplyLabel?.(recurring.id)}
+                        isLoading={isApplyingLabel}
+                        colorScheme="teal"
+                      >
+                        Tag
+                      </Button>
+                    </Tooltip>
+                  )}
+                  {canEdit && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onEdit?.(recurring)}
+                    >
+                      Edit
+                    </Button>
+                  )}
+                  {canEdit && (
+                    <Tooltip label="Archive this bill">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        leftIcon={<FiArchive />}
+                        onClick={() => onArchive?.(recurring.id)}
+                        isLoading={isUpdating}
+                        colorScheme="gray"
+                        aria-label="Archive"
+                      >
+                        Archive
+                      </Button>
+                    </Tooltip>
+                  )}
+                </>
               )}
             </HStack>
-
-            <Text fontSize="sm" color={isArchiveView ? 'text.muted' : subtitleColor}>
-              {recurring.frequency === 'on_demand' ? 'On Demand' : recurring.frequency.charAt(0).toUpperCase() + recurring.frequency.slice(1)} · {formatCurrency(recurring.average_amount)}
-            </Text>
-
-            {recurring.next_expected_date && !isArchiveView && (
-              <Text fontSize="xs" color="text.muted">
-                Next: {formatDate(recurring.next_expected_date)}
-              </Text>
-            )}
-
-            {isArchiveView && recurring.last_occurrence && (
-              <Text fontSize="xs" color="text.muted">
-                Last seen: {formatDate(recurring.last_occurrence)}
-              </Text>
-            )}
-          </VStack>
-
-          <HStack spacing={2} flexShrink={0}>
-            {isArchiveView ? (
-              canEdit && (
-                <Tooltip label="Move back to active">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    leftIcon={<FiRotateCcw />}
-                    onClick={() => onRestore?.(recurring.id)}
-                    isLoading={isUpdating}
-                    colorScheme="blue"
-                  >
-                    Restore
-                  </Button>
-                </Tooltip>
-              )
-            ) : (
-              <>
-                {canEdit && !attachedLabel && (
-                  <Tooltip label='Tag matching transactions as "Recurring Bill"'>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      leftIcon={<FiTag />}
-                      onClick={() => onApplyLabel?.(recurring.id)}
-                      isLoading={isApplyingLabel}
-                      colorScheme="teal"
-                    >
-                      Tag
-                    </Button>
-                  </Tooltip>
-                )}
-                {canEdit && (
-                  <Button size="sm" variant="outline" onClick={() => onEdit?.(recurring)}>
-                    Edit
-                  </Button>
-                )}
-                {canEdit && (
-                  <Tooltip label="Archive this bill">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      leftIcon={<FiArchive />}
-                      onClick={() => onArchive?.(recurring.id)}
-                      isLoading={isUpdating}
-                      colorScheme="gray"
-                      aria-label="Archive"
-                    >
-                      Archive
-                    </Button>
-                  </Tooltip>
-                )}
-              </>
-            )}
           </HStack>
-        </HStack>
-      </CardBody>
-    </Card>
-  );
-};
+        </CardBody>
+      </Card>
+    );
+  },
+);
+RecurringCard.displayName = "RecurringCard";
 
 // ─── Edit / Create Modal ──────────────────────────────────────────────────────
 
@@ -905,9 +1091,9 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
   onSave,
 }) => {
   const [formData, setFormData] = useState({
-    merchant_name: recurring?.merchant_name || '',
-    account_id: recurring?.account_id || '',
-    frequency: recurring?.frequency || 'monthly',
+    merchant_name: recurring?.merchant_name || "",
+    account_id: recurring?.account_id || "",
+    frequency: recurring?.frequency || "monthly",
     average_amount: recurring?.average_amount || 0,
     amount_variance: recurring?.amount_variance || 5,
     is_bill: recurring?.is_bill || false,
@@ -916,9 +1102,11 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
   });
   // Only shown when creating (not editing) — auto-tag matching past transactions
   const [tagTransactions, setTagTransactions] = useState(true);
+  const tealBg = useColorModeValue("teal.50", "teal.900");
+  const tealBorder = useColorModeValue("teal.200", "teal.700");
 
   // Merchant autocomplete state
-  const [merchantQuery, setMerchantQuery] = useState('');
+  const [merchantQuery, setMerchantQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const merchantInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
@@ -940,8 +1128,8 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
         setShowSuggestions(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   React.useEffect(() => {
@@ -958,7 +1146,7 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
       });
       setMerchantQuery(recurring.merchant_name);
     } else {
-      setMerchantQuery('');
+      setMerchantQuery("");
       setTagTransactions(true); // reset for new bill
     }
   }, [recurring]);
@@ -968,7 +1156,9 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>
-          {recurring ? 'Edit Recurring Transaction' : 'Add Recurring Transaction'}
+          {recurring
+            ? "Edit Recurring Transaction"
+            : "Add Recurring Transaction"}
         </ModalHeader>
         <ModalCloseButton />
         <ModalBody>
@@ -984,7 +1174,9 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
                     setFormData({ ...formData, merchant_name: e.target.value });
                     setShowSuggestions(true);
                   }}
-                  onFocus={() => { if (merchantQuery) setShowSuggestions(true); }}
+                  onFocus={() => {
+                    if (merchantQuery) setShowSuggestions(true);
+                  }}
                   placeholder="e.g., Netflix, Electric Company"
                   autoComplete="off"
                 />
@@ -1012,7 +1204,7 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
                           py={2}
                           cursor="pointer"
                           fontSize="sm"
-                          _hover={{ bg: 'bg.subtle' }}
+                          _hover={{ bg: "bg.subtle" }}
                           onMouseDown={(e) => {
                             e.preventDefault(); // prevent blur before click
                             setMerchantQuery(name);
@@ -1033,7 +1225,9 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
               <FormLabel>Account</FormLabel>
               <Select
                 value={formData.account_id}
-                onChange={(e) => setFormData({ ...formData, account_id: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, account_id: e.target.value })
+                }
               >
                 <option value="">Select account</option>
                 {accounts.map((account) => (
@@ -1048,14 +1242,18 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
               <FormLabel>Frequency</FormLabel>
               <Select
                 value={formData.frequency}
-                onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, frequency: e.target.value })
+                }
               >
                 <option value="weekly">Weekly</option>
                 <option value="biweekly">Biweekly</option>
                 <option value="monthly">Monthly</option>
                 <option value="quarterly">Quarterly</option>
                 <option value="yearly">Yearly</option>
-                <option value="on_demand">On Demand (irregular / as-needed)</option>
+                <option value="on_demand">
+                  On Demand (irregular / as-needed)
+                </option>
               </Select>
             </FormControl>
 
@@ -1063,7 +1261,9 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
               <FormLabel>Average Amount</FormLabel>
               <NumberInput
                 value={formData.average_amount}
-                onChange={(_, value) => setFormData({ ...formData, average_amount: value })}
+                onChange={(_, value) =>
+                  setFormData({ ...formData, average_amount: value })
+                }
                 min={0}
                 precision={2}
               >
@@ -1075,14 +1275,17 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
               <FormLabel>Amount Variance (±)</FormLabel>
               <NumberInput
                 value={formData.amount_variance}
-                onChange={(_, value) => setFormData({ ...formData, amount_variance: value })}
+                onChange={(_, value) =>
+                  setFormData({ ...formData, amount_variance: value })
+                }
                 min={0}
                 precision={2}
               >
                 <NumberInputField placeholder="5.00" />
               </NumberInput>
               <FormHelperText>
-                Transactions within ±${formData.amount_variance || 5} of the average amount will match this pattern.
+                Transactions within ±${formData.amount_variance || 5} of the
+                average amount will match this pattern.
               </FormHelperText>
             </FormControl>
 
@@ -1090,7 +1293,9 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
               <FormLabel mb={0}>Enable Reminders</FormLabel>
               <Switch
                 isChecked={formData.is_bill}
-                onChange={(e) => setFormData({ ...formData, is_bill: e.target.checked })}
+                onChange={(e) =>
+                  setFormData({ ...formData, is_bill: e.target.checked })
+                }
               />
             </FormControl>
 
@@ -1099,7 +1304,9 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
                 <FormLabel>Remind Me (Days Before Due)</FormLabel>
                 <NumberInput
                   value={formData.reminder_days_before}
-                  onChange={(_, value) => setFormData({ ...formData, reminder_days_before: value })}
+                  onChange={(_, value) =>
+                    setFormData({ ...formData, reminder_days_before: value })
+                  }
                   min={0}
                   max={30}
                 >
@@ -1113,14 +1320,23 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
                 <FormLabel mb={0}>Active</FormLabel>
                 <Switch
                   isChecked={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, is_active: e.target.checked })
+                  }
                 />
               </FormControl>
             )}
 
             {/* Transaction tagging — only for new manual bills */}
             {!recurring && (
-              <Box w="full" borderWidth="1px" borderRadius="md" p={3} bg={useColorModeValue('teal.50', 'teal.900')} borderColor={useColorModeValue('teal.200', 'teal.700')}>
+              <Box
+                w="full"
+                borderWidth="1px"
+                borderRadius="md"
+                p={3}
+                bg={tealBg}
+                borderColor={tealBorder}
+              >
                 <FormControl display="flex" alignItems="start">
                   <Switch
                     mt="3px"
@@ -1135,7 +1351,7 @@ const RecurringTransactionModal: React.FC<RecurringTransactionModalProps> = ({
                     <Text fontSize="xs" color="text.secondary" mt={0.5}>
                       {tagTransactions
                         ? 'Applies a "Recurring Bill" label to past and future transactions matching this merchant + account.'
-                        : 'No label will be applied. You can tag transactions later from the bill card.'}
+                        : "No label will be applied. You can tag transactions later from the bill card."}
                     </Text>
                   </Box>
                 </FormControl>

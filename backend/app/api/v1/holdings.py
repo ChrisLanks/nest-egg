@@ -4,37 +4,50 @@ import asyncio as _asyncio
 import logging
 import re
 import secrets
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
-from decimal import Decimal
-from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, update as sa_update
+from sqlalchemy import select
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.cache import get as cache_get
+from app.core.cache import setex as cache_setex
 from app.core.database import AsyncSessionLocal, get_db
-from app.utils.date_validation import validate_date_range
-from app.utils.datetime_utils import utc_now
-from app.utils.rmd_calculator import (
-    calculate_age,
-    requires_rmd,
-    calculate_rmd,
-    get_rmd_deadline,
-    calculate_rmd_penalty,
-)
 from app.dependencies import (
+    get_all_household_accounts,
     get_current_user,
+    get_user_accounts,
     get_verified_account,
     verify_household_member,
-    get_user_accounts,
-    get_all_household_accounts,
 )
-from app.models.user import User
-from app.models.holding import Holding
 from app.models.account import Account, AccountType, TaxTreatment
-from app.schemas.rmd import RMDSummary, AccountRMD
+from app.models.holding import Holding
+from app.models.user import User
+from app.schemas.holding import (
+    AccountHoldings,
+    CategoryBreakdown,
+    GeographicBreakdown,
+    HoldingCreate,
+    HoldingSummary,
+    HoldingUpdate,
+    PortfolioSummary,
+    SectorBreakdown,
+    SnapshotResponse,
+    StyleBoxItem,
+    TreemapNode,
+)
+from app.schemas.holding import (
+    Holding as HoldingSchema,
+)
+from app.schemas.rmd import AccountRMD, RMDSummary
+from app.services.deduplication_service import deduplication_service
+from app.services.market_data import get_market_data_provider
+from app.services.snapshot_service import snapshot_service
 from app.utils.account_type_groups import (
     ALL_RETIREMENT_TYPES,
     CASH_ACCOUNT_TYPES,
@@ -42,22 +55,14 @@ from app.utils.account_type_groups import (
     RMD_ACCOUNT_TYPES,
     ROTH_CONVERSION_ELIGIBLE_TYPES,
 )
-from app.services.market_data import get_market_data_provider
-from app.services.snapshot_service import snapshot_service
-from app.services.deduplication_service import deduplication_service
-from app.schemas.holding import (
-    Holding as HoldingSchema,
-    HoldingCreate,
-    HoldingUpdate,
-    PortfolioSummary,
-    HoldingSummary,
-    CategoryBreakdown,
-    GeographicBreakdown,
-    SectorBreakdown,
-    TreemapNode,
-    AccountHoldings,
-    SnapshotResponse,
-    StyleBoxItem,
+from app.utils.date_validation import validate_date_range
+from app.utils.datetime_utils import utc_now
+from app.utils.rmd_calculator import (
+    calculate_age,
+    calculate_rmd,
+    calculate_rmd_penalty,
+    get_rmd_deadline,
+    requires_rmd,
 )
 
 router = APIRouter()
@@ -79,6 +84,12 @@ async def get_portfolio_summary(
     logger = logging.getLogger(__name__)
 
     logger.info(f"Portfolio request from user {current_user.id}, filter user_id={user_id}")
+
+    # Check cache
+    cache_key = f"portfolio:summary:{current_user.organization_id}:{user_id or 'household'}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     # Get accounts based on filter
     if user_id:
@@ -142,9 +153,9 @@ async def get_portfolio_summary(
             not holdings_by_ticker[holding.ticker]["price_as_of"]
             or holding.price_as_of > holdings_by_ticker[holding.ticker]["price_as_of"]
         ):
-            holdings_by_ticker[holding.ticker][
-                "current_price_per_share"
-            ] = holding.current_price_per_share
+            holdings_by_ticker[holding.ticker]["current_price_per_share"] = (
+                holding.current_price_per_share
+            )
             holdings_by_ticker[holding.ticker]["price_as_of"] = holding.price_as_of
             holdings_by_ticker[holding.ticker]["expense_ratio"] = holding.expense_ratio
 
@@ -285,7 +296,11 @@ async def get_portfolio_summary(
             continue
 
         # Use tax_treatment to classify: PRE_TAX/ROTH/TAX_FREE → retirement, TAXABLE → taxable
-        if account.tax_treatment in (TaxTreatment.PRE_TAX, TaxTreatment.ROTH, TaxTreatment.TAX_FREE):
+        if account.tax_treatment in (
+            TaxTreatment.PRE_TAX,
+            TaxTreatment.ROTH,
+            TaxTreatment.TAX_FREE,
+        ):
             retirement_value += acct_value
         elif account.tax_treatment == TaxTreatment.TAXABLE:
             taxable_value += acct_value
@@ -1075,7 +1090,7 @@ async def get_portfolio_summary(
     holdings_by_account_list.sort(key=lambda x: x.account_value, reverse=True)
 
     logger.info(f"Returning portfolio summary with total value: {total_value}")
-    return PortfolioSummary(
+    summary = PortfolioSummary(
         total_value=total_value,
         total_cost_basis=total_cost_basis if total_cost_basis else None,
         total_gain_loss=total_gain_loss,
@@ -1094,6 +1109,11 @@ async def get_portfolio_summary(
         sector_breakdown=sector_breakdown,
         total_annual_fees=total_annual_fees if total_annual_fees > 0 else None,
     )
+
+    # Cache the serialized response (fail-open on Redis errors)
+    await cache_setex(cache_key, 300, summary.model_dump(mode="json"))
+
+    return summary
 
 
 @router.get("/account/{account_id}", response_model=List[HoldingSchema])
@@ -1381,10 +1401,7 @@ async def get_style_box_breakdown(
 
     # Filter to investment accounts only
     investment_holdings = [
-        h
-        for h in holdings
-        if h.account
-        and h.account.account_type in INVESTMENT_ACCOUNT_TYPES
+        h for h in holdings if h.account and h.account.account_type in INVESTMENT_ACCOUNT_TYPES
     ]
 
     # Also get cash accounts for Cash breakdown
@@ -1578,7 +1595,8 @@ async def get_style_box_breakdown(
             elif country in EMERGING_MARKETS:
                 style_class = "International - Emerging"
             else:
-                # If country not recognized, default to Developed (most international stocks are developed markets)
+                # If country not recognized, default to Developed
+                # (most international stocks are developed markets)
                 style_class = "International - Developed"
         else:
             # Domestic stocks - categorize by market cap and style
@@ -1750,7 +1768,8 @@ async def get_rmd_summary(
 
         # Filter for RMD-applicable accounts (exclude Roth — no RMDs during owner's lifetime)
         accounts = [
-            acc for acc in accounts
+            acc
+            for acc in accounts
             if acc.account_type in rmd_account_types
             and acc.is_active
             and acc.tax_treatment != TaxTreatment.ROTH
@@ -1922,15 +1941,14 @@ async def get_roth_analysis(
     # Accounts with tax_treatment=ROTH are already Roth and excluded.
     # Accounts with NULL tax_treatment on retirement types default to traditional.
     traditional_accounts = [
-        acc for acc in accounts
+        acc
+        for acc in accounts
         if acc.account_type in retirement_types
         and acc.is_active
         and acc.tax_treatment != TaxTreatment.ROTH
     ]
 
-    traditional_balance = sum(
-        (acc.current_balance or Decimal("0")) for acc in traditional_accounts
-    )
+    traditional_balance = sum((acc.current_balance or Decimal("0")) for acc in traditional_accounts)
 
     # Projected RMD at age 73 using current balance as a baseline estimate
     projected_rmd_at_73 = (

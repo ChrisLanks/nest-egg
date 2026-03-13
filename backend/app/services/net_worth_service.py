@@ -10,6 +10,8 @@ from sqlalchemy import and_, func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import get as cache_get
+from app.core.cache import setex as cache_setex
 from app.models.account import Account, AccountType
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.services.dashboard_service import DashboardService
@@ -249,6 +251,15 @@ class NetWorthService:
         if start_date is None:
             start_date = end_date - timedelta(days=365)
 
+        # Check cache
+        cache_key = (
+            f"nw:history:{organization_id}:{user_id or 'household'}"
+            f":{start_date}:{end_date}:{granularity}"
+        )
+        cached = await cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         conditions = [
             NetWorthSnapshot.organization_id == organization_id,
             NetWorthSnapshot.snapshot_date >= start_date,
@@ -269,7 +280,7 @@ class NetWorthService:
             result = await db.execute(query)
             snapshots = result.scalars().all()
 
-            return [
+            data = [
                 {
                     "date": s.snapshot_date.isoformat(),
                     "total_net_worth": float(s.total_net_worth),
@@ -290,6 +301,8 @@ class NetWorthService:
                 }
                 for s in snapshots
             ]
+            await cache_setex(cache_key, 300, data)
+            return data
 
         # For weekly/monthly, group by truncated date and take the last snapshot per period
         if granularity == "weekly":
@@ -326,7 +339,7 @@ class NetWorthService:
         result = await db.execute(query)
         snapshots = result.scalars().all()
 
-        return [
+        data = [
             {
                 "date": s.snapshot_date.isoformat(),
                 "total_net_worth": float(s.total_net_worth),
@@ -347,6 +360,8 @@ class NetWorthService:
             }
             for s in snapshots
         ]
+        await cache_setex(cache_key, 300, data)
+        return data
 
     async def get_current_breakdown(
         self,
@@ -367,6 +382,12 @@ class NetWorthService:
         Returns:
             Dict with net worth breakdown by category
         """
+        # Check cache
+        cache_key = f"nw:breakdown:{organization_id}:{user_id or 'household'}"
+        cached = await cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         # Fetch active accounts
         conditions = [
             Account.organization_id == organization_id,
@@ -425,13 +446,15 @@ class NetWorthService:
                 }
             )
 
-        return {
+        result = {
             "total_net_worth": float(total_assets - total_liabilities),
             "total_assets": float(total_assets),
             "total_liabilities": float(total_liabilities),
             "categories": {k: float(v) for k, v in category_totals.items()},
             "accounts": per_account,
         }
+        await cache_setex(cache_key, 300, result)
+        return result
 
 
 # Singleton instance

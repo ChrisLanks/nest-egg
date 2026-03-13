@@ -81,7 +81,7 @@ import {
   CloseIcon,
 } from "@chakra-ui/icons";
 import { FiLock } from "react-icons/fi";
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { TransactionDetailModal } from "../components/TransactionDetailModal";
@@ -132,6 +132,374 @@ type SortField =
   | "labels"
   | "status";
 type SortDirection = "asc" | "desc";
+
+function SortIcon({
+  field,
+  sortField,
+  sortDirection,
+}: {
+  field: SortField;
+  sortField: SortField | null;
+  sortDirection: SortDirection;
+}) {
+  if (sortField !== field) return null;
+  return sortDirection === "asc" ? <ChevronUpIcon /> : <ChevronDownIcon />;
+}
+
+// ─── Memoized row components for .map() rendering ────────────────────────────
+
+interface TransactionDesktopRowProps {
+  txn: Transaction;
+  globalIndex: number;
+  isSelected: boolean;
+  showDateColumn: boolean;
+  showMerchantColumn: boolean;
+  showAccountColumn: boolean;
+  showCategoryColumn: boolean;
+  showLabelsColumn: boolean;
+  showAmountColumn: boolean;
+  showStatusColumn: boolean;
+  formatted: string;
+  isNegative: boolean;
+  onTransactionClick: (txn: Transaction) => void;
+  onToggleSelection: (id: number, e: any, index: number) => void;
+  onAccountClick: (name: string, e: React.MouseEvent) => void;
+  onCategoryClick: (name: string, e: React.MouseEvent) => void;
+  onLabelClick: (name: string, e: React.MouseEvent) => void;
+  formatDate: (dateStr: string) => string;
+}
+
+const TransactionDesktopRow = memo(
+  ({
+    txn,
+    globalIndex,
+    isSelected,
+    showDateColumn,
+    showMerchantColumn,
+    showAccountColumn,
+    showCategoryColumn,
+    showLabelsColumn,
+    showAmountColumn,
+    showStatusColumn,
+    formatted,
+    isNegative,
+    onTransactionClick,
+    onToggleSelection,
+    onAccountClick,
+    onCategoryClick,
+    onLabelClick,
+    formatDate,
+  }: TransactionDesktopRowProps) => (
+    <Tr
+      onClick={() => onTransactionClick(txn)}
+      cursor="pointer"
+      _hover={{ bg: "bg.subtle" }}
+      bg={isSelected ? "bg.info" : undefined}
+    >
+      <Td width="40px" onClick={(e) => e.stopPropagation()}>
+        <Checkbox
+          isChecked={isSelected}
+          onChange={(e) =>
+            onToggleSelection(txn.id, e.nativeEvent as any, globalIndex)
+          }
+        />
+      </Td>
+      {showDateColumn && <Td>{formatDate(txn.date)}</Td>}
+      {showMerchantColumn && (
+        <Td>
+          <Text fontWeight="medium">{txn.merchant_name}</Text>
+          {txn.description && (
+            <Text fontSize="sm" color="text.secondary">
+              {txn.description}
+            </Text>
+          )}
+        </Td>
+      )}
+      {showAccountColumn && (
+        <Td
+          onClick={(e) =>
+            txn.account_name && onAccountClick(txn.account_name, e)
+          }
+        >
+          <Text
+            fontSize="sm"
+            color="brand.accent"
+            cursor="pointer"
+            _hover={{ textDecoration: "underline" }}
+          >
+            {txn.account_name}
+            {txn.account_mask && ` ****${txn.account_mask}`}
+          </Text>
+        </Td>
+      )}
+      {showCategoryColumn && (
+        <Td
+          onClick={(e) => {
+            const categoryName = txn.category?.name || txn.category_primary;
+            if (categoryName) onCategoryClick(categoryName, e);
+          }}
+        >
+          {(txn.category || txn.category_primary) && (
+            <Badge
+              colorScheme={txn.category?.color ? undefined : "blue"}
+              bg={txn.category?.color || undefined}
+              color={txn.category?.color ? "white" : undefined}
+              fontSize="xs"
+              cursor="pointer"
+              _hover={{ transform: "scale(1.05)" }}
+              transition="transform 0.2s"
+            >
+              {txn.category
+                ? txn.category.parent_name
+                  ? `${txn.category.parent_name} (${txn.category.name})`
+                  : txn.category.name
+                : txn.category_primary}
+            </Badge>
+          )}
+        </Td>
+      )}
+      {showLabelsColumn && (
+        <Td>
+          <Wrap spacing={1}>
+            {txn.labels?.map((label) => (
+              <WrapItem key={label.id}>
+                <Badge
+                  colorScheme={
+                    label.color
+                      ? undefined
+                      : label.is_income
+                        ? "green"
+                        : "purple"
+                  }
+                  bg={label.color || undefined}
+                  color={label.color ? "white" : undefined}
+                  fontSize="xs"
+                  cursor="pointer"
+                  _hover={{ transform: "scale(1.05)" }}
+                  transition="transform 0.2s"
+                  onClick={(e) => onLabelClick(label.name, e)}
+                >
+                  {label.name}
+                </Badge>
+              </WrapItem>
+            ))}
+          </Wrap>
+        </Td>
+      )}
+      {showAmountColumn && (
+        <Td isNumeric>
+          <Text
+            fontWeight="semibold"
+            color={isNegative ? "finance.negative" : "finance.positive"}
+          >
+            {isNegative ? "-" : "+"}
+            {formatted}
+          </Text>
+        </Td>
+      )}
+      {showStatusColumn && (
+        <Td>
+          <HStack spacing={2}>
+            {txn.is_pending && <Badge colorScheme="orange">Pending</Badge>}
+            {txn.is_transfer && <Badge colorScheme="purple">Transfer</Badge>}
+          </HStack>
+        </Td>
+      )}
+    </Tr>
+  ),
+);
+TransactionDesktopRow.displayName = "TransactionDesktopRow";
+
+interface TransactionMobileCardProps {
+  txn: Transaction;
+  globalIndex: number;
+  isSelected: boolean;
+  showStatusColumn: boolean;
+  formatted: string;
+  isNegative: boolean;
+  onTransactionClick: (txn: Transaction) => void;
+  onToggleSelection: (id: number, e: any, index: number) => void;
+  onAccountClick: (name: string, e: React.MouseEvent) => void;
+  onCategoryClick: (name: string, e: React.MouseEvent) => void;
+  onLabelClick: (name: string, e: React.MouseEvent) => void;
+  formatDate: (dateStr: string) => string;
+}
+
+const TransactionMobileCard = memo(
+  ({
+    txn,
+    globalIndex,
+    isSelected,
+    showStatusColumn,
+    formatted,
+    isNegative,
+    onTransactionClick,
+    onToggleSelection,
+    onAccountClick,
+    onCategoryClick,
+    onLabelClick,
+    formatDate,
+  }: TransactionMobileCardProps) => (
+    <Card
+      variant="outline"
+      cursor="pointer"
+      onClick={() => onTransactionClick(txn)}
+      bg={isSelected ? "bg.info" : "bg.surface"}
+      borderColor={isSelected ? "blue.300" : "border.default"}
+      _hover={{ borderColor: "brand.300", shadow: "sm" }}
+    >
+      <CardBody p={4}>
+        <VStack align="stretch" spacing={3}>
+          {/* Header Row: Merchant + Amount */}
+          <HStack justify="space-between" align="start">
+            <Box flex={1}>
+              <Checkbox
+                isChecked={isSelected}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  onToggleSelection(txn.id, e.nativeEvent as any, globalIndex);
+                }}
+                mb={2}
+              />
+              <Text fontWeight="bold" fontSize="md">
+                {txn.merchant_name}
+              </Text>
+              {txn.description && (
+                <Text fontSize="sm" color="text.secondary" mt={1}>
+                  {txn.description}
+                </Text>
+              )}
+            </Box>
+            <Text
+              fontWeight="bold"
+              fontSize="lg"
+              color={isNegative ? "finance.negative" : "finance.positive"}
+              flexShrink={0}
+            >
+              {isNegative ? "-" : "+"}
+              {formatted}
+            </Text>
+          </HStack>
+
+          <Divider />
+
+          {/* Details Grid */}
+          <Stack spacing={2}>
+            {/* Date */}
+            <HStack justify="space-between">
+              <Text fontSize="sm" color="text.muted">
+                Date
+              </Text>
+              <Text fontSize="sm">{formatDate(txn.date)}</Text>
+            </HStack>
+
+            {/* Account */}
+            {txn.account_name && (
+              <HStack justify="space-between">
+                <Text fontSize="sm" color="text.muted">
+                  Account
+                </Text>
+                <Text
+                  fontSize="sm"
+                  color="brand.accent"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAccountClick(txn.account_name!, e);
+                  }}
+                >
+                  {txn.account_name}
+                  {txn.account_mask && ` ****${txn.account_mask}`}
+                </Text>
+              </HStack>
+            )}
+
+            {/* Category */}
+            {(txn.category || txn.category_primary) && (
+              <HStack justify="space-between">
+                <Text fontSize="sm" color="text.muted">
+                  Category
+                </Text>
+                <Badge
+                  colorScheme={txn.category?.color ? undefined : "blue"}
+                  bg={txn.category?.color || undefined}
+                  color={txn.category?.color ? "white" : undefined}
+                  fontSize="xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const categoryName =
+                      txn.category?.name || txn.category_primary;
+                    if (categoryName) onCategoryClick(categoryName, e);
+                  }}
+                >
+                  {txn.category
+                    ? txn.category.parent_name
+                      ? `${txn.category.parent_name} (${txn.category.name})`
+                      : txn.category.name
+                    : txn.category_primary}
+                </Badge>
+              </HStack>
+            )}
+
+            {/* Labels */}
+            {txn.labels && txn.labels.length > 0 && (
+              <HStack justify="space-between" align="start">
+                <Text fontSize="sm" color="text.muted">
+                  Labels
+                </Text>
+                <Wrap spacing={1} justify="flex-end">
+                  {txn.labels.map((label) => (
+                    <WrapItem key={label.id}>
+                      <Badge
+                        colorScheme={
+                          label.color
+                            ? undefined
+                            : label.is_income
+                              ? "green"
+                              : "purple"
+                        }
+                        bg={label.color || undefined}
+                        color={label.color ? "white" : undefined}
+                        fontSize="xs"
+                        cursor="pointer"
+                        _hover={{
+                          transform: "scale(1.05)",
+                        }}
+                        transition="transform 0.2s"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onLabelClick(label.name, e);
+                        }}
+                      >
+                        {label.name}
+                      </Badge>
+                    </WrapItem>
+                  ))}
+                </Wrap>
+              </HStack>
+            )}
+
+            {/* Status Badges */}
+            {(showStatusColumn || txn.is_pending || txn.is_transfer) && (
+              <HStack justify="flex-end" spacing={1}>
+                {txn.is_pending && (
+                  <Badge colorScheme="yellow" fontSize="xs">
+                    Pending
+                  </Badge>
+                )}
+                {txn.is_transfer && (
+                  <Badge colorScheme="purple" fontSize="xs">
+                    Transfer
+                  </Badge>
+                )}
+              </HStack>
+            )}
+          </Stack>
+        </VStack>
+      </CardBody>
+    </Card>
+  ),
+);
+TransactionMobileCard.displayName = "TransactionMobileCard";
 
 export const TransactionsPage = () => {
   const [selectedTransaction, setSelectedTransaction] =
@@ -188,8 +556,13 @@ export const TransactionsPage = () => {
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canWriteResource, canWriteOwnedResource, isOtherUserView, selectedUserId } = useUserView();
-  const canEdit = canWriteResource('transaction');
+  const {
+    canWriteResource,
+    canWriteOwnedResource,
+    isOtherUserView,
+    selectedUserId,
+  } = useUserView();
+  const canEdit = canWriteResource("transaction");
   const isMobile = useBreakpointValue({ base: true, md: false });
 
   // Fetch current user for ownership checks
@@ -226,7 +599,7 @@ export const TransactionsPage = () => {
     if (!currentUser || !transaction.account_id) return false;
     const accountUserId = accountOwnershipMap.get(transaction.account_id);
     if (!accountUserId) return false;
-    return canWriteOwnedResource('transaction', accountUserId);
+    return canWriteOwnedResource("transaction", accountUserId);
   };
 
   // Fetch organization preferences for monthly_start_day
@@ -589,7 +962,7 @@ export const TransactionsPage = () => {
       setPendingLabelsToAdd([]);
       setPendingLabelsToRemove([]);
       onBulkEditClose();
-    } catch (error) {
+    } catch {
       toast({
         title: "Failed to apply some label changes",
         status: "error",
@@ -1004,10 +1377,7 @@ export const TransactionsPage = () => {
     setSearchQuery(searchQuery ? `${searchQuery} ${newFilter}` : newFilter);
   };
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return null;
-    return sortDirection === "asc" ? <ChevronUpIcon /> : <ChevronDownIcon />;
-  };
+  const sortIconProps = { sortField, sortDirection };
 
   const handleBulkCreateRule = () => {
     if (selectedTransactions.size === 0) {
@@ -1055,7 +1425,6 @@ export const TransactionsPage = () => {
     setIsRuleBuilderOpen(true);
   };
 
-
   const confirmBulkAction = () => {
     if (bulkActionType !== null) {
       bulkMarkTransferMutation.mutate({
@@ -1100,7 +1469,7 @@ export const TransactionsPage = () => {
         status: "success",
         duration: 3000,
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Export failed",
         description: "Failed to export transactions",
@@ -1478,7 +1847,12 @@ export const TransactionsPage = () => {
 
         {/* Desktop Table View */}
         {!isMobile && processedTransactions.length > 0 && (
-          <Box bg="bg.surface" borderRadius="lg" boxShadow="sm" overflow="hidden">
+          <Box
+            bg="bg.surface"
+            borderRadius="lg"
+            boxShadow="sm"
+            overflow="hidden"
+          >
             <Table variant="simple" size="sm">
               <Thead bg="bg.subtle">
                 <Tr>
@@ -1515,7 +1889,7 @@ export const TransactionsPage = () => {
                     >
                       <HStack spacing={1}>
                         <Text>Date</Text>
-                        <SortIcon field="date" />
+                        <SortIcon {...sortIconProps} field="date" />
                       </HStack>
                     </Th>
                   )}
@@ -1527,7 +1901,7 @@ export const TransactionsPage = () => {
                     >
                       <HStack spacing={1}>
                         <Text>Merchant</Text>
-                        <SortIcon field="merchant_name" />
+                        <SortIcon {...sortIconProps} field="merchant_name" />
                       </HStack>
                     </Th>
                   )}
@@ -1539,7 +1913,7 @@ export const TransactionsPage = () => {
                     >
                       <HStack spacing={1}>
                         <Text>Account</Text>
-                        <SortIcon field="account_name" />
+                        <SortIcon {...sortIconProps} field="account_name" />
                       </HStack>
                     </Th>
                   )}
@@ -1551,7 +1925,7 @@ export const TransactionsPage = () => {
                     >
                       <HStack spacing={1}>
                         <Text>Category</Text>
-                        <SortIcon field="category_primary" />
+                        <SortIcon {...sortIconProps} field="category_primary" />
                       </HStack>
                     </Th>
                   )}
@@ -1563,7 +1937,7 @@ export const TransactionsPage = () => {
                     >
                       <HStack spacing={1}>
                         <Text>Labels</Text>
-                        <SortIcon field="labels" />
+                        <SortIcon {...sortIconProps} field="labels" />
                       </HStack>
                     </Th>
                   )}
@@ -1576,7 +1950,7 @@ export const TransactionsPage = () => {
                     >
                       <HStack spacing={1} justify="flex-end">
                         <Text>Amount</Text>
-                        <SortIcon field="amount" />
+                        <SortIcon {...sortIconProps} field="amount" />
                       </HStack>
                     </Th>
                   )}
@@ -1588,7 +1962,7 @@ export const TransactionsPage = () => {
                     >
                       <HStack spacing={1}>
                         <Text>Status</Text>
-                        <SortIcon field="status" />
+                        <SortIcon {...sortIconProps} field="status" />
                       </HStack>
                     </Th>
                   )}
@@ -1637,148 +2011,27 @@ export const TransactionsPage = () => {
                         );
                         const isSelected = selectedTransactions.has(txn.id);
                         return (
-                          <Tr
+                          <TransactionDesktopRow
                             key={`desktop-${txn.id}`}
-                            onClick={() => handleTransactionClick(txn)}
-                            cursor="pointer"
-                            _hover={{ bg: "bg.subtle" }}
-                            bg={isSelected ? "bg.info" : undefined}
-                          >
-                            <Td
-                              width="40px"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Checkbox
-                                isChecked={isSelected}
-                                onChange={(e) =>
-                                  toggleTransactionSelection(
-                                    txn.id,
-                                    e.nativeEvent as any,
-                                    globalIndex,
-                                  )
-                                }
-                              />
-                            </Td>
-                            {showDateColumn && <Td>{formatDate(txn.date)}</Td>}
-                            {showMerchantColumn && (
-                              <Td>
-                                <Text fontWeight="medium">
-                                  {txn.merchant_name}
-                                </Text>
-                                {txn.description && (
-                                  <Text fontSize="sm" color="text.secondary">
-                                    {txn.description}
-                                  </Text>
-                                )}
-                              </Td>
-                            )}
-                            {showAccountColumn && (
-                              <Td
-                                onClick={(e) =>
-                                  txn.account_name &&
-                                  handleAccountClick(txn.account_name, e)
-                                }
-                              >
-                                <Text
-                                  fontSize="sm"
-                                  color="brand.accent"
-                                  cursor="pointer"
-                                  _hover={{ textDecoration: "underline" }}
-                                >
-                                  {txn.account_name}
-                                  {txn.account_mask &&
-                                    ` ****${txn.account_mask}`}
-                                </Text>
-                              </Td>
-                            )}
-                            {showCategoryColumn && (
-                              <Td
-                                onClick={(e) => {
-                                  const categoryName =
-                                    txn.category?.name || txn.category_primary;
-                                  if (categoryName)
-                                    handleCategoryClick(categoryName, e);
-                                }}
-                              >
-                                {(txn.category || txn.category_primary) && (
-                                  <Badge
-                                    colorScheme={
-                                      txn.category?.color ? undefined : "blue"
-                                    }
-                                    bg={txn.category?.color || undefined}
-                                    color={
-                                      txn.category?.color ? "white" : undefined
-                                    }
-                                    fontSize="xs"
-                                    cursor="pointer"
-                                    _hover={{ transform: "scale(1.05)" }}
-                                    transition="transform 0.2s"
-                                  >
-                                    {txn.category
-                                      ? txn.category.parent_name
-                                        ? `${txn.category.parent_name} (${txn.category.name})`
-                                        : txn.category.name
-                                      : txn.category_primary}
-                                  </Badge>
-                                )}
-                              </Td>
-                            )}
-                            {showLabelsColumn && (
-                              <Td>
-                                <Wrap spacing={1}>
-                                  {txn.labels?.map((label) => (
-                                    <WrapItem key={label.id}>
-                                      <Badge
-                                        colorScheme={
-                                          label.color
-                                            ? undefined
-                                            : label.is_income
-                                              ? "green"
-                                              : "purple"
-                                        }
-                                        bg={label.color || undefined}
-                                        color={
-                                          label.color ? "white" : undefined
-                                        }
-                                        fontSize="xs"
-                                        cursor="pointer"
-                                        _hover={{ transform: "scale(1.05)" }}
-                                        transition="transform 0.2s"
-                                        onClick={(e) =>
-                                          handleLabelClick(label.name, e)
-                                        }
-                                      >
-                                        {label.name}
-                                      </Badge>
-                                    </WrapItem>
-                                  ))}
-                                </Wrap>
-                              </Td>
-                            )}
-                            {showAmountColumn && (
-                              <Td isNumeric>
-                                <Text
-                                  fontWeight="semibold"
-                                  color={isNegative ? "finance.negative" : "finance.positive"}
-                                >
-                                  {isNegative ? "-" : "+"}
-                                  {formatted}
-                                </Text>
-                              </Td>
-                            )}
-                            {showStatusColumn && (
-                              <Td>
-                                <HStack spacing={2}>
-                                  {txn.is_pending && (
-                                    <Badge colorScheme="orange">Pending</Badge>
-                                  )}
-                                  {txn.is_transfer && (
-                                    <Badge colorScheme="purple">Transfer</Badge>
-                                  )}
-                                </HStack>
-                              </Td>
-                            )}
-                          </Tr>
+                            txn={txn}
+                            globalIndex={globalIndex}
+                            isSelected={isSelected}
+                            showDateColumn={showDateColumn}
+                            showMerchantColumn={showMerchantColumn}
+                            showAccountColumn={showAccountColumn}
+                            showCategoryColumn={showCategoryColumn}
+                            showLabelsColumn={showLabelsColumn}
+                            showAmountColumn={showAmountColumn}
+                            showStatusColumn={showStatusColumn}
+                            formatted={formatted}
+                            isNegative={isNegative}
+                            onTransactionClick={handleTransactionClick}
+                            onToggleSelection={toggleTransactionSelection}
+                            onAccountClick={handleAccountClick}
+                            onCategoryClick={handleCategoryClick}
+                            onLabelClick={handleLabelClick}
+                            formatDate={formatDate}
+                          />
                         );
                       })}
                     </React.Fragment>
@@ -1819,186 +2072,21 @@ export const TransactionsPage = () => {
                       const isSelected = selectedTransactions.has(txn.id);
 
                       return (
-                        <Card
+                        <TransactionMobileCard
                           key={`mobile-${txn.id}`}
-                          variant="outline"
-                          cursor="pointer"
-                          onClick={() => handleTransactionClick(txn)}
-                          bg={isSelected ? "bg.info" : "bg.surface"}
-                          borderColor={isSelected ? "blue.300" : "border.default"}
-                          _hover={{ borderColor: "brand.300", shadow: "sm" }}
-                        >
-                          <CardBody p={4}>
-                            <VStack align="stretch" spacing={3}>
-                              {/* Header Row: Merchant + Amount */}
-                              <HStack justify="space-between" align="start">
-                                <Box flex={1}>
-                                  <Checkbox
-                                    isChecked={isSelected}
-                                    onChange={(e) => {
-                                      e.stopPropagation();
-                                      toggleTransactionSelection(
-                                        txn.id,
-                                        e.nativeEvent as any,
-                                        globalIndex,
-                                      );
-                                    }}
-                                    mb={2}
-                                  />
-                                  <Text fontWeight="bold" fontSize="md">
-                                    {txn.merchant_name}
-                                  </Text>
-                                  {txn.description && (
-                                    <Text fontSize="sm" color="text.secondary" mt={1}>
-                                      {txn.description}
-                                    </Text>
-                                  )}
-                                </Box>
-                                <Text
-                                  fontWeight="bold"
-                                  fontSize="lg"
-                                  color={isNegative ? "finance.negative" : "finance.positive"}
-                                  flexShrink={0}
-                                >
-                                  {isNegative ? "-" : "+"}
-                                  {formatted}
-                                </Text>
-                              </HStack>
-
-                              <Divider />
-
-                              {/* Details Grid */}
-                              <Stack spacing={2}>
-                                {/* Date */}
-                                <HStack justify="space-between">
-                                  <Text fontSize="sm" color="text.muted">
-                                    Date
-                                  </Text>
-                                  <Text fontSize="sm">
-                                    {formatDate(txn.date)}
-                                  </Text>
-                                </HStack>
-
-                                {/* Account */}
-                                {txn.account_name && (
-                                  <HStack justify="space-between">
-                                    <Text fontSize="sm" color="text.muted">
-                                      Account
-                                    </Text>
-                                    <Text
-                                      fontSize="sm"
-                                      color="brand.accent"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleAccountClick(
-                                          txn.account_name!,
-                                          e,
-                                        );
-                                      }}
-                                    >
-                                      {txn.account_name}
-                                      {txn.account_mask &&
-                                        ` ****${txn.account_mask}`}
-                                    </Text>
-                                  </HStack>
-                                )}
-
-                                {/* Category */}
-                                {(txn.category || txn.category_primary) && (
-                                  <HStack justify="space-between">
-                                    <Text fontSize="sm" color="text.muted">
-                                      Category
-                                    </Text>
-                                    <Badge
-                                      colorScheme={
-                                        txn.category?.color ? undefined : "blue"
-                                      }
-                                      bg={txn.category?.color || undefined}
-                                      color={
-                                        txn.category?.color
-                                          ? "white"
-                                          : undefined
-                                      }
-                                      fontSize="xs"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        const categoryName =
-                                          txn.category?.name ||
-                                          txn.category_primary;
-                                        if (categoryName)
-                                          handleCategoryClick(categoryName, e);
-                                      }}
-                                    >
-                                      {txn.category
-                                        ? txn.category.parent_name
-                                          ? `${txn.category.parent_name} (${txn.category.name})`
-                                          : txn.category.name
-                                        : txn.category_primary}
-                                    </Badge>
-                                  </HStack>
-                                )}
-
-                                {/* Labels */}
-                                {txn.labels && txn.labels.length > 0 && (
-                                  <HStack justify="space-between" align="start">
-                                    <Text fontSize="sm" color="text.muted">
-                                      Labels
-                                    </Text>
-                                    <Wrap spacing={1} justify="flex-end">
-                                      {txn.labels.map((label) => (
-                                        <WrapItem key={label.id}>
-                                          <Badge
-                                            colorScheme={
-                                              label.color
-                                                ? undefined
-                                                : label.is_income
-                                                  ? "green"
-                                                  : "purple"
-                                            }
-                                            bg={label.color || undefined}
-                                            color={
-                                              label.color ? "white" : undefined
-                                            }
-                                            fontSize="xs"
-                                            cursor="pointer"
-                                            _hover={{
-                                              transform: "scale(1.05)",
-                                            }}
-                                            transition="transform 0.2s"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleLabelClick(label.name, e);
-                                            }}
-                                          >
-                                            {label.name}
-                                          </Badge>
-                                        </WrapItem>
-                                      ))}
-                                    </Wrap>
-                                  </HStack>
-                                )}
-
-                                {/* Status Badges */}
-                                {(showStatusColumn ||
-                                  txn.is_pending ||
-                                  txn.is_transfer) && (
-                                  <HStack justify="flex-end" spacing={1}>
-                                    {txn.is_pending && (
-                                      <Badge colorScheme="yellow" fontSize="xs">
-                                        Pending
-                                      </Badge>
-                                    )}
-                                    {txn.is_transfer && (
-                                      <Badge colorScheme="purple" fontSize="xs">
-                                        Transfer
-                                      </Badge>
-                                    )}
-                                  </HStack>
-                                )}
-                              </Stack>
-                            </VStack>
-                          </CardBody>
-                        </Card>
+                          txn={txn}
+                          globalIndex={globalIndex}
+                          isSelected={isSelected}
+                          showStatusColumn={showStatusColumn}
+                          formatted={formatted}
+                          isNegative={isNegative}
+                          onTransactionClick={handleTransactionClick}
+                          onToggleSelection={toggleTransactionSelection}
+                          onAccountClick={handleAccountClick}
+                          onCategoryClick={handleCategoryClick}
+                          onLabelClick={handleLabelClick}
+                          formatDate={formatDate}
+                        />
                       );
                     })}
                   </VStack>
