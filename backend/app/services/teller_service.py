@@ -8,20 +8,24 @@ Teller provides bank account linking with a generous free tier:
 """
 
 import hashlib
-import httpx
-from typing import Dict, List, Optional
-from uuid import UUID
+import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import Dict, List, Optional
+from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession
+import httpx
+from fastapi import HTTPException
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.account import Account, TellerEnrollment, AccountSource, AccountType, TaxTreatment
+from app.models.account import Account, AccountSource, AccountType, TaxTreatment, TellerEnrollment
 from app.models.transaction import Transaction
 from app.services.encryption_service import get_encryption_service
 from app.utils.datetime_utils import utc_now
+
+logger = logging.getLogger(__name__)
 
 
 class TellerService:
@@ -52,17 +56,33 @@ class TellerService:
         # mTLS client certificate — required by Teller for all API calls
         cert = settings.TELLER_CERT_PATH if settings.TELLER_CERT_PATH else None
 
-        async with httpx.AsyncClient(cert=cert) as client:
-            response = await client.request(
-                method=method,
-                url=f"{self.base_url}{path}",
-                auth=auth,
-                headers=headers,
-                timeout=30.0,
-                **kwargs,
+        try:
+            async with httpx.AsyncClient(cert=cert) as client:
+                response = await client.request(
+                    method=method,
+                    url=f"{self.base_url}{path}",
+                    auth=auth,
+                    headers=headers,
+                    timeout=30.0,
+                    **kwargs,
+                )
+                response.raise_for_status()
+                return response.json() if response.content else {}
+        except httpx.HTTPStatusError as exc:
+            logger.error(
+                "Teller API error %s %s: %d %s",
+                method,
+                path,
+                exc.response.status_code,
+                exc.response.text[:200],
             )
-            response.raise_for_status()
-            return response.json() if response.content else {}
+            raise HTTPException(
+                status_code=502,
+                detail=f"Teller API error: {exc.response.status_code}",
+            ) from exc
+        except httpx.HTTPError as exc:
+            logger.error("Teller API request failed %s %s: %s", method, path, exc)
+            raise HTTPException(status_code=502, detail="Teller API unavailable") from exc
 
     async def get_enrollment_url(self, user_id: str) -> str:
         """
@@ -162,9 +182,7 @@ class TellerService:
                 # falling back to current, then available
                 balance = account_data.get("balance", {})
                 balance_value = (
-                    balance.get("ledger")
-                    or balance.get("current")
-                    or balance.get("available", 0)
+                    balance.get("ledger") or balance.get("current") or balance.get("available", 0)
                 )
                 account.current_balance = Decimal(str(balance_value))
                 account.updated_at = utc_now()

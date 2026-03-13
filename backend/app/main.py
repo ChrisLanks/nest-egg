@@ -6,7 +6,7 @@ from decimal import Decimal
 
 _logger = logging.getLogger(__name__)
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -25,7 +25,6 @@ from app.api.v1 import (
     dashboard,
     debt_payoff,
     dev,
-    rebalancing,
     enrichment,
     holdings,
     household,
@@ -36,6 +35,7 @@ from app.api.v1 import (
     notifications,
     permissions,
     plaid,
+    rebalancing,
     recurring_transactions,
     reports,
     retirement,
@@ -52,6 +52,7 @@ from app.config import settings
 from app.core.database import close_db, init_db
 from app.core.logging_config import setup_logging
 from app.core.metrics import create_metrics_app, setup_metrics
+from app.dependencies import get_current_user
 from app.middleware.anomaly_detection import AnomalyDetectionMiddleware
 from app.middleware.csrf_protection import CSRFProtectionMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
@@ -63,10 +64,8 @@ from app.middleware.request_logging import (
 )
 from app.middleware.request_size_limit import RequestSizeLimitMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.services.secrets_validation_service import secrets_validation_service
-from app.dependencies import get_current_user
 from app.models.user import User as UserModel
-from fastapi import Depends, HTTPException
+from app.services.secrets_validation_service import secrets_validation_service
 
 # Initialize Sentry for error tracking and monitoring (optional)
 try:
@@ -168,6 +167,7 @@ async def lifespan(app: FastAPI):
     # Launch Prometheus metrics on a separate admin port (protected by basic auth)
     if settings.METRICS_ENABLED:
         import uvicorn
+
         metrics_asgi = create_metrics_app()
         metrics_config = uvicorn.Config(
             metrics_asgi,
@@ -209,8 +209,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Requested-With"],
 )
 
 # Error handler - Catch uncaught exceptions with PII redaction
@@ -294,8 +294,9 @@ async def health_check():
     Returns 200 if the database is reachable, 503 otherwise.
     Unauthenticated so Docker HEALTHCHECK / load balancers can use it.
     """
-    from app.core.database import AsyncSessionLocal
     from sqlalchemy import text
+
+    from app.core.database import AsyncSessionLocal
 
     checks = {}
 

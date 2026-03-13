@@ -2,25 +2,25 @@
 
 import hashlib
 import logging
+import uuid
 from datetime import timedelta
 from typing import Dict, List, Optional, Tuple
-import uuid
-import jwt
-from jwt import PyJWK
-import httpx
-from fastapi import HTTPException
 
+import httpx
+import jwt
 import plaid
+from fastapi import HTTPException
+from jwt import PyJWK
 from plaid.api import plaid_api
-from plaid.model.link_token_create_request import LinkTokenCreateRequest
-from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
-from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
 from plaid.model.accounts_get_request import AccountsGetRequest
 from plaid.model.country_code import CountryCode
+from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
+from plaid.model.link_token_create_request import LinkTokenCreateRequest
+from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
 from plaid.model.products import Products
 
-from app.models.user import User
 from app.config import settings
+from app.models.user import User
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -50,9 +50,7 @@ class PlaidService:
         """Initialize Plaid service."""
         self._client_id = settings.PLAID_CLIENT_ID
         self._secret = settings.PLAID_SECRET
-        self._base_url = _PLAID_BASE_URLS.get(
-            settings.PLAID_ENV, _PLAID_BASE_URLS["sandbox"]
-        )
+        self._base_url = _PLAID_BASE_URLS.get(settings.PLAID_ENV, _PLAID_BASE_URLS["sandbox"])
         self._plaid_api: Optional[plaid_api.PlaidApi] = None
 
     def _get_plaid_api(self) -> plaid_api.PlaidApi:
@@ -70,9 +68,7 @@ class PlaidService:
             )
 
         configuration = plaid.Configuration(
-            host=_PLAID_ENVIRONMENTS.get(
-                settings.PLAID_ENV, plaid.Environment.Sandbox
-            ),
+            host=_PLAID_ENVIRONMENTS.get(settings.PLAID_ENV, plaid.Environment.Sandbox),
             api_key={
                 "clientId": self._client_id,
                 "secret": self._secret,
@@ -96,9 +92,7 @@ class PlaidService:
         if key_id in _jwk_cache:
             return _jwk_cache[key_id]
 
-        base_url = _PLAID_BASE_URLS.get(
-            settings.PLAID_ENV, _PLAID_BASE_URLS["sandbox"]
-        )
+        base_url = _PLAID_BASE_URLS.get(settings.PLAID_ENV, _PLAID_BASE_URLS["sandbox"])
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
@@ -155,9 +149,7 @@ class PlaidService:
             unverified_header = jwt.get_unverified_header(webhook_verification_header)
             key_id = unverified_header.get("kid")
             if not key_id:
-                raise HTTPException(
-                    status_code=401, detail="Missing kid in webhook JWT header"
-                )
+                raise HTTPException(status_code=401, detail="Missing kid in webhook JWT header")
 
             # 2. Fetch the public key from Plaid (cached by key_id)
             jwk = await PlaidService._fetch_jwk(key_id)
@@ -287,17 +279,27 @@ class PlaidService:
         accounts = []
         for acc in plaid_accounts:
             balances = acc.balances
-            accounts.append({
-                "account_id": acc.account_id,
-                "name": acc.name,
-                "mask": acc.mask,
-                "official_name": acc.official_name,
-                "type": acc.type.value if hasattr(acc.type, "value") else str(acc.type),
-                "subtype": acc.subtype.value if acc.subtype and hasattr(acc.subtype, "value") else str(acc.subtype) if acc.subtype else None,
-                "current_balance": float(balances.current) if balances.current is not None else None,
-                "available_balance": float(balances.available) if balances.available is not None else None,
-                "limit": float(balances.limit) if balances.limit is not None else None,
-            })
+            accounts.append(
+                {
+                    "account_id": acc.account_id,
+                    "name": acc.name,
+                    "mask": acc.mask,
+                    "official_name": acc.official_name,
+                    "type": acc.type.value if hasattr(acc.type, "value") else str(acc.type),
+                    "subtype": acc.subtype.value
+                    if acc.subtype and hasattr(acc.subtype, "value")
+                    else str(acc.subtype)
+                    if acc.subtype
+                    else None,
+                    "current_balance": float(balances.current)
+                    if balances.current is not None
+                    else None,
+                    "available_balance": float(balances.available)
+                    if balances.available is not None
+                    else None,
+                    "limit": float(balances.limit) if balances.limit is not None else None,
+                }
+            )
         return accounts
 
     def _create_dummy_accounts(self, institution_name: str) -> List[dict]:
@@ -386,18 +388,31 @@ class PlaidService:
             return self._create_dummy_holdings()
 
         # For real users, call Plaid investments/holdings/get
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{self._base_url}/investments/holdings/get",
-                json={
-                    "client_id": self._client_id,
-                    "secret": self._secret,
-                    "access_token": access_token,
-                },
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{self._base_url}/investments/holdings/get",
+                    json={
+                        "client_id": self._client_id,
+                        "secret": self._secret,
+                        "access_token": access_token,
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data.get("holdings", []), data.get("securities", [])
+        except httpx.HTTPStatusError as exc:
+            logger.error(
+                "Plaid investments/holdings/get error: %d %s",
+                exc.response.status_code,
+                exc.response.text[:200],
             )
-            response.raise_for_status()
-            data = response.json()
-            return data.get("holdings", []), data.get("securities", [])
+            raise HTTPException(
+                status_code=502, detail="Failed to fetch Plaid investment holdings"
+            ) from exc
+        except httpx.HTTPError as exc:
+            logger.error("Plaid investments/holdings/get request failed: %s", exc)
+            raise HTTPException(status_code=502, detail="Plaid API unavailable") from exc
 
     def _create_dummy_holdings(self) -> Tuple[List[dict], List[dict]]:
         """Create dummy investment holdings for testing."""

@@ -15,17 +15,18 @@ pydantic v1/v2 incompatibility.
 
 import hashlib
 import logging
-import httpx
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession
+import httpx
+from fastapi import HTTPException
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.account import Account, MxMember, AccountSource, AccountType, TaxTreatment
+from app.models.account import Account, AccountSource, AccountType, MxMember, TaxTreatment
 from app.models.transaction import Transaction
 from app.services.encryption_service import get_encryption_service
 from app.utils.datetime_utils import utc_now
@@ -66,18 +67,33 @@ class MxService:
             "Content-Type": "application/json",
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.request(
-                method=method,
-                url=f"{self.base_url}{path}",
-                auth=self._auth,
-                headers=headers,
-                json=json,
-                params=params,
-                timeout=REQUEST_TIMEOUT,
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.request(
+                    method=method,
+                    url=f"{self.base_url}{path}",
+                    auth=self._auth,
+                    headers=headers,
+                    json=json,
+                    params=params,
+                    timeout=REQUEST_TIMEOUT,
+                )
+                response.raise_for_status()
+                return response.json() if response.content else {}
+        except httpx.HTTPStatusError as exc:
+            logger.error(
+                "MX API error %s %s: %d %s",
+                method,
+                path,
+                exc.response.status_code,
+                exc.response.text[:200],
             )
-            response.raise_for_status()
-            return response.json() if response.content else {}
+            raise HTTPException(
+                status_code=502, detail=f"MX API error: {exc.response.status_code}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            logger.error("MX API request failed %s %s: %s", method, path, exc)
+            raise HTTPException(status_code=502, detail="MX API unavailable") from exc
 
     # ── User management ────────────────────────────────────────────────────
 
@@ -180,9 +196,7 @@ class MxService:
         mx_accounts = data.get("accounts", [])
 
         # Pre-fetch existing accounts for this member to avoid N+1 queries
-        existing_result = await db.execute(
-            select(Account).where(Account.mx_member_id == member.id)
-        )
+        existing_result = await db.execute(select(Account).where(Account.mx_member_id == member.id))
         existing_accounts = {
             acc.external_account_id: acc for acc in existing_result.scalars().all()
         }
@@ -203,7 +217,9 @@ class MxService:
                     account_type=mapped_type,
                     tax_treatment=mapped_tax,
                     account_source=AccountSource.MX,
-                    mask=mx_acc.get("account_number")[-4:] if mx_acc.get("account_number") else None,
+                    mask=mx_acc.get("account_number")[-4:]
+                    if mx_acc.get("account_number")
+                    else None,
                     institution_name=member.institution_name,
                     current_balance=Decimal(str(mx_acc.get("balance", 0))),
                     available_balance=Decimal(str(mx_acc.get("available_balance", 0)))
@@ -291,9 +307,7 @@ class MxService:
 
     # ── Helpers ─────────────────────────────────────────────────────────────
 
-    def _map_account_type(
-        self, mx_type: Optional[str]
-    ) -> tuple[AccountType, TaxTreatment | None]:
+    def _map_account_type(self, mx_type: Optional[str]) -> tuple[AccountType, TaxTreatment | None]:
         """Map MX account type to our AccountType enum and TaxTreatment.
 
         MX types: CHECKING, SAVINGS, LOAN, CREDIT_CARD, INVESTMENT,
