@@ -53,7 +53,7 @@ class Organization(Base):
         Integer, default=1, nullable=False
     )  # Day of month to start tracking (1-31)
     timezone = Column(String(50), default="UTC", nullable=False)
-    default_currency = Column(String(3), default="USD", nullable=False, server_default="'USD'")
+    default_currency = Column(String(3), default="USD", nullable=False, server_default="USD")
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)

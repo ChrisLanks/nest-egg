@@ -124,7 +124,7 @@ class RetirementScenario(Base):
         SQLEnum(DistributionType),
         default=DistributionType.NORMAL,
         nullable=False,
-        server_default="normal",
+        server_default="NORMAL",
     )
 
     # Sharing within household

@@ -26,6 +26,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # --- Feature #18: Bulk operation logs ---
+    # Drop if auto-created by SQLAlchemy model metadata
+    op.execute("DROP TABLE IF EXISTS bulk_operation_logs CASCADE")
     op.create_table(
         "bulk_operation_logs",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),

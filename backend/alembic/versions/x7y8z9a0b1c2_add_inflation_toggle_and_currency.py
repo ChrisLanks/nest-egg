@@ -43,7 +43,7 @@ def upgrade() -> None:
             "currency",
             sa.String(3),
             nullable=False,
-            server_default="'USD'",
+            server_default=sa.text("'USD'"),
         ),
     )
     op.add_column(
@@ -52,7 +52,7 @@ def upgrade() -> None:
             "default_currency",
             sa.String(3),
             nullable=False,
-            server_default="'USD'",
+            server_default=sa.text("'USD'"),
         ),
     )
 

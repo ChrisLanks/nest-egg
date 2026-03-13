@@ -23,6 +23,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # Drop if auto-created by SQLAlchemy model metadata
+    op.execute("DROP TABLE IF EXISTS net_worth_snapshots CASCADE")
     op.create_table(
         "net_worth_snapshots",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),

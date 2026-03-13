@@ -7,17 +7,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import delete, select, func, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.database import get_db
-from app.dependencies import get_current_user, get_current_admin_user
+from app.dependencies import get_current_admin_user, get_current_user
 from app.models.account import Account
 from app.models.budget import Budget
 from app.models.savings_goal import SavingsGoal
 from app.models.transaction import Transaction
-from app.models.user import User, HouseholdInvitation, InvitationStatus, Organization
+from app.models.user import HouseholdInvitation, InvitationStatus, Organization, User
 from app.services.email_service import email_service
 from app.services.rate_limit_service import get_rate_limit_service
 from app.utils.datetime_utils import utc_now
@@ -302,6 +302,21 @@ async def leave_household(
     and must remove other members first. All accounts owned by the leaving
     user are moved to their new solo household.
     """
+    # Check if user is the only member in the household
+    member_count_result = await db.execute(
+        select(func.count(User.id)).where(
+            User.organization_id == current_user.organization_id,
+            User.is_active.is_(True),
+        )
+    )
+    member_count = member_count_result.scalar()
+
+    if member_count <= 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot leave a household where you are the only member.",
+        )
+
     if current_user.is_primary_household_member:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -321,9 +336,7 @@ async def leave_household(
 
     # Build a sensible name for their new solo household
     name_part = (
-        current_user.display_name
-        or current_user.first_name
-        or current_user.email.split("@")[0]
+        current_user.display_name or current_user.first_name or current_user.email.split("@")[0]
     )
     new_org = Organization(name=f"{name_part}'s Household")
     db.add(new_org)
@@ -399,8 +412,12 @@ async def leave_household(
             current_amount=goal.current_amount,
             start_date=goal.start_date,
             target_date=goal.target_date,
-            account_id=goal.account_id if goal.account_id and str(goal.account_id) in migrated_account_ids else None,
-            auto_sync=goal.auto_sync if goal.account_id and str(goal.account_id) in migrated_account_ids else False,
+            account_id=goal.account_id
+            if goal.account_id and str(goal.account_id) in migrated_account_ids
+            else None,
+            auto_sync=goal.auto_sync
+            if goal.account_id and str(goal.account_id) in migrated_account_ids
+            else False,
             is_shared=False,
             shared_user_ids=None,
         )
@@ -412,7 +429,11 @@ async def leave_household(
     current_user.is_org_admin = True
 
     await db.commit()
-    return {"message": "You have left the household. Your accounts have been moved to your new household."}
+    return {
+        "message": (
+            "You have left the household." " Your accounts have been moved to your new household."
+        )
+    }
 
 
 @router.get("/invitation/{invitation_code}")
@@ -525,8 +546,11 @@ async def accept_invitation(
         if len(household_members) > 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot accept invitation. You are not the only member in your current household. "
-                "Please have other members leave first, or create a new account.",
+                detail=(
+                    "Cannot accept invitation. You are not the only member"
+                    " in your current household. Please have other members"
+                    " leave first, or create a new account."
+                ),
             )
 
         # User is solo - migrate them and their accounts

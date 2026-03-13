@@ -18,6 +18,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Drop if auto-created by SQLAlchemy model metadata
+    op.execute("DROP TABLE IF EXISTS transaction_attachments CASCADE")
     op.create_table(
         "transaction_attachments",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),

@@ -18,6 +18,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Drop if auto-created by SQLAlchemy model metadata
+    op.execute("DROP TABLE IF EXISTS tax_lots CASCADE")
     # Create tax_lots table
     op.create_table(
         "tax_lots",

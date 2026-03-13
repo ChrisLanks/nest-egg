@@ -17,26 +17,30 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Create the enum type first
-    distribution_type_enum = sa.Enum(
-        "normal", "log_normal", "historical_bootstrap",
-        name="distributiontype",
+    # Create the enum type first (raw SQL for async compatibility)
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE TYPE distributiontype AS ENUM "
+        "('NORMAL', 'LOG_NORMAL', 'HISTORICAL_BOOTSTRAP'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; "
+        "END $$"
     )
-    distribution_type_enum.create(op.get_bind(), checkfirst=True)
 
     op.add_column(
         "retirement_scenarios",
         sa.Column(
             "distribution_type",
-            distribution_type_enum,
+            sa.Enum(
+                "NORMAL", "LOG_NORMAL", "HISTORICAL_BOOTSTRAP",
+                name="distributiontype",
+                create_type=False,
+            ),
             nullable=False,
-            server_default="normal",
+            server_default="NORMAL",
         ),
     )
 
 
 def downgrade() -> None:
     op.drop_column("retirement_scenarios", "distribution_type")
-
-    # Drop the enum type
-    sa.Enum(name="distributiontype").drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS distributiontype")

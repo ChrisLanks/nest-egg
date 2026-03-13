@@ -392,7 +392,7 @@ class Account(Base):
     balance_as_of = Column(DateTime, nullable=True)
 
     # Currency (ISO 4217 code)
-    currency = Column(String(3), default="USD", nullable=False, server_default="'USD'")
+    currency = Column(String(3), default="USD", nullable=False, server_default="USD")
 
     # Status
     is_active = Column(Boolean, default=True, nullable=False, index=True)

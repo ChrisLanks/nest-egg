@@ -55,16 +55,16 @@ import {
   Tr,
   Th,
   Td,
-} from '@chakra-ui/react';
-import { EmailIcon, DeleteIcon, CopyIcon, CheckIcon } from '@chakra-ui/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useRef, useEffect } from 'react';
-import api from '../services/api';
-import { useAuthStore } from '../features/auth/stores/authStore';
+} from "@chakra-ui/react";
+import { EmailIcon, DeleteIcon, CopyIcon, CheckIcon } from "@chakra-ui/icons";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useRef, useEffect } from "react";
+import api from "../services/api";
+import { useAuthStore } from "../features/auth/stores/authStore";
 
 /** Short human-readable hint about whether an email was sent. */
 const email_configured_hint = (inv: Invitation) =>
-  `Invitation created. ${inv.join_url ? 'Share the join link if the invitee doesn\'t receive an email.' : ''}`;
+  `Invitation created. ${inv.join_url ? "Share the join link if the invitee doesn't receive an email." : ""}`;
 
 /** Safely extract a string message from an API error response.
  *  Some endpoints (e.g. the rate limiter) return detail as an object
@@ -72,11 +72,11 @@ const email_configured_hint = (inv: Invitation) =>
  *  description crashes React ("Objects are not valid as a React child"). */
 const getErrorMessage = (error: any): string => {
   const detail = error?.response?.data?.detail;
-  if (!detail) return 'An error occurred';
-  if (typeof detail === 'object') return (detail as any).message || 'An error occurred';
+  if (!detail) return "An error occurred";
+  if (typeof detail === "object")
+    return (detail as any).message || "An error occurred";
   return String(detail);
 };
-
 
 interface HouseholdMember {
   id: string;
@@ -93,7 +93,7 @@ interface Invitation {
   id: string;
   email: string;
   invitation_code: string;
-  status: 'pending' | 'accepted' | 'declined' | 'expired';
+  status: "pending" | "accepted" | "declined" | "expired";
   expires_at: string;
   created_at: string;
   invited_by_email: string;
@@ -117,8 +117,14 @@ const CopyLinkButton: React.FC<{ url: string }> = ({ url }) => {
     });
   };
   return (
-    <Button size="xs" variant="ghost" colorScheme="blue" leftIcon={copied ? <CheckIcon /> : <CopyIcon />} onClick={handleCopy}>
-      {copied ? 'Copied!' : 'Copy link'}
+    <Button
+      size="xs"
+      variant="ghost"
+      colorScheme="blue"
+      leftIcon={copied ? <CheckIcon /> : <CopyIcon />}
+      onClick={handleCopy}
+    >
+      {copied ? "Copied!" : "Copy link"}
     </Button>
   );
 };
@@ -127,27 +133,35 @@ export const HouseholdSettingsPage: React.FC = () => {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const { isOpen: isLeaveOpen, onOpen: onLeaveOpen, onClose: onLeaveClose } = useDisclosure();
+  const {
+    isOpen: isLeaveOpen,
+    onOpen: onLeaveOpen,
+    onClose: onLeaveClose,
+  } = useDisclosure();
   const leaveCancelRef = useRef<HTMLButtonElement>(null);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [emailError, setEmailError] = useState('');
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
   const { user, logout } = useAuthStore();
   const [monthlyStartDay, setMonthlyStartDay] = useState(1);
 
   // Fetch household members
-  const { data: members, isLoading: loadingMembers } = useQuery<HouseholdMember[]>({
-    queryKey: ['household-members'],
+  const { data: members, isLoading: loadingMembers } = useQuery<
+    HouseholdMember[]
+  >({
+    queryKey: ["household-members"],
     queryFn: async () => {
-      const response = await api.get('/household/members');
+      const response = await api.get("/household/members");
       return response.data;
     },
   });
 
   // Fetch pending invitations
-  const { data: invitations, isLoading: loadingInvitations } = useQuery<Invitation[]>({
-    queryKey: ['household-invitations'],
+  const { data: invitations, isLoading: loadingInvitations } = useQuery<
+    Invitation[]
+  >({
+    queryKey: ["household-invitations"],
     queryFn: async () => {
-      const response = await api.get('/household/invitations');
+      const response = await api.get("/household/invitations");
       return response.data;
     },
   });
@@ -155,25 +169,25 @@ export const HouseholdSettingsPage: React.FC = () => {
   // Invite member mutation
   const inviteMutation = useMutation({
     mutationFn: async (email: string) => {
-      const response = await api.post('/household/invite', { email });
+      const response = await api.post("/household/invite", { email });
       return response.data as Invitation;
     },
     onSuccess: (data) => {
       toast({
-        title: 'Invitation sent',
+        title: "Invitation sent",
         description: email_configured_hint(data),
-        status: 'success',
+        status: "success",
         duration: 5000,
       });
-      setInviteEmail('');
+      setInviteEmail("");
       onClose();
-      queryClient.invalidateQueries({ queryKey: ['household-invitations'] });
+      queryClient.invalidateQueries({ queryKey: ["household-invitations"] });
     },
     onError: (error: any) => {
       toast({
-        title: 'Failed to send invitation',
+        title: "Failed to send invitation",
         description: getErrorMessage(error),
-        status: 'error',
+        status: "error",
         duration: 5000,
       });
     },
@@ -186,18 +200,18 @@ export const HouseholdSettingsPage: React.FC = () => {
     },
     onSuccess: () => {
       toast({
-        title: 'Member removed',
-        description: 'The member has been removed from the household.',
-        status: 'success',
+        title: "Member removed",
+        description: "The member has been removed from the household.",
+        status: "success",
         duration: 3000,
       });
-      queryClient.invalidateQueries({ queryKey: ['household-members'] });
+      queryClient.invalidateQueries({ queryKey: ["household-members"] });
     },
     onError: (error: any) => {
       toast({
-        title: 'Failed to remove member',
+        title: "Failed to remove member",
         description: getErrorMessage(error),
-        status: 'error',
+        status: "error",
         duration: 5000,
       });
     },
@@ -205,9 +219,9 @@ export const HouseholdSettingsPage: React.FC = () => {
 
   // Fetch org preferences
   const { data: orgPrefs } = useQuery<OrganizationPreferences>({
-    queryKey: ['orgPreferences'],
+    queryKey: ["orgPreferences"],
     queryFn: async () => {
-      const response = await api.get('/settings/organization');
+      const response = await api.get("/settings/organization");
       return response.data;
     },
     enabled: user?.is_org_admin === true,
@@ -223,22 +237,22 @@ export const HouseholdSettingsPage: React.FC = () => {
   // Update org preferences mutation
   const updateOrgMutation = useMutation({
     mutationFn: async (data: { monthly_start_day: number }) => {
-      const response = await api.patch('/settings/organization', data);
+      const response = await api.patch("/settings/organization", data);
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orgPreferences'] });
+      queryClient.invalidateQueries({ queryKey: ["orgPreferences"] });
       toast({
-        title: 'Preferences updated',
-        status: 'success',
+        title: "Preferences updated",
+        status: "success",
         duration: 3000,
       });
     },
     onError: (error: any) => {
       toast({
-        title: 'Failed to update preferences',
+        title: "Failed to update preferences",
         description: getErrorMessage(error),
-        status: 'error',
+        status: "error",
         duration: 5000,
       });
     },
@@ -255,18 +269,18 @@ export const HouseholdSettingsPage: React.FC = () => {
     },
     onSuccess: () => {
       toast({
-        title: 'Invitation cancelled',
-        description: 'The invitation has been cancelled.',
-        status: 'success',
+        title: "Invitation cancelled",
+        description: "The invitation has been cancelled.",
+        status: "success",
         duration: 3000,
       });
-      queryClient.invalidateQueries({ queryKey: ['household-invitations'] });
+      queryClient.invalidateQueries({ queryKey: ["household-invitations"] });
     },
     onError: (error: any) => {
       toast({
-        title: 'Failed to cancel invitation',
+        title: "Failed to cancel invitation",
         description: getErrorMessage(error),
-        status: 'error',
+        status: "error",
         duration: 5000,
       });
     },
@@ -275,28 +289,28 @@ export const HouseholdSettingsPage: React.FC = () => {
   // Leave household mutation
   const leaveMutation = useMutation({
     mutationFn: async () => {
-      await api.post('/household/leave');
+      await api.post("/household/leave");
     },
     onSuccess: () => {
       onLeaveClose();
       toast({
-        title: 'You have left the household',
-        description: 'Signing you out so your session refreshes.',
-        status: 'success',
+        title: "You have left the household",
+        description: "Signing you out so your session refreshes.",
+        status: "success",
         duration: 3000,
       });
       // Org context has changed — sign out so the user logs back in with fresh state
       setTimeout(() => {
         logout();
-        window.location.href = '/login';
+        window.location.href = "/login";
       }, 1500);
     },
     onError: (error: any) => {
       onLeaveClose();
       toast({
-        title: 'Failed to leave household',
+        title: "Failed to leave household",
         description: getErrorMessage(error),
-        status: 'error',
+        status: "error",
         duration: 5000,
       });
     },
@@ -306,14 +320,14 @@ export const HouseholdSettingsPage: React.FC = () => {
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email) {
-      setEmailError('Email is required');
+      setEmailError("Email is required");
       return false;
     }
     if (!emailRegex.test(email)) {
-      setEmailError('Invalid email address');
+      setEmailError("Invalid email address");
       return false;
     }
-    setEmailError('');
+    setEmailError("");
     return true;
   };
 
@@ -336,10 +350,10 @@ export const HouseholdSettingsPage: React.FC = () => {
 
   // Format date
   const formatDate = (dateStr: string): string => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
@@ -362,8 +376,8 @@ export const HouseholdSettingsPage: React.FC = () => {
             <Box>
               <AlertTitle>Household limit reached</AlertTitle>
               <AlertDescription>
-                You have reached the maximum of 5 household members.
-                Remove a member before inviting new ones.
+                You have reached the maximum of 5 household members. Remove a
+                member before inviting new ones.
               </AlertDescription>
             </Box>
           </Alert>
@@ -397,10 +411,7 @@ export const HouseholdSettingsPage: React.FC = () => {
                     <CardBody>
                       <HStack justify="space-between">
                         <HStack spacing={4}>
-                          <Avatar
-                            name={getDisplayName(member)}
-                            size="md"
-                          />
+                          <Avatar name={getDisplayName(member)} size="md" />
                           <Box>
                             <HStack>
                               <Text fontWeight="medium">
@@ -424,11 +435,18 @@ export const HouseholdSettingsPage: React.FC = () => {
                             </Text>
                           </Box>
                         </HStack>
-                        {member.id === user?.id && !member.is_primary_household_member ? (
-                          <Text fontSize="xs" color="text.muted" fontStyle="italic" pr={1}>
+                        {member.id === user?.id &&
+                        !member.is_primary_household_member ? (
+                          <Text
+                            fontSize="xs"
+                            color="text.muted"
+                            fontStyle="italic"
+                            pr={1}
+                          >
                             Use "Leave Household" below
                           </Text>
-                        ) : !member.is_primary_household_member && user?.is_org_admin ? (
+                        ) : !member.is_primary_household_member &&
+                          user?.is_org_admin ? (
                           <IconButton
                             aria-label="Remove member"
                             icon={<DeleteIcon />}
@@ -436,7 +454,11 @@ export const HouseholdSettingsPage: React.FC = () => {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              if (window.confirm(`Remove ${getDisplayName(member)} from household?`)) {
+                              if (
+                                window.confirm(
+                                  `Remove ${getDisplayName(member)} from household?`,
+                                )
+                              ) {
                                 removeMutation.mutate(member.id);
                               }
                             }}
@@ -490,8 +512,14 @@ export const HouseholdSettingsPage: React.FC = () => {
                               colorScheme="red"
                               variant="ghost"
                               onClick={() => {
-                                if (window.confirm(`Cancel invitation to ${invitation.email}?`)) {
-                                  cancelInvitationMutation.mutate(invitation.id);
+                                if (
+                                  window.confirm(
+                                    `Cancel invitation to ${invitation.email}?`,
+                                  )
+                                ) {
+                                  cancelInvitationMutation.mutate(
+                                    invitation.id,
+                                  );
                                 }
                               }}
                             >
@@ -508,33 +536,41 @@ export const HouseholdSettingsPage: React.FC = () => {
           </Card>
         )}
         {/* Leave Household — visible to non-primary members only */}
-        {members && (() => {
-          const currentMember = members.find(m => m.id === user?.id);
-          if (!currentMember || currentMember.is_primary_household_member) return null;
-          return (
-            <Card borderColor="red.200" borderWidth="1px">
-              <CardHeader>
-                <Heading size="md" color="red.600">Leave Household</Heading>
-              </CardHeader>
-              <CardBody>
-                <VStack align="stretch" spacing={4}>
-                  <Text color="text.secondary" fontSize="sm">
-                    Leaving will move your accounts to a new solo household. You can rejoin or create
-                    a new household at any time.
-                  </Text>
-                  <Button
-                    colorScheme="red"
-                    variant="outline"
-                    alignSelf="flex-start"
-                    onClick={onLeaveOpen}
-                  >
+        {members &&
+          (() => {
+            const currentMember = members.find((m) => m.id === user?.id);
+            if (
+              !currentMember ||
+              currentMember.is_primary_household_member ||
+              members.length <= 1
+            )
+              return null;
+            return (
+              <Card borderColor="red.200" borderWidth="1px">
+                <CardHeader>
+                  <Heading size="md" color="red.600">
                     Leave Household
-                  </Button>
-                </VStack>
-              </CardBody>
-            </Card>
-          );
-        })()}
+                  </Heading>
+                </CardHeader>
+                <CardBody>
+                  <VStack align="stretch" spacing={4}>
+                    <Text color="text.secondary" fontSize="sm">
+                      Leaving will move your accounts to a new solo household.
+                      You can rejoin or create a new household at any time.
+                    </Text>
+                    <Button
+                      colorScheme="red"
+                      variant="outline"
+                      alignSelf="flex-start"
+                      onClick={onLeaveOpen}
+                    >
+                      Leave Household
+                    </Button>
+                  </VStack>
+                </CardBody>
+              </Card>
+            );
+          })()}
 
         {/* Organization Preferences */}
         {user?.is_org_admin && (
@@ -560,9 +596,10 @@ export const HouseholdSettingsPage: React.FC = () => {
                     </NumberInputStepper>
                   </NumberInput>
                   <FormHelperText>
-                    Day of the month to start tracking (1-28). For example, set to 16 to
-                    track from the 16th of each month. Transactions, cash flow, and net worth
-                    calculations will be grouped monthly based on this day.
+                    Day of the month to start tracking (1-28). For example, set
+                    to 16 to track from the 16th of each month. Transactions,
+                    cash flow, and net worth calculations will be grouped
+                    monthly based on this day.
                   </FormHelperText>
                 </FormControl>
                 <Button
@@ -580,7 +617,11 @@ export const HouseholdSettingsPage: React.FC = () => {
       </VStack>
 
       {/* Leave household confirmation dialog */}
-      <AlertDialog isOpen={isLeaveOpen} leastDestructiveRef={leaveCancelRef} onClose={onLeaveClose}>
+      <AlertDialog
+        isOpen={isLeaveOpen}
+        leastDestructiveRef={leaveCancelRef}
+        onClose={onLeaveClose}
+      >
         <AlertDialogOverlay>
           <AlertDialogContent>
             <AlertDialogHeader fontSize="lg" fontWeight="bold">
@@ -591,8 +632,8 @@ export const HouseholdSettingsPage: React.FC = () => {
                 <Text>Are you sure you want to leave this household?</Text>
                 <Alert status="warning" borderRadius="md" fontSize="sm">
                   <AlertIcon />
-                  Your accounts will be moved to a new solo household. You will be signed out
-                  immediately so your session refreshes.
+                  Your accounts will be moved to a new solo household. You will
+                  be signed out immediately so your session refreshes.
                 </Alert>
               </VStack>
             </AlertDialogBody>
@@ -629,7 +670,7 @@ export const HouseholdSettingsPage: React.FC = () => {
                   value={inviteEmail}
                   onChange={(e) => {
                     setInviteEmail(e.target.value);
-                    setEmailError('');
+                    setEmailError("");
                   }}
                 />
                 <FormErrorMessage>{emailError}</FormErrorMessage>
@@ -637,8 +678,8 @@ export const HouseholdSettingsPage: React.FC = () => {
               <Alert status="info" borderRadius="md">
                 <AlertIcon />
                 <Text fontSize="sm">
-                  An invitation email will be sent if email is configured.
-                  You can also copy the join link from the pending invitations table
+                  An invitation email will be sent if email is configured. You
+                  can also copy the join link from the pending invitations table
                   and share it directly. Invitations expire after 7 days.
                 </Text>
               </Alert>

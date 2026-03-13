@@ -40,31 +40,27 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Notifications: unread badge per user
-    op.create_index(
-        "ix_notifications_user_unread",
-        "notifications",
-        ["organization_id", "user_id", "is_read"],
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_notifications_user_unread "
+        "ON notifications (organization_id, user_id, is_read)"
     )
 
     # Holdings: per-account ticker lookup / upsert
-    op.create_index(
-        "ix_holdings_account_ticker",
-        "holdings",
-        ["account_id", "ticker"],
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_holdings_account_ticker "
+        "ON holdings (account_id, ticker)"
     )
 
     # Savings goals: per-user listing within an org
-    op.create_index(
-        "ix_savings_goals_org_user",
-        "savings_goals",
-        ["organization_id", "user_id"],
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_savings_goals_org_user "
+        "ON savings_goals (organization_id, user_id)"
     )
 
     # Portfolio snapshots: latest-snapshot and date-range queries (DESC for newest-first)
-    op.create_index(
-        "ix_portfolio_snapshots_org_date",
-        "portfolio_snapshots",
-        ["organization_id", sa.text("snapshot_date DESC")],
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_portfolio_snapshots_org_date "
+        "ON portfolio_snapshots (organization_id, snapshot_date DESC)"
     )
 
 
