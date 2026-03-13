@@ -34,6 +34,7 @@
     "react-plaid-link": "^4.1.1",
     "react-router-dom": "^6.22.0",
     "recharts": "^3.7.0",
+    "strip-literal": "^3.1.0",
     "zod": "^3.22.4",
     "zustand": "^4.5.0"
   },

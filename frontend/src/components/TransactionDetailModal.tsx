@@ -24,16 +24,17 @@ import {
   IconButton,
   useDisclosure,
   Tooltip,
-} from '@chakra-ui/react';
-import { CloseIcon } from '@chakra-ui/icons';
-import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import type { Transaction } from '../types/transaction';
-import api from '../services/api';
-import { useUserView } from '../contexts/UserViewContext';
-import { CategorySelect } from './CategorySelect';
-import { MerchantSelect } from './MerchantSelect';
-import { RuleBuilder } from '../features/rules/components/RuleBuilder';
+} from "@chakra-ui/react";
+import { CloseIcon } from "@chakra-ui/icons";
+import { useState, useEffect } from "react";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import type { Transaction } from "../types/transaction";
+import api from "../services/api";
+import { useUserView } from "../contexts/UserViewContext";
+import { CategorySelect } from "./CategorySelect";
+import { MerchantSelect } from "./MerchantSelect";
+import { RuleBuilder } from "../features/rules/components/RuleBuilder";
+import { AttachmentsList } from "../features/transactions/components/AttachmentsList";
 
 interface TransactionDetailModalProps {
   transaction: Transaction | null;
@@ -56,22 +57,28 @@ export const TransactionDetailModal = ({
   onCreateRule: _onCreateRule,
 }: TransactionDetailModalProps) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [merchantName, setMerchantName] = useState('');
-  const [category, setCategory] = useState('');
-  const [newLabelName, setNewLabelName] = useState('');
+  const [merchantName, setMerchantName] = useState("");
+  const [category, setCategory] = useState("");
+  const [newLabelName, setNewLabelName] = useState("");
   const [pendingLabelsToAdd, setPendingLabelsToAdd] = useState<string[]>([]);
-  const [pendingLabelsToRemove, setPendingLabelsToRemove] = useState<string[]>([]);
+  const [pendingLabelsToRemove, setPendingLabelsToRemove] = useState<string[]>(
+    [],
+  );
   const toast = useToast();
   const queryClient = useQueryClient();
   const { isSelfView, canWriteOwnedResource } = useUserView();
 
   // Rule builder modal
-  const { isOpen: isRuleBuilderOpen, onOpen: onRuleBuilderOpen, onClose: onRuleBuilderClose } = useDisclosure();
+  const {
+    isOpen: isRuleBuilderOpen,
+    onOpen: onRuleBuilderOpen,
+    onClose: onRuleBuilderClose,
+  } = useDisclosure();
 
   // Fetch account to resolve ownership — needed in combined and other-user views
   // to check if the current user owns the account or has a write grant from the owner.
   const { data: account } = useQuery({
-    queryKey: ['account', transaction?.account_id],
+    queryKey: ["account", transaction?.account_id],
     queryFn: async () => {
       if (!transaction?.account_id) return null;
       const response = await api.get(`/accounts/${transaction.account_id}`);
@@ -86,14 +93,14 @@ export const TransactionDetailModal = ({
   const canEdit = isSelfView
     ? true
     : account
-      ? canWriteOwnedResource('transaction', account.user_id)
+      ? canWriteOwnedResource("transaction", account.user_id)
       : false;
 
   // Fetch available labels
   const { data: availableLabels } = useQuery({
-    queryKey: ['labels'],
+    queryKey: ["labels"],
     queryFn: async () => {
-      const response = await api.get<Label[]>('/labels/');
+      const response = await api.get<Label[]>("/labels/");
       return response.data;
     },
     enabled: isOpen,
@@ -101,9 +108,11 @@ export const TransactionDetailModal = ({
 
   // Fetch current transaction to get live updates when labels change
   const { data: liveTransaction } = useQuery({
-    queryKey: ['transaction', transaction?.id],
+    queryKey: ["transaction", transaction?.id],
     queryFn: async () => {
-      const response = await api.get<Transaction>(`/transactions/${transaction?.id}`);
+      const response = await api.get<Transaction>(
+        `/transactions/${transaction?.id}`,
+      );
       return response.data;
     },
     enabled: isOpen && !!transaction?.id,
@@ -114,21 +123,30 @@ export const TransactionDetailModal = ({
   const currentTransaction = liveTransaction || transaction;
 
   // Reset editing state when transaction changes or modal opens
+  /* eslint-disable react-hooks/set-state-in-effect -- intentional batch reset on modal open */
   useEffect(() => {
     if (isOpen) {
       setIsEditing(false);
-      setMerchantName('');
-      setCategory('');
-      setNewLabelName('');
+      setMerchantName("");
+      setCategory("");
+      setNewLabelName("");
       setPendingLabelsToAdd([]);
       setPendingLabelsToRemove([]);
     }
   }, [transaction?.id, isOpen]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const updateMutation = useMutation({
-    mutationFn: async (data: { merchant_name?: string; category_primary?: string; is_transfer?: boolean }) => {
+    mutationFn: async (data: {
+      merchant_name?: string;
+      category_primary?: string;
+      is_transfer?: boolean;
+    }) => {
       // First update the transaction fields
-      const response = await api.patch(`/transactions/${transaction?.id}`, data);
+      const response = await api.patch(
+        `/transactions/${transaction?.id}`,
+        data,
+      );
 
       // Then apply label changes
       for (const labelId of pendingLabelsToRemove) {
@@ -142,12 +160,14 @@ export const TransactionDetailModal = ({
     },
     onSuccess: () => {
       toast({
-        title: 'Transaction updated',
-        status: 'success',
+        title: "Transaction updated",
+        status: "success",
         duration: 3000,
       });
-      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['transaction', transaction?.id] });
+      queryClient.invalidateQueries({ queryKey: ["infinite-transactions"] });
+      queryClient.invalidateQueries({
+        queryKey: ["transaction", transaction?.id],
+      });
       setPendingLabelsToAdd([]);
       setPendingLabelsToRemove([]);
       setIsEditing(false);
@@ -155,8 +175,8 @@ export const TransactionDetailModal = ({
     },
     onError: () => {
       toast({
-        title: 'Failed to update transaction',
-        status: 'error',
+        title: "Failed to update transaction",
+        status: "error",
         duration: 5000,
       });
     },
@@ -165,57 +185,61 @@ export const TransactionDetailModal = ({
   // Separate mutation for transfer toggle that doesn't close the modal
   const toggleTransferMutation = useMutation({
     mutationFn: async (isTransfer: boolean) => {
-      const response = await api.patch(`/transactions/${transaction?.id}`, { is_transfer: isTransfer });
+      const response = await api.patch(`/transactions/${transaction?.id}`, {
+        is_transfer: isTransfer,
+      });
       return response.data;
     },
     onSuccess: () => {
       toast({
-        title: 'Transfer status updated',
-        status: 'success',
+        title: "Transfer status updated",
+        status: "success",
         duration: 2000,
       });
-      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['transaction', transaction?.id] });
+      queryClient.invalidateQueries({ queryKey: ["infinite-transactions"] });
+      queryClient.invalidateQueries({
+        queryKey: ["transaction", transaction?.id],
+      });
     },
     onError: () => {
       toast({
-        title: 'Failed to update transfer status',
-        status: 'error',
+        title: "Failed to update transfer status",
+        status: "error",
         duration: 3000,
       });
     },
   });
 
-
   const createLabelMutation = useMutation({
     mutationFn: async (name: string) => {
-      const response = await api.post<Label>('/labels/', { name });
+      const response = await api.post<Label>("/labels/", { name });
       return response.data;
     },
     onSuccess: (newLabel) => {
-      queryClient.invalidateQueries({ queryKey: ['labels'] });
+      queryClient.invalidateQueries({ queryKey: ["labels"] });
       // Add to pending additions
       setPendingLabelsToAdd([...pendingLabelsToAdd, newLabel.id]);
-      setNewLabelName('');
+      setNewLabelName("");
       toast({
-        title: 'Label created and will be added on save',
-        status: 'success',
+        title: "Label created and will be added on save",
+        status: "success",
         duration: 3000,
       });
     },
     onError: (error: any) => {
-      const errorMessage = error?.response?.data?.detail || 'Failed to create label';
+      const errorMessage =
+        error?.response?.data?.detail || "Failed to create label";
       toast({
         title: errorMessage,
-        status: 'error',
+        status: "error",
         duration: 5000,
       });
     },
   });
 
   const handleEdit = () => {
-    setMerchantName(currentTransaction?.merchant_name || '');
-    setCategory(currentTransaction?.category_primary || '');
+    setMerchantName(currentTransaction?.merchant_name || "");
+    setCategory(currentTransaction?.category_primary || "");
     setIsEditing(true);
   };
 
@@ -228,8 +252,8 @@ export const TransactionDetailModal = ({
 
   const handleCancel = () => {
     setIsEditing(false);
-    setMerchantName('');
-    setCategory('');
+    setMerchantName("");
+    setCategory("");
     setPendingLabelsToAdd([]);
     setPendingLabelsToRemove([]);
   };
@@ -241,7 +265,9 @@ export const TransactionDetailModal = ({
   const handleAddLabel = (labelId: string) => {
     // If this label was pending removal, cancel that
     if (pendingLabelsToRemove.includes(labelId)) {
-      setPendingLabelsToRemove(pendingLabelsToRemove.filter(id => id !== labelId));
+      setPendingLabelsToRemove(
+        pendingLabelsToRemove.filter((id) => id !== labelId),
+      );
     } else {
       // Otherwise, add it to pending additions
       setPendingLabelsToAdd([...pendingLabelsToAdd, labelId]);
@@ -251,7 +277,7 @@ export const TransactionDetailModal = ({
   const handleRemoveLabel = (labelId: string) => {
     // If this label was pending addition, just cancel that
     if (pendingLabelsToAdd.includes(labelId)) {
-      setPendingLabelsToAdd(pendingLabelsToAdd.filter(id => id !== labelId));
+      setPendingLabelsToAdd(pendingLabelsToAdd.filter((id) => id !== labelId));
     } else {
       // Otherwise, add it to pending removals
       setPendingLabelsToRemove([...pendingLabelsToRemove, labelId]);
@@ -262,11 +288,12 @@ export const TransactionDetailModal = ({
     if (!newLabelName.trim()) return;
 
     // Prevent creating "Transfer" label (reserved for system)
-    if (newLabelName.trim().toLowerCase() === 'transfer') {
+    if (newLabelName.trim().toLowerCase() === "transfer") {
       toast({
         title: 'Cannot create label named "Transfer"',
-        description: 'This is a reserved system label. Use the "Mark as Transfer" button instead.',
-        status: 'warning',
+        description:
+          'This is a reserved system label. Use the "Mark as Transfer" button instead.',
+        status: "warning",
         duration: 5000,
       });
       return;
@@ -284,37 +311,42 @@ export const TransactionDetailModal = ({
   // Calculate current labels accounting for pending changes
   const currentLabels = currentTransaction.labels || [];
   const displayedLabels = [
-    ...currentLabels.filter(label => !pendingLabelsToRemove.includes(label.id)),
-    ...(availableLabels?.filter(label => pendingLabelsToAdd.includes(label.id)) || [])
+    ...currentLabels.filter(
+      (label) => !pendingLabelsToRemove.includes(label.id),
+    ),
+    ...(availableLabels?.filter((label) =>
+      pendingLabelsToAdd.includes(label.id),
+    ) || []),
   ];
 
   // Get labels not already on this transaction (including pending additions)
   const allCurrentLabelIds = [
-    ...currentLabels.map(l => l.id),
-    ...pendingLabelsToAdd
-  ].filter(id => !pendingLabelsToRemove.includes(id));
+    ...currentLabels.map((l) => l.id),
+    ...pendingLabelsToAdd,
+  ].filter((id) => !pendingLabelsToRemove.includes(id));
 
-  const unusedLabels = availableLabels?.filter(
-    (label) => !allCurrentLabelIds.includes(label.id)
-  ) || [];
+  const unusedLabels =
+    availableLabels?.filter(
+      (label) => !allCurrentLabelIds.includes(label.id),
+    ) || [];
 
   const formatCurrency = (amount: number) => {
     const isNegative = amount < 0;
-    const formatted = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    const formatted = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
     }).format(Math.abs(amount));
     return { formatted, isNegative };
   };
 
   const formatDate = (dateStr: string) => {
     // Parse as local date to avoid timezone conversion issues
-    const [year, month, day] = dateStr.split('-').map(Number);
-    return new Date(year, month - 1, day).toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
+    const [year, month, day] = dateStr.split("-").map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
     });
   };
 
@@ -325,7 +357,7 @@ export const TransactionDetailModal = ({
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>
-          {isEditing ? 'Edit Transaction' : 'Transaction Details'}
+          {isEditing ? "Edit Transaction" : "Transaction Details"}
         </ModalHeader>
         <ModalCloseButton />
         <ModalBody pb={6}>
@@ -335,9 +367,9 @@ export const TransactionDetailModal = ({
               <Text
                 fontSize="2xl"
                 fontWeight="bold"
-                color={isNegative ? 'finance.negative' : 'finance.positive'}
+                color={isNegative ? "finance.negative" : "finance.positive"}
               >
-                {isNegative ? '-' : '+'}
+                {isNegative ? "-" : "+"}
                 {formatted}
               </Text>
               <HStack spacing={2}>
@@ -367,16 +399,26 @@ export const TransactionDetailModal = ({
                     Transfers are excluded from cash flow and budgets
                   </Text>
                 </Box>
-                <Tooltip label={!canEdit ? "You can only edit your own transactions" : ""}>
+                <Tooltip
+                  label={
+                    !canEdit ? "You can only edit your own transactions" : ""
+                  }
+                >
                   <Button
                     size="sm"
-                    colorScheme={currentTransaction.is_transfer ? "purple" : "gray"}
-                    variant={currentTransaction.is_transfer ? "solid" : "outline"}
+                    colorScheme={
+                      currentTransaction.is_transfer ? "purple" : "gray"
+                    }
+                    variant={
+                      currentTransaction.is_transfer ? "solid" : "outline"
+                    }
                     onClick={handleToggleTransfer}
                     isDisabled={!canEdit}
                     isLoading={toggleTransferMutation.isPending}
                   >
-                    {currentTransaction.is_transfer ? "✓ Is Transfer" : "Mark as Transfer"}
+                    {currentTransaction.is_transfer
+                      ? "✓ Is Transfer"
+                      : "Mark as Transfer"}
                   </Button>
                 </Tooltip>
               </HStack>
@@ -389,7 +431,9 @@ export const TransactionDetailModal = ({
               <Text fontSize="sm" color="text.secondary">
                 Date
               </Text>
-              <Text fontWeight="medium">{formatDate(currentTransaction.date)}</Text>
+              <Text fontWeight="medium">
+                {formatDate(currentTransaction.date)}
+              </Text>
             </Box>
 
             <Divider />
@@ -407,7 +451,7 @@ export const TransactionDetailModal = ({
                   Merchant
                 </Text>
                 <Text fontWeight="medium" fontSize="lg">
-                  {currentTransaction.merchant_name || 'Unknown'}
+                  {currentTransaction.merchant_name || "Unknown"}
                 </Text>
               </Box>
             )}
@@ -425,7 +469,9 @@ export const TransactionDetailModal = ({
                   Category
                 </Text>
                 {currentTransaction.category_primary ? (
-                  <Badge colorScheme="blue">{currentTransaction.category_primary}</Badge>
+                  <Badge colorScheme="blue">
+                    {currentTransaction.category_primary}
+                  </Badge>
                 ) : (
                   <Text color="text.muted">No category</Text>
                 )}
@@ -442,7 +488,7 @@ export const TransactionDetailModal = ({
                   {displayedLabels.map((label) => (
                     <WrapItem key={label.id}>
                       <Badge
-                        colorScheme={label.is_income ? 'green' : 'purple'}
+                        colorScheme={label.is_income ? "green" : "purple"}
                         fontSize="sm"
                         px={3}
                         py={1}
@@ -473,10 +519,22 @@ export const TransactionDetailModal = ({
 
               {/* Add label in edit mode */}
               {isEditing && (
-                <VStack align="stretch" mt={3} spacing={3} p={3} bg="bg.subtle" borderRadius="md">
+                <VStack
+                  align="stretch"
+                  mt={3}
+                  spacing={3}
+                  p={3}
+                  bg="bg.subtle"
+                  borderRadius="md"
+                >
                   {unusedLabels && unusedLabels.length > 0 ? (
                     <Box>
-                      <Text fontSize="sm" fontWeight="medium" color="text.heading" mb={2}>
+                      <Text
+                        fontSize="sm"
+                        fontWeight="medium"
+                        color="text.heading"
+                        mb={2}
+                      >
                         Add existing label:
                       </Text>
                       <Wrap spacing={2}>
@@ -485,7 +543,7 @@ export const TransactionDetailModal = ({
                             <Button
                               size="sm"
                               variant="outline"
-                              colorScheme={label.is_income ? 'green' : 'purple'}
+                              colorScheme={label.is_income ? "green" : "purple"}
                               onClick={() => handleAddLabel(label.id)}
                             >
                               + {label.name}
@@ -497,15 +555,20 @@ export const TransactionDetailModal = ({
                   ) : (
                     <Text fontSize="sm" color="text.secondary">
                       {availableLabels && availableLabels.length > 0
-                        ? 'All labels already added'
-                        : 'No labels created yet'}
+                        ? "All labels already added"
+                        : "No labels created yet"}
                     </Text>
                   )}
 
                   <Divider />
 
                   <Box>
-                    <Text fontSize="sm" fontWeight="medium" color="text.heading" mb={2}>
+                    <Text
+                      fontSize="sm"
+                      fontWeight="medium"
+                      color="text.heading"
+                      mb={2}
+                    >
                       Create new label:
                     </Text>
                     <HStack>
@@ -515,7 +578,7 @@ export const TransactionDetailModal = ({
                         value={newLabelName}
                         onChange={(e) => setNewLabelName(e.target.value)}
                         onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
+                          if (e.key === "Enter") {
                             handleCreateAndAddLabel();
                           }
                         }}
@@ -543,7 +606,8 @@ export const TransactionDetailModal = ({
               </Text>
               <Text fontWeight="medium">
                 {currentTransaction.account_name}
-                {currentTransaction.account_mask && ` ****${currentTransaction.account_mask}`}
+                {currentTransaction.account_mask &&
+                  ` ****${currentTransaction.account_mask}`}
               </Text>
             </Box>
 
@@ -556,6 +620,12 @@ export const TransactionDetailModal = ({
                 <Text>{currentTransaction.description}</Text>
               </Box>
             )}
+
+            {/* Attachments */}
+            <AttachmentsList
+              transactionId={currentTransaction.id}
+              canEdit={canEdit}
+            />
 
             <Divider />
 
@@ -582,7 +652,11 @@ export const TransactionDetailModal = ({
             ) : (
               <VStack spacing={2}>
                 <Tooltip
-                  label={!canEdit ? "You can only edit transactions from your own accounts" : ""}
+                  label={
+                    !canEdit
+                      ? "You can only edit transactions from your own accounts"
+                      : ""
+                  }
                   placement="top"
                   isDisabled={canEdit}
                 >
@@ -605,7 +679,8 @@ export const TransactionDetailModal = ({
                 </Button>
                 {!canEdit && (
                   <Text fontSize="xs" color="text.muted" textAlign="center">
-                    Read-only: This transaction belongs to another household member
+                    Read-only: This transaction belongs to another household
+                    member
                   </Text>
                 )}
               </VStack>

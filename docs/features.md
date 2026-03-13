@@ -215,6 +215,70 @@ Full retirement planning suite with Monte Carlo simulation, life event modeling,
 - **Household View**: Per-member retirement plans with member filter in combined view
 - **CSV Export**: Download projection data for external analysis
 
+## FIRE Dashboard (Financial Independence, Retire Early)
+
+Track your progress toward financial independence with real-time metrics:
+
+- **FI Ratio**: How close your investable assets are to covering annual expenses indefinitely (at your chosen withdrawal rate)
+- **Savings Rate**: Percentage of income you're saving, calculated from categorized transactions
+- **Years to FI**: Estimated time until your investments can sustain your lifestyle, factoring in growth and savings
+- **Coast FI**: Whether your current investments would grow to your FI number by retirement age — even without further contributions
+- **Configurable Assumptions**: Adjust withdrawal rate (1-10%), expected return (0-20%), and retirement age (30-100)
+- **Household Support**: View metrics for the combined household or filter by individual member
+- **Empty Data Handling**: Graceful messaging when accounts/transactions haven't been set up yet — no misleading "FI Achieved" on zero data
+- **Dashboard Widget**: Compact FIRE progress card available as a dashboard widget
+
+## Capital Gains & Tax Lots
+
+Track investment cost basis and capital gains for tax purposes:
+
+- **Tax Lot Tracking**: Each share purchase creates a lot with acquisition date, quantity, and cost basis
+- **Cost Basis Methods**: FIFO (First In, First Out), LIFO (Last In, First Out), or HIFO (Highest In, First Out)
+- **Record Sales**: Log share sales with automatic lot matching and gain/loss calculation
+- **Unrealized Gains**: Per-account summary of open positions with short-term vs long-term breakdown
+- **Realized Gains**: Year-by-year view of closed positions with tax category breakdown
+- **Import from Holdings**: Auto-create tax lots from existing holding cost basis data
+- **Integrated in Account Detail**: Appears on investment account pages (brokerage, IRA, 401k, etc.)
+
+## Transaction Attachments
+
+Attach receipts, invoices, and documents to any transaction:
+
+- **File Upload**: Drag-and-drop or click-to-upload, supporting images (JPEG, PNG, GIF, WebP) and PDF
+- **Size Limits**: Max 10 MB per file, 5 attachments per transaction
+- **Download**: View or download attachments from the transaction detail modal
+- **Storage**: S3 (production) or local filesystem (development)
+- **Permission-Aware**: Upload/delete only available for transactions you own
+
+## Balance Reconciliation
+
+Verify that bank-reported balances match locally computed balances:
+
+- **Bank vs Computed**: Side-by-side comparison of the bank's reported balance and the sum of local transactions
+- **Discrepancy Detection**: Color-coded status badges (Reconciled, Minor Discrepancy, Discrepancy Found)
+- **Transaction Count**: Shows how many transactions are being reconciled
+- **Sync Status**: Displays last sync timestamp
+- **Auto-Display**: Only shown for bank-connected accounts (not manual accounts)
+
+## Currency & Regional Settings
+
+- **Default Currency**: Choose from 10 major currencies (USD, EUR, GBP, CAD, AUD, JPY, CHF, INR, CNY, BRL)
+- **Per-User Setting**: Each household member can set their own default currency in Preferences
+- **Inflation Adjustments**: Configurable per retirement scenario in the Retirement Planner
+
+## Progressive Web App (PWA)
+
+- **Installable**: Add to home screen on mobile and desktop
+- **Offline Support**: Service worker with cache-first strategy for static assets, network-first for API calls
+- **App Manifest**: Custom icons, theme color, and standalone display mode
+
+## Circuit Breaker (Backend Resilience)
+
+- **Automatic Failover**: External API calls (Plaid, Teller, MX, market data) wrapped in circuit breakers
+- **Three States**: Closed (normal), Open (failing — returns cached/fallback), Half-Open (testing recovery)
+- **Redis-Backed**: Circuit state shared across workers for consistent behavior
+- **Graceful Degradation**: Falls back to in-memory state when Redis is unavailable
+
 ## Security Features
 
 - **Redis-Backed Rate Limiting**: 1000 req/min per user/IP — distributed sliding window (safe across multiple workers/instances)

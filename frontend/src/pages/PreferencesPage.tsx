@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 
 const getDaysInMonth = (year: number | null, month: number | null): number => {
   if (!month) return 31;
@@ -34,13 +34,16 @@ import {
   VStack,
   FormHelperText,
   HStack,
-} from '@chakra-ui/react';
-import { FiSun, FiMoon, FiMonitor } from 'react-icons/fi';
-import { useColorModePreference, type ColorModePreference } from '../hooks/useColorModePreference';
-import { useRef } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import api from '../services/api';
-import { useAuthStore } from '../features/auth/stores/authStore';
+} from "@chakra-ui/react";
+import { FiSun, FiMoon, FiMonitor } from "react-icons/fi";
+import {
+  useColorModePreference,
+  type ColorModePreference,
+} from "../hooks/useColorModePreference";
+import { useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import api from "../services/api";
+import { useAuthStore } from "../features/auth/stores/authStore";
 
 interface UpdateProfileData {
   display_name?: string;
@@ -60,18 +63,18 @@ function EmailNotificationsSection() {
 
   // Check if email is configured on the server
   const { data: emailConfig } = useQuery({
-    queryKey: ['emailConfigured'],
+    queryKey: ["emailConfigured"],
     queryFn: async () => {
-      const response = await api.get('/settings/email-configured');
+      const response = await api.get("/settings/email-configured");
       return response.data as { configured: boolean };
     },
   });
 
   // Fetch current preference
   const { data: emailPref, isLoading } = useQuery({
-    queryKey: ['emailNotificationsPref'],
+    queryKey: ["emailNotificationsPref"],
     queryFn: async () => {
-      const response = await api.get('/settings/profile');
+      const response = await api.get("/settings/profile");
       return response.data.email_notifications_enabled as boolean;
     },
     enabled: emailConfig?.configured === true,
@@ -79,7 +82,7 @@ function EmailNotificationsSection() {
 
   const toggleMutation = useMutation({
     mutationFn: async (enabled: boolean) => {
-      const response = await api.patch('/settings/email-notifications', null, {
+      const response = await api.patch("/settings/email-notifications", null, {
         params: { enabled },
       });
       return response.data;
@@ -87,14 +90,18 @@ function EmailNotificationsSection() {
     onSuccess: (data) => {
       toast({
         title: data.email_notifications_enabled
-          ? 'Email notifications enabled'
-          : 'Email notifications disabled',
-        status: 'success',
+          ? "Email notifications enabled"
+          : "Email notifications disabled",
+        status: "success",
         duration: 3000,
       });
     },
     onError: () => {
-      toast({ title: 'Failed to update preference', status: 'error', duration: 3000 });
+      toast({
+        title: "Failed to update preference",
+        status: "error",
+        duration: 3000,
+      });
     },
   });
 
@@ -120,7 +127,8 @@ function EmailNotificationsSection() {
           />
         </HStack>
         <FormHelperText>
-          Receive email alerts for budget thresholds, account sync issues, and other important events.
+          Receive email alerts for budget thresholds, account sync issues, and
+          other important events.
         </FormHelperText>
       </FormControl>
     </Box>
@@ -131,34 +139,43 @@ export default function PreferencesPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { logout } = useAuthStore();
-  const { preference: colorModePreference, setPreference: setColorModePreference } = useColorModePreference();
+  const {
+    preference: colorModePreference,
+    setPreference: setColorModePreference,
+  } = useColorModePreference();
 
   // Note: Preferences are always for the current logged-in user,
   // not the selected user view. This page shows YOUR settings.
 
-  const [displayName, setDisplayName] = useState('');
-  const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
   const [birthDay, setBirthDay] = useState<number | null>(null);
   const [birthMonth, setBirthMonth] = useState<number | null>(null);
   const [birthYear, setBirthYear] = useState<number | null>(null);
+  const [defaultCurrency, setDefaultCurrency] = useState("USD");
 
   // Password state
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   // Fetch user profile
   const { isLoading: profileLoading } = useQuery({
-    queryKey: ['userProfile'],
+    queryKey: ["userProfile"],
     queryFn: async () => {
-      const response = await api.get('/settings/profile');
+      const response = await api.get("/settings/profile");
       const data = response.data;
       // display_name is primary; fall back to first+last for existing users
-      setDisplayName(data.display_name || `${data.first_name || ''} ${data.last_name || ''}`.trim() || '');
-      setEmail(data.email || '');
+      setDisplayName(
+        data.display_name ||
+          `${data.first_name || ""} ${data.last_name || ""}`.trim() ||
+          "",
+      );
+      setEmail(data.email || "");
       setBirthDay(data.birth_day || null);
       setBirthMonth(data.birth_month || null);
       setBirthYear(data.birth_year || null);
+      setDefaultCurrency(data.default_currency || "USD");
       return data;
     },
   });
@@ -166,69 +183,82 @@ export default function PreferencesPage() {
   // Update profile mutation
   const updateProfileMutation = useMutation({
     mutationFn: async (data: UpdateProfileData) => {
-      const response = await api.patch('/settings/profile', data);
+      const response = await api.patch("/settings/profile", data);
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      queryClient.invalidateQueries({ queryKey: ["userProfile"] });
       toast({
-        title: 'Profile updated',
-        status: 'success',
+        title: "Profile updated",
+        status: "success",
         duration: 3000,
       });
     },
     onError: (error: any) => {
       const detail = error.response?.data?.detail;
-      let description = 'An error occurred';
-      if (typeof detail === 'string') description = detail;
-      else if (Array.isArray(detail)) description = detail[0]?.msg || 'Validation error';
+      let description = "An error occurred";
+      if (typeof detail === "string") description = detail;
+      else if (Array.isArray(detail))
+        description = detail[0]?.msg || "Validation error";
       else if (detail?.message) description = detail.message;
-      toast({ title: 'Failed to update profile', description, status: 'error', duration: 5000 });
+      toast({
+        title: "Failed to update profile",
+        description,
+        status: "error",
+        duration: 5000,
+      });
     },
   });
 
   // Change password mutation
   const changePasswordMutation = useMutation({
     mutationFn: async (data: ChangePasswordData) => {
-      const response = await api.post('/settings/profile/change-password', data);
+      const response = await api.post(
+        "/settings/profile/change-password",
+        data,
+      );
       return response.data;
     },
     onSuccess: () => {
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
       toast({
-        title: 'Password changed successfully',
-        status: 'success',
+        title: "Password changed successfully",
+        status: "success",
         duration: 3000,
       });
     },
     onError: (error: any) => {
       const detail = error.response?.data?.detail;
-      let title = 'Failed to change password';
-      let description: any = 'An error occurred';
-      if (typeof detail === 'string') {
+      let title = "Failed to change password";
+      let description: any = "An error occurred";
+      if (typeof detail === "string") {
         description = detail;
       } else if (Array.isArray(detail)) {
-        description = detail[0]?.msg || 'Validation error';
-      } else if (detail && typeof detail === 'object') {
-        const errors: string[] = Array.isArray(detail.errors) ? detail.errors : [];
+        description = detail[0]?.msg || "Validation error";
+      } else if (detail && typeof detail === "object") {
+        const errors: string[] = Array.isArray(detail.errors)
+          ? detail.errors
+          : [];
         if (errors.length > 0) {
           // Password validation error: message is a human-readable title, errors are the reasons
           if (detail.message) title = detail.message;
           description = (
             <VStack align="start" spacing={1} mt={1}>
               {errors.map((msg: string, i: number) => (
-                <Text key={i} fontSize="sm">• {msg}</Text>
+                <Text key={i} fontSize="sm">
+                  • {msg}
+                </Text>
               ))}
             </VStack>
           );
         } else {
           // Rate limit, auth errors, etc.: keep generic title, show message as description
-          description = detail.message || detail.error || 'An error occurred';
+          description = detail.message || detail.error || "An error occurred";
         }
       }
-      toast({ title, description, status: 'error', duration: 8000 });
+      toast({ title, description, status: "error", duration: 8000 });
     },
   });
 
@@ -236,8 +266,12 @@ export default function PreferencesPage() {
   const [isExporting, setIsExporting] = useState(false);
 
   // Delete account state
-  const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
-  const [deletePassword, setDeletePassword] = useState('');
+  const {
+    isOpen: isDeleteOpen,
+    onOpen: onDeleteOpen,
+    onClose: onDeleteClose,
+  } = useDisclosure();
+  const [deletePassword, setDeletePassword] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
 
@@ -245,17 +279,25 @@ export default function PreferencesPage() {
     if (!deletePassword) return;
     setIsDeleting(true);
     try {
-      await api.delete('/settings/account', { data: { password: deletePassword } });
+      await api.delete("/settings/account", {
+        data: { password: deletePassword },
+      });
       // Clear auth state before redirect so no stale tokens remain in memory
       logout();
-      window.location.href = '/login';
+      window.location.href = "/login";
     } catch (error: any) {
       const detail = error.response?.data?.detail;
-      const description = typeof detail === 'string' ? detail : 'An error occurred';
-      toast({ title: 'Failed to delete account', description, status: 'error', duration: 5000 });
+      const description =
+        typeof detail === "string" ? detail : "An error occurred";
+      toast({
+        title: "Failed to delete account",
+        description,
+        status: "error",
+        duration: 5000,
+      });
     } finally {
       setIsDeleting(false);
-      setDeletePassword('');
+      setDeletePassword("");
       onDeleteClose();
     }
   };
@@ -263,19 +305,21 @@ export default function PreferencesPage() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const response = await api.get('/settings/export', { responseType: 'blob' });
+      const response = await api.get("/settings/export", {
+        responseType: "blob",
+      });
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
       const today = new Date().toISOString().slice(0, 10);
-      link.setAttribute('download', `nest-egg-export-${today}.zip`);
+      link.setAttribute("download", `nest-egg-export-${today}.zip`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast({ title: 'Export downloaded', status: 'success', duration: 3000 });
+      toast({ title: "Export downloaded", status: "success", duration: 3000 });
     } catch {
-      toast({ title: 'Export failed', status: 'error', duration: 3000 });
+      toast({ title: "Export failed", status: "error", duration: 3000 });
     } finally {
       setIsExporting(false);
     }
@@ -294,8 +338,8 @@ export default function PreferencesPage() {
   const handleChangePassword = () => {
     if (newPassword !== confirmPassword) {
       toast({
-        title: 'Passwords do not match',
-        status: 'error',
+        title: "Passwords do not match",
+        status: "error",
         duration: 3000,
       });
       return;
@@ -303,8 +347,8 @@ export default function PreferencesPage() {
 
     if (newPassword.length < 12) {
       toast({
-        title: 'Password must be at least 12 characters',
-        status: 'error',
+        title: "Password must be at least 12 characters",
+        status: "error",
         duration: 3000,
       });
       return;
@@ -359,36 +403,70 @@ export default function PreferencesPage() {
               <SimpleGrid columns={3} spacing={2}>
                 <Select
                   placeholder="Month"
-                  value={birthMonth || ''}
+                  value={birthMonth || ""}
                   onChange={(e) => {
-                    const month = e.target.value ? parseInt(e.target.value) : null;
+                    const month = e.target.value
+                      ? parseInt(e.target.value)
+                      : null;
                     setBirthMonth(month);
                     // Clear day if it's now out of range for the new month
-                    if (birthDay && month && birthDay > getDaysInMonth(birthYear, month)) {
+                    if (
+                      birthDay &&
+                      month &&
+                      birthDay > getDaysInMonth(birthYear, month)
+                    ) {
                       setBirthDay(null);
                     }
                   }}
                 >
-                  {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
-                    <option key={i + 1} value={i + 1}>{m}</option>
+                  {[
+                    "Jan",
+                    "Feb",
+                    "Mar",
+                    "Apr",
+                    "May",
+                    "Jun",
+                    "Jul",
+                    "Aug",
+                    "Sep",
+                    "Oct",
+                    "Nov",
+                    "Dec",
+                  ].map((m, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {m}
+                    </option>
                   ))}
                 </Select>
                 <Select
                   placeholder="Day"
-                  value={birthDay || ''}
-                  onChange={(e) => setBirthDay(e.target.value ? parseInt(e.target.value) : null)}
+                  value={birthDay || ""}
+                  onChange={(e) =>
+                    setBirthDay(
+                      e.target.value ? parseInt(e.target.value) : null,
+                    )
+                  }
                 >
-                  {Array.from({ length: getDaysInMonth(birthYear, birthMonth) }, (_, i) => (
-                    <option key={i + 1} value={i + 1}>{i + 1}</option>
-                  ))}
+                  {Array.from(
+                    { length: getDaysInMonth(birthYear, birthMonth) },
+                    (_, i) => (
+                      <option key={i + 1} value={i + 1}>
+                        {i + 1}
+                      </option>
+                    ),
+                  )}
                 </Select>
                 <NumberInput
-                  value={birthYear || ''}
+                  value={birthYear || ""}
                   onChange={(_, value) => {
                     const year = isNaN(value) ? null : value;
                     setBirthYear(year);
                     // Clear day if Feb 29 becomes invalid (non-leap year)
-                    if (birthDay && birthMonth && birthDay > getDaysInMonth(year, birthMonth)) {
+                    if (
+                      birthDay &&
+                      birthMonth &&
+                      birthDay > getDaysInMonth(year, birthMonth)
+                    ) {
                       setBirthDay(null);
                     }
                   }}
@@ -399,7 +477,8 @@ export default function PreferencesPage() {
                 </NumberInput>
               </SimpleGrid>
               <FormHelperText>
-                Used for retirement planning (59½ rule, RMDs). Leave all blank to hide.
+                Used for retirement planning (59½ rule, RMDs). Leave all blank
+                to hide.
               </FormHelperText>
             </FormControl>
 
@@ -423,22 +502,80 @@ export default function PreferencesPage() {
             Choose your preferred color scheme.
           </Text>
           <ButtonGroup size="sm" isAttached variant="outline">
-            {([
-              { value: 'light' as ColorModePreference, label: 'Light', icon: FiSun },
-              { value: 'dark' as ColorModePreference, label: 'Dark', icon: FiMoon },
-              { value: 'system' as ColorModePreference, label: 'System', icon: FiMonitor },
-            ]).map(({ value, label, icon }) => (
+            {[
+              {
+                value: "light" as ColorModePreference,
+                label: "Light",
+                icon: FiSun,
+              },
+              {
+                value: "dark" as ColorModePreference,
+                label: "Dark",
+                icon: FiMoon,
+              },
+              {
+                value: "system" as ColorModePreference,
+                label: "System",
+                icon: FiMonitor,
+              },
+            ].map(({ value, label, icon }) => (
               <Button
                 key={value}
                 onClick={() => setColorModePreference(value)}
-                variant={colorModePreference === value ? 'solid' : 'outline'}
-                colorScheme={colorModePreference === value ? 'brand' : 'gray'}
+                variant={colorModePreference === value ? "solid" : "outline"}
+                colorScheme={colorModePreference === value ? "brand" : "gray"}
                 leftIcon={<Icon as={icon} />}
               >
                 {label}
               </Button>
             ))}
           </ButtonGroup>
+        </Box>
+
+        {/* Regional Settings */}
+        <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
+          <Heading size="md" mb={1}>
+            Regional Settings
+          </Heading>
+          <Text color="text.secondary" fontSize="sm" mb={4}>
+            Configure currency display and regional preferences.
+          </Text>
+          <FormControl>
+            <FormLabel>Default Currency</FormLabel>
+            <Select
+              value={defaultCurrency}
+              onChange={(e) => setDefaultCurrency(e.target.value)}
+              maxW="200px"
+            >
+              <option value="USD">USD - US Dollar</option>
+              <option value="EUR">EUR - Euro</option>
+              <option value="GBP">GBP - British Pound</option>
+              <option value="CAD">CAD - Canadian Dollar</option>
+              <option value="AUD">AUD - Australian Dollar</option>
+              <option value="JPY">JPY - Japanese Yen</option>
+              <option value="CHF">CHF - Swiss Franc</option>
+              <option value="INR">INR - Indian Rupee</option>
+              <option value="CNY">CNY - Chinese Yuan</option>
+              <option value="BRL">BRL - Brazilian Real</option>
+            </Select>
+            <FormHelperText>
+              Inflation adjustments can be configured per retirement scenario in
+              Retirement Planning.
+            </FormHelperText>
+          </FormControl>
+          <Button
+            colorScheme="blue"
+            size="sm"
+            mt={4}
+            onClick={() =>
+              updateProfileMutation.mutate({
+                default_currency: defaultCurrency,
+              } as any)
+            }
+            isLoading={updateProfileMutation.isPending}
+          >
+            Save Regional Settings
+          </Button>
         </Box>
 
         {/* Email Notifications Section */}
@@ -450,7 +587,8 @@ export default function PreferencesPage() {
             Export Data
           </Heading>
           <Text color="text.secondary" fontSize="sm" mb={4}>
-            Download all your accounts, transactions, and holdings as a ZIP of CSV files.
+            Download all your accounts, transactions, and holdings as a ZIP of
+            CSV files.
           </Text>
           <Button
             colorScheme="blue"
@@ -512,12 +650,20 @@ export default function PreferencesPage() {
         </Box>
 
         {/* Danger Zone — Delete Account */}
-        <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm" borderWidth={1} borderColor="red.200">
+        <Box
+          bg="bg.surface"
+          p={6}
+          borderRadius="lg"
+          boxShadow="sm"
+          borderWidth={1}
+          borderColor="red.200"
+        >
           <Heading size="md" mb={1} color="red.600">
             Danger Zone
           </Heading>
           <Text color="text.secondary" fontSize="sm" mb={4}>
-            Permanently delete your account and all associated data. This action cannot be undone.
+            Permanently delete your account and all associated data. This action
+            cannot be undone.
           </Text>
           <Divider mb={4} />
           <Button colorScheme="red" variant="outline" onClick={onDeleteOpen}>
@@ -539,7 +685,9 @@ export default function PreferencesPage() {
 
               <AlertDialogBody>
                 <Text mb={4}>
-                  This will permanently delete your account and <strong>all associated data</strong> (accounts, transactions, holdings). This cannot be undone.
+                  This will permanently delete your account and{" "}
+                  <strong>all associated data</strong> (accounts, transactions,
+                  holdings). This cannot be undone.
                 </Text>
                 <FormControl>
                   <FormLabel>Confirm your password</FormLabel>
@@ -570,7 +718,6 @@ export default function PreferencesPage() {
             </AlertDialogContent>
           </AlertDialogOverlay>
         </AlertDialog>
-
       </VStack>
     </Container>
   );

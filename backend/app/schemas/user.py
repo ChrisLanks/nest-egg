@@ -32,12 +32,17 @@ class UserUpdate(BaseModel):
     birth_day: Optional[int] = Field(None, ge=1, le=31)
     birth_month: Optional[int] = Field(None, ge=1, le=12)
     birth_year: Optional[int] = Field(None, ge=1900, le=2100)
+    default_currency: Optional[str] = Field(None, max_length=3)
     dashboard_layout: Optional[List[Any]] = None
 
     @model_validator(mode="after")
     def validate_birthday(self) -> "UserUpdate":
         """Validate that the combination of day/month/year forms a real calendar date."""
-        if self.birth_day is not None and self.birth_month is not None and self.birth_year is not None:
+        if (
+            self.birth_day is not None
+            and self.birth_month is not None
+            and self.birth_year is not None
+        ):
             try:
                 date(self.birth_year, self.birth_month, self.birth_day)
             except ValueError as exc:

@@ -31,17 +31,15 @@ repos:
         files: ^frontend/
         types_or: [javascript, jsx, ts, tsx, json, css, scss, html]
 
-  # TypeScript linting
-  - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: v9.0.0-beta.2
+  # TypeScript linting (uses project's own ESLint v9 flat config)
+  - repo: local
     hooks:
       - id: eslint
+        name: eslint
+        entry: bash -c 'cd frontend && files=(); for f in "$@"; do files+=("${f#frontend/}"); done; npx eslint --no-warn-ignored "${files[@]}"' --
+        language: system
         files: ^frontend/src/.*\.[jt]sx?$
         types: [file]
-        additional_dependencies:
-          - eslint@8.56.0
-          - "@typescript-eslint/parser@6.21.0"
-          - "@typescript-eslint/eslint-plugin@6.21.0"
 
   # Security checks
   - repo: https://github.com/Yelp/detect-secrets

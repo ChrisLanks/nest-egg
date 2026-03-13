@@ -86,7 +86,12 @@ interface NavDropdownProps {
   onNavigate: (path: string) => void;
 }
 
-const NavDropdown = ({ label, items, currentPath, onNavigate }: NavDropdownProps) => {
+const NavDropdown = ({
+  label,
+  items,
+  currentPath,
+  onNavigate,
+}: NavDropdownProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const isActive = items.some((item) => currentPath === item.path);
@@ -136,7 +141,9 @@ const NavDropdown = ({ label, items, currentPath, onNavigate }: NavDropdownProps
               cursor="pointer"
               fontWeight={currentPath === item.path ? "semibold" : "normal"}
               bg={currentPath === item.path ? "brand.subtle" : "transparent"}
-              _hover={{ bg: currentPath === item.path ? "brand.subtle" : "bg.subtle" }}
+              _hover={{
+                bg: currentPath === item.path ? "brand.subtle" : "bg.subtle",
+              }}
               fontSize="sm"
               onClick={() => {
                 onNavigate(item.path);
@@ -157,7 +164,12 @@ const UserMenu = ({
   onNavigate,
   onLogout,
 }: {
-  user: { first_name?: string; last_name?: string; display_name?: string; email?: string } | null;
+  user: {
+    first_name?: string;
+    last_name?: string;
+    display_name?: string;
+    email?: string;
+  } | null;
   onNavigate: (path: string) => void;
   onLogout: () => void;
 }) => {
@@ -192,12 +204,18 @@ const UserMenu = ({
         <HStack spacing={2}>
           <Avatar
             size="sm"
-            name={user?.display_name || `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim() || user?.email}
+            name={
+              user?.display_name ||
+              `${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim() ||
+              user?.email
+            }
             bg="brand.500"
           />
           <VStack align="start" spacing={0}>
             <Text fontSize="sm" fontWeight="medium">
-              {user?.display_name || `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim() || user?.email}
+              {user?.display_name ||
+                `${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim() ||
+                user?.email}
             </Text>
             <Text fontSize="xs" color="text.secondary">
               {user?.email}
@@ -335,7 +353,10 @@ const AccountItem = ({
 
   // Get background color: owner color in multi-user view, subtle grey otherwise
   const primaryOwnerId = account.owner_ids[0];
-  const bgColor = isCombinedView && isMultiUser ? getUserBgColor(primaryOwnerId) : "bg.subtle";
+  const bgColor =
+    isCombinedView && isMultiUser
+      ? getUserBgColor(primaryOwnerId)
+      : "bg.subtle";
 
   // Check for sync errors
   const hasSyncError = account.last_error_code || account.needs_reauth;
@@ -424,15 +445,24 @@ const AccountItem = ({
 
 const accountTypeConfig = ACCOUNT_TYPE_SIDEBAR_CONFIG;
 
-
 export const Layout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const isSelfOnlyPage = ['/preferences', '/permissions', '/household'].includes(location.pathname);
+  const isSelfOnlyPage = [
+    "/preferences",
+    "/permissions",
+    "/household",
+  ].includes(location.pathname);
   const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
-  const { selectedUserId, isCombinedView, isOtherUserView, canEdit, receivedGrants, isLoadingGrants } =
-    useUserView();
+  const {
+    selectedUserId,
+    isCombinedView,
+    isOtherUserView,
+    canEdit,
+    receivedGrants,
+    isLoadingGrants,
+  } = useUserView();
   const logoutMutation = useLogout();
   const {
     isOpen: isAddAccountOpen,
@@ -444,7 +474,7 @@ export const Layout = () => {
     Record<string, boolean>
   >(() => {
     try {
-      const stored = localStorage.getItem('nav-collapsed-sections');
+      const stored = localStorage.getItem("nav-collapsed-sections");
       return stored ? JSON.parse(stored) : {};
     } catch {
       return {};
@@ -465,6 +495,7 @@ export const Layout = () => {
     { label: "Budgets", path: "/budgets" },
     { label: "Goals", path: "/goals" },
     { label: "Retirement", path: "/retirement" },
+    { label: "FIRE", path: "/fire" },
     { label: "Debt Payoff", path: "/debt-payoff" },
   ];
 
@@ -671,8 +702,10 @@ export const Layout = () => {
     setCollapsedSections((prev) => {
       const next = { ...prev, [sectionName]: !prev[sectionName] };
       try {
-        localStorage.setItem('nav-collapsed-sections', JSON.stringify(next));
-      } catch { /* localStorage unavailable — ignore */ }
+        localStorage.setItem("nav-collapsed-sections", JSON.stringify(next));
+      } catch {
+        /* localStorage unavailable — ignore */
+      }
       return next;
     });
   };
@@ -769,7 +802,14 @@ export const Layout = () => {
             <NotificationBell />
 
             <UserMenu
-              user={user as { first_name?: string; last_name?: string; display_name?: string; email?: string } | null}
+              user={
+                user as {
+                  first_name?: string;
+                  last_name?: string;
+                  display_name?: string;
+                  email?: string;
+                } | null
+              }
               onNavigate={navigateWithParams}
               onLogout={handleLogout}
             />
@@ -778,76 +818,142 @@ export const Layout = () => {
       </Box>
 
       {/* View Indicator Banner */}
-      {!isCombinedView && members && members.length > 1 && (() => {
-        if (!isOtherUserView || isSelfOnlyPage) {
-          // Own-view banner (blue) — also shown on self-only pages regardless of selected view
+      {!isCombinedView &&
+        members &&
+        members.length > 1 &&
+        (() => {
+          if (!isOtherUserView || isSelfOnlyPage) {
+            // Own-view banner (blue) — also shown on self-only pages regardless of selected view
+            return (
+              <Box
+                bg="bg.info"
+                borderBottomWidth={1}
+                borderColor="border.default"
+                px={8}
+                py={2}
+              >
+                <HStack spacing={3}>
+                  <Text
+                    fontSize="sm"
+                    fontWeight="semibold"
+                    color="text.primary"
+                  >
+                    📊 Your View:
+                  </Text>
+                  <Badge
+                    size="sm"
+                    fontSize="xs"
+                    px={2}
+                    py={1}
+                    borderRadius="md"
+                    bg={getUserColor(user?.id || "")}
+                    color="white"
+                    fontWeight="bold"
+                  >
+                    {getUserInitials(user?.id || "")}
+                  </Badge>
+                  <Text fontSize="sm" fontWeight="medium" color="text.heading">
+                    {getUserName(user?.id || "")}'s Accounts
+                  </Text>
+                </HStack>
+              </Box>
+            );
+          }
+
+          // Other-user banner: check page-specific access
+          if (isLoadingGrants) {
+            return (
+              <Box
+                bg="bg.subtle"
+                borderBottomWidth={1}
+                borderColor="border.default"
+                px={8}
+                py={2}
+              >
+                <HStack spacing={3}>
+                  <Spinner size="xs" color="text.muted" />
+                  <Text fontSize="sm" color="text.muted">
+                    Loading permissions…
+                  </Text>
+                </HStack>
+              </Box>
+            );
+          }
+
+          const pageResourceType = getResourceTypeForPath(location.pathname);
+          const access = getBannerAccess(
+            receivedGrants,
+            selectedUserId ?? "",
+            pageResourceType,
+          );
+          const sectionLabel = pageResourceType
+            ? (RESOURCE_TYPE_LABELS[pageResourceType] ?? pageResourceType)
+            : "Data";
+          const viewedName = getUserName(selectedUserId ?? "");
+
+          // Household members always have at least read access — 'none' (no explicit grant)
+          // still means read-only, not blocked.
+          const canWrite = access === "write";
+          const bannerConfig = canWrite
+            ? {
+                bg: "bg.success",
+                border: "border.default",
+                headColor: "text.primary",
+                textColor: "text.heading",
+                icon: "✏️",
+                prefix: "Can Edit:",
+                suffix: `'s ${sectionLabel}`,
+              }
+            : {
+                bg: "bg.info",
+                border: "border.default",
+                headColor: "text.primary",
+                textColor: "text.heading",
+                icon: "👁️",
+                prefix: "Read Only:",
+                suffix: `'s ${sectionLabel}`,
+              };
+
           return (
-            <Box bg="bg.info" borderBottomWidth={1} borderColor="border.default" px={8} py={2}>
+            <Box
+              bg={bannerConfig.bg}
+              borderBottomWidth={1}
+              borderColor={bannerConfig.border}
+              px={8}
+              py={2}
+            >
               <HStack spacing={3}>
-                <Text fontSize="sm" fontWeight="semibold" color="text.primary">📊 Your View:</Text>
-                <Badge size="sm" fontSize="xs" px={2} py={1} borderRadius="md"
-                  bg={getUserColor(user?.id || "")} color="white" fontWeight="bold">
-                  {getUserInitials(user?.id || "")}
+                <Text
+                  fontSize="sm"
+                  fontWeight="semibold"
+                  color={bannerConfig.headColor}
+                >
+                  {bannerConfig.icon} {bannerConfig.prefix}
+                </Text>
+                <Badge
+                  size="sm"
+                  fontSize="xs"
+                  px={2}
+                  py={1}
+                  borderRadius="md"
+                  bg={getUserColor(selectedUserId ?? "")}
+                  color="white"
+                  fontWeight="bold"
+                >
+                  {getUserInitials(selectedUserId ?? "")}
                 </Badge>
-                <Text fontSize="sm" fontWeight="medium" color="text.heading">
-                  {getUserName(user?.id || "")}'s Accounts
+                <Text
+                  fontSize="sm"
+                  fontWeight="medium"
+                  color={bannerConfig.textColor}
+                >
+                  {viewedName}
+                  {bannerConfig.suffix}
                 </Text>
               </HStack>
             </Box>
           );
-        }
-
-        // Other-user banner: check page-specific access
-        if (isLoadingGrants) {
-          return (
-            <Box bg="bg.subtle" borderBottomWidth={1} borderColor="border.default" px={8} py={2}>
-              <HStack spacing={3}>
-                <Spinner size="xs" color="text.muted" />
-                <Text fontSize="sm" color="text.muted">Loading permissions…</Text>
-              </HStack>
-            </Box>
-          );
-        }
-
-        const pageResourceType = getResourceTypeForPath(location.pathname);
-        const access = getBannerAccess(receivedGrants, selectedUserId ?? '', pageResourceType);
-        const sectionLabel = pageResourceType
-          ? (RESOURCE_TYPE_LABELS[pageResourceType] ?? pageResourceType)
-          : 'Data';
-        const viewedName = getUserName(selectedUserId ?? '');
-
-        // Household members always have at least read access — 'none' (no explicit grant)
-        // still means read-only, not blocked.
-        const canWrite = access === 'write';
-        const bannerConfig = canWrite
-          ? {
-              bg: 'bg.success', border: 'border.default',
-              headColor: 'text.primary', textColor: 'text.heading',
-              icon: '✏️', prefix: 'Can Edit:', suffix: `'s ${sectionLabel}`,
-            }
-          : {
-              bg: 'bg.info', border: 'border.default',
-              headColor: 'text.primary', textColor: 'text.heading',
-              icon: '👁️', prefix: 'Read Only:', suffix: `'s ${sectionLabel}`,
-            };
-
-        return (
-          <Box bg={bannerConfig.bg} borderBottomWidth={1} borderColor={bannerConfig.border} px={8} py={2}>
-            <HStack spacing={3}>
-              <Text fontSize="sm" fontWeight="semibold" color={bannerConfig.headColor}>
-                {bannerConfig.icon} {bannerConfig.prefix}
-              </Text>
-              <Badge size="sm" fontSize="xs" px={2} py={1} borderRadius="md"
-                bg={getUserColor(selectedUserId ?? '')} color="white" fontWeight="bold">
-                {getUserInitials(selectedUserId ?? '')}
-              </Badge>
-              <Text fontSize="sm" fontWeight="medium" color={bannerConfig.textColor}>
-                {viewedName}{bannerConfig.suffix}
-              </Text>
-            </HStack>
-          </Box>
-        );
-      })()}
+        })()}
 
       <Flex flex={1} overflow="hidden">
         {/* Left Sidebar - Accounts */}
@@ -896,7 +1002,9 @@ export const Layout = () => {
                   fontSize="md"
                   fontWeight="bold"
                   color={
-                    dashboardSummary.net_worth >= 0 ? "finance.positive" : "finance.negative"
+                    dashboardSummary.net_worth >= 0
+                      ? "finance.positive"
+                      : "finance.negative"
                   }
                 >
                   {formatCurrency(Number(dashboardSummary.net_worth))}
@@ -967,9 +1075,15 @@ export const Layout = () => {
                     >
                       <HStack spacing={2}>
                         {isCollapsed ? (
-                          <ChevronRightIcon boxSize={3.5} color="text.secondary" />
+                          <ChevronRightIcon
+                            boxSize={3.5}
+                            color="text.secondary"
+                          />
                         ) : (
-                          <ChevronDownIcon boxSize={3.5} color="text.secondary" />
+                          <ChevronDownIcon
+                            boxSize={3.5}
+                            color="text.secondary"
+                          />
                         )}
                         <Text
                           fontSize="sm"
@@ -984,7 +1098,9 @@ export const Layout = () => {
                       <Text
                         fontSize="sm"
                         fontWeight="bold"
-                        color={groupTotal < 0 ? "finance.negative" : "text.primary"}
+                        color={
+                          groupTotal < 0 ? "finance.negative" : "text.primary"
+                        }
                       >
                         {formatCurrency(groupTotal)}
                       </Text>
@@ -1013,7 +1129,12 @@ export const Layout = () => {
               })}
 
               {(!sortedGroups || sortedGroups.length === 0) && (
-                <Text fontSize="sm" color="text.muted" textAlign="center" py={8}>
+                <Text
+                  fontSize="sm"
+                  color="text.muted"
+                  textAlign="center"
+                  py={8}
+                >
                   {isOtherUserView
                     ? "This user has no accounts yet."
                     : "No accounts yet. Connect an account to get started."}

@@ -11,12 +11,13 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import func, select, update as sa_update
+from sqlalchemy import func, select
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
 from app.core.security import hash_password, verify_password
+from app.dependencies import get_current_user
 from app.models.account import Account
 from app.models.budget import Budget
 from app.models.holding import Holding
@@ -24,11 +25,11 @@ from app.models.permission import PermissionGrant
 from app.models.recurring_transaction import RecurringTransaction
 from app.models.rule import Rule
 from app.models.transaction import Transaction
-from app.models.user import User, Organization, RefreshToken
-from app.schemas.user import UserUpdate, OrganizationUpdate
-from app.services.email_service import email_service, create_verification_token
-from app.services.password_validation_service import password_validation_service
+from app.models.user import Organization, RefreshToken, User
+from app.schemas.user import OrganizationUpdate, UserUpdate
+from app.services.email_service import create_verification_token, email_service
 from app.services.input_sanitization_service import input_sanitization_service
+from app.services.password_validation_service import password_validation_service
 from app.services.rate_limit_service import get_rate_limit_service
 from app.utils.datetime_utils import utc_now
 
@@ -50,6 +51,7 @@ class UserProfileResponse(BaseModel):
     birth_year: Optional[int] = None
     is_org_admin: bool
     email_notifications_enabled: bool = True
+    default_currency: Optional[str] = None
     dashboard_layout: Optional[List[Any]] = None
 
     model_config = {"from_attributes": True}
@@ -68,7 +70,10 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(
         ...,
         min_length=12,
-        description="Password must be at least 12 characters and include uppercase, lowercase, digit, and special character",
+        description=(
+            "Password must be at least 12 characters and include"
+            " uppercase, lowercase, digit, and special character"
+        ),
     )
 
 
@@ -127,17 +132,27 @@ async def update_user_profile(
     if update_data.last_name is not None:
         current_user.last_name = input_sanitization_service.sanitize_html(update_data.last_name)
     if update_data.display_name is not None:
-        current_user.display_name = input_sanitization_service.sanitize_html(update_data.display_name)
+        current_user.display_name = input_sanitization_service.sanitize_html(
+            update_data.display_name
+        )
+
+    if update_data.default_currency is not None and isinstance(update_data.default_currency, str):
+        current_user.default_currency = update_data.default_currency.upper()[:3]
 
     # Update birthday (requires day, month, and year together)
     birthday_fields = (update_data.birth_day, update_data.birth_month, update_data.birth_year)
     if all(f is not None for f in birthday_fields):
         try:
-            current_user.birthdate = date(update_data.birth_year, update_data.birth_month, update_data.birth_day)
+            current_user.birthdate = date(
+                update_data.birth_year, update_data.birth_month, update_data.birth_day
+            )
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid birthday")
     elif any(f is not None for f in birthday_fields):
-        raise HTTPException(status_code=400, detail="birth_day, birth_month, and birth_year must all be provided together")
+        raise HTTPException(
+            status_code=400,
+            detail="birth_day, birth_month, and birth_year must all be provided together",
+        )
 
     # Email update — track whether it changed so we can send verification afterwards
     email_changed = False
@@ -171,9 +186,7 @@ async def update_user_profile(
                 to_email=current_user.email,
                 token=raw_token,
                 display_name=(
-                    current_user.display_name
-                    or current_user.first_name
-                    or current_user.email
+                    current_user.display_name or current_user.first_name or current_user.email
                 ),
             )
         except Exception:
@@ -373,9 +386,7 @@ async def export_data(
     bills = list(bills_result.scalars().all())
 
     rules_result = await db.execute(
-        select(Rule)
-        .where(Rule.organization_id == org_id)
-        .order_by(Rule.priority.desc(), Rule.name)
+        select(Rule).where(Rule.organization_id == org_id).order_by(Rule.priority.desc(), Rule.name)
     )
     rules = list(rules_result.scalars().all())
 
@@ -393,7 +404,6 @@ async def export_data(
     # --- Build in-memory ZIP ---
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-
         # -----------------------------------------------------------------
         # transactions.csv — Mint-compatible format
         # Mint columns: Date, Description, Original Description, Amount,
@@ -402,10 +412,19 @@ async def export_data(
         # -----------------------------------------------------------------
         txn_buf = io.StringIO()
         txn_writer = csv.writer(txn_buf)
-        txn_writer.writerow([
-            "Date", "Description", "Original Description", "Amount",
-            "Transaction Type", "Category", "Account Name", "Labels", "Notes",
-        ])
+        txn_writer.writerow(
+            [
+                "Date",
+                "Description",
+                "Original Description",
+                "Amount",
+                "Transaction Type",
+                "Category",
+                "Account Name",
+                "Labels",
+                "Notes",
+            ]
+        )
 
         # Batch-iterate transactions to avoid loading entire history into memory
         EXPORT_BATCH_SIZE = 5000
@@ -433,17 +452,19 @@ async def export_data(
                         labels = ",".join(str(lbl) for lbl in t.labels)
                 except Exception:
                     pass
-                txn_writer.writerow([
-                    txn_date,
-                    t.merchant_name or "",
-                    t.merchant_name or "",  # Original Description (same source)
-                    f"{abs_amount:.2f}",
-                    txn_type,
-                    t.category_primary or "",
-                    account_names.get(str(t.account_id), ""),
-                    labels,
-                    getattr(t, "notes", "") or "",
-                ])
+                txn_writer.writerow(
+                    [
+                        txn_date,
+                        t.merchant_name or "",
+                        t.merchant_name or "",  # Original Description (same source)
+                        f"{abs_amount:.2f}",
+                        txn_type,
+                        t.category_primary or "",
+                        account_names.get(str(t.account_id), ""),
+                        labels,
+                        getattr(t, "notes", "") or "",
+                    ]
+                )
 
             txn_offset += EXPORT_BATCH_SIZE
             if len(batch) < EXPORT_BATCH_SIZE:
@@ -456,20 +477,31 @@ async def export_data(
         # -----------------------------------------------------------------
         acc_buf = io.StringIO()
         acc_writer = csv.writer(acc_buf)
-        acc_writer.writerow([
-            "id", "name", "type", "institution", "balance",
-            "currency", "is_active", "created_at",
-        ])
+        acc_writer.writerow(
+            [
+                "id",
+                "name",
+                "type",
+                "institution",
+                "balance",
+                "currency",
+                "is_active",
+                "created_at",
+            ]
+        )
         for a in accounts:
-            acc_writer.writerow([
-                str(a.id), a.name,
-                a.account_type.value if a.account_type else "",
-                a.institution_name or "",
-                str(a.current_balance),
-                getattr(a, "currency", "USD") or "USD",
-                a.is_active,
-                a.created_at.date() if a.created_at else "",
-            ])
+            acc_writer.writerow(
+                [
+                    str(a.id),
+                    a.name,
+                    a.account_type.value if a.account_type else "",
+                    a.institution_name or "",
+                    str(a.current_balance),
+                    getattr(a, "currency", "USD") or "USD",
+                    a.is_active,
+                    a.created_at.date() if a.created_at else "",
+                ]
+            )
         zf.writestr("accounts.csv", acc_buf.getvalue())
 
         # -----------------------------------------------------------------
@@ -478,18 +510,27 @@ async def export_data(
         if holdings:
             hld_buf = io.StringIO()
             hld_writer = csv.writer(hld_buf)
-            hld_writer.writerow([
-                "ticker", "name", "shares", "cost_basis_per_share",
-                "current_price", "account",
-            ])
+            hld_writer.writerow(
+                [
+                    "ticker",
+                    "name",
+                    "shares",
+                    "cost_basis_per_share",
+                    "current_price",
+                    "account",
+                ]
+            )
             for h in holdings:
-                hld_writer.writerow([
-                    h.ticker, h.name or "",
-                    str(h.shares),
-                    str(h.cost_basis_per_share) if h.cost_basis_per_share else "",
-                    str(h.current_price) if h.current_price else "",
-                    account_names.get(str(h.account_id), ""),
-                ])
+                hld_writer.writerow(
+                    [
+                        h.ticker,
+                        h.name or "",
+                        str(h.shares),
+                        str(h.cost_basis_per_share) if h.cost_basis_per_share else "",
+                        str(h.current_price) if h.current_price else "",
+                        account_names.get(str(h.account_id), ""),
+                    ]
+                )
             zf.writestr("holdings.csv", hld_buf.getvalue())
 
         # -----------------------------------------------------------------
@@ -498,21 +539,33 @@ async def export_data(
         if budgets:
             bud_buf = io.StringIO()
             bud_writer = csv.writer(bud_buf)
-            bud_writer.writerow([
-                "id", "name", "amount", "period", "start_date", "end_date",
-                "rollover_unused", "alert_threshold", "is_active",
-            ])
+            bud_writer.writerow(
+                [
+                    "id",
+                    "name",
+                    "amount",
+                    "period",
+                    "start_date",
+                    "end_date",
+                    "rollover_unused",
+                    "alert_threshold",
+                    "is_active",
+                ]
+            )
             for b in budgets:
-                bud_writer.writerow([
-                    str(b.id), b.name,
-                    str(b.amount),
-                    b.period.value if b.period else "",
-                    str(b.start_date) if b.start_date else "",
-                    str(b.end_date) if b.end_date else "",
-                    b.rollover_unused,
-                    str(b.alert_threshold) if b.alert_threshold else "",
-                    b.is_active,
-                ])
+                bud_writer.writerow(
+                    [
+                        str(b.id),
+                        b.name,
+                        str(b.amount),
+                        b.period.value if b.period else "",
+                        str(b.start_date) if b.start_date else "",
+                        str(b.end_date) if b.end_date else "",
+                        b.rollover_unused,
+                        str(b.alert_threshold) if b.alert_threshold else "",
+                        b.is_active,
+                    ]
+                )
             zf.writestr("budgets.csv", bud_buf.getvalue())
 
         # -----------------------------------------------------------------
@@ -521,19 +574,27 @@ async def export_data(
         if bills:
             bill_buf = io.StringIO()
             bill_writer = csv.writer(bill_buf)
-            bill_writer.writerow([
-                "id", "merchant_name", "frequency", "average_amount",
-                "account", "is_active",
-            ])
+            bill_writer.writerow(
+                [
+                    "id",
+                    "merchant_name",
+                    "frequency",
+                    "average_amount",
+                    "account",
+                    "is_active",
+                ]
+            )
             for b in bills:
-                bill_writer.writerow([
-                    str(b.id),
-                    b.merchant_name,
-                    b.frequency.value if b.frequency else "",
-                    str(b.average_amount),
-                    account_names.get(str(b.account_id), ""),
-                    b.is_active,
-                ])
+                bill_writer.writerow(
+                    [
+                        str(b.id),
+                        b.merchant_name,
+                        b.frequency.value if b.frequency else "",
+                        str(b.average_amount),
+                        account_names.get(str(b.account_id), ""),
+                        b.is_active,
+                    ]
+                )
             zf.writestr("bills.csv", bill_buf.getvalue())
 
         # -----------------------------------------------------------------
@@ -542,20 +603,31 @@ async def export_data(
         if rules:
             rule_buf = io.StringIO()
             rule_writer = csv.writer(rule_buf)
-            rule_writer.writerow([
-                "id", "name", "description", "match_type", "apply_to",
-                "priority", "is_active", "times_applied",
-            ])
+            rule_writer.writerow(
+                [
+                    "id",
+                    "name",
+                    "description",
+                    "match_type",
+                    "apply_to",
+                    "priority",
+                    "is_active",
+                    "times_applied",
+                ]
+            )
             for r in rules:
-                rule_writer.writerow([
-                    str(r.id), r.name,
-                    r.description or "",
-                    r.match_type.value if r.match_type else "",
-                    r.apply_to.value if r.apply_to else "",
-                    r.priority,
-                    r.is_active,
-                    r.times_applied,
-                ])
+                rule_writer.writerow(
+                    [
+                        str(r.id),
+                        r.name,
+                        r.description or "",
+                        r.match_type.value if r.match_type else "",
+                        r.apply_to.value if r.apply_to else "",
+                        r.priority,
+                        r.is_active,
+                        r.times_applied,
+                    ]
+                )
             zf.writestr("rules.csv", rule_buf.getvalue())
 
         # -----------------------------------------------------------------
@@ -564,20 +636,29 @@ async def export_data(
         if grants:
             grant_buf = io.StringIO()
             grant_writer = csv.writer(grant_buf)
-            grant_writer.writerow([
-                "id", "grantee_id", "resource_type", "resource_id",
-                "actions", "granted_at", "expires_at",
-            ])
+            grant_writer.writerow(
+                [
+                    "id",
+                    "grantee_id",
+                    "resource_type",
+                    "resource_id",
+                    "actions",
+                    "granted_at",
+                    "expires_at",
+                ]
+            )
             for g in grants:
-                grant_writer.writerow([
-                    str(g.id),
-                    str(g.grantee_id),
-                    g.resource_type,
-                    str(g.resource_id) if g.resource_id else "",
-                    ",".join(g.actions) if g.actions else "",
-                    str(g.granted_at.date()) if g.granted_at else "",
-                    str(g.expires_at.date()) if g.expires_at else "",
-                ])
+                grant_writer.writerow(
+                    [
+                        str(g.id),
+                        str(g.grantee_id),
+                        g.resource_type,
+                        str(g.resource_id) if g.resource_id else "",
+                        ",".join(g.actions) if g.actions else "",
+                        str(g.granted_at.date()) if g.granted_at else "",
+                        str(g.expires_at.date()) if g.expires_at else "",
+                    ]
+                )
             zf.writestr("grants.csv", grant_buf.getvalue())
 
     zip_buffer.seek(0)
@@ -625,9 +706,9 @@ async def delete_account(
 
     # Count active members in the organization
     count_result = await db.execute(
-        select(func.count()).select_from(User).where(
-            User.organization_id == current_user.organization_id
-        )
+        select(func.count())
+        .select_from(User)
+        .where(User.organization_id == current_user.organization_id)
     )
     member_count = count_result.scalar()
 

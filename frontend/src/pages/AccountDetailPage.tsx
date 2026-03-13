@@ -41,19 +41,29 @@ import {
   Tooltip,
   SimpleGrid,
   Collapse,
-} from '@chakra-ui/react';
-import { FiEdit2, FiCheck, FiX, FiLock, FiRefreshCw, FiTrash2, FiRepeat } from 'react-icons/fi';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
-import api from '../services/api';
-import { useUserView } from '../contexts/UserViewContext';
-import type { Transaction } from '../types/transaction';
-import { ContributionsManager } from '../features/accounts/components/ContributionsManager';
-import { AddTransactionModal } from '../features/accounts/components/AddTransactionModal';
-import { AddHoldingModal } from '../features/accounts/components/AddHoldingModal';
-import { holdingsApi, type Holding } from '../api/holdings';
-import { formatAccountType } from '../utils/formatAccountType';
+} from "@chakra-ui/react";
+import {
+  FiEdit2,
+  FiCheck,
+  FiX,
+  FiLock,
+  FiRefreshCw,
+  FiTrash2,
+  FiRepeat,
+} from "react-icons/fi";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+import api from "../services/api";
+import { useUserView } from "../contexts/UserViewContext";
+import type { Transaction } from "../types/transaction";
+import { ContributionsManager } from "../features/accounts/components/ContributionsManager";
+import { AddTransactionModal } from "../features/accounts/components/AddTransactionModal";
+import { AddHoldingModal } from "../features/accounts/components/AddHoldingModal";
+import { holdingsApi, type Holding } from "../api/holdings";
+import { TaxLotsPanel } from "../features/investments/components/TaxLotsPanel";
+import { ReconciliationCard } from "../features/accounts/components/ReconciliationCard";
+import { formatAccountType } from "../utils/formatAccountType";
 import {
   ASSET_ACCOUNT_TYPES,
   CONTRIBUTION_ACCOUNT_TYPES,
@@ -61,7 +71,7 @@ import {
   EMPLOYER_MATCH_TYPES,
   HOLDINGS_ACCOUNT_TYPES,
   TAX_TREATMENT_ACCOUNT_TYPES,
-} from '../constants/accountTypeGroups';
+} from "../constants/accountTypeGroups";
 
 interface Account {
   id: string;
@@ -103,7 +113,7 @@ interface Account {
   needs_reauth: boolean | null;
 }
 
-const LOAN_ACCOUNT_TYPES = ['mortgage', 'loan', 'student_loan'];
+const LOAN_ACCOUNT_TYPES = ["mortgage", "loan", "student_loan"];
 
 export const AccountDetailPage = () => {
   const { accountId } = useParams<{ accountId: string }>();
@@ -112,70 +122,95 @@ export const AccountDetailPage = () => {
   const queryClient = useQueryClient();
   const { canWriteOwnedResource } = useUserView();
   const [searchParams] = useSearchParams();
-  const selectedUserId = searchParams.get('user');
+  const selectedUserId = searchParams.get("user");
   const isCombinedView = !selectedUserId;
-  const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
-  const { isOpen: isAddTxnOpen, onOpen: onAddTxnOpen, onClose: onAddTxnClose } = useDisclosure();
-  const { isOpen: isAddHoldingOpen, onOpen: onAddHoldingOpen, onClose: onAddHoldingClose } = useDisclosure();
-  const { isOpen: isMigrateOpen, onOpen: onMigrateOpen, onClose: onMigrateClose } = useDisclosure();
+  const {
+    isOpen: isDeleteOpen,
+    onOpen: onDeleteOpen,
+    onClose: onDeleteClose,
+  } = useDisclosure();
+  const {
+    isOpen: isAddTxnOpen,
+    onOpen: onAddTxnOpen,
+    onClose: onAddTxnClose,
+  } = useDisclosure();
+  const {
+    isOpen: isAddHoldingOpen,
+    onOpen: onAddHoldingOpen,
+    onClose: onAddHoldingClose,
+  } = useDisclosure();
+  const {
+    isOpen: isMigrateOpen,
+    onOpen: onMigrateOpen,
+    onClose: onMigrateClose,
+  } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const migrateCancelRef = useRef<HTMLButtonElement>(null);
   const [migrateStep, setMigrateStep] = useState<1 | 2>(1);
-  const [selectedTargetSource, setSelectedTargetSource] = useState<string | null>(null);
+  const [selectedTargetSource, setSelectedTargetSource] = useState<
+    string | null
+  >(null);
   const [showMigrationHistory, setShowMigrationHistory] = useState(false);
-  const [transactionsCursor, setTransactionsCursor] = useState<string | null>(null);
-  const [vehicleMileage, setVehicleMileage] = useState('');
-  const [vehicleValue, setVehicleValue] = useState('');
-  const [vehicleVin, setVehicleVin] = useState('');
-  const [propertyAddress, setPropertyAddress] = useState('');
-  const [propertyZip, setPropertyZip] = useState('');
-  const [manualBalance, setManualBalance] = useState('');
-  const [debtBalance, setDebtBalance] = useState('');
+  const [transactionsCursor, setTransactionsCursor] = useState<string | null>(
+    null,
+  );
+  const [vehicleMileage, setVehicleMileage] = useState("");
+  const [vehicleValue, setVehicleValue] = useState("");
+  const [vehicleVin, setVehicleVin] = useState("");
+  const [propertyAddress, setPropertyAddress] = useState("");
+  const [propertyZip, setPropertyZip] = useState("");
+  const [manualBalance, setManualBalance] = useState("");
+  const [debtBalance, setDebtBalance] = useState("");
   const [isEditingName, setIsEditingName] = useState(false);
-  const [editedName, setEditedName] = useState('');
+  const [editedName, setEditedName] = useState("");
   // Loan detail editing state
-  const [loanInterestRate, setLoanInterestRate] = useState('');
-  const [loanTermYears, setLoanTermYears] = useState('');
-  const [loanOriginationDate, setLoanOriginationDate] = useState('');
+  const [loanInterestRate, setLoanInterestRate] = useState("");
+  const [loanTermYears, setLoanTermYears] = useState("");
+  const [loanOriginationDate, setLoanOriginationDate] = useState("");
   // Employer match editing state
-  const [empMatchPct, setEmpMatchPct] = useState('');
-  const [empMatchLimitPct, setEmpMatchLimitPct] = useState('');
-  const [empAnnualSalary, setEmpAnnualSalary] = useState('');
+  const [empMatchPct, setEmpMatchPct] = useState("");
+  const [empMatchLimitPct, setEmpMatchLimitPct] = useState("");
+  const [empAnnualSalary, setEmpAnnualSalary] = useState("");
   // Valuation adjustment state
-  const [adjustmentPct, setAdjustmentPct] = useState('');
+  const [adjustmentPct, setAdjustmentPct] = useState("");
 
   // Fetch account details
   const { data: account, isLoading } = useQuery<Account>({
-    queryKey: ['account', accountId],
+    queryKey: ["account", accountId],
     queryFn: async () => {
       const response = await api.get(`/accounts/${accountId}`);
       return response.data;
     },
   });
 
-  const isPropertyOrVehicle = account?.account_type === 'property' || account?.account_type === 'vehicle';
+  const isPropertyOrVehicle =
+    account?.account_type === "property" || account?.account_type === "vehicle";
 
   // Fetch available valuation providers (only for property/vehicle accounts)
-  const { data: valuationProviders } = useQuery<{ property: string[]; vehicle: string[] }>({
-    queryKey: ['valuation-providers'],
+  const { data: valuationProviders } = useQuery<{
+    property: string[];
+    vehicle: string[];
+  }>({
+    queryKey: ["valuation-providers"],
     queryFn: async () => {
-      const response = await api.get('/accounts/valuation-providers');
+      const response = await api.get("/accounts/valuation-providers");
       return response.data;
     },
     enabled: isPropertyOrVehicle,
     staleTime: 5 * 60 * 1000, // provider config changes rarely
   });
 
-  const availableProviders = account?.account_type === 'property'
-    ? (valuationProviders?.property ?? [])
-    : (valuationProviders?.vehicle ?? []);
-  const [selectedProvider, setSelectedProvider] = useState<string>('');
+  const availableProviders =
+    account?.account_type === "property"
+      ? (valuationProviders?.property ?? [])
+      : (valuationProviders?.vehicle ?? []);
+  const [selectedProvider, setSelectedProvider] = useState<string>("");
 
   // Fetch all accounts to check if this account is shared (only in combined view)
   const { data: allAccounts } = useQuery<Account[]>({
-    queryKey: ['accounts-check-shared', accountId],
+    queryKey: ["accounts-check-shared", accountId],
     queryFn: async () => {
-      const response = await api.get('/accounts');
+      const response = await api.get("/accounts");
       return response.data;
     },
     enabled: isCombinedView && !!account?.plaid_item_hash,
@@ -183,52 +218,74 @@ export const AccountDetailPage = () => {
 
   // Fetch transactions for this account
   const { data: transactionsData, isLoading: transactionsLoading } = useQuery({
-    queryKey: ['transactions', accountId, transactionsCursor],
+    queryKey: ["transactions", accountId, transactionsCursor],
     queryFn: async () => {
       const params = new URLSearchParams({
         account_id: accountId!,
-        page_size: '50',
+        page_size: "50",
       });
       if (transactionsCursor) {
-        params.append('cursor', transactionsCursor);
+        params.append("cursor", transactionsCursor);
       }
       const response = await api.get(`/transactions/?${params.toString()}`);
       return response.data;
     },
-    enabled: !!accountId && !ASSET_ACCOUNT_TYPES.includes(account?.account_type ?? ''),
+    enabled:
+      !!accountId && !ASSET_ACCOUNT_TYPES.includes(account?.account_type ?? ""),
   });
 
   // Fetch holdings for investment accounts
   const { data: accountHoldings } = useQuery<Holding[]>({
-    queryKey: ['holdings', accountId],
+    queryKey: ["holdings", accountId],
     queryFn: () => holdingsApi.getAccountHoldings(accountId!),
-    enabled: !!accountId && HOLDINGS_ACCOUNT_TYPES.includes(account?.account_type ?? ''),
+    enabled:
+      !!accountId &&
+      HOLDINGS_ACCOUNT_TYPES.includes(account?.account_type ?? ""),
   });
 
   // Update account mutation
   const updateAccountMutation = useMutation({
-    mutationFn: async (data: { name?: string; account_type?: string; tax_treatment?: string | null; is_active?: boolean; exclude_from_cash_flow?: boolean; include_in_networth?: boolean | null; interest_rate?: number | null; loan_term_months?: number | null; origination_date?: string | null; current_balance?: number; employer_match_percent?: number | null; employer_match_limit_percent?: number | null; annual_salary?: number | null; property_address?: string | null; property_zip?: string | null; vehicle_vin?: string | null; vehicle_mileage?: number | null; valuation_adjustment_pct?: number | null }) => {
+    mutationFn: async (data: {
+      name?: string;
+      account_type?: string;
+      tax_treatment?: string | null;
+      is_active?: boolean;
+      exclude_from_cash_flow?: boolean;
+      include_in_networth?: boolean | null;
+      interest_rate?: number | null;
+      loan_term_months?: number | null;
+      origination_date?: string | null;
+      current_balance?: number;
+      employer_match_percent?: number | null;
+      employer_match_limit_percent?: number | null;
+      annual_salary?: number | null;
+      property_address?: string | null;
+      property_zip?: string | null;
+      vehicle_vin?: string | null;
+      vehicle_mileage?: number | null;
+      valuation_adjustment_pct?: number | null;
+    }) => {
       const response = await api.patch(`/accounts/${accountId}`, data);
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['account', accountId] });
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['portfolio-summary'] });
+      queryClient.invalidateQueries({ queryKey: ["account", accountId] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts-admin"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio-summary"] });
       toast({
-        title: 'Account updated',
-        status: 'success',
+        title: "Account updated",
+        status: "success",
         duration: 3000,
       });
     },
     onError: (error: any) => {
       toast({
-        title: 'Failed to update account',
-        description: error.response?.data?.detail || 'An error occurred',
-        status: 'error',
+        title: "Failed to update account",
+        description: error.response?.data?.detail || "An error occurred",
+        status: "error",
         duration: 5000,
       });
     },
@@ -240,23 +297,23 @@ export const AccountDetailPage = () => {
       await api.delete(`/accounts/${accountId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts-admin"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["infinite-transactions"] });
       toast({
-        title: 'Account deleted',
-        status: 'success',
+        title: "Account deleted",
+        status: "success",
         duration: 3000,
       });
-      navigate('/dashboard');
+      navigate("/dashboard");
     },
     onError: (error: any) => {
       toast({
-        title: 'Failed to delete account',
-        description: error.response?.data?.detail || 'An error occurred',
-        status: 'error',
+        title: "Failed to delete account",
+        description: error.response?.data?.detail || "An error occurred",
+        status: "error",
         duration: 5000,
       });
     },
@@ -274,16 +331,19 @@ export const AccountDetailPage = () => {
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['account', accountId] });
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['migration-history', accountId] });
+      queryClient.invalidateQueries({ queryKey: ["account", accountId] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts-admin"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({
+        queryKey: ["migration-history", accountId],
+      });
       toast({
-        title: 'Account migrated',
-        description: data.message || `Provider changed to ${selectedTargetSource}`,
-        status: 'success',
+        title: "Account migrated",
+        description:
+          data.message || `Provider changed to ${selectedTargetSource}`,
+        status: "success",
         duration: 5000,
       });
       onMigrateClose();
@@ -292,9 +352,9 @@ export const AccountDetailPage = () => {
     },
     onError: (error: any) => {
       toast({
-        title: 'Migration failed',
-        description: error.response?.data?.detail || 'An error occurred',
-        status: 'error',
+        title: "Migration failed",
+        description: error.response?.data?.detail || "An error occurred",
+        status: "error",
         duration: 5000,
       });
     },
@@ -312,10 +372,12 @@ export const AccountDetailPage = () => {
   }
 
   const { data: migrationHistory } = useQuery<MigrationLogEntry[]>({
-    queryKey: ['migration-history', accountId],
+    queryKey: ["migration-history", accountId],
     queryFn: async () => {
       try {
-        const response = await api.get(`/accounts/${accountId}/migration-history`);
+        const response = await api.get(
+          `/accounts/${accountId}/migration-history`,
+        );
         return response.data;
       } catch {
         return [];
@@ -328,33 +390,39 @@ export const AccountDetailPage = () => {
 
   // Update vehicle details mutation
   const updateVehicleMutation = useMutation({
-    mutationFn: async (data: { mileage?: number; balance?: number; vin?: string; valuation_adjustment_pct?: number }) => {
+    mutationFn: async (data: {
+      mileage?: number;
+      balance?: number;
+      vin?: string;
+      valuation_adjustment_pct?: number;
+    }) => {
       const payload: any = {};
       if (data.mileage !== undefined) payload.vehicle_mileage = data.mileage;
       if (data.vin !== undefined) payload.vehicle_vin = data.vin.toUpperCase();
       if (data.balance !== undefined) payload.current_balance = data.balance;
-      if (data.valuation_adjustment_pct !== undefined) payload.valuation_adjustment_pct = data.valuation_adjustment_pct;
+      if (data.valuation_adjustment_pct !== undefined)
+        payload.valuation_adjustment_pct = data.valuation_adjustment_pct;
       const response = await api.patch(`/accounts/${accountId}`, payload);
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['account', accountId] });
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ["account", accountId] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
       toast({
-        title: 'Vehicle details updated',
-        status: 'success',
+        title: "Vehicle details updated",
+        status: "success",
         duration: 3000,
       });
-      setVehicleMileage('');
-      setVehicleValue('');
-      setVehicleVin('');
-      setAdjustmentPct('');
+      setVehicleMileage("");
+      setVehicleValue("");
+      setVehicleVin("");
+      setAdjustmentPct("");
     },
     onError: (error: any) => {
       toast({
-        title: 'Failed to update vehicle',
-        description: error.response?.data?.detail || 'An error occurred',
-        status: 'error',
+        title: "Failed to update vehicle",
+        description: error.response?.data?.detail || "An error occurred",
+        status: "error",
         duration: 5000,
       });
     },
@@ -363,34 +431,47 @@ export const AccountDetailPage = () => {
   // Refresh auto-valuation mutation (property + vehicle)
   const refreshValuationMutation = useMutation({
     mutationFn: async () => {
-      const params = selectedProvider ? `?provider=${selectedProvider}` : '';
-      const response = await api.post(`/accounts/${accountId}/refresh-valuation${params}`);
+      const params = selectedProvider ? `?provider=${selectedProvider}` : "";
+      const response = await api.post(
+        `/accounts/${accountId}/refresh-valuation${params}`,
+      );
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['account', accountId] });
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
-      const fmt = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
-      const rangeStr = data.low && data.high ? ` (range ${fmt(data.low)} – ${fmt(data.high)})` : '';
-      const vinInfo = data.vin_info ? ` · ${data.vin_info.year} ${data.vin_info.make} ${data.vin_info.model}` : '';
-      const providerLabel = data.provider ? ` via ${data.provider}` : '';
-      const adjStr = data.adjustment_pct && data.raw_value !== data.new_value
-        ? ` (provider: ${fmt(data.raw_value)}, adjusted ${data.adjustment_pct > 0 ? '+' : ''}${data.adjustment_pct}%)`
-        : '';
+      queryClient.invalidateQueries({ queryKey: ["account", accountId] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      const fmt = (v: number) =>
+        new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+          maximumFractionDigits: 0,
+        }).format(v);
+      const rangeStr =
+        data.low && data.high
+          ? ` (range ${fmt(data.low)} – ${fmt(data.high)})`
+          : "";
+      const vinInfo = data.vin_info
+        ? ` · ${data.vin_info.year} ${data.vin_info.make} ${data.vin_info.model}`
+        : "";
+      const providerLabel = data.provider ? ` via ${data.provider}` : "";
+      const adjStr =
+        data.adjustment_pct && data.raw_value !== data.new_value
+          ? ` (provider: ${fmt(data.raw_value)}, adjusted ${data.adjustment_pct > 0 ? "+" : ""}${data.adjustment_pct}%)`
+          : "";
       toast({
-        title: 'Valuation refreshed',
+        title: "Valuation refreshed",
         description: `Updated to ${fmt(data.new_value)}${adjStr}${rangeStr}${vinInfo}${providerLabel}`,
-        status: 'success',
+        status: "success",
         duration: 5000,
       });
     },
     onError: (error: any) => {
       toast({
-        title: 'Valuation refresh failed',
-        description: error.response?.data?.detail || 'An error occurred',
-        status: 'error',
+        title: "Valuation refresh failed",
+        description: error.response?.data?.detail || "An error occurred",
+        status: "error",
         duration: 7000,
         isClosable: true,
       });
@@ -400,37 +481,40 @@ export const AccountDetailPage = () => {
   // Sync transactions mutation
   const syncTransactionsMutation = useMutation({
     mutationFn: async (plaidItemId: string) => {
-      const response = await api.post(`/plaid/sync-transactions/${plaidItemId}`);
+      const response = await api.post(
+        `/plaid/sync-transactions/${plaidItemId}`,
+      );
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['account', accountId] });
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      queryClient.invalidateQueries({ queryKey: ['accounts-admin'] });
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ["account", accountId] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts-admin"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["infinite-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
 
       const stats = data.stats;
       const message = stats
         ? `Synced: ${stats.added} added, ${stats.updated} updated, ${stats.skipped} skipped`
-        : 'Transactions synced successfully';
+        : "Transactions synced successfully";
 
       toast({
-        title: 'Sync Complete',
+        title: "Sync Complete",
         description: message,
-        status: 'success',
+        status: "success",
         duration: 5000,
         isClosable: true,
       });
     },
     onError: (error: any) => {
-      const errorMessage = error?.response?.data?.detail || 'Failed to sync transactions';
+      const errorMessage =
+        error?.response?.data?.detail || "Failed to sync transactions";
       toast({
-        title: 'Sync Failed',
+        title: "Sync Failed",
         description: errorMessage,
-        status: 'error',
+        status: "error",
         duration: 5000,
         isClosable: true,
       });
@@ -441,43 +525,43 @@ export const AccountDetailPage = () => {
   const deleteHoldingMutation = useMutation({
     mutationFn: (holdingId: string) => holdingsApi.deleteHolding(holdingId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['holdings', accountId] });
-      queryClient.invalidateQueries({ queryKey: ['portfolio-widget'] });
-      toast({ title: 'Holding removed', status: 'success', duration: 3000 });
+      queryClient.invalidateQueries({ queryKey: ["holdings", accountId] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio-widget"] });
+      toast({ title: "Holding removed", status: "success", duration: 3000 });
     },
     onError: (error: any) => {
       toast({
-        title: 'Failed to remove holding',
-        description: error.response?.data?.detail || 'An error occurred',
-        status: 'error',
+        title: "Failed to remove holding",
+        description: error.response?.data?.detail || "An error occurred",
+        status: "error",
         duration: 5000,
       });
     },
   });
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);
   };
 
   const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return 'Never';
+    if (!dateStr) return "Never";
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
+    return date.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "numeric",
     });
   };
 
   const formatLastSynced = (lastSyncedAt: string | null) => {
-    if (!lastSyncedAt) return 'Never synced';
+    if (!lastSyncedAt) return "Never synced";
 
     const date = new Date(lastSyncedAt);
     const now = new Date();
@@ -486,15 +570,15 @@ export const AccountDetailPage = () => {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Just now';
+    if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
 
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
     });
   };
 
@@ -510,13 +594,19 @@ export const AccountDetailPage = () => {
     }
   };
 
-  const handleToggleExcludeFromCashFlow = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleToggleExcludeFromCashFlow = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     if (account) {
-      updateAccountMutation.mutate({ exclude_from_cash_flow: e.target.checked });
+      updateAccountMutation.mutate({
+        exclude_from_cash_flow: e.target.checked,
+      });
     }
   };
 
-  const handleToggleIncludeInNetworth = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleToggleIncludeInNetworth = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     if (account) {
       updateAccountMutation.mutate({ include_in_networth: e.target.checked });
     }
@@ -528,7 +618,12 @@ export const AccountDetailPage = () => {
   };
 
   const handleUpdateVehicle = () => {
-    const updates: { mileage?: number; balance?: number; vin?: string; valuation_adjustment_pct?: number } = {};
+    const updates: {
+      mileage?: number;
+      balance?: number;
+      vin?: string;
+      valuation_adjustment_pct?: number;
+    } = {};
 
     if (vehicleMileage) {
       const mileage = parseInt(vehicleMileage);
@@ -556,7 +651,8 @@ export const AccountDetailPage = () => {
 
   const handleUpdatePropertyDetails = () => {
     const payload: any = {};
-    if (propertyAddress.trim()) payload.property_address = propertyAddress.trim();
+    if (propertyAddress.trim())
+      payload.property_address = propertyAddress.trim();
     if (propertyZip.trim()) payload.property_zip = propertyZip.trim();
     if (adjustmentPct) {
       const pct = parseFloat(adjustmentPct);
@@ -565,35 +661,40 @@ export const AccountDetailPage = () => {
     if (Object.keys(payload).length > 0) {
       updateAccountMutation.mutate(payload, {
         onSuccess: () => {
-          setPropertyAddress('');
-          setPropertyZip('');
-          setAdjustmentPct('');
+          setPropertyAddress("");
+          setPropertyZip("");
+          setAdjustmentPct("");
         },
       });
     }
   };
 
   const handleSaveLoanDetails = () => {
-    const updates: { interest_rate?: number | null; loan_term_months?: number | null; origination_date?: string | null } = {};
+    const updates: {
+      interest_rate?: number | null;
+      loan_term_months?: number | null;
+      origination_date?: string | null;
+    } = {};
 
-    if (loanInterestRate !== '') {
+    if (loanInterestRate !== "") {
       const rate = parseFloat(loanInterestRate);
       if (!isNaN(rate) && rate >= 0) updates.interest_rate = rate;
     }
-    if (loanTermYears !== '') {
+    if (loanTermYears !== "") {
       const years = parseFloat(loanTermYears);
-      if (!isNaN(years) && years > 0) updates.loan_term_months = Math.round(years * 12);
+      if (!isNaN(years) && years > 0)
+        updates.loan_term_months = Math.round(years * 12);
     }
-    if (loanOriginationDate !== '') {
+    if (loanOriginationDate !== "") {
       updates.origination_date = loanOriginationDate;
     }
 
     if (Object.keys(updates).length > 0) {
       updateAccountMutation.mutate(updates, {
         onSuccess: () => {
-          setLoanInterestRate('');
-          setLoanTermYears('');
-          setLoanOriginationDate('');
+          setLoanInterestRate("");
+          setLoanTermYears("");
+          setLoanOriginationDate("");
         },
       });
     }
@@ -605,24 +706,24 @@ export const AccountDetailPage = () => {
       employer_match_limit_percent?: number | null;
       annual_salary?: number | null;
     } = {};
-    if (empMatchPct !== '') {
+    if (empMatchPct !== "") {
       const v = parseFloat(empMatchPct);
       if (!isNaN(v) && v >= 0) updates.employer_match_percent = v;
     }
-    if (empMatchLimitPct !== '') {
+    if (empMatchLimitPct !== "") {
       const v = parseFloat(empMatchLimitPct);
       if (!isNaN(v) && v >= 0) updates.employer_match_limit_percent = v;
     }
-    if (empAnnualSalary !== '') {
+    if (empAnnualSalary !== "") {
       const v = parseFloat(empAnnualSalary);
       if (!isNaN(v) && v >= 0) updates.annual_salary = v;
     }
     if (Object.keys(updates).length > 0) {
       updateAccountMutation.mutate(updates, {
         onSuccess: () => {
-          setEmpMatchPct('');
-          setEmpMatchLimitPct('');
-          setEmpAnnualSalary('');
+          setEmpMatchPct("");
+          setEmpMatchLimitPct("");
+          setEmpAnnualSalary("");
         },
       });
     }
@@ -631,9 +732,12 @@ export const AccountDetailPage = () => {
   const handleSaveBalance = (rawValue: string, clearInput: () => void) => {
     const value = parseFloat(rawValue);
     if (!isNaN(value) && value >= 0) {
-      updateAccountMutation.mutate({ current_balance: value }, {
-        onSuccess: clearInput,
-      });
+      updateAccountMutation.mutate(
+        { current_balance: value },
+        {
+          onSuccess: clearInput,
+        },
+      );
     }
   };
 
@@ -653,7 +757,7 @@ export const AccountDetailPage = () => {
 
   const handleCancelEditName = () => {
     setIsEditingName(false);
-    setEditedName('');
+    setEditedName("");
   };
 
   if (isLoading) {
@@ -676,20 +780,23 @@ export const AccountDetailPage = () => {
   const isNegative = balance < 0;
 
   // Check if this account is shared (multiple household members have linked it)
-  const isSharedAccount = isCombinedView && account.plaid_item_hash && allAccounts
-    ? allAccounts.filter(acc =>
-        acc.plaid_item_hash === account.plaid_item_hash &&
-        acc.plaid_item_hash !== null
-      ).length > 1
-    : false;
+  const isSharedAccount =
+    isCombinedView && account.plaid_item_hash && allAccounts
+      ? allAccounts.filter(
+          (acc) =>
+            acc.plaid_item_hash === account.plaid_item_hash &&
+            acc.plaid_item_hash !== null,
+        ).length > 1
+      : false;
 
   // Disable editing if:
   // 1. User doesn't own the account and has no write grant from the owner, OR
   // 2. Account is shared (linked by multiple users) — must edit in individual user view
-  const canEditAccount = canWriteOwnedResource('account', account.user_id) && !isSharedAccount;
+  const canEditAccount =
+    canWriteOwnedResource("account", account.user_id) && !isSharedAccount;
 
   const isAssetAccount = ASSET_ACCOUNT_TYPES.includes(account.account_type);
-  const isManual = account.account_source === 'manual';
+  const isManual = account.account_source === "manual";
 
   // Asset accounts (property, vehicle, etc.) don't have transaction flows
   const showTransactions = !isAssetAccount;
@@ -700,9 +807,9 @@ export const AccountDetailPage = () => {
   // own dedicated balance section (vehicle has a vehicle section, debt has a debt
   // section — everything else, including checking/savings/brokerage/crypto, shows this)
   const showUpdateBalance =
-    isManual
-    && account.account_type !== 'vehicle'
-    && !DEBT_ACCOUNT_TYPES.includes(account.account_type);
+    isManual &&
+    account.account_type !== "vehicle" &&
+    !DEBT_ACCOUNT_TYPES.includes(account.account_type);
   // Manual debt accounts can have their balance set directly
   const showDebtBalanceUpdate =
     isManual && DEBT_ACCOUNT_TYPES.includes(account.account_type);
@@ -736,9 +843,9 @@ export const AccountDetailPage = () => {
                   maxW="400px"
                   autoFocus
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === "Enter") {
                       handleSaveName();
-                    } else if (e.key === 'Escape') {
+                    } else if (e.key === "Escape") {
                       handleCancelEditName();
                     }
                   }}
@@ -771,7 +878,12 @@ export const AccountDetailPage = () => {
                     }
                     placement="top"
                   >
-                    <Badge colorScheme="gray" display="flex" alignItems="center" gap={1}>
+                    <Badge
+                      colorScheme="gray"
+                      display="flex"
+                      alignItems="center"
+                      gap={1}
+                    >
                       <FiLock size={12} /> Read-only
                     </Badge>
                   </Tooltip>
@@ -790,7 +902,9 @@ export const AccountDetailPage = () => {
             )}
             <Text color="text.secondary" mt={1}>
               {formatAccountType(account.account_type, account.tax_treatment)}
-              {account.mask && account.account_type !== 'vehicle' && ` ••${account.mask}`}
+              {account.mask &&
+                account.account_type !== "vehicle" &&
+                ` ••${account.mask}`}
             </Text>
           </Box>
           <Box textAlign="right">
@@ -800,7 +914,7 @@ export const AccountDetailPage = () => {
             <Text
               fontSize="3xl"
               fontWeight="bold"
-              color={isNegative ? 'finance.negative' : 'brand.accent'}
+              color={isNegative ? "finance.negative" : "brand.accent"}
             >
               {formatCurrency(balance)}
             </Text>
@@ -823,7 +937,9 @@ export const AccountDetailPage = () => {
               <FormControl>
                 <FormLabel fontSize="sm">Account Type</FormLabel>
                 <Tooltip
-                  label={!canEditAccount ? "You can only edit your own accounts" : ""}
+                  label={
+                    !canEditAccount ? "You can only edit your own accounts" : ""
+                  }
                   placement="top"
                   isDisabled={canEditAccount}
                 >
@@ -834,12 +950,26 @@ export const AccountDetailPage = () => {
                     isDisabled={!canEditAccount}
                   >
                     {[
-                      'checking', 'savings', 'credit_card', 'brokerage',
-                      'retirement_401k', 'retirement_403b', 'retirement_457b',
-                      'retirement_ira', 'retirement_roth', 'retirement_sep_ira',
-                      'retirement_simple_ira', 'retirement_529', 'hsa',
-                      'loan', 'mortgage', 'property', 'vehicle', 'crypto',
-                      'manual', 'other',
+                      "checking",
+                      "savings",
+                      "credit_card",
+                      "brokerage",
+                      "retirement_401k",
+                      "retirement_403b",
+                      "retirement_457b",
+                      "retirement_ira",
+                      "retirement_roth",
+                      "retirement_sep_ira",
+                      "retirement_simple_ira",
+                      "retirement_529",
+                      "hsa",
+                      "loan",
+                      "mortgage",
+                      "property",
+                      "vehicle",
+                      "crypto",
+                      "manual",
+                      "other",
                     ].map((value) => (
                       <option key={value} value={value}>
                         {formatAccountType(value)}
@@ -850,18 +980,30 @@ export const AccountDetailPage = () => {
               </FormControl>
 
               {/* Tax Treatment — for retirement/investment accounts */}
-              {(TAX_TREATMENT_ACCOUNT_TYPES as readonly string[]).includes(account.account_type) && (
+              {(TAX_TREATMENT_ACCOUNT_TYPES as readonly string[]).includes(
+                account.account_type,
+              ) && (
                 <FormControl>
                   <FormLabel fontSize="sm">Tax Treatment</FormLabel>
                   <Tooltip
-                    label={!canEditAccount ? "You can only edit your own accounts" : account.account_source !== 'manual' ? "Override the provider's default if incorrect" : ""}
+                    label={
+                      !canEditAccount
+                        ? "You can only edit your own accounts"
+                        : account.account_source !== "manual"
+                          ? "Override the provider's default if incorrect"
+                          : ""
+                    }
                     placement="top"
-                    isDisabled={canEditAccount && account.account_source === 'manual'}
+                    isDisabled={
+                      canEditAccount && account.account_source === "manual"
+                    }
                   >
                     <Select
-                      value={account.tax_treatment || ''}
+                      value={account.tax_treatment || ""}
                       onChange={(e) => {
-                        updateAccountMutation.mutate({ tax_treatment: e.target.value || null });
+                        updateAccountMutation.mutate({
+                          tax_treatment: e.target.value || null,
+                        });
                       }}
                       size="sm"
                       isDisabled={!canEditAccount}
@@ -873,11 +1015,13 @@ export const AccountDetailPage = () => {
                       <option value="tax_free">Tax-Free (HSA/529)</option>
                     </Select>
                   </Tooltip>
-                  {account.account_source === 'mx' && !account.tax_treatment && (
-                    <Text fontSize="xs" color="orange.500" mt={1}>
-                      MX doesn't distinguish Roth vs Traditional. Please select the correct tax treatment.
-                    </Text>
-                  )}
+                  {account.account_source === "mx" &&
+                    !account.tax_treatment && (
+                      <Text fontSize="xs" color="orange.500" mt={1}>
+                        MX doesn't distinguish Roth vs Traditional. Please
+                        select the correct tax treatment.
+                      </Text>
+                    )}
                 </FormControl>
               )}
 
@@ -887,7 +1031,9 @@ export const AccountDetailPage = () => {
                   Hide from all reports
                 </FormLabel>
                 <Tooltip
-                  label={!canEditAccount ? "You can only edit your own accounts" : ""}
+                  label={
+                    !canEditAccount ? "You can only edit your own accounts" : ""
+                  }
                   placement="top"
                   isDisabled={canEditAccount}
                 >
@@ -907,11 +1053,14 @@ export const AccountDetailPage = () => {
                     Exclude from cash flow
                   </FormLabel>
                   <Text fontSize="xs" color="text.muted" mt={0.5}>
-                    Prevents double-counting (e.g., mortgage payments already tracked in checking account)
+                    Prevents double-counting (e.g., mortgage payments already
+                    tracked in checking account)
                   </Text>
                 </Box>
                 <Tooltip
-                  label={!canEditAccount ? "You can only edit your own accounts" : ""}
+                  label={
+                    !canEditAccount ? "You can only edit your own accounts" : ""
+                  }
                   placement="top"
                   isDisabled={canEditAccount}
                 >
@@ -928,12 +1077,17 @@ export const AccountDetailPage = () => {
               <Box>
                 <HStack justify="space-between" align="start">
                   <Box>
-                    <Text fontSize="sm" fontWeight="medium" color="text.secondary">
+                    <Text
+                      fontSize="sm"
+                      fontWeight="medium"
+                      color="text.secondary"
+                    >
                       Account Source
                     </Text>
                     <Text fontSize="sm">
                       {account.account_source.toUpperCase()}
-                      {account.institution_name && ` - ${account.institution_name}`}
+                      {account.institution_name &&
+                        ` - ${account.institution_name}`}
                     </Text>
                   </Box>
                   {canEditAccount && account.is_active && (
@@ -959,23 +1113,40 @@ export const AccountDetailPage = () => {
                       variant="link"
                       size="xs"
                       color="text.secondary"
-                      onClick={() => setShowMigrationHistory(!showMigrationHistory)}
+                      onClick={() =>
+                        setShowMigrationHistory(!showMigrationHistory)
+                      }
                     >
-                      {showMigrationHistory ? 'Hide' : 'Show'} migration history ({migrationHistory.length})
+                      {showMigrationHistory ? "Hide" : "Show"} migration history
+                      ({migrationHistory.length})
                     </Button>
                     <Collapse in={showMigrationHistory} animateOpacity>
                       <VStack align="stretch" spacing={1} mt={2}>
                         {migrationHistory.map((entry) => (
-                          <HStack key={entry.id} fontSize="xs" color="text.secondary" spacing={2}>
+                          <HStack
+                            key={entry.id}
+                            fontSize="xs"
+                            color="text.secondary"
+                            spacing={2}
+                          >
                             <Text>
-                              {new Date(entry.initiated_at).toLocaleDateString()}
+                              {new Date(
+                                entry.initiated_at,
+                              ).toLocaleDateString()}
                             </Text>
                             <Text>
-                              {entry.source_provider.toUpperCase()} → {entry.target_provider.toUpperCase()}
+                              {entry.source_provider.toUpperCase()} →{" "}
+                              {entry.target_provider.toUpperCase()}
                             </Text>
                             <Badge
                               size="sm"
-                              colorScheme={entry.status === 'completed' ? 'green' : entry.status === 'failed' ? 'red' : 'yellow'}
+                              colorScheme={
+                                entry.status === "completed"
+                                  ? "green"
+                                  : entry.status === "failed"
+                                    ? "red"
+                                    : "yellow"
+                              }
                               fontSize="2xs"
                             >
                               {entry.status}
@@ -992,16 +1163,27 @@ export const AccountDetailPage = () => {
               {account.plaid_item_id && (
                 <Box>
                   <HStack justify="space-between" mb={2}>
-                    <Text fontSize="sm" fontWeight="medium" color="text.secondary">
+                    <Text
+                      fontSize="sm"
+                      fontWeight="medium"
+                      color="text.secondary"
+                    >
                       Sync Status
                     </Text>
-                    <Tooltip label="Refresh transactions from bank" placement="top">
+                    <Tooltip
+                      label="Refresh transactions from bank"
+                      placement="top"
+                    >
                       <IconButton
                         icon={<FiRefreshCw />}
                         size="xs"
                         variant="ghost"
                         aria-label="Sync transactions"
-                        onClick={() => syncTransactionsMutation.mutate(account.plaid_item_id!)}
+                        onClick={() =>
+                          syncTransactionsMutation.mutate(
+                            account.plaid_item_id!,
+                          )
+                        }
                         isLoading={syncTransactionsMutation.isPending}
                         isDisabled={syncTransactionsMutation.isPending}
                       />
@@ -1009,19 +1191,33 @@ export const AccountDetailPage = () => {
                   </HStack>
                   <VStack align="stretch" spacing={1}>
                     <HStack>
-                      <Text fontSize="sm" color="text.secondary">Last synced:</Text>
+                      <Text fontSize="sm" color="text.secondary">
+                        Last synced:
+                      </Text>
                       <Text fontSize="sm" fontWeight="medium">
                         {formatLastSynced(account.last_synced_at)}
                       </Text>
                     </HStack>
                     {(account.last_error_code || account.needs_reauth) && (
                       <HStack>
-                        <Badge colorScheme={account.needs_reauth ? 'orange' : 'red'} fontSize="xs">
-                          {account.needs_reauth ? 'Reauthentication Required' : 'Sync Error'}
+                        <Badge
+                          colorScheme={account.needs_reauth ? "orange" : "red"}
+                          fontSize="xs"
+                        >
+                          {account.needs_reauth
+                            ? "Reauthentication Required"
+                            : "Sync Error"}
                         </Badge>
                         {account.last_error_message && (
-                          <Tooltip label={account.last_error_message} placement="top">
-                            <Text fontSize="xs" color="text.secondary" noOfLines={1}>
+                          <Tooltip
+                            label={account.last_error_message}
+                            placement="top"
+                          >
+                            <Text
+                              fontSize="xs"
+                              color="text.secondary"
+                              noOfLines={1}
+                            >
                               {account.last_error_message}
                             </Text>
                           </Tooltip>
@@ -1037,7 +1233,11 @@ export const AccountDetailPage = () => {
               {/* Delete Account */}
               <Box>
                 <Tooltip
-                  label={!canEditAccount ? "You can only delete your own accounts" : ""}
+                  label={
+                    !canEditAccount
+                      ? "You can only delete your own accounts"
+                      : ""
+                  }
                   placement="top"
                   isDisabled={canEditAccount}
                 >
@@ -1052,7 +1252,8 @@ export const AccountDetailPage = () => {
                   </Button>
                 </Tooltip>
                 <Text fontSize="xs" color="text.muted" mt={1}>
-                  This will permanently delete this account and all associated transactions.
+                  This will permanently delete this account and all associated
+                  transactions.
                 </Text>
               </Box>
             </VStack>
@@ -1060,7 +1261,7 @@ export const AccountDetailPage = () => {
         </Card>
 
         {/* Vehicle Details Section - Only for vehicle accounts */}
-        {account.account_type === 'vehicle' && (
+        {account.account_type === "vehicle" && (
           <Card>
             <CardBody>
               <HStack justify="space-between" mb={4}>
@@ -1075,16 +1276,20 @@ export const AccountDetailPage = () => {
                         w="auto"
                       >
                         <option value="">Auto-select</option>
-                        {availableProviders.map(p => (
-                          <option key={p} value={p}>{p}</option>
+                        {availableProviders.map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
                         ))}
                       </Select>
                     )}
                     <Tooltip
                       label={
-                        !account.vehicle_vin ? 'Add VIN below to enable auto-valuation'
-                        : availableProviders.length === 0 ? 'No valuation provider configured'
-                        : 'Fetch current market value'
+                        !account.vehicle_vin
+                          ? "Add VIN below to enable auto-valuation"
+                          : availableProviders.length === 0
+                            ? "No valuation provider configured"
+                            : "Fetch current market value"
                       }
                       placement="top"
                     >
@@ -1094,7 +1299,10 @@ export const AccountDetailPage = () => {
                         variant="outline"
                         onClick={() => refreshValuationMutation.mutate()}
                         isLoading={refreshValuationMutation.isPending}
-                        isDisabled={!account.vehicle_vin || availableProviders.length === 0}
+                        isDisabled={
+                          !account.vehicle_vin ||
+                          availableProviders.length === 0
+                        }
                       >
                         Refresh Valuation
                       </Button>
@@ -1106,35 +1314,53 @@ export const AccountDetailPage = () => {
                 {/* Current info display */}
                 <HStack spacing={6} wrap="wrap">
                   <Box>
-                    <Text fontSize="xs" color="text.muted">Current Mileage</Text>
+                    <Text fontSize="xs" color="text.muted">
+                      Current Mileage
+                    </Text>
                     <Text fontWeight="semibold">
-                      {account.vehicle_mileage != null ? `${account.vehicle_mileage.toLocaleString()} miles` : 'Not set'}
+                      {account.vehicle_mileage != null
+                        ? `${account.vehicle_mileage.toLocaleString()} miles`
+                        : "Not set"}
                     </Text>
                   </Box>
                   <Box>
-                    <Text fontSize="xs" color="text.muted">VIN</Text>
+                    <Text fontSize="xs" color="text.muted">
+                      VIN
+                    </Text>
                     <Text fontWeight="semibold" fontFamily="mono" fontSize="sm">
-                      {account.vehicle_vin ?? 'Not set'}
+                      {account.vehicle_vin ?? "Not set"}
                     </Text>
                   </Box>
                   {account.last_auto_valued_at && (
                     <Box>
-                      <Text fontSize="xs" color="text.muted">Last Auto-Valued</Text>
+                      <Text fontSize="xs" color="text.muted">
+                        Last Auto-Valued
+                      </Text>
                       <Text fontWeight="semibold" fontSize="sm">
                         {formatLastSynced(account.last_auto_valued_at)}
                       </Text>
                     </Box>
                   )}
                   <Box>
-                    <Text fontSize="xs" color="text.muted">Valuation Adjustment</Text>
-                    <Text fontWeight="semibold" fontSize="sm" color={
-                      account.valuation_adjustment_pct != null && account.valuation_adjustment_pct !== 0
-                        ? (account.valuation_adjustment_pct > 0 ? 'finance.positive' : 'finance.negative')
-                        : undefined
-                    }>
-                      {account.valuation_adjustment_pct != null && account.valuation_adjustment_pct !== 0
-                        ? `${account.valuation_adjustment_pct > 0 ? '+' : ''}${account.valuation_adjustment_pct}%`
-                        : 'None'}
+                    <Text fontSize="xs" color="text.muted">
+                      Valuation Adjustment
+                    </Text>
+                    <Text
+                      fontWeight="semibold"
+                      fontSize="sm"
+                      color={
+                        account.valuation_adjustment_pct != null &&
+                        account.valuation_adjustment_pct !== 0
+                          ? account.valuation_adjustment_pct > 0
+                            ? "finance.positive"
+                            : "finance.negative"
+                          : undefined
+                      }
+                    >
+                      {account.valuation_adjustment_pct != null &&
+                      account.valuation_adjustment_pct !== 0
+                        ? `${account.valuation_adjustment_pct > 0 ? "+" : ""}${account.valuation_adjustment_pct}%`
+                        : "None"}
                     </Text>
                   </Box>
                 </HStack>
@@ -1144,11 +1370,19 @@ export const AccountDetailPage = () => {
                 {/* Investment toggle */}
                 <FormControl>
                   <HStack justify="space-between" align="center">
-                    <FormLabel htmlFor="vehicle-networth-toggle" mb="0" fontSize="sm">
+                    <FormLabel
+                      htmlFor="vehicle-networth-toggle"
+                      mb="0"
+                      fontSize="sm"
+                    >
                       Count as Investment in Net Worth
                     </FormLabel>
                     <Tooltip
-                      label={!canEditAccount ? "You can only edit your own accounts" : ""}
+                      label={
+                        !canEditAccount
+                          ? "You can only edit your own accounts"
+                          : ""
+                      }
                       placement="top"
                       isDisabled={canEditAccount}
                     >
@@ -1162,7 +1396,8 @@ export const AccountDetailPage = () => {
                     </Tooltip>
                   </HStack>
                   <Text fontSize="xs" color="text.muted" mt={1}>
-                    Enable for classic or collectible vehicles you consider an investment.
+                    Enable for classic or collectible vehicles you consider an
+                    investment.
                   </Text>
                 </FormControl>
 
@@ -1176,17 +1411,24 @@ export const AccountDetailPage = () => {
                   <>
                     {/* Update VIN */}
                     <FormControl>
-                      <FormLabel fontSize="sm">VIN (for auto-valuation)</FormLabel>
+                      <FormLabel fontSize="sm">
+                        VIN (for auto-valuation)
+                      </FormLabel>
                       <Input
                         value={vehicleVin}
-                        onChange={(e) => setVehicleVin(e.target.value.toUpperCase())}
-                        placeholder={account.vehicle_vin ?? 'e.g., 1HGBH41JXMN109186'}
+                        onChange={(e) =>
+                          setVehicleVin(e.target.value.toUpperCase())
+                        }
+                        placeholder={
+                          account.vehicle_vin ?? "e.g., 1HGBH41JXMN109186"
+                        }
                         maxLength={17}
                         size="sm"
                         fontFamily="mono"
                       />
                       <Text fontSize="xs" color="text.muted" mt={1}>
-                        17-character VIN enables automatic market value updates via MarketCheck API.
+                        17-character VIN enables automatic market value updates
+                        via MarketCheck API.
                       </Text>
                     </FormControl>
 
@@ -1200,7 +1442,13 @@ export const AccountDetailPage = () => {
                           min={0}
                           size="sm"
                         >
-                          <NumberInputField placeholder={account.vehicle_mileage != null ? String(account.vehicle_mileage) : 'Enter mileage'} />
+                          <NumberInputField
+                            placeholder={
+                              account.vehicle_mileage != null
+                                ? String(account.vehicle_mileage)
+                                : "Enter mileage"
+                            }
+                          />
                         </NumberInput>
                         <Text fontSize="sm" color="text.secondary">
                           miles
@@ -1227,7 +1475,9 @@ export const AccountDetailPage = () => {
 
                     {/* Valuation Adjustment */}
                     <FormControl>
-                      <FormLabel fontSize="sm">Valuation Adjustment (%)</FormLabel>
+                      <FormLabel fontSize="sm">
+                        Valuation Adjustment (%)
+                      </FormLabel>
                       <HStack>
                         <NumberInput
                           value={adjustmentPct}
@@ -1236,12 +1486,21 @@ export const AccountDetailPage = () => {
                           step={1}
                           size="sm"
                         >
-                          <NumberInputField placeholder={account.valuation_adjustment_pct != null ? String(account.valuation_adjustment_pct) : '0'} />
+                          <NumberInputField
+                            placeholder={
+                              account.valuation_adjustment_pct != null
+                                ? String(account.valuation_adjustment_pct)
+                                : "0"
+                            }
+                          />
                         </NumberInput>
-                        <Text fontSize="sm" color="text.secondary">%</Text>
+                        <Text fontSize="sm" color="text.secondary">
+                          %
+                        </Text>
                       </HStack>
                       <Text fontSize="xs" color="text.muted" mt={1}>
-                        Negative for damage/wear, positive for upgrades. Applied on top of auto-valuation estimates.
+                        Negative for damage/wear, positive for upgrades. Applied
+                        on top of auto-valuation estimates.
                       </Text>
                     </FormControl>
 
@@ -1251,7 +1510,12 @@ export const AccountDetailPage = () => {
                       size="sm"
                       onClick={handleUpdateVehicle}
                       isLoading={updateVehicleMutation.isPending}
-                      isDisabled={!vehicleMileage && !vehicleValue && !vehicleVin.trim() && !adjustmentPct}
+                      isDisabled={
+                        !vehicleMileage &&
+                        !vehicleValue &&
+                        !vehicleVin.trim() &&
+                        !adjustmentPct
+                      }
                     >
                       Save Updates
                     </Button>
@@ -1263,7 +1527,7 @@ export const AccountDetailPage = () => {
         )}
 
         {/* Property Details Section - Only for property accounts */}
-        {account.account_type === 'property' && (
+        {account.account_type === "property" && (
           <Card>
             <CardBody>
               <HStack justify="space-between" mb={4}>
@@ -1278,16 +1542,20 @@ export const AccountDetailPage = () => {
                         w="auto"
                       >
                         <option value="">Auto-select</option>
-                        {availableProviders.map(p => (
-                          <option key={p} value={p}>{p}</option>
+                        {availableProviders.map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
                         ))}
                       </Select>
                     )}
                     <Tooltip
                       label={
-                        !account.property_address || !account.property_zip ? 'Add address and ZIP below to enable auto-valuation'
-                        : availableProviders.length === 0 ? 'No valuation provider configured'
-                        : 'Fetch current estimated value'
+                        !account.property_address || !account.property_zip
+                          ? "Add address and ZIP below to enable auto-valuation"
+                          : availableProviders.length === 0
+                            ? "No valuation provider configured"
+                            : "Fetch current estimated value"
                       }
                       placement="top"
                     >
@@ -1297,7 +1565,11 @@ export const AccountDetailPage = () => {
                         variant="outline"
                         onClick={() => refreshValuationMutation.mutate()}
                         isLoading={refreshValuationMutation.isPending}
-                        isDisabled={!account.property_address || !account.property_zip || availableProviders.length === 0}
+                        isDisabled={
+                          !account.property_address ||
+                          !account.property_zip ||
+                          availableProviders.length === 0
+                        }
                       >
                         Refresh Valuation
                       </Button>
@@ -1309,31 +1581,45 @@ export const AccountDetailPage = () => {
                 {/* Current info display */}
                 <HStack spacing={6} wrap="wrap">
                   <Box>
-                    <Text fontSize="xs" color="text.muted">Address</Text>
+                    <Text fontSize="xs" color="text.muted">
+                      Address
+                    </Text>
                     <Text fontWeight="semibold" fontSize="sm">
                       {account.property_address
-                        ? `${account.property_address}${account.property_zip ? `, ${account.property_zip}` : ''}`
-                        : 'Not set'}
+                        ? `${account.property_address}${account.property_zip ? `, ${account.property_zip}` : ""}`
+                        : "Not set"}
                     </Text>
                   </Box>
                   {account.last_auto_valued_at && (
                     <Box>
-                      <Text fontSize="xs" color="text.muted">Last Auto-Valued</Text>
+                      <Text fontSize="xs" color="text.muted">
+                        Last Auto-Valued
+                      </Text>
                       <Text fontWeight="semibold" fontSize="sm">
                         {formatLastSynced(account.last_auto_valued_at)}
                       </Text>
                     </Box>
                   )}
                   <Box>
-                    <Text fontSize="xs" color="text.muted">Valuation Adjustment</Text>
-                    <Text fontWeight="semibold" fontSize="sm" color={
-                      account.valuation_adjustment_pct != null && account.valuation_adjustment_pct !== 0
-                        ? (account.valuation_adjustment_pct > 0 ? 'finance.positive' : 'finance.negative')
-                        : undefined
-                    }>
-                      {account.valuation_adjustment_pct != null && account.valuation_adjustment_pct !== 0
-                        ? `${account.valuation_adjustment_pct > 0 ? '+' : ''}${account.valuation_adjustment_pct}%`
-                        : 'None'}
+                    <Text fontSize="xs" color="text.muted">
+                      Valuation Adjustment
+                    </Text>
+                    <Text
+                      fontWeight="semibold"
+                      fontSize="sm"
+                      color={
+                        account.valuation_adjustment_pct != null &&
+                        account.valuation_adjustment_pct !== 0
+                          ? account.valuation_adjustment_pct > 0
+                            ? "finance.positive"
+                            : "finance.negative"
+                          : undefined
+                      }
+                    >
+                      {account.valuation_adjustment_pct != null &&
+                      account.valuation_adjustment_pct !== 0
+                        ? `${account.valuation_adjustment_pct > 0 ? "+" : ""}${account.valuation_adjustment_pct}%`
+                        : "None"}
                     </Text>
                   </Box>
                 </HStack>
@@ -1351,7 +1637,9 @@ export const AccountDetailPage = () => {
                         <Input
                           value={propertyAddress}
                           onChange={(e) => setPropertyAddress(e.target.value)}
-                          placeholder={account.property_address ?? 'e.g., 123 Main St'}
+                          placeholder={
+                            account.property_address ?? "e.g., 123 Main St"
+                          }
                           size="sm"
                         />
                       </FormControl>
@@ -1360,14 +1648,16 @@ export const AccountDetailPage = () => {
                         <Input
                           value={propertyZip}
                           onChange={(e) => setPropertyZip(e.target.value)}
-                          placeholder={account.property_zip ?? 'e.g., 94102'}
+                          placeholder={account.property_zip ?? "e.g., 94102"}
                           maxLength={10}
                           size="sm"
                         />
                       </FormControl>
                     </HStack>
                     <FormControl>
-                      <FormLabel fontSize="sm">Valuation Adjustment (%)</FormLabel>
+                      <FormLabel fontSize="sm">
+                        Valuation Adjustment (%)
+                      </FormLabel>
                       <HStack>
                         <NumberInput
                           value={adjustmentPct}
@@ -1376,12 +1666,21 @@ export const AccountDetailPage = () => {
                           step={1}
                           size="sm"
                         >
-                          <NumberInputField placeholder={account.valuation_adjustment_pct != null ? String(account.valuation_adjustment_pct) : '0'} />
+                          <NumberInputField
+                            placeholder={
+                              account.valuation_adjustment_pct != null
+                                ? String(account.valuation_adjustment_pct)
+                                : "0"
+                            }
+                          />
                         </NumberInput>
-                        <Text fontSize="sm" color="text.secondary">%</Text>
+                        <Text fontSize="sm" color="text.secondary">
+                          %
+                        </Text>
                       </HStack>
                       <Text fontSize="xs" color="text.muted" mt={1}>
-                        Negative for damage/wear, positive for upgrades. Applied on top of auto-valuation estimates.
+                        Negative for damage/wear, positive for upgrades. Applied
+                        on top of auto-valuation estimates.
                       </Text>
                     </FormControl>
                     <Button
@@ -1389,12 +1688,17 @@ export const AccountDetailPage = () => {
                       size="sm"
                       onClick={handleUpdatePropertyDetails}
                       isLoading={updateAccountMutation.isPending}
-                      isDisabled={!propertyAddress.trim() && !propertyZip.trim() && !adjustmentPct}
+                      isDisabled={
+                        !propertyAddress.trim() &&
+                        !propertyZip.trim() &&
+                        !adjustmentPct
+                      }
                     >
                       Save Property Details
                     </Button>
                     <Text fontSize="xs" color="text.muted">
-                      Address and ZIP are used to fetch automated property valuations.
+                      Address and ZIP are used to fetch automated property
+                      valuations.
                     </Text>
                   </>
                 )}
@@ -1411,24 +1715,32 @@ export const AccountDetailPage = () => {
                 Loan Details
               </Heading>
               <Text fontSize="sm" color="text.muted" mb={4}>
-                {account.account_source !== 'manual'
-                  ? 'Your bank may not provide these details. Enter them manually to enable cash flow projections and debt payoff planning.'
-                  : 'Used for cash flow projections and debt payoff planning.'}
+                {account.account_source !== "manual"
+                  ? "Your bank may not provide these details. Enter them manually to enable cash flow projections and debt payoff planning."
+                  : "Used for cash flow projections and debt payoff planning."}
               </Text>
               <VStack spacing={4} align="stretch">
                 {/* Current values display */}
-                {(account.interest_rate || account.loan_term_months || account.origination_date) && (
+                {(account.interest_rate ||
+                  account.loan_term_months ||
+                  account.origination_date) && (
                   <>
                     <HStack spacing={6} wrap="wrap">
                       {account.interest_rate != null && (
                         <Box>
-                          <Text fontSize="xs" color="text.muted">Interest Rate</Text>
-                          <Text fontWeight="semibold">{account.interest_rate}%</Text>
+                          <Text fontSize="xs" color="text.muted">
+                            Interest Rate
+                          </Text>
+                          <Text fontWeight="semibold">
+                            {account.interest_rate}%
+                          </Text>
                         </Box>
                       )}
                       {account.loan_term_months != null && (
                         <Box>
-                          <Text fontSize="xs" color="text.muted">Loan Term</Text>
+                          <Text fontSize="xs" color="text.muted">
+                            Loan Term
+                          </Text>
                           <Text fontWeight="semibold">
                             {account.loan_term_months >= 12
                               ? `${Math.round(account.loan_term_months / 12)} years`
@@ -1438,9 +1750,16 @@ export const AccountDetailPage = () => {
                       )}
                       {account.origination_date && (
                         <Box>
-                          <Text fontSize="xs" color="text.muted">Loan Start</Text>
+                          <Text fontSize="xs" color="text.muted">
+                            Loan Start
+                          </Text>
                           <Text fontWeight="semibold">
-                            {new Date(account.origination_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                            {new Date(
+                              account.origination_date,
+                            ).toLocaleDateString("en-US", {
+                              month: "short",
+                              year: "numeric",
+                            })}
                           </Text>
                         </Box>
                       )}
@@ -1466,7 +1785,13 @@ export const AccountDetailPage = () => {
                         max={100}
                         size="sm"
                       >
-                        <NumberInputField placeholder={account.interest_rate != null ? String(account.interest_rate) : 'e.g., 6.75'} />
+                        <NumberInputField
+                          placeholder={
+                            account.interest_rate != null
+                              ? String(account.interest_rate)
+                              : "e.g., 6.75"
+                          }
+                        />
                       </NumberInput>
                     </FormControl>
 
@@ -1481,7 +1806,15 @@ export const AccountDetailPage = () => {
                         max={50}
                         size="sm"
                       >
-                        <NumberInputField placeholder={account.loan_term_months != null ? String(Math.round(account.loan_term_months / 12)) : 'e.g., 30'} />
+                        <NumberInputField
+                          placeholder={
+                            account.loan_term_months != null
+                              ? String(
+                                  Math.round(account.loan_term_months / 12),
+                                )
+                              : "e.g., 30"
+                          }
+                        />
                       </NumberInput>
                     </FormControl>
 
@@ -1501,7 +1834,11 @@ export const AccountDetailPage = () => {
                       size="sm"
                       onClick={handleSaveLoanDetails}
                       isLoading={updateAccountMutation.isPending}
-                      isDisabled={!loanInterestRate && !loanTermYears && !loanOriginationDate}
+                      isDisabled={
+                        !loanInterestRate &&
+                        !loanTermYears &&
+                        !loanOriginationDate
+                      }
                     >
                       Save Loan Details
                     </Button>
@@ -1513,76 +1850,154 @@ export const AccountDetailPage = () => {
         )}
 
         {/* Employer Match Section - For 401k / 403b accounts */}
-        {(EMPLOYER_MATCH_TYPES as readonly string[]).includes(account.account_type) && (
+        {(EMPLOYER_MATCH_TYPES as readonly string[]).includes(
+          account.account_type,
+        ) && (
           <Card>
             <CardBody>
-              <Heading size="md" mb={1}>Employer Match</Heading>
+              <Heading size="md" mb={1}>
+                Employer Match
+              </Heading>
               <Text fontSize="sm" color="text.secondary" mb={4}>
-                Track how much your employer contributes to see your true total retirement savings rate.
+                Track how much your employer contributes to see your true total
+                retirement savings rate.
               </Text>
 
               {/* Current values display */}
-              {(account.employer_match_percent != null || account.employer_match_limit_percent != null || account.annual_salary != null) && (
+              {(account.employer_match_percent != null ||
+                account.employer_match_limit_percent != null ||
+                account.annual_salary != null) && (
                 <>
                   <HStack spacing={6} wrap="wrap" mb={4}>
                     {account.employer_match_percent != null && (
                       <Box>
-                        <Text fontSize="xs" color="text.muted">Employer Matches</Text>
-                        <Text fontWeight="semibold">{account.employer_match_percent}% of your contribution</Text>
+                        <Text fontSize="xs" color="text.muted">
+                          Employer Matches
+                        </Text>
+                        <Text fontWeight="semibold">
+                          {account.employer_match_percent}% of your contribution
+                        </Text>
                       </Box>
                     )}
                     {account.employer_match_limit_percent != null && (
                       <Box>
-                        <Text fontSize="xs" color="text.muted">On First</Text>
-                        <Text fontWeight="semibold">{account.employer_match_limit_percent}% of salary</Text>
+                        <Text fontSize="xs" color="text.muted">
+                          On First
+                        </Text>
+                        <Text fontWeight="semibold">
+                          {account.employer_match_limit_percent}% of salary
+                        </Text>
                       </Box>
                     )}
                     {account.annual_salary != null && (
                       <Box>
-                        <Text fontSize="xs" color="text.muted">Annual Salary</Text>
-                        <Text fontWeight="semibold">{formatCurrency(account.annual_salary)}</Text>
+                        <Text fontSize="xs" color="text.muted">
+                          Annual Salary
+                        </Text>
+                        <Text fontWeight="semibold">
+                          {formatCurrency(account.annual_salary)}
+                        </Text>
                       </Box>
                     )}
                     {/* Computed annual employer contribution */}
-                    {account.employer_match_percent != null && account.employer_match_limit_percent != null && account.annual_salary != null && (() => {
-                      const matchablePct = Math.min(account.employer_match_limit_percent, account.employer_match_limit_percent);
-                      const annualMatch = (matchablePct / 100) * (account.employer_match_percent / 100) * account.annual_salary;
-                      const monthlyMatch = annualMatch / 12;
-                      return (
-                        <Box bg="bg.success" px={3} py={2} borderRadius="md" borderWidth="1px" borderColor="green.200">
-                          <Text fontSize="xs" color="green.700">Employer Contributes</Text>
-                          <Text fontWeight="bold" color="green.700">
-                            {formatCurrency(annualMatch)}/yr &nbsp;·&nbsp; {formatCurrency(monthlyMatch)}/mo
-                          </Text>
-                        </Box>
-                      );
-                    })()}
+                    {account.employer_match_percent != null &&
+                      account.employer_match_limit_percent != null &&
+                      account.annual_salary != null &&
+                      (() => {
+                        const matchablePct = Math.min(
+                          account.employer_match_limit_percent,
+                          account.employer_match_limit_percent,
+                        );
+                        const annualMatch =
+                          (matchablePct / 100) *
+                          (account.employer_match_percent / 100) *
+                          account.annual_salary;
+                        const monthlyMatch = annualMatch / 12;
+                        return (
+                          <Box
+                            bg="bg.success"
+                            px={3}
+                            py={2}
+                            borderRadius="md"
+                            borderWidth="1px"
+                            borderColor="green.200"
+                          >
+                            <Text fontSize="xs" color="green.700">
+                              Employer Contributes
+                            </Text>
+                            <Text fontWeight="bold" color="green.700">
+                              {formatCurrency(annualMatch)}/yr &nbsp;·&nbsp;{" "}
+                              {formatCurrency(monthlyMatch)}/mo
+                            </Text>
+                          </Box>
+                        );
+                      })()}
                   </HStack>
                   <Divider mb={4} />
                 </>
               )}
 
               {!canEditAccount ? (
-                <Text fontSize="sm" color="text.secondary">Employer match can only be updated by the account owner.</Text>
+                <Text fontSize="sm" color="text.secondary">
+                  Employer match can only be updated by the account owner.
+                </Text>
               ) : (
                 <>
                   <HStack spacing={4} align="end" wrap="wrap">
                     <FormControl maxW="160px">
                       <FormLabel fontSize="sm">Employer Match (%)</FormLabel>
-                      <NumberInput value={empMatchPct} onChange={setEmpMatchPct} min={0} max={200} precision={2} size="sm">
-                        <NumberInputField placeholder={account.employer_match_percent != null ? String(account.employer_match_percent) : 'e.g., 50'} />
+                      <NumberInput
+                        value={empMatchPct}
+                        onChange={setEmpMatchPct}
+                        min={0}
+                        max={200}
+                        precision={2}
+                        size="sm"
+                      >
+                        <NumberInputField
+                          placeholder={
+                            account.employer_match_percent != null
+                              ? String(account.employer_match_percent)
+                              : "e.g., 50"
+                          }
+                        />
                       </NumberInput>
                     </FormControl>
                     <FormControl maxW="160px">
                       <FormLabel fontSize="sm">Up to (% of salary)</FormLabel>
-                      <NumberInput value={empMatchLimitPct} onChange={setEmpMatchLimitPct} min={0} max={100} precision={2} size="sm">
-                        <NumberInputField placeholder={account.employer_match_limit_percent != null ? String(account.employer_match_limit_percent) : 'e.g., 6'} />
+                      <NumberInput
+                        value={empMatchLimitPct}
+                        onChange={setEmpMatchLimitPct}
+                        min={0}
+                        max={100}
+                        precision={2}
+                        size="sm"
+                      >
+                        <NumberInputField
+                          placeholder={
+                            account.employer_match_limit_percent != null
+                              ? String(account.employer_match_limit_percent)
+                              : "e.g., 6"
+                          }
+                        />
                       </NumberInput>
                     </FormControl>
                     <FormControl maxW="200px">
                       <FormLabel fontSize="sm">Annual Salary ($)</FormLabel>
-                      <NumberInput value={empAnnualSalary} onChange={setEmpAnnualSalary} min={0} precision={0} size="sm">
-                        <NumberInputField placeholder={account.annual_salary != null ? String(account.annual_salary) : 'e.g., 100000'} />
+                      <NumberInput
+                        value={empAnnualSalary}
+                        onChange={setEmpAnnualSalary}
+                        min={0}
+                        precision={0}
+                        size="sm"
+                      >
+                        <NumberInputField
+                          placeholder={
+                            account.annual_salary != null
+                              ? String(account.annual_salary)
+                              : "e.g., 100000"
+                          }
+                        />
                       </NumberInput>
                     </FormControl>
                   </HStack>
@@ -1592,7 +2007,9 @@ export const AccountDetailPage = () => {
                     colorScheme="blue"
                     onClick={handleSaveEmployerMatch}
                     isLoading={updateAccountMutation.isPending}
-                    isDisabled={!empMatchPct && !empMatchLimitPct && !empAnnualSalary}
+                    isDisabled={
+                      !empMatchPct && !empMatchLimitPct && !empAnnualSalary
+                    }
                   >
                     Save Match Details
                   </Button>
@@ -1626,8 +2043,14 @@ export const AccountDetailPage = () => {
                     <Tr>
                       <Th>Symbol</Th>
                       <Th>Name</Th>
-                      <Th isNumeric>{account.account_type === 'crypto' ? 'Coins' : 'Shares'}</Th>
-                      <Th isNumeric>{account.account_type === 'crypto' ? 'Cost/Coin' : 'Cost Basis/Share'}</Th>
+                      <Th isNumeric>
+                        {account.account_type === "crypto" ? "Coins" : "Shares"}
+                      </Th>
+                      <Th isNumeric>
+                        {account.account_type === "crypto"
+                          ? "Cost/Coin"
+                          : "Cost Basis/Share"}
+                      </Th>
                       <Th isNumeric>Current Value</Th>
                       {canEditAccount && isManual && <Th />}
                     </Tr>
@@ -1636,17 +2059,21 @@ export const AccountDetailPage = () => {
                     {accountHoldings.map((h) => (
                       <Tr key={h.id}>
                         <Td fontWeight="bold">{h.ticker}</Td>
-                        <Td color="text.secondary">{h.name || '—'}</Td>
-                        <Td isNumeric>{Number(h.shares).toLocaleString(undefined, { maximumFractionDigits: 6 })}</Td>
+                        <Td color="text.secondary">{h.name || "—"}</Td>
+                        <Td isNumeric>
+                          {Number(h.shares).toLocaleString(undefined, {
+                            maximumFractionDigits: 6,
+                          })}
+                        </Td>
                         <Td isNumeric>
                           {h.cost_basis_per_share != null
                             ? formatCurrency(Number(h.cost_basis_per_share))
-                            : '—'}
+                            : "—"}
                         </Td>
                         <Td isNumeric fontWeight="medium">
                           {h.current_value != null
                             ? formatCurrency(Number(h.current_value))
-                            : '—'}
+                            : "—"}
                         </Td>
                         {canEditAccount && isManual && (
                           <Td>
@@ -1657,9 +2084,17 @@ export const AccountDetailPage = () => {
                                 size="xs"
                                 variant="ghost"
                                 colorScheme="red"
-                                onClick={() => deleteHoldingMutation.mutate(h.id)}
-                                isLoading={deleteHoldingMutation.isPending && deleteHoldingMutation.variables === h.id}
-                                isDisabled={deleteHoldingMutation.isPending && deleteHoldingMutation.variables !== h.id}
+                                onClick={() =>
+                                  deleteHoldingMutation.mutate(h.id)
+                                }
+                                isLoading={
+                                  deleteHoldingMutation.isPending &&
+                                  deleteHoldingMutation.variables === h.id
+                                }
+                                isDisabled={
+                                  deleteHoldingMutation.isPending &&
+                                  deleteHoldingMutation.variables !== h.id
+                                }
                               />
                             </Tooltip>
                           </Td>
@@ -1669,14 +2104,38 @@ export const AccountDetailPage = () => {
                   </Tbody>
                 </Table>
               ) : (
-                <Text color="text.muted" fontSize="sm" textAlign="center" py={6}>
+                <Text
+                  color="text.muted"
+                  fontSize="sm"
+                  textAlign="center"
+                  py={6}
+                >
                   {isManual
                     ? 'No holdings yet. Use "Add Holding" to record your positions.'
-                    : 'Holdings are synced from your brokerage.'}
+                    : "Holdings are synced from your brokerage."}
                 </Text>
               )}
             </CardBody>
           </Card>
+        )}
+
+        {/* Tax Lots & Gains - For investment accounts with holdings */}
+        {showHoldings && accountHoldings && accountHoldings.length > 0 && (
+          <TaxLotsPanel
+            accountId={accountId!}
+            holdings={accountHoldings.map((h) => ({
+              id: h.id,
+              ticker: h.ticker,
+              name: h.name || null,
+              shares: Number(h.shares),
+            }))}
+            canEdit={canEditAccount}
+          />
+        )}
+
+        {/* Balance Reconciliation - For bank-connected accounts */}
+        {account?.last_synced_at && (
+          <ReconciliationCard accountId={accountId!} />
         )}
 
         {/* Update Balance for manual debt accounts */}
@@ -1697,7 +2156,9 @@ export const AccountDetailPage = () => {
                 ) : (
                   <>
                     <FormControl>
-                      <FormLabel fontSize="sm">Current Balance Owed ($)</FormLabel>
+                      <FormLabel fontSize="sm">
+                        Current Balance Owed ($)
+                      </FormLabel>
                       <HStack>
                         <Text fontSize="sm">$</Text>
                         <NumberInput
@@ -1707,14 +2168,18 @@ export const AccountDetailPage = () => {
                           precision={2}
                           size="sm"
                         >
-                          <NumberInputField placeholder={Math.abs(balance).toFixed(2)} />
+                          <NumberInputField
+                            placeholder={Math.abs(balance).toFixed(2)}
+                          />
                         </NumberInput>
                       </HStack>
                     </FormControl>
                     <Button
                       colorScheme="brand"
                       size="sm"
-                      onClick={() => handleSaveBalance(debtBalance, () => setDebtBalance(''))}
+                      onClick={() =>
+                        handleSaveBalance(debtBalance, () => setDebtBalance(""))
+                      }
                       isLoading={updateAccountMutation.isPending}
                       isDisabled={!debtBalance}
                     >
@@ -1732,25 +2197,27 @@ export const AccountDetailPage = () => {
           <Card>
             <CardBody>
               <Heading size="md" mb={1}>
-                {isAssetAccount ? 'Update Value' : 'Update Balance'}
+                {isAssetAccount ? "Update Value" : "Update Balance"}
               </Heading>
               <Text fontSize="sm" color="text.muted" mb={4}>
                 {isAssetAccount
-                  ? 'Enter the current market value of this asset to keep your net worth up to date.'
-                  : 'Set the current balance to keep your account accurate.'}
+                  ? "Enter the current market value of this asset to keep your net worth up to date."
+                  : "Set the current balance to keep your account accurate."}
               </Text>
               <VStack spacing={4} align="stretch">
                 {!canEditAccount ? (
                   <Text fontSize="sm" color="text.secondary">
                     {isAssetAccount
-                      ? 'Value can only be updated by the account owner.'
-                      : 'Balance can only be updated by the account owner.'}
+                      ? "Value can only be updated by the account owner."
+                      : "Balance can only be updated by the account owner."}
                   </Text>
                 ) : (
                   <>
                     <FormControl>
                       <FormLabel fontSize="sm">
-                        {isAssetAccount ? 'Current Value ($)' : 'Current Balance ($)'}
+                        {isAssetAccount
+                          ? "Current Value ($)"
+                          : "Current Balance ($)"}
                       </FormLabel>
                       <HStack>
                         <Text fontSize="sm">$</Text>
@@ -1770,11 +2237,15 @@ export const AccountDetailPage = () => {
                     <Button
                       colorScheme="brand"
                       size="sm"
-                      onClick={() => handleSaveBalance(manualBalance, () => setManualBalance(''))}
+                      onClick={() =>
+                        handleSaveBalance(manualBalance, () =>
+                          setManualBalance(""),
+                        )
+                      }
                       isLoading={updateAccountMutation.isPending}
                       isDisabled={!manualBalance}
                     >
-                      {isAssetAccount ? 'Save Value' : 'Save Balance'}
+                      {isAssetAccount ? "Save Value" : "Save Balance"}
                     </Button>
                   </>
                 )}
@@ -1788,10 +2259,15 @@ export const AccountDetailPage = () => {
           <Card>
             <CardBody>
               {canEditAccount ? (
-                <ContributionsManager accountId={account.id} accountName={account.name} />
+                <ContributionsManager
+                  accountId={account.id}
+                  accountName={account.name}
+                />
               ) : (
                 <Box>
-                  <Heading size="md" mb={2}>Recurring Contributions</Heading>
+                  <Heading size="md" mb={2}>
+                    Recurring Contributions
+                  </Heading>
                   <Text fontSize="sm" color="text.secondary">
                     Contributions can only be managed by the account owner.
                   </Text>
@@ -1801,116 +2277,134 @@ export const AccountDetailPage = () => {
           </Card>
         )}
 
-
         {/* Transactions Section - hidden for asset accounts (property, vehicle, etc.) */}
-        {showTransactions && <Card>
-          <CardBody>
-            <HStack justify="space-between" mb={4}>
-              <Heading size="md">Transactions</Heading>
-              <HStack spacing={3}>
-                {canAddTransaction && (
-                  <Button
-                    size="sm"
-                    colorScheme="brand"
-                    variant="outline"
-                    onClick={onAddTxnOpen}
-                  >
-                    Add Transaction
-                  </Button>
-                )}
-                {transactionsData && transactionsData.total > 0 && (
-                  <Text fontSize="sm" color="text.secondary">
-                    Showing {transactionsData.transactions?.length || 0} of {transactionsData.total}
-                  </Text>
-                )}
+        {showTransactions && (
+          <Card>
+            <CardBody>
+              <HStack justify="space-between" mb={4}>
+                <Heading size="md">Transactions</Heading>
+                <HStack spacing={3}>
+                  {canAddTransaction && (
+                    <Button
+                      size="sm"
+                      colorScheme="brand"
+                      variant="outline"
+                      onClick={onAddTxnOpen}
+                    >
+                      Add Transaction
+                    </Button>
+                  )}
+                  {transactionsData && transactionsData.total > 0 && (
+                    <Text fontSize="sm" color="text.secondary">
+                      Showing {transactionsData.transactions?.length || 0} of{" "}
+                      {transactionsData.total}
+                    </Text>
+                  )}
+                </HStack>
               </HStack>
-            </HStack>
 
-            {transactionsLoading ? (
-              <Center py={8}>
-                <Spinner size="md" color="brand.500" />
-              </Center>
-            ) : transactionsData?.transactions && transactionsData.transactions.length > 0 ? (
-              <>
-                <Table variant="simple" size="sm">
-                  <Thead>
-                    <Tr>
-                      <Th>Date</Th>
-                      <Th>Merchant</Th>
-                      <Th>Category</Th>
-                      <Th isNumeric>Amount</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {transactionsData.transactions.map((txn: Transaction) => {
-                      const amount = Number(txn.amount);
-                      const isNegative = amount < 0;
+              {transactionsLoading ? (
+                <Center py={8}>
+                  <Spinner size="md" color="brand.500" />
+                </Center>
+              ) : transactionsData?.transactions &&
+                transactionsData.transactions.length > 0 ? (
+                <>
+                  <Table variant="simple" size="sm">
+                    <Thead>
+                      <Tr>
+                        <Th>Date</Th>
+                        <Th>Merchant</Th>
+                        <Th>Category</Th>
+                        <Th isNumeric>Amount</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {transactionsData.transactions.map((txn: Transaction) => {
+                        const amount = Number(txn.amount);
+                        const isNegative = amount < 0;
 
-                      return (
-                        <Tr key={txn.id}>
-                          <Td>
-                            <Text fontSize="sm">
-                              {new Date(txn.date).toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                              })}
-                            </Text>
-                          </Td>
-                          <Td>
-                            <VStack align="start" spacing={0}>
-                              <Text fontSize="sm" fontWeight="medium">
-                                {txn.merchant_name || 'Unknown'}
+                        return (
+                          <Tr key={txn.id}>
+                            <Td>
+                              <Text fontSize="sm">
+                                {new Date(txn.date).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  },
+                                )}
                               </Text>
-                              {txn.is_pending && (
-                                <Badge colorScheme="orange" size="sm">
-                                  Pending
+                            </Td>
+                            <Td>
+                              <VStack align="start" spacing={0}>
+                                <Text fontSize="sm" fontWeight="medium">
+                                  {txn.merchant_name || "Unknown"}
+                                </Text>
+                                {txn.is_pending && (
+                                  <Badge colorScheme="orange" size="sm">
+                                    Pending
+                                  </Badge>
+                                )}
+                              </VStack>
+                            </Td>
+                            <Td>
+                              {txn.category_primary && (
+                                <Badge colorScheme="blue" size="sm">
+                                  {txn.category_primary}
                                 </Badge>
                               )}
-                            </VStack>
-                          </Td>
-                          <Td>
-                            {txn.category_primary && (
-                              <Badge colorScheme="blue" size="sm">
-                                {txn.category_primary}
-                              </Badge>
-                            )}
-                          </Td>
-                          <Td isNumeric>
-                            <Text
-                              fontSize="sm"
-                              fontWeight="semibold"
-                              color={isNegative ? 'finance.positive' : 'finance.negative'}
-                            >
-                              {isNegative ? '+' : '-'}
-                              {formatCurrency(Math.abs(amount))}
-                            </Text>
-                          </Td>
-                        </Tr>
-                      );
-                    })}
-                  </Tbody>
-                </Table>
+                            </Td>
+                            <Td isNumeric>
+                              <Text
+                                fontSize="sm"
+                                fontWeight="semibold"
+                                color={
+                                  isNegative
+                                    ? "finance.positive"
+                                    : "finance.negative"
+                                }
+                              >
+                                {isNegative ? "+" : "-"}
+                                {formatCurrency(Math.abs(amount))}
+                              </Text>
+                            </Td>
+                          </Tr>
+                        );
+                      })}
+                    </Tbody>
+                  </Table>
 
-                {transactionsData.has_more && transactionsData.next_cursor && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    mt={4}
-                    onClick={() => setTransactionsCursor(transactionsData.next_cursor)}
-                    width="full"
-                  >
-                    Load More
-                  </Button>
-                )}
-              </>
-            ) : (
-              <Text color="text.muted" fontSize="sm" textAlign="center" py={8}>
-                No transactions found for this account.
-              </Text>
-            )}
-          </CardBody>
-        </Card>}
+                  {transactionsData.has_more &&
+                    transactionsData.next_cursor && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        mt={4}
+                        onClick={() =>
+                          setTransactionsCursor(transactionsData.next_cursor)
+                        }
+                        width="full"
+                      >
+                        Load More
+                      </Button>
+                    )}
+                </>
+              ) : (
+                <Text
+                  color="text.muted"
+                  fontSize="sm"
+                  textAlign="center"
+                  py={8}
+                >
+                  No transactions found for this account.
+                </Text>
+              )}
+            </CardBody>
+          </Card>
+        )}
       </VStack>
 
       {/* Add Transaction Modal */}
@@ -1927,7 +2421,7 @@ export const AccountDetailPage = () => {
         onClose={onAddHoldingClose}
         accountId={account.id}
         accountName={account.name}
-        isCrypto={account.account_type === 'crypto'}
+        isCrypto={account.account_type === "crypto"}
       />
 
       {/* Delete Confirmation Dialog */}
@@ -1943,9 +2437,9 @@ export const AccountDetailPage = () => {
             </AlertDialogHeader>
 
             <AlertDialogBody>
-              Are you sure you want to close "{account.name}"? This will permanently
-              delete the account and all associated transactions. This action cannot be
-              undone.
+              Are you sure you want to close "{account.name}"? This will
+              permanently delete the account and all associated transactions.
+              This action cannot be undone.
             </AlertDialogBody>
 
             <AlertDialogFooter>
@@ -1992,7 +2486,8 @@ export const AccountDetailPage = () => {
                       </Text>
                       <Badge colorScheme="blue" fontSize="sm" px={2} py={1}>
                         {account.account_source.toUpperCase()}
-                        {account.institution_name && ` - ${account.institution_name}`}
+                        {account.institution_name &&
+                          ` - ${account.institution_name}`}
                       </Badge>
                     </Box>
 
@@ -2001,26 +2496,40 @@ export const AccountDetailPage = () => {
                         Select target provider
                       </Text>
                       <SimpleGrid columns={2} spacing={3}>
-                        {account.account_source !== 'manual' && (
+                        {account.account_source !== "manual" && (
                           <Box
                             as="button"
                             p={3}
                             borderWidth="2px"
                             borderRadius="md"
-                            borderColor={selectedTargetSource === 'manual' ? 'brand.500' : 'border.default'}
-                            bg={selectedTargetSource === 'manual' ? 'brand.50' : 'transparent'}
-                            _dark={selectedTargetSource === 'manual' ? { bg: 'brand.900' } : undefined}
-                            onClick={() => setSelectedTargetSource('manual')}
+                            borderColor={
+                              selectedTargetSource === "manual"
+                                ? "brand.500"
+                                : "border.default"
+                            }
+                            bg={
+                              selectedTargetSource === "manual"
+                                ? "brand.50"
+                                : "transparent"
+                            }
+                            _dark={
+                              selectedTargetSource === "manual"
+                                ? { bg: "brand.900" }
+                                : undefined
+                            }
+                            onClick={() => setSelectedTargetSource("manual")}
                             textAlign="left"
-                            _hover={{ borderColor: 'brand.400' }}
+                            _hover={{ borderColor: "brand.400" }}
                           >
-                            <Text fontWeight="medium" fontSize="sm">Manual</Text>
+                            <Text fontWeight="medium" fontSize="sm">
+                              Manual
+                            </Text>
                             <Text fontSize="xs" color="text.secondary">
                               Manage balance and transactions manually
                             </Text>
                           </Box>
                         )}
-                        {account.account_source !== 'plaid' && (
+                        {account.account_source !== "plaid" && (
                           <Box
                             p={3}
                             borderWidth="2px"
@@ -2029,13 +2538,15 @@ export const AccountDetailPage = () => {
                             opacity={0.5}
                             cursor="not-allowed"
                           >
-                            <Text fontWeight="medium" fontSize="sm">Plaid</Text>
+                            <Text fontWeight="medium" fontSize="sm">
+                              Plaid
+                            </Text>
                             <Text fontSize="xs" color="text.muted">
                               Requires active Plaid connection
                             </Text>
                           </Box>
                         )}
-                        {account.account_source !== 'teller' && (
+                        {account.account_source !== "teller" && (
                           <Box
                             p={3}
                             borderWidth="2px"
@@ -2044,13 +2555,15 @@ export const AccountDetailPage = () => {
                             opacity={0.5}
                             cursor="not-allowed"
                           >
-                            <Text fontWeight="medium" fontSize="sm">Teller</Text>
+                            <Text fontWeight="medium" fontSize="sm">
+                              Teller
+                            </Text>
                             <Text fontSize="xs" color="text.muted">
                               Requires active Teller connection
                             </Text>
                           </Box>
                         )}
-                        {account.account_source !== 'mx' && (
+                        {account.account_source !== "mx" && (
                           <Box
                             p={3}
                             borderWidth="2px"
@@ -2059,7 +2572,9 @@ export const AccountDetailPage = () => {
                             opacity={0.5}
                             cursor="not-allowed"
                           >
-                            <Text fontWeight="medium" fontSize="sm">MX</Text>
+                            <Text fontWeight="medium" fontSize="sm">
+                              MX
+                            </Text>
                             <Text fontSize="xs" color="text.muted">
                               Requires active MX connection
                             </Text>
@@ -2103,7 +2618,9 @@ export const AccountDetailPage = () => {
                       <Badge colorScheme="gray" fontSize="sm" px={2} py={1}>
                         {account.account_source.toUpperCase()}
                       </Badge>
-                      <Text fontSize="lg" color="text.secondary">→</Text>
+                      <Text fontSize="lg" color="text.secondary">
+                        →
+                      </Text>
                       <Badge colorScheme="brand" fontSize="sm" px={2} py={1}>
                         {selectedTargetSource?.toUpperCase()}
                       </Badge>
@@ -2112,18 +2629,23 @@ export const AccountDetailPage = () => {
                     <Box bg="bg.subtle" p={3} borderRadius="md">
                       <VStack align="stretch" spacing={2} fontSize="sm">
                         <Text>
-                          All transactions, holdings, and contributions will be preserved.
+                          All transactions, holdings, and contributions will be
+                          preserved.
                         </Text>
-                        {selectedTargetSource === 'manual' && account.account_source !== 'manual' && (
-                          <Text>
-                            Automatic sync will stop. You will manage this account manually going forward.
-                          </Text>
-                        )}
-                        {selectedTargetSource !== 'manual' && account.account_source === 'manual' && (
-                          <Text>
-                            This account will begin syncing automatically with {selectedTargetSource?.toUpperCase()}.
-                          </Text>
-                        )}
+                        {selectedTargetSource === "manual" &&
+                          account.account_source !== "manual" && (
+                            <Text>
+                              Automatic sync will stop. You will manage this
+                              account manually going forward.
+                            </Text>
+                          )}
+                        {selectedTargetSource !== "manual" &&
+                          account.account_source === "manual" && (
+                            <Text>
+                              This account will begin syncing automatically with{" "}
+                              {selectedTargetSource?.toUpperCase()}.
+                            </Text>
+                          )}
                         <Text color="text.secondary">
                           You can migrate again later if needed.
                         </Text>
@@ -2133,9 +2655,7 @@ export const AccountDetailPage = () => {
                 </AlertDialogBody>
 
                 <AlertDialogFooter>
-                  <Button onClick={() => setMigrateStep(1)}>
-                    Back
-                  </Button>
+                  <Button onClick={() => setMigrateStep(1)}>Back</Button>
                   <Button
                     colorScheme="brand"
                     ml={3}
