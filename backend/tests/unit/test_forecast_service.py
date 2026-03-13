@@ -1,11 +1,12 @@
 """Unit tests for forecast service."""
 
-import pytest
-from decimal import Decimal
 from datetime import date, timedelta
+from decimal import Decimal
 
+import pytest
+
+from app.models.recurring_transaction import RecurringFrequency, RecurringTransaction
 from app.services.forecast_service import ForecastService
-from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
 
 
 @pytest.mark.unit
@@ -22,7 +23,8 @@ class TestForecastService:
         )
 
         occurrences = ForecastService._calculate_future_occurrences(
-            pattern, days_ahead=21  # 3 weeks
+            pattern,
+            days_ahead=21,  # 3 weeks
         )
 
         # Should have 4 occurrences (weekly for 3 weeks, inclusive)
@@ -39,10 +41,11 @@ class TestForecastService:
         )
 
         occurrences = ForecastService._calculate_future_occurrences(
-            pattern, days_ahead=90  # ~3 months
+            pattern,
+            days_ahead=93,  # >3 months to guarantee 4 occurrences regardless of start date
         )
 
-        # Should have 4 occurrences (monthly recurring within 90 days, inclusive)
+        # Should have 4 occurrences (today + 3 monthly intervals)
         assert len(occurrences) == 4
         assert all(occ["amount"] == Decimal("-2000.00") for occ in occurrences)
         assert all(occ["merchant"] == "Rent" for occ in occurrences)
@@ -57,7 +60,8 @@ class TestForecastService:
         )
 
         occurrences = ForecastService._calculate_future_occurrences(
-            pattern, days_ahead=56  # 4 biweekly periods
+            pattern,
+            days_ahead=56,  # 4 biweekly periods
         )
 
         # Should have 5 occurrences (biweekly for 56 days, inclusive)
@@ -74,7 +78,8 @@ class TestForecastService:
         )
 
         occurrences = ForecastService._calculate_future_occurrences(
-            pattern, days_ahead=45  # 1.5 months
+            pattern,
+            days_ahead=45,  # 1.5 months
         )
 
         # Should have 2 occurrences (monthly within 45 days, inclusive)
@@ -122,8 +127,9 @@ class TestPrivateDebtProjections:
 
     def test_monthly_interest_income_calculation(self):
         """Test monthly interest income is calculated correctly."""
-        from app.models.account import Account, AccountType
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType
 
         # Create mock account with 6% annual interest on $10,000 principal
         account = Account(
@@ -139,9 +145,7 @@ class TestPrivateDebtProjections:
         )
 
         # Generate events
-        events = ForecastService._get_future_private_debt_events(
-            [account], days_ahead=90
-        )
+        events = ForecastService._get_future_private_debt_events([account], days_ahead=90)
 
         # Monthly interest = 10,000 * (6 / 100) / 12 = $50.00
         expected_monthly_interest = Decimal("50.00")
@@ -153,8 +157,9 @@ class TestPrivateDebtProjections:
 
     def test_principal_repayment_on_maturity(self):
         """Test principal repayment event on maturity date."""
-        from app.models.account import Account, AccountType
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType
 
         maturity_date = date.today() + timedelta(days=60)
 
@@ -172,9 +177,7 @@ class TestPrivateDebtProjections:
         )
 
         # Generate events
-        events = ForecastService._get_future_private_debt_events(
-            [account], days_ahead=90
-        )
+        events = ForecastService._get_future_private_debt_events([account], days_ahead=90)
 
         # Find principal repayment event
         principal_events = [e for e in events if "Principal Repayment" in e["merchant"]]
@@ -184,8 +187,9 @@ class TestPrivateDebtProjections:
 
     def test_no_interest_rate_only_principal(self):
         """Test projection with no interest rate (only principal repayment)."""
-        from app.models.account import Account, AccountType
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType
 
         maturity_date = date.today() + timedelta(days=30)
 
@@ -203,9 +207,7 @@ class TestPrivateDebtProjections:
         )
 
         # Generate events
-        events = ForecastService._get_future_private_debt_events(
-            [account], days_ahead=90
-        )
+        events = ForecastService._get_future_private_debt_events([account], days_ahead=90)
 
         # Should only have principal repayment, no interest events
         assert len(events) == 1
@@ -214,8 +216,9 @@ class TestPrivateDebtProjections:
 
     def test_maturity_outside_forecast_window(self):
         """Test that maturity date outside window is not included."""
-        from app.models.account import Account, AccountType
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType
 
         # Maturity date beyond forecast window
         maturity_date = date.today() + timedelta(days=180)
@@ -233,9 +236,7 @@ class TestPrivateDebtProjections:
         )
 
         # Generate events for 90 days
-        events = ForecastService._get_future_private_debt_events(
-            [account], days_ahead=90
-        )
+        events = ForecastService._get_future_private_debt_events([account], days_ahead=90)
 
         # Should have interest payments but no principal repayment
         principal_events = [e for e in events if "Principal Repayment" in e["merchant"]]
@@ -246,8 +247,9 @@ class TestPrivateDebtProjections:
 
     def test_skip_zero_principal_accounts(self):
         """Test that accounts with zero principal are skipped."""
-        from app.models.account import Account, AccountType
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType
 
         account = Account(
             id=uuid4(),
@@ -262,17 +264,16 @@ class TestPrivateDebtProjections:
         )
 
         # Generate events
-        events = ForecastService._get_future_private_debt_events(
-            [account], days_ahead=90
-        )
+        events = ForecastService._get_future_private_debt_events([account], days_ahead=90)
 
         # Should have no events
         assert len(events) == 0
 
     def test_multiple_private_debt_accounts(self):
         """Test projection with multiple private debt accounts."""
-        from app.models.account import Account, AccountType
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType
 
         org_id = uuid4()
         user_id = uuid4()
@@ -326,8 +327,9 @@ class TestPrivateDebtProjections:
 
     def test_year_rollover_for_interest_payments(self):
         """Test that interest payments handle year rollover correctly."""
-        from app.models.account import Account, AccountType
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType
 
         # Create account
         account = Account(
@@ -344,7 +346,8 @@ class TestPrivateDebtProjections:
 
         # Generate events
         events = ForecastService._get_future_private_debt_events(
-            [account], days_ahead=120  # 4 months
+            [account],
+            days_ahead=120,  # 4 months
         )
 
         # Should have interest events spanning months
@@ -362,8 +365,9 @@ class TestCDMaturityProjections:
 
     def test_cd_maturity_with_simple_interest(self):
         """Test CD maturity with simple interest (at_maturity compounding)."""
-        from app.models.account import Account, AccountType, CompoundingFrequency
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType, CompoundingFrequency
 
         maturity_date = date.today() + timedelta(days=365)
         origination_date = date.today() - timedelta(days=365)
@@ -384,9 +388,7 @@ class TestCDMaturityProjections:
         )
 
         # Generate events
-        events = ForecastService._get_future_cd_maturity_events(
-            [account], days_ahead=400
-        )
+        events = ForecastService._get_future_cd_maturity_events([account], days_ahead=400)
 
         # Should have 1 maturity event
         assert len(events) == 1
@@ -399,8 +401,9 @@ class TestCDMaturityProjections:
 
     def test_cd_maturity_with_monthly_compounding(self):
         """Test CD maturity with monthly compounding."""
-        from app.models.account import Account, AccountType, CompoundingFrequency
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType, CompoundingFrequency
 
         maturity_date = date.today() + timedelta(days=60)
         origination_date = date.today() - timedelta(days=305)  # ~10 months ago
@@ -421,9 +424,7 @@ class TestCDMaturityProjections:
         )
 
         # Generate events
-        events = ForecastService._get_future_cd_maturity_events(
-            [account], days_ahead=90
-        )
+        events = ForecastService._get_future_cd_maturity_events([account], days_ahead=90)
 
         # Should have 1 maturity event
         assert len(events) == 1
@@ -435,8 +436,9 @@ class TestCDMaturityProjections:
 
     def test_cd_maturity_outside_forecast_window(self):
         """Test that CD maturity outside forecast window is not included."""
-        from app.models.account import Account, AccountType, CompoundingFrequency
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType, CompoundingFrequency
 
         # Maturity date beyond forecast window
         maturity_date = date.today() + timedelta(days=365)
@@ -455,17 +457,16 @@ class TestCDMaturityProjections:
         )
 
         # Generate events for 90 days
-        events = ForecastService._get_future_cd_maturity_events(
-            [account], days_ahead=90
-        )
+        events = ForecastService._get_future_cd_maturity_events([account], days_ahead=90)
 
         # Should have no events (maturity outside window)
         assert len(events) == 0
 
     def test_cd_without_interest_rate(self):
         """Test CD without interest rate uses principal only."""
-        from app.models.account import Account, AccountType
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType
 
         maturity_date = date.today() + timedelta(days=30)
 
@@ -482,9 +483,7 @@ class TestCDMaturityProjections:
         )
 
         # Generate events
-        events = ForecastService._get_future_cd_maturity_events(
-            [account], days_ahead=90
-        )
+        events = ForecastService._get_future_cd_maturity_events([account], days_ahead=90)
 
         # Should have maturity event with principal only
         assert len(events) == 1
@@ -492,8 +491,9 @@ class TestCDMaturityProjections:
 
     def test_multiple_cd_accounts(self):
         """Test projection with multiple CD accounts."""
-        from app.models.account import Account, AccountType, CompoundingFrequency
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType, CompoundingFrequency
 
         org_id = uuid4()
         user_id = uuid4()
@@ -528,9 +528,7 @@ class TestCDMaturityProjections:
         )
 
         # Generate events
-        events = ForecastService._get_future_cd_maturity_events(
-            [cd1, cd2], days_ahead=90
-        )
+        events = ForecastService._get_future_cd_maturity_events([cd1, cd2], days_ahead=90)
 
         # Should have events from both CDs
         assert len(events) == 2
@@ -550,8 +548,9 @@ class TestMortgagePaymentProjections:
 
     def test_mortgage_payment_uses_amortization_formula(self):
         """Monthly payment calculated via standard amortization: M = P*r(1+r)^n / [(1+r)^n - 1]."""
-        from app.models.account import Account, AccountType
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType
 
         # $400,000 mortgage at 7% APR, 30-year term (360 months)
         account = Account(
@@ -567,9 +566,7 @@ class TestMortgagePaymentProjections:
             is_active=True,
         )
 
-        events = ForecastService._get_mortgage_payment_events(
-            [account], days_ahead=90
-        )
+        events = ForecastService._get_mortgage_payment_events([account], days_ahead=90)
 
         # Should have ~3 monthly payments
         assert len(events) >= 3
@@ -589,8 +586,9 @@ class TestMortgagePaymentProjections:
 
     def test_loan_payment_uses_remaining_term_from_origination(self):
         """Remaining term is calculated from origination date when available."""
-        from app.models.account import Account, AccountType
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType
 
         # Loan taken out 60 months ago on a 120-month term → 60 months remaining
         origination_date = date.today().replace(day=1) - timedelta(days=60 * 30)
@@ -609,9 +607,7 @@ class TestMortgagePaymentProjections:
             is_active=True,
         )
 
-        events = ForecastService._get_mortgage_payment_events(
-            [account], days_ahead=90
-        )
+        events = ForecastService._get_mortgage_payment_events([account], days_ahead=90)
 
         # Should have payments projected
         assert len(events) >= 3
@@ -620,25 +616,22 @@ class TestMortgagePaymentProjections:
     def test_accounts_without_interest_rate_are_skipped(self):
         """Accounts with no interest_rate should not generate payment events."""
         # Pass empty list to simulate pre-filtered accounts without interest_rate
-        events = ForecastService._get_mortgage_payment_events(
-            [], days_ahead=90
-        )
+        events = ForecastService._get_mortgage_payment_events([], days_ahead=90)
 
         assert events == []
 
     def test_accounts_excluded_from_cash_flow_are_skipped(self):
         """Accounts with exclude_from_cash_flow=True should not generate payment events."""
         # Pass empty list to simulate pre-filtered accounts with exclude_from_cash_flow
-        events = ForecastService._get_mortgage_payment_events(
-            [], days_ahead=90
-        )
+        events = ForecastService._get_mortgage_payment_events([], days_ahead=90)
 
         assert events == []
 
     def test_payment_uses_default_term_when_no_term_data(self):
         """Mortgage without term data defaults to 360 months; loan defaults to 120 months."""
-        from app.models.account import Account, AccountType
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType
 
         mortgage = Account(
             id=uuid4(),
@@ -655,9 +648,7 @@ class TestMortgagePaymentProjections:
             is_active=True,
         )
 
-        events = ForecastService._get_mortgage_payment_events(
-            [mortgage], days_ahead=90
-        )
+        events = ForecastService._get_mortgage_payment_events([mortgage], days_ahead=90)
 
         # Should still generate payments using 360-month default
         assert len(events) >= 3
@@ -665,8 +656,9 @@ class TestMortgagePaymentProjections:
 
     def test_payment_events_on_correct_due_day(self):
         """Payments are scheduled on payment_due_day when set."""
-        from app.models.account import Account, AccountType
         from uuid import uuid4
+
+        from app.models.account import Account, AccountType
 
         account = Account(
             id=uuid4(),
@@ -682,9 +674,7 @@ class TestMortgagePaymentProjections:
             is_active=True,
         )
 
-        events = ForecastService._get_mortgage_payment_events(
-            [account], days_ahead=90
-        )
+        events = ForecastService._get_mortgage_payment_events([account], days_ahead=90)
 
         # All payment dates should be on the 15th (or last day of month if shorter)
         for event in events:
