@@ -30,8 +30,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { fireApi, type FireMetricsResponse } from "../api/fire";
 import { useUserView } from "../contexts/UserViewContext";
-import { useMultiMemberFilter } from "../hooks/useMultiMemberFilter";
-import { MemberMultiSelect } from "../components/MemberMultiSelect";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-US", {
@@ -60,17 +58,14 @@ const noDataHint =
   "Add accounts and categorize transactions so we can calculate this.";
 
 export const FireMetricsPage = () => {
-  const { selectedUserId, isCombinedView } = useUserView();
   const {
-    selectedIds,
-    toggleMember,
-    selectAll,
-    isAllSelected,
-    showFilter,
-    members,
-    effectiveUserId: multiEffectiveUserId,
-    selectedIdsKey,
-  } = useMultiMemberFilter();
+    selectedUserId,
+    isCombinedView,
+    memberEffectiveUserId,
+    selectedMemberIdsKey,
+  } = useUserView();
+  const multiEffectiveUserId = memberEffectiveUserId;
+  const selectedIdsKey = selectedMemberIdsKey;
   const [withdrawalRate, setWithdrawalRate] = useState(4);
   const [expectedReturn, setExpectedReturn] = useState(7);
   const [retirementAge, setRetirementAge] = useState(65);
@@ -132,19 +127,6 @@ export const FireMetricsPage = () => {
                 .
               </Text>
             </Box>
-            {showFilter && (
-              <Box flexShrink={0}>
-                <MemberMultiSelect
-                  selectedIds={selectedIds}
-                  members={members}
-                  isAllSelected={isAllSelected}
-                  onToggle={toggleMember}
-                  onSelectAll={selectAll}
-                  label=""
-                  colorScheme="brand"
-                />
-              </Box>
-            )}
           </HStack>
         </Box>
 

@@ -45,8 +45,6 @@ import {
 } from "recharts";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
-import { useMultiMemberFilter } from "../hooks/useMultiMemberFilter";
-import { MemberMultiSelect } from "../components/MemberMultiSelect";
 
 interface YearOverYearData {
   month: number;
@@ -84,17 +82,14 @@ interface AnnualSummary {
 }
 
 export default function TrendsPage() {
-  const { selectedUserId, isCombinedView } = useUserView();
   const {
-    selectedIds,
-    toggleMember,
-    selectAll,
-    isAllSelected,
-    showFilter,
-    members,
-    effectiveUserId: multiEffectiveUserId,
-    selectedIdsKey,
-  } = useMultiMemberFilter();
+    selectedUserId,
+    isCombinedView,
+    memberEffectiveUserId,
+    selectedMemberIdsKey,
+  } = useUserView();
+  const multiEffectiveUserId = memberEffectiveUserId;
+  const selectedIdsKey = selectedMemberIdsKey;
   const activeUserId = isCombinedView
     ? (multiEffectiveUserId ?? null)
     : selectedUserId;
@@ -316,17 +311,6 @@ export default function TrendsPage() {
             Year-over-year spending analysis and comparisons
           </Text>
         </Box>
-
-        {/* Multi-select member filter — visible in combined household view */}
-        {showFilter && (
-          <MemberMultiSelect
-            selectedIds={selectedIds}
-            members={members}
-            isAllSelected={isAllSelected}
-            onToggle={toggleMember}
-            onSelectAll={selectAll}
-          />
-        )}
 
         {/* Year Selector */}
         <Card>

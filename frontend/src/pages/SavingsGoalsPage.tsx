@@ -53,8 +53,6 @@ import GoalForm from "../features/goals/components/GoalForm";
 import { useUserView } from "../contexts/UserViewContext";
 import { EmptyState } from "../components/EmptyState";
 import { useAuthStore } from "../features/auth/stores/authStore";
-import { useMultiMemberFilter } from "../hooks/useMultiMemberFilter";
-import { MemberMultiSelect } from "../components/MemberMultiSelect";
 
 // ---------------------------------------------------------------------------
 // SortableGoalCard — wraps GoalCard with dnd-kit drag-and-drop support
@@ -171,7 +169,17 @@ export default function SavingsGoalsPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedGoal, setSelectedGoal] = useState<SavingsGoal | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("priority");
-  const { canWriteResource, isOtherUserView, isSelfView } = useUserView();
+  const {
+    canWriteResource,
+    isOtherUserView,
+    isSelfView,
+    selectedMemberIds,
+    matchesMemberFilter,
+    isPartialMemberSelection,
+  } = useUserView();
+  const selectedIds = selectedMemberIds;
+  const matchesFilter = matchesMemberFilter;
+  const isPartialSelection = isPartialMemberSelection;
   const canEdit = canWriteResource("savings_goal");
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -179,17 +187,6 @@ export default function SavingsGoalsPage() {
   // Blue in light mode (matches budgets), cyan in dark mode (better visibility)
   const accent = useColorModeValue("blue", "cyan");
 
-  // Multi-select household member filter (only in combined view)
-  const {
-    selectedIds,
-    toggleMember,
-    selectAll,
-    isAllSelected,
-    showFilter,
-    members,
-    matchesFilter,
-    isPartialSelection,
-  } = useMultiMemberFilter();
   const currentUser = useAuthStore((s) => s.user);
 
   // Allocation method — persisted in localStorage
@@ -406,18 +403,6 @@ export default function SavingsGoalsPage() {
             </Button>
           </Tooltip>
         </HStack>
-
-        {/* Multi-select member filter — visible in combined household view */}
-        {showFilter && (
-          <MemberMultiSelect
-            selectedIds={selectedIds}
-            members={members}
-            isAllSelected={isAllSelected}
-            onToggle={toggleMember}
-            onSelectAll={selectAll}
-            colorScheme={accent}
-          />
-        )}
 
         {/* Controls row — view toggle + allocation method */}
         {!goalsLoading && goals.length > 0 && (

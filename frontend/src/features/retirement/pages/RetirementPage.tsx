@@ -39,9 +39,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FiEdit2, FiX } from "react-icons/fi";
 import api from "../../../services/api";
 import { useUserView } from "../../../contexts/UserViewContext";
-import { useHouseholdMembers } from "../../../hooks/useHouseholdMembers";
-import { useMultiMemberFilter } from "../../../hooks/useMultiMemberFilter";
-import { MemberMultiSelect } from "../../../components/MemberMultiSelect";
 import { AccountDataSummary } from "../components/AccountDataSummary";
 import { HealthcareEstimator } from "../components/HealthcareEstimator";
 import { LifeEventEditor } from "../components/LifeEventEditor";
@@ -79,23 +76,21 @@ import type {
 export function RetirementPage() {
   const toast = useToast();
   const cardBg = useColorModeValue("white", "gray.800");
-  const { isCombinedView, isOtherUserView, selectedUserId, canWriteResource } =
-    useUserView();
-  const readOnly = !canWriteResource("retirement_scenario");
-  const { data: householdMembers = [] } = useHouseholdMembers();
   const {
-    selectedIds,
-    toggleMember,
-    selectAll,
-    isAllSelected,
-    showFilter,
-    members,
-  } = useMultiMemberFilter();
+    isCombinedView,
+    isOtherUserView,
+    selectedUserId,
+    canWriteResource,
+    selectedMemberIds,
+    householdMembers,
+  } = useUserView();
+  const readOnly = !canWriteResource("retirement_scenario");
+
+  const selectedIds = selectedMemberIds;
 
   // Retirement is per-person: only show scenarios when exactly one member is selected
   const singleSelectedId = selectedIds.size === 1 ? [...selectedIds][0] : null;
   const filterUserId = isCombinedView ? singleSelectedId : null;
-  const showMemberFilter = showFilter;
   const tabsRef = useRef<HTMLDivElement>(null);
 
   // Track whether settings changed since last simulation
@@ -509,15 +504,6 @@ export function RetirementPage() {
     return (
       <Container maxW="container.xl" py={8}>
         <VStack spacing={6} align="stretch">
-          {showMemberFilter && (
-            <MemberMultiSelect
-              selectedIds={selectedIds}
-              members={members}
-              isAllSelected={isAllSelected}
-              onToggle={toggleMember}
-              onSelectAll={selectAll}
-            />
-          )}
           <VStack spacing={6} textAlign="center" py={16}>
             <Text fontSize="2xl" fontWeight="bold">
               Retirement Planner
@@ -537,16 +523,6 @@ export function RetirementPage() {
     return (
       <Container maxW="container.xl" py={8}>
         <VStack spacing={6} align="stretch">
-          {/* Member filter — always visible in combined household view */}
-          {showMemberFilter && (
-            <MemberMultiSelect
-              selectedIds={selectedIds}
-              members={members}
-              isAllSelected={isAllSelected}
-              onToggle={toggleMember}
-              onSelectAll={selectAll}
-            />
-          )}
           <VStack spacing={6} textAlign="center" py={16}>
             <Text fontSize="2xl" fontWeight="bold">
               Retirement Planner
@@ -647,17 +623,6 @@ export function RetirementPage() {
             )}
           </HStack>
         </HStack>
-
-        {/* Member filter */}
-        {showMemberFilter && (
-          <MemberMultiSelect
-            selectedIds={selectedIds}
-            members={members}
-            isAllSelected={isAllSelected}
-            onToggle={toggleMember}
-            onSelectAll={selectAll}
-          />
-        )}
 
         {/* Readiness Score */}
         <RetirementScoreGauge

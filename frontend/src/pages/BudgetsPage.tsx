@@ -28,8 +28,6 @@ import BudgetForm from "../features/budgets/components/BudgetForm";
 import { useUserView } from "../contexts/UserViewContext";
 import { EmptyState } from "../components/EmptyState";
 import { useAuthStore } from "../features/auth/stores/authStore";
-import { useMultiMemberFilter } from "../hooks/useMultiMemberFilter";
-import { MemberMultiSelect } from "../components/MemberMultiSelect";
 
 type FilterTab = "all" | "category" | "label";
 
@@ -37,20 +35,19 @@ export default function BudgetsPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
-  const { canWriteResource, isOtherUserView, isSelfView } = useUserView();
+  const {
+    canWriteResource,
+    isOtherUserView,
+    isSelfView,
+    selectedMemberIds,
+    matchesMemberFilter,
+    isPartialMemberSelection,
+  } = useUserView();
   const canEdit = canWriteResource("budget");
 
-  // Multi-select household member filter (only in combined view)
-  const {
-    selectedIds,
-    toggleMember,
-    selectAll,
-    isAllSelected,
-    showFilter,
-    members,
-    matchesFilter,
-    isPartialSelection,
-  } = useMultiMemberFilter();
+  const selectedIds = selectedMemberIds;
+  const matchesFilter = matchesMemberFilter;
+  const isPartialSelection = isPartialMemberSelection;
   const currentUser = useAuthStore((s) => s.user);
 
   // Get all budgets
@@ -153,17 +150,6 @@ export default function BudgetsPage() {
             </Button>
           </Tooltip>
         </HStack>
-
-        {/* Multi-select member filter — visible in combined household view */}
-        {showFilter && (
-          <MemberMultiSelect
-            selectedIds={selectedIds}
-            members={members}
-            isAllSelected={isAllSelected}
-            onToggle={toggleMember}
-            onSelectAll={selectAll}
-          />
-        )}
 
         {/* Filter row */}
         {!isLoading && budgets.length > 0 && (

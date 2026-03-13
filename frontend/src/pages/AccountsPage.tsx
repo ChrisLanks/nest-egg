@@ -59,8 +59,6 @@ import { formatAssetType } from "../utils/formatAssetType";
 import { EmptyState } from "../components/EmptyState";
 import { useUserView } from "../contexts/UserViewContext";
 import { AccountsSkeleton } from "../components/LoadingSkeleton";
-import { useMultiMemberFilter } from "../hooks/useMultiMemberFilter";
-import { MemberMultiSelect } from "../components/MemberMultiSelect";
 
 interface Account {
   id: string;
@@ -108,20 +106,19 @@ export const AccountsPage = () => {
     onClose: onDeleteClose,
   } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
-  const { canWriteOwnedResource, selectedUserId, isCombinedView } =
-    useUserView();
   const {
-    selectedIds,
-    toggleMember,
-    selectAll,
-    isAllSelected,
-    showFilter,
-    members,
-    effectiveUserId: multiEffectiveUserId,
-    isPartialSelection,
-    matchesFilter,
-    selectedIdsKey,
-  } = useMultiMemberFilter();
+    canWriteOwnedResource,
+    selectedUserId,
+    isCombinedView,
+    memberEffectiveUserId,
+    isPartialMemberSelection,
+    matchesMemberFilter,
+    selectedMemberIdsKey,
+  } = useUserView();
+  const multiEffectiveUserId = memberEffectiveUserId;
+  const isPartialSelection = isPartialMemberSelection;
+  const matchesFilter = matchesMemberFilter;
+  const selectedIdsKey = selectedMemberIdsKey;
 
   // In combined view, use multi-member filter; otherwise use global selectedUserId
   const queryUserId = isCombinedView ? multiEffectiveUserId : selectedUserId;
@@ -628,17 +625,6 @@ export const AccountsPage = () => {
             </Menu>
           )}
         </HStack>
-
-        {/* Multi-select member filter — visible in combined household view */}
-        {showFilter && (
-          <MemberMultiSelect
-            selectedIds={selectedIds}
-            members={members}
-            isAllSelected={isAllSelected}
-            onToggle={toggleMember}
-            onSelectAll={selectAll}
-          />
-        )}
 
         {/* Accounts by Institution */}
         {Object.entries(accountsByInstitution).map(

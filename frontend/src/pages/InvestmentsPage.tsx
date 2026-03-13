@@ -57,8 +57,6 @@ import {
 } from "react-icons/fi";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
-import { useMultiMemberFilter } from "../hooks/useMultiMemberFilter";
-import { MemberMultiSelect } from "../components/MemberMultiSelect";
 import { AssetAllocationTreemap } from "../features/investments/components/AssetAllocationTreemap";
 import { HoldingsDetailTable } from "../features/investments/components/HoldingsDetailTable";
 import { GrowthProjectionsChart } from "../features/investments/components/GrowthProjectionsChart";
@@ -156,18 +154,16 @@ interface PortfolioSummary {
 
 export const InvestmentsPage = () => {
   // Use global user view context + multi-member filter
-  const { selectedUserId, canWriteResource, isCombinedView } = useUserView();
-  const canEdit = canWriteResource("holding");
   const {
-    selectedIds,
-    toggleMember,
-    selectAll,
-    isAllSelected,
-    showFilter,
-    members,
-    effectiveUserId: multiEffectiveUserId,
-    selectedIdsKey,
-  } = useMultiMemberFilter();
+    selectedUserId,
+    canWriteResource,
+    isCombinedView,
+    memberEffectiveUserId,
+    selectedMemberIdsKey,
+  } = useUserView();
+  const canEdit = canWriteResource("holding");
+  const multiEffectiveUserId = memberEffectiveUserId;
+  const selectedIdsKey = selectedMemberIdsKey;
 
   // In combined view, use multi-member filter; otherwise use global selectedUserId
   const activeUserId = isCombinedView
@@ -671,17 +667,6 @@ export const InvestmentsPage = () => {
   return (
     <Container maxW="container.xl" py={8}>
       <VStack spacing={6} align="stretch">
-        {/* Multi-select member filter — visible in combined household view */}
-        {showFilter && (
-          <MemberMultiSelect
-            selectedIds={selectedIds}
-            members={members}
-            isAllSelected={isAllSelected}
-            onToggle={toggleMember}
-            onSelectAll={selectAll}
-          />
-        )}
-
         {/* Header with Date Filter and Category Toggles */}
         <HStack justify="space-between" align="flex-start">
           <VStack align="flex-start" spacing={0}>

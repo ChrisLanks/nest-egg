@@ -55,8 +55,6 @@ import { IoBarChart, IoPieChart } from "react-icons/io5";
 import { FiInbox } from "react-icons/fi";
 import api from "../../../services/api";
 import { useUserView } from "../../../contexts/UserViewContext";
-import { useMultiMemberFilter } from "../../../hooks/useMultiMemberFilter";
-import { MemberMultiSelect } from "../../../components/MemberMultiSelect";
 import { DateRangePicker } from "../../../components/DateRangePicker";
 import type { DateRange } from "../../../components/DateRangePicker";
 import {
@@ -134,17 +132,14 @@ const COLORS = [
 
 export const IncomeExpensesPage = () => {
   // Use global user view context + multi-member filter
-  const { selectedUserId, isCombinedView } = useUserView();
   const {
-    selectedIds,
-    toggleMember,
-    selectAll,
-    isAllSelected,
-    showFilter,
-    members,
-    effectiveUserId: multiEffectiveUserId,
-    selectedIdsKey,
-  } = useMultiMemberFilter();
+    selectedUserId,
+    isCombinedView,
+    memberEffectiveUserId,
+    selectedMemberIdsKey,
+  } = useUserView();
+  const multiEffectiveUserId = memberEffectiveUserId;
+  const selectedIdsKey = selectedMemberIdsKey;
   const activeUserId = isCombinedView
     ? (multiEffectiveUserId ?? null)
     : selectedUserId;
@@ -1701,17 +1696,6 @@ export const IncomeExpensesPage = () => {
             customMonthStartDay={customMonthStartDay}
           />
         </HStack>
-
-        {/* Multi-select member filter — visible in combined household view */}
-        {showFilter && (
-          <MemberMultiSelect
-            selectedIds={selectedIds}
-            members={members}
-            isAllSelected={isAllSelected}
-            onToggle={toggleMember}
-            onSelectAll={selectAll}
-          />
-        )}
 
         {/* Group By Toggle */}
         <HStack>
