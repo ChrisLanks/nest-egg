@@ -40,7 +40,7 @@ export const DashboardPage = () => {
     <Container maxW="container.xl" py={8}>
       <HStack justify="space-between" mb={8} align="start">
         <Box>
-          <Heading size="lg">Welcome back, {user?.first_name || 'User'}!</Heading>
+          <Heading size="lg">Welcome back, {user?.display_name || user?.first_name || user?.email?.split('@')[0] || 'User'}!</Heading>
           <Text color="text.secondary" mt={1}>
             Here's your financial overview
           </Text>
