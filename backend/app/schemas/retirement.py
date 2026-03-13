@@ -7,8 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.models.retirement import LifeEventCategory, WithdrawalStrategy
-
+from app.models.retirement import DistributionType, LifeEventCategory, WithdrawalStrategy
 
 # --- Life Events ---
 
@@ -132,6 +131,8 @@ class RetirementScenarioCreate(BaseModel):
 
     # Config
     num_simulations: int = Field(default=1000, ge=100, le=10000)
+    inflation_adjusted: bool = True
+    distribution_type: DistributionType = DistributionType.NORMAL
     is_shared: bool = True
 
 
@@ -169,6 +170,8 @@ class RetirementScenarioUpdate(BaseModel):
     healthcare_ltc_override: Optional[Decimal] = Field(None, ge=0)
 
     num_simulations: Optional[int] = Field(None, ge=100, le=10000)
+    inflation_adjusted: Optional[bool] = None
+    distribution_type: Optional[DistributionType] = None
     is_shared: Optional[bool] = None
 
 
@@ -211,6 +214,8 @@ class RetirementScenarioResponse(BaseModel):
     healthcare_ltc_override: Optional[Decimal] = None
 
     num_simulations: int
+    inflation_adjusted: bool
+    distribution_type: DistributionType
     is_shared: bool
 
     life_events: List[LifeEventResponse] = []

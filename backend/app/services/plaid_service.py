@@ -21,6 +21,7 @@ from plaid.model.products import Products
 
 from app.config import settings
 from app.models.user import User
+from app.services.circuit_breaker import CircuitOpenError, get_circuit_breaker
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -387,7 +388,21 @@ class PlaidService:
             # Return dummy holdings for test user
             return self._create_dummy_holdings()
 
-        # For real users, call Plaid investments/holdings/get
+        # For real users, call Plaid investments/holdings/get via circuit breaker
+        cb = get_circuit_breaker()
+        try:
+            return await cb.call("plaid", self._fetch_holdings, access_token)
+        except CircuitOpenError:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Plaid API is temporarily unavailable"
+                    " (circuit breaker open). Try again later."
+                ),
+            )
+
+    async def _fetch_holdings(self, access_token: str) -> Tuple[List[dict], List[dict]]:
+        """Execute the actual Plaid holdings HTTP request (called via circuit breaker)."""
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(

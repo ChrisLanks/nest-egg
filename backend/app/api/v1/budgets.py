@@ -10,9 +10,9 @@ from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.budget import (
     BudgetCreate,
-    BudgetUpdate,
     BudgetResponse,
     BudgetSpendingResponse,
+    BudgetUpdate,
 )
 from app.services.budget_service import budget_service
 
@@ -47,6 +47,79 @@ async def list_budgets(
         is_active=is_active,
     )
     return budgets
+
+
+# CSV Export must be defined before /{budget_id} to avoid route shadowing
+@router.get("/export/csv")
+async def export_budgets_csv(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Export all budgets for the user's organization as a CSV file.
+
+    Returns budgets with their configuration and status, suitable for
+    spreadsheet applications or archival purposes.
+    """
+    import csv
+    from io import StringIO
+
+    from fastapi.responses import StreamingResponse
+    from sqlalchemy import select
+
+    from app.models.budget import Budget
+
+    # Fetch all budgets for the organization
+    result = await db.execute(
+        select(Budget)
+        .where(Budget.organization_id == current_user.organization_id)
+        .order_by(Budget.name)
+    )
+    budgets = result.scalars().all()
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    # Write header
+    writer.writerow(
+        [
+            "Budget Name",
+            "Amount",
+            "Period",
+            "Start Date",
+            "End Date",
+            "Alert Threshold",
+            "Rollover Unused",
+            "Is Active",
+            "Is Shared",
+            "Created At",
+            "Budget ID",
+        ]
+    )
+
+    # Write rows
+    for budget in budgets:
+        writer.writerow(
+            [
+                budget.name,
+                float(budget.amount),
+                budget.period.value if budget.period else "",
+                budget.start_date.isoformat() if budget.start_date else "",
+                budget.end_date.isoformat() if budget.end_date else "",
+                float(budget.alert_threshold) if budget.alert_threshold is not None else "",
+                "Yes" if budget.rollover_unused else "No",
+                "Yes" if budget.is_active else "No",
+                "Yes" if budget.is_shared else "No",
+                budget.created_at.isoformat() if budget.created_at else "",
+                str(budget.id),
+            ]
+        )
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="budgets.csv"'},
+    )
 
 
 @router.get("/{budget_id}", response_model=BudgetResponse)

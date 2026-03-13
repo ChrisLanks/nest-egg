@@ -1,23 +1,25 @@
 """Recurring transaction detection models."""
 
+import enum
 import uuid
 from decimal import Decimal
 
 from sqlalchemy import (
-    Column,
-    String,
     Boolean,
-    DateTime,
+    Column,
     Date,
+    DateTime,
     ForeignKey,
-    Numeric,
-    Enum as SQLEnum,
     Index,
     Integer,
+    Numeric,
+    String,
+)
+from sqlalchemy import (
+    Enum as SQLEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-import enum
 
 from app.core.database import Base
 from app.utils.datetime_utils import utc_now_lambda
@@ -84,8 +86,18 @@ class RecurringTransaction(Base):
 
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
-    is_archived = Column(Boolean, default=False, nullable=False)  # User-archived (still visible in archive tab)
-    is_no_longer_found = Column(Boolean, default=False, nullable=False)  # Auto-only: not seen in latest detection run
+    is_archived = Column(
+        Boolean, default=False, nullable=False
+    )  # User-archived (still visible in archive tab)
+    is_no_longer_found = Column(
+        Boolean, default=False, nullable=False
+    )  # Auto-only: not seen in latest detection run
+
+    # Year-over-year price tracking
+    previous_amount = Column(Numeric(15, 2), nullable=True)  # Amount from ~12 months ago
+    amount_change_pct = Column(Numeric(5, 2), nullable=True)  # Year-over-year change %
+    amount_change_detected_at = Column(DateTime, nullable=True)
+    annual_cost = Column(Numeric(15, 2), nullable=True)  # Projected yearly cost based on frequency
 
     # Bill Reminder fields
     is_bill = Column(Boolean, default=False, nullable=False)  # Mark as a bill requiring reminders

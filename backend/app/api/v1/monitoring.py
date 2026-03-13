@@ -1,14 +1,19 @@
 """
 Monitoring and observability API endpoints.
 
-Provides endpoints for health checks, metrics, and rate limiting status.
+Provides endpoints for health checks, metrics, rate limiting status,
+and background job monitoring.
 """
 
+import logging
 from datetime import timedelta
 from typing import Any, Dict, List
 
+from celery.result import AsyncResult
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.database import get_db
@@ -16,10 +21,12 @@ from app.dependencies import get_current_admin_user
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.services.circuit_breaker import get_circuit_breaker
 from app.services.rate_limit_service import get_rate_limit_service
 from app.utils.datetime_utils import utc_now
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.workers.celery_app import celery_app
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 rate_limit_service = get_rate_limit_service()
@@ -251,6 +258,26 @@ async def get_system_stats(
     }
 
 
+@router.get("/circuit-breakers")
+async def get_circuit_breaker_status(
+    current_user: User = Depends(get_current_admin_user),
+):
+    """
+    Circuit breaker dashboard showing state of all external API integrations.
+
+    Returns the current state (closed / open / half_open), failure counts,
+    and last failure timestamp for each protected service.
+
+    Only accessible by admin users.
+    """
+    cb = get_circuit_breaker()
+    statuses = await cb.get_all_statuses()
+    return {
+        "circuit_breakers": statuses,
+        "timestamp": utc_now().isoformat(),
+    }
+
+
 # ---------------------------------------------------------------------------
 # GDPR Article 30 — Records of Processing Activities (RoPA)
 # ---------------------------------------------------------------------------
@@ -276,9 +303,14 @@ _ROPA = [
         "activity": "Personal finance tracking",
         "purpose": "Store and display user accounts, transactions, holdings, and budgets",
         "data_categories": [
-            "account_names", "account_balances", "transaction_amounts",
-            "transaction_dates", "merchant_names", "categories",
-            "investment_holdings", "budget_limits",
+            "account_names",
+            "account_balances",
+            "transaction_amounts",
+            "transaction_dates",
+            "merchant_names",
+            "categories",
+            "investment_holdings",
+            "budget_limits",
         ],
         "legal_basis": "Contractual necessity (Art. 6(1)(b))",
         "retention": "Until account deletion",
@@ -286,7 +318,10 @@ _ROPA = [
     },
     {
         "activity": "Household data sharing",
-        "purpose": "Allow household members to view/edit each other's financial data with explicit permission",
+        "purpose": (
+            "Allow household members to view/edit each"
+            " other's financial data with explicit permission"
+        ),
         "data_categories": ["permission_grants", "resource_types", "grantee_user_ids"],
         "legal_basis": "Explicit consent (Art. 6(1)(a)) — user initiates each grant",
         "retention": "Until grant is revoked or account is deleted",
@@ -296,7 +331,9 @@ _ROPA = [
         "activity": "External bank data import (Plaid)",
         "purpose": "Fetch account balances and transactions from linked bank accounts",
         "data_categories": [
-            "plaid_access_token (encrypted)", "account_ids", "transaction_data",
+            "plaid_access_token (encrypted)",
+            "account_ids",
+            "transaction_data",
         ],
         "legal_basis": "Explicit consent (Art. 6(1)(a)) — user links each institution",
         "retention": "Access token until user unlinks; transaction data until account deletion",
@@ -306,7 +343,9 @@ _ROPA = [
         "activity": "External bank data import (Teller)",
         "purpose": "Fetch account balances and transactions from linked bank accounts",
         "data_categories": [
-            "teller_access_token (encrypted)", "account_ids", "transaction_data",
+            "teller_access_token (encrypted)",
+            "account_ids",
+            "transaction_data",
         ],
         "legal_basis": "Explicit consent (Art. 6(1)(a)) — user links each institution",
         "retention": "Access token until user unlinks; transaction data until account deletion",
@@ -340,8 +379,14 @@ _ROPA = [
         "activity": "Permission grant audit log",
         "purpose": "Immutable record of all permission grant changes (GDPR Art. 30)",
         "data_categories": [
-            "grantor_id", "grantee_id", "resource_type", "actions_before",
-            "actions_after", "actor_id", "ip_address", "occurred_at",
+            "grantor_id",
+            "grantee_id",
+            "resource_type",
+            "actions_before",
+            "actions_after",
+            "actor_id",
+            "ip_address",
+            "occurred_at",
         ],
         "legal_basis": "Legal obligation (Art. 6(1)(c)) — audit trail",
         "retention": "Until grantor's account is deleted",
@@ -362,8 +407,13 @@ _ROPA = [
         "activity": "Request logging",
         "purpose": "Structured access logs for security monitoring and debugging",
         "data_categories": [
-            "request_id", "http_method", "path", "status_code",
-            "duration_ms", "user_id (anonymised)", "ip_address",
+            "request_id",
+            "http_method",
+            "path",
+            "status_code",
+            "duration_ms",
+            "user_id (anonymised)",
+            "ip_address",
         ],
         "legal_basis": "Legitimate interest (Art. 6(1)(f)) — security monitoring",
         "retention": "30 days (log rotation)",
@@ -398,3 +448,118 @@ async def list_data_processing_activities(
         "controller": "Nest Egg",
         "activities": _ROPA,
     }
+
+
+# ---------------------------------------------------------------------------
+# Background Job Monitoring (#15)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/jobs")
+async def get_active_jobs(
+    current_user: User = Depends(get_current_admin_user),
+):
+    """
+    List active, reserved, and scheduled Celery tasks.
+
+    Uses Celery's remote control API to inspect connected workers.
+    Only accessible by admin users.
+    """
+    inspector = celery_app.control.inspect()
+
+    try:
+        active = inspector.active() or {}
+        reserved = inspector.reserved() or {}
+        scheduled = inspector.scheduled() or {}
+    except Exception as exc:
+        logger.warning("Failed to inspect Celery workers: %s", exc)
+        return {
+            "status": "unavailable",
+            "detail": "Could not reach Celery workers. They may be offline.",
+            "jobs": [],
+            "timestamp": utc_now().isoformat(),
+        }
+
+    jobs: List[Dict[str, Any]] = []
+
+    # Active tasks (currently executing)
+    for worker_name, tasks in active.items():
+        for task in tasks:
+            jobs.append(
+                {
+                    "task_id": task.get("id"),
+                    "name": task.get("name"),
+                    "state": "ACTIVE",
+                    "worker": worker_name,
+                    "started_at": task.get("time_start"),
+                    "args": task.get("args"),
+                }
+            )
+
+    # Reserved tasks (fetched by worker, waiting to execute)
+    for worker_name, tasks in reserved.items():
+        for task in tasks:
+            jobs.append(
+                {
+                    "task_id": task.get("id"),
+                    "name": task.get("name"),
+                    "state": "RESERVED",
+                    "worker": worker_name,
+                    "started_at": None,
+                    "args": task.get("args"),
+                }
+            )
+
+    # Scheduled tasks (ETA/countdown tasks waiting to run)
+    for worker_name, tasks in scheduled.items():
+        for task in tasks:
+            request = task.get("request", {})
+            jobs.append(
+                {
+                    "task_id": request.get("id"),
+                    "name": request.get("name"),
+                    "state": "SCHEDULED",
+                    "worker": worker_name,
+                    "started_at": None,
+                    "eta": task.get("eta"),
+                    "args": request.get("args"),
+                }
+            )
+
+    return {
+        "status": "ok",
+        "total": len(jobs),
+        "jobs": jobs,
+        "timestamp": utc_now().isoformat(),
+    }
+
+
+@router.get("/jobs/{task_id}")
+async def get_job_status(
+    task_id: str,
+    current_user: User = Depends(get_current_admin_user),
+):
+    """
+    Get status of a specific Celery task by its task ID.
+
+    Returns the task state, result (if finished), and completion time.
+    Only accessible by admin users.
+    """
+    result = AsyncResult(task_id, app=celery_app)
+
+    response: Dict[str, Any] = {
+        "task_id": task_id,
+        "state": result.state,
+        "date_done": result.date_done.isoformat() if result.date_done else None,
+    }
+
+    # Include result or error info depending on state
+    if result.state == "SUCCESS":
+        response["result"] = result.result
+    elif result.state == "FAILURE":
+        response["error"] = str(result.result) if result.result else None
+        response["traceback"] = result.traceback
+    elif result.state == "STARTED":
+        response["info"] = result.info if result.info else None
+
+    return response

@@ -4,13 +4,27 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <meta name="theme-color" content="#319795" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>Nest Egg</title>
   </head>
   <body>
     <!-- Chakra ColorModeScript: reads localStorage before React hydrates to
          prevent a flash of the wrong color mode. Must stay before #root. -->
     <script>
-      !function(){try{var d=document.documentElement,m=localStorage.getItem('chakra-ui-color-mode');if(m){d.style.colorScheme=m;d.setAttribute('data-theme',m);if(m==='dark')d.classList.add('chakra-ui-dark')};}catch(e){}}();
+      !(function () {
+        try {
+          var d = document.documentElement,
+            m = localStorage.getItem("chakra-ui-color-mode");
+          if (m) {
+            d.style.colorScheme = m;
+            d.setAttribute("data-theme", m);
+            if (m === "dark") d.classList.add("chakra-ui-dark");
+          }
+        } catch (e) {}
+      })();
     </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

@@ -1,26 +1,28 @@
 """User and Organization models."""
 
-import uuid
 import enum
+import uuid
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Column,
     Date,
     DateTime,
-    Enum as SQLEnum,
     ForeignKey,
     Integer,
-    JSON,
     String,
     UniqueConstraint,
+)
+from sqlalchemy import (
+    Enum as SQLEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 from app.services.encryption_service import EncryptedDate
-from app.utils.datetime_utils import utc_now_lambda, utc_now
+from app.utils.datetime_utils import utc_now, utc_now_lambda
 
 
 class InvitationStatus(str, enum.Enum):
@@ -51,6 +53,7 @@ class Organization(Base):
         Integer, default=1, nullable=False
     )  # Day of month to start tracking (1-31)
     timezone = Column(String(50), default="UTC", nullable=False)
+    default_currency = Column(String(3), default="USD", nullable=False, server_default="'USD'")
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
@@ -100,6 +103,12 @@ class User(Base):
         DateTime, nullable=True
     )  # Account locked until this time (NULL = not locked)
 
+    # Onboarding wizard tracking
+    onboarding_completed = Column(Boolean, default=False, nullable=False, server_default="false")
+    onboarding_step = Column(
+        String(50), nullable=True
+    )  # current step: "profile", "accounts", "budget", "goals"
+
     # Customizable dashboard layout — list of {id, span} objects; NULL = default layout
     dashboard_layout = Column(JSON, nullable=True)
 
@@ -115,12 +124,8 @@ class User(Base):
     mfa = relationship(
         "UserMFA", back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
-    consents = relationship(
-        "UserConsent", back_populates="user", cascade="all, delete-orphan"
-    )
-    identities = relationship(
-        "UserIdentity", back_populates="user", cascade="all, delete-orphan"
-    )
+    consents = relationship("UserConsent", back_populates="user", cascade="all, delete-orphan")
+    identities = relationship("UserIdentity", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User {self.email}>"
@@ -276,7 +281,11 @@ class AccountShare(Base):
     shared_with = relationship("User", foreign_keys=[shared_with_user_id])
 
     def __repr__(self):
-        return f"<AccountShare account={self.account_id} shared_with={self.shared_with_user_id} permission={self.permission}>"
+        return (
+            f"<AccountShare account={self.account_id}"
+            f" shared_with={self.shared_with_user_id}"
+            f" permission={self.permission}>"
+        )
 
 
 class ConsentType(str, enum.Enum):
@@ -305,10 +314,10 @@ class UserConsent(Base):
         index=True,
     )
     consent_type = Column(String(50), nullable=False)
-    version = Column(String(50), nullable=False)   # e.g. "2024-01" — bump when T&C/PP changes
+    version = Column(String(50), nullable=False)  # e.g. "2024-01" — bump when T&C/PP changes
     consented_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     ip_address = Column(String(45), nullable=True)  # IPv4 or IPv6; NULL if unavailable
-    revoked_at = Column(DateTime, nullable=True)    # NULL = consent currently active
+    revoked_at = Column(DateTime, nullable=True)  # NULL = consent currently active
 
     # Relationships
     user = relationship("User", back_populates="consents")

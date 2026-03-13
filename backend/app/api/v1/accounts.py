@@ -2,11 +2,11 @@
 
 import json
 import logging
+from datetime import datetime, timezone
+from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from datetime import datetime, timezone
-from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import delete, select, update
@@ -22,12 +22,13 @@ from app.dependencies import (
     get_verified_account,
     verify_household_member,
 )
-from app.models.account import Account, AccountType, TaxTreatment
-from app.utils.account_type_groups import MANUAL_EXCLUDE_CASH_FLOW_TYPES, TAX_TREATMENT_DEFAULTS
+from app.models.account import Account, AccountType
 from app.models.holding import Holding
 from app.models.user import User
 from app.schemas.account import (
     Account as AccountSchema,
+)
+from app.schemas.account import (
     AccountSummary,
     AccountUpdate,
     ManualAccountCreate,
@@ -38,20 +39,22 @@ from app.schemas.account_migration import (
     MigrationLogResponse,
 )
 from app.services.account_migration_service import (
-    account_migration_service,
     MigrationError,
+    account_migration_service,
 )
 from app.services.deduplication_service import DeduplicationService
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.permission_service import permission_service
 from app.services.rate_limit_service import rate_limit_service
+from app.services.reconciliation_service import reconciliation_service
 from app.services.valuation_service import (
+    decode_vin_nhtsa,
     get_available_property_providers,
     get_available_vehicle_providers,
     get_property_value,
     get_vehicle_value,
-    decode_vin_nhtsa,
 )
+from app.utils.account_type_groups import MANUAL_EXCLUDE_CASH_FLOW_TYPES, TAX_TREATMENT_DEFAULTS
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +131,8 @@ async def list_accounts(
         else:
             accounts = await get_all_household_accounts(db, current_user.organization_id)
 
-    # Deduplicate accounts (shared accounts appear multiple times when multiple household members link the same account)
+    # Deduplicate accounts (shared accounts appear multiple
+    # times when multiple household members link the same account)
     accounts = deduplication_service.deduplicate_accounts(accounts)
 
     # Sort by name
@@ -183,6 +187,73 @@ async def list_accounts(
     return summaries
 
 
+# CSV Export must be defined before /{account_id} to avoid route shadowing
+@router.get("/export/csv")
+async def export_accounts_csv(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Export all accounts for the user's organization as a CSV file.
+
+    Returns active accounts with key financial details suitable for
+    spreadsheet applications or archival purposes.
+    """
+    import csv
+    from io import StringIO
+
+    from fastapi.responses import StreamingResponse
+
+    # Fetch all active accounts for the organization
+    accounts = await get_all_household_accounts(db, current_user.organization_id)
+    accounts = deduplication_service.deduplicate_accounts(accounts)
+    accounts = sorted(accounts, key=lambda a: a.name)
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    # Write header
+    writer.writerow(
+        [
+            "Account Name",
+            "Account Type",
+            "Institution",
+            "Current Balance",
+            "Available Balance",
+            "Credit Limit",
+            "Account Source",
+            "Tax Treatment",
+            "Mask",
+            "Is Active",
+            "Account ID",
+        ]
+    )
+
+    # Write rows
+    for acc in accounts:
+        writer.writerow(
+            [
+                acc.name,
+                acc.account_type.value if acc.account_type else "",
+                acc.institution_name or "",
+                float(acc.current_balance) if acc.current_balance is not None else "",
+                float(acc.available_balance) if acc.available_balance is not None else "",
+                float(acc.limit) if acc.limit is not None else "",
+                acc.account_source.value if acc.account_source else "",
+                acc.tax_treatment.value if acc.tax_treatment else "",
+                f"****{acc.mask}" if acc.mask else "",
+                "Yes" if acc.is_active else "No",
+                str(acc.id),
+            ]
+        )
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="accounts.csv"'},
+    )
+
+
 @router.get("/{account_id}", response_model=AccountSchema)
 async def get_account(
     account: Account = Depends(get_verified_account),
@@ -207,7 +278,8 @@ async def create_manual_account(
     )
 
     # Determine if account should be excluded from cash flow by default
-    # Loans and mortgages are excluded to prevent double-counting (payment from checking + loan balance decrease)
+    # Loans and mortgages are excluded to prevent
+    # double-counting (payment from checking + loan balance decrease)
     exclude_from_cash_flow = account_data.account_type in MANUAL_EXCLUDE_CASH_FLOW_TYPES
 
     # Determine tax treatment: use explicit value, or infer from account type
@@ -342,7 +414,10 @@ async def bulk_update_visibility(
 
     # Bulk permission check: single DB query instead of one per account
     allowed_ids = await permission_service.filter_allowed_resources(
-        db, current_user, "update", "account",
+        db,
+        current_user,
+        "update",
+        "account",
         resource_owner_pairs=[(acc_id, acc_user_id) for acc_id, acc_user_id in existing_accounts],
     )
 
@@ -350,9 +425,7 @@ async def bulk_update_visibility(
         return {"updated_count": 0}
 
     result = await db.execute(
-        update(Account)
-        .where(Account.id.in_(allowed_ids))
-        .values(is_active=request.is_active)
+        update(Account).where(Account.id.in_(allowed_ids)).values(is_active=request.is_active)
     )
     await db.commit()
 
@@ -369,8 +442,12 @@ async def update_account(
     """Update account details."""
     # Enforce permission: owner, org admin, or holder of an 'update' grant
     await permission_service.require(
-        db, current_user, "update", "account",
-        resource_id=account.id, owner_id=account.user_id,
+        db,
+        current_user,
+        "update",
+        "account",
+        resource_id=account.id,
+        owner_id=account.user_id,
     )
 
     # Update basic fields
@@ -535,8 +612,12 @@ async def refresh_account_valuation(
 
     # Enforce permission: owner, org admin, or holder of an 'update' grant
     await permission_service.require(
-        db, current_user, "update", "account",
-        resource_id=account.id, owner_id=account.user_id,
+        db,
+        current_user,
+        "update",
+        "account",
+        resource_id=account.id,
+        owner_id=account.user_id,
     )
 
     valuation_result = None
@@ -603,11 +684,13 @@ async def refresh_account_valuation(
         adjusted_value = (raw_value * multiplier).quantize(Decimal("0.01"))
         adjusted_low = (
             (valuation_result.low * multiplier).quantize(Decimal("0.01"))
-            if valuation_result.low else None
+            if valuation_result.low
+            else None
         )
         adjusted_high = (
             (valuation_result.high * multiplier).quantize(Decimal("0.01"))
-            if valuation_result.high else None
+            if valuation_result.high
+            else None
         )
     else:
         adjusted_value = raw_value
@@ -649,7 +732,11 @@ async def bulk_delete_accounts(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete multiple accounts at once. Only deletes accounts the user owns or has 'delete' grant for."""
+    """Delete multiple accounts at once.
+
+    Only deletes accounts the user owns or has
+    'delete' grant for.
+    """
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=10,
@@ -669,16 +756,17 @@ async def bulk_delete_accounts(
 
     # Bulk permission check: single DB query instead of one per account
     allowed_ids = await permission_service.filter_allowed_resources(
-        db, current_user, "delete", "account",
+        db,
+        current_user,
+        "delete",
+        "account",
         resource_owner_pairs=[(acc_id, acc_user_id) for acc_id, acc_user_id in existing_accounts],
     )
 
     if not allowed_ids:
         return {"deleted_count": 0}
 
-    result = await db.execute(
-        delete(Account).where(Account.id.in_(allowed_ids))
-    )
+    result = await db.execute(delete(Account).where(Account.id.in_(allowed_ids)))
     await db.commit()
     return {"deleted_count": result.rowcount}
 
@@ -761,3 +849,20 @@ async def get_migration_history(
         account_id=account_id,
         organization_id=current_user.organization_id,
     )
+
+
+@router.get("/{account_id}/reconciliation")
+async def get_account_reconciliation(
+    account_id: UUID,
+    account: Account = Depends(get_verified_account),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get balance reconciliation for an account.
+
+    Compares the bank-reported balance (from Plaid/Teller/MX sync) against the
+    locally computed balance (sum of all transactions) and reports any discrepancy.
+    """
+    result = await reconciliation_service.reconcile_account(db=db, account=account)
+    return result.to_dict()

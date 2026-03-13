@@ -1,34 +1,34 @@
 """Transaction API endpoints."""
 
+import base64
+import csv
+import json
+import re
+from datetime import date, datetime
+from io import StringIO
 from typing import Optional
 from uuid import UUID, uuid4
-from datetime import date, datetime
-import base64
-import json
-import csv
-import re
-from io import StringIO
 
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, func, tuple_, or_, and_
+from sqlalchemy import and_, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.core.database import get_db
 from app.dependencies import get_current_user, verify_household_member
-from app.utils.datetime_utils import utc_now
-from app.models.user import User
-from app.models.transaction import Transaction, Label, TransactionLabel, Category
 from app.models.account import Account
+from app.models.transaction import Category, Label, Transaction, TransactionLabel
+from app.models.user import User
 from app.schemas.transaction import (
+    CategorySummary,
+    ManualTransactionCreate,
     TransactionDetail,
     TransactionListResponse,
     TransactionUpdate,
-    CategorySummary,
-    ManualTransactionCreate,
 )
 from app.services.input_sanitization_service import input_sanitization_service
+from app.utils.datetime_utils import utc_now
 
 router = APIRouter()
 
@@ -110,11 +110,13 @@ async def create_transaction(
         amount=transaction_data.amount,
         merchant_name=(
             input_sanitization_service.sanitize_html(transaction_data.merchant_name)
-            if transaction_data.merchant_name else None
+            if transaction_data.merchant_name
+            else None
         ),
         description=(
             input_sanitization_service.sanitize_html(transaction_data.description)
-            if transaction_data.description else None
+            if transaction_data.description
+            else None
         ),
         category_id=transaction_data.category_id,
         category_primary=transaction_data.category_primary,
@@ -175,7 +177,9 @@ async def list_transactions(
     page_size: int = Query(50, ge=1, le=1000),
     cursor: Optional[str] = None,
     account_id: Optional[UUID] = None,
-    user_id: Optional[UUID] = Query(None, description="Filter by user. None = combined household view"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     search: Optional[str] = None,
@@ -679,9 +683,7 @@ async def export_transactions_csv(
                         and_(Transaction.date == last_date, Transaction.id < last_id),
                     )
                 )
-            batch_query = batch_query.order_by(
-                Transaction.date.desc(), Transaction.id.desc()
-            )
+            batch_query = batch_query.order_by(Transaction.date.desc(), Transaction.id.desc())
             result = await db.execute(batch_query)
             transactions = result.unique().scalars().all()
 

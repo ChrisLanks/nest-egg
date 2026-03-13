@@ -1,30 +1,31 @@
 """Reports API endpoints."""
 
 import re
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies import (
-    get_current_user,
-    verify_household_member,
-    get_user_accounts,
     get_all_household_accounts,
+    get_current_user,
+    get_user_accounts,
+    verify_household_member,
 )
-from app.models.user import User
+from app.models.account import Account, AccountType
 from app.models.report_template import ReportTemplate
-from app.services.report_service import ReportService
-from app.services.deduplication_service import DeduplicationService
-from app.services.tax_loss_harvesting_service import tax_loss_harvesting_service
+from app.models.user import User
 from app.schemas.tax_harvesting import (
-    TaxLossOpportunityResponse,
     TaxLossHarvestingSummaryResponse,
+    TaxLossOpportunityResponse,
 )
+from app.services.deduplication_service import DeduplicationService
+from app.services.report_service import ReportService
+from app.services.tax_loss_harvesting_service import tax_loss_harvesting_service
 from app.utils.datetime_utils import utc_now
 
 # Allowed characters in Content-Disposition filenames
@@ -455,9 +456,98 @@ async def get_tax_loss_harvesting(
     total_savings = sum(o.estimated_tax_savings for o in opportunities)
 
     return TaxLossHarvestingSummaryResponse(
-        opportunities=[
-            TaxLossOpportunityResponse(**vars(o)) for o in opportunities
-        ],
+        opportunities=[TaxLossOpportunityResponse(**vars(o)) for o in opportunities],
         total_harvestable_losses=total_losses,
         total_estimated_tax_savings=total_savings,
     )
+
+
+@router.get("/household-summary")
+async def get_household_summary(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get a household financial summary aggregating all members' accounts.
+
+    Returns total net worth, assets, liabilities, member count,
+    and a per-member breakdown.
+    """
+    org_id = current_user.organization_id
+
+    # Debt account types for liability classification
+    debt_types = {
+        AccountType.CREDIT_CARD,
+        AccountType.LOAN,
+        AccountType.STUDENT_LOAN,
+        AccountType.MORTGAGE,
+    }
+
+    # Fetch all active accounts for the household (organization)
+    result = await db.execute(
+        select(Account).where(
+            and_(
+                Account.organization_id == org_id,
+                Account.is_active.is_(True),
+            )
+        )
+    )
+    accounts = result.scalars().all()
+
+    # Get all household members
+    member_result = await db.execute(
+        select(User).where(
+            and_(
+                User.organization_id == org_id,
+                User.is_active.is_(True),
+            )
+        )
+    )
+    members = member_result.scalars().all()
+
+    # Aggregate per-member
+    from collections import defaultdict
+    from decimal import Decimal
+
+    member_stats: Dict[UUID, Dict[str, Any]] = defaultdict(
+        lambda: {"net_worth": Decimal("0"), "accounts_count": 0}
+    )
+
+    total_assets = Decimal("0")
+    total_liabilities = Decimal("0")
+
+    for account in accounts:
+        balance = account.current_balance or Decimal("0")
+        uid = account.user_id
+
+        if account.account_type in debt_types:
+            # Debt balances are stored as positive values but represent liabilities
+            total_liabilities += abs(balance)
+            member_stats[uid]["net_worth"] -= abs(balance)
+        else:
+            total_assets += balance
+            member_stats[uid]["net_worth"] += balance
+
+        member_stats[uid]["accounts_count"] += 1
+
+    total_net_worth = total_assets - total_liabilities
+
+    per_member_breakdown = []
+    for member in members:
+        stats = member_stats.get(member.id, {"net_worth": Decimal("0"), "accounts_count": 0})
+        per_member_breakdown.append(
+            {
+                "user_id": str(member.id),
+                "display_name": member.display_name or member.email,
+                "net_worth": float(stats["net_worth"]),
+                "accounts_count": stats["accounts_count"],
+            }
+        )
+
+    return {
+        "total_household_net_worth": float(total_net_worth),
+        "total_household_assets": float(total_assets),
+        "total_household_liabilities": float(total_liabilities),
+        "member_count": len(members),
+        "per_member_breakdown": per_member_breakdown,
+    }

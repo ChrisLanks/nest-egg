@@ -1,20 +1,24 @@
 """Notification API endpoints."""
 
-from typing import List
+from collections import defaultdict
+from datetime import timedelta
+from typing import Any, Dict, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.dependencies import get_current_user, get_db
-from app.models.notification import NotificationType, NotificationPriority
+from app.models.notification import Notification, NotificationPriority, NotificationType
 from app.models.user import User
 from app.schemas.notification import (
     NotificationResponse,
     UnreadCountResponse,
 )
-from app.services.notification_service import notification_service, NotificationService
+from app.services.notification_service import NotificationService, notification_service
+from app.utils.datetime_utils import utc_now
 
 router = APIRouter()
 
@@ -44,6 +48,62 @@ async def get_unread_count(
     """Get count of unread notifications."""
     count = await notification_service.get_unread_count(db=db, user=current_user)
     return {"count": count}
+
+
+@router.get("/digest")
+async def get_household_digest(
+    days: int = Query(default=7, ge=1, le=30),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get a household notification digest.
+
+    Returns notifications for the entire organization (not just the current user)
+    over the past N days, grouped by notification type.
+    """
+    cutoff = utc_now() - timedelta(days=days)
+    org_id = current_user.organization_id
+
+    result = await db.execute(
+        select(Notification)
+        .where(
+            and_(
+                Notification.organization_id == org_id,
+                Notification.created_at >= cutoff,
+            )
+        )
+        .order_by(Notification.created_at.desc())
+    )
+    notifications = result.scalars().all()
+
+    # Group by type
+    grouped: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for n in notifications:
+        grouped[n.type.value].append(
+            {
+                "id": str(n.id),
+                "user_id": str(n.user_id) if n.user_id else None,
+                "title": n.title,
+                "message": n.message,
+                "priority": n.priority.value,
+                "is_read": n.is_read,
+                "created_at": n.created_at.isoformat(),
+            }
+        )
+
+    return {
+        "organization_id": str(org_id),
+        "days": days,
+        "total_notifications": len(notifications),
+        "groups": {
+            ntype: {
+                "count": len(items),
+                "notifications": items,
+            }
+            for ntype, items in grouped.items()
+        },
+    }
 
 
 @router.patch("/{notification_id}/read")
@@ -109,7 +169,11 @@ async def create_test_notification(
         user_id=current_user.id,
         type=NotificationType.BUDGET_ALERT,
         title="Test Notification",
-        message="This is a test notification to verify the notification system is working correctly. Click to view budgets.",
+        message=(
+            "This is a test notification to verify the"
+            " notification system is working correctly."
+            " Click to view budgets."
+        ),
         priority=NotificationPriority.MEDIUM,
         action_url="/budgets",
         expires_in_days=7,

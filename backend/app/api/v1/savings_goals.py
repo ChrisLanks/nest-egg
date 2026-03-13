@@ -1,24 +1,28 @@
 """Savings goals API endpoints."""
 
+from decimal import Decimal
 from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
+from app.models.savings_goal import SavingsGoal
 from app.models.user import User
 from app.schemas.savings_goal import (
     AutoSyncRequest,
     ReorderRequest,
     SavingsGoalCreate,
-    SavingsGoalUpdate,
-    SavingsGoalResponse,
     SavingsGoalProgressResponse,
+    SavingsGoalResponse,
+    SavingsGoalUpdate,
 )
 from app.services.savings_goal_service import savings_goal_service
+from app.utils.datetime_utils import utc_now
 
 
 class GoalTemplate(str, Enum):
@@ -27,6 +31,10 @@ class GoalTemplate(str, Enum):
 
 class GoalFromTemplateRequest(BaseModel):
     template: GoalTemplate
+
+
+class ContributionRequest(BaseModel):
+    amount: Decimal = Field(..., gt=0, description="Contribution amount (must be positive)")
 
 
 router = APIRouter()
@@ -63,6 +71,7 @@ async def list_goals(
 
 
 # --- Collection-level routes must come BEFORE /{goal_id} to avoid path conflicts ---
+
 
 @router.post("/from-template", response_model=SavingsGoalResponse, status_code=201)
 async def create_goal_from_template(
@@ -121,6 +130,7 @@ async def reorder_goals(
 
 
 # --- Per-goal routes ---
+
 
 @router.get("/{goal_id}", response_model=SavingsGoalResponse)
 async def get_goal(
@@ -245,3 +255,56 @@ async def get_goal_progress(
         raise HTTPException(status_code=404, detail="Savings goal not found")
 
     return progress
+
+
+@router.post("/{goal_id}/contributions")
+async def record_contribution(
+    goal_id: UUID,
+    body: ContributionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Record a member contribution to a shared savings goal.
+
+    Updates the member_contributions JSON and increments current_amount.
+    """
+    result = await db.execute(
+        select(SavingsGoal).where(
+            and_(
+                SavingsGoal.id == goal_id,
+                SavingsGoal.organization_id == current_user.organization_id,
+            )
+        )
+    )
+    goal = result.scalar_one_or_none()
+
+    if not goal:
+        raise HTTPException(status_code=404, detail="Savings goal not found")
+
+    if goal.is_completed:
+        raise HTTPException(status_code=400, detail="Cannot contribute to a completed goal")
+
+    # Update member_contributions JSON
+    contributions = dict(goal.member_contributions or {})
+    user_key = str(current_user.id)
+    previous = Decimal(str(contributions.get(user_key, "0")))
+    contributions[user_key] = str(previous + body.amount)
+    goal.member_contributions = contributions
+
+    # Increment current_amount
+    goal.current_amount = (goal.current_amount or Decimal("0")) + body.amount
+    goal.updated_at = utc_now()
+
+    await db.commit()
+    await db.refresh(goal)
+
+    return {
+        "goal_id": str(goal.id),
+        "goal_name": goal.name,
+        "contribution_amount": float(body.amount),
+        "user_total_contributions": float(Decimal(contributions[user_key])),
+        "current_amount": float(goal.current_amount),
+        "target_amount": float(goal.target_amount),
+        "member_contributions": {k: float(Decimal(v)) for k, v in contributions.items()},
+    }

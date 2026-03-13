@@ -1,18 +1,20 @@
 """Account and Plaid item models."""
 
-import uuid
 import enum
+import uuid
 
 from sqlalchemy import (
-    Column,
-    String,
     Boolean,
-    DateTime,
+    Column,
     Date,
+    DateTime,
     ForeignKey,
-    Numeric,
-    Text,
     Integer,
+    Numeric,
+    String,
+    Text,
+)
+from sqlalchemy import (
     Enum as SQLEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -151,10 +153,10 @@ class AccountType(str, enum.Enum):
 class TaxTreatment(str, enum.Enum):
     """Tax treatment for retirement and investment accounts."""
 
-    PRE_TAX = "pre_tax"          # Traditional 401k, Traditional IRA
-    ROTH = "roth"                # Roth 401k, Roth IRA, Roth 403b
-    TAXABLE = "taxable"          # Brokerage, checking, savings, etc.
-    TAX_FREE = "tax_free"        # HSA (triple tax advantage), 529 (qualified)
+    PRE_TAX = "pre_tax"  # Traditional 401k, Traditional IRA
+    ROTH = "roth"  # Roth 401k, Roth IRA, Roth 403b
+    TAXABLE = "taxable"  # Brokerage, checking, savings, etc.
+    TAX_FREE = "tax_free"  # HSA (triple tax advantage), 529 (qualified)
 
 
 class AccountSource(str, enum.Enum):
@@ -256,9 +258,7 @@ class MxMember(Base):
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
 
     # Relationships
-    accounts = relationship(
-        "Account", back_populates="mx_member", cascade="all, delete-orphan"
-    )
+    accounts = relationship("Account", back_populates="mx_member", cascade="all, delete-orphan")
 
 
 class PlaidItem(Base):
@@ -372,7 +372,9 @@ class Account(Base):
 
     # External identifiers
     external_account_id = Column(String(255), nullable=True, index=True)  # Plaid account_id
-    previous_external_account_id = Column(String(255), nullable=True)  # Preserved during provider migration
+    previous_external_account_id = Column(
+        String(255), nullable=True
+    )  # Preserved during provider migration
     mask = Column(String(10), nullable=True)  # Last 4 digits
     plaid_item_hash = Column(
         String(64), nullable=True, index=True
@@ -388,6 +390,9 @@ class Account(Base):
 
     # Balance timestamps
     balance_as_of = Column(DateTime, nullable=True)
+
+    # Currency (ISO 4217 code)
+    currency = Column(String(3), default="USD", nullable=False, server_default="'USD'")
 
     # Status
     is_active = Column(Boolean, default=True, nullable=False, index=True)
@@ -405,7 +410,9 @@ class Account(Base):
     origination_date = Column(Date, nullable=True)  # Date loan was originated
     maturity_date = Column(Date, nullable=True)  # Date loan matures/ends
     loan_term_months = Column(Integer, nullable=True)  # Total loan term in months
-    compounding_frequency = Column(SQLEnum(CompoundingFrequency), nullable=True)  # How interest compounds (for CDs)
+    compounding_frequency = Column(
+        SQLEnum(CompoundingFrequency), nullable=True
+    )  # How interest compounds (for CDs)
 
     # Private Debt fields (for private credit funds or loans made)
     principal_amount = Column(Numeric(15, 2), nullable=True)  # Original principal amount
@@ -415,40 +422,59 @@ class Account(Base):
     grant_date = Column(Date, nullable=True)  # Date equity was granted
     quantity = Column(Numeric(15, 4), nullable=True)  # Number of shares/options
     strike_price = Column(Numeric(15, 4), nullable=True)  # Exercise price (for options)
-    vesting_schedule = Column(Text, nullable=True)  # JSON: [{"date": "2024-01-01", "quantity": 250, "notes": ""}]
+    vesting_schedule = Column(
+        Text, nullable=True
+    )  # JSON: [{"date": "2024-01-01", "quantity": 250, "notes": ""}]
     share_price = Column(Numeric(15, 4), nullable=True)  # Current estimated price per share
     company_status = Column(SQLEnum(CompanyStatus), nullable=True)  # Private or Public
     valuation_method = Column(SQLEnum(ValuationMethod), nullable=True)  # 409a, Preferred, Custom
-    include_in_networth = Column(Boolean, default=None, nullable=True)  # None = auto (public=true, private=false)
+    include_in_networth = Column(
+        Boolean, default=None, nullable=True
+    )  # None = auto (public=true, private=false)
 
     # Pension / Annuity income fields
-    monthly_benefit = Column(Numeric(10, 2), nullable=True)   # Monthly income when in payout phase
-    benefit_start_date = Column(Date, nullable=True)           # Date payments begin
+    monthly_benefit = Column(Numeric(10, 2), nullable=True)  # Monthly income when in payout phase
+    benefit_start_date = Column(Date, nullable=True)  # Date payments begin
 
     # Business Equity fields (for business ownership)
     company_valuation = Column(Numeric(15, 2), nullable=True)  # Total company valuation
     ownership_percentage = Column(Numeric(5, 2), nullable=True)  # Percentage ownership (0-100)
-    equity_value = Column(Numeric(15, 2), nullable=True)  # Direct equity value (alternative to valuation + percentage)
+    equity_value = Column(
+        Numeric(15, 2), nullable=True
+    )  # Direct equity value (alternative to valuation + percentage)
 
     # Employer 401k / 403b match fields
-    employer_match_percent = Column(Numeric(5, 2), nullable=True)   # e.g. 50 → employer matches 50% of contribution
-    employer_match_limit_percent = Column(Numeric(5, 2), nullable=True)  # e.g. 6 → on the first 6% of salary
-    annual_salary = Column(EncryptedString, nullable=True)          # Encrypted — decrypt to Decimal for arithmetic
+    employer_match_percent = Column(
+        Numeric(5, 2), nullable=True
+    )  # e.g. 50 → employer matches 50% of contribution
+    employer_match_limit_percent = Column(
+        Numeric(5, 2), nullable=True
+    )  # e.g. 6 → on the first 6% of salary
+    annual_salary = Column(
+        EncryptedString, nullable=True
+    )  # Encrypted — decrypt to Decimal for arithmetic
+
+    # Tax lot cost basis method (for investment accounts)
+    cost_basis_method = Column(
+        String(20), default="fifo", nullable=True
+    )  # fifo, lifo, hifo, specific_id
 
     # Interest accrual tracking (CD / savings / money_market)
-    last_interest_accrued_at = Column(Date, nullable=True)          # Date of last auto-accrual (prevents double-accrual)
+    last_interest_accrued_at = Column(
+        Date, nullable=True
+    )  # Date of last auto-accrual (prevents double-accrual)
 
     # Property auto-valuation fields (used with ATTOM API)
     # Stored encrypted — EncryptedString transparently encrypts on write, decrypts on read.
-    property_address = Column(EncryptedString, nullable=True)   # Street address (e.g. "123 Main St")
-    property_zip = Column(EncryptedString, nullable=True)       # ZIP / postal code
+    property_address = Column(EncryptedString, nullable=True)  # Street address (e.g. "123 Main St")
+    property_zip = Column(EncryptedString, nullable=True)  # ZIP / postal code
 
     # Vehicle auto-valuation fields (used with MarketCheck API + NHTSA VIN decode)
-    vehicle_vin = Column(EncryptedString, nullable=True)        # VIN for auto-decode + valuation
-    vehicle_mileage = Column(Integer, nullable=True)        # Current odometer for market value
+    vehicle_vin = Column(EncryptedString, nullable=True)  # VIN for auto-decode + valuation
+    vehicle_mileage = Column(Integer, nullable=True)  # Current odometer for market value
 
     # Auto-valuation metadata (property + vehicle)
-    last_auto_valued_at = Column(DateTime, nullable=True)   # When balance was last set by the API
+    last_auto_valued_at = Column(DateTime, nullable=True)  # When balance was last set by the API
     # Percentage adjustment applied on top of provider estimates.
     # e.g., -10 for 10% discount (damage), +15 for 15% premium (upgrades).
     # NULL is treated as 0% (no adjustment).
@@ -463,10 +489,8 @@ class Account(Base):
     teller_enrollment = relationship("TellerEnrollment", back_populates="accounts")
     mx_member = relationship("MxMember", back_populates="accounts")
     transactions = relationship(
-        "Transaction", back_populates="account", cascade="all, delete-orphan",
-        lazy="raise"
+        "Transaction", back_populates="account", cascade="all, delete-orphan", lazy="raise"
     )
     holdings = relationship(
-        "Holding", back_populates="account", cascade="all, delete-orphan",
-        lazy="raise"
+        "Holding", back_populates="account", cascade="all, delete-orphan", lazy="raise"
     )

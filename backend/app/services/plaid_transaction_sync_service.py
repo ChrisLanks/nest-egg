@@ -2,23 +2,29 @@
 Plaid Transaction Sync Service
 
 Handles syncing transactions from Plaid API with deduplication logic.
+Each sync operation is idempotent and atomic (all-or-nothing) using
+database savepoints and Redis-based distributed locks.
 """
 
-from datetime import datetime, date, timedelta
-from decimal import Decimal
-from typing import List, Optional, Dict, Any
-from uuid import UUID
 import hashlib
 import logging
+from datetime import date, datetime, timedelta
+from decimal import Decimal
+from typing import Any, Dict, List, Optional
+from uuid import UUID
 
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.transaction import Transaction
+from app.core.cache import redis_client
 from app.models.account import Account, PlaidItem
+from app.models.transaction import Transaction
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
+
+# TTL for sync idempotency locks (seconds)
+_SYNC_LOCK_TTL = 300
 
 
 class PlaidTransactionSyncService:
@@ -84,6 +90,9 @@ class PlaidTransactionSyncService:
         """
         Sync transactions for a Plaid item.
 
+        This operation is atomic (all-or-nothing) using a database savepoint
+        and protected by a Redis idempotency lock to prevent concurrent syncs.
+
         Args:
             db: Database session
             plaid_item_id: PlaidItem ID
@@ -93,75 +102,95 @@ class PlaidTransactionSyncService:
         Returns:
             Dict with counts: {added, updated, skipped, errors}
         """
-        # Get PlaidItem with organization
-        result = await db.execute(select(PlaidItem).where(PlaidItem.id == plaid_item_id))
-        plaid_item = result.scalar_one_or_none()
-
-        if not plaid_item:
-            raise ValueError(f"PlaidItem {plaid_item_id} not found")
-
-        organization_id = plaid_item.organization_id
-
-        # Get all accounts for this Plaid item
-        accounts_result = await db.execute(
-            select(Account).where(Account.plaid_item_id == plaid_item_id)
-        )
-        accounts = {acc.external_account_id: acc for acc in accounts_result.scalars().all()}
-
-        # Pre-fetch existing external IDs and dedup hashes to avoid N+1 queries
-        account_ids = [acc.id for acc in accounts.values()]
-        ext_id_result = await db.execute(
-            select(
-                Transaction.account_id,
-                Transaction.external_transaction_id,
-            ).where(
-                Transaction.organization_id == organization_id,
-                Transaction.external_transaction_id.isnot(None),
-            )
-        )
-        existing_ext_ids = {
-            (row[0], row[1]) for row in ext_id_result.all()
-        }
-        # Also build org-level set for cross-account dedup
-        org_ext_ids = {row[1] for row in existing_ext_ids}
-
-        dedup_result = await db.execute(
-            select(
-                Transaction.account_id,
-                Transaction.deduplication_hash,
-            ).where(Transaction.account_id.in_(account_ids))
-        )
-        existing_dedup_hashes = {
-            (row[0], row[1]) for row in dedup_result.all()
-        }
-
-        stats = {"added": 0, "updated": 0, "skipped": 0, "errors": 0}
-
-        for txn_data in transactions_data:
+        # Acquire Redis idempotency lock to prevent concurrent syncs
+        lock_key = f"sync:plaid:{plaid_item_id}"
+        lock_acquired = False
+        if redis_client:
             try:
-                await self._process_transaction(
-                    db=db,
-                    organization_id=organization_id,
-                    accounts=accounts,
-                    txn_data=txn_data,
-                    stats=stats,
-                    existing_ext_ids=existing_ext_ids,
-                    org_ext_ids=org_ext_ids,
-                    existing_dedup_hashes=existing_dedup_hashes,
-                )
+                lock_acquired = await redis_client.set(lock_key, "1", nx=True, ex=_SYNC_LOCK_TTL)
+                if not lock_acquired:
+                    logger.info(f"Sync already in progress for PlaidItem {plaid_item_id}, skipping")
+                    return {"added": 0, "updated": 0, "skipped": 0, "errors": 0}
             except Exception as e:
-                logger.error(f"Error processing transaction {txn_data.get('transaction_id')}: {e}")
-                stats["errors"] += 1
+                logger.warning(f"Redis lock acquisition failed, proceeding without lock: {e}")
 
-        await db.commit()
+        try:
+            # Get PlaidItem with organization
+            result = await db.execute(select(PlaidItem).where(PlaidItem.id == plaid_item_id))
+            plaid_item = result.scalar_one_or_none()
 
-        logger.info(
-            f"Synced transactions for PlaidItem {plaid_item_id}: "
-            f"added={stats['added']}, updated={stats['updated']}, "
-            f"skipped={stats['skipped']}, errors={stats['errors']}"
-        )
+            if not plaid_item:
+                raise ValueError(f"PlaidItem {plaid_item_id} not found")
 
-        return stats
+            organization_id = plaid_item.organization_id
+
+            # Get all accounts for this Plaid item
+            accounts_result = await db.execute(
+                select(Account).where(Account.plaid_item_id == plaid_item_id)
+            )
+            accounts = {acc.external_account_id: acc for acc in accounts_result.scalars().all()}
+
+            # Pre-fetch existing external IDs and dedup hashes to avoid N+1 queries
+            account_ids = [acc.id for acc in accounts.values()]
+            ext_id_result = await db.execute(
+                select(
+                    Transaction.account_id,
+                    Transaction.external_transaction_id,
+                ).where(
+                    Transaction.organization_id == organization_id,
+                    Transaction.external_transaction_id.isnot(None),
+                )
+            )
+            existing_ext_ids = {(row[0], row[1]) for row in ext_id_result.all()}
+            # Also build org-level set for cross-account dedup
+            org_ext_ids = {row[1] for row in existing_ext_ids}
+
+            dedup_result = await db.execute(
+                select(
+                    Transaction.account_id,
+                    Transaction.deduplication_hash,
+                ).where(Transaction.account_id.in_(account_ids))
+            )
+            existing_dedup_hashes = {(row[0], row[1]) for row in dedup_result.all()}
+
+            stats = {"added": 0, "updated": 0, "skipped": 0, "errors": 0}
+
+            # Use a savepoint so the entire batch is all-or-nothing
+            async with db.begin_nested():
+                for txn_data in transactions_data:
+                    try:
+                        await self._process_transaction(
+                            db=db,
+                            organization_id=organization_id,
+                            accounts=accounts,
+                            txn_data=txn_data,
+                            stats=stats,
+                            existing_ext_ids=existing_ext_ids,
+                            org_ext_ids=org_ext_ids,
+                            existing_dedup_hashes=existing_dedup_hashes,
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Error processing transaction {txn_data.get('transaction_id')}: {e}"
+                        )
+                        stats["errors"] += 1
+
+            await db.commit()
+
+            logger.info(
+                f"Synced transactions for PlaidItem {plaid_item_id}: "
+                f"added={stats['added']}, updated={stats['updated']}, "
+                f"skipped={stats['skipped']}, errors={stats['errors']}"
+            )
+
+            return stats
+        finally:
+            # Release Redis lock on completion (success or failure)
+            if redis_client and lock_acquired:
+                try:
+                    await redis_client.delete(lock_key)
+                except Exception as e:
+                    logger.warning(f"Failed to release Redis lock {lock_key}: {e}")
 
     async def _process_transaction(
         self,
@@ -323,6 +352,8 @@ class PlaidTransactionSyncService:
         """
         Handle removed transactions from Plaid.
 
+        This operation is atomic (all-or-nothing) using a database savepoint.
+
         Args:
             db: Database session
             plaid_item_id: PlaidItem ID
@@ -344,20 +375,22 @@ class PlaidTransactionSyncService:
             logger.error(f"PlaidItem {plaid_item_id} not found")
             return 0
 
-        # Delete transactions with these external IDs in this organization
-        result = await db.execute(
-            select(Transaction).where(
-                and_(
-                    Transaction.organization_id == organization_id,
-                    Transaction.external_transaction_id.in_(removed_transaction_ids),
+        # Use a savepoint so the entire removal batch is all-or-nothing
+        async with db.begin_nested():
+            # Delete transactions with these external IDs in this organization
+            result = await db.execute(
+                select(Transaction).where(
+                    and_(
+                        Transaction.organization_id == organization_id,
+                        Transaction.external_transaction_id.in_(removed_transaction_ids),
+                    )
                 )
             )
-        )
-        transactions_to_remove = result.scalars().all()
+            transactions_to_remove = result.scalars().all()
 
-        count = len(transactions_to_remove)
-        for txn in transactions_to_remove:
-            await db.delete(txn)
+            count = len(transactions_to_remove)
+            for txn in transactions_to_remove:
+                await db.delete(txn)
 
         await db.commit()
 

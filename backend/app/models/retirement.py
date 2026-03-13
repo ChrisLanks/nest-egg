@@ -8,13 +8,15 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
-    Enum as SQLEnum,
     ForeignKey,
     Index,
     Integer,
     Numeric,
     String,
     Text,
+)
+from sqlalchemy import (
+    Enum as SQLEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -37,6 +39,14 @@ class LifeEventCategory(str, enum.Enum):
     VEHICLE = "vehicle"
     ELDER_CARE = "elder_care"
     CUSTOM = "custom"
+
+
+class DistributionType(str, enum.Enum):
+    """Return distribution types for Monte Carlo simulation."""
+
+    NORMAL = "normal"
+    LOG_NORMAL = "log_normal"
+    HISTORICAL_BOOTSTRAP = "historical_bootstrap"
 
 
 class WithdrawalStrategy(str, enum.Enum):
@@ -109,6 +119,13 @@ class RetirementScenario(Base):
 
     # Simulation config
     num_simulations = Column(Integer, default=1000, nullable=False)
+    inflation_adjusted = Column(Boolean, default=True, nullable=False, server_default="true")
+    distribution_type = Column(
+        SQLEnum(DistributionType),
+        default=DistributionType.NORMAL,
+        nullable=False,
+        server_default="normal",
+    )
 
     # Sharing within household
     is_shared = Column(Boolean, default=True, nullable=False)
@@ -130,9 +147,7 @@ class RetirementScenario(Base):
         cascade="all, delete-orphan",
     )
 
-    __table_args__ = (
-        Index("ix_retirement_scenario_org_user", "organization_id", "user_id"),
-    )
+    __table_args__ = (Index("ix_retirement_scenario_org_user", "organization_id", "user_id"),)
 
 
 class LifeEvent(Base):
@@ -221,6 +236,4 @@ class RetirementSimulationResult(Base):
     # Relationships
     scenario = relationship("RetirementScenario", back_populates="simulation_results")
 
-    __table_args__ = (
-        Index("ix_sim_result_scenario_date", "scenario_id", "computed_at"),
-    )
+    __table_args__ = (Index("ix_sim_result_scenario_date", "scenario_id", "computed_at"),)

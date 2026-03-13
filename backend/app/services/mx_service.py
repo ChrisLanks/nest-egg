@@ -26,12 +26,17 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.cache import redis_client
 from app.models.account import Account, AccountSource, AccountType, MxMember, TaxTreatment
 from app.models.transaction import Transaction
+from app.services.circuit_breaker import CircuitOpenError, get_circuit_breaker
 from app.services.encryption_service import get_encryption_service
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
+
+# TTL for sync idempotency locks (seconds)
+_SYNC_LOCK_TTL = 300
 
 REQUEST_TIMEOUT = 30.0
 
@@ -61,7 +66,28 @@ class MxService:
         json: Optional[Dict] = None,
         params: Optional[Dict] = None,
     ) -> Dict:
-        """Make authenticated request to MX Platform API."""
+        """Make authenticated request to MX Platform API.
+
+        Calls are wrapped with a circuit breaker so that sustained MX outages
+        fail fast instead of making every user wait for a timeout.
+        """
+        cb = get_circuit_breaker()
+        try:
+            return await cb.call("mx", self._do_request, method, path, json=json, params=params)
+        except CircuitOpenError:
+            raise HTTPException(
+                status_code=503,
+                detail="MX API is temporarily unavailable (circuit breaker open). Try again later.",
+            )
+
+    async def _do_request(
+        self,
+        method: str,
+        path: str,
+        json: Optional[Dict] = None,
+        params: Optional[Dict] = None,
+    ) -> Dict:
+        """Execute the actual HTTP request to MX (called via circuit breaker)."""
         headers = {
             "Accept": "application/vnd.mx.api.v1+json",
             "Content-Type": "application/json",
@@ -188,113 +214,179 @@ class MxService:
     # ── Account sync ───────────────────────────────────────────────────────
 
     async def sync_accounts(self, db: AsyncSession, member: MxMember) -> List[Account]:
-        """Fetch accounts from MX for a given member and upsert locally."""
-        data = await self._make_request(
-            "GET",
-            f"/users/{member.mx_user_guid}/members/{member.member_guid}/accounts",
-        )
-        mx_accounts = data.get("accounts", [])
+        """Fetch accounts from MX for a given member and upsert locally.
 
-        # Pre-fetch existing accounts for this member to avoid N+1 queries
-        existing_result = await db.execute(select(Account).where(Account.mx_member_id == member.id))
-        existing_accounts = {
-            acc.external_account_id: acc for acc in existing_result.scalars().all()
-        }
+        This operation is atomic (all-or-nothing) using a database savepoint
+        and protected by a Redis idempotency lock to prevent concurrent syncs.
+        """
+        # Acquire Redis idempotency lock
+        lock_key = f"sync:mx:accounts:{member.member_guid}"
+        lock_acquired = False
+        if redis_client:
+            try:
+                lock_acquired = await redis_client.set(lock_key, "1", nx=True, ex=_SYNC_LOCK_TTL)
+                if not lock_acquired:
+                    logger.info(
+                        f"Account sync already in progress for MX member "
+                        f"{member.member_guid}, skipping"
+                    )
+                    return []
+            except Exception as e:
+                logger.warning(f"Redis lock acquisition failed, proceeding without lock: {e}")
 
-        synced: List[Account] = []
-        for mx_acc in mx_accounts:
-            # Check for existing account using pre-fetched map
-            account = existing_accounts.get(mx_acc["guid"])
+        try:
+            data = await self._make_request(
+                "GET",
+                f"/users/{member.mx_user_guid}/members/{member.member_guid}/accounts",
+            )
+            mx_accounts = data.get("accounts", [])
 
-            if not account:
-                mapped_type, mapped_tax = self._map_account_type(mx_acc.get("type"))
-                account = Account(
-                    organization_id=member.organization_id,
-                    user_id=member.user_id,
-                    mx_member_id=member.id,
-                    external_account_id=mx_acc["guid"],
-                    name=mx_acc.get("name", "Unknown Account"),
-                    account_type=mapped_type,
-                    tax_treatment=mapped_tax,
-                    account_source=AccountSource.MX,
-                    mask=mx_acc.get("account_number")[-4:]
-                    if mx_acc.get("account_number")
-                    else None,
-                    institution_name=member.institution_name,
-                    current_balance=Decimal(str(mx_acc.get("balance", 0))),
-                    available_balance=Decimal(str(mx_acc.get("available_balance", 0)))
-                    if mx_acc.get("available_balance") is not None
-                    else None,
-                )
-                db.add(account)
-            else:
-                account.current_balance = Decimal(str(mx_acc.get("balance", 0)))
-                if mx_acc.get("available_balance") is not None:
-                    account.available_balance = Decimal(str(mx_acc.get("available_balance", 0)))
-                account.updated_at = utc_now()
+            # Pre-fetch existing accounts for this member to avoid N+1 queries
+            existing_result = await db.execute(
+                select(Account).where(Account.mx_member_id == member.id)
+            )
+            existing_accounts = {
+                acc.external_account_id: acc for acc in existing_result.scalars().all()
+            }
 
-            synced.append(account)
+            synced: List[Account] = []
 
-        await db.commit()
+            # Use a savepoint so the entire batch is all-or-nothing
+            async with db.begin_nested():
+                for mx_acc in mx_accounts:
+                    # Check for existing account using pre-fetched map
+                    account = existing_accounts.get(mx_acc["guid"])
 
-        member.last_synced_at = utc_now()
-        await db.commit()
+                    if not account:
+                        mapped_type, mapped_tax = self._map_account_type(mx_acc.get("type"))
+                        account = Account(
+                            organization_id=member.organization_id,
+                            user_id=member.user_id,
+                            mx_member_id=member.id,
+                            external_account_id=mx_acc["guid"],
+                            name=mx_acc.get("name", "Unknown Account"),
+                            account_type=mapped_type,
+                            tax_treatment=mapped_tax,
+                            account_source=AccountSource.MX,
+                            mask=mx_acc.get("account_number")[-4:]
+                            if mx_acc.get("account_number")
+                            else None,
+                            institution_name=member.institution_name,
+                            current_balance=Decimal(str(mx_acc.get("balance", 0))),
+                            available_balance=Decimal(str(mx_acc.get("available_balance", 0)))
+                            if mx_acc.get("available_balance") is not None
+                            else None,
+                        )
+                        db.add(account)
+                    else:
+                        account.current_balance = Decimal(str(mx_acc.get("balance", 0)))
+                        if mx_acc.get("available_balance") is not None:
+                            account.available_balance = Decimal(
+                                str(mx_acc.get("available_balance", 0))
+                            )
+                        account.updated_at = utc_now()
 
-        return synced
+                    synced.append(account)
+
+                # Update member sync time within the same savepoint
+                member.last_synced_at = utc_now()
+
+            await db.commit()
+
+            return synced
+        finally:
+            # Release Redis lock on completion (success or failure)
+            if redis_client and lock_acquired:
+                try:
+                    await redis_client.delete(lock_key)
+                except Exception as e:
+                    logger.warning(f"Failed to release Redis lock {lock_key}: {e}")
 
     # ── Transaction sync ───────────────────────────────────────────────────
 
     async def sync_transactions(
         self, db: AsyncSession, account: Account, days_back: int = 90
     ) -> List[Transaction]:
-        """Fetch transactions from MX and upsert locally."""
+        """Fetch transactions from MX and upsert locally.
+
+        This operation is atomic (all-or-nothing) using a database savepoint
+        and protected by a Redis idempotency lock to prevent concurrent syncs.
+        """
         member = account.mx_member
         if not member:
             raise ValueError("Account does not have MX member")
 
-        from_date = (utc_now().date() - timedelta(days=days_back)).isoformat()
+        # Acquire Redis idempotency lock
+        lock_key = f"sync:mx:transactions:{member.member_guid}:{account.id}"
+        lock_acquired = False
+        if redis_client:
+            try:
+                lock_acquired = await redis_client.set(lock_key, "1", nx=True, ex=_SYNC_LOCK_TTL)
+                if not lock_acquired:
+                    logger.info(
+                        f"Transaction sync already in progress for MX account "
+                        f"{account.id}, skipping"
+                    )
+                    return []
+            except Exception as e:
+                logger.warning(f"Redis lock acquisition failed, proceeding without lock: {e}")
 
-        data = await self._make_request(
-            "GET",
-            f"/users/{member.mx_user_guid}/accounts/{account.external_account_id}/transactions",
-            params={"from_date": from_date, "records_per_page": 250},
-        )
-        mx_transactions = data.get("transactions", [])
+        try:
+            from_date = (utc_now().date() - timedelta(days=days_back)).isoformat()
 
-        # Pre-fetch existing external IDs for this account to avoid N+1 queries
-        ext_result = await db.execute(
-            select(Transaction.external_transaction_id).where(
-                Transaction.account_id == account.id,
-                Transaction.external_transaction_id.isnot(None),
+            data = await self._make_request(
+                "GET",
+                f"/users/{member.mx_user_guid}/accounts/{account.external_account_id}/transactions",
+                params={"from_date": from_date, "records_per_page": 250},
             )
-        )
-        existing_ext_ids = {row[0] for row in ext_result.all()}
+            mx_transactions = data.get("transactions", [])
 
-        synced: List[Transaction] = []
-        for txn in mx_transactions:
-            if txn["guid"] in existing_ext_ids:
-                continue  # Already imported
-
-            transaction = Transaction(
-                organization_id=account.organization_id,
-                account_id=account.id,
-                external_transaction_id=txn["guid"],
-                date=datetime.fromisoformat(txn["transacted_at"].replace("Z", "+00:00")).date()
-                if txn.get("transacted_at")
-                else datetime.fromisoformat(txn["date"]).date(),
-                amount=Decimal(str(txn["amount"])),
-                merchant_name=txn.get("merchant_category_code") and txn.get("description"),
-                description=txn.get("description") or txn.get("original_description"),
-                category_primary=txn.get("top_level_category"),
-                category_detailed=txn.get("category"),
-                is_pending=txn.get("status") == "PENDING",
-                deduplication_hash=self._generate_dedup_hash(account.id, txn),
+            # Pre-fetch existing external IDs for this account to avoid N+1 queries
+            ext_result = await db.execute(
+                select(Transaction.external_transaction_id).where(
+                    Transaction.account_id == account.id,
+                    Transaction.external_transaction_id.isnot(None),
+                )
             )
-            db.add(transaction)
-            synced.append(transaction)
+            existing_ext_ids = {row[0] for row in ext_result.all()}
 
-        await db.commit()
-        return synced
+            synced: List[Transaction] = []
+
+            # Use a savepoint so the entire batch is all-or-nothing
+            async with db.begin_nested():
+                for txn in mx_transactions:
+                    if txn["guid"] in existing_ext_ids:
+                        continue  # Already imported
+
+                    transaction = Transaction(
+                        organization_id=account.organization_id,
+                        account_id=account.id,
+                        external_transaction_id=txn["guid"],
+                        date=datetime.fromisoformat(
+                            txn["transacted_at"].replace("Z", "+00:00")
+                        ).date()
+                        if txn.get("transacted_at")
+                        else datetime.fromisoformat(txn["date"]).date(),
+                        amount=Decimal(str(txn["amount"])),
+                        merchant_name=txn.get("merchant_category_code") and txn.get("description"),
+                        description=txn.get("description") or txn.get("original_description"),
+                        category_primary=txn.get("top_level_category"),
+                        category_detailed=txn.get("category"),
+                        is_pending=txn.get("status") == "PENDING",
+                        deduplication_hash=self._generate_dedup_hash(account.id, txn),
+                    )
+                    db.add(transaction)
+                    synced.append(transaction)
+
+            await db.commit()
+            return synced
+        finally:
+            # Release Redis lock on completion (success or failure)
+            if redis_client and lock_acquired:
+                try:
+                    await redis_client.delete(lock_key)
+                except Exception as e:
+                    logger.warning(f"Failed to release Redis lock {lock_key}: {e}")
 
     # ── Disconnect ─────────────────────────────────────────────────────────
 

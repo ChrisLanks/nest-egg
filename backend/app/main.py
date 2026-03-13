@@ -16,9 +16,11 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1 import (
     accounts,
+    attachments,
     auth,
     bank_linking,
     budgets,
+    bulk_operations,
     categories,
     contributions,
     csv_import,
@@ -26,6 +28,7 @@ from app.api.v1 import (
     debt_payoff,
     dev,
     enrichment,
+    fire,
     holdings,
     household,
     income_expenses,
@@ -33,6 +36,7 @@ from app.api.v1 import (
     market_data,
     monitoring,
     notifications,
+    onboarding,
     permissions,
     plaid,
     rebalancing,
@@ -42,6 +46,7 @@ from app.api.v1 import (
     rules,
     savings_goals,
     subscriptions,
+    tax_lots,
     teller,
     transaction_merges,
     transaction_splits,
@@ -395,3 +400,10 @@ app.include_router(debt_payoff.router, prefix="/api/v1/debt-payoff", tags=["Debt
 app.include_router(rebalancing.router, prefix="/api/v1/rebalancing", tags=["Rebalancing"])
 app.include_router(permissions.router, prefix="/api/v1/permissions", tags=["Permissions"])
 app.include_router(retirement.router, prefix="/api/v1/retirement", tags=["Retirement Planning"])
+app.include_router(fire.router, prefix="/api/v1/fire", tags=["FIRE Metrics"])
+app.include_router(tax_lots.router, prefix="/api/v1", tags=["Tax Lots"])
+app.include_router(attachments.router, prefix="/api/v1", tags=["Attachments"])
+app.include_router(
+    bulk_operations.router, prefix="/api/v1/bulk-operations", tags=["Bulk Operations"]
+)
+app.include_router(onboarding.router, prefix="/api/v1/onboarding", tags=["Onboarding"])

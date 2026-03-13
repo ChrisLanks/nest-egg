@@ -20,12 +20,17 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.cache import redis_client
 from app.models.account import Account, AccountSource, AccountType, TaxTreatment, TellerEnrollment
 from app.models.transaction import Transaction
+from app.services.circuit_breaker import CircuitOpenError, get_circuit_breaker
 from app.services.encryption_service import get_encryption_service
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
+
+# TTL for sync idempotency locks (seconds)
+_SYNC_LOCK_TTL = 300
 
 
 class TellerService:
@@ -45,7 +50,26 @@ class TellerService:
 
         Teller requires mTLS (mutual TLS) — the client certificate authenticates
         the application, while the access token identifies the user's enrollment.
+
+        Calls are wrapped with a circuit breaker so that sustained Teller outages
+        fail fast instead of making every user wait for a timeout.
         """
+        cb = get_circuit_breaker()
+        try:
+            return await cb.call("teller", self._do_request, method, path, access_token, **kwargs)
+        except CircuitOpenError:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Teller API is temporarily unavailable"
+                    " (circuit breaker open). Try again later."
+                ),
+            )
+
+    async def _do_request(
+        self, method: str, path: str, access_token: Optional[str] = None, **kwargs
+    ) -> Dict:
+        """Execute the actual HTTP request to Teller (called via circuit breaker)."""
         headers = {
             "Content-Type": "application/json",
         }
@@ -131,76 +155,110 @@ class TellerService:
         return enrollment
 
     async def sync_accounts(self, db: AsyncSession, enrollment: TellerEnrollment) -> List[Account]:
-        """Sync accounts from Teller."""
-        access_token = enrollment.get_decrypted_access_token()
+        """Sync accounts from Teller.
 
-        # Get accounts from Teller
-        accounts_data = await self._make_request("GET", "/accounts", access_token=access_token)
+        This operation is atomic (all-or-nothing) using a database savepoint
+        and protected by a Redis idempotency lock to prevent concurrent syncs.
+        """
+        # Acquire Redis idempotency lock
+        lock_key = f"sync:teller:accounts:{enrollment.enrollment_id}"
+        lock_acquired = False
+        if redis_client:
+            try:
+                lock_acquired = await redis_client.set(lock_key, "1", nx=True, ex=_SYNC_LOCK_TTL)
+                if not lock_acquired:
+                    logger.info(
+                        f"Account sync already in progress for Teller enrollment "
+                        f"{enrollment.enrollment_id}, skipping"
+                    )
+                    return []
+            except Exception as e:
+                logger.warning(f"Redis lock acquisition failed, proceeding without lock: {e}")
 
-        synced_accounts = []
+        try:
+            access_token = enrollment.get_decrypted_access_token()
 
-        for account_data in accounts_data:
-            # Check if account already exists
-            result = await db.execute(
-                select(Account).where(
-                    Account.teller_enrollment_id == enrollment.id,
-                    Account.external_account_id == account_data["id"],
-                )
-            )
-            account = result.scalar_one_or_none()
+            # Get accounts from Teller
+            accounts_data = await self._make_request("GET", "/accounts", access_token=access_token)
 
-            if not account:
-                # Create new account
-                # Use ledger balance for accuracy (especially for credit cards/loans),
-                # falling back to current, then available
-                balance_data = account_data.get("balance", {})
-                balance_value = (
-                    balance_data.get("ledger")
-                    or balance_data.get("current")
-                    or balance_data.get("available", 0)
-                )
-                mapped_type, mapped_tax = self._map_account_type(
-                    account_data.get("type"), account_data.get("subtype")
-                )
-                account = Account(
-                    organization_id=enrollment.organization_id,
-                    user_id=enrollment.user_id,
-                    teller_enrollment_id=enrollment.id,
-                    external_account_id=account_data["id"],
-                    name=account_data.get("name", "Unknown Account"),
-                    account_type=mapped_type,
-                    tax_treatment=mapped_tax,
-                    account_source=AccountSource.TELLER,
-                    mask=account_data.get("last_four"),
-                    institution_name=account_data.get("institution", {}).get("name"),
-                    current_balance=Decimal(str(balance_value)),
-                )
-                db.add(account)
-            else:
-                # Update existing account balance
-                # Use ledger balance for accuracy (especially for credit cards/loans),
-                # falling back to current, then available
-                balance = account_data.get("balance", {})
-                balance_value = (
-                    balance.get("ledger") or balance.get("current") or balance.get("available", 0)
-                )
-                account.current_balance = Decimal(str(balance_value))
-                account.updated_at = utc_now()
+            synced_accounts = []
 
-            synced_accounts.append(account)
+            # Use a savepoint so the entire batch is all-or-nothing
+            async with db.begin_nested():
+                for account_data in accounts_data:
+                    # Check if account already exists
+                    result = await db.execute(
+                        select(Account).where(
+                            Account.teller_enrollment_id == enrollment.id,
+                            Account.external_account_id == account_data["id"],
+                        )
+                    )
+                    account = result.scalar_one_or_none()
 
-        await db.commit()
+                    if not account:
+                        # Create new account
+                        # Use ledger balance for accuracy (especially for credit cards/loans),
+                        # falling back to current, then available
+                        balance_data = account_data.get("balance", {})
+                        balance_value = (
+                            balance_data.get("ledger")
+                            or balance_data.get("current")
+                            or balance_data.get("available", 0)
+                        )
+                        mapped_type, mapped_tax = self._map_account_type(
+                            account_data.get("type"), account_data.get("subtype")
+                        )
+                        account = Account(
+                            organization_id=enrollment.organization_id,
+                            user_id=enrollment.user_id,
+                            teller_enrollment_id=enrollment.id,
+                            external_account_id=account_data["id"],
+                            name=account_data.get("name", "Unknown Account"),
+                            account_type=mapped_type,
+                            tax_treatment=mapped_tax,
+                            account_source=AccountSource.TELLER,
+                            mask=account_data.get("last_four"),
+                            institution_name=account_data.get("institution", {}).get("name"),
+                            current_balance=Decimal(str(balance_value)),
+                        )
+                        db.add(account)
+                    else:
+                        # Update existing account balance
+                        # Use ledger balance for accuracy (especially for credit cards/loans),
+                        # falling back to current, then available
+                        balance = account_data.get("balance", {})
+                        balance_value = (
+                            balance.get("ledger")
+                            or balance.get("current")
+                            or balance.get("available", 0)
+                        )
+                        account.current_balance = Decimal(str(balance_value))
+                        account.updated_at = utc_now()
 
-        # Update enrollment sync time
-        enrollment.last_synced_at = utc_now()
-        await db.commit()
+                    synced_accounts.append(account)
 
-        return synced_accounts
+                # Update enrollment sync time within the same savepoint
+                enrollment.last_synced_at = utc_now()
+
+            await db.commit()
+
+            return synced_accounts
+        finally:
+            # Release Redis lock on completion (success or failure)
+            if redis_client and lock_acquired:
+                try:
+                    await redis_client.delete(lock_key)
+                except Exception as e:
+                    logger.warning(f"Failed to release Redis lock {lock_key}: {e}")
 
     async def sync_transactions(
         self, db: AsyncSession, account: Account, days_back: int = 90
     ) -> List[Transaction]:
-        """Sync transactions from Teller."""
+        """Sync transactions from Teller.
+
+        This operation is atomic (all-or-nothing) using a database savepoint
+        and protected by a Redis idempotency lock to prevent concurrent syncs.
+        """
         # Use explicit async query instead of lazy-loaded relationship
         # to avoid MissingGreenlet error in async context
         enrollment_result = await db.execute(
@@ -210,60 +268,94 @@ class TellerService:
         if not enrollment:
             raise ValueError("Account does not have Teller enrollment")
 
-        access_token = enrollment.get_decrypted_access_token()
+        # Acquire Redis idempotency lock
+        lock_key = f"sync:teller:transactions:{enrollment.enrollment_id}:{account.id}"
+        lock_acquired = False
+        if redis_client:
+            try:
+                lock_acquired = await redis_client.set(lock_key, "1", nx=True, ex=_SYNC_LOCK_TTL)
+                if not lock_acquired:
+                    logger.info(
+                        f"Transaction sync already in progress for Teller account "
+                        f"{account.id}, skipping"
+                    )
+                    return []
+            except Exception as e:
+                logger.warning(f"Redis lock acquisition failed, proceeding without lock: {e}")
 
-        # Calculate date range
-        from_date = (utc_now().date() - timedelta(days=days_back)).isoformat()
+        try:
+            access_token = enrollment.get_decrypted_access_token()
 
-        # Get transactions from Teller
-        transactions_data = await self._make_request(
-            "GET",
-            f"/accounts/{account.external_account_id}/transactions",
-            access_token=access_token,
-            params={"from_date": from_date},
-        )
+            # Calculate date range
+            from_date = (utc_now().date() - timedelta(days=days_back)).isoformat()
 
-        synced_transactions = []
-
-        # Pre-fetch existing external IDs for this account to avoid N+1 queries
-        ext_result = await db.execute(
-            select(Transaction.external_transaction_id).where(
-                Transaction.account_id == account.id,
-                Transaction.external_transaction_id.isnot(None),
+            # Get transactions from Teller
+            transactions_data = await self._make_request(
+                "GET",
+                f"/accounts/{account.external_account_id}/transactions",
+                access_token=access_token,
+                params={"from_date": from_date},
             )
-        )
-        existing_ext_ids = {row[0] for row in ext_result.all()}
 
-        for txn_data in transactions_data:
-            # Check if transaction already exists using pre-fetched set
-            if txn_data["id"] not in existing_ext_ids:
-                # Extract category from Teller response (details.category)
-                details = txn_data.get("details", {})
-                teller_category = details.get("category") if isinstance(details, dict) else None
+            synced_transactions = []
 
-                # Extract counterparty/merchant name
-                counterparty = details.get("counterparty", {}) if isinstance(details, dict) else {}
-                merchant = counterparty.get("name") if isinstance(counterparty, dict) else None
-
-                # Create transaction
-                transaction = Transaction(
-                    organization_id=account.organization_id,
-                    account_id=account.id,
-                    external_transaction_id=txn_data["id"],
-                    date=datetime.fromisoformat(txn_data["date"].replace("Z", "+00:00")).date(),
-                    amount=Decimal(str(txn_data["amount"])),
-                    merchant_name=merchant or txn_data.get("description"),
-                    description=txn_data.get("description"),
-                    category_primary=teller_category,  # Teller provides single-level category
-                    category_detailed=None,  # Teller doesn't have hierarchical categories
-                    is_pending=txn_data.get("status") == "pending",
-                    deduplication_hash=self._generate_dedup_hash(account.id, txn_data),
+            # Pre-fetch existing external IDs for this account to avoid N+1 queries
+            ext_result = await db.execute(
+                select(Transaction.external_transaction_id).where(
+                    Transaction.account_id == account.id,
+                    Transaction.external_transaction_id.isnot(None),
                 )
-                db.add(transaction)
-                synced_transactions.append(transaction)
+            )
+            existing_ext_ids = {row[0] for row in ext_result.all()}
 
-        await db.commit()
-        return synced_transactions
+            # Use a savepoint so the entire batch is all-or-nothing
+            async with db.begin_nested():
+                for txn_data in transactions_data:
+                    # Check if transaction already exists using pre-fetched set
+                    if txn_data["id"] not in existing_ext_ids:
+                        # Extract category from Teller response (details.category)
+                        details = txn_data.get("details", {})
+                        teller_category = (
+                            details.get("category") if isinstance(details, dict) else None
+                        )
+
+                        # Extract counterparty/merchant name
+                        counterparty = (
+                            details.get("counterparty", {}) if isinstance(details, dict) else {}
+                        )
+                        merchant = (
+                            counterparty.get("name") if isinstance(counterparty, dict) else None
+                        )
+
+                        # Create transaction
+                        transaction = Transaction(
+                            organization_id=account.organization_id,
+                            account_id=account.id,
+                            external_transaction_id=txn_data["id"],
+                            date=datetime.fromisoformat(
+                                txn_data["date"].replace("Z", "+00:00")
+                            ).date(),
+                            amount=Decimal(str(txn_data["amount"])),
+                            merchant_name=merchant or txn_data.get("description"),
+                            description=txn_data.get("description"),
+                            # Teller provides single-level category
+                            category_primary=teller_category,
+                            category_detailed=None,  # Teller doesn't have hierarchical categories
+                            is_pending=txn_data.get("status") == "pending",
+                            deduplication_hash=self._generate_dedup_hash(account.id, txn_data),
+                        )
+                        db.add(transaction)
+                        synced_transactions.append(transaction)
+
+            await db.commit()
+            return synced_transactions
+        finally:
+            # Release Redis lock on completion (success or failure)
+            if redis_client and lock_acquired:
+                try:
+                    await redis_client.delete(lock_key)
+                except Exception as e:
+                    logger.warning(f"Failed to release Redis lock {lock_key}: {e}")
 
     def _map_account_type(
         self, teller_type: Optional[str], teller_subtype: Optional[str] = None

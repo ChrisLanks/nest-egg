@@ -13,14 +13,14 @@ import math
 import random
 import time
 from decimal import Decimal
-from typing import Optional
 
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account, AccountType, TaxTreatment
+from app.models.account import Account, AccountType
 from app.models.contribution import AccountContribution
 from app.models.retirement import (
+    DistributionType,
     RetirementScenario,
     RetirementSimulationResult,
 )
@@ -35,12 +35,10 @@ from app.services.retirement.withdrawal_strategy_service import (
     AccountBuckets,
     run_withdrawal_comparison,
 )
-from app.utils.account_type_groups import (
-    ALL_RETIREMENT_TYPES,
-    INVESTMENT_ACCOUNT_TYPES,
-    TAX_TREATMENT_DEFAULTS,
-)
 from app.utils.account_tax_treatment import get_tax_treatment
+from app.utils.account_type_groups import (
+    INVESTMENT_ACCOUNT_TYPES,
+)
 from app.utils.datetime_utils import utc_now
 from app.utils.rmd_calculator import calculate_age
 
@@ -51,6 +49,153 @@ def _generate_normal_return(mean: float, std_dev: float) -> float:
     u2 = random.random()
     z = math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
     return mean + z * std_dev
+
+
+def _generate_lognormal_return(mean: float, std_dev: float) -> float:
+    """Generate a log-normally distributed return.
+
+    Converts target arithmetic mean/std_dev (as decimals, e.g. 0.07 for 7%)
+    into log-normal parameters so E[R] = mean and Var[R] matches std_dev.
+
+    Parameters mu and sigma of the underlying normal distribution:
+        sigma^2 = ln(1 + (std_dev / (1 + mean))^2)
+        mu = ln(1 + mean) - 0.5 * sigma^2
+
+    The return is (exp(N(mu, sigma)) - 1) so it's directly comparable to
+    the arithmetic returns used elsewhere.
+    """
+    if std_dev <= 0:
+        return mean
+    ratio = std_dev / (1 + mean)
+    sigma_sq = math.log(1 + ratio * ratio)
+    sigma = math.sqrt(sigma_sq)
+    mu = math.log(1 + mean) - 0.5 * sigma_sq
+
+    # Box-Muller for the underlying normal
+    u1 = random.random() or 1e-10
+    u2 = random.random()
+    z = math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
+
+    return math.exp(mu + z * sigma) - 1
+
+
+def _generate_bootstrap_return(historical_returns: list[float]) -> float:
+    """Random sampling from a list of historical annual returns."""
+    return random.choice(historical_returns)
+
+
+# Annual S&P 500 total returns (including dividends) 1928-2024.
+# Source: NYU Stern / Aswath Damodaran historical returns dataset.
+# Each value is the calendar-year return as a decimal (e.g. 0.1148 = 11.48%).
+HISTORICAL_SP500_RETURNS: list[float] = [
+    # 1928-1939
+    0.4381,
+    -0.0830,
+    -0.2512,
+    -0.4384,
+    -0.0864,
+    0.4998,
+    -0.0119,
+    0.4674,
+    0.3194,
+    -0.3534,
+    0.2928,
+    -0.0110,
+    # 1940-1949
+    -0.1067,
+    -0.1277,
+    0.1917,
+    0.2551,
+    0.1936,
+    0.3572,
+    -0.0843,
+    0.0520,
+    0.0570,
+    0.1830,
+    # 1950-1959
+    0.3081,
+    0.2368,
+    0.1815,
+    -0.0121,
+    0.5256,
+    0.3260,
+    0.0744,
+    -0.1046,
+    0.4372,
+    0.1206,
+    # 1960-1969
+    0.0034,
+    0.2664,
+    -0.0881,
+    0.2261,
+    0.1642,
+    0.1240,
+    -0.0997,
+    0.2380,
+    0.1081,
+    -0.0824,
+    # 1970-1979
+    0.0400,
+    0.1431,
+    0.1898,
+    -0.1466,
+    -0.2647,
+    0.3720,
+    0.2384,
+    -0.0718,
+    0.0656,
+    0.1844,
+    # 1980-1989
+    0.3242,
+    -0.0491,
+    0.2141,
+    0.2251,
+    0.0627,
+    0.3216,
+    0.1847,
+    0.0548,
+    0.1654,
+    0.3148,
+    # 1990-1999
+    -0.0306,
+    0.3023,
+    0.0749,
+    0.0997,
+    0.0133,
+    0.3740,
+    0.2296,
+    0.3336,
+    0.2858,
+    0.2104,
+    # 2000-2009
+    -0.0910,
+    -0.1189,
+    -0.2210,
+    0.2838,
+    0.1074,
+    0.0483,
+    0.1561,
+    0.0548,
+    -0.3700,
+    0.2646,
+    # 2010-2019
+    0.1506,
+    0.0211,
+    0.1600,
+    0.3239,
+    0.1369,
+    0.0138,
+    0.1196,
+    0.2183,
+    -0.0438,
+    0.3149,
+    # 2020-2024
+    0.1840,
+    0.2861,
+    -0.1811,
+    0.2624,
+    0.2502,
+]
 
 
 def _compute_scenario_hash(scenario: RetirementScenario) -> str:
@@ -72,21 +217,24 @@ def _compute_scenario_hash(scenario: RetirementScenario) -> str:
         str(scenario.federal_tax_rate),
         str(scenario.state_tax_rate),
         str(scenario.num_simulations),
+        str(scenario.distribution_type),
         str(scenario.healthcare_pre65_override),
         str(scenario.healthcare_medicare_override),
         str(scenario.healthcare_ltc_override),
     ]
     # Include life events in hash
     for event in sorted(scenario.life_events, key=lambda e: (e.start_age, e.name)):
-        parts.extend([
-            event.name,
-            str(event.category),
-            str(event.start_age),
-            str(event.end_age),
-            str(event.annual_cost),
-            str(event.one_time_cost),
-            str(event.income_change),
-        ])
+        parts.extend(
+            [
+                event.name,
+                str(event.category),
+                str(event.start_age),
+                str(event.end_age),
+                str(event.annual_cost),
+                str(event.one_time_cost),
+                str(event.income_change),
+            ]
+        )
     return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
 
@@ -161,9 +309,21 @@ class RetirementMonteCarloService:
         # Apply user overrides when set, otherwise use computed estimates
         healthcare_costs: dict[int, float] = {}
         retirement_income_estimate = annual_spending  # Approximate for IRMAA
-        pre65_override = float(scenario.healthcare_pre65_override) if scenario.healthcare_pre65_override is not None else None
-        medicare_override = float(scenario.healthcare_medicare_override) if scenario.healthcare_medicare_override is not None else None
-        ltc_override = float(scenario.healthcare_ltc_override) if scenario.healthcare_ltc_override is not None else None
+        pre65_override = (
+            float(scenario.healthcare_pre65_override)
+            if scenario.healthcare_pre65_override is not None
+            else None
+        )
+        medicare_override = (
+            float(scenario.healthcare_medicare_override)
+            if scenario.healthcare_medicare_override is not None
+            else None
+        )
+        ltc_override = (
+            float(scenario.healthcare_ltc_override)
+            if scenario.healthcare_ltc_override is not None
+            else None
+        )
 
         for age in range(current_age, life_expectancy + 1):
             if age >= retirement_age:
@@ -195,6 +355,9 @@ class RetirementMonteCarloService:
             scenario, current_age, life_expectancy
         )
 
+        # Determine return distribution type
+        dist_type = getattr(scenario, "distribution_type", None) or DistributionType.NORMAL
+
         # Run simulations
         all_paths: list[list[float]] = []
         depleted_at_year: list[int] = []
@@ -214,7 +377,12 @@ class RetirementMonteCarloService:
 
                 # Determine return for this year
                 mean_return = post_return if is_retired else pre_return
-                annual_return = _generate_normal_return(mean_return, vol)
+                if dist_type == DistributionType.LOG_NORMAL:
+                    annual_return = _generate_lognormal_return(mean_return, vol)
+                elif dist_type == DistributionType.HISTORICAL_BOOTSTRAP:
+                    annual_return = _generate_bootstrap_return(HISTORICAL_SP500_RETURNS)
+                else:
+                    annual_return = _generate_normal_return(mean_return, vol)
 
                 prev_value = path[year - 1]
 
@@ -241,7 +409,9 @@ class RetirementMonteCarloService:
                     # Spouse SS income
                     spouse_ss_income = 0.0
                     if spouse_ss_start_age and age >= spouse_ss_start_age and spouse_ss_monthly > 0:
-                        spouse_ss_income = spouse_ss_monthly * 12 * ((1 + inflation) ** years_from_now)
+                        spouse_ss_income = (
+                            spouse_ss_monthly * 12 * ((1 + inflation) ** years_from_now)
+                        )
 
                     pension_income = 0.0
                     if pension_monthly > 0:
@@ -260,9 +430,7 @@ class RetirementMonteCarloService:
                         event_cost += cost * ((1 + infl) ** year)
 
                     new_value = (
-                        prev_value * (1 + annual_return)
-                        + total_annual_additions
-                        - event_cost
+                        prev_value * (1 + annual_return) + total_annual_additions - event_cost
                     )
 
                 if new_value <= 0:
@@ -389,12 +557,16 @@ class RetirementMonteCarloService:
             compute_time_ms=compute_time_ms,
             success_rate=Decimal(str(round(success_rate, 2))),
             readiness_score=readiness_score,
-            median_portfolio_at_retirement=Decimal(str(median_at_retirement)) if median_at_retirement else None,
+            median_portfolio_at_retirement=Decimal(str(median_at_retirement))
+            if median_at_retirement
+            else None,
             median_portfolio_at_end=Decimal(str(median_at_end)),
             median_depletion_age=median_depletion_age,
             estimated_pia=Decimal(str(estimated_pia)) if estimated_pia else None,
             projections_json=json.dumps(projections),
-            withdrawal_comparison_json=json.dumps(withdrawal_comparison) if withdrawal_comparison else None,
+            withdrawal_comparison_json=json.dumps(withdrawal_comparison)
+            if withdrawal_comparison
+            else None,
         )
 
         db.add(result)
@@ -420,7 +592,12 @@ class RetirementMonteCarloService:
         """Lightweight simulation for real-time slider exploration. No DB access."""
         total_years = life_expectancy - current_age
         if total_years <= 0:
-            return {"success_rate": 0, "readiness_score": 0, "projections": [], "median_depletion_age": None}
+            return {
+                "success_rate": 0,
+                "readiness_score": 0,
+                "projections": [],
+                "median_depletion_age": None,
+            }
 
         pre_return = pre_retirement_return / 100
         post_return = post_retirement_return / 100
@@ -479,15 +656,17 @@ class RetirementMonteCarloService:
             depleted_count = sum(1 for d in depleted_at_year if d <= year)
             depletion_pct = (depleted_count / num_sims) * 100
 
-            projections.append({
-                "age": current_age + year,
-                "p10": round(year_values[p10_idx], 2),
-                "p25": round(year_values[p25_idx], 2),
-                "p50": round(year_values[p50_idx], 2),
-                "p75": round(year_values[p75_idx], 2),
-                "p90": round(year_values[p90_idx], 2),
-                "depletion_pct": round(depletion_pct, 1),
-            })
+            projections.append(
+                {
+                    "age": current_age + year,
+                    "p10": round(year_values[p10_idx], 2),
+                    "p25": round(year_values[p25_idx], 2),
+                    "p50": round(year_values[p50_idx], 2),
+                    "p75": round(year_values[p75_idx], 2),
+                    "p90": round(year_values[p90_idx], 2),
+                    "depletion_pct": round(depletion_pct, 1),
+                }
+            )
 
         final_depleted = sum(1 for d in depleted_at_year if d <= total_years)
         success_rate = ((num_sims - final_depleted) / num_sims) * 100
@@ -599,25 +778,33 @@ class RetirementMonteCarloService:
                     taxable_balance += balance
                     bucket = "taxable"
                 if balance > 0:
-                    account_items.append({
-                        "name": account.name or account.account_type.value,
-                        "balance": float(balance),
-                        "bucket": bucket,
-                        "account_type": account.account_type.value,
-                    })
+                    account_items.append(
+                        {
+                            "name": account.name or account.account_type.value,
+                            "balance": float(balance),
+                            "bucket": bucket,
+                            "account_type": account.account_type.value,
+                        }
+                    )
 
             # Cash accounts count too
-            if account.account_type in (AccountType.CHECKING, AccountType.SAVINGS, AccountType.MONEY_MARKET):
+            if account.account_type in (
+                AccountType.CHECKING,
+                AccountType.SAVINGS,
+                AccountType.MONEY_MARKET,
+            ):
                 total_portfolio += balance
                 taxable_balance += balance
                 cash_balance += balance
                 if balance > 0:
-                    account_items.append({
-                        "name": account.name or account.account_type.value,
-                        "balance": float(balance),
-                        "bucket": "cash",
-                        "account_type": account.account_type.value,
-                    })
+                    account_items.append(
+                        {
+                            "name": account.name or account.account_type.value,
+                            "balance": float(balance),
+                            "bucket": "cash",
+                            "account_type": account.account_type.value,
+                        }
+                    )
 
             # Pension income
             if account.monthly_benefit and account.account_type == AccountType.PENSION:
@@ -637,7 +824,9 @@ class RetirementMonteCarloService:
                 try:
                     salary = Decimal(str(account.annual_salary))
                     match_pct = account.employer_match_percent / Decimal(100)
-                    limit_pct = (account.employer_match_limit_percent or Decimal(100)) / Decimal(100)
+                    limit_pct = (account.employer_match_limit_percent or Decimal(100)) / Decimal(
+                        100
+                    )
                     employer_match_annual += salary * min(match_pct, limit_pct) * match_pct
                 except (ValueError, TypeError):
                     pass
@@ -710,9 +899,5 @@ class RetirementMonteCarloService:
             savings_rate = 0.5  # Saving something but no income data
         savings_component = savings_rate * 100
 
-        score = (
-            0.50 * success_component
-            + 0.30 * coverage_component
-            + 0.20 * savings_component
-        )
+        score = 0.50 * success_component + 0.30 * coverage_component + 0.20 * savings_component
         return max(0, min(100, round(score)))
