@@ -464,6 +464,7 @@ export const Layout = () => {
     receivedGrants,
     isLoadingGrants,
     selectedMemberIds,
+    isAllSelected,
   } = useUserView();
   const logoutMutation = useLogout();
   const {
@@ -981,7 +982,7 @@ export const Layout = () => {
           if (isLoadingGrants) {
             return (
               <Box
-                bg="bg.subtle"
+                bg="bg.info"
                 borderBottomWidth={1}
                 borderColor="border.default"
                 px={8}
@@ -997,59 +998,73 @@ export const Layout = () => {
             );
           }
 
+          // Distinct banner color: purple tint for all members, blue for partial
+          const bannerBg = isAllSelected ? "bg.warning" : "bg.info";
+
           return (
             <Box
-              bg="bg.subtle"
+              bg={bannerBg}
               borderBottomWidth={1}
               borderColor="border.default"
               px={8}
               py={2}
             >
-              <HStack spacing={3} flexWrap="wrap">
+              <HStack spacing={3} align="center">
                 <Text
                   fontSize="sm"
                   fontWeight="semibold"
                   color="text.primary"
-                  mr={1}
+                  flexShrink={0}
                 >
                   👥 {sectionLabel} Permissions:
                 </Text>
-                {memberAccess.map(({ memberId, access }) => {
-                  const canWrite = access === "write";
-                  return (
-                    <HStack key={memberId} spacing={1.5}>
-                      <Badge
-                        size="sm"
-                        fontSize="2xs"
-                        px={1.5}
-                        py={0.5}
-                        borderRadius="md"
-                        bg={getUserColor(memberId)}
-                        color="white"
-                        fontWeight="bold"
+                <HStack spacing={0} flexWrap="wrap">
+                  {memberAccess.map(({ memberId, access }, index) => {
+                    const canWrite = access === "write";
+                    return (
+                      <HStack
+                        key={memberId}
+                        spacing={2}
+                        px={3}
+                        py={1}
+                        borderLeftWidth={index > 0 ? 1 : 0}
+                        borderColor="border.default"
                       >
-                        {getUserInitials(memberId)}
-                      </Badge>
-                      <Text
-                        fontSize="xs"
-                        color="text.heading"
-                        fontWeight="medium"
-                      >
-                        {getUserName(memberId)}
-                      </Text>
-                      <Badge
-                        fontSize="2xs"
-                        px={1.5}
-                        py={0.5}
-                        borderRadius="full"
-                        colorScheme={canWrite ? "green" : "blue"}
-                        variant="subtle"
-                      >
-                        {canWrite ? "✏️ Edit" : "👁️ Read"}
-                      </Badge>
-                    </HStack>
-                  );
-                })}
+                        <HStack spacing={1.5}>
+                          <Badge
+                            size="sm"
+                            fontSize="xs"
+                            px={2}
+                            py={1}
+                            borderRadius="md"
+                            bg={getUserColor(memberId)}
+                            color="white"
+                            fontWeight="bold"
+                          >
+                            {getUserInitials(memberId)}
+                          </Badge>
+                          <Text
+                            fontSize="sm"
+                            color="text.heading"
+                            fontWeight="medium"
+                          >
+                            {getUserName(memberId)}
+                          </Text>
+                        </HStack>
+                        <Badge
+                          fontSize="xs"
+                          px={2}
+                          py={0.5}
+                          borderRadius="full"
+                          colorScheme={canWrite ? "green" : "blue"}
+                          variant="subtle"
+                        >
+                          {canWrite ? "✏️ Edit" : "👁️ Read"}
+                        </Badge>
+                      </HStack>
+                    );
+                  })}
+                </HStack>
               </HStack>
             </Box>
           );
