@@ -232,6 +232,7 @@ class SnapshotResponse(BaseModel):
 
     id: UUID
     organization_id: UUID
+    user_id: Optional[UUID] = None
     snapshot_date: datetime
     total_value: Decimal
     total_cost_basis: Optional[Decimal] = None

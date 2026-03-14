@@ -32,6 +32,7 @@ import {
   Legend,
 } from "recharts";
 import api from "../services/api";
+import { useUserView } from "../contexts/UserViewContext";
 
 interface ForecastDataPoint {
   date: string;
@@ -41,6 +42,7 @@ interface ForecastDataPoint {
 }
 
 export const ForecastChart = () => {
+  const { selectedUserId } = useUserView();
   const [timeRange, setTimeRange] = useState<30 | 60 | 90>(90);
 
   const {
@@ -48,13 +50,13 @@ export const ForecastChart = () => {
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ["cash-flow-forecast", timeRange],
+    queryKey: ["cash-flow-forecast", timeRange, selectedUserId],
     queryFn: async () => {
+      const params: Record<string, any> = { days_ahead: timeRange };
+      if (selectedUserId) params.user_id = selectedUserId;
       const response = await api.get<ForecastDataPoint[]>(
         "/dashboard/forecast",
-        {
-          params: { days_ahead: timeRange },
-        },
+        { params },
       );
       return response.data;
     },

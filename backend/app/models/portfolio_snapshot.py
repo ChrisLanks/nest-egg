@@ -3,7 +3,7 @@
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import Column, DateTime, Date, Numeric, UniqueConstraint, JSON
+from sqlalchemy import JSON, Column, Date, DateTime, ForeignKey, Numeric
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
 from app.core.database import Base
@@ -15,13 +15,14 @@ class PortfolioSnapshot(Base):
     Portfolio snapshot model for historical tracking.
 
     Captures the portfolio state at a point in time for performance tracking.
-    One snapshot per organization per day.
+    One snapshot per organization per day per user (NULL user_id = whole household).
     """
 
     __tablename__ = "portfolio_snapshots"
 
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     organization_id = Column(PGUUID(as_uuid=True), nullable=False, index=True)
+    user_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
     snapshot_date = Column(Date, nullable=False)
 
     # Portfolio totals
@@ -52,10 +53,11 @@ class PortfolioSnapshot(Base):
 
     created_at = Column(DateTime, default=utc_now_lambda)
 
-    # Unique constraint: one snapshot per organization per day
-    __table_args__ = (
-        UniqueConstraint("organization_id", "snapshot_date", name="uq_org_snapshot_date"),
-    )
+    # Unique constraints: one snapshot per org/date/user combination.
+    # NULL user_id = household-level snapshot.
+    # Partial unique indexes (uq_org_snapshot_date_user, uq_org_snapshot_date_household)
+    # are managed in the Alembic migration since they require WHERE clauses.
+    __table_args__ = ()
 
     def __repr__(self):
         return (

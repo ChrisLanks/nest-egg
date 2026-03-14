@@ -100,11 +100,12 @@ def capture_org_portfolio_snapshot(organization_id: str):
         async with AsyncSessionLocal() as db:
             today = utc_now().date()
 
-            # Idempotency check
+            # Idempotency check for household snapshot
             existing = await db.execute(
                 select(PortfolioSnapshot).where(
                     PortfolioSnapshot.organization_id == organization_id,
                     PortfolioSnapshot.snapshot_date == today,
+                    PortfolioSnapshot.user_id.is_(None),
                 )
             )
             if existing.scalar_one_or_none():
@@ -115,30 +116,65 @@ def capture_org_portfolio_snapshot(organization_id: str):
                 )
                 return
 
-            # Need a user for auth context used by get_portfolio_summary
-            user_result = await db.execute(
-                select(User).where(User.organization_id == organization_id).limit(1)
+            # Get all active users in the organization
+            users_result = await db.execute(
+                select(User).where(
+                    User.organization_id == organization_id,
+                    User.is_active.is_(True),
+                )
             )
-            user = user_result.scalar_one_or_none()
-            if not user:
+            users = users_result.scalars().all()
+            if not users:
                 logger.warning(
                     "capture_org_portfolio_snapshot: no users for org=%s, skipping",
                     organization_id,
                 )
                 return
 
+            # Use the first user as auth context for household snapshot
+            user = users[0]
+
             # Imported here to avoid circular dependency (holdings → services → tasks)
             from app.api.v1.holdings import get_portfolio_summary
 
+            # 1. Capture household-level snapshot (user_id=None)
             portfolio = await get_portfolio_summary(user_id=None, current_user=user, db=db)
             await snapshot_service.capture_snapshot(
                 db=db, organization_id=organization_id, portfolio=portfolio
             )
             logger.info(
-                "capture_org_portfolio_snapshot: captured snapshot for org=%s total=$%s",
+                "capture_org_portfolio_snapshot: captured household snapshot for org=%s total=$%s",
                 organization_id,
                 portfolio.total_value,
             )
+
+            # 2. Capture per-user snapshots for each household member
+            for member in users:
+                try:
+                    user_portfolio = await get_portfolio_summary(
+                        user_id=member.id, current_user=member, db=db
+                    )
+                    await snapshot_service.capture_snapshot(
+                        db=db,
+                        organization_id=organization_id,
+                        portfolio=user_portfolio,
+                        user_id=member.id,
+                    )
+                    logger.info(
+                        "capture_org_portfolio_snapshot: captured user snapshot "
+                        "for org=%s user=%s total=$%s",
+                        organization_id,
+                        member.id,
+                        user_portfolio.total_value,
+                    )
+                except Exception as e:
+                    logger.error(
+                        "capture_org_portfolio_snapshot: failed to capture user snapshot "
+                        "for org=%s user=%s: %s",
+                        organization_id,
+                        member.id,
+                        e,
+                    )
 
             # Capture net worth snapshot and check milestones
             try:

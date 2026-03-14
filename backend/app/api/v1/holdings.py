@@ -1375,6 +1375,10 @@ async def get_historical_snapshots(
     start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
     limit: Optional[int] = Query(None, ge=1, le=5000, description="Maximum number of snapshots"),
+    user_id: Optional[UUID] = Query(
+        None,
+        description="Filter by user ID. Omit for household-level snapshots.",
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1387,6 +1391,7 @@ async def get_historical_snapshots(
     - start_date: Start date (defaults to 1 year ago)
     - end_date: End date (defaults to today)
     - limit: Maximum number of snapshots to return (max 5000)
+    - user_id: Filter by user. Omit for whole-household snapshots.
     """
     # Default to last year if no start date provided
     if start_date is None:
@@ -1395,12 +1400,21 @@ async def get_historical_snapshots(
     if start_date and end_date:
         validate_date_range(start_date, end_date)
 
+    # If user_id provided, verify they belong to the same household
+    if user_id is not None:
+        await verify_household_member(
+            user_id=user_id,
+            organization_id=current_user.organization_id,
+            db=db,
+        )
+
     snapshots = await snapshot_service.get_snapshots(
         db=db,
         organization_id=current_user.organization_id,
         start_date=start_date,
         end_date=end_date,
         limit=limit,
+        user_id=user_id,
     )
 
     return snapshots

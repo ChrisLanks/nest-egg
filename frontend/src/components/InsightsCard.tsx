@@ -9,9 +9,10 @@ import {
   Center,
   Alert,
   AlertIcon,
-} from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
-import api from '../services/api';
+} from "@chakra-ui/react";
+import { useQuery } from "@tanstack/react-query";
+import api from "../services/api";
+import { useUserView } from "../contexts/UserViewContext";
 
 interface SpendingInsight {
   type: string;
@@ -25,10 +26,19 @@ interface SpendingInsight {
 }
 
 export const InsightsCard = () => {
-  const { data: insights, isLoading, isError } = useQuery({
-    queryKey: ['spending-insights'],
+  const { selectedUserId } = useUserView();
+
+  const {
+    data: insights,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["spending-insights", selectedUserId],
     queryFn: async () => {
-      const response = await api.get<SpendingInsight[]>('/dashboard/insights');
+      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const response = await api.get<SpendingInsight[]>("/dashboard/insights", {
+        params,
+      });
       return response.data;
     },
   });
@@ -73,20 +83,26 @@ export const InsightsCard = () => {
             <HStack
               key={idx}
               p={3}
-              bg={insight.priority === 'high' ? 'bg.error' : insight.priority === 'medium' ? 'bg.warning' : 'bg.info'}
+              bg={
+                insight.priority === "high"
+                  ? "bg.error"
+                  : insight.priority === "medium"
+                    ? "bg.warning"
+                    : "bg.info"
+              }
               borderRadius="md"
               borderLeft="4px solid"
               borderLeftColor={
-                insight.priority === 'high'
-                  ? 'red.500'
-                  : insight.priority === 'medium'
-                  ? 'orange.500'
-                  : 'blue.500'
+                insight.priority === "high"
+                  ? "red.500"
+                  : insight.priority === "medium"
+                    ? "orange.500"
+                    : "blue.500"
               }
               transition="all 0.2s"
               _hover={{
-                transform: 'translateX(2px)',
-                shadow: 'sm',
+                transform: "translateX(2px)",
+                shadow: "sm",
               }}
             >
               <Text fontSize="2xl" flexShrink={0}>

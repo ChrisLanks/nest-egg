@@ -6,19 +6,19 @@ to avoid all organizations updating simultaneously.
 """
 
 import asyncio
-import logging
 import hashlib
+import logging
 from datetime import datetime, time, timedelta
 from typing import Optional
 from uuid import UUID
 
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
 
 from app.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.portfolio_snapshot import PortfolioSnapshot
-from app.models.user import Organization, User, PasswordResetToken, EmailVerificationToken
+from app.models.user import EmailVerificationToken, Organization, PasswordResetToken, User
 from app.services.snapshot_service import snapshot_service
 from app.utils.datetime_utils import utc_now
 
@@ -115,11 +115,12 @@ class SnapshotScheduler:
 
         today = now.date()
 
-        # Check if snapshot already exists for today
+        # Check if household snapshot already exists for today
         existing = await db.execute(
             select(PortfolioSnapshot).where(
                 PortfolioSnapshot.organization_id == organization_id,
                 PortfolioSnapshot.snapshot_date == today,
+                PortfolioSnapshot.user_id.is_(None),
             )
         )
         if existing.scalar_one_or_none():
@@ -188,19 +189,13 @@ class SnapshotScheduler:
         try:
             import redis.asyncio as aioredis
 
-            client = aioredis.from_url(
-                settings.REDIS_URL, encoding="utf-8", decode_responses=True
-            )
+            client = aioredis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
             # TTL of 2 hours; a full snapshot run should finish well within that
-            acquired = await client.set(
-                "scheduler:snapshot:lock", "1", nx=True, ex=7200
-            )
+            acquired = await client.set("scheduler:snapshot:lock", "1", nx=True, ex=7200)
             await client.aclose()
             return bool(acquired)
         except Exception as e:
-            logger.warning(
-                f"Could not acquire snapshot lock via Redis ({e}); running anyway"
-            )
+            logger.warning(f"Could not acquire snapshot lock via Redis ({e}); running anyway")
             return True  # Run without a lock (safe for dev / single-instance)
 
     async def check_and_capture_all(self):
@@ -285,7 +280,8 @@ class SnapshotScheduler:
                 )
                 await db.commit()
                 logger.info(
-                    "token_cleanup: deleted %d expired password-reset and %d email-verification tokens",
+                    "token_cleanup: deleted %d expired password-reset "
+                    "and %d email-verification tokens",
                     r1.rowcount,
                     r2.rowcount,
                 )
@@ -312,7 +308,8 @@ class SnapshotScheduler:
         """No-op: scheduling has moved to Celery Beat (snapshot_tasks.py)."""
         logger.info(
             "SnapshotScheduler.start() called but is a no-op — "
-            "portfolio snapshots are now managed by Celery Beat task 'orchestrate_portfolio_snapshots'"
+            "portfolio snapshots are now managed by Celery Beat "
+            "task 'orchestrate_portfolio_snapshots'"
         )
 
     async def stop(self):

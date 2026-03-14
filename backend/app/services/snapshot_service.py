@@ -7,12 +7,12 @@ Captures daily portfolio snapshots for performance analysis and trend tracking.
 import logging
 from datetime import date
 from decimal import Decimal
-from typing import Optional, List
+from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.schemas.holding import PortfolioSummary
@@ -30,6 +30,7 @@ class SnapshotService:
         organization_id: UUID,
         portfolio: PortfolioSummary,
         snapshot_date: Optional[date] = None,
+        user_id: Optional[UUID] = None,
     ) -> PortfolioSnapshot:
         """
         Capture a portfolio snapshot for the given organization.
@@ -41,6 +42,7 @@ class SnapshotService:
             organization_id: Organization ID
             portfolio: Portfolio summary data to snapshot
             snapshot_date: Date for snapshot (defaults to today)
+            user_id: User ID for per-user snapshot (None = whole household)
 
         Returns:
             Created or updated PortfolioSnapshot
@@ -87,6 +89,7 @@ class SnapshotService:
         values = {
             "organization_id": organization_id,
             "snapshot_date": snapshot_date,
+            "user_id": user_id,
             "total_value": portfolio.total_value,
             "total_cost_basis": portfolio.total_cost_basis,
             "total_gain_loss": portfolio.total_gain_loss,
@@ -120,10 +123,21 @@ class SnapshotService:
             "snapshot_data": snapshot_data,
         }
 
-        # Upsert snapshot (insert or update if exists)
+        # Upsert snapshot (insert or update if exists).
+        # Use the appropriate partial unique index depending on whether this is
+        # a per-user or household snapshot.
         stmt = pg_insert(PortfolioSnapshot).values(**values)
         stmt = stmt.on_conflict_do_update(
-            constraint="uq_org_snapshot_date",
+            index_elements=(
+                ["organization_id", "snapshot_date", "user_id"]
+                if user_id is not None
+                else ["organization_id", "snapshot_date"]
+            ),
+            index_where=(
+                PortfolioSnapshot.user_id.isnot(None)
+                if user_id is not None
+                else PortfolioSnapshot.user_id.is_(None)
+            ),
             set_={
                 "total_value": stmt.excluded.total_value,
                 "total_cost_basis": stmt.excluded.total_cost_basis,
@@ -147,8 +161,10 @@ class SnapshotService:
         await db.commit()
         snapshot = result.scalar_one()
 
+        user_label = f"user={user_id}" if user_id else "household"
         logger.info(
-            f"Captured snapshot for org {organization_id} on {snapshot_date}: ${snapshot.total_value}"
+            f"Captured snapshot for org {organization_id} ({user_label}) "
+            f"on {snapshot_date}: ${snapshot.total_value}"
         )
         return snapshot
 
@@ -159,6 +175,7 @@ class SnapshotService:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
         limit: Optional[int] = None,
+        user_id: Optional[UUID] = None,
     ) -> List[PortfolioSnapshot]:
         """
         Get historical snapshots for an organization.
@@ -169,6 +186,8 @@ class SnapshotService:
             start_date: Start date (inclusive)
             end_date: End date (inclusive, defaults to today)
             limit: Maximum number of snapshots to return
+            user_id: Filter by user ID. None returns household-level snapshots
+                     (where user_id IS NULL). Pass a UUID to get that user's snapshots.
 
         Returns:
             List of PortfolioSnapshot objects ordered by date ascending
@@ -176,6 +195,12 @@ class SnapshotService:
         query = select(PortfolioSnapshot).where(
             PortfolioSnapshot.organization_id == organization_id
         )
+
+        # Filter by user: specific user or household (NULL)
+        if user_id is not None:
+            query = query.where(PortfolioSnapshot.user_id == user_id)
+        else:
+            query = query.where(PortfolioSnapshot.user_id.is_(None))
 
         if start_date:
             query = query.where(PortfolioSnapshot.snapshot_date >= start_date)

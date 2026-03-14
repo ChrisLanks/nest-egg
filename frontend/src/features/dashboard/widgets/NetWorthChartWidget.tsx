@@ -83,6 +83,7 @@ export const NetWorthChartWidget: React.FC = () => {
       timeRange,
       customStartDate,
       customEndDate,
+      selectedUserId,
     ],
     queryFn: async () => {
       const now = new Date();
@@ -139,6 +140,7 @@ export const NetWorthChartWidget: React.FC = () => {
         start_date: startDate.toISOString().split("T")[0],
       };
       if (endDate) params.end_date = endDate.toISOString().split("T")[0];
+      if (selectedUserId) params.user_id = selectedUserId;
 
       const response = await api.get("/holdings/historical", { params });
       return response.data;
