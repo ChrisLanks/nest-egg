@@ -1,12 +1,12 @@
 """Tests for encryption service."""
 
-import pytest
 import base64
 from unittest.mock import patch
 
+import pytest
 from cryptography.fernet import Fernet
 
-from app.services.encryption_service import get_encryption_service, EncryptionService
+from app.services.encryption_service import EncryptionService, get_encryption_service
 
 
 class TestEncryptionService:
@@ -37,9 +37,10 @@ class TestEncryptionService:
 
         # Should have versioned prefix
         import re
-        assert re.match(r"^v\d+:[A-Za-z0-9+/=]+$", encrypted), (
-            f"Expected 'v{{n}}:<base64>' format, got: {encrypted[:40]}"
-        )
+
+        assert re.match(
+            r"^v\d+:[A-Za-z0-9+/=]+$", encrypted
+        ), f"Expected 'v{{n}}:<base64>' format, got: {encrypted[:40]}"
 
         # The ciphertext portion should be valid base64
         ciphertext = encrypted.split(":", 1)[1]
@@ -349,11 +350,15 @@ class TestEncryptionKeyRotation:
 
     def _make_service(self, current_key: str, current_version: int, v1_key=None):
         """Helper: instantiate EncryptionService with controlled settings."""
-        mock_settings = type("S", (), {
-            "MASTER_ENCRYPTION_KEY": current_key,
-            "ENCRYPTION_CURRENT_VERSION": current_version,
-            "ENCRYPTION_KEY_V1": v1_key,
-        })()
+        mock_settings = type(
+            "S",
+            (),
+            {
+                "MASTER_ENCRYPTION_KEY": current_key,
+                "ENCRYPTION_CURRENT_VERSION": current_version,
+                "ENCRYPTION_KEY_V1": v1_key,
+            },
+        )()
         with patch("app.services.encryption_service.settings", mock_settings):
             return EncryptionService()
 
@@ -400,9 +405,7 @@ class TestEncryptionKeyRotation:
         assert encrypted_v1.startswith("v1:")
 
         # Service after rotation: MASTER=new key (version 2), V1=old key
-        post_rotation = self._make_service(
-            new_key, current_version=2, v1_key=old_key
-        )
+        post_rotation = self._make_service(new_key, current_version=2, v1_key=old_key)
 
         # New writes use new key
         new_encrypted = post_rotation.encrypt_token("new_value")

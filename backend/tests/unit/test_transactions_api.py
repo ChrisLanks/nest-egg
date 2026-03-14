@@ -1,28 +1,29 @@
 """Unit tests for transactions API endpoints."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from uuid import uuid4
 from datetime import date, datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
+
+import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.transactions import (
-    get_or_create_transfer_label,
-    encode_cursor,
-    decode_cursor,
-    list_transactions,
-    get_transaction,
-    update_transaction,
     add_label_to_transaction,
-    remove_label_from_transaction,
     create_transaction,
+    decode_cursor,
+    encode_cursor,
+    get_or_create_transfer_label,
+    get_transaction,
+    list_transactions,
+    remove_label_from_transaction,
+    update_transaction,
 )
-from app.models.transaction import Transaction, Label, TransactionLabel, Category
 from app.models.account import Account
+from app.models.transaction import Category, Label, Transaction, TransactionLabel
 from app.models.user import User
-from app.schemas.transaction import TransactionUpdate, ManualTransactionCreate
+from app.schemas.transaction import ManualTransactionCreate, TransactionUpdate
 
 
 @pytest.fixture
@@ -290,9 +291,7 @@ class TestListTransactions:
                 db=mock_db,
             )
 
-            mock_verify.assert_awaited_once_with(
-                mock_db, target_user_id, mock_user.organization_id
-            )
+            mock_verify.assert_awaited_once_with(mock_db, target_user_id, mock_user.organization_id)
 
     @pytest.mark.asyncio
     async def test_user_id_non_member_raises_403(self, mock_user):
@@ -468,7 +467,7 @@ class TestUpdateTransaction:
         with patch("app.api.v1.transactions.input_sanitization_service") as mock_sanitize:
             mock_sanitize.sanitize_html.side_effect = lambda x: x
 
-            result = await update_transaction(
+            await update_transaction(
                 transaction_id=transaction_id,
                 update_data=update_data,
                 current_user=mock_user,
@@ -769,3 +768,730 @@ class TestManualTransactionCreateSchema:
         assert schema.category_id is None
         assert schema.merchant_name is None
         assert schema.description is None
+
+
+@pytest.mark.unit
+class TestListTransactionsAdditionalBranches:
+    """Additional branch coverage for list_transactions."""
+
+    def create_mock_transaction(self):
+        txn = Mock(spec=Transaction)
+        txn.id = uuid4()
+        txn.organization_id = uuid4()
+        txn.account_id = uuid4()
+        txn.external_transaction_id = None
+        txn.date = date(2024, 1, 15)
+        txn.amount = Decimal("-50.00")
+        txn.merchant_name = "Test"
+        txn.description = "Desc"
+        txn.category_primary = "Shopping"
+        txn.category_detailed = None
+        txn.is_pending = False
+        txn.is_transfer = False
+        txn.created_at = datetime(2024, 1, 15, 10, 0, 0)
+        txn.updated_at = datetime(2024, 1, 15, 10, 0, 0)
+        txn.account = Mock(spec=Account)
+        txn.account.name = "Checking"
+        txn.account.mask = "1234"
+        txn.category = None
+        txn.labels = []
+        return txn
+
+    @pytest.mark.asyncio
+    async def test_invalid_end_date(self, mock_user):
+        """Should raise 400 for invalid end_date format."""
+        mock_db = AsyncMock()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await list_transactions(
+                page_size=50,
+                cursor=None,
+                account_id=None,
+                user_id=None,
+                start_date=None,
+                end_date="bad-date",
+                search=None,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "Invalid end_date" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_with_search_filter(self, mock_user):
+        """Should apply search filter with ILIKE pattern."""
+        mock_db = AsyncMock()
+        mock_txn = self.create_mock_transaction()
+
+        mock_scalars = Mock()
+        mock_scalars.all = Mock(return_value=[mock_txn])
+        mock_unique = Mock()
+        mock_unique.scalars = Mock(return_value=mock_scalars)
+        mock_execute_result = Mock()
+        mock_execute_result.unique = Mock(return_value=mock_unique)
+        mock_count_result = Mock()
+        mock_count_result.scalar = Mock(return_value=1)
+        mock_db.execute = AsyncMock(side_effect=[mock_execute_result, mock_count_result])
+
+        result = await list_transactions(
+            page_size=50,
+            cursor=None,
+            account_id=None,
+            user_id=None,
+            start_date=None,
+            end_date=None,
+            search="coffee",
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        assert len(result.transactions) == 1
+
+    @pytest.mark.asyncio
+    async def test_with_cursor(self, mock_user):
+        """Should apply cursor pagination (skips count query)."""
+        mock_db = AsyncMock()
+        mock_txn = self.create_mock_transaction()
+
+        # Create a valid cursor
+        cursor = encode_cursor(date(2024, 2, 1), datetime(2024, 2, 1, 12, 0, 0), uuid4())
+
+        mock_scalars = Mock()
+        mock_scalars.all = Mock(return_value=[mock_txn])
+        mock_unique = Mock()
+        mock_unique.scalars = Mock(return_value=mock_scalars)
+        mock_execute_result = Mock()
+        mock_execute_result.unique = Mock(return_value=mock_unique)
+        mock_db.execute = AsyncMock(return_value=mock_execute_result)
+
+        result = await list_transactions(
+            page_size=50,
+            cursor=cursor,
+            account_id=None,
+            user_id=None,
+            start_date=None,
+            end_date=None,
+            search=None,
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        # With cursor, total is 0 (count query skipped)
+        assert result.total == 0
+        assert result.has_more is False
+
+    @pytest.mark.asyncio
+    async def test_with_date_range_and_account_filter(self, mock_user):
+        """Should apply all filters together."""
+        mock_db = AsyncMock()
+        mock_txn = self.create_mock_transaction()
+
+        mock_scalars = Mock()
+        mock_scalars.all = Mock(return_value=[mock_txn])
+        mock_unique = Mock()
+        mock_unique.scalars = Mock(return_value=mock_scalars)
+        mock_execute_result = Mock()
+        mock_execute_result.unique = Mock(return_value=mock_unique)
+        mock_count_result = Mock()
+        mock_count_result.scalar = Mock(return_value=1)
+        mock_db.execute = AsyncMock(side_effect=[mock_execute_result, mock_count_result])
+
+        result = await list_transactions(
+            page_size=50,
+            cursor=None,
+            account_id=uuid4(),
+            user_id=None,
+            start_date="2024-01-01",
+            end_date="2024-12-31",
+            search=None,
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        assert len(result.transactions) == 1
+
+
+@pytest.mark.unit
+class TestUpdateTransactionTransferBranch:
+    """Test update_transaction with is_transfer flag handling."""
+
+    @pytest.mark.asyncio
+    async def test_set_is_transfer_true_adds_label(self, mock_user):
+        """Setting is_transfer=True should add Transfer label."""
+        mock_db = AsyncMock()
+        transaction_id = uuid4()
+
+        mock_txn = Mock(spec=Transaction)
+        mock_txn.id = transaction_id
+        mock_txn.organization_id = mock_user.organization_id
+        mock_txn.account_id = uuid4()
+        mock_txn.date = date(2024, 1, 15)
+        mock_txn.amount = Decimal("-50.00")
+        mock_txn.merchant_name = "Transfer"
+        mock_txn.description = None
+        mock_txn.category_primary = None
+        mock_txn.category_detailed = None
+        mock_txn.external_transaction_id = None
+        mock_txn.is_pending = False
+        mock_txn.is_transfer = False
+        mock_txn.created_at = datetime(2024, 1, 15, 10, 0, 0)
+        mock_txn.updated_at = datetime(2024, 1, 15, 10, 0, 0)
+        mock_txn.account = Mock()
+        mock_txn.account.name = "Checking"
+        mock_txn.account.mask = "1234"
+        mock_txn.labels = []
+
+        # First call: get transaction
+        mock_result = Mock()
+        mock_unique_result = Mock()
+        mock_unique_result.scalar_one_or_none.return_value = mock_txn
+        mock_result.unique.return_value = mock_unique_result
+
+        # Transfer label lookup (existing)
+        transfer_label = Mock()
+        transfer_label.id = uuid4()
+        transfer_label_result = Mock()
+        transfer_label_result.scalar_one_or_none.return_value = transfer_label
+
+        # Check existing label
+        existing_label_result = Mock()
+        existing_label_result.scalar_one_or_none.return_value = None  # Not yet applied
+
+        mock_db.execute = AsyncMock(
+            side_effect=[
+                mock_result,
+                transfer_label_result,
+                existing_label_result,
+            ]
+        )
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+
+        update_data = TransactionUpdate(is_transfer=True)
+
+        await update_transaction(
+            transaction_id=transaction_id,
+            update_data=update_data,
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        assert mock_txn.is_transfer is True
+        mock_db.add.assert_called_once()  # Added TransactionLabel
+
+    @pytest.mark.asyncio
+    async def test_set_is_transfer_false_removes_label(self, mock_user):
+        """Setting is_transfer=False should remove Transfer label."""
+        mock_db = AsyncMock()
+        transaction_id = uuid4()
+
+        mock_txn = Mock(spec=Transaction)
+        mock_txn.id = transaction_id
+        mock_txn.organization_id = mock_user.organization_id
+        mock_txn.account_id = uuid4()
+        mock_txn.date = date(2024, 1, 15)
+        mock_txn.amount = Decimal("-50.00")
+        mock_txn.merchant_name = "Transfer"
+        mock_txn.description = None
+        mock_txn.category_primary = None
+        mock_txn.category_detailed = None
+        mock_txn.external_transaction_id = None
+        mock_txn.is_pending = False
+        mock_txn.is_transfer = True
+        mock_txn.created_at = datetime(2024, 1, 15, 10, 0, 0)
+        mock_txn.updated_at = datetime(2024, 1, 15, 10, 0, 0)
+        mock_txn.account = Mock()
+        mock_txn.account.name = "Checking"
+        mock_txn.account.mask = "1234"
+        mock_txn.labels = []
+
+        mock_result = Mock()
+        mock_unique_result = Mock()
+        mock_unique_result.scalar_one_or_none.return_value = mock_txn
+        mock_result.unique.return_value = mock_unique_result
+
+        transfer_label = Mock()
+        transfer_label.id = uuid4()
+        transfer_label_result = Mock()
+        transfer_label_result.scalar_one_or_none.return_value = transfer_label
+
+        # Existing label to remove
+        existing_txn_label = Mock(spec=TransactionLabel)
+        existing_label_result = Mock()
+        existing_label_result.scalar_one_or_none.return_value = existing_txn_label
+
+        mock_db.execute = AsyncMock(
+            side_effect=[
+                mock_result,
+                transfer_label_result,
+                existing_label_result,
+            ]
+        )
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+        mock_db.delete = AsyncMock()
+
+        update_data = TransactionUpdate(is_transfer=False)
+
+        await update_transaction(
+            transaction_id=transaction_id,
+            update_data=update_data,
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        assert mock_txn.is_transfer is False
+        mock_db.delete.assert_awaited_once_with(existing_txn_label)
+
+
+@pytest.mark.unit
+class TestGetMerchantNames:
+    """Test get_merchant_names endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_get_merchants_success(self, mock_user):
+        from app.api.v1.transactions import get_merchant_names
+
+        mock_db = AsyncMock()
+        mock_result = Mock()
+        mock_result.all.return_value = [("Starbucks",), ("Amazon",)]
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        result = await get_merchant_names(current_user=mock_user, db=mock_db)
+
+        assert result["merchants"] == ["Starbucks", "Amazon"]
+
+    @pytest.mark.asyncio
+    async def test_get_merchants_empty(self, mock_user):
+        from app.api.v1.transactions import get_merchant_names
+
+        mock_db = AsyncMock()
+        mock_result = Mock()
+        mock_result.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        result = await get_merchant_names(current_user=mock_user, db=mock_db)
+
+        assert result["merchants"] == []
+
+
+@pytest.mark.unit
+class TestAddLabelAlreadyApplied:
+    """Test that add_label returns message when label already applied."""
+
+    @pytest.mark.asyncio
+    async def test_label_already_applied(self, mock_user):
+        mock_db = AsyncMock()
+        transaction_id = uuid4()
+        label_id = uuid4()
+
+        mock_txn = Mock(spec=Transaction)
+        mock_txn.id = transaction_id
+        mock_txn.organization_id = mock_user.organization_id
+
+        mock_label = Mock(spec=Label)
+        mock_label.id = label_id
+        mock_label.organization_id = mock_user.organization_id
+
+        mock_txn_result = Mock()
+        mock_txn_result.scalar_one_or_none.return_value = mock_txn
+
+        mock_label_result = Mock()
+        mock_label_result.scalar_one_or_none.return_value = mock_label
+
+        # Label already applied
+        existing = Mock(spec=TransactionLabel)
+        mock_existing_result = Mock()
+        mock_existing_result.scalar_one_or_none.return_value = existing
+
+        mock_db.execute = AsyncMock(
+            side_effect=[mock_txn_result, mock_label_result, mock_existing_result]
+        )
+
+        result = await add_label_to_transaction(
+            transaction_id=transaction_id,
+            label_id=label_id,
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        assert "already" in result["message"].lower()
+        mock_db.add.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_add_label_label_not_found(self, mock_user):
+        mock_db = AsyncMock()
+        transaction_id = uuid4()
+        label_id = uuid4()
+
+        mock_txn = Mock(spec=Transaction)
+        mock_txn.id = transaction_id
+        mock_txn.organization_id = mock_user.organization_id
+
+        mock_txn_result = Mock()
+        mock_txn_result.scalar_one_or_none.return_value = mock_txn
+
+        mock_label_result = Mock()
+        mock_label_result.scalar_one_or_none.return_value = None  # Label not found
+
+        mock_db.execute = AsyncMock(side_effect=[mock_txn_result, mock_label_result])
+
+        with pytest.raises(HTTPException) as exc_info:
+            await add_label_to_transaction(
+                transaction_id=transaction_id,
+                label_id=label_id,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+        assert exc_info.value.status_code == 404
+        assert "Label not found" in exc_info.value.detail
+
+
+@pytest.mark.unit
+class TestRemoveLabelNotPresent:
+    """Test removing a label that is not present on the transaction."""
+
+    @pytest.mark.asyncio
+    async def test_remove_label_not_present(self, mock_user):
+        """Should not call delete when label not present."""
+        mock_db = AsyncMock()
+        transaction_id = uuid4()
+        label_id = uuid4()
+
+        mock_txn = Mock(spec=Transaction)
+        mock_txn.id = transaction_id
+        mock_txn.organization_id = mock_user.organization_id
+
+        mock_txn_result = Mock()
+        mock_txn_result.scalar_one_or_none.return_value = mock_txn
+
+        mock_label_result = Mock()
+        mock_label_result.scalar_one_or_none.return_value = None  # Not present
+
+        mock_db.execute = AsyncMock(side_effect=[mock_txn_result, mock_label_result])
+        mock_db.delete = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        await remove_label_from_transaction(
+            transaction_id=transaction_id,
+            label_id=label_id,
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        mock_db.delete.assert_not_called()
+        mock_db.commit.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Coverage: get_transaction with category (line 404)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGetTransactionWithCategory:
+    """Cover category_summary branch in get_transaction."""
+
+    @pytest.mark.asyncio
+    async def test_get_transaction_with_category(self, mock_user):
+        """Should return transaction with category summary."""
+        mock_db = AsyncMock()
+        transaction_id = uuid4()
+
+        mock_parent = Mock(spec=Category)
+        mock_parent.name = "Food & Dining"
+
+        mock_cat = Mock(spec=Category)
+        mock_cat.id = uuid4()
+        mock_cat.name = "Coffee Shops"
+        mock_cat.color = "#FF6600"
+        mock_cat.parent_category_id = uuid4()
+        mock_cat.parent = mock_parent
+
+        mock_txn = Mock(spec=Transaction)
+        mock_txn.id = transaction_id
+        mock_txn.organization_id = mock_user.organization_id
+        mock_txn.account_id = uuid4()
+        mock_txn.external_transaction_id = None
+        mock_txn.date = date(2024, 1, 15)
+        mock_txn.amount = Decimal("-5.00")
+        mock_txn.merchant_name = "Starbucks"
+        mock_txn.description = "Coffee"
+        mock_txn.category_primary = "Food"
+        mock_txn.category_detailed = "Coffee"
+        mock_txn.is_pending = False
+        mock_txn.is_transfer = False
+        mock_txn.created_at = datetime(2024, 1, 15, 10, 0, 0)
+        mock_txn.updated_at = datetime(2024, 1, 15, 10, 0, 0)
+        mock_txn.account = Mock()
+        mock_txn.account.name = "Checking"
+        mock_txn.account.mask = "1234"
+        mock_txn.category = mock_cat
+        mock_txn.labels = []
+
+        mock_result = Mock()
+        mock_unique_result = Mock()
+        mock_unique_result.scalar_one_or_none.return_value = mock_txn
+        mock_result.unique.return_value = mock_unique_result
+        mock_db.execute.return_value = mock_result
+
+        result = await get_transaction(
+            transaction_id=transaction_id,
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        assert result.category is not None
+        assert result.category.name == "Coffee Shops"
+        assert result.category.parent_name == "Food & Dining"
+
+
+# ---------------------------------------------------------------------------
+# Coverage: update_transaction with category_primary (line 462)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestUpdateTransactionCategoryPrimary:
+    """Cover category_primary update branch."""
+
+    @pytest.mark.asyncio
+    async def test_update_category_primary(self, mock_user):
+        """Should update category_primary field."""
+        mock_db = AsyncMock()
+        transaction_id = uuid4()
+
+        mock_txn = Mock(spec=Transaction)
+        mock_txn.id = transaction_id
+        mock_txn.organization_id = mock_user.organization_id
+        mock_txn.account_id = uuid4()
+        mock_txn.date = date(2024, 1, 15)
+        mock_txn.amount = Decimal("-50.00")
+        mock_txn.merchant_name = "Store"
+        mock_txn.description = None
+        mock_txn.category_primary = "Shopping"
+        mock_txn.category_detailed = None
+        mock_txn.external_transaction_id = None
+        mock_txn.is_pending = False
+        mock_txn.is_transfer = False
+        mock_txn.created_at = datetime(2024, 1, 15, 10, 0, 0)
+        mock_txn.updated_at = datetime(2024, 1, 15, 10, 0, 0)
+        mock_txn.account = Mock()
+        mock_txn.account.name = "Checking"
+        mock_txn.account.mask = "1234"
+        mock_txn.labels = []
+
+        mock_result = Mock()
+        mock_unique_result = Mock()
+        mock_unique_result.scalar_one_or_none.return_value = mock_txn
+        mock_result.unique.return_value = mock_unique_result
+        mock_db.execute.return_value = mock_result
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+
+        update_data = TransactionUpdate(category_primary="Groceries")
+
+        await update_transaction(
+            transaction_id=transaction_id,
+            update_data=update_data,
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        assert mock_txn.category_primary == "Groceries"
+
+
+# ---------------------------------------------------------------------------
+# Coverage: export_transactions_csv (lines 622-741)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestExportTransactionsCSV:
+    """Cover export_transactions_csv endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_export_csv_basic(self, mock_user):
+        """Should export transactions as CSV with proper headers."""
+        from app.api.v1.transactions import export_transactions_csv
+
+        mock_db = AsyncMock()
+
+        mock_account = Mock()
+        mock_account.name = "Checking"
+        mock_account.mask = "1234"
+
+        mock_cat = Mock()
+        mock_cat.name = "Food"
+
+        mock_label = Mock()
+        mock_label.label = Mock()
+        mock_label.label.name = "Essential"
+
+        mock_txn = Mock(spec=Transaction)
+        mock_txn.id = uuid4()
+        mock_txn.date = date(2024, 3, 15)
+        mock_txn.amount = Decimal("-25.50")
+        mock_txn.merchant_name = "Starbucks"
+        mock_txn.description = "Morning coffee"
+        mock_txn.category = mock_cat
+        mock_txn.category_primary = "Food"
+        mock_txn.labels = [mock_label]
+        mock_txn.account = mock_account
+        mock_txn.is_pending = False
+        mock_txn.is_transfer = False
+
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = [mock_txn]
+        mock_unique = Mock()
+        mock_unique.scalars.return_value = mock_scalars
+        mock_execute_result = Mock()
+        mock_execute_result.unique.return_value = mock_unique
+
+        # Second batch returns empty
+        mock_scalars_empty = Mock()
+        mock_scalars_empty.all.return_value = []
+        mock_unique_empty = Mock()
+        mock_unique_empty.scalars.return_value = mock_scalars_empty
+        mock_execute_empty = Mock()
+        mock_execute_empty.unique.return_value = mock_unique_empty
+
+        mock_db.execute = AsyncMock(side_effect=[mock_execute_result, mock_execute_empty])
+
+        result = await export_transactions_csv(
+            start_date="2024-01-01",
+            end_date="2024-12-31",
+            account_id=None,
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        assert result.media_type == "text/csv"
+        # Read the CSV content
+        csv_content = ""
+        async for chunk in result.body_iterator:
+            csv_content += chunk
+        assert "Date" in csv_content
+        assert "Starbucks" in csv_content
+        assert "Essential" in csv_content
+
+    @pytest.mark.asyncio
+    async def test_export_csv_filename_variants(self, mock_user):
+        """Should generate correct filenames based on date filters."""
+        from app.api.v1.transactions import export_transactions_csv
+
+        mock_db = AsyncMock()
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = []
+        mock_unique = Mock()
+        mock_unique.scalars.return_value = mock_scalars
+        mock_result = Mock()
+        mock_result.unique.return_value = mock_unique
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        # Only start_date
+        result = await export_transactions_csv(
+            start_date="2024-01-01",
+            end_date=None,
+            account_id=None,
+            current_user=mock_user,
+            db=mock_db,
+        )
+        assert "from_2024-01-01" in result.headers["content-disposition"]
+
+        # Only end_date
+        result = await export_transactions_csv(
+            start_date=None,
+            end_date="2024-12-31",
+            account_id=None,
+            current_user=mock_user,
+            db=mock_db,
+        )
+        assert "until_2024-12-31" in result.headers["content-disposition"]
+
+        # No dates
+        result = await export_transactions_csv(
+            start_date=None,
+            end_date=None,
+            account_id=None,
+            current_user=mock_user,
+            db=mock_db,
+        )
+        assert "transactions.csv" in result.headers["content-disposition"]
+
+    @pytest.mark.asyncio
+    async def test_export_csv_with_account_filter(self, mock_user):
+        """Should apply account_id filter."""
+        from app.api.v1.transactions import export_transactions_csv
+
+        mock_db = AsyncMock()
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = []
+        mock_unique = Mock()
+        mock_unique.scalars.return_value = mock_scalars
+        mock_result = Mock()
+        mock_result.unique.return_value = mock_unique
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        account_id = uuid4()
+        result = await export_transactions_csv(
+            start_date=None,
+            end_date=None,
+            account_id=account_id,
+            current_user=mock_user,
+            db=mock_db,
+        )
+        assert result.media_type == "text/csv"
+
+    @pytest.mark.asyncio
+    async def test_export_csv_no_category_uses_category_primary(self, mock_user):
+        """When txn.category is None, should use category_primary."""
+        from app.api.v1.transactions import export_transactions_csv
+
+        mock_db = AsyncMock()
+
+        mock_txn = Mock(spec=Transaction)
+        mock_txn.id = uuid4()
+        mock_txn.date = date(2024, 3, 15)
+        mock_txn.amount = Decimal("-10.00")
+        mock_txn.merchant_name = "Store"
+        mock_txn.description = None
+        mock_txn.category = None
+        mock_txn.category_primary = "Shopping"
+        mock_txn.labels = []
+        mock_txn.account = Mock()
+        mock_txn.account.name = "Card"
+        mock_txn.account.mask = None
+        mock_txn.is_pending = True
+        mock_txn.is_transfer = True
+
+        mock_scalars = Mock()
+        mock_scalars.all.return_value = [mock_txn]
+        mock_unique = Mock()
+        mock_unique.scalars.return_value = mock_scalars
+        mock_execute_result = Mock()
+        mock_execute_result.unique.return_value = mock_unique
+
+        mock_scalars_empty = Mock()
+        mock_scalars_empty.all.return_value = []
+        mock_unique_empty = Mock()
+        mock_unique_empty.scalars.return_value = mock_scalars_empty
+        mock_execute_empty = Mock()
+        mock_execute_empty.unique.return_value = mock_unique_empty
+
+        mock_db.execute = AsyncMock(side_effect=[mock_execute_result, mock_execute_empty])
+
+        result = await export_transactions_csv(
+            start_date=None,
+            end_date=None,
+            account_id=None,
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        csv_content = ""
+        async for chunk in result.body_iterator:
+            csv_content += chunk
+        assert "Shopping" in csv_content

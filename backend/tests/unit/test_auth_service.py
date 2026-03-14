@@ -1,13 +1,14 @@
 """Unit tests for authentication service."""
 
-import pytest
 from datetime import timedelta
 
+import pytest
+
 from app.core.security import (
-    hash_password,
-    verify_password,
     create_access_token,
     create_refresh_token,
+    hash_password,
+    verify_password,
 )
 
 
@@ -77,8 +78,9 @@ class TestAuthService:
 
     def test_verify_token_invalid(self):
         """Test token verification with invalid token."""
-        from app.core.security import decode_token
         from jwt.exceptions import InvalidTokenError as JWTError
+
+        from app.core.security import decode_token
 
         invalid_token = "invalid.token.here"
 
@@ -90,12 +92,14 @@ class TestAuthService:
 
     def test_verify_token_expired(self):
         """Test token verification with expired token."""
-        from app.core.security import decode_token
         from jwt.exceptions import InvalidTokenError as JWTError
+
+        from app.core.security import decode_token
 
         user_id = "test-user-id"
         token = create_access_token(
-            data={"sub": user_id}, expires_delta=timedelta(seconds=-1)  # Already expired
+            data={"sub": user_id},
+            expires_delta=timedelta(seconds=-1),  # Already expired
         )
 
         try:

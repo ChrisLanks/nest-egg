@@ -1,10 +1,10 @@
 """Tests for MX Platform API service."""
 
-import pytest
-from datetime import datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
+
+import pytest
 
 from app.models.account import Account, AccountSource, AccountType, MxMember, TaxTreatment
 
@@ -60,9 +60,7 @@ class TestMxServiceCreateUser:
     async def test_create_user(self, mx_service):
         """Should create an MX user and return the GUID."""
         user_id = uuid4()
-        mx_service._make_request = AsyncMock(
-            return_value={"user": {"guid": "USR-abc123"}}
-        )
+        mx_service._make_request = AsyncMock(return_value={"user": {"guid": "USR-abc123"}})
 
         result = await mx_service.create_user(user_id)
 
@@ -412,11 +410,17 @@ class TestMxServiceAccountTypeMapping:
         assert mx_service._map_account_type("STUDENT_LOAN") == (AccountType.STUDENT_LOAN, None)
 
     def test_investment_type(self, mx_service):
-        assert mx_service._map_account_type("INVESTMENT") == (AccountType.BROKERAGE, TaxTreatment.TAXABLE)
+        assert mx_service._map_account_type("INVESTMENT") == (
+            AccountType.BROKERAGE,
+            TaxTreatment.TAXABLE,
+        )
 
     def test_retirement_defaults_to_pre_tax(self, mx_service):
         """MX returns generic RETIREMENT — we default to PRE_TAX (traditional)."""
-        assert mx_service._map_account_type("RETIREMENT") == (AccountType.RETIREMENT_401K, TaxTreatment.PRE_TAX)
+        assert mx_service._map_account_type("RETIREMENT") == (
+            AccountType.RETIREMENT_401K,
+            TaxTreatment.PRE_TAX,
+        )
 
     def test_property_type(self, mx_service):
         assert mx_service._map_account_type("PROPERTY") == (AccountType.PROPERTY, None)
@@ -448,7 +452,7 @@ class TestMxServiceMakeRequest:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            result = await mx_service._make_request("GET", "/users")
+            await mx_service._make_request("GET", "/users")
 
             call_kwargs = mock_client.request.call_args
             assert call_kwargs.kwargs["auth"] == ("test-client", "test-key")
@@ -531,9 +535,7 @@ class TestMxServiceGetOrCreateUser:
         db_session.add(user)
         await db_session.flush()
 
-        mx_service._make_request = AsyncMock(
-            return_value={"user": {"guid": "USR-new123"}}
-        )
+        mx_service._make_request = AsyncMock(return_value={"user": {"guid": "USR-new123"}})
 
         result = await mx_service.get_or_create_user(db_session, user.id)
 

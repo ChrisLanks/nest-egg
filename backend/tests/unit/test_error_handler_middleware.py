@@ -1,7 +1,8 @@
 """Unit tests for error handler middleware."""
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
 from fastapi import Request, Response
 
 from app.middleware.error_handler import ErrorHandlerMiddleware
@@ -32,6 +33,7 @@ class TestErrorHandlerMiddleware:
     @pytest.fixture
     def mock_call_next_success(self):
         """Create mock call_next that succeeds."""
+
         async def call_next(request):
             response = Mock(spec=Response)
             response.status_code = 200
@@ -42,13 +44,16 @@ class TestErrorHandlerMiddleware:
     @pytest.fixture
     def mock_call_next_error(self):
         """Create mock call_next that raises error."""
+
         async def call_next(request):
             raise ValueError("Test error")
 
         return call_next
 
     @pytest.mark.asyncio
-    async def test_passes_through_successful_requests(self, middleware, mock_request, mock_call_next_success):
+    async def test_passes_through_successful_requests(
+        self, middleware, mock_request, mock_call_next_success
+    ):
         """Should pass through successful requests unchanged."""
         response = await middleware.dispatch(mock_request, mock_call_next_success)
         assert response.status_code == 200
@@ -78,7 +83,9 @@ class TestErrorHandlerMiddleware:
             assert "url" in context
 
     @pytest.mark.asyncio
-    async def test_extracts_user_id_if_available(self, middleware, mock_request, mock_call_next_error):
+    async def test_extracts_user_id_if_available(
+        self, middleware, mock_request, mock_call_next_error
+    ):
         """Should extract user ID from request state if available."""
         mock_user = Mock()
         mock_user.id = "test-user-123"
@@ -91,17 +98,21 @@ class TestErrorHandlerMiddleware:
             assert user_id == "test-user-123"
 
     @pytest.mark.asyncio
-    async def test_handles_missing_user_gracefully(self, middleware, mock_request, mock_call_next_error):
+    async def test_handles_missing_user_gracefully(
+        self, middleware, mock_request, mock_call_next_error
+    ):
         """Should handle requests without user gracefully."""
         delattr(mock_request.state, "user")
 
-        with patch("app.middleware.error_handler.error_logging_service") as mock_logging:
+        with patch("app.middleware.error_handler.error_logging_service"):
             response = await middleware.dispatch(mock_request, mock_call_next_error)
             assert response.status_code == 500
 
     @pytest.mark.asyncio
     @patch("app.middleware.error_handler.settings")
-    async def test_shows_detailed_error_in_debug_mode(self, mock_settings, middleware, mock_request, mock_call_next_error):
+    async def test_shows_detailed_error_in_debug_mode(
+        self, mock_settings, middleware, mock_request, mock_call_next_error
+    ):
         """Should show detailed error in DEBUG mode."""
         mock_settings.DEBUG = True
 
@@ -112,7 +123,9 @@ class TestErrorHandlerMiddleware:
 
     @pytest.mark.asyncio
     @patch("app.middleware.error_handler.settings")
-    async def test_hides_error_details_in_production(self, mock_settings, middleware, mock_request, mock_call_next_error):
+    async def test_hides_error_details_in_production(
+        self, mock_settings, middleware, mock_request, mock_call_next_error
+    ):
         """Should hide error details in production."""
         mock_settings.DEBUG = False
 
@@ -123,7 +136,9 @@ class TestErrorHandlerMiddleware:
         assert "Test error" not in body  # Should not leak implementation details
 
     @pytest.mark.asyncio
-    async def test_handles_error_extracting_user(self, middleware, mock_request, mock_call_next_error):
+    async def test_handles_error_extracting_user(
+        self, middleware, mock_request, mock_call_next_error
+    ):
         """Should handle errors when extracting user ID."""
         # Make user.id raise an exception
         mock_user = Mock()
@@ -135,7 +150,9 @@ class TestErrorHandlerMiddleware:
             assert response.status_code == 500
 
     @pytest.mark.asyncio
-    async def test_includes_client_host_in_context(self, middleware, mock_request, mock_call_next_error):
+    async def test_includes_client_host_in_context(
+        self, middleware, mock_request, mock_call_next_error
+    ):
         """Should include client host in error context."""
         with patch("app.middleware.error_handler.error_logging_service") as mock_logging:
             await middleware.dispatch(mock_request, mock_call_next_error)

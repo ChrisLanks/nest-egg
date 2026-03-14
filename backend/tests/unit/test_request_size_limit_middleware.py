@@ -1,7 +1,8 @@
 """Unit tests for request size limit middleware."""
 
+from unittest.mock import Mock
+
 import pytest
-from unittest.mock import Mock, AsyncMock
 from fastapi import Request
 from starlette.datastructures import Headers
 
@@ -27,6 +28,7 @@ class TestRequestSizeLimitMiddleware:
     @pytest.fixture
     def mock_call_next(self):
         """Create mock call_next."""
+
         async def call_next(request):
             response = Mock()
             response.status_code = 200

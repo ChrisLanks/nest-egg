@@ -4,33 +4,32 @@ Tests use real DB (via db_session fixture) to verify cascade-delete-orphan
 behavior — mocks wouldn't catch the ORM orphan deletion issue.
 """
 
-import pytest
-import pytest_asyncio
-from datetime import date, datetime, timezone
+from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import select, func, update
+import pytest
+import pytest_asyncio
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import (
     Account,
     AccountSource,
     AccountType,
+    MxMember,
     PlaidItem,
     TellerEnrollment,
-    MxMember,
 )
-from app.models.transaction import Transaction
+from app.models.account_migration import MigrationStatus
+from app.models.contribution import AccountContribution, ContributionFrequency, ContributionType
 from app.models.holding import Holding
-from app.models.contribution import AccountContribution, ContributionType, ContributionFrequency
-from app.models.account_migration import AccountMigrationLog, MigrationStatus
-from app.models.user import User, Organization
+from app.models.transaction import Transaction
+from app.models.user import Organization, User
 from app.services.account_migration_service import (
     AccountMigrationService,
     MigrationError,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -101,9 +100,7 @@ async def plaid_item(db: AsyncSession, org: Organization, user: User) -> PlaidIt
 
 
 @pytest_asyncio.fixture
-async def teller_enrollment(
-    db: AsyncSession, org: Organization, user: User
-) -> TellerEnrollment:
+async def teller_enrollment(db: AsyncSession, org: Organization, user: User) -> TellerEnrollment:
     enrollment = TellerEnrollment(
         id=uuid4(),
         organization_id=org.id,
@@ -217,9 +214,7 @@ async def mx_account(
 
 
 @pytest_asyncio.fixture
-async def manual_account(
-    db: AsyncSession, org: Organization, user: User
-) -> Account:
+async def manual_account(db: AsyncSession, org: Organization, user: User) -> Account:
     """Create a manual brokerage account with holdings."""
     account = Account(
         id=uuid4(),
@@ -294,34 +289,39 @@ async def _add_contributions(db: AsyncSession, account: Account, count: int = 1)
 
 
 async def _count_transactions(db: AsyncSession, account_id) -> int:
-    return await db.scalar(
-        select(func.count())
-        .select_from(Transaction)
-        .where(Transaction.account_id == account_id)
-    ) or 0
+    return (
+        await db.scalar(
+            select(func.count())
+            .select_from(Transaction)
+            .where(Transaction.account_id == account_id)
+        )
+        or 0
+    )
 
 
 async def _count_holdings(db: AsyncSession, account_id) -> int:
-    return await db.scalar(
-        select(func.count())
-        .select_from(Holding)
-        .where(Holding.account_id == account_id)
-    ) or 0
+    return (
+        await db.scalar(
+            select(func.count()).select_from(Holding).where(Holding.account_id == account_id)
+        )
+        or 0
+    )
 
 
 async def _count_contributions(db: AsyncSession, account_id) -> int:
-    return await db.scalar(
-        select(func.count())
-        .select_from(AccountContribution)
-        .where(AccountContribution.account_id == account_id)
-    ) or 0
+    return (
+        await db.scalar(
+            select(func.count())
+            .select_from(AccountContribution)
+            .where(AccountContribution.account_id == account_id)
+        )
+        or 0
+    )
 
 
 async def _account_exists(db: AsyncSession, account_id) -> bool:
     result = await db.scalar(
-        select(func.count())
-        .select_from(Account)
-        .where(Account.id == account_id)
+        select(func.count()).select_from(Account).where(Account.id == account_id)
     )
     return (result or 0) > 0
 
@@ -335,9 +335,7 @@ class TestMigrationValidation:
     """Tests for migration validation rules."""
 
     @pytest.mark.asyncio
-    async def test_migrate_same_provider_rejected(
-        self, db, user, plaid_account, migration_service
-    ):
+    async def test_migrate_same_provider_rejected(self, db, user, plaid_account, migration_service):
         """Cannot migrate to the same provider."""
         with pytest.raises(MigrationError, match="already on plaid"):
             await migration_service.migrate_account(
@@ -356,11 +354,7 @@ class TestMigrationValidation:
         """Cannot migrate an inactive account."""
         account_id = plaid_account.id
         # Deactivate account via Core SQL to avoid ORM cascade issues
-        await db.execute(
-            update(Account)
-            .where(Account.id == account_id)
-            .values(is_active=False)
-        )
+        await db.execute(update(Account).where(Account.id == account_id).values(is_active=False))
         await db.refresh(plaid_account)
 
         with pytest.raises(MigrationError, match="inactive account"):
@@ -389,9 +383,7 @@ class TestMigrationValidation:
         self, db, user, plaid_account, teller_enrollment, migration_service
     ):
         """Migrating to a linked provider requires external_account_id."""
-        with pytest.raises(
-            MigrationError, match="target_external_account_id is required"
-        ):
+        with pytest.raises(MigrationError, match="target_external_account_id is required"):
             await migration_service.migrate_account(
                 db=db,
                 account_id=plaid_account.id,
@@ -474,9 +466,7 @@ class TestMigrationValidation:
         assert log.status == MigrationStatus.COMPLETED
 
     @pytest.mark.asyncio
-    async def test_migrate_nonexistent_account_rejected(
-        self, db, user, migration_service
-    ):
+    async def test_migrate_nonexistent_account_rejected(self, db, user, migration_service):
         """Account must exist."""
         with pytest.raises(MigrationError, match="Account not found"):
             await migration_service.migrate_account(
@@ -588,9 +578,7 @@ class TestProviderToManual:
         assert plaid_account.previous_external_account_id == original_ext_id
 
     @pytest.mark.asyncio
-    async def test_teller_to_manual_works(
-        self, db, user, teller_account, migration_service
-    ):
+    async def test_teller_to_manual_works(self, db, user, teller_account, migration_service):
         """Teller→Manual migration works identically to Plaid→Manual."""
         await _add_transactions(db, teller_account, 3)
         await db.commit()
@@ -711,7 +699,6 @@ class TestProviderToProvider:
         self, db, user, plaid_account, teller_enrollment, migration_service
     ):
         """FK should swap from plaid_item_id to teller_enrollment_id."""
-        old_plaid_item_id = plaid_account.plaid_item_id
 
         await migration_service.migrate_account(
             db=db,
@@ -878,9 +865,7 @@ class TestCascadeSafety:
         )
 
         # PlaidItem should still exist
-        result = await db.execute(
-            select(PlaidItem).where(PlaidItem.id == plaid_item_id)
-        )
+        result = await db.execute(select(PlaidItem).where(PlaidItem.id == plaid_item_id))
         item = result.scalar_one_or_none()
         assert item is not None
 
@@ -916,7 +901,6 @@ class TestDedupHash:
         self, db, user, manual_account, plaid_item, migration_service
     ):
         """Hash should change to plaid-style after migration."""
-        old_hash = manual_account.plaid_item_hash
 
         await migration_service.migrate_account(
             db=db,
@@ -932,9 +916,7 @@ class TestDedupHash:
         # Verify it's the expected plaid hash
         from app.services.deduplication_service import DeduplicationService
 
-        expected = DeduplicationService.calculate_plaid_hash(
-            plaid_item.item_id, "plaid_acc_linked"
-        )
+        expected = DeduplicationService.calculate_plaid_hash(plaid_item.item_id, "plaid_acc_linked")
         assert manual_account.plaid_item_hash == expected
 
     @pytest.mark.asyncio
@@ -967,9 +949,7 @@ class TestAuditLog:
     """Tests for migration audit log."""
 
     @pytest.mark.asyncio
-    async def test_migration_creates_log_entry(
-        self, db, user, plaid_account, migration_service
-    ):
+    async def test_migration_creates_log_entry(self, db, user, plaid_account, migration_service):
         """A completed migration should create a log entry."""
         log = await migration_service.migrate_account(
             db=db,
@@ -1011,9 +991,7 @@ class TestAuditLog:
         assert snap["holdings_count"] == 2
 
     @pytest.mark.asyncio
-    async def test_log_captures_post_snapshot(
-        self, db, user, plaid_account, migration_service
-    ):
+    async def test_log_captures_post_snapshot(self, db, user, plaid_account, migration_service):
         """Post-snapshot should capture new provider state."""
         await _add_transactions(db, plaid_account, 2)
         await db.commit()
@@ -1075,9 +1053,7 @@ class TestMigrationAPI:
     """Tests for the /accounts/{id}/migrate API endpoint."""
 
     @pytest.mark.asyncio
-    async def test_migrate_endpoint_requires_confirmation(
-        self, authenticated_client, test_account
-    ):
+    async def test_migrate_endpoint_requires_confirmation(self, authenticated_client, test_account):
         """Should return 400 when confirm is false."""
         response = await authenticated_client.post(
             f"/api/v1/accounts/{test_account.id}/migrate",
@@ -1090,9 +1066,7 @@ class TestMigrationAPI:
         assert "confirm=true" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_migrate_endpoint_rejects_same_provider(
-        self, authenticated_client, test_account
-    ):
+    async def test_migrate_endpoint_rejects_same_provider(self, authenticated_client, test_account):
         """Should return 400 for same-provider migration."""
         # test_account from conftest is a manual account (no account_source set defaults to PLAID)
         # We'll migrate to the same source and expect rejection
@@ -1109,9 +1083,7 @@ class TestMigrationAPI:
         assert response.status_code == 400
 
     @pytest.mark.asyncio
-    async def test_migration_history_endpoint(
-        self, authenticated_client, test_account
-    ):
+    async def test_migration_history_endpoint(self, authenticated_client, test_account):
         """History endpoint should return list (possibly empty)."""
         response = await authenticated_client.get(
             f"/api/v1/accounts/{test_account.id}/migration-history"
@@ -1129,9 +1101,7 @@ class TestEdgeCases:
     """Tests for edge cases and unusual scenarios."""
 
     @pytest.mark.asyncio
-    async def test_migrate_empty_account(
-        self, db, user, plaid_account, migration_service
-    ):
+    async def test_migrate_empty_account(self, db, user, plaid_account, migration_service):
         """An account with no transactions/holdings should migrate fine."""
         assert await _count_transactions(db, plaid_account.id) == 0
         assert await _count_holdings(db, plaid_account.id) == 0
@@ -1202,9 +1172,7 @@ class TestEdgeCases:
         assert len(history) == 3
 
     @pytest.mark.asyncio
-    async def test_mx_to_manual_works(
-        self, db, user, mx_account, migration_service
-    ):
+    async def test_mx_to_manual_works(self, db, user, mx_account, migration_service):
         """MX→Manual migration should work correctly."""
         await _add_transactions(db, mx_account, 4)
         await db.commit()

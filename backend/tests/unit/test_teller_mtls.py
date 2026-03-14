@@ -1,8 +1,10 @@
 """Tests for Teller mTLS certificate handling in _make_request."""
 
-import pytest
-import httpx
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
+import pytest
+
 from app.services.teller_service import TellerService
 
 
@@ -205,7 +207,10 @@ class TestTellerMtls:
 
                 call_kwargs = mock_client.request.call_args
                 assert call_kwargs.kwargs["method"] == "GET"
-                assert call_kwargs.kwargs["url"] == "https://api.teller.io/accounts/acc_abc/transactions"
+                assert (
+                    call_kwargs.kwargs["url"]
+                    == "https://api.teller.io/accounts/acc_abc/transactions"
+                )
 
     @pytest.mark.asyncio
     async def test_empty_response_returns_empty_dict(self):

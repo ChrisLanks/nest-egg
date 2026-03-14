@@ -1,11 +1,12 @@
 """Tests for CSV import service."""
 
-import pytest
 import csv
 import io
 from datetime import date
 from decimal import Decimal
 from uuid import uuid4
+
+import pytest
 
 from app.services.csv_import_service import CSVImportService
 
@@ -129,7 +130,7 @@ class TestCSVImportService:
 
     def test_parse_amount_negative(self):
         """Should parse negative amount."""
-        service = CSVImportService()
+        CSVImportService()
 
         # Most CSV import services have a _parse_amount method
         # If it doesn't exist in your implementation, adjust accordingly
@@ -169,7 +170,7 @@ class TestCSVImportService:
 2024-01-16,-25.00,Lunch,McDonald's
 2024-01-17,1000.00,Paycheck,Acme Corp
 """
-        service = CSVImportService()
+        CSVImportService()
 
         # Parse CSV
         reader = csv.DictReader(io.StringIO(csv_content))
@@ -187,7 +188,7 @@ class TestCSVImportService:
         service = CSVImportService()
 
         reader = csv.DictReader(io.StringIO(csv_content))
-        rows = list(reader)
+        list(reader)
         headers = reader.fieldnames
 
         mapping = service._detect_column_mapping(headers)
@@ -205,7 +206,7 @@ class TestCSVImportService:
         service = CSVImportService()
 
         reader = csv.DictReader(io.StringIO(csv_content))
-        rows = list(reader)
+        list(reader)
         headers = reader.fieldnames
 
         mapping = service._detect_column_mapping(headers)
@@ -276,7 +277,7 @@ class TestCSVImportService:
         # But should not crash
         try:
             reader = csv.DictReader(io.StringIO(csv_content))
-            rows = list(reader)
+            list(reader)
             # If it parses, check it didn't crash
             assert True
         except csv.Error:
@@ -382,19 +383,31 @@ class TestDeduplicationHash:
 
     def test_consistent(self):
         acct = uuid4()
-        h1 = CSVImportService._generate_deduplication_hash(acct, date(2024, 1, 1), Decimal("100"), "Test")
-        h2 = CSVImportService._generate_deduplication_hash(acct, date(2024, 1, 1), Decimal("100"), "Test")
+        h1 = CSVImportService._generate_deduplication_hash(
+            acct, date(2024, 1, 1), Decimal("100"), "Test"
+        )
+        h2 = CSVImportService._generate_deduplication_hash(
+            acct, date(2024, 1, 1), Decimal("100"), "Test"
+        )
         assert h1 == h2
 
     def test_different_inputs_different_hash(self):
         acct = uuid4()
-        h1 = CSVImportService._generate_deduplication_hash(acct, date(2024, 1, 1), Decimal("100"), "A")
-        h2 = CSVImportService._generate_deduplication_hash(acct, date(2024, 1, 1), Decimal("100"), "B")
+        h1 = CSVImportService._generate_deduplication_hash(
+            acct, date(2024, 1, 1), Decimal("100"), "A"
+        )
+        h2 = CSVImportService._generate_deduplication_hash(
+            acct, date(2024, 1, 1), Decimal("100"), "B"
+        )
         assert h1 != h2
 
     def test_different_accounts_different_hash(self):
-        h1 = CSVImportService._generate_deduplication_hash(uuid4(), date(2024, 1, 1), Decimal("100"), "X")
-        h2 = CSVImportService._generate_deduplication_hash(uuid4(), date(2024, 1, 1), Decimal("100"), "X")
+        h1 = CSVImportService._generate_deduplication_hash(
+            uuid4(), date(2024, 1, 1), Decimal("100"), "X"
+        )
+        h2 = CSVImportService._generate_deduplication_hash(
+            uuid4(), date(2024, 1, 1), Decimal("100"), "X"
+        )
         assert h1 != h2
 
 
@@ -412,3 +425,296 @@ class TestPreviewCSV:
         csv_content = f"Date,Amount,Description\n{rows}\n"
         result = await CSVImportService.preview_csv(csv_content)
         assert len(result["preview_rows"]) == 5
+
+    @pytest.mark.asyncio
+    async def test_preview_with_manual_mapping(self):
+        csv_content = "dt,val,desc\n2024-01-01,100.00,Test\n"
+        mapping = {"date": "dt", "amount": "val", "description": "desc", "merchant": None}
+        result = await CSVImportService.preview_csv(csv_content, column_mapping=mapping)
+        assert result["detected_mapping"] == mapping
+
+
+class TestParseAmountEdgeCases:
+    """Cover _parse_amount lines 110-111 (exception branch)."""
+
+    def test_invalid_decimal_returns_none(self):
+        """Non-numeric strings after cleaning should return None."""
+        assert CSVImportService._parse_amount("abc") is None
+
+    def test_special_chars_returns_none(self):
+        assert CSVImportService._parse_amount("N/A") is None
+
+
+class TestImportCsvIntegration:
+    """Tests for import_csv to cover lines 201-288."""
+
+    @pytest.mark.asyncio
+    async def test_import_csv_success(self):
+        """Basic import with mocked DB."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_account = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_account
+
+        mock_hash_result = MagicMock()
+        mock_hash_result.all.return_value = []
+
+        db.execute = AsyncMock(side_effect=[mock_result, mock_hash_result])
+        db.commit = AsyncMock()
+
+        user = MagicMock()
+        user.organization_id = uuid4()
+
+        csv_content = (
+            "date,amount,description\n2024-01-01,100.00,Payment\n2024-01-02,-50.00,Coffee\n"
+        )
+        mapping = {
+            "date": "date",
+            "amount": "amount",
+            "description": "description",
+            "merchant": None,
+        }
+
+        result = await CSVImportService.import_csv(db, user, uuid4(), csv_content, mapping)
+        assert result["imported"] == 2
+        assert result["skipped"] == 0
+        assert result["errors"] == []
+        assert result["total_processed"] == 2
+
+    @pytest.mark.asyncio
+    async def test_import_csv_account_not_found(self):
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=mock_result)
+
+        user = MagicMock()
+        user.organization_id = uuid4()
+
+        with pytest.raises(ValueError, match="Account not found"):
+            await CSVImportService.import_csv(
+                db, user, uuid4(), "date,amount\n", {"date": "date", "amount": "amount"}
+            )
+
+    @pytest.mark.asyncio
+    async def test_import_csv_skip_duplicates(self):
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_account = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_account
+
+        account_id = uuid4()
+        existing_hash = CSVImportService._generate_deduplication_hash(
+            account_id, date(2024, 1, 1), Decimal("100.00"), "Payment"
+        )
+
+        mock_hash_result = MagicMock()
+        mock_hash_result.all.return_value = [(existing_hash,)]
+
+        db.execute = AsyncMock(side_effect=[mock_result, mock_hash_result])
+        db.commit = AsyncMock()
+
+        user = MagicMock()
+        user.organization_id = uuid4()
+
+        csv_content = "date,amount,description\n2024-01-01,100.00,Payment\n2024-01-02,-50.00,New\n"
+        mapping = {
+            "date": "date",
+            "amount": "amount",
+            "description": "description",
+            "merchant": None,
+        }
+
+        result = await CSVImportService.import_csv(db, user, account_id, csv_content, mapping)
+        assert result["skipped"] == 1
+        assert result["imported"] == 1
+
+    @pytest.mark.asyncio
+    async def test_import_csv_invalid_date_error(self):
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_account = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_account
+
+        mock_hash_result = MagicMock()
+        mock_hash_result.all.return_value = []
+
+        db.execute = AsyncMock(side_effect=[mock_result, mock_hash_result])
+        db.commit = AsyncMock()
+
+        user = MagicMock()
+        user.organization_id = uuid4()
+
+        csv_content = "date,amount,description\nbaddate,100.00,Row1\n"
+        mapping = {
+            "date": "date",
+            "amount": "amount",
+            "description": "description",
+            "merchant": None,
+        }
+
+        result = await CSVImportService.import_csv(db, user, uuid4(), csv_content, mapping)
+        assert result["imported"] == 0
+        assert len(result["errors"]) == 1
+        assert "date" in result["errors"][0].lower()
+
+    @pytest.mark.asyncio
+    async def test_import_csv_invalid_amount_error(self):
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_account = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_account
+
+        mock_hash_result = MagicMock()
+        mock_hash_result.all.return_value = []
+
+        db.execute = AsyncMock(side_effect=[mock_result, mock_hash_result])
+        db.commit = AsyncMock()
+
+        user = MagicMock()
+        user.organization_id = uuid4()
+
+        csv_content = "date,amount,description\n2024-01-01,,Row1\n"
+        mapping = {
+            "date": "date",
+            "amount": "amount",
+            "description": "description",
+            "merchant": None,
+        }
+
+        result = await CSVImportService.import_csv(db, user, uuid4(), csv_content, mapping)
+        assert result["imported"] == 0
+        assert len(result["errors"]) == 1
+        assert "amount" in result["errors"][0].lower()
+
+    @pytest.mark.asyncio
+    async def test_import_csv_with_merchant(self):
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_account = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_account
+
+        mock_hash_result = MagicMock()
+        mock_hash_result.all.return_value = []
+
+        db.execute = AsyncMock(side_effect=[mock_result, mock_hash_result])
+        db.commit = AsyncMock()
+
+        user = MagicMock()
+        user.organization_id = uuid4()
+
+        csv_content = "date,amount,description,merchant\n2024-01-01,-50.00,Coffee,Starbucks\n"
+        mapping = {
+            "date": "date",
+            "amount": "amount",
+            "description": "description",
+            "merchant": "merchant",
+        }
+
+        result = await CSVImportService.import_csv(db, user, uuid4(), csv_content, mapping)
+        assert result["imported"] == 1
+
+    @pytest.mark.asyncio
+    async def test_import_csv_skip_duplicates_disabled(self):
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_account = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_account
+
+        db.execute = AsyncMock(return_value=mock_result)
+        db.commit = AsyncMock()
+
+        user = MagicMock()
+        user.organization_id = uuid4()
+
+        csv_content = "date,amount,description\n2024-01-01,100.00,Payment\n"
+        mapping = {
+            "date": "date",
+            "amount": "amount",
+            "description": "description",
+            "merchant": None,
+        }
+
+        result = await CSVImportService.import_csv(
+            db, user, uuid4(), csv_content, mapping, skip_duplicates=False
+        )
+        assert result["imported"] == 1
+
+    @pytest.mark.asyncio
+    async def test_import_csv_batch_commit(self):
+        """Import >100 rows triggers batch commit."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_account = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_account
+
+        mock_hash_result = MagicMock()
+        mock_hash_result.all.return_value = []
+
+        db.execute = AsyncMock(side_effect=[mock_result, mock_hash_result])
+        db.commit = AsyncMock()
+
+        user = MagicMock()
+        user.organization_id = uuid4()
+
+        rows = "\n".join(f"2024-01-{(i%28)+1:02d},{i*10}.00,Row{i}" for i in range(1, 102))
+        csv_content = f"date,amount,description\n{rows}\n"
+        mapping = {
+            "date": "date",
+            "amount": "amount",
+            "description": "description",
+            "merchant": None,
+        }
+
+        result = await CSVImportService.import_csv(db, user, uuid4(), csv_content, mapping)
+        assert result["imported"] == 101
+        # Should have at least 2 commits (batch at 100 + final)
+        assert db.commit.call_count >= 2
+
+
+class TestValidateCsvFormat:
+    """Tests covering lines 305-333 of validate_csv_format."""
+
+    def test_valid_csv(self):
+        csv_content = "date,amount,description\n2024-01-01,100.00,Test\n"
+        result = CSVImportService.validate_csv_format(csv_content)
+        assert result["is_valid"] is True
+        assert result["errors"] == []
+
+    def test_no_headers(self):
+        result = CSVImportService.validate_csv_format("")
+        assert result["is_valid"] is False
+
+    def test_missing_date_column(self):
+        csv_content = "foo,amount\n1,100\n"
+        result = CSVImportService.validate_csv_format(csv_content)
+        assert result["is_valid"] is False
+        assert any("date" in e.lower() for e in result["errors"])
+
+    def test_missing_amount_column(self):
+        csv_content = "date,foo\n2024-01-01,bar\n"
+        result = CSVImportService.validate_csv_format(csv_content)
+        assert result["is_valid"] is False
+        assert any("amount" in e.lower() for e in result["errors"])
+
+    def test_empty_data_rows(self):
+        csv_content = "date,amount\n"
+        result = CSVImportService.validate_csv_format(csv_content)
+        assert result["is_valid"] is False
+        assert any("empty" in e.lower() for e in result["errors"])

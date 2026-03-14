@@ -1,7 +1,8 @@
 """Unit tests for security headers middleware."""
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 from fastapi import Request, Response
 
 from app.middleware.security_headers import SecurityHeadersMiddleware
@@ -28,6 +29,7 @@ class TestSecurityHeadersMiddleware:
     @pytest.fixture
     def mock_call_next(self):
         """Create mock call_next."""
+
         async def call_next(request):
             response = Mock(spec=Response)
             response.headers = {}
@@ -107,7 +109,9 @@ class TestSecurityHeadersMiddleware:
 
     @pytest.mark.asyncio
     @patch("app.middleware.security_headers.settings")
-    async def test_csp_in_production_mode(self, mock_settings, middleware, mock_request, mock_call_next):
+    async def test_csp_in_production_mode(
+        self, mock_settings, middleware, mock_request, mock_call_next
+    ):
         """Should not allow unsafe directives in production."""
         mock_settings.DEBUG = False
         response = await middleware.dispatch(mock_request, mock_call_next)

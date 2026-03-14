@@ -2,9 +2,10 @@
 
 import json
 import time
-import pytest
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
+
+import pytest
 
 from app.services.identity.oidc import OIDCIdentityProvider, OIDCProviderConfig
 
@@ -32,6 +33,7 @@ class TestOIDCProviderCanHandle:
 
         # Build a fake JWT with the right issuer (unverified decode only)
         import base64
+
         header = base64.urlsafe_b64encode(b'{"alg":"RS256","typ":"JWT"}').rstrip(b"=").decode()
         payload_data = json.dumps({"iss": config.issuer, "sub": "user123"}).encode()
         payload = base64.urlsafe_b64encode(payload_data).rstrip(b"=").decode()
@@ -45,6 +47,7 @@ class TestOIDCProviderCanHandle:
         provider = OIDCIdentityProvider(config)
 
         import base64
+
         header = base64.urlsafe_b64encode(b'{"alg":"RS256","typ":"JWT"}').rstrip(b"=").decode()
         payload_data = json.dumps({"iss": "https://other.issuer.com", "sub": "user123"}).encode()
         payload = base64.urlsafe_b64encode(payload_data).rstrip(b"=").decode()
@@ -98,8 +101,10 @@ class TestOIDCProviderValidateToken:
         mock_jwk_set.keys = [mock_jwk]
 
         with patch.object(provider, "_get_jwks", new=AsyncMock(return_value={"keys": []})):
-            with patch("app.services.identity.oidc.jose_jwt") as mock_jwt, \
-                 patch("app.services.identity.oidc.PyJWKSet") as mock_pyjwkset:
+            with (
+                patch("app.services.identity.oidc.jose_jwt") as mock_jwt,
+                patch("app.services.identity.oidc.PyJWKSet") as mock_pyjwkset,
+            ):
                 mock_pyjwkset.from_dict = Mock(return_value=mock_jwk_set)
                 mock_jwt.get_unverified_header = Mock(return_value={"alg": "RS256", "kid": "key1"})
                 mock_jwt.decode = Mock(return_value=claims)
@@ -122,8 +127,10 @@ class TestOIDCProviderValidateToken:
         mock_jwk_set.keys = [mock_jwk]
 
         with patch.object(provider, "_get_jwks", new=AsyncMock(return_value={"keys": []})):
-            with patch("app.services.identity.oidc.jose_jwt") as mock_jwt, \
-                 patch("app.services.identity.oidc.PyJWKSet") as mock_pyjwkset:
+            with (
+                patch("app.services.identity.oidc.jose_jwt") as mock_jwt,
+                patch("app.services.identity.oidc.PyJWKSet") as mock_pyjwkset,
+            ):
                 mock_pyjwkset.from_dict = Mock(return_value=mock_jwk_set)
                 mock_jwt.get_unverified_header = Mock(return_value={"alg": "RS256", "kid": "key1"})
                 mock_jwt.decode = Mock(side_effect=JWTError("bad signature"))
@@ -135,7 +142,9 @@ class TestOIDCProviderValidateToken:
     @pytest.mark.asyncio
     async def test_jwks_fetch_failure_returns_none(self, provider, mock_db):
         """Should return None when JWKS cannot be fetched."""
-        with patch.object(provider, "_get_jwks", new=AsyncMock(side_effect=Exception("network error"))):
+        with patch.object(
+            provider, "_get_jwks", new=AsyncMock(side_effect=Exception("network error"))
+        ):
             identity = await provider.validate_token("any.token.here", mock_db)
 
         assert identity is None

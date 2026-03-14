@@ -1,13 +1,14 @@
 """Tests for dashboard service."""
 
-import pytest
 from datetime import date, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-from app.services.dashboard_service import DashboardService
+import pytest
+
 from app.models.account import Account, AccountType
 from app.models.transaction import Transaction
+from app.services.dashboard_service import DashboardService
 
 
 class TestDashboardService:
@@ -266,7 +267,9 @@ class TestDashboardService:
         # Should sum credit card + loan as absolute values
         assert total == Decimal("5000.00")
 
-    @pytest.mark.skip(reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment")
+    @pytest.mark.skip(
+        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
+    )
     @pytest.mark.asyncio
     async def test_get_monthly_spending_current_month(self, db, test_user, test_account):
         """Should calculate spending for current month by default."""
@@ -305,7 +308,9 @@ class TestDashboardService:
         # Should sum negative transactions as absolute value
         assert spending == Decimal("150.00")
 
-    @pytest.mark.skip(reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment")
+    @pytest.mark.skip(
+        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
+    )
     @pytest.mark.asyncio
     async def test_get_monthly_spending_custom_date_range(self, db, test_user, test_account):
         """Should calculate spending for custom date range."""
@@ -339,7 +344,9 @@ class TestDashboardService:
         # Should only count txn1
         assert spending == Decimal("100.00")
 
-    @pytest.mark.skip(reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment")
+    @pytest.mark.skip(
+        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
+    )
     @pytest.mark.asyncio
     async def test_get_monthly_spending_with_account_filter(self, db, test_user):
         """Should filter spending by account IDs."""
@@ -395,7 +402,9 @@ class TestDashboardService:
 
         assert spending == Decimal("0")
 
-    @pytest.mark.skip(reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment")
+    @pytest.mark.skip(
+        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
+    )
     @pytest.mark.asyncio
     async def test_get_monthly_income(self, db, test_user, test_account):
         """Should calculate income for period."""
@@ -429,7 +438,9 @@ class TestDashboardService:
 
         assert income == Decimal("1500.00")
 
-    @pytest.mark.skip(reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment")
+    @pytest.mark.skip(
+        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
+    )
     @pytest.mark.asyncio
     async def test_get_expense_by_category(self, db, test_user, test_account):
         """Should group expenses by category."""
@@ -472,7 +483,9 @@ class TestDashboardService:
         assert categories[1]["total"] == 75.0
         assert categories[1]["count"] == 1
 
-    @pytest.mark.skip(reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment")
+    @pytest.mark.skip(
+        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
+    )
     @pytest.mark.asyncio
     async def test_get_expense_by_category_excludes_uncategorized(
         self, db, test_user, test_account
@@ -504,7 +517,9 @@ class TestDashboardService:
         assert len(categories) == 1
         assert categories[0]["category"] == "Shopping"
 
-    @pytest.mark.skip(reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment")
+    @pytest.mark.skip(
+        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
+    )
     @pytest.mark.asyncio
     async def test_get_expense_by_category_respects_limit(self, db, test_user, test_account):
         """Should limit number of categories returned."""
@@ -527,7 +542,9 @@ class TestDashboardService:
         # Should return only 5
         assert len(categories) == 5
 
-    @pytest.mark.skip(reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment")
+    @pytest.mark.skip(
+        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
+    )
     @pytest.mark.asyncio
     async def test_get_recent_transactions(self, db, test_user, test_account):
         """Should get recent transactions ordered by date."""
@@ -556,7 +573,9 @@ class TestDashboardService:
         assert transactions[0].id == recent_txn.id
         assert transactions[1].id == old_txn.id
 
-    @pytest.mark.skip(reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment")
+    @pytest.mark.skip(
+        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
+    )
     @pytest.mark.asyncio
     async def test_get_recent_transactions_limit(self, db, test_user, test_account):
         """Should respect limit parameter."""
@@ -577,7 +596,9 @@ class TestDashboardService:
 
         assert len(transactions) == 5
 
-    @pytest.mark.skip(reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment")
+    @pytest.mark.skip(
+        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
+    )
     @pytest.mark.asyncio
     async def test_get_cash_flow_trend(self, db, test_user, test_account):
         """Should calculate monthly income vs expenses trend."""
@@ -693,7 +714,8 @@ class TestDashboardService:
     @pytest.mark.asyncio
     async def test_cross_organization_isolation(self, db, test_user):
         """Should not access data from other organizations."""
-        from app.models.user import Organization, User as UserModel
+        from app.models.user import Organization
+        from app.models.user import User as UserModel
 
         # Create the other org + user so FK constraints are satisfied
         other_org = Organization(id=uuid4(), name="Other Org")
@@ -915,7 +937,8 @@ class TestDashboardService:
         service = DashboardService(db)
         net_worth = await service.get_net_worth(test_user.organization_id)
 
-        # 10000 (checking) + 300000 (business 15% of 2M) - 5000 (credit card) - 250000 (mortgage) = 55000
+        # 10000 (checking) + 300000 (business 15% of 2M)
+        # - 5000 (credit card) - 250000 (mortgage) = 55000
         assert net_worth == Decimal("55000.00")
 
     @pytest.mark.asyncio
@@ -959,6 +982,208 @@ class TestDashboardService:
         assert net_worth == Decimal("250000.00")
 
     @pytest.mark.asyncio
+    async def test_get_net_worth_with_private_equity_vesting(self, db, test_user):
+        """Should calculate net worth using vested equity for private equity accounts."""
+        import json
+
+        # Private equity with vesting schedule
+        pe_account = Account(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=test_user.id,
+            name="Startup Equity",
+            account_type=AccountType.PRIVATE_EQUITY,
+            current_balance=Decimal("100000.00"),
+            vesting_schedule=json.dumps(
+                [
+                    {"date": "2020-01-01", "quantity": 100},  # Vested
+                    {"date": "2020-06-01", "quantity": 50},  # Vested
+                    {"date": "2099-01-01", "quantity": 200},  # Not vested yet
+                ]
+            ),
+            share_price=Decimal("50.00"),
+            include_in_networth=True,
+            is_active=True,
+        )
+        db.add(pe_account)
+        await db.commit()
+
+        service = DashboardService(db)
+        net_worth = await service.get_net_worth(test_user.organization_id)
+
+        # Only vested: (100 + 50) * 50 = 7500
+        assert net_worth == Decimal("7500.00")
+
+    @pytest.mark.asyncio
+    async def test_get_net_worth_private_equity_malformed_vesting(self, db, test_user):
+        """Malformed vesting schedule should fallback to current_balance."""
+        pe_account = Account(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=test_user.id,
+            name="Bad Vesting PE",
+            account_type=AccountType.PRIVATE_EQUITY,
+            current_balance=Decimal("25000.00"),
+            vesting_schedule="not-valid-json",
+            share_price=Decimal("50.00"),
+            include_in_networth=True,
+            is_active=True,
+        )
+        db.add(pe_account)
+        await db.commit()
+
+        service = DashboardService(db)
+        net_worth = await service.get_net_worth(test_user.organization_id)
+
+        # Fallback to current_balance
+        assert net_worth == Decimal("25000.00")
+
+    @pytest.mark.asyncio
+    async def test_get_net_worth_private_equity_not_list_vesting(self, db, test_user):
+        """Non-list vesting schedule JSON should fallback to current_balance."""
+        import json
+
+        pe_account = Account(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=test_user.id,
+            name="Dict Vesting PE",
+            account_type=AccountType.PRIVATE_EQUITY,
+            current_balance=Decimal("15000.00"),
+            vesting_schedule=json.dumps({"not": "a list"}),
+            share_price=Decimal("50.00"),
+            include_in_networth=True,
+            is_active=True,
+        )
+        db.add(pe_account)
+        await db.commit()
+
+        service = DashboardService(db)
+        net_worth = await service.get_net_worth(test_user.organization_id)
+
+        assert net_worth == Decimal("15000.00")
+
+    @pytest.mark.asyncio
+    async def test_get_net_worth_private_equity_no_vesting(self, db, test_user):
+        """Private equity without vesting schedule should use current_balance."""
+        pe_account = Account(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=test_user.id,
+            name="No Vesting PE",
+            account_type=AccountType.PRIVATE_EQUITY,
+            current_balance=Decimal("30000.00"),
+            vesting_schedule=None,
+            include_in_networth=True,
+            is_active=True,
+        )
+        db.add(pe_account)
+        await db.commit()
+
+        service = DashboardService(db)
+        net_worth = await service.get_net_worth(test_user.organization_id)
+
+        assert net_worth == Decimal("30000.00")
+
+    @pytest.mark.asyncio
+    async def test_should_include_vehicle_excluded_by_default(self, db, test_user):
+        """Vehicle accounts should be excluded from net worth by default."""
+        vehicle = Account(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=test_user.id,
+            name="Car",
+            account_type=AccountType.VEHICLE,
+            current_balance=Decimal("20000.00"),
+            include_in_networth=None,  # Not explicitly set
+            is_active=True,
+        )
+        db.add(vehicle)
+        await db.commit()
+
+        service = DashboardService(db)
+        net_worth = await service.get_net_worth(test_user.organization_id)
+
+        assert net_worth == Decimal("0")
+
+    @pytest.mark.asyncio
+    async def test_should_include_vehicle_explicitly_included(self, db, test_user):
+        """Vehicle accounts explicitly included should be in net worth."""
+        vehicle = Account(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=test_user.id,
+            name="Classic Car",
+            account_type=AccountType.VEHICLE,
+            current_balance=Decimal("50000.00"),
+            include_in_networth=True,
+            is_active=True,
+        )
+        db.add(vehicle)
+        await db.commit()
+
+        service = DashboardService(db)
+        net_worth = await service.get_net_worth(test_user.organization_id)
+
+        assert net_worth == Decimal("50000.00")
+
+    @pytest.mark.asyncio
+    async def test_should_include_explicitly_excluded(self, db, test_user):
+        """Accounts explicitly excluded should not be in net worth."""
+        checking = Account(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=test_user.id,
+            name="Hidden Checking",
+            account_type=AccountType.CHECKING,
+            current_balance=Decimal("10000.00"),
+            include_in_networth=False,
+            is_active=True,
+        )
+        db.add(checking)
+        await db.commit()
+
+        service = DashboardService(db)
+        net_worth = await service.get_net_worth(test_user.organization_id)
+
+        assert net_worth == Decimal("0")
+
+    @pytest.mark.asyncio
+    async def test_compute_methods_no_db(self, db, test_user):
+        """Test compute_* methods work with pre-fetched accounts list."""
+        accounts = [
+            Account(
+                id=uuid4(),
+                organization_id=test_user.organization_id,
+                user_id=test_user.id,
+                name="Checking",
+                account_type=AccountType.CHECKING,
+                current_balance=Decimal("5000.00"),
+                is_active=True,
+            ),
+            Account(
+                id=uuid4(),
+                organization_id=test_user.organization_id,
+                user_id=test_user.id,
+                name="Credit Card",
+                account_type=AccountType.CREDIT_CARD,
+                current_balance=Decimal("-2000.00"),
+                is_active=True,
+            ),
+        ]
+
+        service = DashboardService(db)
+        net_worth = service.compute_net_worth(accounts)
+        total_assets = service.compute_total_assets(accounts)
+        total_debts = service.compute_total_debts(accounts)
+        balances = service.compute_account_balances(accounts)
+
+        assert net_worth == Decimal("3000.00")
+        assert total_assets == Decimal("5000.00")
+        assert total_debts == Decimal("2000.00")
+        assert len(balances) == 2
+
+    @pytest.mark.asyncio
     async def test_empty_state_no_accounts(self, db, test_user):
         """Should handle organization with no accounts."""
         service = DashboardService(db)
@@ -973,7 +1198,9 @@ class TestDashboardService:
         assert total_debts == Decimal("0")
         assert balances == []
 
-    @pytest.mark.skip(reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment")
+    @pytest.mark.skip(
+        reason="Requires PostgreSQL date_trunc - not supported in SQLite test environment"
+    )
     @pytest.mark.asyncio
     async def test_empty_state_no_transactions(self, db, test_user):
         """Should handle organization with no transactions."""
@@ -990,3 +1217,323 @@ class TestDashboardService:
         assert categories == []
         assert transactions == []
         assert trend == []
+
+
+class TestDashboardServiceMocked:
+    """Tests using mocked DB to cover lines unreachable with SQLite."""
+
+    @pytest.mark.asyncio
+    async def test_private_equity_public_company_included(self):
+        """Line 117: PE with company_status='public' should be included by default."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_account = MagicMock()
+        mock_account.include_in_networth = None
+        mock_account.account_type = AccountType.PRIVATE_EQUITY
+        mock_account.company_status = MagicMock()
+        mock_account.company_status.value = "public"
+        mock_account.current_balance = Decimal("100000")
+        mock_account.vesting_schedule = None
+
+        db = AsyncMock()
+        service = DashboardService(db)
+        assert service._should_include_in_networth(mock_account) is True
+
+    @pytest.mark.asyncio
+    async def test_private_equity_private_company_excluded(self):
+        """Line 117: PE with company_status != 'public' should be excluded."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_account = MagicMock()
+        mock_account.include_in_networth = None
+        mock_account.account_type = AccountType.PRIVATE_EQUITY
+        mock_account.company_status = MagicMock()
+        mock_account.company_status.value = "private"
+
+        db = AsyncMock()
+        service = DashboardService(db)
+        assert service._should_include_in_networth(mock_account) is False
+
+    @pytest.mark.asyncio
+    async def test_vesting_milestone_bad_date_skipped(self):
+        """Lines 168, 174-175: milestone with invalid date format is skipped."""
+        import json
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_account = MagicMock()
+        mock_account.account_type = AccountType.PRIVATE_EQUITY
+        mock_account.current_balance = Decimal("50000")
+        mock_account.vesting_schedule = json.dumps(
+            [
+                {"date": "not-a-date", "quantity": 100},
+                {"date": None, "quantity": 50},
+                {"date": "2020-01-01", "quantity": 200},
+            ]
+        )
+        mock_account.share_price = Decimal("10")
+
+        db = AsyncMock()
+        service = DashboardService(db)
+        value = service._calculate_account_value(mock_account)
+        # Only the valid 2020-01-01 milestone vests: 200 * 10 = 2000
+        assert value == Decimal("2000")
+
+    @pytest.mark.asyncio
+    async def test_get_monthly_spending_with_account_filter(self):
+        """Lines 224: spending with account_ids filter."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar.return_value = Decimal("-500")
+        db.execute = AsyncMock(return_value=mock_result)
+
+        service = DashboardService(db)
+        result = await service.get_monthly_spending(
+            "org-123",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 1, 31),
+            account_ids=[uuid4()],
+        )
+        assert result == Decimal("500")
+
+    @pytest.mark.asyncio
+    async def test_get_monthly_spending_defaults(self):
+        """Lines 209-216: default start_date and end_date."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar.return_value = None
+        db.execute = AsyncMock(return_value=mock_result)
+
+        service = DashboardService(db)
+        result = await service.get_monthly_spending("org-123")
+        assert result == Decimal("0")
+
+    @pytest.mark.asyncio
+    async def test_get_monthly_income_with_account_filter(self):
+        """Lines 240-261: income with account_ids filter."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar.return_value = Decimal("3000")
+        db.execute = AsyncMock(return_value=mock_result)
+
+        service = DashboardService(db)
+        result = await service.get_monthly_income(
+            "org-123",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 1, 31),
+            account_ids=[uuid4()],
+        )
+        assert result == Decimal("3000")
+
+    @pytest.mark.asyncio
+    async def test_get_monthly_income_defaults_no_data(self):
+        """Lines 240-261: income defaults to 0 when no data."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar.return_value = None
+        db.execute = AsyncMock(return_value=mock_result)
+
+        service = DashboardService(db)
+        result = await service.get_monthly_income("org-123")
+        assert result == Decimal("0")
+
+    @pytest.mark.asyncio
+    async def test_get_spending_and_income_combined(self):
+        """Lines 271-299: single-query spending and income."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_row = MagicMock()
+        mock_row.spending = Decimal("-800")
+        mock_row.income = Decimal("3000")
+        mock_result = MagicMock()
+        mock_result.one.return_value = mock_row
+        db.execute = AsyncMock(return_value=mock_result)
+
+        service = DashboardService(db)
+        spending, income = await service.get_spending_and_income(
+            "org-123",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 1, 31),
+        )
+        assert spending == Decimal("800")
+        assert income == Decimal("3000")
+
+    @pytest.mark.asyncio
+    async def test_get_spending_and_income_none_values(self):
+        """Lines 297-298: handles None spending/income."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_row = MagicMock()
+        mock_row.spending = None
+        mock_row.income = None
+        mock_result = MagicMock()
+        mock_result.one.return_value = mock_row
+        db.execute = AsyncMock(return_value=mock_result)
+
+        service = DashboardService(db)
+        spending, income = await service.get_spending_and_income("org-123")
+        assert spending == Decimal("0")
+        assert income == Decimal("0")
+
+    @pytest.mark.asyncio
+    async def test_get_spending_and_income_with_account_filter(self):
+        """Lines 283-284: spending_and_income with account_ids."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_row = MagicMock()
+        mock_row.spending = Decimal("-200")
+        mock_row.income = Decimal("1000")
+        mock_result = MagicMock()
+        mock_result.one.return_value = mock_row
+        db.execute = AsyncMock(return_value=mock_result)
+
+        service = DashboardService(db)
+        spending, income = await service.get_spending_and_income("org-123", account_ids=[uuid4()])
+        assert spending == Decimal("200")
+        assert income == Decimal("1000")
+
+    @pytest.mark.asyncio
+    async def test_get_expense_by_category(self):
+        """Lines 310-349: top expense categories."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_rows = [
+            MagicMock(category_primary="Dining", total=Decimal("-500"), count=10),
+            MagicMock(category_primary="Groceries", total=Decimal("-300"), count=5),
+        ]
+        mock_result = MagicMock()
+        mock_result.__iter__ = MagicMock(return_value=iter(mock_rows))
+        db.execute = AsyncMock(return_value=mock_result)
+
+        service = DashboardService(db)
+        categories = await service.get_expense_by_category(
+            "org-123",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 1, 31),
+        )
+        assert len(categories) == 2
+        assert categories[0]["category"] == "Dining"
+        assert categories[0]["total"] == Decimal("500")
+        assert categories[0]["count"] == 10
+
+    @pytest.mark.asyncio
+    async def test_get_expense_by_category_with_account_filter(self):
+        """Lines 325-326: category expenses with account_ids."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.__iter__ = MagicMock(return_value=iter([]))
+        db.execute = AsyncMock(return_value=mock_result)
+
+        service = DashboardService(db)
+        categories = await service.get_expense_by_category("org-123", account_ids=[uuid4()])
+        assert categories == []
+
+    @pytest.mark.asyncio
+    async def test_get_recent_transactions(self):
+        """Lines 355-370: recent transactions."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_txn = MagicMock()
+        mock_result = MagicMock()
+        mock_result.unique.return_value.scalars.return_value.all.return_value = [mock_txn]
+        db.execute = AsyncMock(return_value=mock_result)
+
+        service = DashboardService(db)
+        txns = await service.get_recent_transactions("org-123", limit=5)
+        assert len(txns) == 1
+
+    @pytest.mark.asyncio
+    async def test_get_recent_transactions_with_account_filter(self):
+        """Lines 357-358: recent transactions with account_ids."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.unique.return_value.scalars.return_value.all.return_value = []
+        db.execute = AsyncMock(return_value=mock_result)
+
+        service = DashboardService(db)
+        txns = await service.get_recent_transactions("org-123", account_ids=[uuid4()])
+        assert txns == []
+
+    @pytest.mark.asyncio
+    async def test_get_cash_flow_trend(self):
+        """Lines 376-415: cash flow trend grouped by month."""
+        from datetime import datetime
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_rows = [
+            MagicMock(
+                month=datetime(2024, 1, 1),
+                income=Decimal("5000"),
+                expenses=Decimal("-2000"),
+            ),
+            MagicMock(
+                month=datetime(2024, 2, 1),
+                income=Decimal("5500"),
+                expenses=Decimal("-2500"),
+            ),
+        ]
+        mock_result = MagicMock()
+        mock_result.__iter__ = MagicMock(return_value=iter(mock_rows))
+        db.execute = AsyncMock(return_value=mock_result)
+
+        service = DashboardService(db)
+        trend = await service.get_cash_flow_trend("org-123", months=3)
+        assert len(trend) == 2
+        assert trend[0]["month"] == "2024-01"
+        assert trend[0]["income"] == 5000.0
+        assert trend[0]["expenses"] == 2000.0
+
+    @pytest.mark.asyncio
+    async def test_get_cash_flow_trend_with_account_filter(self):
+        """Lines 388-389: trend with account_ids filter."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.__iter__ = MagicMock(return_value=iter([]))
+        db.execute = AsyncMock(return_value=mock_result)
+
+        service = DashboardService(db)
+        trend = await service.get_cash_flow_trend("org-123", account_ids=[uuid4()])
+        assert trend == []
+
+    @pytest.mark.asyncio
+    async def test_get_cash_flow_trend_none_values(self):
+        """Lines 409-411: handles None income/expenses in trend rows."""
+        from datetime import datetime
+        from unittest.mock import AsyncMock, MagicMock
+
+        db = AsyncMock()
+        mock_rows = [
+            MagicMock(
+                month=datetime(2024, 3, 1),
+                income=None,
+                expenses=None,
+            ),
+        ]
+        mock_result = MagicMock()
+        mock_result.__iter__ = MagicMock(return_value=iter(mock_rows))
+        db.execute = AsyncMock(return_value=mock_result)
+
+        service = DashboardService(db)
+        trend = await service.get_cash_flow_trend("org-123")
+        assert len(trend) == 1
+        assert trend[0]["income"] == 0.0
+        assert trend[0]["expenses"] == 0.0

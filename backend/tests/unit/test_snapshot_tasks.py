@@ -1,8 +1,9 @@
 """Tests for the Celery snapshot tasks (portfolio net-worth capture)."""
 
+from unittest.mock import MagicMock, patch
+from uuid import uuid4
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4, UUID
 
 from app.workers.tasks.snapshot_tasks import _calculate_offset_seconds
 
@@ -61,9 +62,7 @@ class TestOrchestratePortfolioSnapshots:
         org2 = MagicMock()
         org2.id = uuid4()
 
-        with patch(
-            "app.workers.tasks.snapshot_tasks.capture_org_portfolio_snapshot"
-        ) as mock_task:
+        with patch("app.workers.tasks.snapshot_tasks.capture_org_portfolio_snapshot") as mock_task:
             mock_task.apply_async = MagicMock()
             _dispatch_snapshot_tasks([org1, org2])
             assert mock_task.apply_async.call_count == 2
@@ -75,9 +74,7 @@ class TestOrchestratePortfolioSnapshots:
         org = MagicMock()
         org.id = uuid4()
 
-        with patch(
-            "app.workers.tasks.snapshot_tasks.capture_org_portfolio_snapshot"
-        ) as mock_task:
+        with patch("app.workers.tasks.snapshot_tasks.capture_org_portfolio_snapshot") as mock_task:
             mock_task.apply_async = MagicMock()
             _dispatch_snapshot_tasks([org])
             _, kwargs = mock_task.apply_async.call_args
@@ -87,9 +84,7 @@ class TestOrchestratePortfolioSnapshots:
         """With no organisations, no tasks should be enqueued."""
         from app.workers.tasks.snapshot_tasks import _dispatch_snapshot_tasks
 
-        with patch(
-            "app.workers.tasks.snapshot_tasks.capture_org_portfolio_snapshot"
-        ) as mock_task:
+        with patch("app.workers.tasks.snapshot_tasks.capture_org_portfolio_snapshot") as mock_task:
             mock_task.apply_async = MagicMock()
             _dispatch_snapshot_tasks([])
             mock_task.apply_async.assert_not_called()

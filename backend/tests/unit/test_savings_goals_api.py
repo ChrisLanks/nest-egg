@@ -1,33 +1,32 @@
 """Unit tests for savings goals API endpoints."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from uuid import uuid4
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
+import pytest
 from fastapi import HTTPException
 
 from app.api.v1.savings_goals import (
-    create_goal,
-    list_goals,
-    get_goal,
-    update_goal,
-    delete_goal,
-    sync_goal_from_account,
-    get_goal_progress,
     auto_sync_goals,
-    reorder_goals,
+    create_goal,
+    delete_goal,
     fund_goal,
-    router,
+    get_goal,
+    get_goal_progress,
+    list_goals,
+    reorder_goals,
+    sync_goal_from_account,
+    update_goal,
 )
-from app.models.user import User
 from app.models.savings_goal import SavingsGoal
+from app.models.user import User
 from app.schemas.savings_goal import (
-    SavingsGoalCreate,
-    SavingsGoalUpdate,
     AutoSyncRequest,
     ReorderRequest,
+    SavingsGoalCreate,
+    SavingsGoalUpdate,
 )
 
 
@@ -58,9 +57,7 @@ class TestCreateGoal:
         )
 
     @pytest.mark.asyncio
-    async def test_creates_goal_successfully(
-        self, mock_db, mock_user, goal_create_data
-    ):
+    async def test_creates_goal_successfully(self, mock_db, mock_user, goal_create_data):
         """Should create a new savings goal."""
         expected_goal = Mock(spec=SavingsGoal)
         expected_goal.id = uuid4()
@@ -81,9 +78,7 @@ class TestCreateGoal:
             mock_create.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_passes_all_fields_to_service(
-        self, mock_db, mock_user, goal_create_data
-    ):
+    async def test_passes_all_fields_to_service(self, mock_db, mock_user, goal_create_data):
         """Should pass all goal fields to service."""
         expected_goal = Mock(spec=SavingsGoal)
 

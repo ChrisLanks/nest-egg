@@ -1,433 +1,879 @@
-"""Tests for tax lot service."""
+"""Unit tests for app/services/tax_lot_service.py."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 
-from app.models.tax_lot import CostBasisMethod, TaxLot
-from app.services.tax_lot_service import TaxLotService, _determine_holding_period
+from app.models.tax_lot import CostBasisMethod
+from app.services.tax_lot_service import (
+    TaxLotService,
+    _determine_holding_period,
+    tax_lot_service,
+)
+
+
+def _make_lot(
+    lot_id=None,
+    holding_id=None,
+    org_id=None,
+    account_id=None,
+    acquisition_date=None,
+    quantity=Decimal("10"),
+    cost_basis_per_share=Decimal("100"),
+    remaining_quantity=None,
+    is_closed=False,
+    closed_at=None,
+    sale_proceeds=None,
+    realized_gain_loss=None,
+    holding_period=None,
+):
+    lot = MagicMock()
+    lot.id = lot_id or uuid4()
+    lot.holding_id = holding_id or uuid4()
+    lot.organization_id = org_id or uuid4()
+    lot.account_id = account_id or uuid4()
+    lot.acquisition_date = acquisition_date or date(2023, 1, 15)
+    lot.quantity = quantity
+    lot.cost_basis_per_share = cost_basis_per_share
+    lot.total_cost_basis = (quantity * cost_basis_per_share).quantize(Decimal("0.01"))
+    lot.remaining_quantity = remaining_quantity if remaining_quantity is not None else quantity
+    lot.is_closed = is_closed
+    lot.closed_at = closed_at
+    lot.sale_proceeds = sale_proceeds
+    lot.realized_gain_loss = realized_gain_loss
+    lot.holding_period = holding_period
+    return lot
+
+
+def _make_holding(
+    holding_id=None,
+    org_id=None,
+    account_id=None,
+    ticker="AAPL",
+    shares=Decimal("10"),
+    cost_basis_per_share=Decimal("150"),
+    current_price_per_share=Decimal("175"),
+    created_at=None,
+):
+    h = MagicMock()
+    h.id = holding_id or uuid4()
+    h.organization_id = org_id or uuid4()
+    h.account_id = account_id or uuid4()
+    h.ticker = ticker
+    h.shares = shares
+    h.cost_basis_per_share = cost_basis_per_share
+    h.current_price_per_share = current_price_per_share
+    h.created_at = created_at or datetime(2023, 6, 1, 12, 0, 0)
+    return h
 
 
 @pytest.mark.unit
 class TestDetermineHoldingPeriod:
-    """Tests for _determine_holding_period pure function."""
-
     def test_short_term_one_day(self):
-        """Should return SHORT_TERM for a 1-day hold."""
-        result = _determine_holding_period(date(2024, 1, 1), date(2024, 1, 2))
-        assert result == "SHORT_TERM"
+        assert _determine_holding_period(date(2024, 1, 1), date(2024, 1, 2)) == "SHORT_TERM"
 
     def test_short_term_365_days(self):
-        """Should return SHORT_TERM for exactly 365 days."""
-        result = _determine_holding_period(date(2024, 1, 1), date(2024, 12, 31))
-        assert (date(2024, 12, 31) - date(2024, 1, 1)).days == 365
-        assert result == "SHORT_TERM"
+        assert _determine_holding_period(date(2024, 1, 1), date(2024, 12, 31)) == "SHORT_TERM"
 
     def test_long_term_366_days(self):
-        """Should return LONG_TERM for exactly 366 days."""
-        acq = date(2024, 1, 1)
-        sale = date(2025, 1, 1)
-        assert (sale - acq).days == 366  # 2024 is a leap year
-        result = _determine_holding_period(acq, sale)
-        assert result == "LONG_TERM"
+        assert _determine_holding_period(date(2023, 1, 1), date(2024, 1, 2)) == "LONG_TERM"
 
-    def test_long_term_well_over_a_year(self):
-        """Should return LONG_TERM for holdings well over a year."""
-        result = _determine_holding_period(date(2020, 6, 15), date(2024, 6, 15))
-        assert result == "LONG_TERM"
+    def test_long_term_multiple_years(self):
+        assert _determine_holding_period(date(2020, 1, 1), date(2024, 6, 15)) == "LONG_TERM"
 
     def test_same_day(self):
-        """Should return SHORT_TERM for same-day sale (0 days held)."""
-        result = _determine_holding_period(date(2024, 3, 1), date(2024, 3, 1))
-        assert result == "SHORT_TERM"
+        assert _determine_holding_period(date(2024, 6, 1), date(2024, 6, 1)) == "SHORT_TERM"
 
 
 @pytest.mark.unit
 class TestRecordPurchase:
-    """Tests for TaxLotService.record_purchase."""
-
     @pytest.mark.asyncio
-    async def test_creates_tax_lot_with_correct_fields(self):
-        """Should create a TaxLot with calculated total cost and correct attributes."""
-        service = TaxLotService()
+    async def test_creates_lot_and_flushes(self):
+        svc = TaxLotService()
         db = AsyncMock()
+        org_id, holding_id, account_id = uuid4(), uuid4(), uuid4()
 
-        org_id = uuid4()
-        holding_id = uuid4()
-        account_id = uuid4()
-        quantity = Decimal("10")
-        price = Decimal("150.50")
-        acq_date = date(2024, 3, 15)
-
-        await service.record_purchase(
+        await svc.record_purchase(
             db=db,
             org_id=org_id,
             holding_id=holding_id,
             account_id=account_id,
-            quantity=quantity,
-            price_per_share=price,
-            acquisition_date=acq_date,
+            quantity=Decimal("5"),
+            price_per_share=Decimal("150.00"),
+            acquisition_date=date(2024, 3, 1),
         )
 
-        # Verify db.add was called with the lot
         db.add.assert_called_once()
-        added_lot = db.add.call_args[0][0]
-        assert isinstance(added_lot, TaxLot)
-
-        # Verify lot fields
-        assert added_lot.organization_id == org_id
-        assert added_lot.holding_id == holding_id
-        assert added_lot.account_id == account_id
-        assert added_lot.acquisition_date == acq_date
-        assert added_lot.quantity == quantity
-        assert added_lot.cost_basis_per_share == price
-        assert added_lot.total_cost_basis == Decimal("1505.00")
-        assert added_lot.remaining_quantity == quantity
-        assert added_lot.is_closed is False
-
-        # Verify flush and refresh called
         db.flush.assert_awaited_once()
         db.refresh.assert_awaited_once()
+        added = db.add.call_args[0][0]
+        assert added.organization_id == org_id
+        assert added.holding_id == holding_id
+        assert added.quantity == Decimal("5")
+        assert added.total_cost_basis == Decimal("750.00")
+        assert added.remaining_quantity == Decimal("5")
+        assert added.is_closed is False
 
     @pytest.mark.asyncio
-    async def test_total_cost_rounds_to_two_decimals(self):
-        """Should quantize total cost to 2 decimal places."""
-        service = TaxLotService()
+    async def test_cost_basis_rounds_to_cents(self):
+        svc = TaxLotService()
         db = AsyncMock()
-
-        await service.record_purchase(
+        await svc.record_purchase(
             db=db,
             org_id=uuid4(),
             holding_id=uuid4(),
             account_id=uuid4(),
             quantity=Decimal("3"),
-            price_per_share=Decimal("33.3333"),
+            price_per_share=Decimal("33.333"),
             acquisition_date=date(2024, 1, 1),
         )
-
-        added_lot = db.add.call_args[0][0]
-        # 3 * 33.3333 = 99.9999 -> quantized to 100.00
-        assert added_lot.total_cost_basis == Decimal("100.00")
-
-
-def _make_mock_lot(
-    acquisition_date,
-    remaining_quantity,
-    cost_basis_per_share,
-    lot_id=None,
-):
-    """Helper to create a mock TaxLot for sale tests."""
-    lot = MagicMock(spec=TaxLot)
-    lot.id = lot_id or uuid4()
-    lot.acquisition_date = acquisition_date
-    lot.remaining_quantity = Decimal(str(remaining_quantity))
-    lot.cost_basis_per_share = Decimal(str(cost_basis_per_share))
-    lot.is_closed = False
-    lot.sale_proceeds = None
-    lot.realized_gain_loss = None
-    lot.holding_period = None
-    return lot
-
-
-def _build_db_mock(lots, account_method=None):
-    """Build AsyncMock db that returns lots from the second execute call.
-
-    First execute returns the account cost basis method (if method is None in the call).
-    Second execute returns the lots.
-    """
-    db = AsyncMock()
-
-    # Scalars result for lots query
-    scalars_mock = MagicMock()
-    scalars_mock.all.return_value = lots
-
-    lots_result = MagicMock()
-    lots_result.scalars.return_value = scalars_mock
-
-    if account_method is not None:
-        # When method is None, first call fetches account method, second fetches lots
-        account_result = MagicMock()
-        account_result.scalar_one_or_none.return_value = account_method
-        db.execute = AsyncMock(side_effect=[account_result, lots_result])
-    else:
-        # When method is provided, only one execute call for lots
-        db.execute = AsyncMock(return_value=lots_result)
-
-    return db
+        added = db.add.call_args[0][0]
+        assert added.total_cost_basis == Decimal("100.00")
 
 
 @pytest.mark.unit
 class TestRecordSaleFIFO:
-    """Tests for record_sale with FIFO method."""
-
     @pytest.mark.asyncio
-    async def test_sells_oldest_lot_first(self):
-        """FIFO should sell from the oldest acquisition date first."""
-        service = TaxLotService()
+    async def test_fifo_sells_oldest_first(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        org_id, holding_id, account_id = uuid4(), uuid4(), uuid4()
 
-        old_lot = _make_mock_lot(date(2022, 1, 1), 10, "100.00")
-        new_lot = _make_mock_lot(date(2024, 1, 1), 10, "150.00")
-        db = _build_db_mock([old_lot, new_lot])
+        lot_old = _make_lot(
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            acquisition_date=date(2022, 1, 1),
+            cost_basis_per_share=Decimal("50"),
+            remaining_quantity=Decimal("10"),
+        )
+        lot_new = _make_lot(
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            acquisition_date=date(2024, 1, 1),
+            cost_basis_per_share=Decimal("100"),
+            remaining_quantity=Decimal("10"),
+        )
 
-        result = await service.record_sale(
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [lot_new, lot_old]
+        db.execute = AsyncMock(return_value=mock_result)
+
+        result = await svc.record_sale(
             db=db,
-            org_id=uuid4(),
-            holding_id=uuid4(),
-            account_id=uuid4(),
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
             quantity=Decimal("5"),
-            sale_price_per_share=Decimal("200.00"),
-            sale_date=date(2025, 6, 1),
+            sale_price_per_share=Decimal("75"),
+            sale_date=date(2024, 6, 1),
             method=CostBasisMethod.FIFO,
         )
 
-        # Old lot should have been partially sold
-        assert old_lot.remaining_quantity == Decimal("5")
-        # New lot should be untouched (remaining_quantity not reassigned)
+        assert lot_old.remaining_quantity == Decimal("5")
         assert result["lots_affected"] == 1
-        assert result["total_proceeds"] == Decimal("1000.00")
-        assert result["total_cost_basis"] == Decimal("500.00")
+        assert result["total_proceeds"] == Decimal("375.00")
+        assert result["total_cost_basis"] == Decimal("250.00")
+        assert result["realized_gain_loss"] == Decimal("125.00")
 
     @pytest.mark.asyncio
     async def test_fifo_spans_multiple_lots(self):
-        """FIFO should span across lots when selling more than one lot holds."""
-        service = TaxLotService()
+        svc = TaxLotService()
+        db = AsyncMock()
+        org_id, holding_id, account_id = uuid4(), uuid4(), uuid4()
 
-        lot_a = _make_mock_lot(date(2022, 1, 1), 5, "100.00")
-        lot_b = _make_mock_lot(date(2023, 1, 1), 10, "120.00")
-        db = _build_db_mock([lot_a, lot_b])
+        lot1 = _make_lot(
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            acquisition_date=date(2022, 1, 1),
+            quantity=Decimal("3"),
+            cost_basis_per_share=Decimal("50"),
+            remaining_quantity=Decimal("3"),
+        )
+        lot2 = _make_lot(
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            acquisition_date=date(2023, 6, 1),
+            quantity=Decimal("10"),
+            cost_basis_per_share=Decimal("80"),
+            remaining_quantity=Decimal("10"),
+        )
 
-        result = await service.record_sale(
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [lot1, lot2]
+        db.execute = AsyncMock(return_value=mock_result)
+
+        result = await svc.record_sale(
             db=db,
-            org_id=uuid4(),
-            holding_id=uuid4(),
-            account_id=uuid4(),
-            quantity=Decimal("8"),
-            sale_price_per_share=Decimal("200.00"),
-            sale_date=date(2025, 6, 1),
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            quantity=Decimal("5"),
+            sale_price_per_share=Decimal("100"),
+            sale_date=date(2024, 6, 1),
             method=CostBasisMethod.FIFO,
         )
 
-        # lot_a fully sold (5 shares), lot_b partially sold (3 shares)
-        assert lot_a.remaining_quantity == Decimal("0")
-        assert lot_a.is_closed is True
-        assert lot_b.remaining_quantity == Decimal("7")
+        assert lot1.remaining_quantity == Decimal("0")
+        assert lot1.is_closed is True
+        assert lot2.remaining_quantity == Decimal("8")
         assert result["lots_affected"] == 2
+        assert result["total_proceeds"] == Decimal("500.00")
+        assert result["total_cost_basis"] == Decimal("310.00")
 
 
 @pytest.mark.unit
 class TestRecordSaleLIFO:
-    """Tests for record_sale with LIFO method."""
-
     @pytest.mark.asyncio
-    async def test_sells_newest_lot_first(self):
-        """LIFO should sell from the newest acquisition date first."""
-        service = TaxLotService()
+    async def test_lifo_sells_newest_first(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        org_id, holding_id, account_id = uuid4(), uuid4(), uuid4()
 
-        old_lot = _make_mock_lot(date(2022, 1, 1), 10, "100.00")
-        new_lot = _make_mock_lot(date(2024, 6, 1), 10, "150.00")
-        db = _build_db_mock([old_lot, new_lot])
+        lot_old = _make_lot(
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            acquisition_date=date(2022, 1, 1),
+            cost_basis_per_share=Decimal("50"),
+            remaining_quantity=Decimal("10"),
+        )
+        lot_new = _make_lot(
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            acquisition_date=date(2024, 1, 1),
+            cost_basis_per_share=Decimal("100"),
+            remaining_quantity=Decimal("10"),
+        )
 
-        result = await service.record_sale(
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [lot_old, lot_new]
+        db.execute = AsyncMock(return_value=mock_result)
+
+        result = await svc.record_sale(
             db=db,
-            org_id=uuid4(),
-            holding_id=uuid4(),
-            account_id=uuid4(),
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
             quantity=Decimal("5"),
-            sale_price_per_share=Decimal("200.00"),
-            sale_date=date(2025, 6, 1),
+            sale_price_per_share=Decimal("120"),
+            sale_date=date(2024, 6, 1),
             method=CostBasisMethod.LIFO,
         )
 
-        # New lot should be partially sold, old lot untouched
-        assert new_lot.remaining_quantity == Decimal("5")
-        assert result["lots_affected"] == 1
-        # Cost basis should be from the new lot (150.00 * 5)
-        assert result["total_cost_basis"] == Decimal("750.00")
+        assert lot_new.remaining_quantity == Decimal("5")
+        assert lot_old.remaining_quantity == Decimal("10")
+        assert result["total_cost_basis"] == Decimal("500.00")
+        assert result["total_proceeds"] == Decimal("600.00")
 
 
 @pytest.mark.unit
 class TestRecordSaleHIFO:
-    """Tests for record_sale with HIFO method."""
-
     @pytest.mark.asyncio
-    async def test_sells_highest_cost_first(self):
-        """HIFO should sell from the highest cost basis per share first."""
-        service = TaxLotService()
+    async def test_hifo_sells_highest_cost_first(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        org_id, holding_id, account_id = uuid4(), uuid4(), uuid4()
 
-        cheap_lot = _make_mock_lot(date(2022, 1, 1), 10, "80.00")
-        mid_lot = _make_mock_lot(date(2023, 1, 1), 10, "120.00")
-        expensive_lot = _make_mock_lot(date(2024, 1, 1), 10, "200.00")
-        db = _build_db_mock([cheap_lot, mid_lot, expensive_lot])
+        lot_low = _make_lot(
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            acquisition_date=date(2022, 1, 1),
+            cost_basis_per_share=Decimal("50"),
+            remaining_quantity=Decimal("10"),
+        )
+        lot_high = _make_lot(
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            acquisition_date=date(2023, 1, 1),
+            cost_basis_per_share=Decimal("200"),
+            remaining_quantity=Decimal("10"),
+        )
 
-        result = await service.record_sale(
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [lot_low, lot_high]
+        db.execute = AsyncMock(return_value=mock_result)
+
+        result = await svc.record_sale(
             db=db,
-            org_id=uuid4(),
-            holding_id=uuid4(),
-            account_id=uuid4(),
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
             quantity=Decimal("5"),
-            sale_price_per_share=Decimal("250.00"),
-            sale_date=date(2025, 6, 1),
+            sale_price_per_share=Decimal("150"),
+            sale_date=date(2024, 6, 1),
             method=CostBasisMethod.HIFO,
         )
 
-        # Expensive lot should be sold first
-        assert expensive_lot.remaining_quantity == Decimal("5")
-        assert result["lots_affected"] == 1
-        # Cost basis from expensive lot: 200.00 * 5
+        assert lot_high.remaining_quantity == Decimal("5")
+        assert lot_low.remaining_quantity == Decimal("10")
         assert result["total_cost_basis"] == Decimal("1000.00")
-        # Proceeds: 250.00 * 5 = 1250, gain = 1250 - 1000 = 250
-        assert result["realized_gain_loss"] == Decimal("250.00")
+        assert result["realized_gain_loss"] == Decimal("-250.00")
 
 
 @pytest.mark.unit
-class TestRecordSaleInsufficientQuantity:
-    """Tests for record_sale when insufficient shares are available."""
+class TestRecordSaleSpecificID:
+    @pytest.mark.asyncio
+    async def test_specific_id_uses_selected_lots(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        org_id, holding_id, account_id, lot_id = uuid4(), uuid4(), uuid4(), uuid4()
+
+        lot = _make_lot(
+            lot_id=lot_id,
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            acquisition_date=date(2023, 6, 1),
+            cost_basis_per_share=Decimal("80"),
+            remaining_quantity=Decimal("10"),
+        )
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [lot]
+        db.execute = AsyncMock(return_value=mock_result)
+
+        result = await svc.record_sale(
+            db=db,
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            quantity=Decimal("4"),
+            sale_price_per_share=Decimal("100"),
+            sale_date=date(2024, 6, 1),
+            method=CostBasisMethod.SPECIFIC_ID,
+            specific_lot_ids=[lot_id],
+        )
+
+        assert lot.remaining_quantity == Decimal("6")
+        assert result["total_proceeds"] == Decimal("400.00")
+        assert result["total_cost_basis"] == Decimal("320.00")
+
+
+@pytest.mark.unit
+class TestRecordSaleDefaultMethod:
+    @pytest.mark.asyncio
+    async def test_uses_account_default_method(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        org_id, holding_id, account_id = uuid4(), uuid4(), uuid4()
+
+        lot = _make_lot(
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            acquisition_date=date(2023, 1, 1),
+            cost_basis_per_share=Decimal("100"),
+            remaining_quantity=Decimal("10"),
+        )
+
+        account_result = MagicMock()
+        account_result.scalar_one_or_none.return_value = "fifo"
+        lots_result = MagicMock()
+        lots_result.scalars.return_value.all.return_value = [lot]
+        db.execute = AsyncMock(side_effect=[account_result, lots_result])
+
+        result = await svc.record_sale(
+            db=db,
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            quantity=Decimal("2"),
+            sale_price_per_share=Decimal("120"),
+            sale_date=date(2024, 6, 1),
+            method=None,
+        )
+
+        assert result["lots_affected"] == 1
+        assert result["total_proceeds"] == Decimal("240.00")
 
     @pytest.mark.asyncio
-    async def test_raises_value_error(self):
-        """Should raise ValueError when requested quantity exceeds available shares."""
-        service = TaxLotService()
+    async def test_defaults_to_fifo_when_no_account_method(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        org_id, holding_id, account_id = uuid4(), uuid4(), uuid4()
 
-        lot = _make_mock_lot(date(2024, 1, 1), 5, "100.00")
-        db = _build_db_mock([lot])
+        lot = _make_lot(
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            acquisition_date=date(2023, 1, 1),
+            cost_basis_per_share=Decimal("100"),
+            remaining_quantity=Decimal("10"),
+        )
+
+        account_result = MagicMock()
+        account_result.scalar_one_or_none.return_value = None
+        lots_result = MagicMock()
+        lots_result.scalars.return_value.all.return_value = [lot]
+        db.execute = AsyncMock(side_effect=[account_result, lots_result])
+
+        result = await svc.record_sale(
+            db=db,
+            org_id=org_id,
+            holding_id=holding_id,
+            account_id=account_id,
+            quantity=Decimal("2"),
+            sale_price_per_share=Decimal("120"),
+            sale_date=date(2024, 6, 1),
+            method=None,
+        )
+
+        assert result["lots_affected"] == 1
+
+
+@pytest.mark.unit
+class TestRecordSaleInsufficientShares:
+    @pytest.mark.asyncio
+    async def test_raises_when_insufficient(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        lot = _make_lot(remaining_quantity=Decimal("3"))
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [lot]
+        db.execute = AsyncMock(return_value=mock_result)
 
         with pytest.raises(ValueError, match="Insufficient shares"):
-            await service.record_sale(
+            await svc.record_sale(
                 db=db,
                 org_id=uuid4(),
                 holding_id=uuid4(),
                 account_id=uuid4(),
                 quantity=Decimal("10"),
-                sale_price_per_share=Decimal("200.00"),
-                sale_date=date(2025, 6, 1),
-                method=CostBasisMethod.FIFO,
-            )
-
-    @pytest.mark.asyncio
-    async def test_raises_when_no_lots_exist(self):
-        """Should raise ValueError when no open lots exist."""
-        service = TaxLotService()
-        db = _build_db_mock([])
-
-        with pytest.raises(ValueError, match="Insufficient shares"):
-            await service.record_sale(
-                db=db,
-                org_id=uuid4(),
-                holding_id=uuid4(),
-                account_id=uuid4(),
-                quantity=Decimal("1"),
-                sale_price_per_share=Decimal("100.00"),
-                sale_date=date(2025, 6, 1),
+                sale_price_per_share=Decimal("100"),
+                sale_date=date(2024, 6, 1),
                 method=CostBasisMethod.FIFO,
             )
 
 
 @pytest.mark.unit
-class TestRealizedGainLossCalculation:
-    """Tests for realized gain/loss math in record_sale."""
-
+class TestRecordSaleHoldingPeriod:
     @pytest.mark.asyncio
-    async def test_gain_calculation(self):
-        """Should calculate positive gain when sale price exceeds cost basis."""
-        service = TaxLotService()
+    async def test_short_term_gain(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        lot = _make_lot(
+            acquisition_date=date(2024, 3, 1),
+            cost_basis_per_share=Decimal("100"),
+            remaining_quantity=Decimal("10"),
+        )
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [lot]
+        db.execute = AsyncMock(return_value=mock_result)
 
-        lot = _make_mock_lot(date(2023, 1, 1), 10, "100.00")
-        db = _build_db_mock([lot])
-
-        result = await service.record_sale(
+        result = await svc.record_sale(
             db=db,
             org_id=uuid4(),
             holding_id=uuid4(),
             account_id=uuid4(),
-            quantity=Decimal("10"),
-            sale_price_per_share=Decimal("150.00"),
-            sale_date=date(2025, 6, 1),
+            quantity=Decimal("5"),
+            sale_price_per_share=Decimal("120"),
+            sale_date=date(2024, 6, 1),
             method=CostBasisMethod.FIFO,
         )
 
-        # Proceeds: 10 * 150 = 1500, Cost: 10 * 100 = 1000, Gain = 500
-        assert result["total_proceeds"] == Decimal("1500.00")
-        assert result["total_cost_basis"] == Decimal("1000.00")
-        assert result["realized_gain_loss"] == Decimal("500.00")
+        assert result["short_term_gain_loss"] == Decimal("100.00")
+        assert result["long_term_gain_loss"] == Decimal("0")
 
     @pytest.mark.asyncio
-    async def test_loss_calculation(self):
-        """Should calculate negative loss when sale price is below cost basis."""
-        service = TaxLotService()
+    async def test_long_term_gain(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        lot = _make_lot(
+            acquisition_date=date(2020, 1, 1),
+            cost_basis_per_share=Decimal("50"),
+            remaining_quantity=Decimal("10"),
+        )
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [lot]
+        db.execute = AsyncMock(return_value=mock_result)
 
-        lot = _make_mock_lot(date(2024, 1, 1), 10, "200.00")
-        db = _build_db_mock([lot])
-
-        result = await service.record_sale(
+        result = await svc.record_sale(
             db=db,
             org_id=uuid4(),
             holding_id=uuid4(),
             account_id=uuid4(),
-            quantity=Decimal("10"),
-            sale_price_per_share=Decimal("150.00"),
-            sale_date=date(2025, 6, 1),
+            quantity=Decimal("5"),
+            sale_price_per_share=Decimal("100"),
+            sale_date=date(2024, 6, 1),
             method=CostBasisMethod.FIFO,
         )
 
-        # Proceeds: 10 * 150 = 1500, Cost: 10 * 200 = 2000, Loss = -500
-        assert result["total_proceeds"] == Decimal("1500.00")
-        assert result["total_cost_basis"] == Decimal("2000.00")
-        assert result["realized_gain_loss"] == Decimal("-500.00")
+        assert result["long_term_gain_loss"] == Decimal("250.00")
+        assert result["short_term_gain_loss"] == Decimal("0")
 
     @pytest.mark.asyncio
-    async def test_short_term_vs_long_term_split(self):
-        """Should split gains into short-term and long-term buckets."""
-        service = TaxLotService()
-
-        # Short-term lot (acquired recently)
-        short_lot = _make_mock_lot(date(2025, 3, 1), 5, "100.00")
-        # Long-term lot (acquired > 366 days ago)
-        long_lot = _make_mock_lot(date(2023, 1, 1), 5, "80.00")
-        db = _build_db_mock([short_lot, long_lot])
-
-        sale_date = date(2025, 6, 1)
-        result = await service.record_sale(
-            db=db,
-            org_id=uuid4(),
-            holding_id=uuid4(),
-            account_id=uuid4(),
-            quantity=Decimal("10"),
-            sale_price_per_share=Decimal("150.00"),
-            sale_date=sale_date,
-            method=CostBasisMethod.FIFO,
+    async def test_lot_fully_closed(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        lot = _make_lot(
+            acquisition_date=date(2023, 1, 1),
+            quantity=Decimal("5"),
+            cost_basis_per_share=Decimal("100"),
+            remaining_quantity=Decimal("5"),
         )
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [lot]
+        db.execute = AsyncMock(return_value=mock_result)
 
-        # Short-term lot: proceeds 5*150=750, cost 5*100=500, gain=250
-        # Long-term lot: proceeds 5*150=750, cost 5*80=400, gain=350
-        assert result["short_term_gain_loss"] == Decimal("250.00")
-        assert result["long_term_gain_loss"] == Decimal("350.00")
-        assert result["realized_gain_loss"] == Decimal("600.00")
-
-    @pytest.mark.asyncio
-    async def test_lot_fields_updated_after_full_sale(self):
-        """Should update lot fields correctly when fully sold."""
-        service = TaxLotService()
-
-        lot = _make_mock_lot(date(2023, 1, 1), 10, "100.00")
-        db = _build_db_mock([lot])
-
-        await service.record_sale(
+        await svc.record_sale(
             db=db,
             org_id=uuid4(),
             holding_id=uuid4(),
             account_id=uuid4(),
-            quantity=Decimal("10"),
-            sale_price_per_share=Decimal("150.00"),
-            sale_date=date(2025, 6, 1),
+            quantity=Decimal("5"),
+            sale_price_per_share=Decimal("120"),
+            sale_date=date(2024, 6, 1),
             method=CostBasisMethod.FIFO,
         )
 
         assert lot.remaining_quantity == Decimal("0")
         assert lot.is_closed is True
         assert lot.closed_at is not None
-        assert lot.sale_proceeds == Decimal("1500.00")
-        assert lot.realized_gain_loss == Decimal("500.00")
-        assert lot.holding_period == "LONG_TERM"
+
+
+@pytest.mark.unit
+class TestGetLots:
+    @pytest.mark.asyncio
+    async def test_returns_open_lots_by_default(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [_make_lot(), _make_lot()]
+        db.execute = AsyncMock(return_value=mock_result)
+        result = await svc.get_lots(db=db, holding_id=uuid4())
+        assert len(result) == 2
+
+    @pytest.mark.asyncio
+    async def test_include_closed(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        db.execute = AsyncMock(return_value=mock_result)
+        await svc.get_lots(db=db, holding_id=uuid4(), include_closed=True)
+        db.execute.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_empty_result(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        db.execute = AsyncMock(return_value=mock_result)
+        result = await svc.get_lots(db=db, holding_id=uuid4())
+        assert result == []
+
+
+@pytest.mark.unit
+class TestGetUnrealizedGains:
+    @pytest.mark.asyncio
+    async def test_calculates_unrealized_gains(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        account_id, holding_id = uuid4(), uuid4()
+
+        lot = _make_lot(
+            holding_id=holding_id,
+            acquisition_date=date(2020, 1, 1),
+            cost_basis_per_share=Decimal("100"),
+            remaining_quantity=Decimal("10"),
+        )
+        holding = _make_holding(holding_id=holding_id, current_price_per_share=Decimal("150"))
+
+        lots_result = MagicMock()
+        lots_result.scalars.return_value.all.return_value = [lot]
+        holdings_result = MagicMock()
+        holdings_result.scalars.return_value.all.return_value = [holding]
+        db.execute = AsyncMock(side_effect=[lots_result, holdings_result])
+
+        result = await svc.get_unrealized_gains(db=db, account_id=account_id)
+
+        assert result["account_id"] == account_id
+        assert result["total_unrealized_gain_loss"] == Decimal("500.00")
+        assert result["long_term_unrealized"] == Decimal("500.00")
+        assert result["short_term_unrealized"] == Decimal("0")
+        assert result["lots"][0]["ticker"] == "AAPL"
+
+    @pytest.mark.asyncio
+    async def test_no_current_price(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        account_id, holding_id = uuid4(), uuid4()
+
+        lot = _make_lot(
+            holding_id=holding_id,
+            acquisition_date=date(2024, 1, 1),
+            remaining_quantity=Decimal("5"),
+            cost_basis_per_share=Decimal("100"),
+        )
+        holding = _make_holding(holding_id=holding_id, current_price_per_share=None)
+
+        lots_result = MagicMock()
+        lots_result.scalars.return_value.all.return_value = [lot]
+        holdings_result = MagicMock()
+        holdings_result.scalars.return_value.all.return_value = [holding]
+        db.execute = AsyncMock(side_effect=[lots_result, holdings_result])
+
+        result = await svc.get_unrealized_gains(db=db, account_id=account_id)
+
+        assert result["total_unrealized_gain_loss"] == Decimal("0")
+        assert result["lots"][0]["unrealized_gain_loss"] is None
+
+    @pytest.mark.asyncio
+    async def test_holding_not_found(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        lot = _make_lot(
+            holding_id=uuid4(), acquisition_date=date(2024, 1, 1), remaining_quantity=Decimal("5")
+        )
+        lots_result = MagicMock()
+        lots_result.scalars.return_value.all.return_value = [lot]
+        holdings_result = MagicMock()
+        holdings_result.scalars.return_value.all.return_value = []
+        db.execute = AsyncMock(side_effect=[lots_result, holdings_result])
+
+        result = await svc.get_unrealized_gains(db=db, account_id=uuid4())
+        assert result["lots"][0]["ticker"] == "UNKNOWN"
+
+    @pytest.mark.asyncio
+    async def test_empty_lots(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        lots_result = MagicMock()
+        lots_result.scalars.return_value.all.return_value = []
+        holdings_result = MagicMock()
+        holdings_result.scalars.return_value.all.return_value = []
+        db.execute = AsyncMock(side_effect=[lots_result, holdings_result])
+
+        result = await svc.get_unrealized_gains(db=db, account_id=uuid4())
+        assert result["total_unrealized_gain_loss"] == Decimal("0")
+        assert result["lots"] == []
+
+    @pytest.mark.asyncio
+    async def test_short_term_unrealized_gain(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        account_id, holding_id = uuid4(), uuid4()
+
+        lot = _make_lot(
+            holding_id=holding_id,
+            acquisition_date=date(2026, 1, 1),
+            remaining_quantity=Decimal("10"),
+            cost_basis_per_share=Decimal("100"),
+        )
+        holding = _make_holding(holding_id=holding_id, current_price_per_share=Decimal("120"))
+
+        lots_result = MagicMock()
+        lots_result.scalars.return_value.all.return_value = [lot]
+        holdings_result = MagicMock()
+        holdings_result.scalars.return_value.all.return_value = [holding]
+        db.execute = AsyncMock(side_effect=[lots_result, holdings_result])
+
+        result = await svc.get_unrealized_gains(db=db, account_id=account_id)
+        assert result["short_term_unrealized"] == Decimal("200.00")
+        assert result["long_term_unrealized"] == Decimal("0")
+
+
+@pytest.mark.unit
+class TestGetRealizedGainsSummary:
+    @pytest.mark.asyncio
+    async def test_returns_summary_for_tax_year(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+
+        lot_st = _make_lot(
+            holding_period="SHORT_TERM",
+            realized_gain_loss=Decimal("500"),
+            sale_proceeds=Decimal("2000"),
+            is_closed=True,
+        )
+        lot_st.total_cost_basis = Decimal("1500")
+        lot_lt = _make_lot(
+            holding_period="LONG_TERM",
+            realized_gain_loss=Decimal("1000"),
+            sale_proceeds=Decimal("5000"),
+            is_closed=True,
+        )
+        lot_lt.total_cost_basis = Decimal("4000")
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [lot_st, lot_lt]
+        db.execute = AsyncMock(return_value=mock_result)
+
+        result = await svc.get_realized_gains_summary(db=db, org_id=uuid4(), tax_year=2024)
+
+        assert result["tax_year"] == 2024
+        assert result["total_realized_gain_loss"] == Decimal("1500")
+        assert result["short_term_gain_loss"] == Decimal("500")
+        assert result["long_term_gain_loss"] == Decimal("1000")
+        assert result["total_proceeds"] == Decimal("7000")
+        assert result["lots_closed"] == 2
+
+    @pytest.mark.asyncio
+    async def test_handles_null_fields(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        lot = _make_lot(
+            holding_period="SHORT_TERM", realized_gain_loss=None, sale_proceeds=None, is_closed=True
+        )
+        lot.total_cost_basis = None
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [lot]
+        db.execute = AsyncMock(return_value=mock_result)
+
+        result = await svc.get_realized_gains_summary(db=db, org_id=uuid4(), tax_year=2024)
+        assert result["total_realized_gain_loss"] == Decimal("0")
+        assert result["total_proceeds"] == Decimal("0")
+
+    @pytest.mark.asyncio
+    async def test_empty_year(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        db.execute = AsyncMock(return_value=mock_result)
+
+        result = await svc.get_realized_gains_summary(db=db, org_id=uuid4(), tax_year=2024)
+        assert result["lots_closed"] == 0
+
+    @pytest.mark.asyncio
+    async def test_defaults_unknown_period_to_long_term(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        lot = _make_lot(
+            holding_period=None,
+            realized_gain_loss=Decimal("200"),
+            sale_proceeds=Decimal("1000"),
+            is_closed=True,
+        )
+        lot.total_cost_basis = Decimal("800")
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [lot]
+        db.execute = AsyncMock(return_value=mock_result)
+
+        result = await svc.get_realized_gains_summary(db=db, org_id=uuid4(), tax_year=2024)
+        assert result["long_term_gain_loss"] == Decimal("200")
+        assert result["short_term_gain_loss"] == Decimal("0")
+
+
+@pytest.mark.unit
+class TestImportLotsFromHolding:
+    @pytest.mark.asyncio
+    async def test_imports_lot_from_holding(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        holding_id = uuid4()
+        holding = _make_holding(
+            holding_id=holding_id, shares=Decimal("25"), cost_basis_per_share=Decimal("100")
+        )
+
+        holding_result = MagicMock()
+        holding_result.scalar_one_or_none.return_value = holding
+        existing_result = MagicMock()
+        existing_result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(side_effect=[holding_result, existing_result])
+
+        await svc.import_lots_from_holding(db=db, holding_id=holding_id)
+
+        db.add.assert_called_once()
+        added = db.add.call_args[0][0]
+        assert added.quantity == Decimal("25")
+        assert added.cost_basis_per_share == Decimal("100")
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_holding_not_found(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        holding_result = MagicMock()
+        holding_result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=holding_result)
+        result = await svc.import_lots_from_holding(db=db, holding_id=uuid4())
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_cost_basis(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        holding = _make_holding(cost_basis_per_share=None, shares=Decimal("10"))
+        holding_result = MagicMock()
+        holding_result.scalar_one_or_none.return_value = holding
+        db.execute = AsyncMock(return_value=holding_result)
+        result = await svc.import_lots_from_holding(db=db, holding_id=uuid4())
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_shares(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        holding = _make_holding(cost_basis_per_share=Decimal("100"), shares=None)
+        holding_result = MagicMock()
+        holding_result.scalar_one_or_none.return_value = holding
+        db.execute = AsyncMock(return_value=holding_result)
+        result = await svc.import_lots_from_holding(db=db, holding_id=uuid4())
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_skips_when_lots_already_exist(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        holding = _make_holding(shares=Decimal("10"), cost_basis_per_share=Decimal("100"))
+        holding_result = MagicMock()
+        holding_result.scalar_one_or_none.return_value = holding
+        existing_result = MagicMock()
+        existing_result.scalar_one_or_none.return_value = uuid4()
+        db.execute = AsyncMock(side_effect=[holding_result, existing_result])
+
+        result = await svc.import_lots_from_holding(db=db, holding_id=uuid4())
+        assert result is None
+        db.add.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_uses_created_at_date(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        holding = _make_holding(
+            shares=Decimal("10"),
+            cost_basis_per_share=Decimal("100"),
+            created_at=datetime(2023, 3, 15, 10, 30, 0),
+        )
+        holding_result = MagicMock()
+        holding_result.scalar_one_or_none.return_value = holding
+        existing_result = MagicMock()
+        existing_result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(side_effect=[holding_result, existing_result])
+
+        await svc.import_lots_from_holding(db=db, holding_id=uuid4())
+        added = db.add.call_args[0][0]
+        assert added.acquisition_date == date(2023, 3, 15)
+
+    @pytest.mark.asyncio
+    async def test_uses_today_when_no_created_at(self):
+        svc = TaxLotService()
+        db = AsyncMock()
+        holding = _make_holding(shares=Decimal("10"), cost_basis_per_share=Decimal("100"))
+        holding.created_at = None
+        holding_result = MagicMock()
+        holding_result.scalar_one_or_none.return_value = holding
+        existing_result = MagicMock()
+        existing_result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(side_effect=[holding_result, existing_result])
+
+        await svc.import_lots_from_holding(db=db, holding_id=uuid4())
+        added = db.add.call_args[0][0]
+        assert added.acquisition_date == date.today()
+
+
+@pytest.mark.unit
+class TestModuleSingleton:
+    def test_tax_lot_service_is_instance(self):
+        assert isinstance(tax_lot_service, TaxLotService)

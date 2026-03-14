@@ -7,17 +7,17 @@ Covers:
 - Schema validation edge cases
 """
 
-import pytest
 from decimal import Decimal
+
+import pytest
 from pydantic import ValidationError
 
 from app.schemas.retirement import (
-    RetirementScenarioCreate,
-    RetirementScenarioUpdate,
     QuickSimulationRequest,
     RetirementAccountDataResponse,
+    RetirementScenarioCreate,
+    RetirementScenarioUpdate,
 )
-
 
 # ── Slider Range Validation ──────────────────────────────────────────────────
 
@@ -203,6 +203,7 @@ class TestWithdrawalStrategySchema:
 
     def test_simple_rate_strategy(self):
         from app.models.retirement import WithdrawalStrategy
+
         schema = RetirementScenarioCreate(
             name="Simple",
             retirement_age=67,
@@ -213,6 +214,7 @@ class TestWithdrawalStrategySchema:
 
     def test_update_withdrawal_strategy(self):
         from app.models.retirement import WithdrawalStrategy
+
         schema = RetirementScenarioUpdate(
             withdrawal_strategy=WithdrawalStrategy.TAX_OPTIMIZED,
         )
@@ -457,8 +459,10 @@ class TestRetirementPermission:
 
     def test_retirement_scenario_in_resource_types(self):
         from app.models.permission import RESOURCE_TYPES
+
         assert "retirement_scenario" in RESOURCE_TYPES
 
     def test_resource_types_count(self):
         from app.models.permission import RESOURCE_TYPES
+
         assert len(RESOURCE_TYPES) == 13

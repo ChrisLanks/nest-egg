@@ -7,16 +7,17 @@ Covers:
   - is_transfer transactions are NOT filtered out (explicit tax label wins)
 """
 
-import pytest
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+import pytest
+
 from app.services.tax_service import TaxService
 
-
 # ── helpers ───────────────────────────────────────────────────────────────────
+
 
 def _summary_row(label_id, label_name, total_amount, transaction_count, color="#9F7AEA"):
     """Return a mock DB aggregate row matching the summary SELECT columns."""
@@ -43,6 +44,7 @@ def _txn(txn_id=None):
 
 
 # ── merge duplicate label names ───────────────────────────────────────────────
+
 
 @pytest.mark.unit
 class TestGetTaxDeductibleSummaryMerge:
@@ -101,7 +103,9 @@ class TestGetTaxDeductibleSummaryMerge:
                 mock_db, org_id, date(2026, 1, 1), date(2026, 12, 31)
             )
 
-        called_label_ids = mock_detail.call_args[0][4]  # positional: (db, org, start, end, label_ids)
+        called_label_ids = mock_detail.call_args[0][
+            4
+        ]  # positional: (db, org, start, end, label_ids)
         assert id1 in called_label_ids
         assert id2 in called_label_ids
 
@@ -149,6 +153,7 @@ class TestGetTaxDeductibleSummaryMerge:
 
 # ── transaction_count uses len(transactions) ─────────────────────────────────
 
+
 @pytest.mark.unit
 class TestTransactionCountDedup:
     """transaction_count must reflect the deduplicated list, not the raw DB aggregate."""
@@ -164,9 +169,7 @@ class TestTransactionCountDedup:
 
         summary_result = Mock()
         # DB aggregate says 2 (possibly inflated by duplicate transaction_labels rows)
-        summary_result.all.return_value = [
-            _summary_row(uuid4(), "Medical & Dental", "90.64", 2)
-        ]
+        summary_result.all.return_value = [_summary_row(uuid4(), "Medical & Dental", "90.64", 2)]
         mock_db.execute.return_value = summary_result
 
         # But the deduplicated detail query only returns 1 transaction
@@ -185,6 +188,7 @@ class TestTransactionCountDedup:
 
 # ── is_transfer transactions are included ────────────────────────────────────
 
+
 @pytest.mark.unit
 class TestIsTransferNotFiltered:
     """
@@ -200,7 +204,6 @@ class TestIsTransferNotFiltered:
     async def test_detail_query_called_without_is_transfer_filter(self, mock_db):
         """_get_transactions_for_label should not have an is_transfer condition."""
         import inspect
-        import ast
 
         # Read the source of _get_transactions_for_label and assert it doesn't
         # reference is_transfer anywhere.
@@ -214,15 +217,17 @@ class TestIsTransferNotFiltered:
     async def test_summary_query_has_no_is_transfer_filter(self):
         """get_tax_deductible_summary SQL must not filter on is_transfer."""
         import inspect
+
         source = inspect.getsource(TaxService.get_tax_deductible_summary)
         # The source code of this method (pre-_get_transactions_for_label call)
         # must not reference is_transfer in the WHERE clause construction.
-        assert "is_transfer" not in source, (
-            "get_tax_deductible_summary must not filter on is_transfer"
-        )
+        assert (
+            "is_transfer" not in source
+        ), "get_tax_deductible_summary must not filter on is_transfer"
 
 
 # ── only official tax labels surfaced ────────────────────────────────────────
+
 
 @pytest.mark.unit
 class TestTaxLabelNameFilter:
@@ -230,7 +235,7 @@ class TestTaxLabelNameFilter:
 
     def test_default_tax_labels_contains_expected_names(self):
         """DEFAULT_TAX_LABELS must contain the 5 standard IRS-aligned categories."""
-        names = {l["name"] for l in TaxService.DEFAULT_TAX_LABELS}
+        names = {label["name"] for label in TaxService.DEFAULT_TAX_LABELS}
         assert names == {
             "Medical & Dental",
             "Charitable Donations",
@@ -242,10 +247,11 @@ class TestTaxLabelNameFilter:
     def test_summary_query_filters_by_tax_label_names(self):
         """The summary query source must reference the name filter."""
         import inspect
+
         source = inspect.getsource(TaxService.get_tax_deductible_summary)
-        assert "tax_label_names" in source, (
-            "get_tax_deductible_summary must filter labels by tax_label_names"
-        )
-        assert "Label.name.in_" in source, (
-            "get_tax_deductible_summary must use Label.name.in_() to restrict labels"
-        )
+        assert (
+            "tax_label_names" in source
+        ), "get_tax_deductible_summary must filter labels by tax_label_names"
+        assert (
+            "Label.name.in_" in source
+        ), "get_tax_deductible_summary must use Label.name.in_() to restrict labels"

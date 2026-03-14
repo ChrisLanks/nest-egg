@@ -1,14 +1,15 @@
 """Tests for budget service."""
 
-import pytest
 from datetime import date, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-from app.services.budget_service import BudgetService
+import pytest
+
 from app.models.budget import Budget, BudgetPeriod
-from app.models.transaction import Transaction, Category, Label, TransactionLabel
 from app.models.notification import NotificationType
+from app.models.transaction import Category, Label, Transaction, TransactionLabel
+from app.services.budget_service import BudgetService
 
 
 class TestBudgetService:
@@ -127,7 +128,9 @@ class TestBudgetService:
         """Quarterly with start_day=15: Q1 runs Jan 15 – Apr 14."""
         service = BudgetService()
         ref_date = date(2026, 2, 20)
-        start, end = service._get_period_dates(BudgetPeriod.QUARTERLY, ref_date, monthly_start_day=15)
+        start, end = service._get_period_dates(
+            BudgetPeriod.QUARTERLY, ref_date, monthly_start_day=15
+        )
         assert start == date(2026, 1, 15)
         assert end == date(2026, 4, 14)
 
@@ -135,7 +138,9 @@ class TestBudgetService:
         """Quarterly with start_day=15: date before Jan 15 belongs to prior year's Q4."""
         service = BudgetService()
         ref_date = date(2026, 1, 10)
-        start, end = service._get_period_dates(BudgetPeriod.QUARTERLY, ref_date, monthly_start_day=15)
+        start, end = service._get_period_dates(
+            BudgetPeriod.QUARTERLY, ref_date, monthly_start_day=15
+        )
         assert start == date(2025, 10, 15)
         assert end == date(2026, 1, 14)
 
@@ -484,8 +489,13 @@ class TestBudgetService:
         await db.commit()
 
         budget = await service.create_budget(
-            db, test_user, "Food Budget", Decimal("500.00"),
-            BudgetPeriod.MONTHLY, date.today(), category_id=parent.id,
+            db,
+            test_user,
+            "Food Budget",
+            Decimal("500.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            category_id=parent.id,
         )
 
         period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
@@ -516,7 +526,9 @@ class TestBudgetService:
         assert spending["spent"] == Decimal("100.00")
 
     @pytest.mark.asyncio
-    async def test_get_budget_spending_child_does_not_bleed_into_other_budget(self, db, test_user, test_account):
+    async def test_get_budget_spending_child_does_not_bleed_into_other_budget(
+        self, db, test_user, test_account
+    ):
         """A transaction in a child category should NOT count toward an unrelated budget."""
         service = BudgetService()
 
@@ -534,8 +546,13 @@ class TestBudgetService:
         await db.commit()
 
         budget = await service.create_budget(
-            db, test_user, "Entertainment Budget", Decimal("200.00"),
-            BudgetPeriod.MONTHLY, date.today(), category_id=other.id,
+            db,
+            test_user,
+            "Entertainment Budget",
+            Decimal("200.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            category_id=other.id,
         )
 
         period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
@@ -557,7 +574,8 @@ class TestBudgetService:
 
     @pytest.mark.asyncio
     async def test_get_budget_spending_matches_category_primary(self, db, test_user, test_account):
-        """Provider-categorized transactions (category_primary set, no category_id) should match by name."""
+        """Provider-categorized transactions (category_primary set,
+        no category_id) should match by name."""
         service = BudgetService()
 
         category = Category(organization_id=test_user.organization_id, name="Food and Drink")
@@ -565,8 +583,13 @@ class TestBudgetService:
         await db.commit()
 
         budget = await service.create_budget(
-            db, test_user, "Food Budget", Decimal("300.00"),
-            BudgetPeriod.MONTHLY, date.today(), category_id=category.id,
+            db,
+            test_user,
+            "Food Budget",
+            Decimal("300.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            category_id=category.id,
         )
 
         period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
@@ -620,7 +643,7 @@ class TestBudgetService:
         service = BudgetService()
 
         # Create budget with 80% threshold
-        budget = await service.create_budget(
+        await service.create_budget(
             db,
             test_user,
             "Test",
@@ -690,7 +713,7 @@ class TestBudgetService:
         """Should create high priority alert when over budget."""
         service = BudgetService()
 
-        budget = await service.create_budget(
+        await service.create_budget(
             db,
             test_user,
             "Test",
@@ -718,8 +741,9 @@ class TestBudgetService:
 
         assert len(alerts) > 0
         # Verify notification was created
-        from app.models.notification import Notification
         from sqlalchemy import select
+
+        from app.models.notification import Notification
 
         result = await db.execute(
             select(Notification).where(
@@ -983,8 +1007,14 @@ class TestBudgetService:
         uid1, uid2 = str(uuid4()), str(uuid4())
 
         budget = await service.create_budget(
-            db, test_user, "Shared", Decimal("500"), BudgetPeriod.MONTHLY,
-            date.today(), is_shared=True, shared_user_ids=[uid1],
+            db,
+            test_user,
+            "Shared",
+            Decimal("500"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            is_shared=True,
+            shared_user_ids=[uid1],
         )
 
         updated = await service.update_budget(

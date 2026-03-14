@@ -1,13 +1,11 @@
 """Unit tests for InsightsService — category trends, anomaly detection."""
 
-import pytest
-from datetime import date, timedelta
-from decimal import Decimal
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
-from app.services.insights_service import InsightsService
+import pytest
 
+from app.services.insights_service import InsightsService
 
 svc = InsightsService
 
@@ -43,8 +41,7 @@ class TestGenerateInsights:
             for i in range(10)
         ]
         fake_anomalies = [
-            {"type": "anomaly", "title": f"Anomaly {i}", "priority_score": i + 10}
-            for i in range(5)
+            {"type": "anomaly", "title": f"Anomaly {i}", "priority_score": i + 10} for i in range(5)
         ]
 
         with patch.object(svc, "_detect_category_trends", return_value=fake_trends):

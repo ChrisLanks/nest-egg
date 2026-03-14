@@ -679,3 +679,1487 @@ class TestMortgagePaymentProjections:
         # All payment dates should be on the 15th (or last day of month if shorter)
         for event in events:
             assert event["date"].day == 15
+
+
+@pytest.mark.unit
+class TestBondCouponEvents:
+    """Test bond coupon cash flow projections."""
+
+    def test_bond_coupon_semi_annual_default(self):
+        """Bonds with no compounding_frequency default to semi-annual coupons."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Treasury Bond",
+            account_type=AccountType.BOND,
+            original_amount=Decimal("10000.00"),
+            interest_rate=Decimal("4.00"),
+            compounding_frequency=None,  # defaults to semi-annual
+            origination_date=date.today() - timedelta(days=30),
+            maturity_date=date.today() + timedelta(days=400),
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_bond_coupon_events([account], days_ahead=365)
+
+        coupon_events = [e for e in events if "Coupon" in e["merchant"]]
+        # Semi-annual = 2/year, so expect ~2 coupon events in 365 days
+        assert len(coupon_events) >= 1
+        # Coupon amount: 10,000 * 0.04 / 2 = 200
+        expected_coupon = Decimal("10000.00") * Decimal("0.04") / Decimal("2")
+        for e in coupon_events:
+            assert e["amount"] == expected_coupon
+
+    def test_bond_maturity_repayment(self):
+        """Should include principal repayment on maturity date."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        maturity_date = date.today() + timedelta(days=60)
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Corporate Bond",
+            account_type=AccountType.BOND,
+            original_amount=Decimal("25000.00"),
+            interest_rate=Decimal("5.00"),
+            compounding_frequency=None,
+            origination_date=date.today() - timedelta(days=100),
+            maturity_date=maturity_date,
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_bond_coupon_events([account], days_ahead=90)
+
+        maturity_events = [e for e in events if "Maturity" in e["merchant"]]
+        assert len(maturity_events) == 1
+        assert maturity_events[0]["amount"] == Decimal("25000.00")
+        assert maturity_events[0]["date"] == maturity_date
+
+    def test_bond_already_matured_skipped(self):
+        """Bonds past maturity should be skipped entirely."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Expired Bond",
+            account_type=AccountType.BOND,
+            original_amount=Decimal("10000.00"),
+            interest_rate=Decimal("3.00"),
+            maturity_date=date.today() - timedelta(days=30),  # Already matured
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_bond_coupon_events([account], days_ahead=90)
+        assert len(events) == 0
+
+    def test_bond_excluded_from_cash_flow_skipped(self):
+        """Bonds with exclude_from_cash_flow should be skipped."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Excluded Bond",
+            account_type=AccountType.BOND,
+            original_amount=Decimal("10000.00"),
+            interest_rate=Decimal("4.00"),
+            exclude_from_cash_flow=True,
+            is_active=True,
+        )
+
+        events = ForecastService._get_bond_coupon_events([account], days_ahead=90)
+        assert len(events) == 0
+
+    def test_bond_with_quarterly_coupons(self):
+        """Bond with quarterly compounding frequency."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType, CompoundingFrequency
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Quarterly Bond",
+            account_type=AccountType.BOND,
+            original_amount=Decimal("10000.00"),
+            interest_rate=Decimal("4.00"),
+            compounding_frequency=CompoundingFrequency.QUARTERLY,
+            origination_date=date.today() - timedelta(days=10),
+            maturity_date=date.today() + timedelta(days=400),
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_bond_coupon_events([account], days_ahead=365)
+        coupon_events = [e for e in events if "Coupon" in e["merchant"]]
+        # Quarterly = 4/year, expect ~4 in 365 days
+        assert len(coupon_events) >= 3
+        # Coupon amount: 10,000 * 0.04 / 4 = 100
+        expected_coupon = Decimal("10000.00") * Decimal("0.04") / Decimal("4")
+        for e in coupon_events:
+            assert e["amount"] == expected_coupon
+
+    def test_bond_zero_principal_skipped(self):
+        """Bond with zero or None principal should be skipped."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Zero Bond",
+            account_type=AccountType.BOND,
+            original_amount=None,
+            current_balance=Decimal("0"),
+            interest_rate=Decimal("4.00"),
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_bond_coupon_events([account], days_ahead=90)
+        assert len(events) == 0
+
+
+@pytest.mark.unit
+class TestPensionAnnuityIncomeEvents:
+    """Test pension/annuity income projections."""
+
+    def test_pension_monthly_income(self):
+        """Should project monthly pension payments."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="State Pension",
+            account_type=AccountType.PENSION,
+            monthly_benefit=Decimal("2500.00"),
+            benefit_start_date=date.today() - timedelta(days=30),
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_pension_annuity_income_events([account], days_ahead=90)
+        assert len(events) >= 2
+        for e in events:
+            assert e["amount"] == Decimal("2500.00")
+            assert "Income" in e["merchant"]
+
+    def test_annuity_income_events(self):
+        """Should project annuity income payments."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Life Annuity",
+            account_type=AccountType.ANNUITY,
+            monthly_benefit=Decimal("1500.00"),
+            benefit_start_date=date.today() - timedelta(days=15),
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_pension_annuity_income_events([account], days_ahead=90)
+        assert len(events) >= 2
+
+    def test_pension_not_started_yet(self):
+        """Pension starting beyond forecast window should produce no events."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Future Pension",
+            account_type=AccountType.PENSION,
+            monthly_benefit=Decimal("3000.00"),
+            benefit_start_date=date.today() + timedelta(days=365),
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_pension_annuity_income_events([account], days_ahead=90)
+        assert len(events) == 0
+
+    def test_pension_excluded_from_cash_flow(self):
+        """Pensions excluded from cash flow should produce no events."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Excluded Pension",
+            account_type=AccountType.PENSION,
+            monthly_benefit=Decimal("2000.00"),
+            benefit_start_date=date.today() - timedelta(days=30),
+            exclude_from_cash_flow=True,
+            is_active=True,
+        )
+
+        events = ForecastService._get_pension_annuity_income_events([account], days_ahead=90)
+        assert len(events) == 0
+
+    def test_pension_no_benefit_start_date(self):
+        """Pension with no benefit_start_date should default to today."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Active Pension",
+            account_type=AccountType.PENSION,
+            monthly_benefit=Decimal("1800.00"),
+            benefit_start_date=None,  # Defaults to today
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_pension_annuity_income_events([account], days_ahead=90)
+        assert len(events) >= 2
+
+    def test_zero_benefit_skipped(self):
+        """Pensions with zero monthly_benefit should produce no events."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Empty Pension",
+            account_type=AccountType.PENSION,
+            monthly_benefit=None,
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_pension_annuity_income_events([account], days_ahead=90)
+        assert len(events) == 0
+
+
+@pytest.mark.unit
+class TestVestingEvents:
+    """Test private equity vesting event projections."""
+
+    def test_future_vesting_events(self):
+        """Should project future vesting events within forecast window."""
+        import json
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        vest_date = (date.today() + timedelta(days=30)).isoformat()
+        schedule = json.dumps([{"date": vest_date, "quantity": 100}])
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Startup Equity",
+            account_type=AccountType.PRIVATE_EQUITY,
+            vesting_schedule=schedule,
+            share_price=Decimal("25.00"),
+            include_in_networth=True,
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_vesting_events([account], days_ahead=90)
+        assert len(events) == 1
+        assert events[0]["amount"] == Decimal("2500.00")
+
+    def test_past_vesting_events_excluded(self):
+        """Vesting events in the past should not be included."""
+        import json
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        vest_date = (date.today() - timedelta(days=30)).isoformat()
+        schedule = json.dumps([{"date": vest_date, "quantity": 100}])
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Vested Equity",
+            account_type=AccountType.PRIVATE_EQUITY,
+            vesting_schedule=schedule,
+            share_price=Decimal("25.00"),
+            include_in_networth=True,
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_vesting_events([account], days_ahead=90)
+        assert len(events) == 0
+
+    def test_vesting_no_share_price_skipped(self):
+        """Accounts with zero share price produce no events."""
+        import json
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        vest_date = (date.today() + timedelta(days=30)).isoformat()
+        schedule = json.dumps([{"date": vest_date, "quantity": 100}])
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="No Price Equity",
+            account_type=AccountType.PRIVATE_EQUITY,
+            vesting_schedule=schedule,
+            share_price=Decimal("0"),
+            include_in_networth=True,
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_vesting_events([account], days_ahead=90)
+        assert len(events) == 0
+
+    def test_vesting_excluded_from_networth_skipped(self):
+        """Accounts not included in networth should be skipped."""
+        import json
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        vest_date = (date.today() + timedelta(days=30)).isoformat()
+        schedule = json.dumps([{"date": vest_date, "quantity": 100}])
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Excluded Equity",
+            account_type=AccountType.PRIVATE_EQUITY,
+            vesting_schedule=schedule,
+            share_price=Decimal("25.00"),
+            include_in_networth=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_vesting_events([account], days_ahead=90)
+        assert len(events) == 0
+
+    def test_malformed_vesting_schedule_skipped(self):
+        """Malformed JSON vesting schedule should be skipped gracefully."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Bad Schedule",
+            account_type=AccountType.PRIVATE_EQUITY,
+            vesting_schedule="not-valid-json",
+            share_price=Decimal("25.00"),
+            include_in_networth=True,
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_vesting_events([account], days_ahead=90)
+        assert len(events) == 0
+
+
+@pytest.mark.unit
+class TestForecastOccurrenceEdgeCases:
+    """Additional edge cases for occurrence calculation."""
+
+    def test_quarterly_occurrences(self):
+        """Test quarterly recurring transactions."""
+        pattern = RecurringTransaction(
+            merchant_name="Quarterly Bill",
+            average_amount=Decimal("-500.00"),
+            frequency=RecurringFrequency.QUARTERLY,
+            next_expected_date=date.today(),
+        )
+
+        occurrences = ForecastService._calculate_future_occurrences(pattern, days_ahead=365)
+        # Quarterly = 4/year + today = 5 occurrences
+        assert len(occurrences) == 5
+
+    def test_yearly_occurrences(self):
+        """Test yearly recurring transactions."""
+        pattern = RecurringTransaction(
+            merchant_name="Annual Subscription",
+            average_amount=Decimal("-120.00"),
+            frequency=RecurringFrequency.YEARLY,
+            next_expected_date=date.today(),
+        )
+
+        occurrences = ForecastService._calculate_future_occurrences(pattern, days_ahead=365)
+        # Should have 2 occurrences (today + 1 year)
+        assert len(occurrences) == 2
+
+    def test_no_next_expected_date_uses_today(self):
+        """When next_expected_date is None, should use today."""
+        pattern = RecurringTransaction(
+            merchant_name="Unknown Date",
+            average_amount=Decimal("-50.00"),
+            frequency=RecurringFrequency.MONTHLY,
+            next_expected_date=None,
+        )
+
+        occurrences = ForecastService._calculate_future_occurrences(pattern, days_ahead=30)
+        assert len(occurrences) >= 1
+        assert occurrences[0]["date"] == date.today()
+
+
+@pytest.mark.unit
+class TestMortgagePaymentEdgeCases:
+    """Additional mortgage payment edge cases."""
+
+    def test_loan_with_maturity_date_no_term(self):
+        """Loan with maturity_date but no loan_term_months should use maturity for remaining."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Maturity Loan",
+            account_type=AccountType.LOAN,
+            current_balance=Decimal("50000.00"),
+            interest_rate=Decimal("5.00"),
+            loan_term_months=None,
+            origination_date=None,
+            maturity_date=date.today() + timedelta(days=365 * 5),
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_mortgage_payment_events([account], days_ahead=90)
+        assert len(events) >= 3
+        assert all(e["amount"] < 0 for e in events)
+
+    def test_zero_balance_loan_skipped(self):
+        """Loan with zero balance should produce no events."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Paid Off Loan",
+            account_type=AccountType.LOAN,
+            current_balance=Decimal("0.00"),
+            interest_rate=Decimal("5.00"),
+            loan_term_months=120,
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_mortgage_payment_events([account], days_ahead=90)
+        assert len(events) == 0
+
+    def test_student_loan_default_term(self):
+        """Student loan with no term data defaults to 120 months (not 360)."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        loan = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Student Loan No Term",
+            account_type=AccountType.STUDENT_LOAN,
+            current_balance=Decimal("30000.00"),
+            interest_rate=Decimal("4.5"),
+            loan_term_months=None,
+            origination_date=None,
+            maturity_date=None,
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_mortgage_payment_events([loan], days_ahead=90)
+        # Should have events using 120-month default
+        assert len(events) >= 3
+
+
+# ---------------------------------------------------------------------------
+# Tests for generate_forecast (async, requires mocked DB)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGenerateForecast:
+    """Test the main generate_forecast entry point."""
+
+    @pytest.mark.asyncio
+    async def test_generate_forecast_basic(self):
+        """Should produce daily forecast data points."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        # Mock account query result
+        checking = MagicMock(spec=Account)
+        checking.id = uuid4()
+        checking.account_type = AccountType.CHECKING
+        checking.is_active = True
+        checking.vesting_schedule = None
+        checking.include_in_networth = True
+        checking.company_status = None
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [checking]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        with (
+            patch.object(
+                ForecastService,
+                "_get_total_balance",
+                new_callable=AsyncMock,
+                return_value=Decimal("5000"),
+            ),
+            patch(
+                "app.services.forecast_service.RecurringDetectionService.get_recurring_transactions",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            forecast = await ForecastService.generate_forecast(db, org_id, days_ahead=5)
+
+        assert len(forecast) == 6  # today + 5 days
+        assert forecast[0]["projected_balance"] == 5000.0
+        assert forecast[0]["date"] == date.today().isoformat()
+
+    @pytest.mark.asyncio
+    async def test_generate_forecast_with_user_filter(self):
+        """Should filter recurring transactions by user account IDs."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        org_id = uuid4()
+        user_id = uuid4()
+        db = AsyncMock()
+
+        acct = MagicMock(spec=Account)
+        acct.id = uuid4()
+        acct.account_type = AccountType.CHECKING
+        acct.is_active = True
+        acct.vesting_schedule = None
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [acct]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        # Create a recurring txn for a different account
+        rt = RecurringTransaction(
+            merchant_name="Other",
+            average_amount=Decimal("-50"),
+            frequency=RecurringFrequency.MONTHLY,
+            next_expected_date=date.today(),
+            account_id=uuid4(),  # different from acct.id
+        )
+
+        with (
+            patch.object(
+                ForecastService,
+                "_get_total_balance",
+                new_callable=AsyncMock,
+                return_value=Decimal("1000"),
+            ),
+            patch(
+                "app.services.forecast_service.RecurringDetectionService.get_recurring_transactions",
+                new_callable=AsyncMock,
+                return_value=[rt],
+            ),
+        ):
+            forecast = await ForecastService.generate_forecast(
+                db, org_id, user_id=user_id, days_ahead=3
+            )
+
+        # The recurring txn is for a different account, so it should be filtered out
+        assert all(f["day_change"] == 0.0 for f in forecast)
+
+    @pytest.mark.asyncio
+    async def test_generate_forecast_includes_recurring(self):
+        """Should include recurring transaction amounts in forecast."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        acct = MagicMock(spec=Account)
+        acct.id = uuid4()
+        acct.account_type = AccountType.CHECKING
+        acct.is_active = True
+        acct.vesting_schedule = None
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [acct]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        # Create a recurring txn for today
+        rt = RecurringTransaction(
+            merchant_name="Netflix",
+            average_amount=Decimal("-15.99"),
+            frequency=RecurringFrequency.MONTHLY,
+            next_expected_date=date.today(),
+        )
+
+        with (
+            patch.object(
+                ForecastService,
+                "_get_total_balance",
+                new_callable=AsyncMock,
+                return_value=Decimal("1000"),
+            ),
+            patch(
+                "app.services.forecast_service.RecurringDetectionService.get_recurring_transactions",
+                new_callable=AsyncMock,
+                return_value=[rt],
+            ),
+        ):
+            forecast = await ForecastService.generate_forecast(db, org_id, days_ahead=3)
+
+        # First day should include the recurring transaction
+        assert forecast[0]["day_change"] == float(Decimal("-15.99"))
+        assert forecast[0]["transaction_count"] >= 1
+
+
+# ---------------------------------------------------------------------------
+# Tests for _get_total_balance (async, mocked DB)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGetTotalBalance:
+    """Test _get_total_balance with various account types."""
+
+    @pytest.mark.asyncio
+    async def test_basic_balance(self):
+        """Should sum balances of regular accounts."""
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        checking = MagicMock(spec=Account)
+        checking.include_in_networth = True
+        checking.account_type = AccountType.CHECKING
+        checking.current_balance = Decimal("5000")
+        checking.exclude_from_cash_flow = False
+        checking.is_active = True
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [checking]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id)
+        assert total == Decimal("5000")
+
+    @pytest.mark.asyncio
+    async def test_debt_account_subtracted(self):
+        """Debt accounts should be subtracted from total."""
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        cc = MagicMock(spec=Account)
+        cc.include_in_networth = True
+        cc.account_type = AccountType.CREDIT_CARD
+        cc.current_balance = Decimal("500")
+        cc.exclude_from_cash_flow = False
+        cc.is_active = True
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [cc]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id)
+        assert total == Decimal("-500")
+
+    @pytest.mark.asyncio
+    async def test_vehicle_excluded_by_default(self):
+        """Vehicle accounts with include_in_networth=None should be excluded."""
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        vehicle = MagicMock(spec=Account)
+        vehicle.include_in_networth = None
+        vehicle.account_type = AccountType.VEHICLE
+        vehicle.current_balance = Decimal("25000")
+        vehicle.exclude_from_cash_flow = False
+        vehicle.is_active = True
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [vehicle]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id)
+        assert total == Decimal("0")
+
+    @pytest.mark.asyncio
+    async def test_private_equity_public_auto_included(self):
+        """Private equity with company_status=public and
+        include_in_networth=None should be included."""
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType, CompanyStatus
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        pe = MagicMock(spec=Account)
+        pe.include_in_networth = None
+        pe.account_type = AccountType.PRIVATE_EQUITY
+        pe.company_status = CompanyStatus.PUBLIC
+        pe.vesting_schedule = None
+        pe.current_balance = Decimal("10000")
+        pe.exclude_from_cash_flow = False
+        pe.is_active = True
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [pe]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id)
+        assert total == Decimal("10000")
+
+    @pytest.mark.asyncio
+    async def test_private_equity_private_auto_excluded(self):
+        """Private equity with company_status=private and
+        include_in_networth=None should be excluded."""
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType, CompanyStatus
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        pe = MagicMock(spec=Account)
+        pe.include_in_networth = None
+        pe.account_type = AccountType.PRIVATE_EQUITY
+        pe.company_status = CompanyStatus.PRIVATE
+        pe.vesting_schedule = None
+        pe.current_balance = Decimal("10000")
+        pe.exclude_from_cash_flow = False
+        pe.is_active = True
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [pe]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id)
+        assert total == Decimal("0")
+
+    @pytest.mark.asyncio
+    async def test_business_equity_with_equity_value(self):
+        """Business equity should use equity_value when set."""
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        biz = MagicMock(spec=Account)
+        biz.include_in_networth = True
+        biz.account_type = AccountType.BUSINESS_EQUITY
+        biz.equity_value = Decimal("500000")
+        biz.company_valuation = None
+        biz.ownership_percentage = None
+        biz.current_balance = Decimal("0")
+        biz.exclude_from_cash_flow = False
+        biz.is_active = True
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [biz]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id)
+        assert total == Decimal("500000")
+
+    @pytest.mark.asyncio
+    async def test_business_equity_with_valuation_and_percentage(self):
+        """Business equity should calculate value from valuation * ownership_percentage."""
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        biz = MagicMock(spec=Account)
+        biz.include_in_networth = True
+        biz.account_type = AccountType.BUSINESS_EQUITY
+        biz.equity_value = None
+        biz.company_valuation = Decimal("1000000")
+        biz.ownership_percentage = Decimal("25")
+        biz.current_balance = Decimal("0")
+        biz.exclude_from_cash_flow = False
+        biz.is_active = True
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [biz]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id)
+        assert total == Decimal("250000")
+
+    @pytest.mark.asyncio
+    async def test_business_equity_valuation_no_percentage(self):
+        """Business equity with valuation but no percentage assumes 100%."""
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        biz = MagicMock(spec=Account)
+        biz.include_in_networth = True
+        biz.account_type = AccountType.BUSINESS_EQUITY
+        biz.equity_value = None
+        biz.company_valuation = Decimal("750000")
+        biz.ownership_percentage = None
+        biz.current_balance = Decimal("100")
+        biz.exclude_from_cash_flow = False
+        biz.is_active = True
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [biz]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id)
+        assert total == Decimal("750000")
+
+    @pytest.mark.asyncio
+    async def test_private_equity_with_vesting_schedule(self):
+        """Private equity with vesting schedule should calculate vested value."""
+        import json
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        schedule = json.dumps(
+            [
+                {"date": yesterday, "quantity": 100},
+                {"date": tomorrow, "quantity": 200},
+            ]
+        )
+
+        pe = MagicMock(spec=Account)
+        pe.include_in_networth = True
+        pe.account_type = AccountType.PRIVATE_EQUITY
+        pe.vesting_schedule = schedule
+        pe.share_price = Decimal("50")
+        pe.current_balance = Decimal("0")
+        pe.exclude_from_cash_flow = False
+        pe.is_active = True
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [pe]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id)
+        # Both vesting entries count (100 + 200 shares * $50)
+        assert total == Decimal("15000")
+
+    @pytest.mark.asyncio
+    async def test_private_equity_malformed_vesting_fallback(self):
+        """Private equity with malformed JSON should fall back to current_balance."""
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        pe = MagicMock(spec=Account)
+        pe.include_in_networth = True
+        pe.account_type = AccountType.PRIVATE_EQUITY
+        pe.vesting_schedule = "not-valid-json"
+        pe.current_balance = Decimal("3000")
+        pe.exclude_from_cash_flow = False
+        pe.is_active = True
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [pe]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id)
+        assert total == Decimal("3000")
+
+    @pytest.mark.asyncio
+    async def test_private_equity_non_list_vesting_fallback(self):
+        """Private equity with non-list vesting schedule should fall back to balance."""
+        import json
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        pe = MagicMock(spec=Account)
+        pe.include_in_networth = True
+        pe.account_type = AccountType.PRIVATE_EQUITY
+        pe.vesting_schedule = json.dumps({"not": "a list"})
+        pe.current_balance = Decimal("7000")
+        pe.exclude_from_cash_flow = False
+        pe.is_active = True
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [pe]
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id)
+        assert total == Decimal("7000")
+
+    @pytest.mark.asyncio
+    async def test_with_user_id_filter(self):
+        """Should add user_id condition when provided."""
+        from unittest.mock import AsyncMock, MagicMock
+        from uuid import uuid4
+
+        org_id = uuid4()
+        user_id = uuid4()
+        db = AsyncMock()
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = []
+        result_mock = MagicMock()
+        result_mock.scalars.return_value = scalars_mock
+        db.execute.return_value = result_mock
+
+        total = await ForecastService._get_total_balance(db, org_id, user_id=user_id)
+        assert total == Decimal("0")
+        db.execute.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# Tests for check_negative_balance_alert
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestCheckNegativeBalanceAlert:
+    """Test negative balance alert logic."""
+
+    @pytest.mark.asyncio
+    async def test_creates_alert_on_negative_balance(self):
+        """Should create notification when negative balance is projected."""
+        from unittest.mock import AsyncMock, patch
+
+        org_id = __import__("uuid").uuid4()
+        db = AsyncMock()
+
+        mock_forecast = [
+            {
+                "date": "2025-01-01",
+                "projected_balance": 500.0,
+                "day_change": 0,
+                "transaction_count": 0,
+            },
+            {
+                "date": "2025-01-02",
+                "projected_balance": -100.0,
+                "day_change": -600,
+                "transaction_count": 1,
+            },
+        ]
+
+        with (
+            patch.object(
+                ForecastService,
+                "generate_forecast",
+                new_callable=AsyncMock,
+                return_value=mock_forecast,
+            ),
+            patch(
+                "app.services.forecast_service.NotificationService.create_notification",
+                new_callable=AsyncMock,
+            ) as mock_notify,
+        ):
+            result = await ForecastService.check_negative_balance_alert(db, org_id)
+
+        assert result is not None
+        assert result["projected_balance"] == -100.0
+        mock_notify.assert_awaited_once()
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_negative(self):
+        """Should return None when forecast stays positive."""
+        from unittest.mock import AsyncMock, patch
+
+        org_id = __import__("uuid").uuid4()
+        db = AsyncMock()
+
+        mock_forecast = [
+            {
+                "date": "2025-01-01",
+                "projected_balance": 500.0,
+                "day_change": 0,
+                "transaction_count": 0,
+            },
+            {
+                "date": "2025-01-02",
+                "projected_balance": 400.0,
+                "day_change": -100,
+                "transaction_count": 1,
+            },
+        ]
+
+        with patch.object(
+            ForecastService, "generate_forecast", new_callable=AsyncMock, return_value=mock_forecast
+        ):
+            result = await ForecastService.check_negative_balance_alert(db, org_id)
+
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# CD maturity edge cases (compound interest)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestCDMaturityCompounding:
+    """CD maturity with various compounding frequencies."""
+
+    def test_cd_daily_compounding(self):
+        """CD with daily compounding should calculate compound interest."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType, CompoundingFrequency
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Daily CD",
+            account_type=AccountType.CD,
+            original_amount=Decimal("10000.00"),
+            interest_rate=Decimal("5.00"),
+            compounding_frequency=CompoundingFrequency.DAILY,
+            origination_date=date.today() - timedelta(days=180),
+            maturity_date=date.today() + timedelta(days=30),
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_cd_maturity_events([account], days_ahead=60)
+        assert len(events) == 1
+        assert events[0]["amount"] > Decimal("10000.00")  # Principal + interest
+
+    def test_cd_quarterly_compounding(self):
+        """CD with quarterly compounding should calculate compound interest."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType, CompoundingFrequency
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Quarterly CD",
+            account_type=AccountType.CD,
+            original_amount=Decimal("10000.00"),
+            interest_rate=Decimal("5.00"),
+            compounding_frequency=CompoundingFrequency.QUARTERLY,
+            origination_date=date.today() - timedelta(days=180),
+            maturity_date=date.today() + timedelta(days=30),
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_cd_maturity_events([account], days_ahead=60)
+        assert len(events) == 1
+        assert events[0]["amount"] > Decimal("10000.00")
+
+    def test_cd_at_maturity_simple_interest(self):
+        """CD with at_maturity compounding uses simple interest."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType, CompoundingFrequency
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Simple CD",
+            account_type=AccountType.CD,
+            original_amount=Decimal("10000.00"),
+            interest_rate=Decimal("5.00"),
+            compounding_frequency=CompoundingFrequency.AT_MATURITY,
+            origination_date=date.today() - timedelta(days=365),
+            maturity_date=date.today() + timedelta(days=30),
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_cd_maturity_events([account], days_ahead=60)
+        assert len(events) == 1
+        # Simple interest: P * (1 + r * t)
+        assert events[0]["amount"] > Decimal("10000.00")
+
+    def test_cd_no_original_amount_uses_balance(self):
+        """CD with no original_amount should use current_balance."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Balance CD",
+            account_type=AccountType.CD,
+            original_amount=None,
+            current_balance=Decimal("5000.00"),
+            interest_rate=Decimal("0"),
+            compounding_frequency=None,
+            maturity_date=date.today() + timedelta(days=30),
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_cd_maturity_events([account], days_ahead=60)
+        assert len(events) == 1
+        assert events[0]["amount"] == Decimal("5000.00")
+
+    def test_cd_zero_principal_skipped(self):
+        """CD with zero principal should be skipped."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Empty CD",
+            account_type=AccountType.CD,
+            original_amount=Decimal("0"),
+            current_balance=Decimal("0"),
+            maturity_date=date.today() + timedelta(days=30),
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_cd_maturity_events([account], days_ahead=60)
+        assert len(events) == 0
+
+    def test_cd_no_origination_date_uses_today(self):
+        """CD with no origination_date should default to today."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType, CompoundingFrequency
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="No Origin CD",
+            account_type=AccountType.CD,
+            original_amount=Decimal("10000.00"),
+            interest_rate=Decimal("5.00"),
+            compounding_frequency=CompoundingFrequency.MONTHLY,
+            origination_date=None,
+            maturity_date=date.today() + timedelta(days=30),
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_cd_maturity_events([account], days_ahead=60)
+        assert len(events) == 1
+
+
+# ---------------------------------------------------------------------------
+# Vesting events edge cases
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestVestingEdgeCases:
+    """Additional edge cases for vesting events."""
+
+    def test_vesting_auto_include_public_company(self):
+        """Private equity with company_status=public and
+        include_in_networth=None should be included."""
+        import json
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType, CompanyStatus
+
+        vest_date = (date.today() + timedelta(days=15)).isoformat()
+        schedule = json.dumps([{"date": vest_date, "quantity": 50}])
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Public PE",
+            account_type=AccountType.PRIVATE_EQUITY,
+            vesting_schedule=schedule,
+            share_price=Decimal("100"),
+            include_in_networth=None,
+            company_status=CompanyStatus.PUBLIC,
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_vesting_events([account], days_ahead=30)
+        assert len(events) == 1
+        assert events[0]["amount"] == Decimal("5000")
+
+    def test_vesting_non_list_schedule_skipped(self):
+        """Vesting schedule that is valid JSON but not a list should be skipped."""
+        import json
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Dict Schedule",
+            account_type=AccountType.PRIVATE_EQUITY,
+            vesting_schedule=json.dumps({"date": "2025-01-01", "quantity": 100}),
+            share_price=Decimal("50"),
+            include_in_networth=True,
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_vesting_events([account], days_ahead=90)
+        assert len(events) == 0
+
+    def test_vesting_milestone_missing_date(self):
+        """Milestone with no date should be skipped."""
+        import json
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        schedule = json.dumps([{"quantity": 100}])  # no date
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="No Date Milestone",
+            account_type=AccountType.PRIVATE_EQUITY,
+            vesting_schedule=schedule,
+            share_price=Decimal("50"),
+            include_in_networth=True,
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_vesting_events([account], days_ahead=90)
+        assert len(events) == 0
+
+    def test_vesting_milestone_invalid_date(self):
+        """Milestone with invalid date format should be skipped."""
+        import json
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        schedule = json.dumps([{"date": "not-a-date", "quantity": 100}])
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Bad Date Milestone",
+            account_type=AccountType.PRIVATE_EQUITY,
+            vesting_schedule=schedule,
+            share_price=Decimal("50"),
+            include_in_networth=True,
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_vesting_events([account], days_ahead=90)
+        assert len(events) == 0
+
+
+# ---------------------------------------------------------------------------
+# Private debt events edge case
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestPrivateDebtEdgeCases:
+    """Additional private debt event edge cases."""
+
+    def test_private_debt_no_interest_but_maturity(self):
+        """Private debt with zero interest but maturity should only show principal."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Zero Rate Debt",
+            account_type=AccountType.PRIVATE_DEBT,
+            principal_amount=Decimal("50000"),
+            interest_rate=Decimal("0"),
+            maturity_date=date.today() + timedelta(days=30),
+            is_active=True,
+        )
+
+        events = ForecastService._get_future_private_debt_events([account], days_ahead=60)
+        # Should have only the principal repayment, no interest
+        assert len(events) == 1
+        assert "Principal Repayment" in events[0]["merchant"]
+
+    def test_mortgage_default_term_360_months(self):
+        """Mortgage with no term data defaults to 360 months."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Mortgage No Term",
+            account_type=AccountType.MORTGAGE,
+            current_balance=Decimal("300000"),
+            interest_rate=Decimal("6.5"),
+            loan_term_months=None,
+            origination_date=None,
+            maturity_date=None,
+            payment_due_day=15,
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_mortgage_payment_events([account], days_ahead=90)
+        assert len(events) >= 3
+        # Payment should be based on 360-month term
+        for e in events:
+            assert e["amount"] < 0
+
+    def test_mortgage_loan_term_only(self):
+        """Loan with loan_term_months but no origination or maturity should use full term."""
+        from uuid import uuid4
+
+        from app.models.account import Account, AccountType
+
+        account = Account(
+            id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            name="Term Only Loan",
+            account_type=AccountType.LOAN,
+            current_balance=Decimal("20000"),
+            interest_rate=Decimal("5.0"),
+            loan_term_months=60,
+            origination_date=None,
+            maturity_date=None,
+            exclude_from_cash_flow=False,
+            is_active=True,
+        )
+
+        events = ForecastService._get_mortgage_payment_events([account], days_ahead=90)
+        assert len(events) >= 3

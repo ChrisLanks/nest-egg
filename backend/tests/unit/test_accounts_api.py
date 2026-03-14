@@ -1,26 +1,26 @@
 """Unit tests for accounts API endpoints."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from uuid import uuid4
 from decimal import Decimal
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
+import pytest
 from fastapi import HTTPException
 
 from app.api.v1.accounts import (
-    list_accounts,
-    get_account,
-    create_manual_account,
-    bulk_update_visibility,
-    update_account,
-    bulk_delete_accounts,
-    refresh_account_valuation,
-    BulkVisibilityUpdate,
     _ALLOWED_VALUATION_PROVIDERS,
+    BulkVisibilityUpdate,
+    bulk_delete_accounts,
+    bulk_update_visibility,
+    create_manual_account,
+    get_account,
+    list_accounts,
+    refresh_account_valuation,
+    update_account,
 )
+from app.models.account import Account, AccountSource, AccountType
 from app.models.user import User
-from app.models.account import Account, AccountType, AccountSource
-from app.schemas.account import ManualAccountCreate, AccountUpdate
+from app.schemas.account import AccountUpdate, ManualAccountCreate
 
 
 @pytest.mark.unit
@@ -61,9 +61,7 @@ class TestListAccounts:
         return account
 
     @pytest.mark.asyncio
-    async def test_lists_household_accounts_by_default(
-        self, mock_db, mock_user, mock_account
-    ):
+    async def test_lists_household_accounts_by_default(self, mock_db, mock_user, mock_account):
         """Should list all household accounts when user_id is None."""
         with patch(
             "app.api.v1.accounts.get_all_household_accounts",
@@ -82,15 +80,11 @@ class TestListAccounts:
             mock_get_all.assert_called_once_with(mock_db, mock_user.organization_id)
 
     @pytest.mark.asyncio
-    async def test_filters_by_user_when_user_id_provided(
-        self, mock_db, mock_user, mock_account
-    ):
+    async def test_filters_by_user_when_user_id_provided(self, mock_db, mock_user, mock_account):
         """Should filter accounts by user_id when provided."""
         user_id = uuid4()
 
-        with patch(
-            "app.api.v1.accounts.verify_household_member", return_value=None
-        ) as mock_verify:
+        with patch("app.api.v1.accounts.verify_household_member", return_value=None) as mock_verify:
             with patch(
                 "app.api.v1.accounts.get_user_accounts", return_value=[mock_account]
             ) as mock_get_user:
@@ -102,25 +96,17 @@ class TestListAccounts:
                 )
 
                 assert len(result) == 1
-                mock_verify.assert_called_once_with(
-                    mock_db, user_id, mock_user.organization_id
-                )
-                mock_get_user.assert_called_once_with(
-                    mock_db, user_id, mock_user.organization_id
-                )
+                mock_verify.assert_called_once_with(mock_db, user_id, mock_user.organization_id)
+                mock_get_user.assert_called_once_with(mock_db, user_id, mock_user.organization_id)
 
     @pytest.mark.asyncio
-    async def test_includes_hidden_accounts_when_flag_true(
-        self, mock_db, mock_user, mock_account
-    ):
+    async def test_includes_hidden_accounts_when_flag_true(self, mock_db, mock_user, mock_account):
         """Should include hidden (inactive) accounts when include_hidden=True."""
         mock_account.is_active = False
 
         # Mock database query for admin view
         mock_result = Mock()
-        mock_result.unique.return_value.scalars.return_value.all.return_value = [
-            mock_account
-        ]
+        mock_result.unique.return_value.scalars.return_value.all.return_value = [mock_account]
         mock_db.execute.return_value = mock_result
 
         result = await list_accounts(
@@ -134,23 +120,17 @@ class TestListAccounts:
         assert result[0].is_active is False
 
     @pytest.mark.asyncio
-    async def test_includes_hidden_with_user_filter(
-        self, mock_db, mock_user, mock_account
-    ):
+    async def test_includes_hidden_with_user_filter(self, mock_db, mock_user, mock_account):
         """Should include hidden accounts filtered by user_id (admin view)."""
         user_id = uuid4()
         mock_account.is_active = False
 
         # Mock database query for admin view with user filter
         mock_result = Mock()
-        mock_result.unique.return_value.scalars.return_value.all.return_value = [
-            mock_account
-        ]
+        mock_result.unique.return_value.scalars.return_value.all.return_value = [mock_account]
         mock_db.execute.return_value = mock_result
 
-        with patch(
-            "app.api.v1.accounts.verify_household_member", return_value=None
-        ) as mock_verify:
+        with patch("app.api.v1.accounts.verify_household_member", return_value=None) as mock_verify:
             result = await list_accounts(
                 include_hidden=True,
                 user_id=user_id,
@@ -159,9 +139,7 @@ class TestListAccounts:
             )
 
             assert len(result) == 1
-            mock_verify.assert_called_once_with(
-                mock_db, user_id, mock_user.organization_id
-            )
+            mock_verify.assert_called_once_with(mock_db, user_id, mock_user.organization_id)
 
     @pytest.mark.asyncio
     async def test_sorts_accounts_by_name(self, mock_db, mock_user):
@@ -251,9 +229,7 @@ class TestListAccounts:
         account.plaid_item = plaid_item
         account.plaid_item_id = uuid4()
 
-        with patch(
-            "app.api.v1.accounts.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.accounts.get_all_household_accounts", return_value=[account]):
             result = await list_accounts(
                 include_hidden=False,
                 user_id=None,
@@ -298,9 +274,7 @@ class TestListAccounts:
         account.teller_enrollment = teller_enrollment
         account.teller_enrollment_id = uuid4()
 
-        with patch(
-            "app.api.v1.accounts.get_all_household_accounts", return_value=[account]
-        ):
+        with patch("app.api.v1.accounts.get_all_household_accounts", return_value=[account]):
             result = await list_accounts(
                 include_hidden=False,
                 user_id=None,
@@ -383,9 +357,7 @@ class TestCreateManualAccount:
             mock_hash.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_excludes_debt_accounts_from_cash_flow(
-        self, mock_db, mock_user
-    ):
+    async def test_excludes_debt_accounts_from_cash_flow(self, mock_db, mock_user):
         """Should exclude mortgages, loans, student loans, credit cards from cash flow."""
         for account_type in [
             AccountType.MORTGAGE,
@@ -415,10 +387,9 @@ class TestCreateManualAccount:
                 assert result.exclude_from_cash_flow is True
 
     @pytest.mark.asyncio
-    async def test_collectibles_defaults_include_in_networth_to_none(
-        self, mock_db, mock_user
-    ):
-        """Collectibles without include_in_networth should store None (excluded by default in calculations)."""
+    async def test_collectibles_defaults_include_in_networth_to_none(self, mock_db, mock_user):
+        """Collectibles without include_in_networth should store
+        None (excluded by default in calculations)."""
         account_data = ManualAccountCreate(
             name="My Art Collection",
             account_type=AccountType.COLLECTIBLES,
@@ -439,9 +410,7 @@ class TestCreateManualAccount:
             assert result.include_in_networth is None
 
     @pytest.mark.asyncio
-    async def test_collectibles_include_in_networth_false_is_stored(
-        self, mock_db, mock_user
-    ):
+    async def test_collectibles_include_in_networth_false_is_stored(self, mock_db, mock_user):
         """Collectibles with include_in_networth=False should store False explicitly."""
         account_data = ManualAccountCreate(
             name="My Art Collection",
@@ -464,9 +433,7 @@ class TestCreateManualAccount:
             assert result.include_in_networth is False
 
     @pytest.mark.asyncio
-    async def test_collectibles_include_in_networth_true_is_stored(
-        self, mock_db, mock_user
-    ):
+    async def test_collectibles_include_in_networth_true_is_stored(self, mock_db, mock_user):
         """User can opt collectibles into net worth by setting include_in_networth=True."""
         account_data = ManualAccountCreate(
             name="My Watch Collection",
@@ -489,9 +456,7 @@ class TestCreateManualAccount:
             assert result.include_in_networth is True
 
     @pytest.mark.asyncio
-    async def test_other_account_include_in_networth_false_is_stored(
-        self, mock_db, mock_user
-    ):
+    async def test_other_account_include_in_networth_false_is_stored(self, mock_db, mock_user):
         """Other/manual accounts with include_in_networth=False should store False."""
         account_data = ManualAccountCreate(
             name="Miscellaneous Assets",
@@ -514,9 +479,7 @@ class TestCreateManualAccount:
             assert result.include_in_networth is False
 
     @pytest.mark.asyncio
-    async def test_create_negates_positive_balance_for_debt_account(
-        self, mock_db, mock_user
-    ):
+    async def test_create_negates_positive_balance_for_debt_account(self, mock_db, mock_user):
         """Positive balance entered for a debt account must be stored as negative."""
         for account_type in [
             AccountType.MORTGAGE,
@@ -541,14 +504,12 @@ class TestCreateManualAccount:
                     db=mock_db,
                 )
 
-            assert result.current_balance == Decimal("-10000.00"), (
-                f"{account_type.value} with positive balance should be negated"
-            )
+            assert result.current_balance == Decimal(
+                "-10000.00"
+            ), f"{account_type.value} with positive balance should be negated"
 
     @pytest.mark.asyncio
-    async def test_create_keeps_negative_balance_for_debt_account(
-        self, mock_db, mock_user
-    ):
+    async def test_create_keeps_negative_balance_for_debt_account(self, mock_db, mock_user):
         """Already-negative balance for a debt account should be stored as-is."""
         account_data = ManualAccountCreate(
             name="My Mortgage",
@@ -570,9 +531,7 @@ class TestCreateManualAccount:
         assert result.current_balance == Decimal("-330000.00")
 
     @pytest.mark.asyncio
-    async def test_create_keeps_positive_balance_for_asset_account(
-        self, mock_db, mock_user
-    ):
+    async def test_create_keeps_positive_balance_for_asset_account(self, mock_db, mock_user):
         """Positive balance for a non-debt account must NOT be negated."""
         account_data = ManualAccountCreate(
             name="My Savings",
@@ -594,9 +553,7 @@ class TestCreateManualAccount:
         assert result.current_balance == Decimal("50000.00")
 
     @pytest.mark.asyncio
-    async def test_creates_holdings_for_investment_accounts(
-        self, mock_db, mock_user
-    ):
+    async def test_creates_holdings_for_investment_accounts(self, mock_db, mock_user):
         """Should create holdings when provided for investment accounts."""
         from app.schemas.account import HoldingData
 
@@ -627,7 +584,7 @@ class TestCreateManualAccount:
             "app.api.v1.accounts.deduplication_service.calculate_manual_account_hash",
             return_value="hash",
         ):
-            result = await create_manual_account(
+            await create_manual_account(
                 account_data=account_data,
                 current_user=mock_user,
                 db=mock_db,
@@ -661,9 +618,7 @@ class TestBulkUpdateVisibility:
         return request
 
     @pytest.mark.asyncio
-    async def test_updates_account_visibility(
-        self, mock_db, mock_user, mock_http_request
-    ):
+    async def test_updates_account_visibility(self, mock_db, mock_user, mock_http_request):
         """Should update is_active for specified accounts."""
         account_ids = [uuid4(), uuid4()]
         request_data = BulkVisibilityUpdate(account_ids=account_ids, is_active=False)
@@ -821,8 +776,10 @@ class TestUpdateAccount:
         update_data = AccountUpdate(name="New Name")
 
         result = await update_account(
-            account_data=update_data, account=mock_account,
-            current_user=mock_user, db=mock_db,
+            account_data=update_data,
+            account=mock_account,
+            current_user=mock_user,
+            db=mock_db,
         )
 
         assert result.name == "New Name"
@@ -835,8 +792,10 @@ class TestUpdateAccount:
         update_data = AccountUpdate(is_active=False)
 
         result = await update_account(
-            account_data=update_data, account=mock_account,
-            current_user=mock_user, db=mock_db,
+            account_data=update_data,
+            account=mock_account,
+            current_user=mock_user,
+            db=mock_db,
         )
 
         assert result.is_active is False
@@ -847,8 +806,10 @@ class TestUpdateAccount:
         update_data = AccountUpdate(current_balance=Decimal("5000.00"))
 
         result = await update_account(
-            account_data=update_data, account=mock_account,
-            current_user=mock_user, db=mock_db,
+            account_data=update_data,
+            account=mock_account,
+            current_user=mock_user,
+            db=mock_db,
         )
 
         assert result.current_balance == Decimal("5000.00")
@@ -859,8 +820,10 @@ class TestUpdateAccount:
         update_data = AccountUpdate(exclude_from_cash_flow=True)
 
         result = await update_account(
-            account_data=update_data, account=mock_account,
-            current_user=mock_user, db=mock_db,
+            account_data=update_data,
+            account=mock_account,
+            current_user=mock_user,
+            db=mock_db,
         )
 
         assert result.exclude_from_cash_flow is True
@@ -876,8 +839,10 @@ class TestUpdateAccount:
         )
 
         result = await update_account(
-            account_data=update_data, account=mock_account,
-            current_user=mock_user, db=mock_db,
+            account_data=update_data,
+            account=mock_account,
+            current_user=mock_user,
+            db=mock_db,
         )
 
         assert result.name == "New Name"
@@ -886,9 +851,7 @@ class TestUpdateAccount:
         assert result.mask == "5678"
 
     @pytest.mark.asyncio
-    async def test_update_negates_positive_balance_for_debt_account(
-        self, mock_db, mock_user
-    ):
+    async def test_update_negates_positive_balance_for_debt_account(self, mock_db, mock_user):
         """Positive current_balance on update for a debt account must be negated."""
         account = Mock(spec=Account)
         account.id = uuid4()
@@ -903,16 +866,16 @@ class TestUpdateAccount:
         update_data = AccountUpdate(current_balance=Decimal("330000.00"))
 
         result = await update_account(
-            account_data=update_data, account=account,
-            current_user=mock_user, db=mock_db,
+            account_data=update_data,
+            account=account,
+            current_user=mock_user,
+            db=mock_db,
         )
 
         assert result.current_balance == Decimal("-330000.00")
 
     @pytest.mark.asyncio
-    async def test_update_keeps_negative_balance_for_debt_account(
-        self, mock_db, mock_user
-    ):
+    async def test_update_keeps_negative_balance_for_debt_account(self, mock_db, mock_user):
         """Already-negative current_balance on update for a debt account should be stored as-is."""
         account = Mock(spec=Account)
         account.id = uuid4()
@@ -927,16 +890,16 @@ class TestUpdateAccount:
         update_data = AccountUpdate(current_balance=Decimal("-12000.00"))
 
         result = await update_account(
-            account_data=update_data, account=account,
-            current_user=mock_user, db=mock_db,
+            account_data=update_data,
+            account=account,
+            current_user=mock_user,
+            db=mock_db,
         )
 
         assert result.current_balance == Decimal("-12000.00")
 
     @pytest.mark.asyncio
-    async def test_update_keeps_positive_balance_for_asset_account(
-        self, mock_db, mock_user
-    ):
+    async def test_update_keeps_positive_balance_for_asset_account(self, mock_db, mock_user):
         """Positive current_balance on update for a non-debt account must NOT be negated."""
         account = Mock(spec=Account)
         account.id = uuid4()
@@ -951,8 +914,10 @@ class TestUpdateAccount:
         update_data = AccountUpdate(current_balance=Decimal("7500.00"))
 
         result = await update_account(
-            account_data=update_data, account=account,
-            current_user=mock_user, db=mock_db,
+            account_data=update_data,
+            account=account,
+            current_user=mock_user,
+            db=mock_db,
         )
 
         assert result.current_balance == Decimal("7500.00")
@@ -962,19 +927,25 @@ class TestUpdateAccount:
         """Should raise 403 when user has no update grant for another user's account."""
         other_user = Mock(spec=User)
         other_user.id = uuid4()
-        other_user.organization_id = mock_account.organization_id if hasattr(mock_account, 'organization_id') else uuid4()
+        other_user.organization_id = (
+            mock_account.organization_id if hasattr(mock_account, "organization_id") else uuid4()
+        )
         other_user.is_org_admin = False
 
         update_data = AccountUpdate(name="Hacked")
 
         with patch(
             "app.api.v1.accounts.permission_service.require",
-            new=AsyncMock(side_effect=HTTPException(status_code=403, detail="Insufficient permissions")),
+            new=AsyncMock(
+                side_effect=HTTPException(status_code=403, detail="Insufficient permissions")
+            ),
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await update_account(
-                    account_data=update_data, account=mock_account,
-                    current_user=other_user, db=mock_db,
+                    account_data=update_data,
+                    account=mock_account,
+                    current_user=other_user,
+                    db=mock_db,
                 )
 
             assert exc_info.value.status_code == 403
@@ -1027,7 +998,10 @@ class TestBulkDeleteAccounts:
             ),
         ):
             result = await bulk_delete_accounts(
-                account_ids=account_ids, http_request=mock_request, current_user=mock_user, db=mock_db
+                account_ids=account_ids,
+                http_request=mock_request,
+                current_user=mock_user,
+                db=mock_db,
             )
 
         assert result["deleted_count"] == 3
@@ -1061,7 +1035,10 @@ class TestBulkDeleteAccounts:
             ),
         ):
             result = await bulk_delete_accounts(
-                account_ids=account_ids, http_request=mock_request, current_user=mock_user, db=mock_db
+                account_ids=account_ids,
+                http_request=mock_request,
+                current_user=mock_user,
+                db=mock_db,
             )
 
         # Early return before DELETE execute — nothing deleted
@@ -1100,7 +1077,10 @@ class TestBulkDeleteAccounts:
             ),
         ):
             result = await bulk_delete_accounts(
-                account_ids=account_ids, http_request=mock_request, current_user=mock_user, db=mock_db
+                account_ids=account_ids,
+                http_request=mock_request,
+                current_user=mock_user,
+                db=mock_db,
             )
 
         assert result["deleted_count"] == 2
@@ -1175,9 +1155,9 @@ class TestValuationProviderWhitelist:
                     db=mock_db,
                 )
             # 404 means the whitelist passed; 400 would mean it was rejected
-            assert exc_info.value.status_code == 404, (
-                f"Provider '{provider}' was incorrectly rejected"
-            )
+            assert (
+                exc_info.value.status_code == 404
+            ), f"Provider '{provider}' was incorrectly rejected"
 
 
 @pytest.mark.unit
@@ -1253,3 +1233,974 @@ class TestAccountNameSanitization:
 
         mock_sanitize.assert_called_once_with("<b>Bold</b> Name")
         assert "<b>" not in result.name
+
+
+# ---------------------------------------------------------------------------
+# GET /accounts/providers/availability
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGetProviderAvailability:
+    """Test get_provider_availability endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_all_providers_disabled(self):
+        from app.api.v1.accounts import get_provider_availability
+
+        user = Mock(spec=User)
+        user.id = uuid4()
+
+        with patch("app.api.v1.accounts.settings") as mock_settings:
+            mock_settings.PLAID_ENABLED = False
+            mock_settings.PLAID_CLIENT_ID = ""
+            mock_settings.PLAID_SECRET = ""
+            mock_settings.TELLER_ENABLED = False
+            mock_settings.TELLER_APP_ID = ""
+            mock_settings.TELLER_API_KEY = ""
+
+            result = await get_provider_availability(current_user=user)
+
+        assert result.plaid is False
+        assert result.teller is False
+        assert result.mx is False
+
+    @pytest.mark.asyncio
+    async def test_plaid_enabled(self):
+        from app.api.v1.accounts import get_provider_availability
+
+        user = Mock(spec=User)
+        user.id = uuid4()
+
+        with patch("app.api.v1.accounts.settings") as mock_settings:
+            mock_settings.PLAID_ENABLED = True
+            mock_settings.PLAID_CLIENT_ID = "client_id"
+            mock_settings.PLAID_SECRET = "secret"  # pragma: allowlist secret
+            mock_settings.TELLER_ENABLED = False
+            mock_settings.TELLER_APP_ID = ""
+            mock_settings.TELLER_API_KEY = ""
+
+            result = await get_provider_availability(current_user=user)
+
+        assert result.plaid is True
+        assert result.teller is False
+
+
+# ---------------------------------------------------------------------------
+# GET /accounts/export/csv
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestExportAccountsCsv:
+    """Test export_accounts_csv endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_export_csv_success(self):
+        from app.api.v1.accounts import export_accounts_csv
+
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        db = AsyncMock()
+
+        mock_acc = Mock(spec=Account)
+        mock_acc.id = uuid4()
+        mock_acc.name = "Checking"
+        mock_acc.account_type = AccountType.CHECKING
+        mock_acc.institution_name = "Test Bank"
+        mock_acc.current_balance = Decimal("5000.00")
+        mock_acc.available_balance = Decimal("4500.00")
+        mock_acc.limit = None
+        mock_acc.account_source = AccountSource.PLAID
+        mock_acc.tax_treatment = None
+        mock_acc.mask = "1234"
+        mock_acc.is_active = True
+
+        with patch(
+            "app.api.v1.accounts.get_all_household_accounts",
+            new_callable=AsyncMock,
+            return_value=[mock_acc],
+        ):
+            with patch(
+                "app.api.v1.accounts.deduplication_service.deduplicate_accounts",
+                return_value=[mock_acc],
+            ):
+                result = await export_accounts_csv(current_user=user, db=db)
+
+        assert result.media_type == "text/csv"
+
+    @pytest.mark.asyncio
+    async def test_export_csv_empty(self):
+        from app.api.v1.accounts import export_accounts_csv
+
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        db = AsyncMock()
+
+        with patch(
+            "app.api.v1.accounts.get_all_household_accounts",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
+            with patch(
+                "app.api.v1.accounts.deduplication_service.deduplicate_accounts",
+                return_value=[],
+            ):
+                result = await export_accounts_csv(current_user=user, db=db)
+
+        assert result.media_type == "text/csv"
+
+
+# ---------------------------------------------------------------------------
+# GET /accounts/valuation-providers
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGetValuationProviders:
+    """Test get_valuation_providers endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_valuation_providers(self):
+        from app.api.v1.accounts import get_valuation_providers
+
+        user = Mock(spec=User)
+        user.id = uuid4()
+
+        with patch(
+            "app.api.v1.accounts.get_available_property_providers",
+            return_value=["rentcast"],
+        ):
+            with patch(
+                "app.api.v1.accounts.get_available_vehicle_providers",
+                return_value=["marketcheck"],
+            ):
+                result = await get_valuation_providers(current_user=user)
+
+        assert result["property"] == ["rentcast"]
+        assert result["vehicle"] == ["marketcheck"]
+
+    @pytest.mark.asyncio
+    async def test_valuation_providers_empty(self):
+        from app.api.v1.accounts import get_valuation_providers
+
+        user = Mock(spec=User)
+        user.id = uuid4()
+
+        with patch("app.api.v1.accounts.get_available_property_providers", return_value=[]):
+            with patch("app.api.v1.accounts.get_available_vehicle_providers", return_value=[]):
+                result = await get_valuation_providers(current_user=user)
+
+        assert result["property"] == []
+        assert result["vehicle"] == []
+
+
+# ---------------------------------------------------------------------------
+# POST /accounts/{id}/refresh-valuation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRefreshValuationAdditional:
+    """Additional tests for refresh_account_valuation branches."""
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_invalid_provider_raises_400(self, mock_user):
+        db = AsyncMock()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await refresh_account_valuation(
+                account_id=uuid4(),
+                provider="invalid_provider",
+                current_user=mock_user,
+                db=db,
+            )
+
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_account_not_found_raises_404(self, mock_user):
+        db = AsyncMock()
+
+        result_mock = Mock()
+        result_mock.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=result_mock)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await refresh_account_valuation(
+                account_id=uuid4(),
+                provider=None,
+                current_user=mock_user,
+                db=db,
+            )
+
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_unsupported_account_type_raises_422(self, mock_user):
+        db = AsyncMock()
+
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.user_id = mock_user.id
+        account.account_type = AccountType.CHECKING  # Not property or vehicle
+        account.organization_id = mock_user.organization_id
+
+        result_mock = Mock()
+        result_mock.scalar_one_or_none.return_value = account
+        db.execute = AsyncMock(return_value=result_mock)
+
+        with patch(
+            "app.api.v1.accounts.permission_service.require",
+            new_callable=AsyncMock,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await refresh_account_valuation(
+                    account_id=account.id,
+                    provider=None,
+                    current_user=mock_user,
+                    db=db,
+                )
+
+        assert exc_info.value.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_property_missing_address_raises_422(self, mock_user):
+        db = AsyncMock()
+
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.user_id = mock_user.id
+        account.account_type = AccountType.PROPERTY
+        account.property_address = None
+        account.property_zip = None
+        account.organization_id = mock_user.organization_id
+
+        result_mock = Mock()
+        result_mock.scalar_one_or_none.return_value = account
+        db.execute = AsyncMock(return_value=result_mock)
+
+        with patch(
+            "app.api.v1.accounts.permission_service.require",
+            new_callable=AsyncMock,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await refresh_account_valuation(
+                    account_id=account.id,
+                    provider=None,
+                    current_user=mock_user,
+                    db=db,
+                )
+
+        assert exc_info.value.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_vehicle_no_vin_raises_422(self, mock_user):
+        db = AsyncMock()
+
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.user_id = mock_user.id
+        account.account_type = AccountType.VEHICLE
+        account.vehicle_vin = None
+        account.organization_id = mock_user.organization_id
+
+        result_mock = Mock()
+        result_mock.scalar_one_or_none.return_value = account
+        db.execute = AsyncMock(return_value=result_mock)
+
+        with patch("app.api.v1.accounts.permission_service.require", new_callable=AsyncMock):
+            with patch(
+                "app.api.v1.accounts.get_available_vehicle_providers", return_value=["marketcheck"]
+            ):
+                with pytest.raises(HTTPException) as exc_info:
+                    await refresh_account_valuation(
+                        account_id=account.id,
+                        provider=None,
+                        current_user=mock_user,
+                        db=db,
+                    )
+
+        assert exc_info.value.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# POST /accounts/{id}/migrate
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestMigrateAccount:
+    """Test migrate_account endpoint."""
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_migrate_not_confirmed_raises_400(self, mock_user):
+        from app.api.v1.accounts import migrate_account
+        from app.schemas.account_migration import MigrateAccountRequest
+
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.user_id = mock_user.id
+        http_request = Mock()
+        db = AsyncMock()
+
+        request_body = MigrateAccountRequest(
+            target_source="manual",
+            confirm=False,
+        )
+
+        with patch(
+            "app.api.v1.accounts.rate_limit_service.check_rate_limit", new_callable=AsyncMock
+        ):
+            with patch("app.api.v1.accounts.permission_service.require", new_callable=AsyncMock):
+                with pytest.raises(HTTPException) as exc_info:
+                    await migrate_account(
+                        account_id=account.id,
+                        request_body=request_body,
+                        http_request=http_request,
+                        account=account,
+                        current_user=mock_user,
+                        db=db,
+                    )
+
+        assert exc_info.value.status_code == 400
+        assert "confirm" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_migrate_migration_error_raises_400(self, mock_user):
+        from app.api.v1.accounts import migrate_account
+        from app.schemas.account_migration import MigrateAccountRequest
+        from app.services.account_migration_service import MigrationError
+
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.user_id = mock_user.id
+        http_request = Mock()
+        db = AsyncMock()
+
+        request_body = MigrateAccountRequest(
+            target_source="manual",
+            confirm=True,
+        )
+
+        with patch(
+            "app.api.v1.accounts.rate_limit_service.check_rate_limit", new_callable=AsyncMock
+        ):
+            with patch("app.api.v1.accounts.permission_service.require", new_callable=AsyncMock):
+                with patch(
+                    "app.api.v1.accounts.account_migration_service.migrate_account",
+                    new_callable=AsyncMock,
+                    side_effect=MigrationError("Already manual"),
+                ):
+                    with pytest.raises(HTTPException) as exc_info:
+                        await migrate_account(
+                            account_id=account.id,
+                            request_body=request_body,
+                            http_request=http_request,
+                            account=account,
+                            current_user=mock_user,
+                            db=db,
+                        )
+
+        assert exc_info.value.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# GET /accounts/{id}/migration-history
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGetMigrationHistory:
+    """Test get_migration_history endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_get_migration_history_success(self):
+        from app.api.v1.accounts import get_migration_history
+
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        db = AsyncMock()
+
+        with patch(
+            "app.api.v1.accounts.account_migration_service.get_migration_history",
+            new_callable=AsyncMock,
+            return_value=[],
+        ) as mock_history:
+            result = await get_migration_history(
+                account_id=account.id,
+                account=account,
+                current_user=user,
+                db=db,
+            )
+
+        assert result == []
+        mock_history.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# GET /accounts/{id}/reconciliation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGetAccountReconciliation:
+    """Test get_account_reconciliation endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_reconciliation_success(self):
+        from app.api.v1.accounts import get_account_reconciliation
+
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        db = AsyncMock()
+
+        mock_result = Mock()
+        mock_result.to_dict.return_value = {
+            "account_id": str(account.id),
+            "bank_balance": 5000.0,
+            "computed_balance": 4950.0,
+            "discrepancy": 50.0,
+        }
+
+        with patch(
+            "app.api.v1.accounts.reconciliation_service.reconcile_account",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ):
+            result = await get_account_reconciliation(
+                account_id=account.id,
+                account=account,
+                current_user=user,
+                db=db,
+            )
+
+        assert result["discrepancy"] == 50.0
+
+
+# ---------------------------------------------------------------------------
+# Bulk operations with empty results
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestBulkOperationsEmpty:
+    """Test bulk operations return 0 when no accounts match."""
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_bulk_visibility_no_matching_accounts(self, mock_user):
+        db = AsyncMock()
+        http_request = Mock()
+
+        check_result = Mock()
+        check_result.all.return_value = []
+        db.execute = AsyncMock(return_value=check_result)
+
+        with patch(
+            "app.api.v1.accounts.rate_limit_service.check_rate_limit", new_callable=AsyncMock
+        ):
+            result = await bulk_update_visibility(
+                request=BulkVisibilityUpdate(account_ids=[uuid4()], is_active=False),
+                http_request=http_request,
+                current_user=mock_user,
+                db=db,
+            )
+
+        assert result["updated_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_bulk_delete_no_matching_accounts(self, mock_user):
+        db = AsyncMock()
+        http_request = Mock()
+
+        fetch_result = Mock()
+        fetch_result.all.return_value = []
+        db.execute = AsyncMock(return_value=fetch_result)
+
+        with patch(
+            "app.api.v1.accounts.rate_limit_service.check_rate_limit", new_callable=AsyncMock
+        ):
+            result = await bulk_delete_accounts(
+                account_ids=[uuid4()],
+                http_request=http_request,
+                current_user=mock_user,
+                db=db,
+            )
+
+        assert result["deleted_count"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Coverage: update_account — extended field branches (lines 471-554)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestUpdateAccountExtendedFields:
+    """Cover update_account branches for debt, equity, pension, vehicle, etc."""
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    def _make_account(self, account_type=AccountType.CHECKING):
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.user_id = uuid4()
+        account.account_type = account_type
+        return account
+
+    @pytest.mark.asyncio
+    async def test_update_debt_loan_fields(self, mock_user):
+        """Should update all debt/loan fields when provided."""
+        from datetime import date as dt_date
+
+        account = self._make_account(AccountType.LOAN)
+        db = AsyncMock()
+
+        account_data = AccountUpdate(
+            tax_treatment="pre_tax",
+            interest_rate=Decimal("5.5"),
+            interest_rate_type="fixed",
+            minimum_payment=Decimal("500"),
+            payment_due_day=15,
+            original_amount=Decimal("200000"),
+            origination_date=dt_date(2020, 1, 1),
+            maturity_date=dt_date(2050, 1, 1),
+            loan_term_months=360,
+            compounding_frequency="monthly",
+            principal_amount=Decimal("190000"),
+        )
+
+        with patch("app.api.v1.accounts.permission_service.require", new_callable=AsyncMock):
+            await update_account(
+                account_data=account_data,
+                account=account,
+                current_user=mock_user,
+                db=db,
+            )
+
+        assert account.tax_treatment == "pre_tax"
+        assert account.interest_rate == Decimal("5.5")
+        assert account.interest_rate_type == "fixed"
+        assert account.minimum_payment == Decimal("500")
+        assert account.payment_due_day == 15
+        assert account.original_amount == Decimal("200000")
+        assert account.loan_term_months == 360
+        assert account.compounding_frequency == "monthly"
+        assert account.principal_amount == Decimal("190000")
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_update_private_equity_fields(self, mock_user):
+        """Should update all private equity fields."""
+        from datetime import date as dt_date
+
+        account = self._make_account()
+        db = AsyncMock()
+
+        # Use a mock for account_data to bypass schema validation for vesting_schedule
+        # (AccountUpdate has vesting_schedule as Optional[str] but the code iterates it as list)
+        account_data = Mock()
+        account_data.name = None
+        account_data.is_active = None
+        account_data.current_balance = None
+        account_data.mask = None
+        account_data.exclude_from_cash_flow = None
+        account_data.tax_treatment = None
+        account_data.interest_rate = None
+        account_data.interest_rate_type = None
+        account_data.minimum_payment = None
+        account_data.payment_due_day = None
+        account_data.original_amount = None
+        account_data.origination_date = None
+        account_data.maturity_date = None
+        account_data.loan_term_months = None
+        account_data.compounding_frequency = None
+        account_data.principal_amount = None
+        account_data.monthly_benefit = None
+        account_data.benefit_start_date = None
+        account_data.credit_limit = None
+        account_data.company_valuation = None
+        account_data.ownership_percentage = None
+        account_data.equity_value = None
+        account_data.property_address = None
+        account_data.property_zip = None
+        account_data.vehicle_vin = None
+        account_data.vehicle_mileage = None
+        account_data.valuation_adjustment_pct = None
+        # Fields we want to test
+        account_data.grant_type = "iso"
+        account_data.grant_date = dt_date(2023, 6, 1)
+        account_data.quantity = Decimal("1000")
+        account_data.strike_price = Decimal("10.50")
+        milestone1 = Mock()
+        milestone1.date = dt_date(2024, 6, 1)
+        milestone1.quantity = Decimal("250")
+        milestone2 = Mock()
+        milestone2.date = dt_date(2025, 6, 1)
+        milestone2.quantity = Decimal("250")
+        account_data.vesting_schedule = [milestone1, milestone2]
+        account_data.share_price = Decimal("25.00")
+        account_data.company_status = "private"
+        account_data.valuation_method = "409a"
+        account_data.include_in_networth = True
+
+        with patch("app.api.v1.accounts.permission_service.require", new_callable=AsyncMock):
+            await update_account(
+                account_data=account_data,
+                account=account,
+                current_user=mock_user,
+                db=db,
+            )
+
+        assert account.grant_type == "iso"
+        assert account.quantity == Decimal("1000")
+        assert account.strike_price == Decimal("10.50")
+        assert account.share_price == Decimal("25.00")
+        assert account.company_status == "private"
+        assert account.valuation_method == "409a"
+        assert account.include_in_networth is True
+        # vesting_schedule should be set to a JSON string
+        import json
+
+        parsed = json.loads(account.vesting_schedule)
+        assert len(parsed) == 2
+
+    @pytest.mark.asyncio
+    async def test_update_pension_and_credit_fields(self, mock_user):
+        """Should update pension/annuity and credit card fields."""
+        from datetime import date as dt_date
+
+        account = self._make_account()
+        db = AsyncMock()
+
+        account_data = AccountUpdate(
+            monthly_benefit=Decimal("2500"),
+            benefit_start_date=dt_date(2030, 1, 1),
+            credit_limit=Decimal("15000"),
+        )
+
+        with patch("app.api.v1.accounts.permission_service.require", new_callable=AsyncMock):
+            await update_account(
+                account_data=account_data,
+                account=account,
+                current_user=mock_user,
+                db=db,
+            )
+
+        assert account.monthly_benefit == Decimal("2500")
+        assert account.limit == Decimal("15000")
+
+    @pytest.mark.asyncio
+    async def test_update_business_equity_fields(self, mock_user):
+        """Should update business equity fields."""
+        account = self._make_account()
+        db = AsyncMock()
+
+        account_data = AccountUpdate(
+            company_valuation=Decimal("5000000"),
+            ownership_percentage=Decimal("25.0"),
+            equity_value=Decimal("1250000"),
+        )
+
+        with patch("app.api.v1.accounts.permission_service.require", new_callable=AsyncMock):
+            await update_account(
+                account_data=account_data,
+                account=account,
+                current_user=mock_user,
+                db=db,
+            )
+
+        assert account.company_valuation == Decimal("5000000")
+        assert account.ownership_percentage == Decimal("25.0")
+        assert account.equity_value == Decimal("1250000")
+
+    @pytest.mark.asyncio
+    async def test_update_property_and_vehicle_fields(self, mock_user):
+        """Should update property address/zip and vehicle vin/mileage fields."""
+        account = self._make_account()
+        db = AsyncMock()
+
+        account_data = AccountUpdate(
+            property_address="123 Main St",
+            property_zip="90210",
+            vehicle_vin="abc123def456",  # pragma: allowlist secret
+            vehicle_mileage=50000,
+            valuation_adjustment_pct=Decimal("-5.0"),
+        )
+
+        with patch("app.api.v1.accounts.permission_service.require", new_callable=AsyncMock):
+            await update_account(
+                account_data=account_data,
+                account=account,
+                current_user=mock_user,
+                db=db,
+            )
+
+        assert account.property_address == "123 Main St"
+        assert account.property_zip == "90210"
+        assert account.vehicle_vin == "ABC123DEF456"  # uppercased  # pragma: allowlist secret
+        assert account.vehicle_mileage == 50000
+        assert account.valuation_adjustment_pct == Decimal("-5.0")
+
+
+# ---------------------------------------------------------------------------
+# Coverage: refresh_account_valuation — vehicle branch (lines 635-715)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRefreshValuationVehicle:
+    """Cover vehicle valuation branch and adjustment logic."""
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    def _make_vehicle_account(self, vin="1HGBH41JXMN109186", mileage=60000, adj=None):
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.user_id = uuid4()
+        account.account_type = AccountType.VEHICLE
+        account.vehicle_vin = vin
+        account.vehicle_mileage = mileage
+        account.valuation_adjustment_pct = adj
+        return account
+
+    @pytest.mark.asyncio
+    async def test_vehicle_no_providers_returns_503(self, mock_user):
+        """Should return 503 when no vehicle providers are configured."""
+        account = self._make_vehicle_account()
+        db = AsyncMock()
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = account
+        db.execute = AsyncMock(return_value=mock_result)
+
+        with patch("app.api.v1.accounts.permission_service.require", new_callable=AsyncMock):
+            with patch(
+                "app.api.v1.accounts.decode_vin_nhtsa",
+                new_callable=AsyncMock,
+                return_value={"make": "Honda"},
+            ):
+                with patch("app.api.v1.accounts.get_available_vehicle_providers", return_value=[]):
+                    with pytest.raises(HTTPException) as exc_info:
+                        await refresh_account_valuation(
+                            account_id=account.id,
+                            provider=None,
+                            current_user=mock_user,
+                            db=db,
+                        )
+                    assert exc_info.value.status_code == 503
+
+    @pytest.mark.asyncio
+    async def test_vehicle_no_vin_returns_422(self, mock_user):
+        """Should return 422 when vehicle has no VIN."""
+        account = self._make_vehicle_account(vin=None)
+        db = AsyncMock()
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = account
+        db.execute = AsyncMock(return_value=mock_result)
+
+        with patch("app.api.v1.accounts.permission_service.require", new_callable=AsyncMock):
+            with patch(
+                "app.api.v1.accounts.get_available_vehicle_providers", return_value=["marketcheck"]
+            ):
+                with pytest.raises(HTTPException) as exc_info:
+                    await refresh_account_valuation(
+                        account_id=account.id,
+                        provider=None,
+                        current_user=mock_user,
+                        db=db,
+                    )
+                assert exc_info.value.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_vehicle_valuation_with_adjustment(self, mock_user):
+        """Should apply valuation adjustment and return result."""
+        account = self._make_vehicle_account(adj=Decimal("-10"))
+        db = AsyncMock()
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = account
+        db.execute = AsyncMock(return_value=mock_result)
+
+        valuation = Mock()
+        valuation.value = Decimal("30000.00")
+        valuation.low = Decimal("28000.00")
+        valuation.high = Decimal("32000.00")
+        valuation.provider = "marketcheck"
+
+        with patch("app.api.v1.accounts.permission_service.require", new_callable=AsyncMock):
+            with patch(
+                "app.api.v1.accounts.decode_vin_nhtsa",
+                new_callable=AsyncMock,
+                return_value={"make": "Honda"},
+            ):
+                with patch(
+                    "app.api.v1.accounts.get_available_vehicle_providers",
+                    return_value=["marketcheck"],
+                ):
+                    with patch(
+                        "app.api.v1.accounts.get_vehicle_value",
+                        new_callable=AsyncMock,
+                        return_value=valuation,
+                    ):
+                        result = await refresh_account_valuation(
+                            account_id=account.id,
+                            provider=None,
+                            current_user=mock_user,
+                            db=db,
+                        )
+
+        assert result["raw_value"] == 30000.0
+        # -10% adjustment: 30000 * 0.90 = 27000.00
+        assert result["new_value"] == 27000.0
+        assert result["adjustment_pct"] == -10.0
+        assert result["vin_info"] == {"make": "Honda"}
+
+    @pytest.mark.asyncio
+    async def test_vehicle_valuation_adjustment_with_no_low_high(self, mock_user):
+        """Should handle None low/high with adjustment."""
+        account = self._make_vehicle_account(adj=Decimal("5"))
+        db = AsyncMock()
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = account
+        db.execute = AsyncMock(return_value=mock_result)
+
+        valuation = Mock()
+        valuation.value = Decimal("20000.00")
+        valuation.low = None
+        valuation.high = None
+        valuation.provider = "marketcheck"
+
+        with patch("app.api.v1.accounts.permission_service.require", new_callable=AsyncMock):
+            with patch(
+                "app.api.v1.accounts.decode_vin_nhtsa", new_callable=AsyncMock, return_value=None
+            ):
+                with patch(
+                    "app.api.v1.accounts.get_available_vehicle_providers",
+                    return_value=["marketcheck"],
+                ):
+                    with patch(
+                        "app.api.v1.accounts.get_vehicle_value",
+                        new_callable=AsyncMock,
+                        return_value=valuation,
+                    ):
+                        result = await refresh_account_valuation(
+                            account_id=account.id,
+                            provider=None,
+                            current_user=mock_user,
+                            db=db,
+                        )
+
+        assert result["low"] is None
+        assert result["high"] is None
+        assert result["new_value"] == 21000.0  # +5%
+
+    @pytest.mark.asyncio
+    async def test_property_no_providers_returns_503(self, mock_user):
+        """Should return 503 when no property providers available."""
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        account.user_id = uuid4()
+        account.account_type = AccountType.PROPERTY
+        account.property_address = "123 Main St"
+        account.property_zip = "90210"
+        db = AsyncMock()
+
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = account
+        db.execute = AsyncMock(return_value=mock_result)
+
+        with patch("app.api.v1.accounts.permission_service.require", new_callable=AsyncMock):
+            with patch("app.api.v1.accounts.get_available_property_providers", return_value=[]):
+                with pytest.raises(HTTPException) as exc_info:
+                    await refresh_account_valuation(
+                        account_id=account.id,
+                        provider=None,
+                        current_user=mock_user,
+                        db=db,
+                    )
+                assert exc_info.value.status_code == 503
+
+
+# ---------------------------------------------------------------------------
+# Coverage: get_migration_history (lines 822-824)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGetMigrationHistoryAdditional:
+    """Cover get_migration_history endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_returns_migration_history(self):
+        from app.api.v1.accounts import get_migration_history
+
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        account = Mock(spec=Account)
+        account.id = uuid4()
+        db = AsyncMock()
+
+        mock_history = [Mock(), Mock()]
+        with patch(
+            "app.api.v1.accounts.account_migration_service.get_migration_history",
+            new_callable=AsyncMock,
+            return_value=mock_history,
+        ) as mock_get:
+            result = await get_migration_history(
+                account_id=account.id,
+                account=account,
+                current_user=user,
+                db=db,
+            )
+
+        assert result == mock_history
+        mock_get.assert_awaited_once_with(
+            db=db,
+            account_id=account.id,
+            organization_id=user.organization_id,
+        )

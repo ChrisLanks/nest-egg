@@ -1,9 +1,9 @@
 """Unit tests for CSRF protection middleware."""
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 from fastapi import Request
-from starlette.responses import Response
 
 from app.middleware.csrf_protection import CSRFProtectionMiddleware
 
@@ -34,19 +34,23 @@ class TestCSRFProtectionMiddleware:
             response.status_code = 200
             response.set_cookie = Mock()
             return response
+
         return call_next
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("exempt_path", [
-        "/api/v1/auth/login",
-        "/api/v1/plaid/webhook",
-        "/api/v1/teller/webhook",
-        "/health",
-        "/",
-        "/docs",
-        "/openapi.json",
-        "/metrics",
-    ])
+    @pytest.mark.parametrize(
+        "exempt_path",
+        [
+            "/api/v1/auth/login",
+            "/api/v1/plaid/webhook",
+            "/api/v1/teller/webhook",
+            "/health",
+            "/",
+            "/docs",
+            "/openapi.json",
+            "/metrics",
+        ],
+    )
     async def test_skips_csrf_check_for_exempt_paths(
         self, middleware, mock_request, mock_call_next, exempt_path
     ):
@@ -62,6 +66,7 @@ class TestCSRFProtectionMiddleware:
     ):
         """Non-exempt paths must have CSRF token — '/' prefix must not exempt them."""
         from app import config
+
         mock_request.url.path = "/api/v1/accounts"
         mock_request.method = "POST"
         mock_request.cookies = {}
@@ -105,6 +110,7 @@ class TestCSRFProtectionMiddleware:
     async def test_rejects_missing_cookie(self, middleware, mock_request, mock_call_next):
         """Should reject request with missing CSRF cookie."""
         from app import config
+
         mock_request.method = "POST"
         mock_request.cookies = {}
         mock_request.headers = {"X-CSRF-Token": "test-token"}
@@ -116,6 +122,7 @@ class TestCSRFProtectionMiddleware:
     async def test_rejects_missing_header(self, middleware, mock_request, mock_call_next):
         """Should reject request with missing CSRF header."""
         from app import config
+
         mock_request.method = "POST"
         mock_request.cookies = {"csrf_token": "test-token"}
         mock_request.headers = {}
@@ -127,6 +134,7 @@ class TestCSRFProtectionMiddleware:
     async def test_rejects_mismatched_tokens(self, middleware, mock_request, mock_call_next):
         """Should reject request when CSRF tokens don't match."""
         from app import config
+
         mock_request.method = "POST"
         mock_request.cookies = {"csrf_token": "token-1"}
         mock_request.headers = {"X-CSRF-Token": "token-2"}
@@ -140,6 +148,7 @@ class TestCSRFProtectionMiddleware:
     ):
         """Should allow missing token when SKIP_CSRF_IN_TESTS=true (pytest only)."""
         from app import config
+
         mock_request.method = "POST"
         mock_request.cookies = {}
         mock_request.headers = {}
@@ -153,6 +162,7 @@ class TestCSRFProtectionMiddleware:
     ):
         """Should allow mismatched tokens when SKIP_CSRF_IN_TESTS=true (pytest only)."""
         from app import config
+
         mock_request.method = "POST"
         mock_request.cookies = {"csrf_token": "token-1"}
         mock_request.headers = {"X-CSRF-Token": "token-2"}
@@ -166,6 +176,7 @@ class TestCSRFProtectionMiddleware:
     ):
         """ENVIRONMENT=test must NOT bypass CSRF — only SKIP_CSRF_IN_TESTS can."""
         from app import config
+
         mock_request.method = "POST"
         mock_request.cookies = {}
         mock_request.headers = {}

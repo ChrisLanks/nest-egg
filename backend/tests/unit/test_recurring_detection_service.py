@@ -1,13 +1,14 @@
 """Tests for recurring detection service."""
 
-import pytest
 from datetime import date, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
+
+from app.models.recurring_transaction import RecurringFrequency, RecurringTransaction
+from app.models.transaction import Label, Transaction
 from app.services.recurring_detection_service import RecurringDetectionService
-from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
-from app.models.transaction import Transaction, Label, TransactionLabel
 
 
 class TestRecurringDetectionService:
@@ -90,9 +91,9 @@ class TestRecurringDetectionService:
         # Irregular dates with avg gap ~50 days (falls in no frequency bucket)
         dates = [
             date(2024, 1, 1),
-            date(2024, 1, 20),   # 19 days
-            date(2024, 3, 15),   # 55 days
-            date(2024, 5, 20),   # 66 days
+            date(2024, 1, 20),  # 19 days
+            date(2024, 3, 15),  # 55 days
+            date(2024, 5, 20),  # 66 days
         ]
         # avg gap = (19 + 55 + 66) / 3 = 140/3 = 46.7 days
         # Does not match any frequency bucket (falls between monthly 25-35 and quarterly 85-95)
@@ -238,7 +239,9 @@ class TestRecurringDetectionService:
         assert rare_pattern is None
 
     @pytest.mark.asyncio
-    async def test_detect_recurring_patterns_updates_existing(self, db_session, test_user, test_account):
+    async def test_detect_recurring_patterns_updates_existing(
+        self, db_session, test_user, test_account
+    ):
         """Should update existing pattern with new data."""
         service = RecurringDetectionService()
 
@@ -379,10 +382,20 @@ class TestRecurringDetectionService:
 
         # Create manual patterns
         await service.create_manual_recurring(
-            db_session, test_user, "Pattern 1", test_account.id, RecurringFrequency.MONTHLY, Decimal("100")
+            db_session,
+            test_user,
+            "Pattern 1",
+            test_account.id,
+            RecurringFrequency.MONTHLY,
+            Decimal("100"),
         )
         await service.create_manual_recurring(
-            db_session, test_user, "Pattern 2", test_account.id, RecurringFrequency.WEEKLY, Decimal("50")
+            db_session,
+            test_user,
+            "Pattern 2",
+            test_account.id,
+            RecurringFrequency.WEEKLY,
+            Decimal("50"),
         )
 
         patterns = await service.get_recurring_transactions(db_session, test_user)
@@ -390,24 +403,38 @@ class TestRecurringDetectionService:
         assert len(patterns) >= 2
 
     @pytest.mark.asyncio
-    async def test_get_recurring_transactions_filter_active(self, db_session, test_user, test_account):
+    async def test_get_recurring_transactions_filter_active(
+        self, db_session, test_user, test_account
+    ):
         """Should filter by is_active status."""
         service = RecurringDetectionService()
 
         # Create active pattern
         _active = await service.create_manual_recurring(
-            db_session, test_user, "Active", test_account.id, RecurringFrequency.MONTHLY, Decimal("100")
+            db_session,
+            test_user,
+            "Active",
+            test_account.id,
+            RecurringFrequency.MONTHLY,
+            Decimal("100"),
         )
 
         # Create inactive pattern
         inactive = await service.create_manual_recurring(
-            db_session, test_user, "Inactive", test_account.id, RecurringFrequency.MONTHLY, Decimal("100")
+            db_session,
+            test_user,
+            "Inactive",
+            test_account.id,
+            RecurringFrequency.MONTHLY,
+            Decimal("100"),
         )
         inactive.is_active = False
         await db_session.commit()
 
         # Get only active
-        active_patterns = await service.get_recurring_transactions(db_session, test_user, is_active=True)
+        active_patterns = await service.get_recurring_transactions(
+            db_session, test_user, is_active=True
+        )
         active_names = [p.merchant_name for p in active_patterns]
         assert "Active" in active_names
         assert "Inactive" not in active_names
@@ -419,7 +446,12 @@ class TestRecurringDetectionService:
 
         # Create pattern
         pattern = await service.create_manual_recurring(
-            db_session, test_user, "Original", test_account.id, RecurringFrequency.MONTHLY, Decimal("100")
+            db_session,
+            test_user,
+            "Original",
+            test_account.id,
+            RecurringFrequency.MONTHLY,
+            Decimal("100"),
         )
 
         # Update
@@ -471,7 +503,12 @@ class TestRecurringDetectionService:
 
         # Create pattern
         pattern = await service.create_manual_recurring(
-            db_session, test_user, "To Delete", test_account.id, RecurringFrequency.MONTHLY, Decimal("100")
+            db_session,
+            test_user,
+            "To Delete",
+            test_account.id,
+            RecurringFrequency.MONTHLY,
+            Decimal("100"),
         )
         pattern_id = pattern.id
 
@@ -507,7 +544,9 @@ class TestRecurringDetectionService:
         await db_session.commit()
 
         # Try to delete
-        success = await service.delete_recurring_transaction(db_session, other_pattern.id, test_user)
+        success = await service.delete_recurring_transaction(
+            db_session, other_pattern.id, test_user
+        )
         assert success is False
 
     @pytest.mark.asyncio
@@ -628,7 +667,9 @@ class TestRecurringDetectionService:
         assert "Grocery" not in sub_names
 
     @pytest.mark.asyncio
-    async def test_get_subscriptions_filters_low_confidence(self, db_session, test_user, test_account):
+    async def test_get_subscriptions_filters_low_confidence(
+        self, db_session, test_user, test_account
+    ):
         """Should exclude low confidence patterns."""
         service = RecurringDetectionService()
 
@@ -797,8 +838,12 @@ class TestRecurringDetectionService:
         service = RecurringDetectionService()
 
         pattern = await service.create_manual_recurring(
-            db_session, test_user, "Old Gym", test_account.id,
-            RecurringFrequency.MONTHLY, Decimal("50"),
+            db_session,
+            test_user,
+            "Old Gym",
+            test_account.id,
+            RecurringFrequency.MONTHLY,
+            Decimal("50"),
         )
         assert pattern.is_archived is False
 
@@ -939,8 +984,12 @@ class TestRecurringDetectionService:
         service = RecurringDetectionService()
 
         manual = await service.create_manual_recurring(
-            db_session, test_user, "Manual Oil",
-            test_account.id, RecurringFrequency.ON_DEMAND, Decimal("300"),
+            db_session,
+            test_user,
+            "Manual Oil",
+            test_account.id,
+            RecurringFrequency.ON_DEMAND,
+            Decimal("300"),
         )
         assert manual.is_user_created is True
 
@@ -948,9 +997,7 @@ class TestRecurringDetectionService:
         await service.detect_recurring_patterns(db_session, test_user, min_occurrences=3)
 
         all_patterns = await service.get_recurring_transactions(db_session, test_user)
-        manual_pattern = next(
-            (p for p in all_patterns if p.merchant_name == "Manual Oil"), None
-        )
+        manual_pattern = next((p for p in all_patterns if p.merchant_name == "Manual Oil"), None)
         assert manual_pattern is not None
         assert manual_pattern.is_no_longer_found is False  # Manual bills are never auto-flagged
 
@@ -988,14 +1035,16 @@ class TestRecurringDetectionService:
             db_session.add(txn)
 
         # Unrelated transaction
-        db_session.add(Transaction(
-            organization_id=test_user.organization_id,
-            account_id=test_account.id,
-            date=date.today(),
-            amount=Decimal("-20.00"),
-            merchant_name="Other Merchant",
-            deduplication_hash=str(uuid4()),
-        ))
+        db_session.add(
+            Transaction(
+                organization_id=test_user.organization_id,
+                account_id=test_account.id,
+                date=date.today(),
+                amount=Decimal("-20.00"),
+                merchant_name="Other Merchant",
+                deduplication_hash=str(uuid4()),
+            )
+        )
 
         label = await RecurringDetectionService.ensure_recurring_bill_label(
             db_session, test_user.organization_id
@@ -1027,14 +1076,16 @@ class TestRecurringDetectionService:
     async def test_count_matching_transactions(self, db_session, test_user, test_account):
         """count_matching_transactions should return correct count."""
         for _ in range(5):
-            db_session.add(Transaction(
-                organization_id=test_user.organization_id,
-                account_id=test_account.id,
-                date=date.today(),
-                amount=Decimal("-50.00"),
-                merchant_name="Countable Merchant",
-                deduplication_hash=str(uuid4()),
-            ))
+            db_session.add(
+                Transaction(
+                    organization_id=test_user.organization_id,
+                    account_id=test_account.id,
+                    date=date.today(),
+                    amount=Decimal("-50.00"),
+                    merchant_name="Countable Merchant",
+                    deduplication_hash=str(uuid4()),
+                )
+            )
         await db_session.commit()
 
         count = await RecurringDetectionService.count_matching_transactions(

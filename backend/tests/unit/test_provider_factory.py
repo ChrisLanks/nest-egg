@@ -1,7 +1,6 @@
 """Tests for market data provider factory."""
 
 import pytest
-from unittest.mock import patch
 
 
 class TestMarketDataProviderFactory:
@@ -64,7 +63,6 @@ class TestMarketDataProviderFactory:
         """Should cache the default provider instance."""
         monkeypatch.setenv("MARKET_DATA_PROVIDER", "yahoo_finance")
         from app.services.market_data.provider_factory import (
-            MarketDataProviderFactory,
             get_market_data_provider,
         )
 
@@ -77,7 +75,7 @@ class TestMarketDataProviderFactory:
         monkeypatch.setenv("MARKET_DATA_PROVIDER", "yahoo_finance")
         from app.services.market_data.provider_factory import get_market_data_provider
 
-        provider1 = get_market_data_provider()
+        get_market_data_provider()
         # Explicit name should still return a provider, just may be a new instance
         provider2 = get_market_data_provider("yahoo_finance")
         assert provider2.get_provider_name() == "Yahoo Finance"

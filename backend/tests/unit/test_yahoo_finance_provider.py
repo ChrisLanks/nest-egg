@@ -1,13 +1,14 @@
 """Unit tests for Yahoo Finance provider."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from decimal import Decimal
-from datetime import date
 import asyncio
+from datetime import date
+from decimal import Decimal
+from unittest.mock import MagicMock, Mock, patch
 
-from app.services.market_data.yahoo_finance_provider import YahooFinanceProvider
+import pytest
+
 from app.services.market_data.base_provider import QuoteData
+from app.services.market_data.yahoo_finance_provider import YahooFinanceProvider
 
 
 class TestYahooFinanceProvider:
@@ -354,3 +355,260 @@ class TestYahooFinanceProviderLogging:
 
             # Should log failure event (error details are structlog kwargs, not in text repr)
             assert "external_api_failure" in caplog.text
+
+
+class TestYahooFinanceProviderAdditional:
+    """Additional tests for uncovered paths in Yahoo Finance provider."""
+
+    @pytest.fixture
+    def provider(self):
+        return YahooFinanceProvider()
+
+    @pytest.mark.asyncio
+    async def test_get_quote_falls_back_to_history(self, provider):
+        """When currentPrice and regularMarketPrice are None, should try history."""
+        import pandas as pd
+
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "AAPL",
+            # No currentPrice or regularMarketPrice
+        }
+        mock_hist = pd.DataFrame({"Close": [155.0]})
+        mock_ticker.history = Mock(return_value=mock_hist)
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            quote = await provider.get_quote("AAPL")
+            assert float(quote.price) == 155.0
+
+    @pytest.mark.asyncio
+    async def test_get_quote_uses_regular_market_price(self, provider):
+        """Should use regularMarketPrice when currentPrice is None."""
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "AAPL",
+            "regularMarketPrice": 148.5,
+        }
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            quote = await provider.get_quote("AAPL")
+            assert float(quote.price) == 148.5
+
+    @pytest.mark.asyncio
+    async def test_get_quotes_batch_single_symbol(self, provider):
+        """Single symbol batch has different data structure."""
+        import pandas as pd
+
+        single_data = pd.DataFrame(
+            {
+                "Open": [148.0],
+                "High": [151.0],
+                "Low": [147.5],
+                "Close": [150.25],
+                "Volume": [50000000],
+            }
+        )
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.download",
+            return_value=single_data,
+        ):
+            quotes = await provider.get_quotes_batch(["AAPL"])
+            assert "AAPL" in quotes
+            assert quotes["AAPL"].symbol == "AAPL"
+
+    @pytest.mark.asyncio
+    async def test_get_quotes_batch_empty_symbol_data(self, provider):
+        """When a symbol raises KeyError, should fall back to individual fetch."""
+
+        mock_data = MagicMock()
+        # Simulate KeyError when accessing symbol data (triggers fallback)
+        mock_data.__getitem__ = Mock(side_effect=KeyError("AAPL"))
+
+        mock_quote = QuoteData(symbol="AAPL", price=Decimal("150.0"))
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.download",
+            return_value=mock_data,
+        ):
+            with patch.object(provider, "get_quote", return_value=mock_quote):
+                quotes = await provider.get_quotes_batch(["AAPL", "MSFT"])
+                # Both should be fetched via fallback
+                assert len(quotes) == 2
+
+    @pytest.mark.asyncio
+    async def test_get_historical_prices_timeout(self, provider):
+        """Historical prices should handle timeout."""
+
+        async def slow_thread(*args, **kwargs):
+            await asyncio.sleep(10)
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.asyncio.to_thread",
+            side_effect=slow_thread,
+        ):
+            with pytest.raises(ValueError, match="timeout"):
+                await provider.get_historical_prices("AAPL", date(2024, 1, 1), date(2024, 1, 31))
+
+    @pytest.mark.asyncio
+    async def test_get_historical_prices_general_error(self, provider):
+        """Historical prices should wrap exceptions."""
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            side_effect=Exception("API down"),
+        ):
+            with pytest.raises(ValueError, match="Failed to fetch"):
+                await provider.get_historical_prices("AAPL", date(2024, 1, 1), date(2024, 1, 31))
+
+    @pytest.mark.asyncio
+    async def test_search_symbol_returns_empty_on_failure(self, provider):
+        """Search should return empty list on exception."""
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            side_effect=Exception("Not found"),
+        ):
+            results = await provider.search_symbol("UNKNOWN")
+            assert results == []
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_success(self, provider):
+        """Should return metadata with classification info."""
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "AAPL",
+            "longName": "Apple Inc.",
+            "quoteType": "EQUITY",
+            "country": "United States",
+            "marketCap": 3000000000000,
+            "sector": "Technology",
+            "industry": "Consumer Electronics",
+        }
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            metadata = await provider.get_holding_metadata("AAPL")
+            assert metadata.symbol == "AAPL"
+            assert metadata.name == "Apple Inc."
+            assert metadata.asset_type == "stock"
+            assert metadata.asset_class == "domestic"
+            assert metadata.market_cap == "large"
+            assert metadata.sector == "Technology"
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_international(self, provider):
+        """International stocks should have asset_class='international'."""
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "TSM",
+            "longName": "Taiwan Semiconductor",
+            "quoteType": "EQUITY",
+            "country": "Taiwan",
+            "marketCap": 500000000000,
+        }
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            metadata = await provider.get_holding_metadata("TSM")
+            assert metadata.asset_class == "international"
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_etf(self, provider):
+        """ETF should map to asset_type='etf'."""
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "SPY",
+            "shortName": "SPDR S&P 500",
+            "quoteType": "ETF",
+            "country": "United States",
+            "marketCap": 400000000000,
+        }
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            metadata = await provider.get_holding_metadata("SPY")
+            assert metadata.asset_type == "etf"
+            assert metadata.market_cap == "large"
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_mid_cap(self, provider):
+        """Mid cap classification for marketCap between 2B and 10B."""
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "MID",
+            "quoteType": "EQUITY",
+            "country": "United States",
+            "marketCap": 5000000000,
+        }
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            metadata = await provider.get_holding_metadata("MID")
+            assert metadata.market_cap == "mid"
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_small_cap(self, provider):
+        """Small cap classification for marketCap under 2B."""
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "SML",
+            "quoteType": "EQUITY",
+            "country": "United States",
+            "marketCap": 500000000,
+        }
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            metadata = await provider.get_holding_metadata("SML")
+            assert metadata.market_cap == "small"
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_no_country(self, provider):
+        """No country should result in asset_class=None."""
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "BTC-USD",
+            "quoteType": "CRYPTOCURRENCY",
+        }
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            metadata = await provider.get_holding_metadata("BTC-USD")
+            assert metadata.asset_type == "crypto"
+            assert metadata.asset_class is None
+            assert metadata.market_cap is None
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_error_returns_empty(self, provider):
+        """On error, should return metadata with just the symbol."""
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            side_effect=Exception("API error"),
+        ):
+            metadata = await provider.get_holding_metadata("AAPL")
+            assert metadata.symbol == "AAPL"
+            assert metadata.name is None
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_invalid_symbol(self, provider):
+        """Invalid symbol should return empty metadata."""
+        metadata = await provider.get_holding_metadata("INVALID@#$")
+        assert metadata.symbol == "INVALID@#$"
+        assert metadata.name is None

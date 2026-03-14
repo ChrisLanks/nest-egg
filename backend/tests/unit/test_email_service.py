@@ -7,13 +7,18 @@ from uuid import uuid4
 
 import pytest
 
-from app.services.email_service import EmailService, hash_token, create_verification_token, create_password_reset_token
+from app.services.email_service import (
+    EmailService,
+    create_password_reset_token,
+    create_verification_token,
+    hash_token,
+)
 from app.utils.datetime_utils import utc_now
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_service(smtp_host=None, **kwargs):
     defaults = dict(
@@ -32,6 +37,7 @@ def _make_service(smtp_host=None, **kwargs):
 # ---------------------------------------------------------------------------
 # is_configured
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestIsConfigured:
@@ -52,6 +58,7 @@ class TestIsConfigured:
 # send_email
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 @pytest.mark.asyncio
 class TestSendEmail:
@@ -68,7 +75,9 @@ class TestSendEmail:
 
     async def test_calls_aiosmtplib_when_configured(self):
         svc = _make_service(smtp_host="smtp.example.com")
-        with patch("app.services.email_service.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
+        with patch(
+            "app.services.email_service.aiosmtplib.send", new_callable=AsyncMock
+        ) as mock_send:
             result = await svc.send_email("a@b.com", "Subject", "<p>hi</p>", "hi")
         assert result is True
         mock_send.assert_called_once()
@@ -88,6 +97,7 @@ class TestSendEmail:
 # send_verification_email
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 @pytest.mark.asyncio
 class TestSendVerificationEmail:
@@ -98,7 +108,11 @@ class TestSendVerificationEmail:
         async def fake_send(msg, **kwargs):
             captured["body"] = msg.as_string()
 
-        with patch("app.services.email_service.aiosmtplib.send", new_callable=AsyncMock, side_effect=fake_send):
+        with patch(
+            "app.services.email_service.aiosmtplib.send",
+            new_callable=AsyncMock,
+            side_effect=fake_send,
+        ):
             await svc.send_verification_email("user@test.com", "mytoken123", "Alice")
 
         assert "https://app.example.com/verify-email?token=mytoken123" in captured["body"]
@@ -113,6 +127,7 @@ class TestSendVerificationEmail:
 # send_invitation_email
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 @pytest.mark.asyncio
 class TestSendInvitationEmail:
@@ -123,7 +138,11 @@ class TestSendInvitationEmail:
         async def fake_send(msg, **kwargs):
             captured["body"] = msg.as_string()
 
-        with patch("app.services.email_service.aiosmtplib.send", new_callable=AsyncMock, side_effect=fake_send):
+        with patch(
+            "app.services.email_service.aiosmtplib.send",
+            new_callable=AsyncMock,
+            side_effect=fake_send,
+        ):
             await svc.send_invitation_email("invite@test.com", "abc123code", "Bob", "The Smiths")
 
         assert "https://app.example.com/accept-invite?code=abc123code" in captured["body"]
@@ -139,6 +158,7 @@ class TestSendInvitationEmail:
 # ---------------------------------------------------------------------------
 # hash_token
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestHashToken:
@@ -157,6 +177,7 @@ class TestHashToken:
 # ---------------------------------------------------------------------------
 # create_verification_token
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 @pytest.mark.asyncio
@@ -198,6 +219,7 @@ class TestCreateVerificationToken:
 # ---------------------------------------------------------------------------
 # create_password_reset_token
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 @pytest.mark.asyncio
@@ -252,7 +274,7 @@ class TestCreatePasswordResetToken:
 
         before = utc_now()
         await create_password_reset_token(db, user_id)
-        after = utc_now()
+        utc_now()
 
         assert stored_record is not None
         # Should expire roughly 1 hour from now (between 59 and 61 minutes)
@@ -264,6 +286,7 @@ class TestCreatePasswordResetToken:
 # send_password_reset_email
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 @pytest.mark.asyncio
 class TestSendPasswordResetEmail:
@@ -274,7 +297,11 @@ class TestSendPasswordResetEmail:
         async def fake_send(msg, **kwargs):
             captured["body"] = msg.as_string()
 
-        with patch("app.services.email_service.aiosmtplib.send", new_callable=AsyncMock, side_effect=fake_send):
+        with patch(
+            "app.services.email_service.aiosmtplib.send",
+            new_callable=AsyncMock,
+            side_effect=fake_send,
+        ):
             await svc.send_password_reset_email("user@test.com", "resettoken456", "Bob")
 
         assert "https://app.example.com/reset-password?token=resettoken456" in captured["body"]
@@ -291,7 +318,11 @@ class TestSendPasswordResetEmail:
         async def fake_send(msg, **kwargs):
             captured["body"] = msg.as_string()
 
-        with patch("app.services.email_service.aiosmtplib.send", new_callable=AsyncMock, side_effect=fake_send):
+        with patch(
+            "app.services.email_service.aiosmtplib.send",
+            new_callable=AsyncMock,
+            side_effect=fake_send,
+        ):
             await svc.send_password_reset_email("user@test.com", "tok", "Charlie")
 
         assert "Charlie" in captured["body"]

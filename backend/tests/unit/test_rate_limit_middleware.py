@@ -1,10 +1,11 @@
 """Unit tests for rate limit middleware."""
 
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 from fastapi import Request, Response
 
-from app.middleware.rate_limit import RateLimitMiddleware, EXEMPT_PATHS
+from app.middleware.rate_limit import EXEMPT_PATHS, RateLimitMiddleware
 
 
 @pytest.mark.unit
@@ -127,9 +128,7 @@ class TestRateLimitMiddleware:
             assert "Rate limit exceeded" in str(exc_info.value.detail)
 
     @pytest.mark.asyncio
-    async def test_logs_warning_when_limit_exceeded(
-        self, middleware, mock_request, mock_call_next
-    ):
+    async def test_logs_warning_when_limit_exceeded(self, middleware, mock_request, mock_call_next):
         """Should log warning when rate limit exceeded."""
         mock_request.state.user_id = "user-123"
 
@@ -145,9 +144,7 @@ class TestRateLimitMiddleware:
                 assert mock_logger.warning.called
 
     @pytest.mark.asyncio
-    async def test_logs_info_when_approaching_limit(
-        self, middleware, mock_request, mock_call_next
-    ):
+    async def test_logs_info_when_approaching_limit(self, middleware, mock_request, mock_call_next):
         """Should log info when approaching rate limit (< 10 remaining)."""
         mock_request.state.user_id = "user-123"
 
@@ -193,9 +190,7 @@ class TestRateLimitMiddleware:
             assert response.headers["X-RateLimit-Reset"] == "60"
 
     @pytest.mark.asyncio
-    async def test_error_detail_includes_retry_info(
-        self, middleware, mock_request, mock_call_next
-    ):
+    async def test_error_detail_includes_retry_info(self, middleware, mock_request, mock_call_next):
         """Should include retry information in error detail."""
         mock_request.state.user_id = "user-123"
 

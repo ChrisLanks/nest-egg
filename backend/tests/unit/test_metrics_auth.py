@@ -1,11 +1,12 @@
 """Tests for the Prometheus metrics admin app (separate port + basic auth)."""
 
 import base64
+
 import pytest
 from starlette.testclient import TestClient
 
-from app.core.metrics import create_metrics_app
 from app.config import settings as real_settings
+from app.core.metrics import create_metrics_app
 
 
 def _basic_auth_header(username: str, password: str) -> str:
@@ -14,8 +15,8 @@ def _basic_auth_header(username: str, password: str) -> str:
 
 
 # Use the default dev credentials configured in Settings
-_USERNAME = real_settings.METRICS_USERNAME   # "admin"
-_PASSWORD = real_settings.METRICS_PASSWORD   # "metrics_admin"
+_USERNAME = real_settings.METRICS_USERNAME  # "admin"
+_PASSWORD = real_settings.METRICS_PASSWORD  # "metrics_admin"
 
 
 @pytest.fixture(scope="module")

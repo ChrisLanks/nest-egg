@@ -7,21 +7,22 @@ Covers:
 - payoff_date is set by the safety-net post-loop for any remaining paid-off debts
 """
 
-import pytest
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
+
 from app.models.account import AccountType
 from app.services.payoff_strategy_service import (
+    _DEBT_ACCOUNT_TYPES,
     DebtAccount,
     PayoffStrategyService,
-    _DEBT_ACCOUNT_TYPES,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def make_debt(
     balance: str,
@@ -43,6 +44,7 @@ def make_debt(
 # ---------------------------------------------------------------------------
 # _DEBT_ACCOUNT_TYPES
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestDebtAccountTypes:
@@ -68,6 +70,7 @@ class TestDebtAccountTypes:
 # ---------------------------------------------------------------------------
 # account_type in debt states
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestAccountTypeInDebtStates:
@@ -106,6 +109,7 @@ class TestAccountTypeInDebtStates:
 # ---------------------------------------------------------------------------
 # payoff_date — set via minimum payment
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestPayoffDateViaMinimumPayment:
@@ -150,9 +154,9 @@ class TestPayoffDateViaMinimumPayment:
 
         for debt_state in result["debts"]:
             if debt_state["balance"] <= 0.01:
-                assert debt_state["payoff_date"] is not None, (
-                    f"Debt '{debt_state['name']}' has zero balance but no payoff_date"
-                )
+                assert (
+                    debt_state["payoff_date"] is not None
+                ), f"Debt '{debt_state['name']}' has zero balance but no payoff_date"
 
     def test_payoff_date_none_when_360_month_cap_hit(self):
         """A debt that cannot be paid off in 30 years should have payoff_date=None."""
@@ -167,6 +171,7 @@ class TestPayoffDateViaMinimumPayment:
 # ---------------------------------------------------------------------------
 # Empty / edge cases
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestStrategyEdgeCases:

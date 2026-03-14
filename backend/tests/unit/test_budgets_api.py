@@ -1,25 +1,24 @@
 """Unit tests for budgets API endpoints."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from uuid import uuid4
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
+import pytest
 from fastapi import HTTPException
 
 from app.api.v1.budgets import (
-    create_budget,
-    list_budgets,
-    get_budget,
-    update_budget,
-    delete_budget,
-    get_budget_spending,
     check_budget_alerts,
-    router,
+    create_budget,
+    delete_budget,
+    get_budget,
+    get_budget_spending,
+    list_budgets,
+    update_budget,
 )
-from app.models.user import User
 from app.models.budget import Budget, BudgetPeriod
+from app.models.user import User
 from app.schemas.budget import BudgetCreate, BudgetUpdate
 
 
@@ -41,6 +40,7 @@ class TestCreateBudget:
     @pytest.fixture
     def budget_create_data(self):
         from datetime import date
+
         return BudgetCreate(
             name="Groceries Budget",
             amount=Decimal("500.00"),
@@ -51,9 +51,7 @@ class TestCreateBudget:
         )
 
     @pytest.mark.asyncio
-    async def test_creates_budget_successfully(
-        self, mock_db, mock_user, budget_create_data
-    ):
+    async def test_creates_budget_successfully(self, mock_db, mock_user, budget_create_data):
         """Should create a new budget."""
         expected_budget = Mock(spec=Budget)
         expected_budget.id = uuid4()
@@ -75,9 +73,7 @@ class TestCreateBudget:
             mock_create.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_passes_all_fields_to_service(
-        self, mock_db, mock_user, budget_create_data
-    ):
+    async def test_passes_all_fields_to_service(self, mock_db, mock_user, budget_create_data):
         """Should pass all budget fields to service."""
         expected_budget = Mock(spec=Budget)
 
@@ -449,8 +445,9 @@ class TestGetBudgetSpending:
     def test_spending_response_percentage_is_decimal(self):
         """BudgetSpendingResponse.percentage is Decimal, which JSON-serialises to a string.
         The frontend must coerce it with Number() before calling .toFixed()."""
-        from app.schemas.budget import BudgetSpendingResponse
         from datetime import date
+
+        from app.schemas.budget import BudgetSpendingResponse
 
         response = BudgetSpendingResponse(
             budget_amount=Decimal("500.00"),
@@ -592,6 +589,7 @@ class TestSharedBudgetFields:
     async def test_create_passes_shared_fields(self, mock_db, mock_user):
         """Should pass is_shared and shared_user_ids to service on create."""
         from datetime import date as date_type
+
         uid = str(uuid4())
 
         budget_data = BudgetCreate(

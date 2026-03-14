@@ -1,10 +1,9 @@
 """Tests for category service."""
 
 import pytest
-from uuid import uuid4
 
-from app.services.category_service import get_category_id_for_plaid_category
 from app.models.transaction import Category
+from app.services.category_service import get_category_id_for_plaid_category
 
 
 class TestCategoryService:
@@ -53,7 +52,9 @@ class TestCategoryService:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_get_category_id_for_plaid_category_cross_org(self, db, test_user, second_organization):
+    async def test_get_category_id_for_plaid_category_cross_org(
+        self, db, test_user, second_organization
+    ):
         """Should not return categories from other organizations."""
         # Create category in other org
         other_category = Category(
@@ -86,9 +87,7 @@ class TestCategoryService:
         assert result == category.id
 
         # Different case - should not match (SQL default is case-sensitive for strings)
-        result_diff_case = await get_category_id_for_plaid_category(
-            db, test_user.organization_id, "TRAVEL"
-        )
+        await get_category_id_for_plaid_category(db, test_user.organization_id, "TRAVEL")
         # Note: This depends on database collation. PostgreSQL default is case-sensitive.
         # If it matches, it's due to database settings, which is acceptable.
 

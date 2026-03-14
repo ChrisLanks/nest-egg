@@ -225,7 +225,9 @@ class TestPlaidService:
         monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
         monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
 
-        raw_body = json.dumps({"item_id": "test_123"}, separators=(",", ":"), sort_keys=True).encode()
+        raw_body = json.dumps(
+            {"item_id": "test_123"}, separators=(",", ":"), sort_keys=True
+        ).encode()
         body_hash = hashlib.sha256(raw_body).hexdigest()
 
         mock_get_header.return_value = {"kid": "test-key-id"}
@@ -285,7 +287,10 @@ class TestPlaidService:
             # Use a minimal JWT-like string (header.payload.sig) so jwt.get_unverified_header
             # can decode it — but with no kid field
             import base64
-            header = base64.urlsafe_b64encode(json.dumps({"alg": "ES256"}).encode()).decode().rstrip("=")
+
+            header = (
+                base64.urlsafe_b64encode(json.dumps({"alg": "ES256"}).encode()).decode().rstrip("=")
+            )
             payload = base64.urlsafe_b64encode(json.dumps({}).encode()).decode().rstrip("=")
             fake_jwt = f"{header}.{payload}.fakesig"
 
@@ -593,3 +598,341 @@ class TestPlaidServiceRealAPI:
         assert result[0]["subtype"] is None
         assert result[0]["available_balance"] is None
         assert result[0]["limit"] == 5000.00
+
+
+class TestPlaidServiceHoldings:
+    """Tests for investment holdings methods."""
+
+    @pytest.mark.asyncio
+    async def test_get_investment_holdings_test_user(self):
+        """Should return dummy holdings for test user."""
+        service = PlaidService()
+        test_user = User(id=uuid4(), email="test@test.com", password_hash="hash")
+
+        holdings, securities = await service.get_investment_holdings(test_user, "access-token")
+
+        assert len(holdings) == 5
+        assert len(securities) == 5
+        assert holdings[0]["security_id"] == "sec_aapl"
+        assert securities[0]["ticker_symbol"] == "AAPL"
+
+    @pytest.mark.asyncio
+    @patch("app.services.plaid_service.get_circuit_breaker")
+    async def test_get_investment_holdings_real_user(self, mock_get_cb, monkeypatch):
+        """Should call Plaid via circuit breaker for real users."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        mock_cb = MagicMock()
+        mock_cb.call = AsyncMock(return_value=([{"holding": 1}], [{"security": 1}]))
+        mock_get_cb.return_value = mock_cb
+
+        service = PlaidService()
+        real_user = User(id=uuid4(), email="real@example.com", password_hash="hash")
+
+        holdings, securities = await service.get_investment_holdings(real_user, "access-token")
+
+        assert holdings == [{"holding": 1}]
+        assert securities == [{"security": 1}]
+        mock_cb.call.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("app.services.plaid_service.get_circuit_breaker")
+    async def test_get_investment_holdings_circuit_open(self, mock_get_cb, monkeypatch):
+        """Should raise 503 when circuit breaker is open."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        from app.services.circuit_breaker import CircuitOpenError
+
+        mock_cb = MagicMock()
+        mock_cb.call = AsyncMock(side_effect=CircuitOpenError("plaid"))
+        mock_get_cb.return_value = mock_cb
+
+        service = PlaidService()
+        real_user = User(id=uuid4(), email="real@example.com", password_hash="hash")
+
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.get_investment_holdings(real_user, "access-token")
+        assert exc_info.value.status_code == 503
+
+    @pytest.mark.asyncio
+    @patch("app.services.plaid_service.httpx.AsyncClient")
+    async def test_fetch_holdings_success(self, mock_client_cls, monkeypatch):
+        """Should fetch and parse holdings from Plaid API."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "holdings": [{"security_id": "sec_1"}],
+            "securities": [{"security_id": "sec_1", "name": "Test"}],
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        service = PlaidService()
+        holdings, securities = await service._fetch_holdings("access-token")
+
+        assert len(holdings) == 1
+        assert len(securities) == 1
+
+    @pytest.mark.asyncio
+    @patch("app.services.plaid_service.httpx.AsyncClient")
+    async def test_fetch_holdings_http_status_error(self, mock_client_cls, monkeypatch):
+        """Should raise 502 on HTTP status error."""
+        import httpx
+
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 400
+        mock_response.text = "Bad Request"
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "error", request=MagicMock(), response=mock_response
+        )
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        service = PlaidService()
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service._fetch_holdings("access-token")
+        assert exc_info.value.status_code == 502
+
+    @pytest.mark.asyncio
+    @patch("app.services.plaid_service.httpx.AsyncClient")
+    async def test_fetch_holdings_connection_error(self, mock_client_cls, monkeypatch):
+        """Should raise 502 on connection error."""
+        import httpx
+
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        service = PlaidService()
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service._fetch_holdings("access-token")
+        assert exc_info.value.status_code == 502
+
+
+class TestFetchJWK:
+    """Tests for _fetch_jwk static method."""
+
+    @pytest.mark.asyncio
+    async def test_returns_cached_key(self):
+        """Should return cached key if already fetched."""
+        key_id = "cached-key-id"
+        mock_jwk = MagicMock()
+        _jwk_cache[key_id] = mock_jwk
+
+        result = await PlaidService._fetch_jwk(key_id)
+        assert result == mock_jwk
+
+        # Clean up
+        del _jwk_cache[key_id]
+
+    @pytest.mark.asyncio
+    @patch("app.services.plaid_service.httpx.AsyncClient")
+    async def test_fetches_and_caches_key(self, mock_client_cls, monkeypatch):
+        """Should fetch key from Plaid and cache it."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        key_id = "new-key-id"
+        if key_id in _jwk_cache:
+            del _jwk_cache[key_id]
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"key": {"kty": "EC", "crv": "P-256", "x": "x", "y": "y"}}
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        with patch("app.services.plaid_service.PyJWK") as mock_pyjwk:
+            mock_key = MagicMock()
+            mock_pyjwk.return_value = mock_key
+
+            result = await PlaidService._fetch_jwk(key_id)
+
+        assert result == mock_key
+        assert key_id in _jwk_cache
+
+        # Clean up
+        del _jwk_cache[key_id]
+
+    @pytest.mark.asyncio
+    @patch("app.services.plaid_service.httpx.AsyncClient")
+    async def test_raises_on_missing_key(self, mock_client_cls, monkeypatch):
+        """Should raise ValueError when Plaid returns no key."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        key_id = "missing-key-id"
+        if key_id in _jwk_cache:
+            del _jwk_cache[key_id]
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"key": None}
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        with pytest.raises(ValueError, match="No key returned"):
+            await PlaidService._fetch_jwk(key_id)
+
+
+class TestPlaidServiceWebhookHTTPError:
+    """Tests for webhook verification HTTP error handling."""
+
+    @pytest.mark.asyncio
+    @patch("app.services.plaid_service.jwt.get_unverified_header")
+    @patch("app.services.plaid_service.PlaidService._fetch_jwk")
+    async def test_http_error_during_jwk_fetch(self, mock_fetch_jwk, mock_get_header, monkeypatch):
+        """Should raise 502 on HTTP error during JWK fetch."""
+        import httpx
+
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        mock_get_header.return_value = {"kid": "test-key-id"}
+        mock_fetch_jwk.side_effect = httpx.HTTPError("Connection failed")
+
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            await PlaidService.verify_webhook_signature(
+                webhook_verification_header="valid.jwt.token", webhook_body=b"test"
+            )
+        assert exc_info.value.status_code == 502
+
+    @pytest.mark.asyncio
+    @patch("app.services.plaid_service.jwt.decode")
+    @patch("app.services.plaid_service.jwt.get_unverified_header")
+    @patch("app.services.plaid_service.PlaidService._fetch_jwk")
+    async def test_missing_body_hash_claim(
+        self, mock_fetch_jwk, mock_get_header, mock_jwt_decode, monkeypatch
+    ):
+        """Should reject JWT without body hash claim."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        mock_get_header.return_value = {"kid": "test-key-id"}
+        mock_jwk = MagicMock()
+        mock_fetch_jwk.return_value = mock_jwk
+        mock_jwt_decode.return_value = {"item_id": "test_123"}  # no request_body_sha256
+
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            await PlaidService.verify_webhook_signature(
+                webhook_verification_header="valid.jwt.token", webhook_body=b"test"
+            )
+        assert exc_info.value.status_code == 401
+        assert "body hash" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    @patch("app.services.plaid_service.jwt.get_unverified_header")
+    @patch("app.services.plaid_service.PlaidService._fetch_jwk")
+    async def test_generic_exception_returns_401(
+        self, mock_fetch_jwk, mock_get_header, monkeypatch
+    ):
+        """Should return 401 on unexpected exceptions."""
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        mock_get_header.return_value = {"kid": "test-key-id"}
+        mock_fetch_jwk.side_effect = RuntimeError("Unexpected error")
+
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            await PlaidService.verify_webhook_signature(
+                webhook_verification_header="valid.jwt.token", webhook_body=b"test"
+            )
+        assert exc_info.value.status_code == 401
+
+
+class TestPlaidExchangeApiError:
+    """Tests for Plaid exchange API error handling."""
+
+    @pytest.mark.asyncio
+    async def test_exchange_public_token_api_error(self, monkeypatch):
+        """Should raise 502 on Plaid API exception during exchange."""
+        import plaid
+
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        service = PlaidService()
+        real_user = User(id=uuid4(), email="real@example.com", password_hash="hash")
+
+        mock_api = MagicMock()
+        mock_api.item_public_token_exchange.side_effect = plaid.ApiException(
+            status=400, reason="Bad Request"
+        )
+        service._plaid_api = mock_api
+
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.exchange_public_token(real_user, "public-token", "ins_1", "Bank")
+        assert exc_info.value.status_code == 502
+
+    @pytest.mark.asyncio
+    async def test_get_accounts_api_error(self, monkeypatch):
+        """Should raise 502 on Plaid API exception during accounts_get."""
+        import plaid
+
+        monkeypatch.setattr("app.config.settings.PLAID_CLIENT_ID", "test_id")
+        monkeypatch.setattr("app.config.settings.PLAID_SECRET", "test_secret")
+
+        service = PlaidService()
+        real_user = User(id=uuid4(), email="real@example.com", password_hash="hash")
+
+        mock_api = MagicMock()
+        mock_api.accounts_get.side_effect = plaid.ApiException(status=400, reason="Bad Request")
+        service._plaid_api = mock_api
+
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.get_accounts(real_user, "access-token")
+        assert exc_info.value.status_code == 502
+
+    @pytest.mark.asyncio
+    async def test_get_accounts_test_user_returns_empty(self):
+        """Should return empty list for test users."""
+        service = PlaidService()
+        test_user = User(id=uuid4(), email="test@test.com", password_hash="hash")
+
+        result = await service.get_accounts(test_user, "access-token")
+        assert result == []

@@ -1,8 +1,8 @@
 """Unit tests for logging middleware."""
 
+from unittest.mock import Mock, patch
+
 import pytest
-import time
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from fastapi import Request, Response
 from starlette.datastructures import Headers
 
@@ -35,6 +35,7 @@ class TestRequestLoggingMiddleware:
     @pytest.fixture
     def mock_call_next(self):
         """Create mock call_next."""
+
         async def call_next(request):
             response = Mock(spec=Response)
             response.status_code = 200
@@ -78,7 +79,9 @@ class TestRequestLoggingMiddleware:
             assert "200" in log_message
 
     @pytest.mark.asyncio
-    async def test_logs_request_with_authenticated_user(self, middleware, mock_request, mock_call_next):
+    async def test_logs_request_with_authenticated_user(
+        self, middleware, mock_request, mock_call_next
+    ):
         """Should include user ID in logs for authenticated requests."""
         # Add user to request state
         mock_user = Mock()
@@ -103,7 +106,9 @@ class TestRequestLoggingMiddleware:
             assert mock_logger.info.called
 
     @pytest.mark.asyncio
-    async def test_extracts_client_ip_from_x_forwarded_for(self, middleware, mock_request, mock_call_next):
+    async def test_extracts_client_ip_from_x_forwarded_for(
+        self, middleware, mock_request, mock_call_next
+    ):
         """Should extract client IP from X-Forwarded-For header."""
         mock_request.headers = Headers({"X-Forwarded-For": "192.168.1.1, 10.0.0.1"})
 
@@ -128,6 +133,7 @@ class TestRequestLoggingMiddleware:
     @pytest.mark.asyncio
     async def test_logs_4xx_errors_as_warning(self, middleware, mock_request):
         """Should log 4xx errors at warning level."""
+
         async def call_next_400(request):
             response = Mock(spec=Response)
             response.status_code = 404
@@ -145,6 +151,7 @@ class TestRequestLoggingMiddleware:
     @pytest.mark.asyncio
     async def test_logs_5xx_errors_as_error(self, middleware, mock_request):
         """Should log 5xx errors at error level."""
+
         async def call_next_500(request):
             response = Mock(spec=Response)
             response.status_code = 500
@@ -162,6 +169,7 @@ class TestRequestLoggingMiddleware:
     @pytest.mark.asyncio
     async def test_logs_slow_requests_as_warning(self, middleware, mock_request):
         """Should log slow requests (>1000ms) at warning level."""
+
         async def call_next_slow(request):
             # Simulate slow request
             await asyncio.sleep(1.1)
@@ -182,6 +190,7 @@ class TestRequestLoggingMiddleware:
     @pytest.mark.asyncio
     async def test_logs_exceptions_and_reraises(self, middleware, mock_request):
         """Should log exceptions and re-raise them."""
+
         async def call_next_exception(request):
             raise ValueError("Test exception")
 
@@ -224,6 +233,7 @@ class TestLegacyLogRequest:
     @pytest.fixture
     def mock_call_next(self):
         """Create mock call_next."""
+
         async def call_next(request):
             response = Mock(spec=Response)
             response.status_code = 201
@@ -247,6 +257,7 @@ class TestLegacyLogRequest:
     @pytest.mark.asyncio
     async def test_logs_exceptions(self, mock_request):
         """Should log exceptions."""
+
         async def call_next_exception(request):
             raise RuntimeError("Legacy exception")
 

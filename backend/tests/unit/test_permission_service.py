@@ -1,15 +1,15 @@
 """Unit tests for PermissionService."""
 
-import pytest
+from datetime import timedelta
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
-from datetime import timedelta
 
+import pytest
 from fastapi import HTTPException
 
-from app.services.permission_service import PermissionService, permission_service
 from app.models.permission import PermissionGrant, PermissionGrantAudit
 from app.models.user import User
+from app.services.permission_service import PermissionService
 from app.utils.datetime_utils import utc_now
 
 
@@ -21,8 +21,17 @@ def _make_user(*, is_org_admin=False, org_id=None):
     return u
 
 
-def _make_grant(*, grantor_id, grantee_id, resource_type="account", actions=None,
-                resource_id=None, is_active=True, expires_at=None, org_id=None):
+def _make_grant(
+    *,
+    grantor_id,
+    grantee_id,
+    resource_type="account",
+    actions=None,
+    resource_id=None,
+    is_active=True,
+    expires_at=None,
+    org_id=None,
+):
     g = Mock(spec=PermissionGrant)
     g.id = uuid4()
     g.grantor_id = grantor_id
@@ -126,8 +135,10 @@ class TestPermissionServiceCheck:
         owner = _make_user()
         past = utc_now() - timedelta(days=1)
         grant = _make_grant(
-            grantor_id=owner.id, grantee_id=actor.id,
-            actions=["read"], expires_at=past,
+            grantor_id=owner.id,
+            grantee_id=actor.id,
+            actions=["read"],
+            expires_at=past,
         )
 
         with patch(
@@ -268,7 +279,9 @@ class TestPermissionServiceRevoke:
     async def test_grantor_can_revoke(self, db):
         """Grant owner can revoke their own grant."""
         grantor = _make_user()
-        grant = _make_grant(grantor_id=grantor.id, grantee_id=uuid4(), org_id=grantor.organization_id)
+        grant = _make_grant(
+            grantor_id=grantor.id, grantee_id=uuid4(), org_id=grantor.organization_id
+        )
 
         with patch(
             "app.services.permission_service.permission_grant_crud.get_by_id",
@@ -288,7 +301,9 @@ class TestPermissionServiceRevoke:
         """Org admin can revoke any grant."""
         admin = _make_user(is_org_admin=True)
         other_user = _make_user(org_id=admin.organization_id)
-        grant = _make_grant(grantor_id=other_user.id, grantee_id=uuid4(), org_id=admin.organization_id)
+        grant = _make_grant(
+            grantor_id=other_user.id, grantee_id=uuid4(), org_id=admin.organization_id
+        )
 
         with patch(
             "app.services.permission_service.permission_grant_crud.get_by_id",

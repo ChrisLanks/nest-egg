@@ -9,6 +9,7 @@ Covers:
 """
 
 import pytest
+
 from app.services.retirement.withdrawal_strategy_service import (
     AccountBuckets,
     compute_rmd_amount,
@@ -16,7 +17,6 @@ from app.services.retirement.withdrawal_strategy_service import (
     simple_rate_withdrawal,
     tax_optimized_withdrawal,
 )
-
 
 # ── AccountBuckets ─────────────────────────────────────────────────────────────
 
@@ -215,7 +215,10 @@ class TestRunWithdrawalComparison:
             ss_annual=24000,
         )
         # Tax optimized typically pays less tax
-        assert result["tax_optimized"]["total_taxes_paid"] <= result["simple_rate"]["total_taxes_paid"] * 1.5
+        assert (
+            result["tax_optimized"]["total_taxes_paid"]
+            <= result["simple_rate"]["total_taxes_paid"] * 1.5
+        )
 
     def test_ss_and_pension_reduce_withdrawals(self):
         """Income sources should improve survival for both strategies."""

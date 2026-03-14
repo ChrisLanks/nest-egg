@@ -7,13 +7,11 @@ Covers:
 - Cost and duration defaults
 """
 
-import pytest
 from app.services.retirement.life_event_presets import (
     LIFE_EVENT_PRESETS,
     create_life_event_from_preset,
     get_all_presets,
 )
-
 
 # ── get_all_presets ───────────────────────────────────────────────────────────
 
@@ -38,9 +36,9 @@ class TestGetAllPresets:
         for preset in presets:
             for field in ("annual_cost", "one_time_cost", "income_change"):
                 val = preset[field]
-                assert val is None or isinstance(val, float), (
-                    f"Preset {preset['key']} {field} = {val} ({type(val)})"
-                )
+                assert val is None or isinstance(
+                    val, float
+                ), f"Preset {preset['key']} {field} = {val} ({type(val)})"
 
     def test_known_preset_values(self):
         """Spot-check a few known presets."""

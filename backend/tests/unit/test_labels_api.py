@@ -1,26 +1,25 @@
 """Unit tests for labels API endpoints."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from uuid import uuid4
+from datetime import date
 from decimal import Decimal
-from datetime import date, datetime
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
+import pytest
 from fastapi import HTTPException
 
 from app.api.v1.labels import (
-    list_labels,
     create_label,
-    update_label,
     delete_label,
-    get_label_depth,
-    initialize_tax_labels,
-    get_tax_deductible_transactions,
     export_tax_deductible_csv,
-    router,
+    get_label_depth,
+    get_tax_deductible_transactions,
+    initialize_tax_labels,
+    list_labels,
+    update_label,
 )
-from app.models.user import User
 from app.models.transaction import Label
+from app.models.user import User
 from app.schemas.transaction import LabelCreate, LabelUpdate
 
 
@@ -159,9 +158,7 @@ class TestCreateLabel:
         )
 
     @pytest.mark.asyncio
-    async def test_creates_label_successfully(
-        self, mock_db, mock_user, label_create_data
-    ):
+    async def test_creates_label_successfully(self, mock_db, mock_user, label_create_data):
         """Should create a new label."""
         # The Label model does not have parent_label_id, but the create_label API
         # references label_data.parent_label_id and passes it to Label().
@@ -178,8 +175,8 @@ class TestCreateLabel:
             "app.api.v1.labels.hierarchy_validation_service.validate_parent",
             return_value=None,
         ):
-            with patch("app.api.v1.labels.Label", return_value=mock_label_instance) as mock_label_cls:
-                result = await create_label(
+            with patch("app.api.v1.labels.Label", return_value=mock_label_instance):
+                await create_label(
                     label_data=mock_label_data,
                     current_user=mock_user,
                     db=mock_db,
@@ -226,9 +223,7 @@ class TestCreateLabel:
         assert exc_info.value.status_code == 400
 
     @pytest.mark.asyncio
-    async def test_validates_parent_when_provided(
-        self, mock_db, mock_user
-    ):
+    async def test_validates_parent_when_provided(self, mock_db, mock_user):
         """Should validate parent label when provided."""
         parent_id = uuid4()
         label_data = LabelCreate(
@@ -369,9 +364,7 @@ class TestUpdateLabel:
         assert "own parent" in exc_info.value.detail
 
     @pytest.mark.asyncio
-    async def test_prevents_parent_when_has_children(
-        self, mock_db, mock_user, mock_label
-    ):
+    async def test_prevents_parent_when_has_children(self, mock_db, mock_user, mock_label):
         """Should prevent assigning parent to label that has children."""
         label_id = mock_label.id
         parent_id = uuid4()
@@ -399,9 +392,7 @@ class TestUpdateLabel:
         assert "already has children" in exc_info.value.detail
 
     @pytest.mark.asyncio
-    async def test_allows_parent_when_no_children(
-        self, mock_db, mock_user, mock_label
-    ):
+    async def test_allows_parent_when_no_children(self, mock_db, mock_user, mock_label):
         """Should allow assigning parent when label has no children."""
         label_id = mock_label.id
         parent_id = uuid4()
@@ -554,7 +545,13 @@ class TestInitializeTaxLabels:
     async def test_creates_tax_labels(self, mock_db, mock_user):
         """Should create default tax labels."""
         # Create mock labels properly - set attributes after construction
-        label_names = ["Medical & Dental", "Charitable Donations", "Business Expenses", "Education", "Home Office"]
+        label_names = [
+            "Medical & Dental",
+            "Charitable Donations",
+            "Business Expenses",
+            "Education",
+            "Home Office",
+        ]
         expected_labels = []
         for label_name in label_names:
             label = Mock(spec=Label)
@@ -734,7 +731,10 @@ class TestExportTaxDeductibleCSV:
             assert result.body == csv_content.encode()
             assert result.media_type == "text/csv"
             assert "attachment" in result.headers["Content-Disposition"]
-            assert "tax_deductible_transactions_2024-01-01_2024-12-31.csv" in result.headers["Content-Disposition"]
+            assert (
+                "tax_deductible_transactions_2024-01-01_2024-12-31.csv"
+                in result.headers["Content-Disposition"]
+            )
 
     @pytest.mark.asyncio
     async def test_includes_date_range_in_filename(self, mock_db, mock_user):

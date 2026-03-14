@@ -9,18 +9,16 @@ to verify that:
 """
 
 import uuid
-import pytest
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from datetime import timedelta
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.permission import permission_grant_crud
 from app.models.permission import PermissionGrant
 from app.models.user import Organization, User
 from app.services.permission_service import PermissionService
 from app.utils.datetime_utils import utc_now
-
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -270,8 +268,7 @@ async def test_permission_service_check_allows_grantee_with_wildcard_grant(
     await db_session.flush()
 
     wildcard = _grant(
-        org.id, grantor_user.id, grantee_user.id,
-        resource_id=None, actions=["read", "update"]
+        org.id, grantor_user.id, grantee_user.id, resource_id=None, actions=["read", "update"]
     )
     db_session.add(wildcard)
     await db_session.commit()
@@ -307,10 +304,7 @@ async def test_permission_service_check_denies_action_not_in_grant(
     await db_session.flush()
 
     # Grant only read
-    wildcard = _grant(
-        org.id, grantor_user.id, grantee_user.id,
-        resource_id=None, actions=["read"]
-    )
+    wildcard = _grant(org.id, grantor_user.id, grantee_user.id, resource_id=None, actions=["read"])
     db_session.add(wildcard)
     await db_session.commit()
 
@@ -421,7 +415,9 @@ async def test_list_grants_for_grantee_returns_all_active_grants(
     await db_session.commit()
 
     results = await permission_grant_crud.list_grants_for_grantee(
-        db_session, grantee_id=grantee.id, resource_type="account",
+        db_session,
+        grantee_id=grantee.id,
+        resource_type="account",
     )
 
     assert len(results) == 2
@@ -442,13 +438,21 @@ async def test_list_grants_for_grantee_ignores_inactive(
     await db_session.flush()
 
     active = _grant(org.id, grantor.id, grantee.id, resource_id=None, is_active=True)
-    inactive = _grant(org.id, grantor.id, grantee.id, resource_type="transaction",
-                      resource_id=None, is_active=False)
+    inactive = _grant(
+        org.id,
+        grantor.id,
+        grantee.id,
+        resource_type="transaction",
+        resource_id=None,
+        is_active=False,
+    )
     db_session.add_all([active, inactive])
     await db_session.commit()
 
     results = await permission_grant_crud.list_grants_for_grantee(
-        db_session, grantee_id=grantee.id, resource_type="account",
+        db_session,
+        grantee_id=grantee.id,
+        resource_type="account",
     )
 
     assert len(results) == 1
@@ -483,12 +487,16 @@ async def test_filter_allowed_resources_wildcard_grant(
     pairs = [(acc_id, grantor.id) for acc_id in acc_ids]
 
     allowed = await svc.filter_allowed_resources(
-        db_session, grantee, "update", "account", pairs,
+        db_session,
+        grantee,
+        "update",
+        "account",
+        pairs,
     )
 
-    assert set(allowed) == set(acc_ids), (
-        "All accounts from the grantor should be allowed via wildcard grant"
-    )
+    assert set(allowed) == set(
+        acc_ids
+    ), "All accounts from the grantor should be allowed via wildcard grant"
 
 
 @pytest.mark.asyncio
@@ -506,7 +514,11 @@ async def test_filter_allowed_resources_owner_always_allowed(
     pairs = [(acc_id, user.id) for acc_id in acc_ids]
 
     allowed = await svc.filter_allowed_resources(
-        db_session, user, "update", "account", pairs,
+        db_session,
+        user,
+        "update",
+        "account",
+        pairs,
     )
 
     assert set(allowed) == set(acc_ids)
@@ -528,7 +540,11 @@ async def test_filter_allowed_resources_org_admin_denied_without_grant(
     pairs = [(acc_id, other.id) for acc_id in acc_ids]
 
     allowed = await svc.filter_allowed_resources(
-        db_session, admin, "delete", "account", pairs,
+        db_session,
+        admin,
+        "delete",
+        "account",
+        pairs,
     )
 
     assert allowed == []
@@ -549,7 +565,11 @@ async def test_filter_allowed_resources_denies_without_grant(
     pairs = [(uuid.uuid4(), owner.id) for _ in range(3)]
 
     allowed = await svc.filter_allowed_resources(
-        db_session, actor, "update", "account", pairs,
+        db_session,
+        actor,
+        "update",
+        "account",
+        pairs,
     )
 
     assert allowed == []
@@ -574,7 +594,11 @@ async def test_filter_allowed_resources_denies_wrong_action(
     pairs = [(uuid.uuid4(), grantor.id)]
 
     allowed = await svc.filter_allowed_resources(
-        db_session, grantee, "delete", "account", pairs,
+        db_session,
+        grantee,
+        "delete",
+        "account",
+        pairs,
     )
 
     assert allowed == []
@@ -611,7 +635,11 @@ async def test_filter_allowed_resources_expired_grant_excluded(
     pairs = [(uuid.uuid4(), grantor.id)]
 
     allowed = await svc.filter_allowed_resources(
-        db_session, grantee, "update", "account", pairs,
+        db_session,
+        grantee,
+        "update",
+        "account",
+        pairs,
     )
 
     assert allowed == []
@@ -638,13 +666,17 @@ async def test_filter_allowed_resources_mixed_owned_and_granted(
     other_acc_1 = uuid.uuid4()
     other_acc_2 = uuid.uuid4()
     pairs = [
-        (own_acc, user_a.id),        # owned by actor
-        (other_acc_1, user_b.id),    # owned by user_b (granted)
-        (other_acc_2, user_b.id),    # owned by user_b (granted)
+        (own_acc, user_a.id),  # owned by actor
+        (other_acc_1, user_b.id),  # owned by user_b (granted)
+        (other_acc_2, user_b.id),  # owned by user_b (granted)
     ]
 
     allowed = await svc.filter_allowed_resources(
-        db_session, user_a, "update", "account", pairs,
+        db_session,
+        user_a,
+        "update",
+        "account",
+        pairs,
     )
 
     assert set(allowed) == {own_acc, other_acc_1, other_acc_2}
@@ -663,8 +695,11 @@ async def test_filter_allowed_resources_specific_resource_grant(
 
     target_resource = uuid.uuid4()
     specific_grant = _grant(
-        org.id, grantor.id, grantee.id,
-        resource_id=target_resource, actions=["read", "update"],
+        org.id,
+        grantor.id,
+        grantee.id,
+        resource_id=target_resource,
+        actions=["read", "update"],
     )
     db_session.add(specific_grant)
     await db_session.commit()
@@ -673,11 +708,15 @@ async def test_filter_allowed_resources_specific_resource_grant(
     other_resource = uuid.uuid4()
     pairs = [
         (target_resource, grantor.id),  # This one has a specific grant
-        (other_resource, grantor.id),   # This one does NOT
+        (other_resource, grantor.id),  # This one does NOT
     ]
 
     allowed = await svc.filter_allowed_resources(
-        db_session, grantee, "update", "account", pairs,
+        db_session,
+        grantee,
+        "update",
+        "account",
+        pairs,
     )
 
     assert allowed == [target_resource]

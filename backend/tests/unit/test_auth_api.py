@@ -1,13 +1,14 @@
 """Unit tests for auth API endpoints."""
 
-import pytest
-from unittest.mock import AsyncMock, Mock, patch
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
-from fastapi import HTTPException, status
+
+import pytest
+from fastapi import HTTPException
 
 from app.config import settings
-from app.models.user import User, Organization
+from app.models.user import Organization, User
 from app.utils.datetime_utils import utc_now
 
 
@@ -54,8 +55,13 @@ class TestCreateAuthResponse:
         mock_user_schema = Mock(spec=UserSchema)
 
         with patch("app.api.v1.auth.create_access_token", return_value="access"):
-            with patch("app.api.v1.auth.create_refresh_token", return_value=("refresh", "jti", datetime.now())):
-                with patch("app.api.v1.auth.refresh_token_crud.create", new=AsyncMock()) as mock_create:
+            with patch(
+                "app.api.v1.auth.create_refresh_token",
+                return_value=("refresh", "jti", datetime.now()),
+            ):
+                with patch(
+                    "app.api.v1.auth.refresh_token_crud.create", new=AsyncMock()
+                ) as mock_create:
                     with patch("app.schemas.user.User.from_orm", return_value=mock_user_schema):
                         await create_auth_response(mock_db, mock_user)
 
@@ -74,11 +80,15 @@ class TestRegisterEndpoint:
         mock_request = Mock()
         mock_db = AsyncMock()
         mock_data = Mock()
-        mock_data.password = "SecurePass123!"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
         mock_data.email = "test@example.com"
 
-        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()) as mock_rate_limit:
-            mock_rate_limit.side_effect = HTTPException(status_code=429, detail="Rate limit exceeded")
+        with patch(
+            "app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()
+        ) as mock_rate_limit:
+            mock_rate_limit.side_effect = HTTPException(
+                status_code=429, detail="Rate limit exceeded"
+            )
 
             with pytest.raises(HTTPException) as exc_info:
                 await register(mock_request, Mock(), mock_data, mock_db)
@@ -93,7 +103,7 @@ class TestRegisterEndpoint:
         mock_request = Mock()
         mock_db = AsyncMock()
         mock_data = Mock()
-        mock_data.password = "weak"
+        mock_data.password = "weak"  # pragma: allowlist secret
         mock_data.email = "test@example.com"
         mock_data.skip_password_validation = False  # ensure validation runs
 
@@ -110,20 +120,26 @@ class TestRegisterEndpoint:
     @pytest.mark.asyncio
     async def test_register_duplicate_email_returns_same_response(self):
         """Duplicate email returns 201 with generic message (anti-enumeration)."""
-        from app.api.v1.auth import register
         from fastapi.responses import JSONResponse
+
+        from app.api.v1.auth import register
 
         mock_request = Mock()
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "existing@example.com"
-        mock_data.password = "SecurePass123!"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
 
         mock_user = Mock(spec=User)
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
-                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)):
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)
+                ):
                     result = await register(mock_request, Mock(), mock_data, mock_db)
 
                     assert isinstance(result, JSONResponse)
@@ -138,7 +154,7 @@ class TestRegisterEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "new@example.com"
-        mock_data.password = "SecurePass123!"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
         mock_data.organization_name = "New Org"
         mock_data.first_name = "New"
         mock_data.last_name = "User"
@@ -151,12 +167,25 @@ class TestRegisterEndpoint:
         mock_user.email = "new@example.com"
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
-                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
-                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)) as mock_org_create:
-                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)) as mock_user_create:
-                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
-                                with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()) as mock_auth_response:
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)
+                ):
+                    with patch(
+                        "app.api.v1.auth.organization_crud.create",
+                        new=AsyncMock(return_value=mock_org),
+                    ) as mock_org_create:
+                        with patch(
+                            "app.api.v1.auth.user_crud.create",
+                            new=AsyncMock(return_value=mock_user),
+                        ) as mock_user_create:
+                            with patch(
+                                "app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()
+                            ):
+                                with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
                                     await register(mock_request, Mock(), mock_data, mock_db)
 
                                     assert mock_org_create.called
@@ -171,7 +200,7 @@ class TestRegisterEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "admin@example.com"
-        mock_data.password = "SecurePass123!"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
         mock_data.organization_name = "New Org"
         mock_data.first_name = "Admin"
         mock_data.last_name = "User"
@@ -182,11 +211,24 @@ class TestRegisterEndpoint:
         mock_user = Mock(spec=User)
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
-                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
-                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)):
-                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)) as mock_create:
-                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)
+                ):
+                    with patch(
+                        "app.api.v1.auth.organization_crud.create",
+                        new=AsyncMock(return_value=mock_org),
+                    ):
+                        with patch(
+                            "app.api.v1.auth.user_crud.create",
+                            new=AsyncMock(return_value=mock_user),
+                        ) as mock_create:
+                            with patch(
+                                "app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()
+                            ):
                                 with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
                                     await register(mock_request, Mock(), mock_data, mock_db)
 
@@ -195,14 +237,15 @@ class TestRegisterEndpoint:
 
     @pytest.mark.asyncio
     async def test_register_derives_org_name_from_display_name_when_default(self):
-        """When organization_name is the default 'My Household', use '{display_name}'s Household'."""
+        """When organization_name is the default 'My Household',
+        use '{display_name}'s Household'."""
         from app.api.v1.auth import register
 
         mock_request = Mock()
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "jane@example.com"
-        mock_data.password = "SecurePass123!"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
         mock_data.organization_name = "My Household"  # the schema default
         mock_data.display_name = "Jane"
         mock_data.first_name = None
@@ -213,11 +256,24 @@ class TestRegisterEndpoint:
         mock_user = Mock(spec=User)
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
-                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
-                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)) as mock_org_create:
-                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)):
-                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)
+                ):
+                    with patch(
+                        "app.api.v1.auth.organization_crud.create",
+                        new=AsyncMock(return_value=mock_org),
+                    ) as mock_org_create:
+                        with patch(
+                            "app.api.v1.auth.user_crud.create",
+                            new=AsyncMock(return_value=mock_user),
+                        ):
+                            with patch(
+                                "app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()
+                            ):
                                 with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
                                     await register(mock_request, Mock(), mock_data, mock_db)
 
@@ -233,7 +289,7 @@ class TestRegisterEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "bob@example.com"
-        mock_data.password = "SecurePass123!"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
         mock_data.organization_name = "Smith Family Trust"
         mock_data.first_name = "Bob"
         mock_data.last_name = "Smith"
@@ -243,11 +299,24 @@ class TestRegisterEndpoint:
         mock_user = Mock(spec=User)
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
-                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
-                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)) as mock_org_create:
-                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)):
-                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)
+                ):
+                    with patch(
+                        "app.api.v1.auth.organization_crud.create",
+                        new=AsyncMock(return_value=mock_org),
+                    ) as mock_org_create:
+                        with patch(
+                            "app.api.v1.auth.user_crud.create",
+                            new=AsyncMock(return_value=mock_user),
+                        ):
+                            with patch(
+                                "app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()
+                            ):
                                 with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
                                     await register(mock_request, Mock(), mock_data, mock_db)
 
@@ -263,7 +332,7 @@ class TestRegisterEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "alex@example.com"
-        mock_data.password = "SecurePass123!"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
         mock_data.organization_name = "My Household"
         mock_data.first_name = "Alex"
         mock_data.last_name = None
@@ -274,11 +343,24 @@ class TestRegisterEndpoint:
         mock_user = Mock(spec=User)
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
-                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
-                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)):
-                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)) as mock_create:
-                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)
+                ):
+                    with patch(
+                        "app.api.v1.auth.organization_crud.create",
+                        new=AsyncMock(return_value=mock_org),
+                    ):
+                        with patch(
+                            "app.api.v1.auth.user_crud.create",
+                            new=AsyncMock(return_value=mock_user),
+                        ) as mock_create:
+                            with patch(
+                                "app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()
+                            ):
                                 with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
                                     await register(mock_request, Mock(), mock_data, mock_db)
 
@@ -294,7 +376,7 @@ class TestRegisterEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "solo@example.com"
-        mock_data.password = "SecurePass123!"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
         mock_data.organization_name = "My Household"
         mock_data.display_name = "Solo"
         mock_data.first_name = None
@@ -307,11 +389,24 @@ class TestRegisterEndpoint:
         mock_user = Mock(spec=User)
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
-                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
-                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)) as mock_org_create:
-                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)) as mock_create:
-                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)
+                ):
+                    with patch(
+                        "app.api.v1.auth.organization_crud.create",
+                        new=AsyncMock(return_value=mock_org),
+                    ) as mock_org_create:
+                        with patch(
+                            "app.api.v1.auth.user_crud.create",
+                            new=AsyncMock(return_value=mock_user),
+                        ) as mock_create:
+                            with patch(
+                                "app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()
+                            ):
                                 with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
                                     await register(mock_request, Mock(), mock_data, mock_db)
 
@@ -323,14 +418,15 @@ class TestRegisterEndpoint:
 
     @pytest.mark.asyncio
     async def test_register_stores_birthday_when_provided(self):
-        """birth_day + birth_month + birth_year at registration should be passed to user_crud.create()."""
+        """birth_day + birth_month + birth_year at registration
+        should be passed to user_crud.create()."""
         from app.api.v1.auth import register
 
         mock_request = Mock()
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "young@example.com"
-        mock_data.password = "SecurePass123!"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
         mock_data.organization_name = "My Household"
         mock_data.display_name = "Young"
         mock_data.first_name = None
@@ -344,11 +440,24 @@ class TestRegisterEndpoint:
         mock_user = Mock(spec=User)
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
-                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
-                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)):
-                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)) as mock_create:
-                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)
+                ):
+                    with patch(
+                        "app.api.v1.auth.organization_crud.create",
+                        new=AsyncMock(return_value=mock_org),
+                    ):
+                        with patch(
+                            "app.api.v1.auth.user_crud.create",
+                            new=AsyncMock(return_value=mock_user),
+                        ) as mock_create:
+                            with patch(
+                                "app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()
+                            ):
                                 with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
                                     await register(mock_request, Mock(), mock_data, mock_db)
 
@@ -366,7 +475,7 @@ class TestRegisterEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "no_bday@example.com"
-        mock_data.password = "SecurePass123!"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
         mock_data.organization_name = "My Household"
         mock_data.display_name = "NoBday"
         mock_data.first_name = None
@@ -380,11 +489,24 @@ class TestRegisterEndpoint:
         mock_user = Mock(spec=User)
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
-                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
-                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)):
-                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)) as mock_create:
-                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)
+                ):
+                    with patch(
+                        "app.api.v1.auth.organization_crud.create",
+                        new=AsyncMock(return_value=mock_org),
+                    ):
+                        with patch(
+                            "app.api.v1.auth.user_crud.create",
+                            new=AsyncMock(return_value=mock_user),
+                        ) as mock_create:
+                            with patch(
+                                "app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()
+                            ):
                                 with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
                                     await register(mock_request, Mock(), mock_data, mock_db)
 
@@ -429,8 +551,9 @@ class TestRegisterRequestSchema:
 
     def test_birth_day_too_low_rejected(self):
         """birth_day < 1 is rejected."""
-        from app.schemas.auth import RegisterRequest
         from pydantic import ValidationError
+
+        from app.schemas.auth import RegisterRequest
 
         with pytest.raises(ValidationError):
             RegisterRequest(
@@ -444,8 +567,9 @@ class TestRegisterRequestSchema:
 
     def test_birth_day_too_high_rejected(self):
         """birth_day > 31 is rejected."""
-        from app.schemas.auth import RegisterRequest
         from pydantic import ValidationError
+
+        from app.schemas.auth import RegisterRequest
 
         with pytest.raises(ValidationError):
             RegisterRequest(
@@ -459,8 +583,9 @@ class TestRegisterRequestSchema:
 
     def test_birth_year_too_low_rejected(self):
         """birth_year < 1900 is rejected."""
-        from app.schemas.auth import RegisterRequest
         from pydantic import ValidationError
+
+        from app.schemas.auth import RegisterRequest
 
         with pytest.raises(ValidationError):
             RegisterRequest(
@@ -474,8 +599,9 @@ class TestRegisterRequestSchema:
 
     def test_birth_year_too_high_rejected(self):
         """birth_year > 2100 is rejected."""
-        from app.schemas.auth import RegisterRequest
         from pydantic import ValidationError
+
+        from app.schemas.auth import RegisterRequest
 
         with pytest.raises(ValidationError):
             RegisterRequest(
@@ -488,8 +614,9 @@ class TestRegisterRequestSchema:
 
     def test_birth_month_too_low_rejected(self):
         """birth_month < 1 is rejected."""
-        from app.schemas.auth import RegisterRequest
         from pydantic import ValidationError
+
+        from app.schemas.auth import RegisterRequest
 
         with pytest.raises(ValidationError):
             RegisterRequest(
@@ -502,8 +629,9 @@ class TestRegisterRequestSchema:
 
     def test_birth_month_too_high_rejected(self):
         """birth_month > 12 is rejected."""
-        from app.schemas.auth import RegisterRequest
         from pydantic import ValidationError
+
+        from app.schemas.auth import RegisterRequest
 
         with pytest.raises(ValidationError):
             RegisterRequest(
@@ -542,8 +670,9 @@ class TestRegisterRequestSchema:
 
     def test_feb_30_rejected(self):
         """Feb 30 is an impossible date and must be rejected."""
-        from app.schemas.auth import RegisterRequest
         from pydantic import ValidationError
+
+        from app.schemas.auth import RegisterRequest
 
         with pytest.raises(ValidationError):
             RegisterRequest(
@@ -557,8 +686,9 @@ class TestRegisterRequestSchema:
 
     def test_feb_29_on_non_leap_year_rejected(self):
         """Feb 29 on a non-leap year is rejected."""
-        from app.schemas.auth import RegisterRequest
         from pydantic import ValidationError
+
+        from app.schemas.auth import RegisterRequest
 
         with pytest.raises(ValidationError):
             RegisterRequest(
@@ -588,8 +718,9 @@ class TestRegisterRequestSchema:
 
     def test_apr_31_rejected(self):
         """April 31 is an impossible date and must be rejected."""
-        from app.schemas.auth import RegisterRequest
         from pydantic import ValidationError
+
+        from app.schemas.auth import RegisterRequest
 
         with pytest.raises(ValidationError):
             RegisterRequest(
@@ -601,6 +732,7 @@ class TestRegisterRequestSchema:
                 birth_year=1990,
             )
 
+
 @pytest.mark.unit
 class TestUserCRUDBirthday:
     """Test user_crud.create() converts birth_month + birth_year to birthdate correctly."""
@@ -608,8 +740,9 @@ class TestUserCRUDBirthday:
     @pytest.mark.asyncio
     async def test_create_sets_birthdate_from_full_birthday(self):
         """birth_day + birth_month + birth_year converts to exact date stored on user."""
-        from app.crud.user import UserCRUD
         from datetime import date
+
+        from app.crud.user import UserCRUD
 
         mock_db = AsyncMock()
         mock_db.add = Mock()
@@ -642,8 +775,9 @@ class TestUserCRUDBirthday:
     @pytest.mark.asyncio
     async def test_create_sets_birthdate_from_year_only(self):
         """birth_year without birth_month defaults to January (month=1)."""
-        from app.crud.user import UserCRUD
         from datetime import date
+
+        from app.crud.user import UserCRUD
 
         mock_db = AsyncMock()
         mock_db.add = Mock()
@@ -715,9 +849,11 @@ class TestLoginEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "test@example.com"
-        mock_data.password = "password"
+        mock_data.password = "password"  # pragma: allowlist secret
 
-        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()) as mock_rate_limit:
+        with patch(
+            "app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()
+        ) as mock_rate_limit:
             mock_rate_limit.side_effect = HTTPException(status_code=429)
 
             with pytest.raises(HTTPException) as exc_info:
@@ -734,7 +870,7 @@ class TestLoginEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "nonexistent@example.com"
-        mock_data.password = "password"
+        mock_data.password = "password"  # pragma: allowlist secret
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
@@ -755,13 +891,15 @@ class TestLoginEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "locked@example.com"
-        mock_data.password = "password"
+        mock_data.password = "password"  # pragma: allowlist secret
 
         mock_user = Mock(spec=User)
         mock_user.locked_until = utc_now() + timedelta(minutes=30)
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)):
+            with patch(
+                "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)
+            ):
                 with patch("app.api.v1.auth.settings") as mock_settings:
                     mock_settings.ENVIRONMENT = "production"
                     with pytest.raises(HTTPException) as exc_info:
@@ -779,18 +917,20 @@ class TestLoginEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "user@example.com"
-        mock_data.password = "password"
+        mock_data.password = "password"  # pragma: allowlist secret
 
         mock_user = Mock(spec=User)
         mock_user.locked_until = utc_now() - timedelta(minutes=1)  # Expired
         mock_user.failed_login_attempts = 5
-        mock_user.password_hash = "hashed"
+        mock_user.password_hash = "hashed"  # pragma: allowlist secret
         mock_user.is_active = True
         mock_user.id = uuid4()
         mock_user.email = "user@example.com"
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)):
+            with patch(
+                "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)
+            ):
                 with patch("app.api.v1.auth.verify_password", return_value=True):
                     with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
                         with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
@@ -809,15 +949,17 @@ class TestLoginEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "user@example.com"
-        mock_data.password = "wrongpassword"
+        mock_data.password = "wrongpassword"  # pragma: allowlist secret
 
         mock_user = Mock(spec=User)
         mock_user.failed_login_attempts = 2
-        mock_user.password_hash = "hashed"
+        mock_user.password_hash = "hashed"  # pragma: allowlist secret
         mock_user.locked_until = None
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)):
+            with patch(
+                "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)
+            ):
                 with patch("app.api.v1.auth.verify_password", return_value=False):
                     with patch("app.api.v1.auth.settings") as mock_settings:
                         mock_settings.ENVIRONMENT = "production"
@@ -838,15 +980,17 @@ class TestLoginEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "user@example.com"
-        mock_data.password = "wrongpassword"
+        mock_data.password = "wrongpassword"  # pragma: allowlist secret
 
         mock_user = Mock(spec=User)
         mock_user.failed_login_attempts = 4  # One before max
-        mock_user.password_hash = "hashed"
+        mock_user.password_hash = "hashed"  # pragma: allowlist secret
         mock_user.locked_until = None
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)):
+            with patch(
+                "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)
+            ):
                 with patch("app.api.v1.auth.verify_password", return_value=False):
                     with patch("app.api.v1.auth.settings") as mock_settings:
                         mock_settings.ENVIRONMENT = "production"
@@ -868,16 +1012,18 @@ class TestLoginEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "inactive@example.com"
-        mock_data.password = "password"
+        mock_data.password = "password"  # pragma: allowlist secret
 
         mock_user = Mock(spec=User)
         mock_user.is_active = False
-        mock_user.password_hash = "hashed"
+        mock_user.password_hash = "hashed"  # pragma: allowlist secret
         mock_user.failed_login_attempts = 0
         mock_user.locked_until = None
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)):
+            with patch(
+                "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)
+            ):
                 with patch("app.api.v1.auth.verify_password", return_value=True):
                     with pytest.raises(HTTPException) as exc_info:
                         await login(mock_request, Mock(), mock_data, mock_db)
@@ -894,18 +1040,20 @@ class TestLoginEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "user@example.com"
-        mock_data.password = "correctpassword"
+        mock_data.password = "correctpassword"  # pragma: allowlist secret
 
         mock_user = Mock(spec=User)
         mock_user.failed_login_attempts = 3
         mock_user.locked_until = None
-        mock_user.password_hash = "hashed"
+        mock_user.password_hash = "hashed"  # pragma: allowlist secret
         mock_user.is_active = True
         mock_user.id = uuid4()
         mock_user.email = "user@example.com"
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)):
+            with patch(
+                "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)
+            ):
                 with patch("app.api.v1.auth.verify_password", return_value=True):
                     with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
                         with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
@@ -923,10 +1071,13 @@ class TestLoginEndpoint:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "user@example.com"
-        mock_data.password = "password"
+        mock_data.password = "password"  # pragma: allowlist secret
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(side_effect=Exception("DB error"))):
+            with patch(
+                "app.api.v1.auth.user_crud.get_by_email",
+                new=AsyncMock(side_effect=Exception("DB error")),
+            ):
                 with pytest.raises(HTTPException) as exc_info:
                     await login(mock_request, Mock(), mock_data, mock_db)
 
@@ -947,7 +1098,9 @@ class TestRefreshTokenEndpoint:
         mock_data = Mock()
         mock_data.refresh_token = "token"
 
-        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()) as mock_rate_limit:
+        with patch(
+            "app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()
+        ) as mock_rate_limit:
             mock_rate_limit.side_effect = HTTPException(status_code=429)
 
             with pytest.raises(HTTPException) as exc_info:
@@ -1008,7 +1161,10 @@ class TestRefreshTokenEndpoint:
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.decode_token", return_value=mock_payload):
-                with patch("app.api.v1.auth.refresh_token_crud.get_by_token_hash", new=AsyncMock(return_value=None)):
+                with patch(
+                    "app.api.v1.auth.refresh_token_crud.get_by_token_hash",
+                    new=AsyncMock(return_value=None),
+                ):
                     with pytest.raises(HTTPException) as exc_info:
                         await refresh_access_token(mock_request, Mock(), mock_data, mock_db)
 
@@ -1030,7 +1186,10 @@ class TestRefreshTokenEndpoint:
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.decode_token", return_value=mock_payload):
-                with patch("app.api.v1.auth.refresh_token_crud.get_by_token_hash", new=AsyncMock(return_value=None)):
+                with patch(
+                    "app.api.v1.auth.refresh_token_crud.get_by_token_hash",
+                    new=AsyncMock(return_value=None),
+                ):
                     # Patch settings where it's used in auth.py
                     with patch("app.api.v1.auth.settings") as mock_settings:
                         mock_settings.DEBUG = False
@@ -1057,7 +1216,10 @@ class TestRefreshTokenEndpoint:
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.decode_token", return_value=mock_payload):
-                with patch("app.api.v1.auth.refresh_token_crud.get_by_token_hash", new=AsyncMock(return_value=mock_token)):
+                with patch(
+                    "app.api.v1.auth.refresh_token_crud.get_by_token_hash",
+                    new=AsyncMock(return_value=mock_token),
+                ):
                     with pytest.raises(HTTPException) as exc_info:
                         await refresh_access_token(mock_request, Mock(), mock_data, mock_db)
 
@@ -1083,7 +1245,10 @@ class TestRefreshTokenEndpoint:
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.decode_token", return_value=mock_payload):
-                with patch("app.api.v1.auth.refresh_token_crud.get_by_token_hash", new=AsyncMock(return_value=mock_token)):
+                with patch(
+                    "app.api.v1.auth.refresh_token_crud.get_by_token_hash",
+                    new=AsyncMock(return_value=mock_token),
+                ):
                     with pytest.raises(HTTPException) as exc_info:
                         await refresh_access_token(mock_request, Mock(), mock_data, mock_db)
 
@@ -1112,8 +1277,13 @@ class TestRefreshTokenEndpoint:
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.decode_token", return_value=mock_payload):
-                with patch("app.api.v1.auth.refresh_token_crud.get_by_token_hash", new=AsyncMock(return_value=mock_token)):
-                    with patch("app.api.v1.auth.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)):
+                with patch(
+                    "app.api.v1.auth.refresh_token_crud.get_by_token_hash",
+                    new=AsyncMock(return_value=mock_token),
+                ):
+                    with patch(
+                        "app.api.v1.auth.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)
+                    ):
                         with pytest.raises(HTTPException) as exc_info:
                             await refresh_access_token(mock_request, Mock(), mock_data, mock_db)
 
@@ -1147,16 +1317,33 @@ class TestRefreshTokenEndpoint:
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.decode_token", return_value=mock_payload):
-                with patch("app.api.v1.auth.refresh_token_crud.get_by_token_hash", new=AsyncMock(return_value=mock_token)):
+                with patch(
+                    "app.api.v1.auth.refresh_token_crud.get_by_token_hash",
+                    new=AsyncMock(return_value=mock_token),
+                ):
                     with patch("app.api.v1.auth.refresh_token_crud.create", new=AsyncMock()):
                         with patch("app.api.v1.auth.refresh_token_crud.revoke", new=AsyncMock()):
-                            with patch("app.api.v1.auth.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)):
-                                with patch("app.api.v1.auth.create_access_token", return_value="new_access_token"):
-                                    with patch("app.api.v1.auth.create_refresh_token", return_value=("new_rt", "new_jti", None)):
+                            with patch(
+                                "app.api.v1.auth.user_crud.get_by_id",
+                                new=AsyncMock(return_value=mock_user),
+                            ):
+                                with patch(
+                                    "app.api.v1.auth.create_access_token",
+                                    return_value="new_access_token",
+                                ):
+                                    with patch(
+                                        "app.api.v1.auth.create_refresh_token",
+                                        return_value=("new_rt", "new_jti", None),
+                                    ):
                                         with patch("app.api.v1.auth.UserSchema") as mock_schema_cls:
                                             mock_schema_cls.from_orm.return_value = mock_user_schema
-                                            with patch("app.api.v1.auth.AccessTokenResponse", return_value=mock_atr):
-                                                result = await refresh_access_token(mock_request, Mock(), mock_data, mock_db)
+                                            with patch(
+                                                "app.api.v1.auth.AccessTokenResponse",
+                                                return_value=mock_atr,
+                                            ):
+                                                result = await refresh_access_token(
+                                                    mock_request, Mock(), mock_data, mock_db
+                                                )
 
                                                 assert result.access_token == "new_access_token"
 
@@ -1257,7 +1444,7 @@ class TestGetCurrentUserEndpoint:
         mock_user_schema = Mock(spec=UserSchema)
 
         with patch.object(UserSchema, "from_orm", return_value=mock_user_schema) as mock_from_orm:
-            result = await get_current_user_info(mock_user)
+            await get_current_user_info(mock_user)
 
             assert mock_from_orm.called
 
@@ -1303,7 +1490,10 @@ class TestDebugCheckRefreshTokenEndpoint:
 
         with patch("app.api.v1.auth.settings.DEBUG", True):
             with patch("app.api.v1.auth.decode_token", return_value=mock_payload):
-                with patch("app.api.v1.auth.refresh_token_crud.get_by_token_hash", new=AsyncMock(return_value=mock_token)):
+                with patch(
+                    "app.api.v1.auth.refresh_token_crud.get_by_token_hash",
+                    new=AsyncMock(return_value=mock_token),
+                ):
                     result = await debug_check_refresh_token(mock_data, mock_user, mock_db)
 
                     assert result["decode_success"] is True
@@ -1346,7 +1536,10 @@ class TestDebugCheckRefreshTokenEndpoint:
 
         with patch("app.api.v1.auth.settings.DEBUG", True):
             with patch("app.api.v1.auth.decode_token", return_value=mock_payload):
-                with patch("app.api.v1.auth.refresh_token_crud.get_by_token_hash", new=AsyncMock(return_value=None)):
+                with patch(
+                    "app.api.v1.auth.refresh_token_crud.get_by_token_hash",
+                    new=AsyncMock(return_value=None),
+                ):
                     result = await debug_check_refresh_token(mock_data, mock_user, mock_db)
 
                     assert result["decode_success"] is True
@@ -1356,6 +1549,7 @@ class TestDebugCheckRefreshTokenEndpoint:
 # ---------------------------------------------------------------------------
 # Email verification endpoints
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestEmailVerification:
@@ -1386,7 +1580,9 @@ class TestEmailVerification:
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.hash_token", return_value="hashed"):
-                with patch("app.api.v1.auth.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)
+                ):
                     result = await verify_email(mock_request, token="raw_token", db=mock_db)
 
         assert result["message"] == "Email verified successfully"
@@ -1451,9 +1647,16 @@ class TestEmailVerification:
         mock_user.email_verified = False
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.create_verification_token", new=AsyncMock(return_value="raw_tok")) as mock_create:
-                with patch("app.api.v1.auth.email_service.send_verification_email", new=AsyncMock(return_value=True)) as mock_send:
-                    result = await resend_verification(mock_request, current_user=mock_user, db=mock_db)
+            with patch(
+                "app.api.v1.auth.create_verification_token", new=AsyncMock(return_value="raw_tok")
+            ) as mock_create:
+                with patch(
+                    "app.api.v1.auth.email_service.send_verification_email",
+                    new=AsyncMock(return_value=True),
+                ) as mock_send:
+                    result = await resend_verification(
+                        mock_request, current_user=mock_user, db=mock_db
+                    )
 
         assert "message" in result
         mock_create.assert_called_once_with(mock_db, mock_user.id)
@@ -1485,7 +1688,7 @@ class TestEmailVerification:
         mock_db = AsyncMock()
         mock_data = Mock()
         mock_data.email = "new@example.com"
-        mock_data.password = "SecurePass123!"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
         mock_data.first_name = "Jane"
         mock_data.last_name = "Doe"
         mock_data.display_name = "Jane Doe"
@@ -1505,14 +1708,36 @@ class TestEmailVerification:
         mock_org.id = uuid4()
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
-                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
-                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)):
-                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)):
-                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
-                                with patch("app.api.v1.auth.create_verification_token", new=AsyncMock(return_value="tok")) as mock_create_tok:
-                                    with patch("app.api.v1.auth.email_service.send_verification_email", new=AsyncMock()) as mock_send:
-                                        with patch("app.api.v1.auth.create_auth_response", new=AsyncMock(return_value=Mock())):
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)
+                ):
+                    with patch(
+                        "app.api.v1.auth.organization_crud.create",
+                        new=AsyncMock(return_value=mock_org),
+                    ):
+                        with patch(
+                            "app.api.v1.auth.user_crud.create",
+                            new=AsyncMock(return_value=mock_user),
+                        ):
+                            with patch(
+                                "app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()
+                            ):
+                                with patch(
+                                    "app.api.v1.auth.create_verification_token",
+                                    new=AsyncMock(return_value="tok"),
+                                ) as mock_create_tok:
+                                    with patch(
+                                        "app.api.v1.auth.email_service.send_verification_email",
+                                        new=AsyncMock(),
+                                    ) as mock_send:
+                                        with patch(
+                                            "app.api.v1.auth.create_auth_response",
+                                            new=AsyncMock(return_value=Mock()),
+                                        ):
                                             await register(mock_request, Mock(), mock_data, mock_db)
 
         mock_create_tok.assert_called_once()
@@ -1523,6 +1748,7 @@ class TestEmailVerification:
 # Forgot password endpoint
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestForgotPassword:
     """Tests for POST /auth/forgot-password."""
@@ -1530,7 +1756,7 @@ class TestForgotPassword:
     @pytest.mark.asyncio
     async def test_returns_200_for_unknown_email(self):
         """Should return 200 even if email is not registered (prevents enumeration)."""
-        from app.api.v1.auth import forgot_password, ForgotPasswordRequest
+        from app.api.v1.auth import ForgotPasswordRequest, forgot_password
 
         mock_request = Mock()
         mock_db = AsyncMock()
@@ -1551,7 +1777,7 @@ class TestForgotPassword:
     @pytest.mark.asyncio
     async def test_creates_token_and_sends_email_for_known_user(self):
         """Known active user → create token and send email."""
-        from app.api.v1.auth import forgot_password, ForgotPasswordRequest
+        from app.api.v1.auth import ForgotPasswordRequest, forgot_password
 
         mock_request = Mock()
         mock_db = AsyncMock()
@@ -1570,8 +1796,12 @@ class TestForgotPassword:
         data.email = "alice@example.com"
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.create_password_reset_token", new=AsyncMock(return_value="raw_tok")) as mock_create:
-                with patch("app.api.v1.auth.email_service.send_password_reset_email", new=AsyncMock()) as mock_send:
+            with patch(
+                "app.api.v1.auth.create_password_reset_token", new=AsyncMock(return_value="raw_tok")
+            ) as mock_create:
+                with patch(
+                    "app.api.v1.auth.email_service.send_password_reset_email", new=AsyncMock()
+                ) as mock_send:
                     with patch("app.api.v1.auth.settings.ENVIRONMENT", "production"):
                         result = await forgot_password(data, mock_request, db=mock_db)
 
@@ -1582,7 +1812,7 @@ class TestForgotPassword:
     @pytest.mark.asyncio
     async def test_dev_mode_returns_raw_token(self):
         """In development mode, raw token is included in response for SMTP-less testing."""
-        from app.api.v1.auth import forgot_password, ForgotPasswordRequest
+        from app.api.v1.auth import ForgotPasswordRequest, forgot_password
 
         mock_request = Mock()
         mock_db = AsyncMock()
@@ -1601,8 +1831,12 @@ class TestForgotPassword:
         data.email = "alice@example.com"
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.create_password_reset_token", new=AsyncMock(return_value="raw_tok")):
-                with patch("app.api.v1.auth.email_service.send_password_reset_email", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.create_password_reset_token", new=AsyncMock(return_value="raw_tok")
+            ):
+                with patch(
+                    "app.api.v1.auth.email_service.send_password_reset_email", new=AsyncMock()
+                ):
                     with patch("app.api.v1.auth.settings.ENVIRONMENT", "development"):
                         result = await forgot_password(data, mock_request, db=mock_db)
 
@@ -1611,7 +1845,7 @@ class TestForgotPassword:
     @pytest.mark.asyncio
     async def test_production_mode_does_not_return_token(self):
         """In production, token must NOT be in the response."""
-        from app.api.v1.auth import forgot_password, ForgotPasswordRequest
+        from app.api.v1.auth import ForgotPasswordRequest, forgot_password
 
         mock_request = Mock()
         mock_db = AsyncMock()
@@ -1630,8 +1864,12 @@ class TestForgotPassword:
         data.email = "alice@example.com"
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.create_password_reset_token", new=AsyncMock(return_value="raw_tok")):
-                with patch("app.api.v1.auth.email_service.send_password_reset_email", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.create_password_reset_token", new=AsyncMock(return_value="raw_tok")
+            ):
+                with patch(
+                    "app.api.v1.auth.email_service.send_password_reset_email", new=AsyncMock()
+                ):
                     with patch("app.api.v1.auth.settings.ENVIRONMENT", "production"):
                         result = await forgot_password(data, mock_request, db=mock_db)
 
@@ -1642,6 +1880,7 @@ class TestForgotPassword:
 # Reset password endpoint
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestResetPassword:
     """Tests for POST /auth/reset-password."""
@@ -1649,7 +1888,7 @@ class TestResetPassword:
     @pytest.mark.asyncio
     async def test_unknown_token_returns_400(self):
         """Token not in DB → 400."""
-        from app.api.v1.auth import reset_password, ResetPasswordRequest
+        from app.api.v1.auth import ResetPasswordRequest, reset_password
 
         mock_request = Mock()
         mock_db = AsyncMock()
@@ -1672,7 +1911,7 @@ class TestResetPassword:
     @pytest.mark.asyncio
     async def test_expired_or_used_token_returns_400(self):
         """Token found but is_valid=False (expired or already used) → 400."""
-        from app.api.v1.auth import reset_password, ResetPasswordRequest
+        from app.api.v1.auth import ResetPasswordRequest, reset_password
         from app.models.user import PasswordResetToken
 
         mock_request = Mock()
@@ -1699,7 +1938,7 @@ class TestResetPassword:
     @pytest.mark.asyncio
     async def test_valid_token_updates_password(self):
         """Valid token → password_hash is updated."""
-        from app.api.v1.auth import reset_password, ResetPasswordRequest
+        from app.api.v1.auth import ResetPasswordRequest, reset_password
         from app.models.user import PasswordResetToken
 
         mock_request = Mock()
@@ -1728,7 +1967,10 @@ class TestResetPassword:
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.hash_token", return_value="hashed"):
                 with patch("app.api.v1.auth.hash_password", return_value="new_argon2_hash"):
-                    with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
+                    with patch(
+                        "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                        new=AsyncMock(),
+                    ):
                         result = await reset_password(data, mock_request, db=mock_db)
 
         assert mock_user.password_hash == "new_argon2_hash"
@@ -1737,7 +1979,7 @@ class TestResetPassword:
     @pytest.mark.asyncio
     async def test_valid_token_clears_lockout(self):
         """Valid token → failed_login_attempts reset to 0 and locked_until cleared."""
-        from app.api.v1.auth import reset_password, ResetPasswordRequest
+        from app.api.v1.auth import ResetPasswordRequest, reset_password
         from app.models.user import PasswordResetToken
 
         mock_request = Mock()
@@ -1766,7 +2008,10 @@ class TestResetPassword:
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.hash_token", return_value="hashed"):
                 with patch("app.api.v1.auth.hash_password", return_value="new_hash"):
-                    with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
+                    with patch(
+                        "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                        new=AsyncMock(),
+                    ):
                         await reset_password(data, mock_request, db=mock_db)
 
         assert mock_user.failed_login_attempts == 0
@@ -1775,7 +2020,7 @@ class TestResetPassword:
     @pytest.mark.asyncio
     async def test_valid_token_marks_used_at(self):
         """Valid token → used_at is set so the same token cannot be reused."""
-        from app.api.v1.auth import reset_password, ResetPasswordRequest
+        from app.api.v1.auth import ResetPasswordRequest, reset_password
         from app.models.user import PasswordResetToken
 
         mock_request = Mock()
@@ -1804,7 +2049,10 @@ class TestResetPassword:
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.hash_token", return_value="hashed"):
                 with patch("app.api.v1.auth.hash_password", return_value="new_hash"):
-                    with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
+                    with patch(
+                        "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                        new=AsyncMock(),
+                    ):
                         await reset_password(data, mock_request, db=mock_db)
 
         assert mock_record.used_at is not None
@@ -1814,6 +2062,7 @@ class TestResetPassword:
 # POST /auth/mfa/verify
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestVerifyMfaChallenge:
     """Tests for POST /auth/mfa/verify endpoint."""
@@ -1821,7 +2070,7 @@ class TestVerifyMfaChallenge:
     @pytest.mark.asyncio
     async def test_invalid_token_returns_401(self):
         """Should return 401 when the mfa_token cannot be decoded."""
-        from app.api.v1.auth import verify_mfa_challenge, MFAVerifyRequest
+        from app.api.v1.auth import MFAVerifyRequest, verify_mfa_challenge
 
         data = MFAVerifyRequest(mfa_token="bad_token", code="123456")
 
@@ -1837,12 +2086,14 @@ class TestVerifyMfaChallenge:
     @pytest.mark.asyncio
     async def test_wrong_token_type_returns_401(self):
         """Should return 401 when token type is not mfa_pending."""
-        from app.api.v1.auth import verify_mfa_challenge, MFAVerifyRequest
+        from app.api.v1.auth import MFAVerifyRequest, verify_mfa_challenge
 
         data = MFAVerifyRequest(mfa_token="some_token", code="123456")
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.decode_token", return_value={"type": "access", "sub": str(uuid4())}):
+            with patch(
+                "app.api.v1.auth.decode_token", return_value={"type": "access", "sub": str(uuid4())}
+            ):
                 with pytest.raises(HTTPException) as exc_info:
                     await verify_mfa_challenge(
                         request=Mock(), response=Mock(), data=data, db=AsyncMock()
@@ -1854,7 +2105,7 @@ class TestVerifyMfaChallenge:
     @pytest.mark.asyncio
     async def test_user_not_found_returns_401(self):
         """Should return 401 when user does not exist or MFA is not set up."""
-        from app.api.v1.auth import verify_mfa_challenge, MFAVerifyRequest
+        from app.api.v1.auth import MFAVerifyRequest, verify_mfa_challenge
 
         user_id = uuid4()
         data = MFAVerifyRequest(mfa_token="token", code="123456")
@@ -1870,16 +2121,14 @@ class TestVerifyMfaChallenge:
                 return_value={"type": "mfa_pending", "sub": str(user_id)},
             ):
                 with pytest.raises(HTTPException) as exc_info:
-                    await verify_mfa_challenge(
-                        request=Mock(), response=Mock(), data=data, db=db
-                    )
+                    await verify_mfa_challenge(request=Mock(), response=Mock(), data=data, db=db)
 
         assert exc_info.value.status_code == 401
 
     @pytest.mark.asyncio
     async def test_invalid_totp_returns_401(self):
         """Should return 401 when TOTP code is wrong and no valid backup code."""
-        from app.api.v1.auth import verify_mfa_challenge, MFAVerifyRequest
+        from app.api.v1.auth import MFAVerifyRequest, verify_mfa_challenge
         from app.models.mfa import UserMFA
 
         user_id = uuid4()
@@ -1918,10 +2167,9 @@ class TestVerifyMfaChallenge:
     @pytest.mark.asyncio
     async def test_valid_totp_returns_auth_response(self):
         """Should return full auth response when TOTP code is correct."""
-        from app.api.v1.auth import verify_mfa_challenge, MFAVerifyRequest
+        from app.api.v1.auth import MFAVerifyRequest, verify_mfa_challenge
         from app.models.mfa import UserMFA
         from app.schemas.auth import TokenResponse
-        from app.schemas.user import User as UserSchema
 
         user_id = uuid4()
         data = MFAVerifyRequest(mfa_token="token", code="123456")
@@ -1966,7 +2214,7 @@ class TestVerifyMfaChallenge:
     @pytest.mark.asyncio
     async def test_rate_limit_enforced(self):
         """Should enforce rate limit of 5 per minute."""
-        from app.api.v1.auth import verify_mfa_challenge, MFAVerifyRequest
+        from app.api.v1.auth import MFAVerifyRequest, verify_mfa_challenge
 
         data = MFAVerifyRequest(mfa_token="token", code="123456")
 
@@ -1985,6 +2233,7 @@ class TestVerifyMfaChallenge:
 # ---------------------------------------------------------------------------
 # UserConsent capture at registration
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestRegisterConsentCapture:
@@ -2007,7 +2256,7 @@ class TestRegisterConsentCapture:
 
         mock_data = Mock()
         mock_data.email = "consent@example.com"
-        mock_data.password = "SecurePass123!"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
         mock_data.organization_name = "Test Org"
         mock_data.first_name = "Alice"
         mock_data.last_name = "Smith"
@@ -2020,11 +2269,24 @@ class TestRegisterConsentCapture:
         mock_user.email = mock_data.email
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.auth.password_validation_service.validate_and_raise_async", new=AsyncMock()):
-                with patch("app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)):
-                    with patch("app.api.v1.auth.organization_crud.create", new=AsyncMock(return_value=mock_org)):
-                        with patch("app.api.v1.auth.user_crud.create", new=AsyncMock(return_value=mock_user)):
-                            with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)
+                ):
+                    with patch(
+                        "app.api.v1.auth.organization_crud.create",
+                        new=AsyncMock(return_value=mock_org),
+                    ):
+                        with patch(
+                            "app.api.v1.auth.user_crud.create",
+                            new=AsyncMock(return_value=mock_user),
+                        ):
+                            with patch(
+                                "app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()
+                            ):
                                 with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
                                     await register(mock_request, Mock(), mock_data, mock_db)
 
@@ -2037,3 +2299,470 @@ class TestRegisterConsentCapture:
         # IP address captured
         for c in consent_objects:
             assert c.ip_address == "1.2.3.4"
+
+
+# ---------------------------------------------------------------------------
+# create_auth_response with httpOnly cookie
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestCreateAuthResponseCookie:
+    """Test create_auth_response when a FastAPI Response object is provided."""
+
+    @pytest.mark.asyncio
+    async def test_sets_refresh_cookie_when_response_provided(self):
+        """Should set httpOnly cookie and omit refresh_token from body."""
+        from app.api.v1.auth import create_auth_response
+        from app.schemas.user import User as UserSchema
+
+        mock_db = AsyncMock()
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.email = "test@example.com"
+        mock_response = Mock()
+        mock_user_schema = Mock(spec=UserSchema)
+
+        with patch("app.api.v1.auth.create_access_token", return_value="access_tok"):
+            with patch(
+                "app.api.v1.auth.create_refresh_token",
+                return_value=("refresh_tok", "jti_1", datetime.now()),
+            ):
+                with patch("app.api.v1.auth.refresh_token_crud.create", new=AsyncMock()):
+                    with patch("app.schemas.user.User.from_orm", return_value=mock_user_schema):
+                        result = await create_auth_response(mock_db, mock_user, mock_response)
+
+        assert result.access_token == "access_tok"
+        assert result.refresh_token is None
+        mock_response.set_cookie.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# _maybe_refresh_prices_on_login
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestMaybeRefreshPricesOnLogin:
+    """Test the background price refresh triggered on login."""
+
+    @pytest.mark.asyncio
+    async def test_skips_when_prices_fresh(self):
+        """Should return early when no stale holdings found."""
+        from app.api.v1.auth import _maybe_refresh_prices_on_login
+
+        mock_db = AsyncMock()
+        mock_result = Mock()
+        mock_result.scalar_one_or_none.return_value = None  # No stale holdings
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        with patch("app.api.v1.auth.AsyncSessionLocal") as mock_session:
+            mock_session.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_session.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            await _maybe_refresh_prices_on_login(uuid4())
+
+        # Should have called execute once (the stale check) but not proceeded
+        assert mock_db.execute.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_refreshes_stale_holdings(self):
+        """Should fetch quotes and update stale holdings."""
+        from decimal import Decimal
+
+        from app.api.v1.auth import _maybe_refresh_prices_on_login
+
+        mock_holding = Mock()
+        mock_holding.id = uuid4()
+        mock_holding.ticker = "AAPL"
+        mock_holding.price_as_of = None
+
+        mock_db = AsyncMock()
+        # First call: check if any stale -> returns a row
+        stale_check = Mock()
+        stale_check.scalar_one_or_none.return_value = mock_holding.id
+        # Second call: fetch all stale holdings
+        stale_fetch = Mock()
+        stale_fetch.scalars.return_value.all.return_value = [mock_holding]
+        mock_db.execute = AsyncMock(side_effect=[stale_check, stale_fetch, AsyncMock()])
+        mock_db.commit = AsyncMock()
+
+        mock_quote = Mock()
+        mock_quote.price = Decimal("150.00")
+        mock_market = AsyncMock()
+        mock_market.get_quotes_batch = AsyncMock(return_value={"AAPL": mock_quote})
+        mock_market.get_provider_name.return_value = "test"
+
+        with patch("app.api.v1.auth.AsyncSessionLocal") as mock_session:
+            mock_session.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_session.return_value.__aexit__ = AsyncMock(return_value=False)
+            with patch("app.api.v1.auth.get_market_data_provider", return_value=mock_market):
+                await _maybe_refresh_prices_on_login(uuid4())
+
+        mock_db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handles_exception_silently(self):
+        """Should swallow exceptions so login is never affected."""
+        from app.api.v1.auth import _maybe_refresh_prices_on_login
+
+        with patch("app.api.v1.auth.AsyncSessionLocal") as mock_session:
+            mock_session.return_value.__aenter__ = AsyncMock(side_effect=RuntimeError("DB down"))
+            mock_session.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            # Should not raise
+            await _maybe_refresh_prices_on_login(uuid4())
+
+    @pytest.mark.asyncio
+    async def test_skips_when_no_tickers(self):
+        """Should return early when stale holdings have no tickers."""
+        from app.api.v1.auth import _maybe_refresh_prices_on_login
+
+        mock_holding = Mock()
+        mock_holding.id = uuid4()
+        mock_holding.ticker = None  # No ticker
+
+        mock_db = AsyncMock()
+        stale_check = Mock()
+        stale_check.scalar_one_or_none.return_value = mock_holding.id
+        stale_fetch = Mock()
+        stale_fetch.scalars.return_value.all.return_value = [mock_holding]
+        mock_db.execute = AsyncMock(side_effect=[stale_check, stale_fetch])
+
+        with patch("app.api.v1.auth.AsyncSessionLocal") as mock_session:
+            mock_session.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_session.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            await _maybe_refresh_prices_on_login(uuid4())
+
+        mock_db.commit.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _verify_and_consume_backup_code
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestVerifyAndConsumeBackupCode:
+    """Test backup code verification and consumption."""
+
+    @pytest.mark.asyncio
+    async def test_returns_false_when_no_backup_codes(self):
+        from app.api.v1.auth import _verify_and_consume_backup_code
+
+        mock_db = AsyncMock()
+        mock_mfa = Mock()
+        mock_mfa.backup_codes = None
+
+        result = await _verify_and_consume_backup_code(mock_db, mock_mfa, "ABCD-EFGH")
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_returns_false_when_decrypt_fails(self):
+        from app.api.v1.auth import _verify_and_consume_backup_code
+
+        mock_db = AsyncMock()
+        mock_mfa = Mock()
+        mock_mfa.backup_codes = "encrypted_data"
+
+        with patch(
+            "app.api.v1.auth.mfa_service.decrypt_backup_codes",
+            side_effect=Exception("decrypt failed"),
+        ):
+            result = await _verify_and_consume_backup_code(mock_db, mock_mfa, "ABCD-EFGH")
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_consumes_matching_code(self):
+        from app.api.v1.auth import _verify_and_consume_backup_code
+
+        mock_db = AsyncMock()
+        mock_mfa = Mock()
+        mock_mfa.backup_codes = "encrypted"
+
+        with patch(
+            "app.api.v1.auth.mfa_service.decrypt_backup_codes", return_value=["hash1", "hash2"]
+        ):
+            with patch("app.api.v1.auth.mfa_service.verify_backup_code", side_effect=[True]):
+                with patch(
+                    "app.api.v1.auth.mfa_service.encrypt_backup_codes", return_value="new_encrypted"
+                ):
+                    result = await _verify_and_consume_backup_code(mock_db, mock_mfa, "CODE")
+
+        assert result is True
+        mock_db.flush.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_returns_false_when_no_code_matches(self):
+        from app.api.v1.auth import _verify_and_consume_backup_code
+
+        mock_db = AsyncMock()
+        mock_mfa = Mock()
+        mock_mfa.backup_codes = "encrypted"
+
+        with patch("app.api.v1.auth.mfa_service.decrypt_backup_codes", return_value=["hash1"]):
+            with patch("app.api.v1.auth.mfa_service.verify_backup_code", return_value=False):
+                result = await _verify_and_consume_backup_code(mock_db, mock_mfa, "WRONG")
+
+        assert result is False
+
+
+# ---------------------------------------------------------------------------
+# Login - SQLAlchemy error and generic exception handling
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestLoginErrorHandling:
+    """Test login error handling branches."""
+
+    @pytest.mark.asyncio
+    async def test_login_sqlalchemy_error_returns_500(self):
+        from sqlalchemy.exc import SQLAlchemyError
+
+        from app.api.v1.auth import login
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_data = Mock()
+        mock_data.email = "test@example.com"
+        mock_data.password = "pass"  # pragma: allowlist secret
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.user_crud.get_by_email",
+                new=AsyncMock(side_effect=SQLAlchemyError("db error")),
+            ):
+                with pytest.raises(HTTPException) as exc_info:
+                    await login(mock_request, Mock(), mock_data, mock_db)
+
+                assert exc_info.value.status_code == 500
+
+    @pytest.mark.asyncio
+    async def test_login_generic_exception_returns_500(self):
+        from app.api.v1.auth import login
+
+        mock_request = Mock()
+        mock_db = AsyncMock()
+        mock_data = Mock()
+        mock_data.email = "test@example.com"
+        mock_data.password = "pass"  # pragma: allowlist secret
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.user_crud.get_by_email",
+                new=AsyncMock(side_effect=RuntimeError("unexpected")),
+            ):
+                with pytest.raises(HTTPException) as exc_info:
+                    await login(mock_request, Mock(), mock_data, mock_db)
+
+                assert exc_info.value.status_code == 500
+
+
+# ---------------------------------------------------------------------------
+# Login - MFA challenge flow
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestLoginMfaFlow:
+    """Test login returns MFA challenge in non-development mode."""
+
+    @pytest.mark.asyncio
+    async def test_login_returns_mfa_challenge_when_mfa_enabled(self):
+        from app.api.v1.auth import MFAChallengeResponse, login
+
+        mock_request = Mock()
+        mock_response = Mock()
+        mock_db = AsyncMock()
+        mock_data = Mock()
+        mock_data.email = "mfa@example.com"
+        mock_data.password = "password"  # pragma: allowlist secret
+
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.is_active = True
+        mock_user.failed_login_attempts = 0
+        mock_user.locked_until = None
+        mock_user.password_hash = "hashed"  # pragma: allowlist secret
+        mock_user.organization_id = uuid4()
+
+        mock_mfa = Mock()
+        mock_mfa.is_enabled = True
+        mock_mfa.is_verified = True
+        mock_mfa.user_id = mock_user.id
+
+        mock_mfa_result = Mock()
+        mock_mfa_result.scalar_one_or_none.return_value = mock_mfa
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)
+            ):
+                with patch("app.api.v1.auth.verify_password", return_value=True):
+                    with patch("app.api.v1.auth.settings") as mock_settings:
+                        mock_settings.ENVIRONMENT = "production"
+                        with patch(
+                            "app.api.v1.auth.create_mfa_pending_token", return_value="mfa_tok_123"
+                        ):
+                            mock_db.execute = AsyncMock(return_value=mock_mfa_result)
+
+                            result = await login(mock_request, mock_response, mock_data, mock_db)
+
+        assert isinstance(result, MFAChallengeResponse)
+        assert result.mfa_required is True
+        assert result.mfa_token == "mfa_tok_123"
+
+
+# ---------------------------------------------------------------------------
+# Refresh - cookie and SQLAlchemy error paths
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRefreshAdditional:
+    """Additional refresh token tests."""
+
+    @pytest.mark.asyncio
+    async def test_refresh_prefers_cookie_over_body(self):
+        """Should use refresh_token cookie when present."""
+        from app.api.v1.auth import refresh_access_token
+
+        mock_request = Mock()
+        mock_request.cookies = {"refresh_token": "cookie_token"}
+        mock_response = Mock()
+        mock_db = AsyncMock()
+
+        mock_payload = {
+            "type": "refresh",
+            "sub": str(uuid4()),
+            "jti": "jti_cookie",
+        }
+
+        mock_token = Mock()
+        mock_token.is_revoked = False
+        mock_token.is_expired = False
+        mock_token.user_id = uuid4()
+
+        user_id = mock_token.user_id
+        org_id = uuid4()
+        mock_user = Mock(spec=User)
+        mock_user.id = user_id
+        mock_user.organization_id = org_id
+        mock_user.email = "test@example.com"
+        mock_user.first_name = "Test"
+        mock_user.last_name = "User"
+        mock_user.display_name = "Test User"
+        mock_user.is_active = True
+        mock_user.is_org_admin = False
+        mock_user.email_verified = True
+        mock_user.dashboard_layout = []
+        mock_user.mfa_enabled = False
+        mock_user.birth_year = None
+        mock_user.last_login_at = datetime.now()
+        mock_user.created_at = datetime.now()
+        mock_user.updated_at = datetime.now()
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.decode_token", return_value=mock_payload):
+                with patch(
+                    "app.api.v1.auth.refresh_token_crud.get_by_token_hash",
+                    new=AsyncMock(return_value=mock_token),
+                ):
+                    with patch(
+                        "app.api.v1.auth.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)
+                    ):
+                        with patch(
+                            "app.api.v1.auth.create_access_token", return_value="new_access"
+                        ):
+                            with patch(
+                                "app.api.v1.auth.create_refresh_token",
+                                return_value=("new_refresh", "new_jti", datetime.now()),
+                            ):
+                                with patch(
+                                    "app.api.v1.auth.refresh_token_crud.create", new=AsyncMock()
+                                ):
+                                    with patch(
+                                        "app.api.v1.auth.refresh_token_crud.revoke", new=AsyncMock()
+                                    ):
+                                        result = await refresh_access_token(
+                                            mock_request, mock_response, None, mock_db
+                                        )
+
+        assert result.access_token == "new_access"
+        # Cookie should be set because we read from cookie
+        mock_response.set_cookie.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_refresh_no_token_raises_401(self):
+        """Should raise 401 when no refresh token in cookie or body."""
+        from app.api.v1.auth import refresh_access_token
+
+        mock_request = Mock()
+        mock_request.cookies = {}
+        mock_response = Mock()
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with pytest.raises(HTTPException) as exc_info:
+                await refresh_access_token(mock_request, mock_response, None, AsyncMock())
+
+            assert exc_info.value.status_code == 401
+            assert "No refresh token" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_refresh_sqlalchemy_error_returns_500(self):
+        """Should return 500 on SQLAlchemy error during refresh."""
+        from sqlalchemy.exc import SQLAlchemyError
+
+        from app.api.v1.auth import refresh_access_token
+
+        mock_request = Mock()
+        mock_request.cookies = {}
+        mock_response = Mock()
+        mock_data = Mock()
+        mock_data.refresh_token = "token"
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.auth.decode_token", side_effect=SQLAlchemyError("db")):
+                with pytest.raises(HTTPException) as exc_info:
+                    await refresh_access_token(mock_request, mock_response, mock_data, AsyncMock())
+
+                assert exc_info.value.status_code == 500
+
+
+# ---------------------------------------------------------------------------
+# Resend verification - dev token
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestResendVerificationDev:
+    """Test resend-verification returns token in dev mode."""
+
+    @pytest.mark.asyncio
+    async def test_resend_returns_token_in_dev(self):
+        from app.api.v1.auth import resend_verification
+
+        mock_request = Mock()
+        mock_user = Mock(spec=User)
+        mock_user.email_verified = False
+        mock_user.email = "test@test.com"
+        mock_user.display_name = "Test"
+        mock_user.first_name = "Test"
+        mock_user.id = uuid4()
+        mock_db = AsyncMock()
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.create_verification_token", new=AsyncMock(return_value="raw_tok")
+            ):
+                with patch(
+                    "app.api.v1.auth.email_service.send_verification_email", new=AsyncMock()
+                ):
+                    with patch("app.api.v1.auth.settings") as mock_settings:
+                        mock_settings.ENVIRONMENT = "development"
+                        result = await resend_verification(mock_request, mock_user, mock_db)
+
+        assert result["token"] == "raw_tok"

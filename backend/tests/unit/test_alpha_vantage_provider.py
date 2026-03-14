@@ -1,9 +1,10 @@
 """Tests for Alpha Vantage market data provider."""
 
-import pytest
 from datetime import date
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 @pytest.fixture
@@ -164,9 +165,7 @@ class TestAlphaVantageProvider:
             None,
         )
 
-        result = await provider.get_historical_prices(
-            "AAPL", date(2023, 11, 1), date(2023, 11, 30)
-        )
+        result = await provider.get_historical_prices("AAPL", date(2023, 11, 1), date(2023, 11, 30))
 
         # Should only include dates within range
         assert len(result) == 2
@@ -227,9 +226,7 @@ class TestAlphaVantageProvider:
         mock_timeseries.get_daily.return_value = ({}, None)
 
         with pytest.raises(ValueError, match="No historical data"):
-            await provider.get_historical_prices(
-                "INVALID", date(2023, 1, 1), date(2023, 12, 31)
-            )
+            await provider.get_historical_prices("INVALID", date(2023, 1, 1), date(2023, 12, 31))
 
     @pytest.mark.asyncio
     async def test_search_symbol(self, provider, mock_timeseries):

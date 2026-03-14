@@ -9,6 +9,7 @@ Covers:
 """
 
 import pytest
+
 from app.services.retirement.healthcare_cost_estimator import (
     ACA_MONTHLY_COUPLE,
     ACA_MONTHLY_SINGLE,
@@ -22,7 +23,6 @@ from app.services.retirement.healthcare_cost_estimator import (
     estimate_lifetime_healthcare_costs,
     get_irmaa_surcharge,
 )
-
 
 # ── IRMAA surcharges ──────────────────────────────────────────────────────────
 
@@ -105,7 +105,9 @@ class TestMedicareCosts:
 
     def test_irmaa_surcharge_at_high_income(self):
         costs_low = estimate_annual_healthcare_cost(age=65, retirement_income=50000, current_age=55)
-        costs_high = estimate_annual_healthcare_cost(age=65, retirement_income=200000, current_age=55)
+        costs_high = estimate_annual_healthcare_cost(
+            age=65, retirement_income=200000, current_age=55
+        )
         assert costs_high["irmaa_surcharge"] > costs_low["irmaa_surcharge"]
 
     def test_no_irmaa_at_standard_income(self):
@@ -130,9 +132,7 @@ class TestLongTermCare:
         assert costs["long_term_care"] == LTC_FACILITY_MONTHLY * 12
 
     def test_no_ltc_when_disabled(self):
-        costs = estimate_annual_healthcare_cost(
-            age=85, include_ltc=False, current_age=55
-        )
+        costs = estimate_annual_healthcare_cost(age=85, include_ltc=False, current_age=55)
         assert costs["long_term_care"] == 0.0
 
     def test_ltc_ends_after_duration(self):
@@ -182,7 +182,9 @@ class TestTotalCosts:
 class TestLifetimeHealthcareCosts:
     def test_returns_all_fields(self):
         result = estimate_lifetime_healthcare_costs(
-            current_age=55, retirement_age=65, life_expectancy=85,
+            current_age=55,
+            retirement_age=65,
+            life_expectancy=85,
         )
         assert "pre_65_total" in result
         assert "medicare_total" in result
@@ -192,14 +194,18 @@ class TestLifetimeHealthcareCosts:
 
     def test_yearly_breakdown_length(self):
         result = estimate_lifetime_healthcare_costs(
-            current_age=60, retirement_age=65, life_expectancy=90,
+            current_age=60,
+            retirement_age=65,
+            life_expectancy=90,
         )
         # Should have 90 - 60 + 1 = 31 years
         assert len(result["yearly_breakdown"]) == 31
 
     def test_grand_total_matches_phase_sum(self):
         result = estimate_lifetime_healthcare_costs(
-            current_age=55, retirement_age=65, life_expectancy=90,
+            current_age=55,
+            retirement_age=65,
+            life_expectancy=90,
         )
         assert result["grand_total"] == pytest.approx(
             result["pre_65_total"] + result["medicare_total"] + result["ltc_total"],
@@ -208,6 +214,8 @@ class TestLifetimeHealthcareCosts:
 
     def test_grand_total_positive(self):
         result = estimate_lifetime_healthcare_costs(
-            current_age=55, retirement_age=65, life_expectancy=95,
+            current_age=55,
+            retirement_age=65,
+            life_expectancy=95,
         )
         assert result["grand_total"] > 0

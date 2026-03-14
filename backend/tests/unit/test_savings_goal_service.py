@@ -1,14 +1,14 @@
 """Unit tests for savings goal service allocation logic."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock, MagicMock
-from uuid import uuid4
+from datetime import date, timedelta
 from decimal import Decimal
-from datetime import date
+from unittest.mock import AsyncMock, MagicMock, Mock
+from uuid import uuid4
 
-from app.services.savings_goal_service import SavingsGoalService
+import pytest
+
 from app.models.user import User
-from app.models.savings_goal import SavingsGoal
+from app.services.savings_goal_service import SavingsGoalService
 
 
 def _make_goal(account_id, target_amount, priority=1):
@@ -266,19 +266,31 @@ class TestGetGoalsByAccount:
 
         # Create three goals — they get priority 1, 2, 3 in order of creation
         goal_a = await service.create_goal(
-            db, test_user, name="Goal A",
-            target_amount=Decimal("1000.00"), current_amount=Decimal("0"),
-            start_date=date.today(), account_id=test_account.id,
+            db,
+            test_user,
+            name="Goal A",
+            target_amount=Decimal("1000.00"),
+            current_amount=Decimal("0"),
+            start_date=date.today(),
+            account_id=test_account.id,
         )
         goal_b = await service.create_goal(
-            db, test_user, name="Goal B",
-            target_amount=Decimal("2000.00"), current_amount=Decimal("0"),
-            start_date=date.today(), account_id=test_account.id,
+            db,
+            test_user,
+            name="Goal B",
+            target_amount=Decimal("2000.00"),
+            current_amount=Decimal("0"),
+            start_date=date.today(),
+            account_id=test_account.id,
         )
         goal_c = await service.create_goal(
-            db, test_user, name="Goal C",
-            target_amount=Decimal("3000.00"), current_amount=Decimal("0"),
-            start_date=date.today(), account_id=test_account.id,
+            db,
+            test_user,
+            name="Goal C",
+            target_amount=Decimal("3000.00"),
+            current_amount=Decimal("0"),
+            start_date=date.today(),
+            account_id=test_account.id,
         )
 
         goals = await service.get_goals(db, test_user)
@@ -289,14 +301,12 @@ class TestGetGoalsByAccount:
         assert ids_in_order.index(goal_b.id) < ids_in_order.index(goal_c.id)
 
     @pytest.mark.asyncio
-    async def test_goals_from_multiple_accounts_all_returned(
-        self, db, test_user, test_account
-    ):
+    async def test_goals_from_multiple_accounts_all_returned(self, db, test_user, test_account):
         """
         get_goals() returns goals regardless of which account they belong to —
         the frontend groups them client-side.
         """
-        from app.models.account import Account, AccountType, AccountSource
+        from app.models.account import Account, AccountSource, AccountType
 
         service = SavingsGoalService()
 
@@ -312,18 +322,29 @@ class TestGetGoalsByAccount:
         await db.commit()
 
         goal_1 = await service.create_goal(
-            db, test_user, name="Goal for Account A",
-            target_amount=Decimal("1000.00"), current_amount=Decimal("0"),
-            start_date=date.today(), account_id=test_account.id,
+            db,
+            test_user,
+            name="Goal for Account A",
+            target_amount=Decimal("1000.00"),
+            current_amount=Decimal("0"),
+            start_date=date.today(),
+            account_id=test_account.id,
         )
         goal_2 = await service.create_goal(
-            db, test_user, name="Goal for Account B",
-            target_amount=Decimal("2000.00"), current_amount=Decimal("0"),
-            start_date=date.today(), account_id=account_b.id,
+            db,
+            test_user,
+            name="Goal for Account B",
+            target_amount=Decimal("2000.00"),
+            current_amount=Decimal("0"),
+            start_date=date.today(),
+            account_id=account_b.id,
         )
         goal_3 = await service.create_goal(
-            db, test_user, name="Unlinked Goal",
-            target_amount=Decimal("500.00"), current_amount=Decimal("0"),
+            db,
+            test_user,
+            name="Unlinked Goal",
+            target_amount=Decimal("500.00"),
+            current_amount=Decimal("0"),
             start_date=date.today(),
         )
 
@@ -335,9 +356,7 @@ class TestGetGoalsByAccount:
         assert goal_3.id in goal_ids
 
     @pytest.mark.asyncio
-    async def test_reorder_updates_priority_for_account_group(
-        self, db, test_user, test_account
-    ):
+    async def test_reorder_updates_priority_for_account_group(self, db, test_user, test_account):
         """
         After drag-and-drop reorder, get_goals() reflects the new priority order.
         This is what the frontend sends after the user drags a card.
@@ -345,14 +364,22 @@ class TestGetGoalsByAccount:
         service = SavingsGoalService()
 
         goal_a = await service.create_goal(
-            db, test_user, name="First",
-            target_amount=Decimal("1000.00"), current_amount=Decimal("0"),
-            start_date=date.today(), account_id=test_account.id,
+            db,
+            test_user,
+            name="First",
+            target_amount=Decimal("1000.00"),
+            current_amount=Decimal("0"),
+            start_date=date.today(),
+            account_id=test_account.id,
         )
         goal_b = await service.create_goal(
-            db, test_user, name="Second",
-            target_amount=Decimal("2000.00"), current_amount=Decimal("0"),
-            start_date=date.today(), account_id=test_account.id,
+            db,
+            test_user,
+            name="Second",
+            target_amount=Decimal("2000.00"),
+            current_amount=Decimal("0"),
+            start_date=date.today(),
+            account_id=test_account.id,
         )
 
         # User drags goal_b above goal_a
@@ -411,7 +438,9 @@ class TestSharedGoals:
         service = SavingsGoalService()
 
         goal = await service.create_goal(
-            db, test_user, name="Toggle",
+            db,
+            test_user,
+            name="Toggle",
             target_amount=Decimal("1000.00"),
             start_date=date.today(),
         )
@@ -434,3 +463,355 @@ class TestSharedGoals:
         )
 
         assert goal.user_id == test_user.id
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage for update, delete, sync, fund, progress, emergency fund
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGoalUpdateAndDelete:
+    """Tests for update_goal and delete_goal methods."""
+
+    @pytest.mark.asyncio
+    async def test_update_goal_basic(self, db, test_user):
+        """Should update goal fields."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Original",
+            target_amount=Decimal("1000.00"),
+            start_date=date.today(),
+        )
+
+        updated = await service.update_goal(
+            db,
+            goal.id,
+            test_user,
+            name="Updated Name",
+            target_amount=Decimal("2000.00"),
+        )
+        assert updated is not None
+        assert updated.name == "Updated Name"
+        assert updated.target_amount == Decimal("2000.00")
+
+    @pytest.mark.asyncio
+    async def test_update_goal_not_found(self, db, test_user):
+        """Should return None for non-existent goal."""
+        service = SavingsGoalService()
+        result = await service.update_goal(db, uuid4(), test_user, name="X")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_update_goal_clears_auto_sync_when_account_removed(
+        self, db, test_user, test_account
+    ):
+        """Clearing account_id should disable auto_sync."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Synced Goal",
+            target_amount=Decimal("5000.00"),
+            start_date=date.today(),
+            account_id=test_account.id,
+            auto_sync=True,
+        )
+        assert goal.auto_sync is True
+
+        updated = await service.update_goal(db, goal.id, test_user, account_id=None)
+        assert updated.auto_sync is False
+
+    @pytest.mark.asyncio
+    async def test_update_goal_sets_completed_at(self, db, test_user):
+        """Setting is_completed=True should set completed_at."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Complete Me",
+            target_amount=Decimal("1000.00"),
+            start_date=date.today(),
+        )
+        assert goal.completed_at is None
+
+        updated = await service.update_goal(db, goal.id, test_user, is_completed=True)
+        assert updated.is_completed is True
+        assert updated.completed_at is not None
+
+    @pytest.mark.asyncio
+    async def test_update_goal_clears_completed_at(self, db, test_user):
+        """Setting is_completed=False should clear completed_at."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Uncomplete Me",
+            target_amount=Decimal("1000.00"),
+            start_date=date.today(),
+        )
+        # First complete it
+        await service.update_goal(db, goal.id, test_user, is_completed=True)
+        # Then un-complete it
+        updated = await service.update_goal(db, goal.id, test_user, is_completed=False)
+        assert updated.is_completed is False
+        assert updated.completed_at is None
+
+    @pytest.mark.asyncio
+    async def test_delete_goal_success(self, db, test_user):
+        """Should delete an existing goal."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Delete Me",
+            target_amount=Decimal("500.00"),
+            start_date=date.today(),
+        )
+        result = await service.delete_goal(db, goal.id, test_user)
+        assert result is True
+
+        # Verify it's gone
+        found = await service.get_goal(db, goal.id, test_user)
+        assert found is None
+
+    @pytest.mark.asyncio
+    async def test_delete_goal_not_found(self, db, test_user):
+        """Should return False for non-existent goal."""
+        service = SavingsGoalService()
+        result = await service.delete_goal(db, uuid4(), test_user)
+        assert result is False
+
+
+@pytest.mark.unit
+class TestGoalSync:
+    """Tests for sync_goal_from_account."""
+
+    @pytest.mark.asyncio
+    async def test_sync_goal_from_account_success(self, db, test_user, test_account):
+        """Should sync goal amount from linked account balance."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Sync Goal",
+            target_amount=Decimal("10000.00"),
+            start_date=date.today(),
+            account_id=test_account.id,
+        )
+
+        synced = await service.sync_goal_from_account(db, goal.id, test_user)
+        assert synced is not None
+        assert synced.current_amount == test_account.current_balance
+
+    @pytest.mark.asyncio
+    async def test_sync_goal_no_account_linked(self, db, test_user):
+        """Should return None if no account is linked."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="No Account",
+            target_amount=Decimal("5000.00"),
+            start_date=date.today(),
+        )
+
+        synced = await service.sync_goal_from_account(db, goal.id, test_user)
+        assert synced is None
+
+    @pytest.mark.asyncio
+    async def test_sync_goal_not_found(self, db, test_user):
+        """Should return None for non-existent goal."""
+        service = SavingsGoalService()
+        result = await service.sync_goal_from_account(db, uuid4(), test_user)
+        assert result is None
+
+
+@pytest.mark.unit
+class TestGoalFund:
+    """Tests for fund_goal."""
+
+    @pytest.mark.asyncio
+    async def test_fund_goal_success(self, db, test_user):
+        """Should mark goal as funded."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Fund Me",
+            target_amount=Decimal("5000.00"),
+            start_date=date.today(),
+        )
+
+        funded = await service.fund_goal(db, goal.id, test_user)
+        assert funded is not None
+        assert funded.is_funded is True
+        assert funded.funded_at is not None
+
+    @pytest.mark.asyncio
+    async def test_fund_goal_not_found(self, db, test_user):
+        """Should return None for non-existent goal."""
+        service = SavingsGoalService()
+        result = await service.fund_goal(db, uuid4(), test_user)
+        assert result is None
+
+
+@pytest.mark.unit
+class TestGoalProgress:
+    """Tests for get_goal_progress."""
+
+    @pytest.mark.asyncio
+    async def test_get_goal_progress_basic(self, db, test_user):
+        """Should calculate progress metrics."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Progress Goal",
+            target_amount=Decimal("10000.00"),
+            current_amount=Decimal("5000.00"),
+            start_date=date.today() - timedelta(days=30),
+            target_date=date.today() + timedelta(days=60),
+        )
+
+        progress = await service.get_goal_progress(db, goal.id, test_user)
+        assert progress is not None
+        assert progress["progress_percentage"] == 50.0
+        assert progress["remaining_amount"] == Decimal("5000.00")
+        assert progress["days_elapsed"] == 30
+        assert progress["days_remaining"] == 60
+        assert progress["monthly_required"] is not None
+        assert progress["on_track"] is not None
+
+    @pytest.mark.asyncio
+    async def test_get_goal_progress_no_target_date(self, db, test_user):
+        """Progress without target_date should have None for time-based metrics."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="No Deadline",
+            target_amount=Decimal("5000.00"),
+            current_amount=Decimal("1000.00"),
+            start_date=date.today(),
+        )
+
+        progress = await service.get_goal_progress(db, goal.id, test_user)
+        assert progress is not None
+        assert progress["days_remaining"] is None
+        assert progress["monthly_required"] is None
+        assert progress["on_track"] is None
+
+    @pytest.mark.asyncio
+    async def test_get_goal_progress_not_found(self, db, test_user):
+        """Should return None for non-existent goal."""
+        service = SavingsGoalService()
+        result = await service.get_goal_progress(db, uuid4(), test_user)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_goal_progress_zero_target(self, db, test_user):
+        """Zero target amount should handle division safely."""
+        service = SavingsGoalService()
+        goal = await service.create_goal(
+            db,
+            test_user,
+            name="Zero Target",
+            target_amount=Decimal("0.00"),
+            current_amount=Decimal("0.00"),
+            start_date=date.today(),
+        )
+
+        progress = await service.get_goal_progress(db, goal.id, test_user)
+        assert progress is not None
+        assert progress["progress_percentage"] == 0
+
+
+@pytest.mark.unit
+class TestGetGoalsFiltering:
+    """Tests for get_goals with completion filtering."""
+
+    @pytest.mark.asyncio
+    async def test_get_active_goals(self, db, test_user):
+        """Should return only active (not completed, not funded) goals."""
+        service = SavingsGoalService()
+
+        active_goal = await service.create_goal(
+            db,
+            test_user,
+            name="Active",
+            target_amount=Decimal("1000.00"),
+            start_date=date.today(),
+        )
+        completed_goal = await service.create_goal(
+            db,
+            test_user,
+            name="Completed",
+            target_amount=Decimal("1000.00"),
+            start_date=date.today(),
+        )
+        await service.update_goal(db, completed_goal.id, test_user, is_completed=True)
+
+        goals = await service.get_goals(db, test_user, is_completed=False)
+        goal_ids = {g.id for g in goals}
+        assert active_goal.id in goal_ids
+        assert completed_goal.id not in goal_ids
+
+    @pytest.mark.asyncio
+    async def test_get_completed_goals(self, db, test_user):
+        """Should return only completed or funded goals."""
+        service = SavingsGoalService()
+
+        active_goal = await service.create_goal(
+            db,
+            test_user,
+            name="Still Active",
+            target_amount=Decimal("1000.00"),
+            start_date=date.today(),
+        )
+        completed_goal = await service.create_goal(
+            db,
+            test_user,
+            name="Done",
+            target_amount=Decimal("1000.00"),
+            start_date=date.today(),
+        )
+        await service.update_goal(db, completed_goal.id, test_user, is_completed=True)
+
+        goals = await service.get_goals(db, test_user, is_completed=True)
+        goal_ids = {g.id for g in goals}
+        assert active_goal.id not in goal_ids
+        assert completed_goal.id in goal_ids
+
+
+@pytest.mark.unit
+class TestEmptyAutoSync:
+    """Test auto_sync_goals with no matching goals."""
+
+    @pytest.mark.asyncio
+    async def test_auto_sync_no_goals_returns_empty(self):
+        """auto_sync_goals with no auto-sync goals returns empty list."""
+        db = AsyncMock()
+        result_mock = MagicMock()
+        result_mock.scalars.return_value.all.return_value = []
+        db.execute.return_value = result_mock
+
+        user = Mock(spec=User)
+        user.organization_id = uuid4()
+
+        result = await SavingsGoalService.auto_sync_goals(db, user)
+        assert result == []
+
+
+@pytest.mark.unit
+class TestReorderGoals:
+    """Tests for reorder_goals."""
+
+    @pytest.mark.asyncio
+    async def test_reorder_empty_list(self, db, test_user):
+        """Empty goal_ids should succeed without changes."""
+        service = SavingsGoalService()
+        result = await service.reorder_goals(db, test_user, goal_ids=[])
+        assert result is True

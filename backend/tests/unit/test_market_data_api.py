@@ -19,19 +19,22 @@ class TestValidateSymbol:
     # Valid symbols
     # -----------------------------------------------------------------------
 
-    @pytest.mark.parametrize("symbol", [
-        "AAPL",          # plain US stock
-        "MSFT",          # plain US stock
-        "BRK.A",         # Berkshire class A (contains dot)
-        "BRK.B",         # Berkshire class B
-        "^GSPC",         # S&P 500 index (starts with caret)
-        "^DJI",          # Dow Jones index
-        "BTC-USD",       # crypto pair (contains dash)
-        "ETH-USD",       # crypto pair
-        "A",             # single-letter ticker
-        "ABCDE12345",    # 10 chars — within limit
-        "123456789012345", # 15 chars — at limit
-    ])
+    @pytest.mark.parametrize(
+        "symbol",
+        [
+            "AAPL",  # plain US stock
+            "MSFT",  # plain US stock
+            "BRK.A",  # Berkshire class A (contains dot)
+            "BRK.B",  # Berkshire class B
+            "^GSPC",  # S&P 500 index (starts with caret)
+            "^DJI",  # Dow Jones index
+            "BTC-USD",  # crypto pair (contains dash)
+            "ETH-USD",  # crypto pair
+            "A",  # single-letter ticker
+            "ABCDE12345",  # 10 chars — within limit
+            "123456789012345",  # 15 chars — at limit
+        ],
+    )
     def test_valid_symbol_passes(self, symbol):
         """Valid tickers should return the uppercased, stripped symbol."""
         result = _validate_symbol(symbol)
@@ -51,16 +54,19 @@ class TestValidateSymbol:
     # Invalid symbols → HTTPException 400
     # -----------------------------------------------------------------------
 
-    @pytest.mark.parametrize("bad_symbol", [
-        "",                    # empty string
-        "WAYTOOLONGSYMBOL",   # 17 chars — over 15-char limit
-        "AAPL MSFT",          # space in middle
-        "AAPL\x00",           # null byte
-        "../etc/passwd",      # path traversal attempt
-        "AAPL; DROP TABLE",   # SQL injection attempt
-        "$(echo pwned)",      # command injection attempt
-        "AAPL\nMSFT",         # newline injection
-    ])
+    @pytest.mark.parametrize(
+        "bad_symbol",
+        [
+            "",  # empty string
+            "WAYTOOLONGSYMBOL",  # 17 chars — over 15-char limit
+            "AAPL MSFT",  # space in middle
+            "AAPL\x00",  # null byte
+            "../etc/passwd",  # path traversal attempt
+            "AAPL; DROP TABLE",  # SQL injection attempt
+            "$(echo pwned)",  # command injection attempt
+            "AAPL\nMSFT",  # newline injection
+        ],
+    )
     def test_invalid_symbol_raises_400(self, bad_symbol):
         """Symbols with illegal characters or length should raise 400."""
         with pytest.raises(HTTPException) as exc_info:

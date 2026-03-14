@@ -1,14 +1,15 @@
 """Unit tests for request logging middleware."""
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, PropertyMock
 from fastapi import Request, Response
 from jwt.exceptions import InvalidTokenError as JWTError
 
 from app.middleware.request_logging import (
-    UserContextMiddleware,
-    RequestLoggingMiddleware,
     AuditLogMiddleware,
+    RequestLoggingMiddleware,
+    UserContextMiddleware,
 )
 
 
@@ -67,9 +68,7 @@ class TestUserContextMiddleware:
         return call_next
 
     @pytest.mark.asyncio
-    async def test_extracts_email_from_valid_token(
-        self, middleware, mock_request, mock_call_next
-    ):
+    async def test_extracts_email_from_valid_token(self, middleware, mock_request, mock_call_next):
         """Should extract email from valid JWT token."""
         mock_request.headers = {"Authorization": "Bearer valid-token"}
 
@@ -205,7 +204,7 @@ class TestRequestLoggingMiddleware:
         """Should include user email in logs when available."""
         mock_request.state.user_email = "test@example.com"
 
-        with patch("app.middleware.request_logging.logger") as mock_logger:
+        with patch("app.middleware.request_logging.logger"):
             with patch("app.middleware.request_logging.redact_email") as mock_redact:
                 mock_redact.return_value = "t***@example.com"
                 await middleware.dispatch(mock_request, mock_call_next)
@@ -298,9 +297,7 @@ class TestAuditLogMiddleware:
         return call_next
 
     @pytest.mark.asyncio
-    async def test_skips_non_mutating_get_requests(
-        self, middleware, mock_request, mock_call_next
-    ):
+    async def test_skips_non_mutating_get_requests(self, middleware, mock_request, mock_call_next):
         """Should skip audit for non-mutating GET requests."""
         mock_request.method = "GET"
         mock_request.url.path = "/api/v1/test"

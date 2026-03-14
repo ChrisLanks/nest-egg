@@ -1,25 +1,24 @@
 """Unit tests for the auto-valuation service."""
 
-import pytest
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
+import pytest
 
 from app.services.valuation_service import (
     ValuationResult,
+    _get_property_value_attom,
+    _get_property_value_rentcast,
+    _get_property_value_zillow,
+    _get_vehicle_value_marketcheck,
+    _is_provider_configured,
+    decode_vin_nhtsa,
     get_available_property_providers,
     get_available_vehicle_providers,
     get_property_value,
     get_vehicle_value,
-    decode_vin_nhtsa,
-    _get_property_value_rentcast,
-    _get_property_value_attom,
-    _get_property_value_zillow,
-    _get_vehicle_value_marketcheck,
-    _is_provider_configured,
 )
-
 
 # ── provider discovery ────────────────────────────────────────────────────────
 
@@ -178,7 +177,9 @@ class TestGetPropertyValueRentcast:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
         mock_client.get = AsyncMock(
-            side_effect=httpx.HTTPStatusError("Unauthorized", request=MagicMock(), response=mock_response)
+            side_effect=httpx.HTTPStatusError(
+                "Unauthorized", request=MagicMock(), response=mock_response
+            )
         )
 
         with patch("app.services.valuation_service.httpx.AsyncClient", return_value=mock_client):
@@ -270,9 +271,7 @@ class TestGetPropertyValueAttom:
     @pytest.mark.asyncio
     async def test_returns_none_when_avm_value_missing(self):
         mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "property": [{"avm": {"amount": {}}}]
-        }
+        mock_response.json.return_value = {"property": [{"avm": {"amount": {}}}]}
         mock_response.raise_for_status = MagicMock()
 
         mock_client = AsyncMock()
@@ -372,7 +371,9 @@ class TestGetPropertyValueZillow:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
         mock_client.get = AsyncMock(
-            side_effect=httpx.HTTPStatusError("Forbidden", request=MagicMock(), response=mock_response)
+            side_effect=httpx.HTTPStatusError(
+                "Forbidden", request=MagicMock(), response=mock_response
+            )
         )
 
         with patch("app.services.valuation_service.httpx.AsyncClient", return_value=mock_client):
@@ -412,9 +413,7 @@ class TestGetVehicleValueMarketcheck:
     @pytest.mark.asyncio
     async def test_returns_valuation_result_on_success(self):
         mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "price": {"mean": 25000, "low": 22000, "high": 28000}
-        }
+        mock_response.json.return_value = {"price": {"mean": 25000, "low": 22000, "high": 28000}}
         mock_response.raise_for_status = MagicMock()
 
         mock_client = AsyncMock()
@@ -551,3 +550,198 @@ class TestDecodeVinNhtsa:
             result = await decode_vin_nhtsa("BAD_VIN")
 
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_for_invalid_vin_format(self):
+        """Short/invalid VIN should fail format check."""
+        result = await decode_vin_nhtsa("TOOSHORT")
+        assert result is None
+
+
+# ── Additional coverage for exception paths ──────────────────────────────────
+
+
+class TestRentcastExceptionPath:
+    """Cover line 122-124: unexpected (non-HTTP) exception in rentcast."""
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_unexpected_exception(self):
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(side_effect=Exception("DNS failure"))
+
+        with patch("app.services.valuation_service.httpx.AsyncClient", return_value=mock_client):
+            with patch("app.services.valuation_service.settings") as s:
+                s.RENTCAST_API_KEY = "test_key"
+                result = await _get_property_value_rentcast("123 Main St", "94102")
+
+        assert result is None
+
+
+class TestAttomExceptionPaths:
+    """Cover lines 169-177: attom HTTP and unexpected errors."""
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_http_error(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(
+            side_effect=httpx.HTTPStatusError("Error", request=MagicMock(), response=mock_response)
+        )
+
+        with patch("app.services.valuation_service.httpx.AsyncClient", return_value=mock_client):
+            with patch("app.services.valuation_service.settings") as s:
+                s.ATTOM_API_KEY = "test_key"
+                result = await _get_property_value_attom("123 Main St", "94102")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_unexpected_exception(self):
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(side_effect=Exception("Timeout"))
+
+        with patch("app.services.valuation_service.httpx.AsyncClient", return_value=mock_client):
+            with patch("app.services.valuation_service.settings") as s:
+                s.ATTOM_API_KEY = "test_key"
+                result = await _get_property_value_attom("123 Main St", "94102")
+
+        assert result is None
+
+
+class TestZillowExceptionPath:
+    """Cover lines 226-228: unexpected exception in zillow."""
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_unexpected_exception(self):
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(side_effect=Exception("Connection reset"))
+
+        with patch("app.services.valuation_service.httpx.AsyncClient", return_value=mock_client):
+            with patch("app.services.valuation_service.settings") as s:
+                s.ZILLOW_RAPIDAPI_KEY = "test_key"
+                result = await _get_property_value_zillow("123 Main St", "94102")
+
+        assert result is None
+
+
+class TestMarketcheckExceptionPaths:
+    """Cover lines 339-347: marketcheck HTTP and unexpected errors."""
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_http_error(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        mock_response.text = "Too Many Requests"
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(
+            side_effect=httpx.HTTPStatusError(
+                "Rate limited", request=MagicMock(), response=mock_response
+            )
+        )
+
+        with patch("app.services.valuation_service.httpx.AsyncClient", return_value=mock_client):
+            with patch("app.services.valuation_service.settings") as s:
+                s.MARKETCHECK_API_KEY = "mc_key"
+                result = await _get_vehicle_value_marketcheck("1HGBH41JXMN109186")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_unexpected_exception(self):
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(side_effect=Exception("Timeout"))
+
+        with patch("app.services.valuation_service.httpx.AsyncClient", return_value=mock_client):
+            with patch("app.services.valuation_service.settings") as s:
+                s.MARKETCHECK_API_KEY = "mc_key"
+                result = await _get_vehicle_value_marketcheck("1HGBH41JXMN109186")
+
+        assert result is None
+
+
+# ── get_vehicle_value router tests ───────────────────────────────────────────
+
+
+class TestGetVehicleValue:
+    """Cover lines 363-377: get_vehicle_value routing logic."""
+
+    @pytest.mark.asyncio
+    async def test_uses_specified_provider(self):
+        with patch("app.services.valuation_service._is_provider_configured", return_value=True):
+            mock_result = ValuationResult(value=Decimal("25000"), provider="marketcheck")
+            with patch(
+                "app.services.valuation_service._VEHICLE_PROVIDERS",
+                {"marketcheck": AsyncMock(return_value=mock_result)},
+            ):
+                result = await get_vehicle_value("1HGBH41JXMN109186", provider="marketcheck")
+
+        assert result is not None
+        assert result.provider == "marketcheck"
+
+    @pytest.mark.asyncio
+    async def test_returns_none_for_unknown_provider(self):
+        result = await get_vehicle_value("1HGBH41JXMN109186", provider="unknown")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_provider_not_configured(self):
+        with patch("app.services.valuation_service._is_provider_configured", return_value=False):
+            result = await get_vehicle_value("1HGBH41JXMN109186", provider="marketcheck")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_auto_selects_first_available_provider(self):
+        mock_result = ValuationResult(value=Decimal("30000"), provider="marketcheck")
+        with patch(
+            "app.services.valuation_service.get_available_vehicle_providers",
+            return_value=["marketcheck"],
+        ):
+            with patch(
+                "app.services.valuation_service._VEHICLE_PROVIDERS",
+                {"marketcheck": AsyncMock(return_value=mock_result)},
+            ):
+                result = await get_vehicle_value("1HGBH41JXMN109186")
+
+        assert result is not None
+        assert result.provider == "marketcheck"
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_providers_available(self):
+        with patch(
+            "app.services.valuation_service.get_available_vehicle_providers",
+            return_value=[],
+        ):
+            result = await get_vehicle_value("1HGBH41JXMN109186")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_with_mileage_parameter(self):
+        with patch("app.services.valuation_service._is_provider_configured", return_value=True):
+            mock_result = ValuationResult(value=Decimal("20000"), provider="marketcheck")
+            mock_fn = AsyncMock(return_value=mock_result)
+            with patch(
+                "app.services.valuation_service._VEHICLE_PROVIDERS",
+                {"marketcheck": mock_fn},
+            ):
+                result = await get_vehicle_value(
+                    "1HGBH41JXMN109186", mileage=75000, provider="marketcheck"
+                )
+
+        assert result is not None
+        mock_fn.assert_called_once_with("1HGBH41JXMN109186", 75000)

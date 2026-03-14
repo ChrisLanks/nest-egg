@@ -1,25 +1,25 @@
 """Unit tests for dependencies module."""
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import (
-    get_current_user,
+    get_all_household_accounts,
     get_current_active_user,
     get_current_admin_user,
-    get_verified_account,
-    verify_household_member,
+    get_current_user,
     get_user_accounts,
-    get_all_household_accounts,
+    get_verified_account,
     verify_account_access,
+    verify_household_member,
 )
-from app.models.user import User, AccountShare, SharePermission
 from app.models.account import Account
+from app.models.user import AccountShare, SharePermission, User
 from app.services.identity.base import AuthenticatedIdentity
 
 
@@ -60,7 +60,9 @@ class TestGetCurrentUser:
         mock_chain.authenticate = AsyncMock(return_value=_make_identity(user_id))
 
         with patch("app.dependencies.get_chain", return_value=mock_chain):
-            with patch("app.dependencies.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)):
+            with patch(
+                "app.dependencies.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)
+            ):
                 result = await get_current_user(mock_credentials, mock_db)
                 assert result == mock_user
 
@@ -104,7 +106,9 @@ class TestGetCurrentUser:
         mock_chain.authenticate = AsyncMock(return_value=_make_identity(user_id))
 
         with patch("app.dependencies.get_chain", return_value=mock_chain):
-            with patch("app.dependencies.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)):
+            with patch(
+                "app.dependencies.user_crud.get_by_id", new=AsyncMock(return_value=mock_user)
+            ):
                 with pytest.raises(HTTPException) as exc_info:
                     await get_current_user(mock_credentials, mock_db)
 

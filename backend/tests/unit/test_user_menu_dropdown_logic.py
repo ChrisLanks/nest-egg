@@ -18,10 +18,10 @@ a frontend test framework.
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # State machine mirroring Layout.tsx UserMenu
 # ---------------------------------------------------------------------------
+
 
 class UserMenuState:
     """
@@ -81,6 +81,7 @@ class UserMenuState:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestUserMenuInitialState:
@@ -213,8 +214,8 @@ class TestUserMenuOutsideClick:
     def test_second_outside_click_after_reopen_closes_again(self):
         """Outside-click works every time the dropdown is opened."""
         menu = UserMenuState()
-        menu.toggle()           # open
+        menu.toggle()  # open
         menu.outside_mousedown()  # close
-        menu.toggle()           # reopen
+        menu.toggle()  # reopen
         menu.outside_mousedown()  # close again
         assert menu.is_open is False

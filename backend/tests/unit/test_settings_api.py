@@ -14,27 +14,26 @@ Key behaviours verified:
 - Only provided fields are updated (partial PATCH).
 """
 
-import pytest
 from datetime import date
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+import pytest
 from fastapi import HTTPException
 
 from app.api.v1.settings import (
-    get_user_profile,
-    update_user_profile,
     get_organization_preferences,
+    get_user_profile,
     update_organization_preferences,
-    OrganizationPreferencesResponse,
+    update_user_profile,
 )
+from app.models.user import Organization, User
 from app.schemas.user import OrganizationUpdate, UserUpdate
-from app.models.user import User, Organization
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_user(*, is_org_admin: bool = True) -> Mock:
     user = Mock(spec=User)
@@ -66,6 +65,7 @@ def _db_returning(obj):
 # ---------------------------------------------------------------------------
 # GET /settings/organization
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestGetOrganizationPreferences:
@@ -108,6 +108,7 @@ class TestGetOrganizationPreferences:
 # PATCH /settings/organization
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestUpdateOrganizationPreferences:
     """PATCH /settings/organization — org-admin only."""
@@ -119,9 +120,7 @@ class TestUpdateOrganizationPreferences:
         db = _db_returning(org)
 
         update = OrganizationUpdate(monthly_start_day=16)
-        await update_organization_preferences(
-            update_data=update, current_user=user, db=db
-        )
+        await update_organization_preferences(update_data=update, current_user=user, db=db)
 
         assert org.monthly_start_day == 16
         db.commit.assert_awaited_once()
@@ -133,9 +132,7 @@ class TestUpdateOrganizationPreferences:
 
         update = OrganizationUpdate(monthly_start_day=10)
         with pytest.raises(HTTPException) as exc_info:
-            await update_organization_preferences(
-                update_data=update, current_user=user, db=db
-            )
+            await update_organization_preferences(update_data=update, current_user=user, db=db)
 
         assert exc_info.value.status_code == 403
         db.execute.assert_not_awaited()
@@ -147,9 +144,7 @@ class TestUpdateOrganizationPreferences:
 
         update = OrganizationUpdate(monthly_start_day=5)
         with pytest.raises(HTTPException) as exc_info:
-            await update_organization_preferences(
-                update_data=update, current_user=user, db=db
-            )
+            await update_organization_preferences(update_data=update, current_user=user, db=db)
 
         assert exc_info.value.status_code == 404
 
@@ -163,9 +158,7 @@ class TestUpdateOrganizationPreferences:
 
         # Only send monthly_start_day; name not provided
         update = OrganizationUpdate(monthly_start_day=20)
-        await update_organization_preferences(
-            update_data=update, current_user=user, db=db
-        )
+        await update_organization_preferences(update_data=update, current_user=user, db=db)
 
         assert org.monthly_start_day == 20
         assert org.name == "Original Name"  # untouched
@@ -178,9 +171,7 @@ class TestUpdateOrganizationPreferences:
         db = _db_returning(org)
 
         update = OrganizationUpdate(monthly_start_day=1)
-        await update_organization_preferences(
-            update_data=update, current_user=user, db=db
-        )
+        await update_organization_preferences(update_data=update, current_user=user, db=db)
         assert org.monthly_start_day == 1
 
     @pytest.mark.asyncio
@@ -191,15 +182,14 @@ class TestUpdateOrganizationPreferences:
         db = _db_returning(org)
 
         update = OrganizationUpdate(monthly_start_day=28)
-        await update_organization_preferences(
-            update_data=update, current_user=user, db=db
-        )
+        await update_organization_preferences(update_data=update, current_user=user, db=db)
         assert org.monthly_start_day == 28
 
 
 # ---------------------------------------------------------------------------
 # Schema validation (OrganizationUpdate)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestOrganizationUpdateSchema:
@@ -233,6 +223,7 @@ class TestOrganizationUpdateSchema:
 # ---------------------------------------------------------------------------
 # UserUpdate schema — birthday calendar validation
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestUserUpdateBirthdaySchema:
@@ -285,6 +276,7 @@ class TestUserUpdateBirthdaySchema:
 # GET /settings/profile
 # ---------------------------------------------------------------------------
 
+
 def _make_user_with_birthdate(birthdate=None, *, is_org_admin: bool = False) -> Mock:
     user = Mock(spec=User)
     user.id = uuid4()
@@ -330,6 +322,7 @@ class TestGetUserProfile:
 # PATCH /settings/profile
 # ---------------------------------------------------------------------------
 
+
 def _make_patch_db(user: Mock):
     """AsyncMock DB that returns the given user on refresh."""
     db = AsyncMock()
@@ -364,8 +357,8 @@ class TestUpdateUserProfile:
         """Feb 30 passes schema (model_validator doesn't block field-level),
         but the endpoint's date() call raises ValueError → 400."""
         user = _make_user_with_birthdate(None)
-        db = _make_patch_db(user)
-        mock_request = Mock()
+        _make_patch_db(user)
+        Mock()
 
         # UserUpdate schema model_validator fires when all 3 are present,
         # so Feb 30 is already caught at the schema level with a 422.
@@ -390,7 +383,10 @@ class TestUpdateUserProfile:
                     db=db,
                 )
         assert exc_info.value.status_code == 400
-        assert "birth_day, birth_month, and birth_year must all be provided together" in exc_info.value.detail
+        assert (
+            "birth_day, birth_month, and birth_year must all be provided together"
+            in exc_info.value.detail
+        )
 
     @pytest.mark.asyncio
     async def test_display_name_update(self):
@@ -461,6 +457,7 @@ class TestUpdateUserProfile:
 # Email change → verification flow
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestEmailChangeVerification:
     """Email change should reset email_verified and trigger a verification email."""
@@ -502,8 +499,12 @@ class TestEmailChangeVerification:
         db.execute = AsyncMock(return_value=no_user_result)
 
         with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.settings.create_verification_token", new=AsyncMock(return_value="tok")):
-                with patch("app.api.v1.settings.email_service.send_verification_email", new=AsyncMock()):
+            with patch(
+                "app.api.v1.settings.create_verification_token", new=AsyncMock(return_value="tok")
+            ):
+                with patch(
+                    "app.api.v1.settings.email_service.send_verification_email", new=AsyncMock()
+                ):
                     await update_user_profile(
                         update_data=update,
                         http_request=mock_request,
@@ -537,8 +538,12 @@ class TestEmailChangeVerification:
         db.execute = AsyncMock(return_value=no_user_result)
 
         with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.settings.create_verification_token", new=AsyncMock(return_value="tok")) as mock_create:
-                with patch("app.api.v1.settings.email_service.send_verification_email", new=AsyncMock()) as mock_send:
+            with patch(
+                "app.api.v1.settings.create_verification_token", new=AsyncMock(return_value="tok")
+            ) as mock_create:
+                with patch(
+                    "app.api.v1.settings.email_service.send_verification_email", new=AsyncMock()
+                ) as mock_send:
                     await update_user_profile(
                         update_data=update,
                         http_request=mock_request,
@@ -569,7 +574,9 @@ class TestEmailChangeVerification:
         db.execute = AsyncMock(return_value=Mock())
 
         with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch("app.api.v1.settings.email_service.send_verification_email", new=AsyncMock()) as mock_send:
+            with patch(
+                "app.api.v1.settings.email_service.send_verification_email", new=AsyncMock()
+            ) as mock_send:
                 await update_user_profile(
                     update_data=update,
                     http_request=mock_request,
@@ -583,6 +590,7 @@ class TestEmailChangeVerification:
 # ---------------------------------------------------------------------------
 # DELETE /settings/account  (GDPR Article 17 — Right to Erasure)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestDeleteAccount:
@@ -599,7 +607,7 @@ class TestDeleteAccount:
     @pytest.mark.asyncio
     async def test_wrong_password_returns_401(self):
         """Should return 401 when supplied password is incorrect."""
-        from app.api.v1.settings import delete_account, DeleteAccountRequest
+        from app.api.v1.settings import DeleteAccountRequest, delete_account
 
         user = self._make_user()
         data = DeleteAccountRequest(password="wrongpassword")
@@ -609,14 +617,20 @@ class TestDeleteAccount:
         with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.settings.verify_password", return_value=False):
                 with pytest.raises(HTTPException) as exc_info:
-                    await delete_account(data=data, http_request=mock_request, http_response=Mock(), current_user=user, db=db)
+                    await delete_account(
+                        data=data,
+                        http_request=mock_request,
+                        http_response=Mock(),
+                        current_user=user,
+                        db=db,
+                    )
 
         assert exc_info.value.status_code == 401
 
     @pytest.mark.asyncio
     async def test_sole_member_deletes_organization(self):
         """When user is the only member, the whole organization is deleted."""
-        from app.api.v1.settings import delete_account, DeleteAccountRequest
+        from app.api.v1.settings import DeleteAccountRequest, delete_account
 
         user = self._make_user()
         data = DeleteAccountRequest(password="correctpassword")
@@ -634,7 +648,13 @@ class TestDeleteAccount:
 
         with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.settings.verify_password", return_value=True):
-                await delete_account(data=data, http_request=mock_request, http_response=Mock(), current_user=user, db=db)
+                await delete_account(
+                    data=data,
+                    http_request=mock_request,
+                    http_response=Mock(),
+                    current_user=user,
+                    db=db,
+                )
 
         db.delete.assert_called_once_with(mock_org)
         db.commit.assert_called_once()
@@ -642,7 +662,7 @@ class TestDeleteAccount:
     @pytest.mark.asyncio
     async def test_household_member_deletes_only_user(self):
         """When other members exist, only the current user is deleted."""
-        from app.api.v1.settings import delete_account, DeleteAccountRequest
+        from app.api.v1.settings import DeleteAccountRequest, delete_account
 
         user = self._make_user()
         data = DeleteAccountRequest(password="correctpassword")
@@ -656,7 +676,13 @@ class TestDeleteAccount:
 
         with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.settings.verify_password", return_value=True):
-                await delete_account(data=data, http_request=mock_request, http_response=Mock(), current_user=user, db=db)
+                await delete_account(
+                    data=data,
+                    http_request=mock_request,
+                    http_response=Mock(),
+                    current_user=user,
+                    db=db,
+                )
 
         db.delete.assert_called_once_with(user)
         db.commit.assert_called_once()
@@ -664,7 +690,7 @@ class TestDeleteAccount:
     @pytest.mark.asyncio
     async def test_rate_limit_enforced(self):
         """Should check rate limit before processing."""
-        from app.api.v1.settings import delete_account, DeleteAccountRequest
+        from app.api.v1.settings import DeleteAccountRequest, delete_account
 
         user = self._make_user()
         data = DeleteAccountRequest(password="pw")
@@ -676,7 +702,646 @@ class TestDeleteAccount:
             new=AsyncMock(side_effect=HTTPException(status_code=429, detail="Rate limit")),
         ):
             with pytest.raises(HTTPException) as exc_info:
-                await delete_account(data=data, http_request=mock_request, http_response=Mock(), current_user=user, db=db)
+                await delete_account(
+                    data=data,
+                    http_request=mock_request,
+                    http_response=Mock(),
+                    current_user=user,
+                    db=db,
+                )
 
         assert exc_info.value.status_code == 429
 
+
+# ---------------------------------------------------------------------------
+# PUT /settings/dashboard-layout
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestUpdateDashboardLayout:
+    """Tests for PUT /settings/dashboard-layout endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_update_layout_success(self):
+        from app.api.v1.settings import DashboardLayoutUpdate, update_dashboard_layout
+
+        user = _make_user_with_birthdate(None)
+        db = AsyncMock()
+
+        body = DashboardLayoutUpdate(
+            layout=[{"id": "chart", "span": 2}, {"id": "summary", "span": 1}]
+        )
+        response = await update_dashboard_layout(body=body, current_user=user, db=db)
+
+        assert user.dashboard_layout == [{"id": "chart", "span": 2}, {"id": "summary", "span": 1}]
+        db.commit.assert_awaited_once()
+        assert response.status_code == 204
+
+    @pytest.mark.asyncio
+    async def test_update_layout_empty(self):
+        from app.api.v1.settings import DashboardLayoutUpdate, update_dashboard_layout
+
+        user = _make_user_with_birthdate(None)
+        db = AsyncMock()
+
+        body = DashboardLayoutUpdate(layout=[])
+        await update_dashboard_layout(body=body, current_user=user, db=db)
+
+        assert user.dashboard_layout == []
+
+
+# ---------------------------------------------------------------------------
+# POST /settings/profile/change-password
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestChangePassword:
+    """Tests for POST /settings/profile/change-password endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_change_password_success(self):
+        from app.api.v1.settings import ChangePasswordRequest, change_password
+
+        user = _make_user_with_birthdate(None)
+        user.password_hash = "old_hash"  # pragma: allowlist secret
+        mock_request = Mock()
+        db = AsyncMock()
+
+        data = ChangePasswordRequest(
+            current_password="OldPassword123!",  # pragma: allowlist secret
+            new_password="NewPassword123!@",  # pragma: allowlist secret
+        )
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.settings.verify_password", return_value=True):
+                with patch(
+                    "app.api.v1.settings.password_validation_service.validate_and_raise_async",
+                    new=AsyncMock(),
+                ):
+                    with patch("app.api.v1.settings.hash_password", return_value="new_hash"):
+                        result = await change_password(
+                            password_data=data,
+                            http_request=mock_request,
+                            current_user=user,
+                            db=db,
+                        )
+
+        assert user.password_hash == "new_hash"  # pragma: allowlist secret
+        assert result["message"] == "Password changed successfully"
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_change_password_wrong_current(self):
+        from app.api.v1.settings import ChangePasswordRequest, change_password
+
+        user = _make_user_with_birthdate(None)
+        user.password_hash = "old_hash"  # pragma: allowlist secret
+        mock_request = Mock()
+        db = AsyncMock()
+
+        data = ChangePasswordRequest(
+            current_password="WrongPassword123!",  # pragma: allowlist secret
+            new_password="NewPassword123!@",  # pragma: allowlist secret
+        )
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.settings.verify_password", return_value=False):
+                with pytest.raises(HTTPException) as exc_info:
+                    await change_password(
+                        password_data=data,
+                        http_request=mock_request,
+                        current_user=user,
+                        db=db,
+                    )
+
+        assert exc_info.value.status_code == 400
+        assert "incorrect" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_change_password_rate_limited(self):
+        from app.api.v1.settings import ChangePasswordRequest, change_password
+
+        user = _make_user_with_birthdate(None)
+        mock_request = Mock()
+        db = AsyncMock()
+
+        data = ChangePasswordRequest(
+            current_password="OldPassword123!",  # pragma: allowlist secret
+            new_password="NewPassword123!@",  # pragma: allowlist secret
+        )
+
+        with patch(
+            "app.api.v1.settings.rate_limit_service.check_rate_limit",
+            new=AsyncMock(side_effect=HTTPException(status_code=429, detail="Rate limited")),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await change_password(
+                    password_data=data,
+                    http_request=mock_request,
+                    current_user=user,
+                    db=db,
+                )
+
+        assert exc_info.value.status_code == 429
+
+
+# ---------------------------------------------------------------------------
+# PATCH /settings/email-notifications
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestUpdateEmailNotifications:
+    """Tests for PATCH /settings/email-notifications endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_enable_notifications(self):
+        from app.api.v1.settings import update_email_notifications
+
+        user = _make_user_with_birthdate(None)
+        user.email_notifications_enabled = False
+        db = AsyncMock()
+
+        result = await update_email_notifications(enabled=True, current_user=user, db=db)
+
+        assert user.email_notifications_enabled is True
+        assert result["email_notifications_enabled"] is True
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_disable_notifications(self):
+        from app.api.v1.settings import update_email_notifications
+
+        user = _make_user_with_birthdate(None)
+        user.email_notifications_enabled = True
+        db = AsyncMock()
+
+        result = await update_email_notifications(enabled=False, current_user=user, db=db)
+
+        assert user.email_notifications_enabled is False
+        assert result["email_notifications_enabled"] is False
+
+
+# ---------------------------------------------------------------------------
+# GET /settings/email-configured
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestCheckEmailConfigured:
+    """Tests for GET /settings/email-configured endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_email_configured_true(self):
+        from app.api.v1.settings import check_email_configured
+
+        with patch("app.api.v1.settings.email_service") as mock_email:
+            mock_email.is_configured = True
+            result = await check_email_configured()
+
+        assert result["configured"] is True
+
+    @pytest.mark.asyncio
+    async def test_email_configured_false(self):
+        from app.api.v1.settings import check_email_configured
+
+        with patch("app.api.v1.settings.email_service") as mock_email:
+            mock_email.is_configured = False
+            result = await check_email_configured()
+
+        assert result["configured"] is False
+
+
+# ---------------------------------------------------------------------------
+# PATCH /settings/profile — additional field branches (lines 131,133,140,149-150,192-193)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestUpdateUserProfileExtendedBranches:
+    """Cover first_name, last_name, default_currency, invalid birthday, and email error."""
+
+    @pytest.mark.asyncio
+    async def test_update_first_name_and_last_name(self):
+        """Should update first_name and last_name when provided."""
+        user = _make_user_with_birthdate(None)
+        db = _make_patch_db(user)
+        mock_request = Mock()
+
+        update = UserUpdate(first_name="Alice", last_name="Smith")
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            await update_user_profile(
+                update_data=update,
+                http_request=mock_request,
+                current_user=user,
+                db=db,
+            )
+
+        assert user.first_name == "Alice"
+        assert user.last_name == "Smith"
+
+    @pytest.mark.asyncio
+    async def test_update_default_currency(self):
+        """Should update default_currency and uppercase it."""
+        user = _make_user_with_birthdate(None)
+        user.default_currency = None
+        db = _make_patch_db(user)
+        mock_request = Mock()
+
+        update = UserUpdate(default_currency="eur")
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            await update_user_profile(
+                update_data=update,
+                http_request=mock_request,
+                current_user=user,
+                db=db,
+            )
+
+        assert user.default_currency == "EUR"
+
+    @pytest.mark.asyncio
+    async def test_invalid_birthday_date_returns_400(self):
+        """Feb 30 should raise 400 (date() raises ValueError)."""
+        user = _make_user_with_birthdate(None)
+        db = _make_patch_db(user)
+        mock_request = Mock()
+
+        # Bypass schema validation by using a Mock update
+        update = Mock()
+        update.first_name = None
+        update.last_name = None
+        update.display_name = None
+        update.email = None
+        update.default_currency = None
+        update.birth_day = 30
+        update.birth_month = 2
+        update.birth_year = 2001  # Not a leap year, Feb 30 is invalid
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with pytest.raises(HTTPException) as exc_info:
+                await update_user_profile(
+                    update_data=update,
+                    http_request=mock_request,
+                    current_user=user,
+                    db=db,
+                )
+        assert exc_info.value.status_code == 400
+        assert "Invalid birthday" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_email_change_verification_email_failure_swallowed(self):
+        """If send_verification_email fails, the profile update should still succeed."""
+        user = _make_user_with_birthdate(None)
+        user.email = "old@example.com"
+        user.email_verified = True
+        user.display_name = "Test"
+        user.first_name = "Test"
+        db = AsyncMock()
+        db.commit = AsyncMock()
+        db.refresh = AsyncMock()
+        no_user_result = Mock()
+        no_user_result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=no_user_result)
+
+        update = Mock()
+        update.first_name = None
+        update.last_name = None
+        update.display_name = None
+        update.email = "new@example.com"
+        update.default_currency = None
+        update.birth_day = None
+        update.birth_month = None
+        update.birth_year = None
+
+        mock_request = Mock()
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch(
+                "app.api.v1.settings.create_verification_token",
+                new=AsyncMock(side_effect=Exception("SMTP error")),
+            ):
+                # Should not raise despite email send failure
+                await update_user_profile(
+                    update_data=update,
+                    http_request=mock_request,
+                    current_user=user,
+                    db=db,
+                )
+
+        assert user.email == "new@example.com"
+        assert user.email_verified is False
+
+
+# ---------------------------------------------------------------------------
+# PATCH /settings/organization — additional field branches (lines 309,313,315)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestUpdateOrganizationExtendedFields:
+    """Cover org name, custom_month_end_day, and timezone update branches."""
+
+    @pytest.mark.asyncio
+    async def test_update_org_name(self):
+        org = _make_org()
+        user = _make_user(is_org_admin=True)
+        db = _db_returning(org)
+
+        update = OrganizationUpdate(name="New Org Name")
+        await update_organization_preferences(update_data=update, current_user=user, db=db)
+        assert org.name == "New Org Name"
+
+    @pytest.mark.asyncio
+    async def test_update_custom_month_end_day(self):
+        org = _make_org()
+        user = _make_user(is_org_admin=True)
+        db = _db_returning(org)
+
+        update = OrganizationUpdate(custom_month_end_day=25)
+        await update_organization_preferences(update_data=update, current_user=user, db=db)
+        assert org.custom_month_end_day == 25
+
+    @pytest.mark.asyncio
+    async def test_update_timezone(self):
+        org = _make_org()
+        user = _make_user(is_org_admin=True)
+        db = _db_returning(org)
+
+        update = OrganizationUpdate(timezone="America/New_York")
+        await update_organization_preferences(update_data=update, current_user=user, db=db)
+        assert org.timezone == "America/New_York"
+
+
+# ---------------------------------------------------------------------------
+# GET /settings/export — with actual data (lines 444-662)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestExportData:
+    """Tests for GET /settings/export endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_export_data_success(self):
+        from app.api.v1.settings import export_data
+
+        user = _make_user_with_birthdate(None)
+        user.organization_id = uuid4()
+        mock_request = Mock()
+        db = AsyncMock()
+
+        # Mock all DB queries: accounts, holdings, budgets, bills, rules, grants, txn batches
+        accounts_scalars = Mock()
+        accounts_scalars.all.return_value = []
+        accounts_result = Mock()
+        accounts_result.scalars.return_value = accounts_scalars
+
+        holdings_scalars = Mock()
+        holdings_scalars.all.return_value = []
+        holdings_result = Mock()
+        holdings_result.scalars.return_value = holdings_scalars
+
+        budgets_scalars = Mock()
+        budgets_scalars.all.return_value = []
+        budgets_result = Mock()
+        budgets_result.scalars.return_value = budgets_scalars
+
+        bills_scalars = Mock()
+        bills_scalars.all.return_value = []
+        bills_result = Mock()
+        bills_result.scalars.return_value = bills_scalars
+
+        rules_scalars = Mock()
+        rules_scalars.all.return_value = []
+        rules_result = Mock()
+        rules_result.scalars.return_value = rules_scalars
+
+        grants_scalars = Mock()
+        grants_scalars.all.return_value = []
+        grants_result = Mock()
+        grants_result.scalars.return_value = grants_scalars
+
+        # Batch transaction query (empty batch to end loop)
+        txn_batch_scalars = Mock()
+        txn_batch_scalars.all.return_value = []
+        txn_batch_result = Mock()
+        txn_batch_result.scalars.return_value = txn_batch_scalars
+
+        db.execute = AsyncMock(
+            side_effect=[
+                accounts_result,
+                holdings_result,
+                budgets_result,
+                bills_result,
+                rules_result,
+                grants_result,
+                txn_batch_result,  # First transaction batch (empty = done)
+            ]
+        )
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            response = await export_data(
+                http_request=mock_request,
+                format="csv",
+                current_user=user,
+                db=db,
+            )
+
+        assert response.media_type == "application/zip"
+
+    @pytest.mark.asyncio
+    async def test_export_data_with_holdings_budgets_bills_rules_grants(self):
+        """Export with non-empty holdings, budgets, bills, rules, grants, and transactions."""
+        import io
+        import zipfile
+        from datetime import date as dt_date
+        from datetime import datetime
+        from decimal import Decimal
+
+        from app.api.v1.settings import export_data
+
+        user = _make_user_with_birthdate(None)
+        user.organization_id = uuid4()
+        mock_request = Mock()
+        db = AsyncMock()
+
+        # --- Mock accounts ---
+        mock_account = Mock()
+        mock_account.id = uuid4()
+        mock_account.name = "Test Checking"
+        mock_account.account_type = Mock()
+        mock_account.account_type.value = "checking"
+        mock_account.institution_name = "Bank"
+        mock_account.current_balance = Decimal("5000")
+        mock_account.currency = "USD"
+        mock_account.is_active = True
+        mock_account.created_at = datetime(2024, 1, 1)
+
+        accounts_scalars = Mock()
+        accounts_scalars.all.return_value = [mock_account]
+        accounts_result = Mock()
+        accounts_result.scalars.return_value = accounts_scalars
+
+        # --- Mock holdings ---
+        mock_holding = Mock()
+        mock_holding.ticker = "AAPL"
+        mock_holding.name = "Apple Inc"
+        mock_holding.shares = Decimal("10")
+        mock_holding.cost_basis_per_share = Decimal("150")
+        mock_holding.current_price = Decimal("175")
+        mock_holding.account_id = mock_account.id
+
+        holdings_scalars = Mock()
+        holdings_scalars.all.return_value = [mock_holding]
+        holdings_result = Mock()
+        holdings_result.scalars.return_value = holdings_scalars
+
+        # --- Mock budgets ---
+        mock_budget = Mock()
+        mock_budget.id = uuid4()
+        mock_budget.name = "Groceries"
+        mock_budget.amount = Decimal("500")
+        mock_budget.period = Mock()
+        mock_budget.period.value = "monthly"
+        mock_budget.start_date = dt_date(2024, 1, 1)
+        mock_budget.end_date = None
+        mock_budget.rollover_unused = False
+        mock_budget.alert_threshold = Decimal("80")
+        mock_budget.is_active = True
+
+        budgets_scalars = Mock()
+        budgets_scalars.all.return_value = [mock_budget]
+        budgets_result = Mock()
+        budgets_result.scalars.return_value = budgets_scalars
+
+        # --- Mock bills ---
+        mock_bill = Mock()
+        mock_bill.id = uuid4()
+        mock_bill.merchant_name = "Netflix"
+        mock_bill.frequency = Mock()
+        mock_bill.frequency.value = "monthly"
+        mock_bill.average_amount = Decimal("15.99")
+        mock_bill.account_id = mock_account.id
+        mock_bill.is_active = True
+
+        bills_scalars = Mock()
+        bills_scalars.all.return_value = [mock_bill]
+        bills_result = Mock()
+        bills_result.scalars.return_value = bills_scalars
+
+        # --- Mock rules ---
+        mock_rule = Mock()
+        mock_rule.id = uuid4()
+        mock_rule.name = "Coffee"
+        mock_rule.description = "Auto-cat coffee"
+        mock_rule.match_type = Mock()
+        mock_rule.match_type.value = "all"
+        mock_rule.apply_to = Mock()
+        mock_rule.apply_to.value = "new"
+        mock_rule.priority = 10
+        mock_rule.is_active = True
+        mock_rule.times_applied = 42
+
+        rules_scalars = Mock()
+        rules_scalars.all.return_value = [mock_rule]
+        rules_result = Mock()
+        rules_result.scalars.return_value = rules_scalars
+
+        # --- Mock grants ---
+        mock_grant = Mock()
+        mock_grant.id = uuid4()
+        mock_grant.grantee_id = uuid4()
+        mock_grant.resource_type = "account"
+        mock_grant.resource_id = mock_account.id
+        mock_grant.actions = ["read", "update"]
+        mock_grant.granted_at = datetime(2024, 6, 1)
+        mock_grant.expires_at = None
+
+        grants_scalars = Mock()
+        grants_scalars.all.return_value = [mock_grant]
+        grants_result = Mock()
+        grants_result.scalars.return_value = grants_scalars
+
+        # --- Mock transactions (one batch then empty) ---
+        mock_txn = Mock()
+        mock_txn.amount = Decimal("-25.50")
+        mock_txn.date = dt_date(2024, 3, 15)
+        mock_txn.merchant_name = "Starbucks"
+        mock_txn.category_primary = "Food"
+        mock_txn.labels = None
+        mock_txn.account_id = mock_account.id
+        mock_txn.notes = "coffee"
+
+        txn_batch_scalars = Mock()
+        txn_batch_scalars.all.return_value = [mock_txn]
+        txn_batch_result = Mock()
+        txn_batch_result.scalars.return_value = txn_batch_scalars
+
+        txn_empty_scalars = Mock()
+        txn_empty_scalars.all.return_value = []
+        txn_empty_result = Mock()
+        txn_empty_result.scalars.return_value = txn_empty_scalars
+
+        db.execute = AsyncMock(
+            side_effect=[
+                accounts_result,
+                holdings_result,
+                budgets_result,
+                bills_result,
+                rules_result,
+                grants_result,
+                txn_batch_result,
+                txn_empty_result,
+            ]
+        )
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            response = await export_data(
+                http_request=mock_request,
+                format="csv",
+                current_user=user,
+                db=db,
+            )
+
+        assert response.media_type == "application/zip"
+        # StreamingResponse wraps a BytesIO; read it back
+        zip_data = b""
+        async for chunk in response.body_iterator:
+            if isinstance(chunk, bytes):
+                zip_data += chunk
+            else:
+                zip_data += chunk.encode()
+        zip_buffer = io.BytesIO(zip_data)
+        with zipfile.ZipFile(zip_buffer) as zf:
+            names = zf.namelist()
+            assert "transactions.csv" in names
+            assert "accounts.csv" in names
+            assert "holdings.csv" in names
+            assert "budgets.csv" in names
+            assert "bills.csv" in names
+            assert "rules.csv" in names
+            assert "grants.csv" in names
+
+    @pytest.mark.asyncio
+    async def test_export_data_rate_limited(self):
+        from app.api.v1.settings import export_data
+
+        user = _make_user_with_birthdate(None)
+        mock_request = Mock()
+        db = AsyncMock()
+
+        with patch(
+            "app.api.v1.settings.rate_limit_service.check_rate_limit",
+            new=AsyncMock(side_effect=HTTPException(status_code=429, detail="Rate limited")),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await export_data(
+                    http_request=mock_request,
+                    format="csv",
+                    current_user=user,
+                    db=db,
+                )
+
+        assert exc_info.value.status_code == 429

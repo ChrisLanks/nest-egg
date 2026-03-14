@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -73,9 +73,7 @@ class TestDataRetentionService:
     """Test data retention purge logic."""
 
     @pytest.mark.asyncio
-    async def test_purge_deletes_old_transactions(
-        self, db_session: AsyncSession, retention_setup
-    ):
+    async def test_purge_deletes_old_transactions(self, db_session: AsyncSession, retention_setup):
         """90-day retention should delete transactions older than 90 days."""
         org_id = retention_setup["org_id"]
 
@@ -87,17 +85,15 @@ class TestDataRetentionService:
 
         # Verify remaining
         result = await db_session.execute(
-            select(func.count()).select_from(Transaction).where(
-                Transaction.organization_id == org_id
-            )
+            select(func.count())
+            .select_from(Transaction)
+            .where(Transaction.organization_id == org_id)
         )
         remaining = result.scalar()
         assert remaining == retention_setup["recent_count"]
 
     @pytest.mark.asyncio
-    async def test_dry_run_does_not_delete(
-        self, db_session: AsyncSession, retention_setup
-    ):
+    async def test_dry_run_does_not_delete(self, db_session: AsyncSession, retention_setup):
         """Dry run should count but not delete."""
         org_id = retention_setup["org_id"]
         total = retention_setup["old_count"] + retention_setup["recent_count"]
@@ -110,17 +106,15 @@ class TestDataRetentionService:
 
         # Verify nothing was actually deleted
         result = await db_session.execute(
-            select(func.count()).select_from(Transaction).where(
-                Transaction.organization_id == org_id
-            )
+            select(func.count())
+            .select_from(Transaction)
+            .where(Transaction.organization_id == org_id)
         )
         remaining = result.scalar()
         assert remaining == total
 
     @pytest.mark.asyncio
-    async def test_no_deletion_when_all_recent(
-        self, db_session: AsyncSession, retention_setup
-    ):
+    async def test_no_deletion_when_all_recent(self, db_session: AsyncSession, retention_setup):
         """With a very long retention window, nothing should be deleted."""
         org_id = retention_setup["org_id"]
 

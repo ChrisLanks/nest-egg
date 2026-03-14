@@ -9,6 +9,7 @@ Covers:
 """
 
 import pytest
+
 from app.services.retirement.social_security_estimator import (
     BEND_POINT_1,
     BEND_POINT_2,
@@ -18,7 +19,6 @@ from app.services.retirement.social_security_estimator import (
     estimate_social_security,
     get_fra,
 )
-
 
 # ── FRA by birth year ─────────────────────────────────────────────────────────
 
@@ -159,7 +159,9 @@ class TestAdjustForClaimingAge:
         previous = 0
         for age in range(62, 71):
             benefit = adjust_for_claiming_age(pia, fra, age)
-            assert benefit > previous, f"Benefit at {age} ({benefit}) not > at {age - 1} ({previous})"
+            assert (
+                benefit > previous
+            ), f"Benefit at {age} ({benefit}) not > at {age - 1} ({previous})"
             previous = benefit
 
     def test_fra_66(self):
@@ -193,8 +195,11 @@ class TestEstimateSocialSecurity:
 
     def test_manual_pia_override(self):
         result = estimate_social_security(
-            current_salary=75000, current_age=45, birth_year=1980,
-            claiming_age=67, manual_pia_override=2500,
+            current_salary=75000,
+            current_age=45,
+            birth_year=1980,
+            claiming_age=67,
+            manual_pia_override=2500,
         )
         assert result["estimated_pia"] == 2500
         assert result["monthly_at_fra"] == 2500

@@ -17,18 +17,15 @@ from app.api.v1.rules import (
     get_rule,
     list_rules,
     preview_rule,
-    router,
+    update_rule,
 )
 from app.api.v1.rules import test_rule as rule_test_endpoint
-from app.api.v1.rules import update_rule
 from app.models.rule import (
     ActionType,
     ConditionField,
     ConditionOperator,
     Rule,
-    RuleAction,
     RuleApplyTo,
-    RuleCondition,
     RuleMatchType,
 )
 from app.models.transaction import Transaction
@@ -174,9 +171,7 @@ class TestCreateRule:
             assert result.name == "Auto-categorize Groceries"
 
     @pytest.mark.asyncio
-    async def test_respects_rate_limit(
-        self, mock_db, mock_user, mock_request, rule_create_data
-    ):
+    async def test_respects_rate_limit(self, mock_db, mock_user, mock_request, rule_create_data):
         """Should enforce rate limit on rule creation."""
         with patch(
             "app.api.v1.rules.rate_limit_service.check_rate_limit",
@@ -289,9 +284,7 @@ class TestUpdateRule:
         return rule
 
     @pytest.mark.asyncio
-    async def test_updates_rule_successfully(
-        self, mock_db, mock_user, mock_request, mock_rule
-    ):
+    async def test_updates_rule_successfully(self, mock_db, mock_user, mock_request, mock_rule):
         """Should update rule fields."""
         rule_id = mock_rule.id
         update_data = RuleUpdate(
@@ -326,9 +319,7 @@ class TestUpdateRule:
             assert mock_db.commit.called
 
     @pytest.mark.asyncio
-    async def test_raises_404_when_rule_not_found(
-        self, mock_db, mock_user, mock_request
-    ):
+    async def test_raises_404_when_rule_not_found(self, mock_db, mock_user, mock_request):
         """Should raise 404 when rule doesn't exist."""
         rule_id = uuid4()
         update_data = RuleUpdate(name="New Name")
@@ -353,9 +344,7 @@ class TestUpdateRule:
             assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_respects_rate_limit(
-        self, mock_db, mock_user, mock_request, mock_rule
-    ):
+    async def test_respects_rate_limit(self, mock_db, mock_user, mock_request, mock_rule):
         """Should enforce rate limit on rule updates."""
         update_data = RuleUpdate(name="New Name")
 
@@ -409,9 +398,7 @@ class TestDeleteRule:
         return request
 
     @pytest.mark.asyncio
-    async def test_deletes_rule_successfully(
-        self, mock_db, mock_user, mock_request
-    ):
+    async def test_deletes_rule_successfully(self, mock_db, mock_user, mock_request):
         """Should delete rule and return None."""
         rule_id = uuid4()
         rule = Mock(spec=Rule)
@@ -437,9 +424,7 @@ class TestDeleteRule:
             assert mock_db.commit.called
 
     @pytest.mark.asyncio
-    async def test_raises_404_when_rule_not_found(
-        self, mock_db, mock_user, mock_request
-    ):
+    async def test_raises_404_when_rule_not_found(self, mock_db, mock_user, mock_request):
         """Should raise 404 when rule doesn't exist."""
         rule_id = uuid4()
 
@@ -462,9 +447,7 @@ class TestDeleteRule:
             assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_respects_rate_limit(
-        self, mock_db, mock_user, mock_request
-    ):
+    async def test_respects_rate_limit(self, mock_db, mock_user, mock_request):
         """Should enforce rate limit on rule deletion."""
         rule_id = uuid4()
         rule = Mock(spec=Rule)
@@ -513,9 +496,7 @@ class TestApplyRule:
         return request
 
     @pytest.mark.asyncio
-    async def test_applies_rule_to_all_transactions(
-        self, mock_db, mock_user, mock_request
-    ):
+    async def test_applies_rule_to_all_transactions(self, mock_db, mock_user, mock_request):
         """Should apply rule to all transactions when no IDs specified."""
         rule_id = uuid4()
         rule = Mock(spec=Rule)
@@ -547,9 +528,7 @@ class TestApplyRule:
                 assert "25 transaction(s)" in result["message"]
 
     @pytest.mark.asyncio
-    async def test_applies_rule_to_specific_transactions(
-        self, mock_db, mock_user, mock_request
-    ):
+    async def test_applies_rule_to_specific_transactions(self, mock_db, mock_user, mock_request):
         """Should apply rule to specified transaction IDs."""
         rule_id = uuid4()
         rule = Mock(spec=Rule)
@@ -583,9 +562,7 @@ class TestApplyRule:
                 )
 
     @pytest.mark.asyncio
-    async def test_raises_404_when_rule_not_found(
-        self, mock_db, mock_user, mock_request
-    ):
+    async def test_raises_404_when_rule_not_found(self, mock_db, mock_user, mock_request):
         """Should raise 404 when rule doesn't exist."""
         rule_id = uuid4()
         request_data = ApplyRuleRequest()
@@ -727,9 +704,7 @@ class TestTestRule:
         )
 
     @pytest.mark.asyncio
-    async def test_tests_rule_without_saving(
-        self, mock_db, mock_user, rule_create_data
-    ):
+    async def test_tests_rule_without_saving(self, mock_db, mock_user, rule_create_data):
         """Should test rule configuration without saving to database."""
         transaction1 = Mock(spec=Transaction)
         transaction1.id = uuid4()
@@ -767,9 +742,7 @@ class TestTestRule:
             assert "1 of 2" in result["message"]
 
     @pytest.mark.asyncio
-    async def test_includes_change_previews(
-        self, mock_db, mock_user, rule_create_data
-    ):
+    async def test_includes_change_previews(self, mock_db, mock_user, rule_create_data):
         """Should include preview of what would change."""
         transaction = Mock(spec=Transaction)
         transaction.id = uuid4()
@@ -799,9 +772,7 @@ class TestTestRule:
             assert changes[0]["to"] == "Shopping"
 
     @pytest.mark.asyncio
-    async def test_limits_response_to_50_transactions(
-        self, mock_db, mock_user, rule_create_data
-    ):
+    async def test_limits_response_to_50_transactions(self, mock_db, mock_user, rule_create_data):
         """Should limit response to 50 transactions for performance."""
         # Create 100 mock transactions
         transactions = []

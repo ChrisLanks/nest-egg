@@ -171,9 +171,7 @@ class TestCreateCategory:
         )
 
     @pytest.mark.asyncio
-    async def test_creates_category_successfully(
-        self, mock_db, mock_user, category_create_data
-    ):
+    async def test_creates_category_successfully(self, mock_db, mock_user, category_create_data):
         """Should create a new category."""
         with patch(
             "app.api.v1.categories.hierarchy_validation_service.validate_parent",
@@ -192,9 +190,7 @@ class TestCreateCategory:
             assert mock_db.commit.called
 
     @pytest.mark.asyncio
-    async def test_validates_parent_category(
-        self, mock_db, mock_user
-    ):
+    async def test_validates_parent_category(self, mock_db, mock_user):
         """Should validate parent category when provided."""
         parent_id = uuid4()
         category_data = CategoryCreate(
@@ -312,9 +308,7 @@ class TestUpdateCategory:
         assert "own parent" in exc_info.value.detail
 
     @pytest.mark.asyncio
-    async def test_prevents_parent_when_has_children(
-        self, mock_db, mock_user, mock_category
-    ):
+    async def test_prevents_parent_when_has_children(self, mock_db, mock_user, mock_category):
         """Should prevent assigning parent to category that has children."""
         category_id = mock_category.id
         parent_id = uuid4()
@@ -342,9 +336,7 @@ class TestUpdateCategory:
         assert "already has children" in exc_info.value.detail
 
     @pytest.mark.asyncio
-    async def test_allows_parent_when_no_children(
-        self, mock_db, mock_user, mock_category
-    ):
+    async def test_allows_parent_when_no_children(self, mock_db, mock_user, mock_category):
         """Should allow assigning parent when category has no children."""
         category_id = mock_category.id
         parent_id = uuid4()

@@ -1,19 +1,20 @@
 """Advanced rule engine tests — multi-condition matching (AND/OR), action application."""
 
-import pytest
 from datetime import date
 from decimal import Decimal
-from unittest.mock import Mock, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
-from app.services.rule_engine import RuleEngine
+import pytest
+
 from app.models.rule import (
+    ActionType,
     ConditionField,
     ConditionOperator,
-    ActionType,
     RuleMatchType,
 )
 from app.models.transaction import Transaction
+from app.services.rule_engine import RuleEngine
 
 
 def _make_condition(field, operator, value, value_max=None):
@@ -52,7 +53,9 @@ class TestMatchesRuleAND:
         )
         rule = _make_rule(
             conditions=[
-                _make_condition(ConditionField.MERCHANT_NAME, ConditionOperator.CONTAINS, "starbucks"),
+                _make_condition(
+                    ConditionField.MERCHANT_NAME, ConditionOperator.CONTAINS, "starbucks"
+                ),
                 _make_condition(ConditionField.AMOUNT, ConditionOperator.GREATER_THAN, "10.00"),
             ],
             match_type=RuleMatchType.ALL,
@@ -67,7 +70,9 @@ class TestMatchesRuleAND:
         )
         rule = _make_rule(
             conditions=[
-                _make_condition(ConditionField.MERCHANT_NAME, ConditionOperator.CONTAINS, "starbucks"),
+                _make_condition(
+                    ConditionField.MERCHANT_NAME, ConditionOperator.CONTAINS, "starbucks"
+                ),
                 _make_condition(ConditionField.AMOUNT, ConditionOperator.GREATER_THAN, "10.00"),
             ],
             match_type=RuleMatchType.ALL,
@@ -86,7 +91,9 @@ class TestMatchesRuleOR:
         )
         rule = _make_rule(
             conditions=[
-                _make_condition(ConditionField.MERCHANT_NAME, ConditionOperator.CONTAINS, "starbucks"),
+                _make_condition(
+                    ConditionField.MERCHANT_NAME, ConditionOperator.CONTAINS, "starbucks"
+                ),
                 _make_condition(ConditionField.AMOUNT, ConditionOperator.GREATER_THAN, "100.00"),
             ],
             match_type=RuleMatchType.ANY,
@@ -101,7 +108,9 @@ class TestMatchesRuleOR:
         )
         rule = _make_rule(
             conditions=[
-                _make_condition(ConditionField.MERCHANT_NAME, ConditionOperator.CONTAINS, "starbucks"),
+                _make_condition(
+                    ConditionField.MERCHANT_NAME, ConditionOperator.CONTAINS, "starbucks"
+                ),
                 _make_condition(ConditionField.AMOUNT, ConditionOperator.GREATER_THAN, "100.00"),
             ],
             match_type=RuleMatchType.ANY,
@@ -116,7 +125,9 @@ class TestMatchesRuleOR:
         )
         rule = _make_rule(
             conditions=[
-                _make_condition(ConditionField.MERCHANT_NAME, ConditionOperator.CONTAINS, "starbucks"),
+                _make_condition(
+                    ConditionField.MERCHANT_NAME, ConditionOperator.CONTAINS, "starbucks"
+                ),
                 _make_condition(ConditionField.AMOUNT, ConditionOperator.GREATER_THAN, "100.00"),
             ],
             match_type=RuleMatchType.ANY,

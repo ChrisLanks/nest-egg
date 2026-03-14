@@ -1,9 +1,9 @@
 """Unit tests for the identity provider chain."""
 
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+import pytest
 from fastapi import HTTPException
 
 from app.services.identity.base import AuthenticatedIdentity, IdentityProvider
@@ -113,6 +113,7 @@ class TestBuiltinIdentityProvider:
     def test_can_handle_hs256_token(self, provider):
         """Should return True for HS256 tokens (app's own JWTs)."""
         from app.core.security import create_access_token
+
         token = create_access_token({"sub": str(uuid4()), "email": "test@example.com"})
         assert provider.can_handle(token) is True
 
@@ -125,8 +126,11 @@ class TestBuiltinIdentityProvider:
     async def test_validates_access_token(self, provider, mock_db):
         """Should return identity for a valid access token."""
         from app.core.security import create_access_token
+
         user_id = uuid4()
-        token = create_access_token({"sub": str(user_id), "email": "test@example.com", "type": "access"})
+        token = create_access_token(
+            {"sub": str(user_id), "email": "test@example.com", "type": "access"}
+        )
 
         identity = await provider.validate_token(token, mock_db)
         assert identity is not None
@@ -138,6 +142,7 @@ class TestBuiltinIdentityProvider:
         """Should return None for a refresh token (wrong type)."""
         # create_refresh_token returns (raw_token, jti, expires_at)
         from app.core.security import create_refresh_token
+
         raw_token, _jti, _exp = create_refresh_token(user_id=str(uuid4()))
 
         identity = await provider.validate_token(raw_token, mock_db)

@@ -1,10 +1,8 @@
 """Unit tests for ReportService — date parsing, metrics calculation."""
 
-import pytest
 from datetime import date, timedelta
 
 from app.services.report_service import ReportService
-
 
 svc = ReportService
 
@@ -37,11 +35,13 @@ class TestParseDateRange:
         assert end == date(year, 12, 31)
 
     def test_custom_range(self):
-        start, end = svc._parse_date_range({
-            "type": "custom",
-            "startDate": "2024-01-01",
-            "endDate": "2024-06-30",
-        })
+        start, end = svc._parse_date_range(
+            {
+                "type": "custom",
+                "startDate": "2024-01-01",
+                "endDate": "2024-06-30",
+            }
+        )
         assert start == date(2024, 1, 1)
         assert end == date(2024, 6, 30)
 

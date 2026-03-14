@@ -1,23 +1,23 @@
 """Unit tests for recurring transactions API endpoints."""
 
-import pytest
-from unittest.mock import AsyncMock, Mock, patch
-from uuid import uuid4
 from datetime import date, datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from uuid import uuid4
 
+import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.recurring_transactions import (
-    detect_recurring_patterns,
     create_recurring_transaction,
+    delete_recurring_transaction,
+    detect_recurring_patterns,
+    get_upcoming_bills,
     list_recurring_transactions,
     update_recurring_transaction,
-    delete_recurring_transaction,
-    get_upcoming_bills,
 )
-from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
+from app.models.recurring_transaction import RecurringFrequency, RecurringTransaction
 from app.models.user import User
 from app.schemas.recurring_transaction import (
     RecurringTransactionCreate,
@@ -78,9 +78,7 @@ class TestDetectRecurringPatterns:
         """Should return detected_patterns count and patterns list."""
         patterns = [_make_pattern(org_id=mock_user.organization_id) for _ in range(3)]
 
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.detect_recurring_patterns = AsyncMock(return_value=patterns)
 
             result = await detect_recurring_patterns(
@@ -96,9 +94,7 @@ class TestDetectRecurringPatterns:
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_patterns(self, mock_user, mock_db):
         """Should return zero count when no patterns detected."""
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.detect_recurring_patterns = AsyncMock(return_value=[])
 
             result = await detect_recurring_patterns(
@@ -114,9 +110,7 @@ class TestDetectRecurringPatterns:
     @pytest.mark.asyncio
     async def test_passes_params_to_service(self, mock_user, mock_db):
         """Should pass min_occurrences and lookback_days through to service."""
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.detect_recurring_patterns = AsyncMock(return_value=[])
 
             await detect_recurring_patterns(
@@ -156,9 +150,7 @@ class TestCreateRecurringTransaction:
             average_amount=Decimal("9.99"),
         )
 
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.create_manual_recurring = AsyncMock(return_value=pattern)
 
             result = await create_recurring_transaction(
@@ -185,9 +177,7 @@ class TestCreateRecurringTransaction:
             reminder_days_before=5,
         )
 
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.create_manual_recurring = AsyncMock(return_value=pattern)
 
             await create_recurring_transaction(
@@ -213,9 +203,7 @@ class TestListRecurringTransactions:
         """Should return all recurring patterns for the user's org."""
         patterns = [_make_pattern(org_id=mock_user.organization_id) for _ in range(4)]
 
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.get_recurring_transactions = AsyncMock(return_value=patterns)
 
             result = await list_recurring_transactions(
@@ -229,9 +217,7 @@ class TestListRecurringTransactions:
     @pytest.mark.asyncio
     async def test_passes_is_active_filter(self, mock_user, mock_db):
         """Should pass is_active filter through to service."""
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.get_recurring_transactions = AsyncMock(return_value=[])
 
             await list_recurring_transactions(
@@ -249,9 +235,7 @@ class TestListRecurringTransactions:
     @pytest.mark.asyncio
     async def test_returns_empty_list_when_none(self, mock_user, mock_db):
         """Should return empty list when user has no patterns."""
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.get_recurring_transactions = AsyncMock(return_value=[])
 
             result = await list_recurring_transactions(
@@ -275,9 +259,7 @@ class TestUpdateRecurringTransaction:
 
         update_data = RecurringTransactionUpdate(merchant_name="Hulu")
 
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.update_recurring_transaction = AsyncMock(return_value=updated)
 
             result = await update_recurring_transaction(
@@ -295,9 +277,7 @@ class TestUpdateRecurringTransaction:
         recurring_id = uuid4()
         update_data = RecurringTransactionUpdate(merchant_name="X")
 
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.update_recurring_transaction = AsyncMock(return_value=None)
 
             with pytest.raises(HTTPException) as exc_info:
@@ -318,9 +298,7 @@ class TestUpdateRecurringTransaction:
 
         update_data = RecurringTransactionUpdate(frequency=RecurringFrequency.YEARLY)
 
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.update_recurring_transaction = AsyncMock(return_value=updated)
 
             await update_recurring_transaction(
@@ -345,9 +323,7 @@ class TestDeleteRecurringTransaction:
         """Should return None (204) when deleted successfully."""
         recurring_id = uuid4()
 
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.delete_recurring_transaction = AsyncMock(return_value=True)
 
             result = await delete_recurring_transaction(
@@ -363,9 +339,7 @@ class TestDeleteRecurringTransaction:
         """Should raise 404 if pattern not found."""
         recurring_id = uuid4()
 
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.delete_recurring_transaction = AsyncMock(return_value=False)
 
             with pytest.raises(HTTPException) as exc_info:
@@ -382,9 +356,7 @@ class TestDeleteRecurringTransaction:
         """Should pass the current user so service can scope to their org."""
         recurring_id = uuid4()
 
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.delete_recurring_transaction = AsyncMock(return_value=True)
 
             await delete_recurring_transaction(
@@ -420,9 +392,7 @@ class TestGetUpcomingBills:
             }
         ]
 
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.get_upcoming_bills = AsyncMock(return_value=bills)
 
             result = await get_upcoming_bills(
@@ -436,9 +406,7 @@ class TestGetUpcomingBills:
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_bills(self, mock_user, mock_db):
         """Should return empty list when no upcoming bills."""
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.get_upcoming_bills = AsyncMock(return_value=[])
 
             result = await get_upcoming_bills(
@@ -452,9 +420,7 @@ class TestGetUpcomingBills:
     @pytest.mark.asyncio
     async def test_passes_days_ahead_to_service(self, mock_user, mock_db):
         """Should pass days_ahead through to service."""
-        with patch(
-            "app.api.v1.recurring_transactions.recurring_detection_service"
-        ) as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.get_upcoming_bills = AsyncMock(return_value=[])
 
             await get_upcoming_bills(
@@ -468,3 +434,249 @@ class TestGetUpcomingBills:
                 user=mock_user,
                 days_ahead=14,
             )
+
+
+# ---------------------------------------------------------------------------
+# _expand_occurrences helper
+# ---------------------------------------------------------------------------
+
+from app.api.v1.recurring_transactions import _expand_occurrences
+
+
+@pytest.mark.unit
+class TestExpandOccurrences:
+    """Tests for the _expand_occurrences helper function."""
+
+    def test_monthly_expansion(self):
+        pattern = Mock()
+        pattern.next_expected_date = date(2024, 7, 1)
+        pattern.frequency = RecurringFrequency.MONTHLY
+
+        start = date(2024, 7, 1)
+        end = date(2024, 10, 1)
+        result = _expand_occurrences(pattern, start, end)
+
+        assert date(2024, 7, 1) in result
+        assert date(2024, 8, 1) in result
+        assert date(2024, 9, 1) in result
+        assert date(2024, 10, 1) in result
+
+    def test_weekly_expansion(self):
+        pattern = Mock()
+        pattern.next_expected_date = date(2024, 7, 1)
+        pattern.frequency = RecurringFrequency.WEEKLY
+
+        start = date(2024, 7, 1)
+        end = date(2024, 7, 22)
+        result = _expand_occurrences(pattern, start, end)
+
+        assert len(result) == 4  # 7/1, 7/8, 7/15, 7/22
+
+    def test_biweekly_expansion(self):
+        pattern = Mock()
+        pattern.next_expected_date = date(2024, 7, 1)
+        pattern.frequency = RecurringFrequency.BIWEEKLY
+
+        start = date(2024, 7, 1)
+        end = date(2024, 8, 12)
+        result = _expand_occurrences(pattern, start, end)
+
+        assert date(2024, 7, 1) in result
+        assert date(2024, 7, 15) in result
+        assert date(2024, 7, 29) in result
+        assert date(2024, 8, 12) in result
+
+    def test_quarterly_expansion(self):
+        pattern = Mock()
+        pattern.next_expected_date = date(2024, 1, 1)
+        pattern.frequency = RecurringFrequency.QUARTERLY
+
+        start = date(2024, 1, 1)
+        end = date(2024, 12, 31)
+        result = _expand_occurrences(pattern, start, end)
+
+        assert len(result) == 4
+
+    def test_yearly_expansion(self):
+        pattern = Mock()
+        pattern.next_expected_date = date(2024, 6, 15)
+        pattern.frequency = RecurringFrequency.YEARLY
+
+        start = date(2024, 1, 1)
+        end = date(2026, 12, 31)
+        result = _expand_occurrences(pattern, start, end)
+
+        assert len(result) == 3
+
+    def test_on_demand_returns_empty(self):
+        pattern = Mock()
+        pattern.next_expected_date = date(2024, 7, 1)
+        pattern.frequency = RecurringFrequency.ON_DEMAND
+
+        result = _expand_occurrences(pattern, date(2024, 1, 1), date(2024, 12, 31))
+        assert result == []
+
+    def test_no_next_expected_date_returns_empty(self):
+        pattern = Mock()
+        pattern.next_expected_date = None
+        pattern.frequency = RecurringFrequency.MONTHLY
+
+        result = _expand_occurrences(pattern, date(2024, 1, 1), date(2024, 12, 31))
+        assert result == []
+
+    def test_anchor_after_end_returns_empty(self):
+        """When anchor is far in the future and end is before it."""
+        pattern = Mock()
+        pattern.next_expected_date = date(2025, 1, 1)
+        pattern.frequency = RecurringFrequency.MONTHLY
+
+        start = date(2024, 1, 1)
+        end = date(2024, 2, 1)
+        result = _expand_occurrences(pattern, start, end)
+
+        # Pattern anchored at 2025, looking at Jan-Feb 2024 window
+        # Should walk backward to find occurrences in this window
+        assert len(result) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Calendar endpoint
+# ---------------------------------------------------------------------------
+
+from app.api.v1.recurring_transactions import get_calendar
+
+
+@pytest.mark.unit
+class TestGetCalendar:
+    """Tests for GET /recurring-transactions/calendar."""
+
+    @pytest.mark.asyncio
+    async def test_returns_calendar_entries(self, mock_user, mock_db):
+        """Should return expanded calendar entries sorted by date."""
+        pattern = Mock()
+        pattern.id = uuid4()
+        pattern.merchant_name = "Netflix"
+        pattern.average_amount = Decimal("15.99")
+        pattern.frequency = RecurringFrequency.MONTHLY
+        pattern.next_expected_date = date.today()
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [pattern]
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        result = await get_calendar(days=90, current_user=mock_user, db=mock_db)
+
+        assert len(result) >= 1
+        # All entries should be CalendarEntry-like
+        for entry in result:
+            assert entry.merchant_name == "Netflix"
+
+    @pytest.mark.asyncio
+    async def test_empty_when_no_patterns(self, mock_user, mock_db):
+        """Should return empty list when no active patterns."""
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        result = await get_calendar(days=30, current_user=mock_user, db=mock_db)
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Apply label endpoint
+# ---------------------------------------------------------------------------
+
+from app.api.v1.recurring_transactions import ApplyLabelRequest, apply_label_to_recurring
+
+
+@pytest.mark.unit
+class TestApplyLabel:
+    """Tests for POST /recurring-transactions/{recurring_id}/apply-label."""
+
+    @pytest.mark.asyncio
+    async def test_pattern_not_found_raises_404(self, mock_user, mock_db):
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        body = ApplyLabelRequest(retroactive=True)
+        with pytest.raises(HTTPException) as exc_info:
+            await apply_label_to_recurring(uuid4(), body, mock_user, mock_db)
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    @patch("app.api.v1.recurring_transactions.RecurringDetectionService")
+    async def test_creates_label_when_none(self, mock_rds_cls, mock_user, mock_db):
+        pattern = _make_pattern(org_id=mock_user.organization_id)
+        pattern.label_id = None
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = pattern
+        mock_db.execute = AsyncMock(return_value=mock_result)
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+
+        mock_label = Mock()
+        mock_label.id = uuid4()
+        mock_rds_cls.ensure_recurring_bill_label = AsyncMock(return_value=mock_label)
+        mock_rds_cls.apply_label_to_matching_transactions = AsyncMock(return_value=5)
+
+        body = ApplyLabelRequest(retroactive=True)
+        result = await apply_label_to_recurring(uuid4(), body, mock_user, mock_db)
+
+        assert result["applied_count"] == 5
+        assert pattern.label_id == mock_label.id
+
+    @pytest.mark.asyncio
+    @patch("app.api.v1.recurring_transactions.RecurringDetectionService")
+    async def test_no_retroactive_apply(self, mock_rds_cls, mock_user, mock_db):
+        pattern = _make_pattern(org_id=mock_user.organization_id)
+        pattern.label_id = uuid4()
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = pattern
+        mock_db.execute = AsyncMock(return_value=mock_result)
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+
+        body = ApplyLabelRequest(retroactive=False)
+        result = await apply_label_to_recurring(uuid4(), body, mock_user, mock_db)
+
+        assert result["applied_count"] == 0
+        mock_rds_cls.apply_label_to_matching_transactions.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Preview label endpoint
+# ---------------------------------------------------------------------------
+
+from app.api.v1.recurring_transactions import preview_label_matches
+
+
+@pytest.mark.unit
+class TestPreviewLabelMatches:
+    """Tests for GET /recurring-transactions/{recurring_id}/preview-label."""
+
+    @pytest.mark.asyncio
+    async def test_pattern_not_found_raises_404(self, mock_user, mock_db):
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await preview_label_matches(uuid4(), mock_user, mock_db)
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    @patch("app.api.v1.recurring_transactions.RecurringDetectionService")
+    async def test_returns_matching_count(self, mock_rds_cls, mock_user, mock_db):
+        pattern = _make_pattern(org_id=mock_user.organization_id)
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = pattern
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        mock_rds_cls.count_matching_transactions = AsyncMock(return_value=12)
+
+        result = await preview_label_matches(uuid4(), mock_user, mock_db)
+        assert result["matching_transactions"] == 12

@@ -2,8 +2,9 @@
 
 import os
 import sys
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 # boto3 is not installed in the dev venv (it's a prod dependency).
 # Inject a lightweight mock so the S3 tests can still run without it installed.
@@ -89,44 +90,56 @@ class TestGetStorageService:
 
     def test_default_returns_local_storage(self):
         """With STORAGE_BACKEND='local', should return LocalStorageService."""
-        mock_settings = type("S", (), {
-            "STORAGE_BACKEND": "local",
-            "LOCAL_UPLOAD_DIR": "/tmp/test-nestegg",
-            "AWS_S3_BUCKET": None,
-            "AWS_REGION": "us-east-1",
-            "AWS_ACCESS_KEY_ID": None,
-            "AWS_SECRET_ACCESS_KEY": None,
-            "AWS_S3_PREFIX": "csv-uploads/",
-        })()
+        mock_settings = type(
+            "S",
+            (),
+            {
+                "STORAGE_BACKEND": "local",
+                "LOCAL_UPLOAD_DIR": "/tmp/test-nestegg",
+                "AWS_S3_BUCKET": None,
+                "AWS_REGION": "us-east-1",
+                "AWS_ACCESS_KEY_ID": None,
+                "AWS_SECRET_ACCESS_KEY": None,
+                "AWS_S3_PREFIX": "csv-uploads/",
+            },
+        )()
         with patch("app.services.storage_service.settings", mock_settings):
             service = get_storage_service()
         assert isinstance(service, LocalStorageService)
 
     def test_s3_backend_without_bucket_raises(self):
         """STORAGE_BACKEND='s3' with no AWS_S3_BUCKET should raise RuntimeError."""
-        mock_settings = type("S", (), {
-            "STORAGE_BACKEND": "s3",
-            "AWS_S3_BUCKET": None,
-            "AWS_REGION": "us-east-1",
-            "AWS_ACCESS_KEY_ID": None,
-            "AWS_SECRET_ACCESS_KEY": None,
-            "AWS_S3_PREFIX": "csv-uploads/",
-        })()
+        mock_settings = type(
+            "S",
+            (),
+            {
+                "STORAGE_BACKEND": "s3",
+                "AWS_S3_BUCKET": None,
+                "AWS_REGION": "us-east-1",
+                "AWS_ACCESS_KEY_ID": None,
+                "AWS_SECRET_ACCESS_KEY": None,
+                "AWS_S3_PREFIX": "csv-uploads/",
+            },
+        )()
         with patch("app.services.storage_service.settings", mock_settings):
             with pytest.raises(RuntimeError, match="AWS_S3_BUCKET"):
                 get_storage_service()
 
     def test_s3_backend_with_bucket_returns_s3_service(self):
         """STORAGE_BACKEND='s3' with AWS_S3_BUCKET set should return S3StorageService."""
-        mock_settings = type("S", (), {
-            "STORAGE_BACKEND": "s3",
-            "AWS_S3_BUCKET": "my-bucket",
-            "AWS_REGION": "us-east-1",
-            "AWS_ACCESS_KEY_ID": None,
-            "AWS_SECRET_ACCESS_KEY": None,
-            "AWS_S3_PREFIX": "csv-uploads/",
-        })()
-        mock_boto3 = MagicMock()
+        mock_settings = type(
+            "S",
+            (),
+            {
+                "STORAGE_BACKEND": "s3",
+                "AWS_S3_BUCKET": "my-bucket",
+                "AWS_REGION": "us-east-1",
+                "AWS_ACCESS_KEY_ID": None,
+                "AWS_SECRET_ACCESS_KEY": None,
+                "AWS_S3_PREFIX": "csv-uploads/",
+            },
+        )()
+        MagicMock()
         with patch("app.services.storage_service.settings", mock_settings):
             with patch("boto3.client", return_value=MagicMock()):
                 service = get_storage_service()
@@ -143,13 +156,17 @@ class TestS3StorageService:
 
     @pytest.fixture
     def service(self, mock_s3_client):
-        mock_settings = type("S", (), {
-            "AWS_REGION": "us-east-1",
-            "AWS_ACCESS_KEY_ID": None,
-            "AWS_SECRET_ACCESS_KEY": None,
-            "AWS_S3_BUCKET": "test-bucket",
-            "AWS_S3_PREFIX": "uploads/",
-        })()
+        mock_settings = type(
+            "S",
+            (),
+            {
+                "AWS_REGION": "us-east-1",
+                "AWS_ACCESS_KEY_ID": None,
+                "AWS_SECRET_ACCESS_KEY": None,
+                "AWS_S3_BUCKET": "test-bucket",
+                "AWS_S3_PREFIX": "uploads/",
+            },
+        )()
         with patch("app.services.storage_service.settings", mock_settings):
             with patch("boto3.client", return_value=mock_s3_client):
                 svc = S3StorageService()

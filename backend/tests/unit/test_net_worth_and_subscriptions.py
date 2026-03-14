@@ -522,3 +522,306 @@ class TestNetWorthServiceCaching:
 
         db.execute.assert_not_called()
         assert result == cached_data
+
+
+# ---------------------------------------------------------------------------
+# NetWorthService — get_history with user_id and granularity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestNetWorthServiceGetHistoryBranches:
+    """Test additional branches in NetWorthService.get_history."""
+
+    @pytest.mark.asyncio
+    async def test_get_history_with_user_id(self):
+        """get_history with user_id should filter by user."""
+        from app.services.net_worth_service import NetWorthService
+
+        org_id = uuid4()
+        user_id = uuid4()
+        db = AsyncMock()
+
+        db_result = MagicMock()
+        db_result.scalars.return_value.all.return_value = []
+        db.execute.return_value = db_result
+
+        with (
+            patch(
+                "app.services.net_worth_service.cache_get",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.services.net_worth_service.cache_setex",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            svc = NetWorthService()
+            result = await svc.get_history(db, org_id, user_id=user_id)
+
+        assert result == []
+        db.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_history_weekly_granularity(self):
+        """get_history with weekly granularity should use date_trunc."""
+        from app.services.net_worth_service import NetWorthService
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        db_result = MagicMock()
+        db_result.scalars.return_value.all.return_value = []
+        db.execute.return_value = db_result
+
+        with (
+            patch(
+                "app.services.net_worth_service.cache_get",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.services.net_worth_service.cache_setex",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            svc = NetWorthService()
+            result = await svc.get_history(db, org_id, granularity="weekly")
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_get_history_monthly_granularity(self):
+        """get_history with monthly granularity should use date_trunc."""
+        from app.services.net_worth_service import NetWorthService
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        db_result = MagicMock()
+        db_result.scalars.return_value.all.return_value = []
+        db.execute.return_value = db_result
+
+        with (
+            patch(
+                "app.services.net_worth_service.cache_get",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.services.net_worth_service.cache_setex",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            svc = NetWorthService()
+            result = await svc.get_history(db, org_id, granularity="monthly")
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_get_history_with_date_range(self):
+        """get_history with explicit start and end dates."""
+        from datetime import date
+
+        from app.services.net_worth_service import NetWorthService
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        db_result = MagicMock()
+        db_result.scalars.return_value.all.return_value = []
+        db.execute.return_value = db_result
+
+        with (
+            patch(
+                "app.services.net_worth_service.cache_get",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.services.net_worth_service.cache_setex",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            svc = NetWorthService()
+            result = await svc.get_history(
+                db,
+                org_id,
+                start_date=date(2025, 1, 1),
+                end_date=date(2025, 12, 31),
+            )
+
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# NetWorthService — get_current_breakdown branches
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestNetWorthServiceBreakdownBranches:
+    """Test additional branches in get_current_breakdown."""
+
+    @pytest.mark.asyncio
+    async def test_get_current_breakdown_with_user_id(self):
+        """get_current_breakdown with user_id should filter."""
+        from app.services.net_worth_service import NetWorthService
+
+        org_id = uuid4()
+        user_id = uuid4()
+        db = AsyncMock()
+
+        db_result = MagicMock()
+        db_result.scalars.return_value.all.return_value = []
+        db.execute.return_value = db_result
+
+        with (
+            patch(
+                "app.services.net_worth_service.cache_get",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.services.net_worth_service.cache_setex",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            svc = NetWorthService()
+            result = await svc.get_current_breakdown(db, org_id, user_id=user_id)
+
+        assert result["total_net_worth"] == 0.0
+        assert result["accounts"] == []
+
+    @pytest.mark.asyncio
+    async def test_get_current_breakdown_with_accounts(self):
+        """get_current_breakdown should categorize accounts properly."""
+        from decimal import Decimal
+
+        from app.models.account import Account, AccountType
+        from app.services.net_worth_service import NetWorthService
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        # Create mock accounts
+        checking = MagicMock(spec=Account)
+        checking.id = uuid4()
+        checking.name = "Checking"
+        checking.account_type = AccountType.CHECKING
+        checking.current_balance = Decimal("5000.00")
+        checking.include_in_networth = None
+        checking.institution_name = "Chase"
+        checking.company_status = None
+        checking.vesting_schedule = None
+        checking.equity_value = None
+        checking.company_valuation = None
+        checking.ownership_percentage = None
+        checking.share_price = None
+
+        credit_card = MagicMock(spec=Account)
+        credit_card.id = uuid4()
+        credit_card.name = "Visa"
+        credit_card.account_type = AccountType.CREDIT_CARD
+        credit_card.current_balance = Decimal("-2000.00")
+        credit_card.include_in_networth = None
+        credit_card.institution_name = "BoA"
+        credit_card.company_status = None
+        credit_card.vesting_schedule = None
+        credit_card.equity_value = None
+        credit_card.company_valuation = None
+        credit_card.ownership_percentage = None
+        credit_card.share_price = None
+
+        db_result = MagicMock()
+        db_result.scalars.return_value.all.return_value = [checking, credit_card]
+        db.execute.return_value = db_result
+
+        with (
+            patch(
+                "app.services.net_worth_service.cache_get",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "app.services.net_worth_service.cache_setex",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            svc = NetWorthService()
+            result = await svc.get_current_breakdown(db, org_id)
+
+        assert result["total_assets"] == 5000.0
+        assert result["total_liabilities"] == 2000.0
+        assert result["total_net_worth"] == 3000.0
+        assert result["categories"]["cash_and_checking"] == 5000.0
+        assert result["categories"]["credit_cards"] == 2000.0
+        assert len(result["accounts"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# NetWorthService — capture_snapshot
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestNetWorthServiceCaptureSnapshot:
+    """Test capture_snapshot with mocked DB."""
+
+    @pytest.mark.asyncio
+    async def test_capture_snapshot_with_user_id(self):
+        """capture_snapshot with user_id should use user-specific conflict index."""
+        from app.services.net_worth_service import NetWorthService
+
+        org_id = uuid4()
+        user_id = uuid4()
+        db = AsyncMock()
+
+        # Mock account query returning empty
+        account_result = MagicMock()
+        account_result.scalars.return_value.all.return_value = []
+
+        # Mock upsert result
+        snapshot_mock = MagicMock()
+        snapshot_mock.total_net_worth = Decimal("0")
+        upsert_result = MagicMock()
+        upsert_result.scalar_one.return_value = snapshot_mock
+
+        db.execute = AsyncMock(side_effect=[account_result, upsert_result])
+
+        svc = NetWorthService()
+        result = await svc.capture_snapshot(db, org_id, user_id=user_id)
+
+        assert result is not None
+        db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_capture_snapshot_household(self):
+        """capture_snapshot without user_id uses household conflict index."""
+        from app.services.net_worth_service import NetWorthService
+
+        org_id = uuid4()
+        db = AsyncMock()
+
+        account_result = MagicMock()
+        account_result.scalars.return_value.all.return_value = []
+
+        snapshot_mock = MagicMock()
+        snapshot_mock.total_net_worth = Decimal("0")
+        upsert_result = MagicMock()
+        upsert_result.scalar_one.return_value = snapshot_mock
+
+        db.execute = AsyncMock(side_effect=[account_result, upsert_result])
+
+        svc = NetWorthService()
+        result = await svc.capture_snapshot(db, org_id)
+
+        assert result is not None
+        db.commit.assert_called_once()
