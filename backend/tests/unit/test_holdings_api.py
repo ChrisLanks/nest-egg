@@ -449,6 +449,7 @@ class TestGetHistoricalSnapshots:
                 start_date=date(2024, 1, 1),
                 end_date=date(2024, 12, 31),
                 limit=None,
+                user_id=None,
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -460,6 +461,7 @@ class TestGetHistoricalSnapshots:
                 start_date=date(2024, 1, 1),
                 end_date=date(2024, 12, 31),
                 limit=None,
+                user_id=None,
             )
 
     @pytest.mark.asyncio
@@ -472,6 +474,7 @@ class TestGetHistoricalSnapshots:
                 start_date=None,
                 end_date=None,
                 limit=None,
+                user_id=None,
                 current_user=mock_user,
                 db=mock_db,
             )
