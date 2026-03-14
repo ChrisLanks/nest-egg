@@ -83,3 +83,4 @@ celerybeat.pid
 .cache/
 temp/
 tmp/
+frontend/coverage/
