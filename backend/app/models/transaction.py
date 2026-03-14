@@ -2,9 +2,9 @@
 
 import uuid
 
-from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, Numeric, Text, Index
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Index, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy.orm import backref, relationship
 
 from app.core.database import Base
 from app.utils.datetime_utils import utc_now_lambda
@@ -45,7 +45,10 @@ class Transaction(Base):
         nullable=True,
         index=True,
     )  # Custom category
-    category_primary = Column(String(100), nullable=True)  # From account provider (Plaid, Teller, MX)
+    category_primary = Column(
+        String(100),
+        nullable=True,
+    )  # From account provider (Plaid, Teller, MX)
     category_detailed = Column(String(100), nullable=True)  # Detailed category from provider
 
     # Status
@@ -59,6 +62,10 @@ class Transaction(Base):
 
     # Splitting
     is_split = Column(Boolean, default=False, nullable=False)
+
+    # User annotations
+    notes = Column(Text, nullable=True)
+    flagged_for_review = Column(Boolean, default=False, nullable=False, server_default="false")
 
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
@@ -81,8 +88,14 @@ class Transaction(Base):
         Index("ix_transactions_dedup", "account_id", "deduplication_hash", unique=True),
         Index("ix_transactions_org_category", "organization_id", "category_primary"),
         Index("ix_transactions_org_date_amount", "organization_id", "date", "amount"),
-        Index("ix_transactions_org_acct_merchant", "organization_id", "account_id", "merchant_name"),
+        Index(
+            "ix_transactions_org_acct_merchant",
+            "organization_id",
+            "account_id",
+            "merchant_name",
+        ),
         Index("ix_transactions_org_transfer_date", "organization_id", "is_transfer", "date"),
+        Index("ix_transactions_org_flagged_date", "organization_id", "flagged_for_review", "date"),
     )
 
 
@@ -160,7 +173,11 @@ class Label(Base):
     transactions = relationship(
         "TransactionLabel", back_populates="label", cascade="all, delete-orphan"
     )
-    children = relationship("Label", backref=backref("parent", remote_side="Label.id"), lazy="select")
+    children = relationship(
+        "Label",
+        backref=backref("parent", remote_side="Label.id"),
+        lazy="select",
+    )
 
     __table_args__ = (Index("ix_labels_org_name", "organization_id", "name", unique=True),)
 

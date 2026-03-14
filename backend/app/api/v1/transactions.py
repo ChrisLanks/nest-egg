@@ -123,6 +123,12 @@ async def create_transaction(
         category_detailed=transaction_data.category_detailed,
         is_pending=transaction_data.is_pending,
         is_transfer=transaction_data.is_transfer,
+        notes=(
+            input_sanitization_service.sanitize_html(transaction_data.notes)
+            if transaction_data.notes
+            else None
+        ),
+        flagged_for_review=transaction_data.flagged_for_review,
         deduplication_hash=str(uuid4()),
     )
     db.add(txn)
@@ -163,12 +169,121 @@ async def create_transaction(
         category_detailed=txn.category_detailed,
         is_pending=txn.is_pending,
         is_transfer=txn.is_transfer,
+        notes=txn.notes,
+        flagged_for_review=txn.flagged_for_review,
         created_at=txn.created_at,
         updated_at=txn.updated_at,
         account_name=txn.account.name if txn.account else None,
         account_mask=txn.account.mask if txn.account else None,
         category=category_summary,
         labels=transaction_labels,
+    )
+
+
+@router.get("/flagged", response_model=TransactionListResponse)
+async def list_flagged_transactions(
+    page_size: int = Query(50, ge=1, le=1000),
+    cursor: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List transactions flagged for review (household review queue)."""
+    query = (
+        select(Transaction)
+        .join(Account)
+        .options(joinedload(Transaction.account))
+        .options(joinedload(Transaction.category).joinedload(Category.parent))
+        .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Transaction.flagged_for_review.is_(True),
+            Account.is_active.is_(True),
+        )
+    )
+
+    if cursor:
+        cursor_date, cursor_created_at, cursor_id = decode_cursor(cursor)
+        query = query.where(
+            tuple_(Transaction.date, Transaction.created_at, Transaction.id)
+            < tuple_(cursor_date, cursor_created_at, cursor_id)
+        )
+
+    query = query.order_by(
+        Transaction.date.desc(), Transaction.created_at.desc(), Transaction.id.desc()
+    )
+    query = query.limit(page_size + 1)
+
+    result = await db.execute(query)
+    transactions = result.unique().scalars().all()
+
+    has_more = len(transactions) > page_size
+    if has_more:
+        transactions = transactions[:page_size]
+
+    next_cursor = None
+    if has_more and transactions:
+        last_txn = transactions[-1]
+        next_cursor = encode_cursor(last_txn.date, last_txn.created_at, last_txn.id)
+
+    total = 0
+    if not cursor:
+        count_query = (
+            select(func.count())
+            .select_from(Transaction)
+            .join(Account)
+            .where(
+                Transaction.organization_id == current_user.organization_id,
+                Transaction.flagged_for_review.is_(True),
+                Account.is_active.is_(True),
+            )
+        )
+        total_result = await db.execute(count_query)
+        total = total_result.scalar()
+
+    transaction_details = []
+    for txn in transactions:
+        transaction_labels = [tl.label for tl in txn.labels if tl.label]
+        category_summary = None
+        if txn.category:
+            category_summary = CategorySummary(
+                id=txn.category.id,
+                name=txn.category.name,
+                color=txn.category.color,
+                parent_id=txn.category.parent_category_id,
+                parent_name=txn.category.parent.name if txn.category.parent else None,
+            )
+
+        detail = TransactionDetail(
+            id=txn.id,
+            organization_id=txn.organization_id,
+            account_id=txn.account_id,
+            external_transaction_id=txn.external_transaction_id,
+            date=txn.date,
+            amount=txn.amount,
+            merchant_name=txn.merchant_name,
+            description=txn.description,
+            category_primary=txn.category_primary,
+            category_detailed=txn.category_detailed,
+            is_pending=txn.is_pending,
+            is_transfer=txn.is_transfer,
+            notes=txn.notes,
+            flagged_for_review=txn.flagged_for_review,
+            created_at=txn.created_at,
+            updated_at=txn.updated_at,
+            account_name=txn.account.name if txn.account else None,
+            account_mask=txn.account.mask if txn.account else None,
+            category=category_summary,
+            labels=transaction_labels,
+        )
+        transaction_details.append(detail)
+
+    return TransactionListResponse(
+        transactions=transaction_details,
+        total=total,
+        page=1,
+        page_size=page_size,
+        has_more=has_more,
+        next_cursor=next_cursor,
     )
 
 
@@ -183,6 +298,7 @@ async def list_transactions(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     search: Optional[str] = None,
+    flagged: Optional[bool] = Query(None, description="Filter by flagged_for_review status"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -240,6 +356,9 @@ async def list_transactions(
             Transaction.merchant_name.ilike(search_pattern)
             | Transaction.description.ilike(search_pattern)
         )
+
+    if flagged is not None:
+        query = query.where(Transaction.flagged_for_review.is_(flagged))
 
     # Apply cursor pagination
     if cursor:
@@ -300,6 +419,8 @@ async def list_transactions(
                 Transaction.merchant_name.ilike(search_pattern)
                 | Transaction.description.ilike(search_pattern)
             )
+        if flagged is not None:
+            count_query = count_query.where(Transaction.flagged_for_review.is_(flagged))
 
         total_result = await db.execute(count_query)
         total = total_result.scalar()
@@ -334,6 +455,8 @@ async def list_transactions(
             category_detailed=txn.category_detailed,
             is_pending=txn.is_pending,
             is_transfer=txn.is_transfer,
+            notes=txn.notes,
+            flagged_for_review=txn.flagged_for_review,
             created_at=txn.created_at,
             updated_at=txn.updated_at,
             account_name=txn.account.name if txn.account else None,
@@ -491,6 +614,15 @@ async def update_transaction(
                 await db.delete(label_to_remove)
 
         txn.is_transfer = update_data.is_transfer
+
+    if update_data.notes is not None:
+        txn.notes = (
+            input_sanitization_service.sanitize_html(update_data.notes)
+            if update_data.notes
+            else None
+        )
+    if update_data.flagged_for_review is not None:
+        txn.flagged_for_review = update_data.flagged_for_review
 
     txn.updated_at = utc_now()
 

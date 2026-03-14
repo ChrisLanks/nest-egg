@@ -1,8 +1,10 @@
 """Notification model for user alerts."""
 
-import uuid
 import enum
-from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Text, Enum as SQLEnum
+import uuid
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -21,6 +23,8 @@ class NotificationType(str, enum.Enum):
     BUDGET_ALERT = "budget_alert"
     TRANSACTION_DUPLICATE = "transaction_duplicate"
     LARGE_TRANSACTION = "large_transaction"
+    MILESTONE = "milestone"
+    ALL_TIME_HIGH = "all_time_high"
 
 
 class NotificationPriority(str, enum.Enum):

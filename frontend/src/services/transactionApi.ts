@@ -2,13 +2,13 @@
  * Transaction API service
  */
 
-import api from './api';
-import type { Account } from '../types/account';
-import type { TransactionListResponse } from '../types/transaction';
+import api from "./api";
+import type { Account } from "../types/account";
+import type { TransactionListResponse } from "../types/transaction";
 
 export const transactionApi = {
   listAccounts: async (): Promise<Account[]> => {
-    const response = await api.get<Account[]>('/accounts/');
+    const response = await api.get<Account[]>("/accounts/");
     return response.data;
   },
 
@@ -20,10 +20,24 @@ export const transactionApi = {
     start_date?: string;
     end_date?: string;
     search?: string;
+    flagged?: boolean;
   }): Promise<TransactionListResponse> => {
-    const response = await api.get<TransactionListResponse>('/transactions/', {
+    const response = await api.get<TransactionListResponse>("/transactions/", {
       params,
     });
+    return response.data;
+  },
+
+  listFlaggedTransactions: async (params?: {
+    page_size?: number;
+    cursor?: string;
+  }): Promise<TransactionListResponse> => {
+    const response = await api.get<TransactionListResponse>(
+      "/transactions/flagged",
+      {
+        params,
+      },
+    );
     return response.data;
   },
 };

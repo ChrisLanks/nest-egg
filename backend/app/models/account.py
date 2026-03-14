@@ -473,6 +473,11 @@ class Account(Base):
     vehicle_vin = Column(EncryptedString, nullable=True)  # VIN for auto-decode + valuation
     vehicle_mileage = Column(Integer, nullable=True)  # Current odometer for market value
 
+    # Rental property fields
+    is_rental_property = Column(Boolean, default=False, nullable=False, server_default="false")
+    rental_monthly_income = Column(Numeric(12, 2), nullable=True)  # Expected monthly rent
+    rental_address = Column(String(500), nullable=True)  # Display address for rental properties
+
     # Auto-valuation metadata (property + vehicle)
     last_auto_valued_at = Column(DateTime, nullable=True)  # When balance was last set by the API
     # Percentage adjustment applied on top of provider estimates.

@@ -3,20 +3,22 @@
  */
 
 export enum NotificationType {
-  SYNC_FAILED = 'sync_failed',
-  REAUTH_REQUIRED = 'reauth_required',
-  SYNC_STALE = 'sync_stale',
-  ACCOUNT_ERROR = 'account_error',
-  BUDGET_ALERT = 'budget_alert',
-  TRANSACTION_DUPLICATE = 'transaction_duplicate',
-  LARGE_TRANSACTION = 'large_transaction',
+  SYNC_FAILED = "sync_failed",
+  REAUTH_REQUIRED = "reauth_required",
+  SYNC_STALE = "sync_stale",
+  ACCOUNT_ERROR = "account_error",
+  BUDGET_ALERT = "budget_alert",
+  TRANSACTION_DUPLICATE = "transaction_duplicate",
+  LARGE_TRANSACTION = "large_transaction",
+  MILESTONE = "milestone",
+  ALL_TIME_HIGH = "all_time_high",
 }
 
 export enum NotificationPriority {
-  LOW = 'low',
-  MEDIUM = 'medium',
-  HIGH = 'high',
-  URGENT = 'urgent',
+  LOW = "low",
+  MEDIUM = "medium",
+  HIGH = "high",
+  URGENT = "urgent",
 }
 
 export interface Notification {

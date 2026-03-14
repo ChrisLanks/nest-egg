@@ -2,10 +2,10 @@
  * Custom hook for infinite scroll transaction loading
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { transactionApi } from '../services/transactionApi';
-import type { Transaction } from '../types/transaction';
+import { useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { transactionApi } from "../services/transactionApi";
+import type { Transaction } from "../types/transaction";
 
 interface UseInfiniteTransactionsParams {
   accountId?: string;
@@ -13,6 +13,7 @@ interface UseInfiniteTransactionsParams {
   startDate?: string;
   endDate?: string;
   search?: string;
+  flagged?: boolean;
   pageSize?: number;
   enabled?: boolean;
 }
@@ -33,6 +34,7 @@ export const useInfiniteTransactions = ({
   startDate,
   endDate,
   search,
+  flagged,
   pageSize = 100,
   enabled = true,
 }: UseInfiniteTransactionsParams): UseInfiniteTransactionsReturn => {
@@ -45,15 +47,29 @@ export const useInfiniteTransactions = ({
 
   // Reset state when filters change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAllTransactions([]);
     setCurrentCursor(null);
     setNextCursor(null);
     setHasMore(false);
     setTotal(0);
-  }, [accountId, userId, startDate, endDate, search]);
+  }, [accountId, userId, startDate, endDate, search, flagged]);
 
-  const { data, isLoading, refetch: queryRefetch } = useQuery({
-    queryKey: ['infinite-transactions', accountId, userId, startDate, endDate, search, currentCursor],
+  const {
+    data,
+    isLoading,
+    refetch: queryRefetch,
+  } = useQuery({
+    queryKey: [
+      "infinite-transactions",
+      accountId,
+      userId,
+      startDate,
+      endDate,
+      search,
+      flagged,
+      currentCursor,
+    ],
     queryFn: async () => {
       const result = await transactionApi.listTransactions({
         page_size: pageSize,
@@ -62,6 +78,7 @@ export const useInfiniteTransactions = ({
         start_date: startDate,
         end_date: endDate,
         search,
+        flagged,
         cursor: currentCursor || undefined,
       });
 
@@ -82,12 +99,13 @@ export const useInfiniteTransactions = ({
       return result;
     },
     enabled,
-    refetchOnMount: 'always', // Always refetch when component mounts
+    refetchOnMount: "always", // Always refetch when component mounts
   });
 
   // Reset isLoadingMore when query completes
   useEffect(() => {
     if (!isLoading) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoadingMore(false);
     }
   }, [isLoading]);
@@ -98,6 +116,7 @@ export const useInfiniteTransactions = ({
     if (data) {
       if (currentCursor) {
         // Append to existing data (pagination)
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setAllTransactions((prev) => [...prev, ...data.transactions]);
       } else {
         // Replace data (new query or refetch)

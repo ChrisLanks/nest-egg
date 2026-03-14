@@ -60,11 +60,24 @@ const BillsPage = lazy(() => import("./pages/BillsPage"));
 const TaxDeductiblePage = lazy(() => import("./pages/TaxDeductiblePage"));
 const TrendsPage = lazy(() => import("./pages/TrendsPage"));
 const ReportsPage = lazy(() => import("./pages/ReportsPage"));
+const YearInReviewPage = lazy(() =>
+  import("./pages/YearInReviewPage").then((m) => ({
+    default: m.YearInReviewPage,
+  })),
+);
 const DebtPayoffPage = lazy(() => import("./pages/DebtPayoffPage"));
+const RentalPropertiesPage = lazy(() =>
+  import("./pages/RentalPropertiesPage").then((m) => ({
+    default: m.RentalPropertiesPage,
+  })),
+);
 const RetirementPage = lazy(() =>
   import("./features/retirement/pages/RetirementPage").then((m) => ({
     default: m.RetirementPage,
   })),
+);
+const EducationPlanningPage = lazy(
+  () => import("./pages/EducationPlanningPage"),
 );
 const FireMetricsPage = lazy(() =>
   import("./pages/FireMetricsPage").then((m) => ({
@@ -155,6 +168,10 @@ function App() {
                       />
                       <Route path="/trends" element={<TrendsPage />} />
                       <Route path="/reports" element={<ReportsPage />} />
+                      <Route
+                        path="/year-in-review"
+                        element={<YearInReviewPage />}
+                      />
                       <Route path="/accounts" element={<AccountsPage />} />
                       <Route
                         path="/accounts/:accountId"
@@ -177,8 +194,16 @@ function App() {
                         element={<Navigate to="/recurring" replace />}
                       />
                       <Route path="/retirement" element={<RetirementPage />} />
+                      <Route
+                        path="/education"
+                        element={<EducationPlanningPage />}
+                      />
                       <Route path="/fire" element={<FireMetricsPage />} />
                       <Route path="/debt-payoff" element={<DebtPayoffPage />} />
+                      <Route
+                        path="/rental-properties"
+                        element={<RentalPropertiesPage />}
+                      />
                       <Route
                         path="/preferences"
                         element={<PreferencesPage />}

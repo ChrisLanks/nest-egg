@@ -161,6 +161,62 @@ class PortfolioSummary(BaseModel):
     total_annual_fees: Optional[Decimal] = None  # Sum of all annual fees across holdings
 
 
+class FeeDragProjection(BaseModel):
+    """Fee drag projection over time."""
+
+    years: list[int]
+    with_fees: list[float]
+    without_fees: list[float]
+    fee_cost: list[float]
+
+
+class HighFeeHolding(BaseModel):
+    """A holding with a high expense ratio."""
+
+    ticker: str
+    name: Optional[str] = None
+    expense_ratio: float
+    annual_fee: float
+    value: float
+
+
+class LowCostAlternative(BaseModel):
+    """A suggested low-cost alternative for a high-fee holding."""
+
+    original: str
+    original_er: float
+    alternative: str
+    alternative_er: float
+    annual_savings: float
+
+
+class FeeAnalysisResponse(BaseModel):
+    """Response for fee impact analysis endpoint."""
+
+    current_portfolio_value: float
+    weighted_avg_expense_ratio: float
+    total_annual_fees: float
+    fee_drag_projection: FeeDragProjection
+    high_fee_holdings: list[HighFeeHolding]
+    low_cost_alternatives: list[LowCostAlternative]
+
+
+class OverlapGroup(BaseModel):
+    """A group of holdings that track the same index or category."""
+
+    category: str
+    holdings: list[str]
+    total_value: float
+    suggestion: str
+
+
+class FundOverlapResponse(BaseModel):
+    """Response for fund overlap detection endpoint."""
+
+    overlaps: list[OverlapGroup]
+    total_overlap_value: float
+
+
 class StyleBoxItem(BaseModel):
     """Market cap and style breakdown item."""
 

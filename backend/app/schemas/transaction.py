@@ -1,10 +1,10 @@
 """Transaction schemas."""
 
-from datetime import datetime, date
-from decimal import Decimal
-from typing import Optional, List
-from uuid import UUID
 import re
+from datetime import date, datetime
+from decimal import Decimal
+from typing import List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, field_validator
 
@@ -35,6 +35,8 @@ class ManualTransactionCreate(TransactionBase):
     category_id: Optional[UUID] = None
     is_pending: bool = False
     is_transfer: bool = False
+    notes: Optional[str] = None
+    flagged_for_review: bool = False
 
 
 class TransactionUpdate(BaseModel):
@@ -44,6 +46,8 @@ class TransactionUpdate(BaseModel):
     description: Optional[str] = None
     category_primary: Optional[str] = None
     is_transfer: Optional[bool] = None
+    notes: Optional[str] = None
+    flagged_for_review: Optional[bool] = None
 
 
 class LabelSummary(BaseModel):
@@ -78,6 +82,8 @@ class Transaction(TransactionBase):
     external_transaction_id: Optional[str] = None
     is_pending: bool
     is_transfer: bool
+    notes: Optional[str] = None
+    flagged_for_review: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -112,7 +118,7 @@ class CategoryCreate(BaseModel):
     name: str
     color: Optional[str] = None
     parent_category_id: Optional[UUID] = None
-    plaid_category_name: Optional[str] = None  # Link to provider category for auto-mapping (field name kept for compatibility)
+    plaid_category_name: Optional[str] = None  # Link to provider category for auto-mapping
 
     @field_validator("name")
     @classmethod
@@ -211,7 +217,7 @@ class CategoryResponse(BaseModel):
     name: str
     color: Optional[str] = None
     parent_category_id: Optional[UUID] = None
-    plaid_category_name: Optional[str] = None  # Linked provider category (field name kept for compatibility)
+    plaid_category_name: Optional[str] = None  # Linked provider category
     is_custom: bool = True  # False for provider categories from transactions
     transaction_count: int = 0
     created_at: Optional[datetime] = None

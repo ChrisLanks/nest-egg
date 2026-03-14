@@ -95,7 +95,7 @@ import api from "../services/api";
 import { TransactionsSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { CSVImportModal } from "../components/CSVImportModal";
-import { FiInbox, FiUpload } from "react-icons/fi";
+import { FiFlag, FiInbox, FiUpload } from "react-icons/fi";
 
 const STORAGE_KEY = "transactions-date-range";
 
@@ -302,6 +302,7 @@ const TransactionDesktopRow = memo(
           <HStack spacing={2}>
             {txn.is_pending && <Badge colorScheme="orange">Pending</Badge>}
             {txn.is_transfer && <Badge colorScheme="purple">Transfer</Badge>}
+            {txn.flagged_for_review && <Badge colorScheme="red">Flagged</Badge>}
           </HStack>
         </Td>
       )}
@@ -479,7 +480,10 @@ const TransactionMobileCard = memo(
             )}
 
             {/* Status Badges */}
-            {(showStatusColumn || txn.is_pending || txn.is_transfer) && (
+            {(showStatusColumn ||
+              txn.is_pending ||
+              txn.is_transfer ||
+              txn.flagged_for_review) && (
               <HStack justify="flex-end" spacing={1}>
                 {txn.is_pending && (
                   <Badge colorScheme="yellow" fontSize="xs">
@@ -489,6 +493,11 @@ const TransactionMobileCard = memo(
                 {txn.is_transfer && (
                   <Badge colorScheme="purple" fontSize="xs">
                     Transfer
+                  </Badge>
+                )}
+                {txn.flagged_for_review && (
+                  <Badge colorScheme="red" fontSize="xs">
+                    Flagged
                   </Badge>
                 )}
               </HStack>
@@ -518,6 +527,7 @@ export const TransactionsPage = () => {
   const [dateRange, setDateRange] = useState<DateRange>(loadDateRange());
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [showStatusColumn, setShowStatusColumn] = useState(false);
@@ -662,6 +672,7 @@ export const TransactionsPage = () => {
     userId: selectedUserId ?? undefined,
     startDate: dateRange.start,
     endDate: dateRange.end,
+    flagged: showFlaggedOnly ? true : undefined,
     pageSize: 100,
   });
 
@@ -1416,6 +1427,8 @@ export const TransactionsPage = () => {
       organization_id: selected[0]?.organization_id || "",
       is_pending: false,
       is_transfer: false,
+      notes: null,
+      flagged_for_review: false,
       deduplication_hash: "",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -1719,6 +1732,20 @@ export const TransactionsPage = () => {
                 </PopoverBody>
               </PopoverContent>
             </Popover>
+            <Tooltip
+              label={
+                showFlaggedOnly ? "Showing flagged only" : "Show flagged only"
+              }
+            >
+              <IconButton
+                aria-label="Filter flagged transactions"
+                icon={<FiFlag />}
+                size="sm"
+                variant={showFlaggedOnly ? "solid" : "outline"}
+                colorScheme={showFlaggedOnly ? "red" : "gray"}
+                onClick={() => setShowFlaggedOnly(!showFlaggedOnly)}
+              />
+            </Tooltip>
           </HStack>
 
           <HStack spacing={2}>

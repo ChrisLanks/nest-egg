@@ -69,7 +69,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import {
   recurringTransactionsApi,
+  financialCalendarApi,
   type CalendarEntry,
+  type FinancialCalendarResponse,
+  type FinancialCalendarEvent,
 } from "../api/recurring-transactions";
 import type {
   RecurringTransaction,
@@ -97,17 +100,23 @@ const formatCurrencyShort = (amount: number) =>
     maximumFractionDigits: 0,
   }).format(amount);
 
-const amountColor = (amount: number) => {
-  if (amount < 50) return "gray";
-  if (amount < 200) return "yellow";
-  return "red";
-};
-
 const getDueDateColor = (daysUntilDue: number, isOverdue: boolean) => {
   if (isOverdue) return "red";
   if (daysUntilDue <= 3) return "orange";
   if (daysUntilDue <= 7) return "yellow";
   return "green";
+};
+
+const eventTypeColor = (type: string) => {
+  if (type === "income") return "green";
+  if (type === "subscription") return "orange";
+  return "red"; // bill
+};
+
+const eventTypeLabel = (type: string) => {
+  if (type === "income") return "Income";
+  if (type === "subscription") return "Subscription";
+  return "Bill";
 };
 
 // ─── Memoized bill card for .map() rendering ─────────────────────────────────
@@ -190,6 +199,12 @@ const BillsPage: React.FC = () => {
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
 
+  // Financial calendar toggle filters
+  const [showBills, setShowBills] = useState(true);
+  const [showSubscriptions, setShowSubscriptions] = useState(true);
+  const [showIncome, setShowIncome] = useState(true);
+  const [showProjectedBalance, setShowProjectedBalance] = useState(false);
+
   // ── Queries ──────────────────────────────────────────────────────────────────
 
   const { data: upcomingBills, isLoading: billsLoading } = useQuery<
@@ -213,13 +228,20 @@ const BillsPage: React.FC = () => {
     },
   });
 
-  const { data: calendarEntries = [], isLoading: calendarLoading } = useQuery<
-    CalendarEntry[]
-  >({
+  useQuery<CalendarEntry[]>({
     queryKey: ["bill-calendar"],
     queryFn: () => recurringTransactionsApi.getCalendar(365),
     staleTime: 5 * 60 * 1000,
   });
+
+  // Financial calendar — unified view with bills, subscriptions, income
+  const calMonthStr = `${calYear}-${String(calMonth + 1).padStart(2, "0")}`;
+  const { data: financialCalendar, isLoading: financialCalendarLoading } =
+    useQuery<FinancialCalendarResponse>({
+      queryKey: ["financial-calendar", calMonthStr],
+      queryFn: () => financialCalendarApi.getMonth(calMonthStr),
+      staleTime: 2 * 60 * 1000,
+    });
 
   const { data: labels = [] } = useQuery<Label[]>({
     queryKey: ["labels"],
@@ -261,6 +283,7 @@ const BillsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["recurring-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["upcoming-bills"] });
       queryClient.invalidateQueries({ queryKey: ["bill-calendar"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-calendar"] });
       toast({
         title: "Auto-detection complete",
         description: `Found ${data.detected_patterns} pattern${data.detected_patterns !== 1 ? "s" : ""}`,
@@ -286,6 +309,7 @@ const BillsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["recurring-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["upcoming-bills"] });
       queryClient.invalidateQueries({ queryKey: ["bill-calendar"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-calendar"] });
       toast({ title: "Bill updated", status: "success", duration: 3000 });
       onClose();
     },
@@ -305,6 +329,7 @@ const BillsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["recurring-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["upcoming-bills"] });
       queryClient.invalidateQueries({ queryKey: ["bill-calendar"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-calendar"] });
       toast({ title: "Bill created", status: "success", duration: 3000 });
       onClose();
     },
@@ -421,14 +446,37 @@ const BillsPage: React.FC = () => {
     } else setCalMonth((m) => m + 1);
   };
 
-  const byDate = useMemo(() => {
-    const map = new Map<string, CalendarEntry[]>();
-    for (const entry of calendarEntries) {
-      if (!map.has(entry.date)) map.set(entry.date, []);
-      map.get(entry.date)!.push(entry);
+  // Filtered financial calendar events based on toggle state
+  const filteredEvents = useMemo(() => {
+    if (!financialCalendar) return [];
+    return financialCalendar.events.filter((ev) => {
+      if (ev.type === "bill" && !showBills) return false;
+      if (ev.type === "subscription" && !showSubscriptions) return false;
+      if (ev.type === "income" && !showIncome) return false;
+      return true;
+    });
+  }, [financialCalendar, showBills, showSubscriptions, showIncome]);
+
+  // Group financial events by date
+  const financialByDate = useMemo(() => {
+    const map = new Map<string, FinancialCalendarEvent[]>();
+    for (const ev of filteredEvents) {
+      if (!map.has(ev.date)) map.set(ev.date, []);
+      map.get(ev.date)!.push(ev);
     }
     return map;
-  }, [calendarEntries]);
+  }, [filteredEvents]);
+
+  // Balance map for projected balance overlay
+  const balanceByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    if (financialCalendar) {
+      for (const dp of financialCalendar.daily_projected_balance) {
+        map.set(dp.date, dp.balance);
+      }
+    }
+    return map;
+  }, [financialCalendar]);
 
   const firstDay = new Date(calYear, calMonth, 1).getDay();
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
@@ -437,15 +485,6 @@ const BillsPage: React.FC = () => {
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
   while (cells.length % 7 !== 0) cells.push(null);
-
-  const monthTotal = useMemo(() => {
-    let total = 0;
-    for (let d = 1; d <= daysInMonth; d++) {
-      const key = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      for (const entry of byDate.get(key) ?? []) total += entry.amount;
-    }
-    return total;
-  }, [byDate, calYear, calMonth, daysInMonth]);
 
   const monthName = new Date(calYear, calMonth, 1).toLocaleString("en-US", {
     month: "long",
@@ -482,7 +521,7 @@ const BillsPage: React.FC = () => {
         <Tabs index={outerTabIndex} onChange={handleOuterTabChange} isLazy>
           <TabList>
             <Tab>Upcoming Bills</Tab>
-            <Tab>Calendar</Tab>
+            <Tab>Financial Calendar</Tab>
           </TabList>
 
           <TabPanels>
@@ -637,18 +676,126 @@ const BillsPage: React.FC = () => {
               </VStack>
             </TabPanel>
 
-            {/* ── Tab 1: Calendar ── */}
+            {/* ── Tab 1: Financial Calendar ── */}
             <TabPanel px={0}>
-              {calendarLoading ? (
+              {financialCalendarLoading ? (
                 <Center py={12}>
                   <Spinner size="xl" />
                 </Center>
               ) : (
                 <VStack align="stretch" spacing={4}>
+                  {/* Toggle filters */}
+                  <Card variant="outline" size="sm">
+                    <CardBody py={3}>
+                      <HStack spacing={6} flexWrap="wrap">
+                        <FormControl
+                          display="flex"
+                          alignItems="center"
+                          w="auto"
+                        >
+                          <Switch
+                            id="show-bills"
+                            colorScheme="red"
+                            isChecked={showBills}
+                            onChange={(e) => setShowBills(e.target.checked)}
+                            size="sm"
+                          />
+                          <FormLabel
+                            htmlFor="show-bills"
+                            mb={0}
+                            ml={2}
+                            fontSize="sm"
+                            cursor="pointer"
+                          >
+                            <Badge colorScheme="red" variant="subtle" mr={1}>
+                              Bills
+                            </Badge>
+                          </FormLabel>
+                        </FormControl>
+                        <FormControl
+                          display="flex"
+                          alignItems="center"
+                          w="auto"
+                        >
+                          <Switch
+                            id="show-subscriptions"
+                            colorScheme="orange"
+                            isChecked={showSubscriptions}
+                            onChange={(e) =>
+                              setShowSubscriptions(e.target.checked)
+                            }
+                            size="sm"
+                          />
+                          <FormLabel
+                            htmlFor="show-subscriptions"
+                            mb={0}
+                            ml={2}
+                            fontSize="sm"
+                            cursor="pointer"
+                          >
+                            <Badge colorScheme="orange" variant="subtle" mr={1}>
+                              Subscriptions
+                            </Badge>
+                          </FormLabel>
+                        </FormControl>
+                        <FormControl
+                          display="flex"
+                          alignItems="center"
+                          w="auto"
+                        >
+                          <Switch
+                            id="show-income"
+                            colorScheme="green"
+                            isChecked={showIncome}
+                            onChange={(e) => setShowIncome(e.target.checked)}
+                            size="sm"
+                          />
+                          <FormLabel
+                            htmlFor="show-income"
+                            mb={0}
+                            ml={2}
+                            fontSize="sm"
+                            cursor="pointer"
+                          >
+                            <Badge colorScheme="green" variant="subtle" mr={1}>
+                              Income
+                            </Badge>
+                          </FormLabel>
+                        </FormControl>
+                        <FormControl
+                          display="flex"
+                          alignItems="center"
+                          w="auto"
+                        >
+                          <Switch
+                            id="show-balance"
+                            colorScheme="blue"
+                            isChecked={showProjectedBalance}
+                            onChange={(e) =>
+                              setShowProjectedBalance(e.target.checked)
+                            }
+                            size="sm"
+                          />
+                          <FormLabel
+                            htmlFor="show-balance"
+                            mb={0}
+                            ml={2}
+                            fontSize="sm"
+                            cursor="pointer"
+                          >
+                            <Badge colorScheme="blue" variant="subtle" mr={1}>
+                              Projected Balance
+                            </Badge>
+                          </FormLabel>
+                        </FormControl>
+                      </HStack>
+                    </CardBody>
+                  </Card>
+
+                  {/* Month navigation */}
                   <HStack justify="space-between">
                     <Text color="text.secondary" fontSize="sm">
-                      {monthName} · Total:{" "}
-                      <strong>{formatCurrencyShort(monthTotal)}</strong>
+                      {monthName}
                     </Text>
                     <HStack>
                       <Button
@@ -680,6 +827,7 @@ const BillsPage: React.FC = () => {
                     </HStack>
                   </HStack>
 
+                  {/* Calendar grid */}
                   <Box borderWidth="1px" borderRadius="lg" overflow="hidden">
                     <Grid templateColumns="repeat(7, 1fr)">
                       {DAYS_OF_WEEK.map((d) => (
@@ -705,7 +853,7 @@ const BillsPage: React.FC = () => {
                           return (
                             <GridItem
                               key={`empty-${idx}`}
-                              minH="90px"
+                              minH="100px"
                               bg="bg.subtle"
                               borderTop="1px solid"
                               borderColor="border.subtle"
@@ -713,32 +861,53 @@ const BillsPage: React.FC = () => {
                           );
                         }
                         const key = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                        const dayEntries = byDate.get(key) ?? [];
+                        const dayEvents = financialByDate.get(key) ?? [];
+                        const dayBalance = balanceByDate.get(key);
                         const isToday =
                           day === today.getDate() &&
                           calMonth === today.getMonth() &&
                           calYear === today.getFullYear();
 
+                        // Sum amounts by type for the day
+                        const dayTotal = dayEvents.reduce(
+                          (sum, e) => sum + e.amount,
+                          0,
+                        );
+
                         return (
                           <GridItem
                             key={key}
-                            minH="90px"
+                            minH="100px"
                             p={1.5}
                             borderTop="1px solid"
                             borderLeft={idx % 7 !== 0 ? "1px solid" : undefined}
                             borderColor="border.subtle"
                             bg={isToday ? "bg.info" : "bg.surface"}
                           >
-                            <Text
-                              fontSize="sm"
-                              fontWeight={isToday ? "bold" : "normal"}
-                              color={isToday ? todayTextColor : "text.heading"}
-                              mb={1}
-                            >
-                              {day}
-                            </Text>
+                            <HStack justify="space-between" mb={1}>
+                              <Text
+                                fontSize="sm"
+                                fontWeight={isToday ? "bold" : "normal"}
+                                color={
+                                  isToday ? todayTextColor : "text.heading"
+                                }
+                              >
+                                {day}
+                              </Text>
+                              {dayEvents.length > 0 && (
+                                <Text
+                                  fontSize="2xs"
+                                  fontWeight="bold"
+                                  color={
+                                    dayTotal >= 0 ? "green.500" : "red.500"
+                                  }
+                                >
+                                  {formatCurrencyShort(dayTotal)}
+                                </Text>
+                              )}
+                            </HStack>
 
-                            {dayEntries.slice(0, 2).map((entry, i) => (
+                            {dayEvents.slice(0, 3).map((ev, i) => (
                               <Popover
                                 key={i}
                                 trigger="hover"
@@ -749,44 +918,12 @@ const BillsPage: React.FC = () => {
                                   <Badge
                                     display="block"
                                     mb="1px"
-                                    colorScheme={amountColor(entry.amount)}
+                                    colorScheme={eventTypeColor(ev.type)}
                                     fontSize="2xs"
                                     isTruncated
                                     cursor="pointer"
                                   >
-                                    {entry.merchant_name}
-                                  </Badge>
-                                </PopoverTrigger>
-                                <PopoverContent width="200px">
-                                  <PopoverArrow />
-                                  <PopoverCloseButton />
-                                  <PopoverHeader
-                                    fontSize="sm"
-                                    fontWeight="bold"
-                                  >
-                                    {entry.merchant_name}
-                                  </PopoverHeader>
-                                  <PopoverBody fontSize="sm">
-                                    <Text>
-                                      {formatCurrencyShort(entry.amount)}
-                                    </Text>
-                                    <Text color="text.muted" fontSize="xs">
-                                      {entry.frequency}
-                                    </Text>
-                                  </PopoverBody>
-                                </PopoverContent>
-                              </Popover>
-                            ))}
-
-                            {dayEntries.length > 2 && (
-                              <Popover trigger="hover" placement="top" isLazy>
-                                <PopoverTrigger>
-                                  <Badge
-                                    fontSize="2xs"
-                                    colorScheme="purple"
-                                    cursor="pointer"
-                                  >
-                                    +{dayEntries.length - 2} more
+                                    {ev.name}
                                   </Badge>
                                 </PopoverTrigger>
                                 <PopoverContent width="220px">
@@ -796,22 +933,88 @@ const BillsPage: React.FC = () => {
                                     fontSize="sm"
                                     fontWeight="bold"
                                   >
-                                    All bills on {key}
+                                    <HStack>
+                                      <Badge
+                                        colorScheme={eventTypeColor(ev.type)}
+                                        fontSize="2xs"
+                                      >
+                                        {eventTypeLabel(ev.type)}
+                                      </Badge>
+                                      <Text>{ev.name}</Text>
+                                    </HStack>
+                                  </PopoverHeader>
+                                  <PopoverBody fontSize="sm">
+                                    <Text
+                                      fontWeight="bold"
+                                      color={
+                                        ev.amount >= 0 ? "green.500" : "red.500"
+                                      }
+                                    >
+                                      {formatCurrencyShort(ev.amount)}
+                                    </Text>
+                                    {ev.account && (
+                                      <Text color="text.muted" fontSize="xs">
+                                        {ev.account}
+                                      </Text>
+                                    )}
+                                    {ev.frequency && (
+                                      <Text color="text.muted" fontSize="xs">
+                                        {ev.frequency}
+                                      </Text>
+                                    )}
+                                  </PopoverBody>
+                                </PopoverContent>
+                              </Popover>
+                            ))}
+
+                            {dayEvents.length > 3 && (
+                              <Popover trigger="hover" placement="top" isLazy>
+                                <PopoverTrigger>
+                                  <Badge
+                                    fontSize="2xs"
+                                    colorScheme="purple"
+                                    cursor="pointer"
+                                  >
+                                    +{dayEvents.length - 3} more
+                                  </Badge>
+                                </PopoverTrigger>
+                                <PopoverContent width="240px">
+                                  <PopoverArrow />
+                                  <PopoverCloseButton />
+                                  <PopoverHeader
+                                    fontSize="sm"
+                                    fontWeight="bold"
+                                  >
+                                    All events on {key}
                                   </PopoverHeader>
                                   <PopoverBody>
                                     <VStack align="stretch" spacing={1}>
-                                      {dayEntries.map((e, i) => (
+                                      {dayEvents.map((e, i) => (
                                         <HStack
                                           key={i}
                                           justify="space-between"
                                           fontSize="sm"
                                         >
-                                          <Text noOfLines={1}>
-                                            {e.merchant_name}
-                                          </Text>
+                                          <HStack spacing={1} minW={0}>
+                                            <Badge
+                                              colorScheme={eventTypeColor(
+                                                e.type,
+                                              )}
+                                              fontSize="2xs"
+                                              flexShrink={0}
+                                            >
+                                              {eventTypeLabel(e.type).charAt(0)}
+                                            </Badge>
+                                            <Text noOfLines={1}>{e.name}</Text>
+                                          </HStack>
                                           <Text
                                             fontWeight="bold"
                                             flexShrink={0}
+                                            color={
+                                              e.amount >= 0
+                                                ? "green.500"
+                                                : "red.500"
+                                            }
                                           >
                                             {formatCurrencyShort(e.amount)}
                                           </Text>
@@ -822,11 +1025,98 @@ const BillsPage: React.FC = () => {
                                 </PopoverContent>
                               </Popover>
                             )}
+
+                            {/* Projected balance line */}
+                            {showProjectedBalance &&
+                              dayBalance !== undefined && (
+                                <Text
+                                  fontSize="2xs"
+                                  color="blue.500"
+                                  fontWeight="semibold"
+                                  mt="auto"
+                                  pt={0.5}
+                                  borderTop="1px dashed"
+                                  borderColor="blue.200"
+                                >
+                                  {formatCurrencyShort(dayBalance)}
+                                </Text>
+                              )}
                           </GridItem>
                         );
                       })}
                     </Grid>
                   </Box>
+
+                  {/* Summary bar */}
+                  {financialCalendar && (
+                    <Grid templateColumns="repeat(4, 1fr)" gap={4}>
+                      <Card variant="outline" size="sm">
+                        <CardBody py={3} px={4}>
+                          <Text fontSize="xs" color="text.muted" mb={1}>
+                            Expected Income
+                          </Text>
+                          <Text
+                            fontSize="lg"
+                            fontWeight="bold"
+                            color="green.500"
+                          >
+                            {formatCurrencyShort(
+                              financialCalendar.summary.total_income,
+                            )}
+                          </Text>
+                        </CardBody>
+                      </Card>
+                      <Card variant="outline" size="sm">
+                        <CardBody py={3} px={4}>
+                          <Text fontSize="xs" color="text.muted" mb={1}>
+                            Expected Bills
+                          </Text>
+                          <Text fontSize="lg" fontWeight="bold" color="red.500">
+                            {formatCurrencyShort(
+                              financialCalendar.summary.total_bills,
+                            )}
+                          </Text>
+                        </CardBody>
+                      </Card>
+                      <Card variant="outline" size="sm">
+                        <CardBody py={3} px={4}>
+                          <Text fontSize="xs" color="text.muted" mb={1}>
+                            Expected Subscriptions
+                          </Text>
+                          <Text
+                            fontSize="lg"
+                            fontWeight="bold"
+                            color="orange.500"
+                          >
+                            {formatCurrencyShort(
+                              financialCalendar.summary.total_subscriptions,
+                            )}
+                          </Text>
+                        </CardBody>
+                      </Card>
+                      <Card variant="outline" size="sm">
+                        <CardBody py={3} px={4}>
+                          <Text fontSize="xs" color="text.muted" mb={1}>
+                            Projected End Balance
+                          </Text>
+                          <Text
+                            fontSize="lg"
+                            fontWeight="bold"
+                            color={
+                              financialCalendar.summary.projected_end_balance >=
+                              0
+                                ? "blue.500"
+                                : "red.500"
+                            }
+                          >
+                            {formatCurrencyShort(
+                              financialCalendar.summary.projected_end_balance,
+                            )}
+                          </Text>
+                        </CardBody>
+                      </Card>
+                    </Grid>
+                  )}
                 </VStack>
               )}
             </TabPanel>

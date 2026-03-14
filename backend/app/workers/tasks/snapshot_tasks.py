@@ -17,14 +17,14 @@ import asyncio
 import hashlib
 import logging
 
-from sqlalchemy import select, delete
+from sqlalchemy import delete, select
 
-from app.workers.celery_app import celery_app
 from app.core.database import AsyncSessionLocal
 from app.models.portfolio_snapshot import PortfolioSnapshot
-from app.models.user import Organization, User, PasswordResetToken, EmailVerificationToken
+from app.models.user import EmailVerificationToken, Organization, PasswordResetToken, User
 from app.services.snapshot_service import snapshot_service
 from app.utils.datetime_utils import utc_now
+from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ def _calculate_offset_seconds(organization_id) -> int:
     hash_bytes = hashlib.sha256(str(organization_id).encode()).digest()
     hash_int = int.from_bytes(hash_bytes[:4], byteorder="big")
     offset_minutes = hash_int % (24 * 60)  # 0–1439 minutes
-    return offset_minutes * 60             # convert to seconds
+    return offset_minutes * 60  # convert to seconds
 
 
 def _fetch_all_organizations():
@@ -48,6 +48,7 @@ def _fetch_all_organizations():
 
     Runs the async DB query in a fresh event loop (Celery worker context).
     """
+
     async def _inner():
         async with AsyncSessionLocal() as db:
             result = await db.execute(select(Organization))
@@ -94,6 +95,7 @@ def capture_org_portfolio_snapshot(organization_id: str):
 
     Idempotent: skips if a snapshot for today already exists.
     """
+
     async def _run():
         async with AsyncSessionLocal() as db:
             today = utc_now().date()
@@ -127,9 +129,8 @@ def capture_org_portfolio_snapshot(organization_id: str):
 
             # Imported here to avoid circular dependency (holdings → services → tasks)
             from app.api.v1.holdings import get_portfolio_summary
-            portfolio = await get_portfolio_summary(
-                user_id=None, current_user=user, db=db
-            )
+
+            portfolio = await get_portfolio_summary(user_id=None, current_user=user, db=db)
             await snapshot_service.capture_snapshot(
                 db=db, organization_id=organization_id, portfolio=portfolio
             )
@@ -138,6 +139,32 @@ def capture_org_portfolio_snapshot(organization_id: str):
                 organization_id,
                 portfolio.total_value,
             )
+
+            # Capture net worth snapshot and check milestones
+            try:
+                from app.services.milestone_service import check_milestones
+                from app.services.net_worth_service import net_worth_service
+
+                nw_snapshot = await net_worth_service.capture_snapshot(
+                    db=db, organization_id=organization_id
+                )
+                milestones = await check_milestones(
+                    db=db,
+                    organization_id=organization_id,
+                    current_net_worth=nw_snapshot.total_net_worth,
+                )
+                if milestones:
+                    logger.info(
+                        "capture_org_portfolio_snapshot: %d milestone(s) hit for org=%s",
+                        len(milestones),
+                        organization_id,
+                    )
+            except Exception as e:
+                logger.error(
+                    "capture_org_portfolio_snapshot: milestone check failed for org=%s: %s",
+                    organization_id,
+                    e,
+                )
 
     asyncio.run(_run())
 
@@ -149,6 +176,7 @@ def cleanup_expired_auth_tokens():
 
     Replaces the token cleanup loop that was inside SnapshotScheduler.
     """
+
     async def _run():
         async with AsyncSessionLocal() as db:
             now = utc_now()
@@ -160,7 +188,8 @@ def cleanup_expired_auth_tokens():
             )
             await db.commit()
             logger.info(
-                "cleanup_expired_auth_tokens: deleted %d password-reset and %d email-verification tokens",
+                "cleanup_expired_auth_tokens: deleted %d password-reset"
+                " and %d email-verification tokens",
                 r1.rowcount,
                 r2.rowcount,
             )

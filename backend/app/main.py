@@ -27,6 +27,7 @@ from app.api.v1 import (
     dashboard,
     debt_payoff,
     dev,
+    education,
     enrichment,
     fire,
     holdings,
@@ -41,6 +42,7 @@ from app.api.v1 import (
     plaid,
     rebalancing,
     recurring_transactions,
+    rental_properties,
     reports,
     retirement,
     rules,
@@ -411,7 +413,11 @@ app.include_router(debt_payoff.router, prefix="/api/v1/debt-payoff", tags=["Debt
 app.include_router(rebalancing.router, prefix="/api/v1/rebalancing", tags=["Rebalancing"])
 app.include_router(permissions.router, prefix="/api/v1/permissions", tags=["Permissions"])
 app.include_router(retirement.router, prefix="/api/v1/retirement", tags=["Retirement Planning"])
+app.include_router(education.router, prefix="/api/v1/education", tags=["Education Planning"])
 app.include_router(fire.router, prefix="/api/v1/fire", tags=["FIRE Metrics"])
+app.include_router(
+    rental_properties.router, prefix="/api/v1/rental-properties", tags=["Rental Properties"]
+)
 app.include_router(tax_lots.router, prefix="/api/v1", tags=["Tax Lots"])
 app.include_router(attachments.router, prefix="/api/v1", tags=["Attachments"])
 app.include_router(

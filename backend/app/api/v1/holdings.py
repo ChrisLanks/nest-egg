@@ -32,10 +32,16 @@ from app.models.user import User
 from app.schemas.holding import (
     AccountHoldings,
     CategoryBreakdown,
+    FeeAnalysisResponse,
+    FeeDragProjection,
+    FundOverlapResponse,
     GeographicBreakdown,
+    HighFeeHolding,
     HoldingCreate,
     HoldingSummary,
     HoldingUpdate,
+    LowCostAlternative,
+    OverlapGroup,
     PortfolioSummary,
     SectorBreakdown,
     SnapshotResponse,
@@ -1996,3 +2002,372 @@ async def get_roth_analysis(
             for acc in traditional_accounts
         ],
     }
+
+
+# ── Fund mapping data for overlap detection and low-cost alternatives ────────
+
+# Maps common ETFs/mutual funds to their underlying index/category
+FUND_INDEX_MAP: dict[str, str] = {
+    # Total US Stock Market
+    "VTI": "Total US Stock Market",
+    "VTSAX": "Total US Stock Market",
+    "ITOT": "Total US Stock Market",
+    "SPTM": "Total US Stock Market",
+    "SCHB": "Total US Stock Market",
+    "FSKAX": "Total US Stock Market",
+    "FZROX": "Total US Stock Market",
+    # S&P 500
+    "SPY": "S&P 500",
+    "VOO": "S&P 500",
+    "IVV": "S&P 500",
+    "VFIAX": "S&P 500",
+    "FXAIX": "S&P 500",
+    "SWPPX": "S&P 500",
+    "SPLG": "S&P 500",
+    # Total International Stock
+    "VXUS": "Total International Stock",
+    "VTIAX": "Total International Stock",
+    "IXUS": "Total International Stock",
+    "FTIHX": "Total International Stock",
+    "FZILX": "Total International Stock",
+    # International Developed
+    "VEA": "International Developed Markets",
+    "EFA": "International Developed Markets",
+    "IEFA": "International Developed Markets",
+    "SWISX": "International Developed Markets",
+    "SCHF": "International Developed Markets",
+    # Emerging Markets
+    "VWO": "Emerging Markets",
+    "EEM": "Emerging Markets",
+    "IEMG": "Emerging Markets",
+    "SCHE": "Emerging Markets",
+    # Total US Bond Market
+    "BND": "Total US Bond Market",
+    "AGG": "Total US Bond Market",
+    "VBTLX": "Total US Bond Market",
+    "SCHZ": "Total US Bond Market",
+    "FXNAX": "Total US Bond Market",
+    # NASDAQ 100
+    "QQQ": "NASDAQ 100",
+    "QQQM": "NASDAQ 100",
+    # S&P 500 Growth
+    "VOOG": "S&P 500 Growth",
+    "IVW": "S&P 500 Growth",
+    "SPYG": "S&P 500 Growth",
+    # S&P 500 Value
+    "VOOV": "S&P 500 Value",
+    "IVE": "S&P 500 Value",
+    "SPYV": "S&P 500 Value",
+    # Small Cap US
+    "VB": "US Small Cap",
+    "IJR": "US Small Cap",
+    "SCHA": "US Small Cap",
+    "VTWO": "US Small Cap (Russell 2000)",
+    "IWM": "US Small Cap (Russell 2000)",
+    # Mid Cap US
+    "VO": "US Mid Cap",
+    "IJH": "US Mid Cap",
+    "SCHM": "US Mid Cap",
+    # TIPS
+    "TIP": "US TIPS (Inflation-Protected)",
+    "SCHP": "US TIPS (Inflation-Protected)",
+    "VTIP": "US TIPS (Inflation-Protected)",
+    # Real Estate / REITs
+    "VNQ": "US Real Estate (REITs)",
+    "SCHH": "US Real Estate (REITs)",
+    "IYR": "US Real Estate (REITs)",
+    "VGSLX": "US Real Estate (REITs)",
+    # International Bond
+    "BNDX": "International Bond",
+    "IAGG": "International Bond",
+    # Dividend
+    "VYM": "US High Dividend Yield",
+    "SCHD": "US High Dividend Yield",
+    "HDV": "US High Dividend Yield",
+    # Target-Date (Vanguard examples)
+    "VFIFX": "Target Date 2050",
+    "VFFVX": "Target Date 2055",
+    "VTHRX": "Target Date 2030",
+    "VFORX": "Target Date 2040",
+}
+
+
+# Maps high-fee funds/ETFs to low-cost alternatives
+LOW_COST_ALTERNATIVES: dict[str, tuple[str, float]] = {
+    # (alternative_ticker, alternative_expense_ratio)
+    "ARKK": ("VTI", 0.0003),
+    "ARKW": ("QQQ", 0.0020),
+    "ARKF": ("VGT", 0.0010),
+    "ARKG": ("XBI", 0.0035),
+    "ARKQ": ("ROBO", 0.0049),
+    "AIVSX": ("VOO", 0.0003),
+    "AGTHX": ("VTI", 0.0003),
+    "FCNTX": ("VOO", 0.0003),
+    "AMCPX": ("VTI", 0.0003),
+    "ANCFX": ("VTI", 0.0003),
+    "ANWPX": ("VXUS", 0.0007),
+    "CWGIX": ("VXUS", 0.0007),
+    "FDGRX": ("QQQ", 0.0020),
+    "TRBCX": ("VUG", 0.0004),
+    "VGHCX": ("XLV", 0.0010),
+    "PRHSX": ("XLV", 0.0010),
+    "RERGX": ("VNQ", 0.0012),
+    "FSPHX": ("XLV", 0.0010),
+    "FSPTX": ("VGT", 0.0010),
+    "NASDX": ("QQQ", 0.0020),
+    "DODGX": ("VTV", 0.0004),
+    "PRWCX": ("VBIAX", 0.0007),
+    "VWELX": ("VBIAX", 0.0007),
+    "JAGTX": ("VTI", 0.0003),
+    "JMIGX": ("VXUS", 0.0007),
+    "PIMIX": ("BND", 0.0003),
+    "PTTRX": ("BND", 0.0003),
+    "MSFBX": ("VOO", 0.0003),
+    "GQEFX": ("VOO", 0.0003),
+    "TRCVX": ("VTV", 0.0004),
+    "LMVTX": ("VTV", 0.0004),
+}
+
+
+def _compute_fee_drag_projection(
+    portfolio_value: float, weighted_er: float, years_list: list[int]
+) -> FeeDragProjection:
+    """Compute compound growth with and without fees over given year horizons.
+
+    Assumes 7% nominal annual return.
+    """
+    annual_return = 0.07
+    with_fees: list[float] = []
+    without_fees: list[float] = []
+    fee_cost: list[float] = []
+
+    for y in years_list:
+        value_no_fees = portfolio_value * ((1 + annual_return) ** y)
+        value_with_fees = portfolio_value * ((1 + annual_return - weighted_er) ** y)
+        with_fees.append(round(value_with_fees, 2))
+        without_fees.append(round(value_no_fees, 2))
+        fee_cost.append(round(value_no_fees - value_with_fees, 2))
+
+    return FeeDragProjection(
+        years=years_list,
+        with_fees=with_fees,
+        without_fees=without_fees,
+        fee_cost=fee_cost,
+    )
+
+
+async def _get_holdings_for_user(
+    db: AsyncSession,
+    current_user: User,
+    user_id: Optional[UUID],
+) -> list:
+    """Shared helper to fetch investment holdings for fee analysis endpoints."""
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    investment_account_ids = [
+        acc.id for acc in accounts if acc.account_type in INVESTMENT_ACCOUNT_TYPES
+    ]
+
+    if not investment_account_ids:
+        return []
+
+    result = await db.execute(
+        select(Holding).where(Holding.account_id.in_(investment_account_ids)).limit(10000)
+    )
+    return list(result.scalars().all())
+
+
+@router.get("/fee-analysis", response_model=FeeAnalysisResponse)
+async def get_fee_analysis(
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Analyze portfolio fee impact with projections and low-cost alternatives.
+
+    Returns:
+    - Weighted average expense ratio
+    - Fee drag projections over 5/10/20/30 years (7% assumed return)
+    - High-fee holdings (expense ratio > 0.5%)
+    - Low-cost alternative suggestions
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"Fee analysis request from user {current_user.id}, filter user_id={user_id}")
+
+    # Check cache
+    cache_key = f"fee-analysis:{current_user.organization_id}:{user_id or 'household'}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    holdings = await _get_holdings_for_user(db, current_user, user_id)
+
+    # Aggregate by ticker (same as portfolio summary)
+    ticker_data: dict[str, dict] = {}
+    for h in holdings:
+        val = float(h.current_total_value or 0)
+        er = float(h.expense_ratio or 0)
+        if h.ticker not in ticker_data:
+            ticker_data[h.ticker] = {
+                "name": h.name,
+                "value": 0.0,
+                "expense_ratio": er,
+            }
+        ticker_data[h.ticker]["value"] += val
+        # Keep highest ER across duplicate rows for same ticker
+        if er > ticker_data[h.ticker]["expense_ratio"]:
+            ticker_data[h.ticker]["expense_ratio"] = er
+
+    portfolio_value = sum(d["value"] for d in ticker_data.values())
+    if portfolio_value <= 0:
+        empty_projection = FeeDragProjection(
+            years=[5, 10, 20, 30],
+            with_fees=[0, 0, 0, 0],
+            without_fees=[0, 0, 0, 0],
+            fee_cost=[0, 0, 0, 0],
+        )
+        result = FeeAnalysisResponse(
+            current_portfolio_value=0,
+            weighted_avg_expense_ratio=0,
+            total_annual_fees=0,
+            fee_drag_projection=empty_projection,
+            high_fee_holdings=[],
+            low_cost_alternatives=[],
+        )
+        await cache_setex(cache_key, result, 300)
+        return result
+
+    # Calculate weighted average ER
+    weighted_er_sum = sum(d["value"] * d["expense_ratio"] for d in ticker_data.values())
+    weighted_avg_er = weighted_er_sum / portfolio_value
+    total_annual_fees = weighted_er_sum  # value * ER = annual fee
+
+    # Fee drag projection
+    projection = _compute_fee_drag_projection(portfolio_value, weighted_avg_er, [5, 10, 20, 30])
+
+    # High-fee holdings (ER > 0.5% = 0.005)
+    HIGH_FEE_THRESHOLD = 0.005
+    high_fee_holdings = []
+    for ticker, data in ticker_data.items():
+        if data["expense_ratio"] > HIGH_FEE_THRESHOLD:
+            high_fee_holdings.append(
+                HighFeeHolding(
+                    ticker=ticker,
+                    name=data["name"],
+                    expense_ratio=round(data["expense_ratio"], 4),
+                    annual_fee=round(data["value"] * data["expense_ratio"], 2),
+                    value=round(data["value"], 2),
+                )
+            )
+    high_fee_holdings.sort(key=lambda x: x.expense_ratio, reverse=True)
+
+    # Low-cost alternatives
+    alternatives = []
+    for ticker, data in ticker_data.items():
+        if ticker.upper() in LOW_COST_ALTERNATIVES and data["expense_ratio"] > 0.001:
+            alt_ticker, alt_er = LOW_COST_ALTERNATIVES[ticker.upper()]
+            annual_savings = data["value"] * (data["expense_ratio"] - alt_er)
+            if annual_savings > 0:
+                alternatives.append(
+                    LowCostAlternative(
+                        original=ticker,
+                        original_er=round(data["expense_ratio"], 4),
+                        alternative=alt_ticker,
+                        alternative_er=alt_er,
+                        annual_savings=round(annual_savings, 2),
+                    )
+                )
+    alternatives.sort(key=lambda x: x.annual_savings, reverse=True)
+
+    result = FeeAnalysisResponse(
+        current_portfolio_value=round(portfolio_value, 2),
+        weighted_avg_expense_ratio=round(weighted_avg_er, 6),
+        total_annual_fees=round(total_annual_fees, 2),
+        fee_drag_projection=projection,
+        high_fee_holdings=high_fee_holdings,
+        low_cost_alternatives=alternatives,
+    )
+
+    await cache_setex(cache_key, result, 300)
+    return result
+
+
+@router.get("/fund-overlap", response_model=FundOverlapResponse)
+async def get_fund_overlap(
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Detect overlapping fund holdings that track the same index or category.
+
+    Returns groups of holdings that represent redundant exposure to the same
+    market index (e.g., SPY + VOO both track S&P 500).
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"Fund overlap request from user {current_user.id}, filter user_id={user_id}")
+
+    # Check cache
+    cache_key = f"fund-overlap:{current_user.organization_id}:{user_id or 'household'}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    holdings = await _get_holdings_for_user(db, current_user, user_id)
+
+    # Build ticker → value map
+    ticker_values: dict[str, float] = {}
+    for h in holdings:
+        val = float(h.current_total_value or 0)
+        ticker_upper = h.ticker.upper() if h.ticker else ""
+        if ticker_upper:
+            ticker_values[ticker_upper] = ticker_values.get(ticker_upper, 0) + val
+
+    # Group user's holdings by index category
+    category_holdings: dict[str, list[str]] = {}
+    category_values: dict[str, float] = {}
+    for ticker, val in ticker_values.items():
+        category = FUND_INDEX_MAP.get(ticker)
+        if category:
+            if category not in category_holdings:
+                category_holdings[category] = []
+                category_values[category] = 0.0
+            category_holdings[category].append(ticker)
+            category_values[category] += val
+
+    # Only report categories with 2+ holdings (actual overlap)
+    overlaps = []
+    total_overlap_value = 0.0
+    for category, tickers in category_holdings.items():
+        if len(tickers) >= 2:
+            total_val = category_values[category]
+            total_overlap_value += total_val
+            overlaps.append(
+                OverlapGroup(
+                    category=category,
+                    holdings=sorted(tickers),
+                    total_value=round(total_val, 2),
+                    suggestion=(
+                        f"Consider consolidating into a single {category} fund "
+                        f"to reduce complexity and potentially lower fees"
+                    ),
+                )
+            )
+
+    overlaps.sort(key=lambda x: x.total_value, reverse=True)
+
+    result = FundOverlapResponse(
+        overlaps=overlaps,
+        total_overlap_value=round(total_overlap_value, 2),
+    )
+
+    await cache_setex(cache_key, result, 300)
+    return result

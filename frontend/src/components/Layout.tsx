@@ -498,6 +498,7 @@ export const Layout = () => {
     { label: "Budgets", path: "/budgets" },
     { label: "Goals", path: "/goals" },
     { label: "Retirement", path: "/retirement" },
+    { label: "Education", path: "/education" },
     { label: "FIRE", path: "/fire" },
     { label: "Debt Payoff", path: "/debt-payoff" },
   ];
@@ -505,8 +506,10 @@ export const Layout = () => {
   const analyticsMenuItems = [
     { label: "Cash Flow", path: "/income-expenses" },
     { label: "Trends", path: "/trends" },
+    { label: "Year in Review", path: "/year-in-review" },
     { label: "Reports", path: "/reports" },
     { label: "Tax Deductible", path: "/tax-deductible" },
+    { label: "Rental Properties", path: "/rental-properties" },
   ];
 
   const transactionsMenuItems = [

@@ -2,7 +2,7 @@
  * Recurring Transactions API client
  */
 
-import api from '../services/api';
+import api from "../services/api";
 import type {
   RecurringTransaction,
   RecurringTransactionCreate,
@@ -10,17 +10,19 @@ import type {
   DetectRecurringRequest,
   DetectRecurringResponse,
   UpcomingBill,
-} from '../types/recurring-transaction';
+} from "../types/recurring-transaction";
 
 export const recurringTransactionsApi = {
   /**
    * Auto-detect recurring patterns
    */
-  detectPatterns: async (params?: DetectRecurringRequest): Promise<DetectRecurringResponse> => {
+  detectPatterns: async (
+    params?: DetectRecurringRequest,
+  ): Promise<DetectRecurringResponse> => {
     const { data } = await api.post<DetectRecurringResponse>(
-      '/recurring-transactions/detect',
+      "/recurring-transactions/detect",
       null,
-      { params }
+      { params },
     );
     return data;
   },
@@ -28,16 +30,26 @@ export const recurringTransactionsApi = {
   /**
    * Create a manual recurring pattern
    */
-  create: async (pattern: RecurringTransactionCreate): Promise<RecurringTransaction> => {
-    const { data } = await api.post<RecurringTransaction>('/recurring-transactions/', pattern);
+  create: async (
+    pattern: RecurringTransactionCreate,
+  ): Promise<RecurringTransaction> => {
+    const { data } = await api.post<RecurringTransaction>(
+      "/recurring-transactions/",
+      pattern,
+    );
     return data;
   },
 
   /**
    * Get all recurring patterns
    */
-  getAll: async (params?: { is_active?: boolean }): Promise<RecurringTransaction[]> => {
-    const { data } = await api.get<RecurringTransaction[]>('/recurring-transactions/', { params });
+  getAll: async (params?: {
+    is_active?: boolean;
+  }): Promise<RecurringTransaction[]> => {
+    const { data } = await api.get<RecurringTransaction[]>(
+      "/recurring-transactions/",
+      { params },
+    );
     return data;
   },
 
@@ -46,11 +58,11 @@ export const recurringTransactionsApi = {
    */
   update: async (
     recurringId: string,
-    updates: RecurringTransactionUpdate
+    updates: RecurringTransactionUpdate,
   ): Promise<RecurringTransaction> => {
     const { data } = await api.patch<RecurringTransaction>(
       `/recurring-transactions/${recurringId}`,
-      updates
+      updates,
     );
     return data;
   },
@@ -67,19 +79,26 @@ export const recurringTransactionsApi = {
    */
   applyLabel: async (
     recurringId: string,
-    retroactive: boolean = true
+    retroactive: boolean = true,
   ): Promise<{ applied_count: number; label_id: string }> => {
-    const { data } = await api.post(`/recurring-transactions/${recurringId}/apply-label`, {
-      retroactive,
-    });
+    const { data } = await api.post(
+      `/recurring-transactions/${recurringId}/apply-label`,
+      {
+        retroactive,
+      },
+    );
     return data;
   },
 
   /**
    * Preview how many transactions match this bill's merchant + account
    */
-  previewLabel: async (recurringId: string): Promise<{ matching_transactions: number }> => {
-    const { data } = await api.get(`/recurring-transactions/${recurringId}/preview-label`);
+  previewLabel: async (
+    recurringId: string,
+  ): Promise<{ matching_transactions: number }> => {
+    const { data } = await api.get(
+      `/recurring-transactions/${recurringId}/preview-label`,
+    );
     return data;
   },
 
@@ -87,9 +106,12 @@ export const recurringTransactionsApi = {
    * Get upcoming bills
    */
   getUpcomingBills: async (daysAhead: number = 30): Promise<UpcomingBill[]> => {
-    const { data } = await api.get<UpcomingBill[]>('/recurring-transactions/bills/upcoming', {
-      params: { days_ahead: daysAhead },
-    });
+    const { data } = await api.get<UpcomingBill[]>(
+      "/recurring-transactions/bills/upcoming",
+      {
+        params: { days_ahead: daysAhead },
+      },
+    );
     return data;
   },
 
@@ -97,17 +119,62 @@ export const recurringTransactionsApi = {
    * Get expanded calendar entries (all occurrences within N days)
    */
   getCalendar: async (days: number = 90): Promise<CalendarEntry[]> => {
-    const { data } = await api.get<CalendarEntry[]>('/recurring-transactions/calendar', {
-      params: { days },
-    });
+    const { data } = await api.get<CalendarEntry[]>(
+      "/recurring-transactions/calendar",
+      {
+        params: { days },
+      },
+    );
     return data;
   },
 };
 
 export interface CalendarEntry {
-  date: string;          // ISO date string
+  date: string; // ISO date string
   merchant_name: string;
   amount: number;
   recurring_transaction_id: string;
   frequency: string;
 }
+
+// ── Financial Calendar types ───────────────────────────────────────────────────
+
+export interface FinancialCalendarEvent {
+  date: string;
+  type: "bill" | "subscription" | "income";
+  name: string;
+  amount: number;
+  account?: string;
+  frequency?: string;
+}
+
+export interface DailyProjectedBalance {
+  date: string;
+  balance: number;
+}
+
+export interface FinancialCalendarSummary {
+  total_income: number;
+  total_bills: number;
+  total_subscriptions: number;
+  projected_end_balance: number;
+}
+
+export interface FinancialCalendarResponse {
+  events: FinancialCalendarEvent[];
+  daily_projected_balance: DailyProjectedBalance[];
+  summary: FinancialCalendarSummary;
+}
+
+export const financialCalendarApi = {
+  /**
+   * Get all financial events for a calendar month
+   */
+  getMonth: async (month: string): Promise<FinancialCalendarResponse> => {
+    const { data } = await api.get<FinancialCalendarResponse>(
+      "/dashboard/financial-calendar",
+      { params: { month } },
+    );
+    return data;
+  },
+};

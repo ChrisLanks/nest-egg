@@ -20,6 +20,7 @@ import { AssetAllocationWidget } from "./widgets/AssetAllocationWidget";
 import { NetWorthProjectionWidget } from "./widgets/NetWorthProjectionWidget";
 import { RetirementReadinessWidget } from "./widgets/RetirementReadinessWidget";
 import { FireMetricsWidget } from "./widgets/FireMetricsWidget";
+import { FinancialHealthWidget } from "./widgets/FinancialHealthWidget";
 import type { LayoutItem, WidgetDefinition } from "./types";
 
 export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
@@ -153,6 +154,14 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     description: "FI ratio, savings rate, and years to financial independence.",
     defaultSpan: 1,
     component: FireMetricsWidget,
+  },
+  "financial-health": {
+    id: "financial-health",
+    title: "Financial Health",
+    description:
+      "Composite 0-100 score based on savings rate, emergency fund, debt-to-income, and retirement progress.",
+    defaultSpan: 1,
+    component: FinancialHealthWidget,
   },
 };
 

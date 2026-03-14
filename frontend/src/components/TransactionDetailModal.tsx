@@ -24,8 +24,10 @@ import {
   IconButton,
   useDisclosure,
   Tooltip,
+  Textarea,
 } from "@chakra-ui/react";
 import { CloseIcon } from "@chakra-ui/icons";
+import { FiFlag } from "react-icons/fi";
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import type { Transaction } from "../types/transaction";
@@ -59,6 +61,7 @@ export const TransactionDetailModal = ({
   const [isEditing, setIsEditing] = useState(false);
   const [merchantName, setMerchantName] = useState("");
   const [category, setCategory] = useState("");
+  const [notes, setNotes] = useState("");
   const [newLabelName, setNewLabelName] = useState("");
   const [pendingLabelsToAdd, setPendingLabelsToAdd] = useState<string[]>([]);
   const [pendingLabelsToRemove, setPendingLabelsToRemove] = useState<string[]>(
@@ -129,6 +132,7 @@ export const TransactionDetailModal = ({
       setIsEditing(false);
       setMerchantName("");
       setCategory("");
+      setNotes("");
       setNewLabelName("");
       setPendingLabelsToAdd([]);
       setPendingLabelsToRemove([]);
@@ -141,6 +145,8 @@ export const TransactionDetailModal = ({
       merchant_name?: string;
       category_primary?: string;
       is_transfer?: boolean;
+      notes?: string | null;
+      flagged_for_review?: boolean;
     }) => {
       // First update the transaction fields
       const response = await api.patch(
@@ -240,6 +246,7 @@ export const TransactionDetailModal = ({
   const handleEdit = () => {
     setMerchantName(currentTransaction?.merchant_name || "");
     setCategory(currentTransaction?.category_primary || "");
+    setNotes(currentTransaction?.notes || "");
     setIsEditing(true);
   };
 
@@ -247,6 +254,7 @@ export const TransactionDetailModal = ({
     updateMutation.mutate({
       merchant_name: merchantName,
       category_primary: category,
+      notes: notes || null,
     });
   };
 
@@ -254,6 +262,7 @@ export const TransactionDetailModal = ({
     setIsEditing(false);
     setMerchantName("");
     setCategory("");
+    setNotes("");
     setPendingLabelsToAdd([]);
     setPendingLabelsToRemove([]);
   };
@@ -302,8 +311,40 @@ export const TransactionDetailModal = ({
     createLabelMutation.mutate(newLabelName.trim());
   };
 
+  // Separate mutation for flag toggle that doesn't close the modal
+  const toggleFlagMutation = useMutation({
+    mutationFn: async (isFlagged: boolean) => {
+      const response = await api.patch(`/transactions/${transaction?.id}`, {
+        flagged_for_review: isFlagged,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Flag status updated",
+        status: "success",
+        duration: 2000,
+      });
+      queryClient.invalidateQueries({ queryKey: ["infinite-transactions"] });
+      queryClient.invalidateQueries({
+        queryKey: ["transaction", transaction?.id],
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to update flag status",
+        status: "error",
+        duration: 3000,
+      });
+    },
+  });
+
   const handleToggleTransfer = () => {
     toggleTransferMutation.mutate(!currentTransaction!.is_transfer);
+  };
+
+  const handleToggleFlag = () => {
+    toggleFlagMutation.mutate(!currentTransaction!.flagged_for_review);
   };
 
   if (!currentTransaction) return null;
@@ -385,6 +426,13 @@ export const TransactionDetailModal = ({
                     </Badge>
                   </Tooltip>
                 )}
+                {currentTransaction.flagged_for_review && (
+                  <Tooltip label="Flagged for review">
+                    <Badge colorScheme="red" fontSize="md">
+                      Flagged
+                    </Badge>
+                  </Tooltip>
+                )}
               </HStack>
             </HStack>
 
@@ -420,6 +468,42 @@ export const TransactionDetailModal = ({
                       ? "✓ Is Transfer"
                       : "Mark as Transfer"}
                   </Button>
+                </Tooltip>
+              </HStack>
+            </Box>
+
+            {/* Flag for Review Toggle */}
+            <Box>
+              <HStack justify="space-between" align="center">
+                <Box>
+                  <Text fontSize="sm" fontWeight="medium" color="text.heading">
+                    Flag for Review
+                  </Text>
+                  <Text fontSize="xs" color="text.muted">
+                    Flagged transactions appear in the household review queue
+                  </Text>
+                </Box>
+                <Tooltip
+                  label={
+                    !canEdit ? "You can only edit your own transactions" : ""
+                  }
+                >
+                  <IconButton
+                    aria-label="Toggle flag"
+                    icon={<FiFlag />}
+                    size="sm"
+                    colorScheme={
+                      currentTransaction.flagged_for_review ? "red" : "gray"
+                    }
+                    variant={
+                      currentTransaction.flagged_for_review
+                        ? "solid"
+                        : "outline"
+                    }
+                    onClick={handleToggleFlag}
+                    isDisabled={!canEdit}
+                    isLoading={toggleFlagMutation.isPending}
+                  />
                 </Tooltip>
               </HStack>
             </Box>
@@ -619,6 +703,31 @@ export const TransactionDetailModal = ({
                 </Text>
                 <Text>{currentTransaction.description}</Text>
               </Box>
+            )}
+
+            {/* Notes */}
+            {isEditing ? (
+              <Box>
+                <Text fontSize="sm" color="text.secondary" mb={1}>
+                  Notes
+                </Text>
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add personal notes about this transaction..."
+                  size="sm"
+                  rows={3}
+                />
+              </Box>
+            ) : (
+              currentTransaction.notes && (
+                <Box>
+                  <Text fontSize="sm" color="text.secondary">
+                    Notes
+                  </Text>
+                  <Text>{currentTransaction.notes}</Text>
+                </Box>
+              )
             )}
 
             {/* Attachments */}

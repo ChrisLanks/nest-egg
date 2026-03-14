@@ -3,12 +3,9 @@
  */
 
 import {
-  Alert,
-  AlertIcon,
   Box,
   Container,
   Heading,
-  Progress,
   Text,
   Tooltip,
   VStack,
@@ -68,6 +65,7 @@ import { RMDAlert } from "../features/investments/components/RMDAlert";
 import { RothConversionAnalyzer } from "../features/investments/components/RothConversionAnalyzer";
 import TaxLossHarvestingPanel from "../features/investments/components/TaxLossHarvestingPanel";
 import { RebalancingPanel } from "../features/investments/components/RebalancingPanel";
+import { FeeAnalysisPanel } from "../features/investments/components/FeeAnalysisPanel";
 import { useRetirementAccountData } from "../features/retirement/hooks/useRetirementScenarios";
 
 interface Holding {
@@ -153,85 +151,6 @@ interface PortfolioSummary {
 }
 
 // ─── Memoized row components for .map() rendering ────────────────────────────
-
-interface HoldingFeeRowProps {
-  h: HoldingSummary;
-  highFeeThreshold: number;
-  vanguardBenchmark: number;
-  feeDragMultiplier: number;
-}
-
-const HoldingFeeRow = memo(
-  ({
-    h,
-    highFeeThreshold,
-    vanguardBenchmark,
-    feeDragMultiplier,
-  }: HoldingFeeRowProps) => {
-    const er = h.expense_ratio ?? 0;
-    const annualFee = h.annual_fee ?? 0;
-    const drag = annualFee * feeDragMultiplier;
-    const isHigh = er > highFeeThreshold;
-    const isLow = er <= vanguardBenchmark * 2;
-    const progressVal = Math.min(er / 0.01, 1) * 100;
-    return (
-      <Tr>
-        <Td>
-          <VStack align="flex-start" spacing={0}>
-            <Text fontWeight="medium" fontSize="sm">
-              {h.ticker}
-            </Text>
-            {h.name && (
-              <Text fontSize="xs" color="text.muted" noOfLines={1}>
-                {h.name}
-              </Text>
-            )}
-          </VStack>
-        </Td>
-        <Td isNumeric fontSize="sm">
-          {new Intl.NumberFormat("en-US", {
-            style: "currency",
-            currency: "USD",
-            maximumFractionDigits: 0,
-          }).format(h.current_total_value ?? 0)}
-        </Td>
-        <Td isNumeric>
-          <VStack align="flex-end" spacing={1}>
-            <Text fontSize="sm">{(er * 100).toFixed(3)}%</Text>
-            <Progress
-              value={progressVal}
-              size="xs"
-              width="60px"
-              colorScheme={isHigh ? "red" : isLow ? "green" : "yellow"}
-            />
-          </VStack>
-        </Td>
-        <Td isNumeric fontSize="sm" color="orange.600">
-          {new Intl.NumberFormat("en-US", {
-            style: "currency",
-            currency: "USD",
-          }).format(annualFee)}
-        </Td>
-        <Td isNumeric fontSize="sm" color="red.500">
-          {new Intl.NumberFormat("en-US", {
-            style: "currency",
-            currency: "USD",
-            maximumFractionDigits: 0,
-          }).format(drag)}
-        </Td>
-        <Td>
-          <Badge
-            colorScheme={isHigh ? "red" : isLow ? "green" : "yellow"}
-            fontSize="xs"
-          >
-            {isHigh ? "High" : isLow ? "Low" : "Moderate"}
-          </Badge>
-        </Td>
-      </Tr>
-    );
-  },
-);
-HoldingFeeRow.displayName = "HoldingFeeRow";
 
 interface AccountHoldingsCardProps {
   account: AccountHoldings;
@@ -790,14 +709,6 @@ export const InvestmentsPage = () => {
     return `Prices updated ${diffD}d ago`;
   }, [oldestPriceAsOf, now]);
 
-  const holdingsWithFees = useMemo(
-    () =>
-      (portfolio?.holdings_by_ticker ?? [])
-        .filter((h) => h.expense_ratio !== null && h.annual_fee !== null)
-        .sort((a, b) => (b.expense_ratio ?? 0) - (a.expense_ratio ?? 0)),
-    [portfolio],
-  );
-
   if (isLoading) {
     return (
       <Center h="100vh">
@@ -834,31 +745,6 @@ export const InvestmentsPage = () => {
 
   const totalGainIsPositive =
     portfolio.total_gain_loss !== null && portfolio.total_gain_loss >= 0;
-
-  // --- Fee Analyzer helpers ---
-  // 30-year opportunity cost of fees assuming 7% market growth
-  const GROWTH_RATE = 0.07;
-  const YEARS = 30;
-  const FEE_DRAG_MULTIPLIER =
-    (Math.pow(1 + GROWTH_RATE, YEARS) - 1) / GROWTH_RATE; // ≈ 94.5
-  const HIGH_FEE_THRESHOLD = 0.005; // 0.5% expense ratio
-  const VANGUARD_BENCHMARK = 0.0005; // 0.05% — low-cost benchmark
-
-  const totalAnnualFees = portfolio.total_annual_fees ?? 0;
-  const feeDrag30yr = totalAnnualFees * FEE_DRAG_MULTIPLIER;
-  const weightedAvgER =
-    portfolio.total_value > 0
-      ? holdingsWithFees.reduce(
-          (sum, h) =>
-            sum + (h.expense_ratio ?? 0) * (h.current_total_value ?? 0),
-          0,
-        ) / portfolio.total_value
-      : 0;
-  const benchmarkAnnualFees = portfolio.total_value * VANGUARD_BENCHMARK;
-  const feeSavingsPotential = Math.max(
-    0,
-    totalAnnualFees - benchmarkAnnualFees,
-  );
 
   return (
     <Container maxW="container.xl" py={8}>
@@ -1378,151 +1264,9 @@ export const InvestmentsPage = () => {
                   />
                 </TabPanel>
 
-                {/* Tab 7: Fee Analyzer */}
+                {/* Tab 7: Fee Analyzer (enhanced with projections + overlap) */}
                 <TabPanel>
-                  {holdingsWithFees.length === 0 ? (
-                    <Alert status="info">
-                      <AlertIcon />
-                      No expense ratio data available yet. Metadata is enriched
-                      daily — check back after prices refresh.
-                    </Alert>
-                  ) : (
-                    <VStack spacing={6} align="stretch">
-                      {/* Summary stats */}
-                      <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
-                        <Card variant="outline">
-                          <CardBody py={3}>
-                            <Stat>
-                              <StatLabel fontSize="xs">Annual Fees</StatLabel>
-                              <StatNumber fontSize="lg" color="orange.600">
-                                {new Intl.NumberFormat("en-US", {
-                                  style: "currency",
-                                  currency: "USD",
-                                }).format(totalAnnualFees)}
-                              </StatNumber>
-                              <StatHelpText fontSize="xs">
-                                {(weightedAvgER * 100).toFixed(3)}% weighted avg
-                                ER
-                              </StatHelpText>
-                            </Stat>
-                          </CardBody>
-                        </Card>
-                        <Card variant="outline">
-                          <CardBody py={3}>
-                            <Stat>
-                              <StatLabel fontSize="xs">
-                                30-Year Fee Drag
-                              </StatLabel>
-                              <Tooltip
-                                label={`Opportunity cost of fees compounded at 7%/yr over 30 years (${FEE_DRAG_MULTIPLIER.toFixed(1)}× annual fees)`}
-                              >
-                                <StatNumber
-                                  fontSize="lg"
-                                  color="finance.negative"
-                                >
-                                  {new Intl.NumberFormat("en-US", {
-                                    style: "currency",
-                                    currency: "USD",
-                                    maximumFractionDigits: 0,
-                                  }).format(feeDrag30yr)}
-                                </StatNumber>
-                              </Tooltip>
-                              <StatHelpText fontSize="xs">
-                                vs investing those fees at 7%
-                              </StatHelpText>
-                            </Stat>
-                          </CardBody>
-                        </Card>
-                        <Card variant="outline">
-                          <CardBody py={3}>
-                            <Stat>
-                              <StatLabel fontSize="xs">
-                                Low-Cost Benchmark
-                              </StatLabel>
-                              <StatNumber
-                                fontSize="lg"
-                                color="finance.positive"
-                              >
-                                {new Intl.NumberFormat("en-US", {
-                                  style: "currency",
-                                  currency: "USD",
-                                }).format(benchmarkAnnualFees)}
-                              </StatNumber>
-                              <StatHelpText fontSize="xs">
-                                0.05% ER (Vanguard avg)
-                              </StatHelpText>
-                            </Stat>
-                          </CardBody>
-                        </Card>
-                        <Card variant="outline">
-                          <CardBody py={3}>
-                            <Stat>
-                              <StatLabel fontSize="xs">
-                                Potential Savings
-                              </StatLabel>
-                              <StatNumber
-                                fontSize="lg"
-                                color={
-                                  feeSavingsPotential > 0
-                                    ? "blue.600"
-                                    : "finance.positive"
-                                }
-                              >
-                                {new Intl.NumberFormat("en-US", {
-                                  style: "currency",
-                                  currency: "USD",
-                                }).format(feeSavingsPotential)}
-                              </StatNumber>
-                              <StatHelpText fontSize="xs">
-                                {feeSavingsPotential > 0
-                                  ? "vs switching to low-cost index funds"
-                                  : "Already low-cost!"}
-                              </StatHelpText>
-                            </Stat>
-                          </CardBody>
-                        </Card>
-                      </SimpleGrid>
-
-                      {/* High-cost warning */}
-                      {holdingsWithFees.some(
-                        (h) => (h.expense_ratio ?? 0) > HIGH_FEE_THRESHOLD,
-                      ) && (
-                        <Alert status="warning">
-                          <AlertIcon />
-                          Some holdings have expense ratios above 0.5%. Consider
-                          low-cost index fund alternatives to reduce long-term
-                          drag.
-                        </Alert>
-                      )}
-
-                      {/* Per-holding fee table */}
-                      <Box overflowX="auto">
-                        <Table size="sm" variant="simple">
-                          <Thead>
-                            <Tr>
-                              <Th>Holding</Th>
-                              <Th isNumeric>Value</Th>
-                              <Th isNumeric>Expense Ratio</Th>
-                              <Th isNumeric>Annual Fee</Th>
-                              <Th isNumeric>30-Yr Drag</Th>
-                              <Th>Cost</Th>
-                            </Tr>
-                          </Thead>
-                          <Tbody>
-                            {holdingsWithFees.map((h) => (
-                              <HoldingFeeRow
-                                key={h.ticker}
-                                h={h}
-                                highFeeThreshold={HIGH_FEE_THRESHOLD}
-                                vanguardBenchmark={VANGUARD_BENCHMARK}
-                                feeDragMultiplier={FEE_DRAG_MULTIPLIER}
-                              />
-                            ))}
-                          </Tbody>
-                        </Table>
-                      </Box>
-                    </VStack>
-                  )}
+                  <FeeAnalysisPanel userId={activeUserId} />
                 </TabPanel>
 
                 {/* Tab 8: Roth Conversion Analyzer */}
