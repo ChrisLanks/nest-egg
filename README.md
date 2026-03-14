@@ -77,6 +77,14 @@ Note: there is dark mode and light mode
 - **Predictive Features** — cash flow forecasting, Monte Carlo simulations, negative balance alerts
 - **Dark Mode** — light/dark/system toggle with semantic color tokens across all components
 - **Identity Providers** — built-in JWT + pluggable Cognito, Keycloak, Okta, Google OIDC
+- **Financial Health Score** — composite wellness score from savings rate, emergency fund, debt-to-income, retirement progress
+- **Net Worth Milestones** — threshold alerts and all-time-high notifications
+- **Transaction Notes & Flagged for Review** — free-text notes, household review workflow, flagged filter
+- **Investment Fee Analyzer** — fee drag projections, fund overlap detection, low-cost alternatives
+- **Year-in-Review** — annual financial summary with YoY comparison
+- **Unified Financial Calendar** — bills + subscriptions + income with toggles and projected daily balance
+- **Education Planning** — 529 contribution tracking and college cost projections
+- **Rental Property P&L** — per-property profit & loss with Schedule E categories and cap rate
 - **Security** — rate limiting, CSRF, encryption at rest, MFA, GDPR compliance, webhook verification
 
 > **Full details**: [docs/features.md](docs/features.md)

@@ -205,7 +205,9 @@ app = FastAPI(
     description=(
         "Personal finance tracking API for households. "
         "Manages accounts, transactions, investments, budgets, savings goals, "
-        "retirement planning, and bank integrations (Plaid, Teller, MX).\n\n"
+        "retirement planning, education planning, rental property P&L, "
+        "financial health scoring, investment fee analysis, "
+        "and bank integrations (Plaid, Teller, MX).\n\n"
         "**Authentication:** JWT access tokens via `Authorization: Bearer <token>` header. "
         "Refresh tokens are stored in httpOnly cookies.\n\n"
         "**Multi-tenancy:** All data is scoped to an organization (household). "

@@ -40,7 +40,7 @@ The dev server proxies `/api` requests to the backend at `http://localhost:8000`
 
 ```
 src/
-├── components/        # Shared components (ForecastChart, Layout, ProtectedRoute)
+├── components/        # Shared components (ForecastChart, Layout, ProtectedRoute, FinancialHealthWidget, FeeAnalysisPanel)
 ├── contexts/          # React contexts (UserViewContext for household multi-user)
 ├── features/          # Feature modules (domain-organized)
 │   ├── auth/          #   Login, registration, MFA, password reset
@@ -54,9 +54,12 @@ src/
 │   ├── permissions/   #   Household member data sharing permissions
 │   ├── retirement/    #   Retirement planning with Monte Carlo simulation
 │   ├── rules/         #   Transaction auto-categorization rules
-│   └── transactions/  #   Transaction list, splits, merges, CSV import
+│   ├── transactions/  #   Transaction list, splits, merges, CSV import
+│   ├── education/     #   Education planning (529 tracking, cost projections)
+│   ├── rental-properties/ # Rental property P&L and Schedule E tracking
+│   └── year-in-review/ #  Annual financial summary with YoY comparison
 ├── hooks/             # Shared hooks (useHouseholdMembers, useColorModePreference)
-├── pages/             # Top-level route pages
+├── pages/             # Top-level route pages (incl. YearInReviewPage, EducationPlanningPage, RentalPropertiesPage)
 ├── services/          # API client (Axios instance with refresh token interceptor)
 ├── types/             # Shared TypeScript types
 └── utils/             # Utilities (formatting, Monte Carlo simulation engine)

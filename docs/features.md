@@ -339,6 +339,82 @@ When the same bank account is linked via multiple providers (e.g., Chase via Pla
 - **Transaction level**: SHA-256 hash of `date + amount + merchant + account_id` + provider transaction IDs — same transaction from two sources stored once
 - **Household level**: Same account added by two different household members -> only one copy in Combined view
 
+## Financial Health Score
+
+Composite snapshot of your overall financial wellness:
+
+- **Four Pillars**: Savings rate, emergency fund coverage, debt-to-income ratio, retirement progress
+- **Weighted Score**: Single 0-100 score with color-coded badge (red/yellow/green)
+- **Trend Tracking**: Month-over-month score history so you can see improvement over time
+- **Dashboard Widget**: `FinancialHealthWidget` available on the main dashboard
+- **Household Support**: Per-member or combined household scoring
+
+## Net Worth Milestones & All-Time-High Alerts
+
+Celebrate progress and stay informed:
+
+- **Milestone Detection**: Configurable net worth thresholds (e.g., $100k, $250k, $500k)
+- **All-Time-High Alerts**: Automatic notification when net worth exceeds its previous peak
+- **Notification Integration**: Milestones delivered through the existing notification system (in-app + optional email)
+- **Household Support**: Tracks milestones for combined household and individual members
+
+## Transaction Notes & Flagged for Review
+
+Add context to transactions and streamline household review:
+
+- **Free-Text Notes**: Add notes to any transaction for additional context
+- **Flagged for Review**: Mark transactions for household member attention
+- **Review Workflow**: Flagged transactions appear in a dedicated filter for easy triage
+- **Household Collaboration**: One member flags, another reviews — visible in combined view
+
+## Investment Fee Analyzer
+
+Understand the true cost of your portfolio:
+
+- **Fee Drag Projections**: Model how expense ratios erode returns over 10/20/30-year horizons
+- **Fund Overlap Detection**: Identify duplicate holdings across funds to reduce redundancy
+- **Low-Cost Alternatives**: Suggest lower-fee ETF/index fund replacements for high-cost holdings
+- **Fee Summary Panel**: `FeeAnalysisPanel` component with total weighted expense ratio and projected savings
+
+## Year-in-Review
+
+Annual financial summary with year-over-year comparison:
+
+- **Dedicated Page**: `YearInReviewPage` with full-year financial recap
+- **Key Metrics**: Total income, total expenses, net savings, investment returns, net worth change
+- **YoY Comparison**: Side-by-side comparison with the previous year (absolute and percentage change)
+- **Category Breakdown**: Top spending and income categories for the year
+- **Exportable**: Download summary data for records or tax prep
+
+## Unified Financial Calendar
+
+Visualize upcoming financial events in one place:
+
+- **Bills, Subscriptions & Income**: All recurring items displayed on a single calendar view
+- **Category Toggles**: Show/hide bills, subscriptions, or income streams independently
+- **Projected Daily Balance**: Running balance projection overlaid on the calendar
+- **Upcoming Alerts**: Highlights days with large expected outflows
+
+## Education Planning
+
+Track and project college savings:
+
+- **529 Contribution Tracking**: Log contributions to 529 plans with running totals
+- **College Cost Projections**: Estimate future tuition using configurable inflation rates
+- **Funding Gap Analysis**: Compare projected savings to estimated costs at enrollment date
+- **Dedicated Page**: `EducationPlanningPage` with per-beneficiary tracking
+- **Household Support**: Multiple beneficiaries across household members
+
+## Rental Property Profit & Loss
+
+Per-property financial tracking for real estate investors:
+
+- **Per-Property P&L**: Income, expenses, and net operating income for each property
+- **Schedule E Categories**: Expense categories aligned with IRS Schedule E (mortgage interest, repairs, depreciation, insurance, taxes, etc.)
+- **Cap Rate Calculation**: Automatic capitalization rate based on NOI and property value
+- **Monthly Breakdown**: Month-by-month P&L table with year-to-date totals
+- **Dedicated Page**: `RentalPropertiesPage` with multi-property dashboard
+
 ## Scalability Safeguards
 
 - **Date Range Validation**: Shared utility caps queries to ~50 years
