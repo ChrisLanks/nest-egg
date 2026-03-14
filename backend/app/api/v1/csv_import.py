@@ -4,17 +4,16 @@ import logging
 from typing import Dict, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
 from app.models.account import Account
 from app.models.user import User
 from app.schemas.csv_import import (
-    CSVPreviewResponse,
     CSVImportResponse,
+    CSVPreviewResponse,
 )
 from app.services.csv_import_service import csv_import_service
 from app.services.input_sanitization_service import input_sanitization_service
@@ -62,6 +61,36 @@ def validate_csv_file(file: UploadFile) -> None:
     # File size check is handled by RequestSizeLimitMiddleware (10MB limit)
 
 
+async def validate_csv_content(file: UploadFile) -> None:
+    """
+    Validate that uploaded file is actually a text CSV, not a binary file.
+
+    Reads the first chunk of the file and checks for binary content
+    and valid UTF-8 encoding, then resets the file position.
+
+    Args:
+        file: Uploaded file
+
+    Raises:
+        HTTPException: If file content is binary or not valid UTF-8
+    """
+    # Read first chunk to verify it's actually a text file
+    first_chunk = await file.read(8192)
+    await file.seek(0)  # Reset file position
+
+    # Check for binary content (null bytes indicate binary file)
+    if b"\x00" in first_chunk:
+        raise HTTPException(
+            status_code=400, detail="File appears to be binary, not a valid CSV text file"
+        )
+
+    # Verify UTF-8 encoding
+    try:
+        first_chunk.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File is not valid UTF-8 encoded text")
+
+
 @router.post("/validate")
 async def validate_csv(
     http_request: Request,
@@ -81,6 +110,7 @@ async def validate_csv(
 
     # Validate file upload security
     validate_csv_file(file)
+    await validate_csv_content(file)
 
     try:
         content = await file.read()
@@ -119,6 +149,7 @@ async def preview_csv_import(
 
     # Validate file upload security
     validate_csv_file(file)
+    await validate_csv_content(file)
 
     try:
         content = await file.read()
@@ -158,7 +189,7 @@ async def import_csv(
     Returns:
         Import statistics (imported, skipped, errors)
     """
-    # Rate limit: 10 import requests per hour per IP (stricter limit for resource-intensive operation)
+    # Rate limit: 10 imports/hour per IP (resource-intensive)
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=10,
@@ -177,6 +208,7 @@ async def import_csv(
 
     # Validate file upload security
     validate_csv_file(file)
+    await validate_csv_content(file)
 
     # Read file
     try:

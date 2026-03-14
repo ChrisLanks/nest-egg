@@ -1,12 +1,13 @@
 """Multi-Factor Authentication service."""
 
-import pyotp
-import qrcode
 import io
 import secrets
-from argon2 import PasswordHasher
 from base64 import b64encode
 from typing import List
+
+import pyotp
+import qrcode
+from argon2 import PasswordHasher
 
 from app.services.encryption_service import get_encryption_service
 
@@ -82,14 +83,14 @@ class MFAService:
             count: Number of backup codes to generate
 
         Returns:
-            List of backup codes (format: XXXX-XXXX)
+            List of backup codes (format: XXXX-XXXX-XXXX)
         """
         codes = []
         for _ in range(count):
-            # Generate 8-character alphanumeric code
-            code = secrets.token_hex(4).upper()
-            # Format as XXXX-XXXX
-            formatted = f"{code[:4]}-{code[4:]}"
+            # Generate 12-character hex code (48 bits of entropy)
+            code = secrets.token_hex(6).upper()
+            # Format as XXXX-XXXX-XXXX
+            formatted = f"{code[:4]}-{code[4:8]}-{code[8:]}"
             codes.append(formatted)
 
         return codes

@@ -9,12 +9,13 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import func, select
 from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.cache import delete_pattern as cache_delete_pattern
 from app.core.cache import get as cache_get
 from app.core.cache import setex as cache_setex
 from app.core.database import AsyncSessionLocal, get_db
@@ -127,37 +128,32 @@ async def get_portfolio_summary(
     # Don't return early if no holdings - accounts may still have balances without detailed holdings
     # (e.g., investment accounts that haven't been synced yet or don't have holdings data)
 
-    # Aggregate holdings by ticker
-    holdings_by_ticker: dict[str, dict] = {}
-    for holding in holdings:
-        if holding.ticker not in holdings_by_ticker:
-            holdings_by_ticker[holding.ticker] = {
-                "ticker": holding.ticker,
-                "name": holding.name,
-                "total_shares": Decimal("0"),
-                "total_cost_basis": Decimal("0"),
-                "current_price_per_share": holding.current_price_per_share,
-                "price_as_of": holding.price_as_of,
-                "asset_type": holding.asset_type,
-                "sector": holding.sector,
-                "industry": holding.industry,
-                "expense_ratio": holding.expense_ratio,
-            }
-
-        holdings_by_ticker[holding.ticker]["total_shares"] += holding.shares
-        if holding.total_cost_basis:
-            holdings_by_ticker[holding.ticker]["total_cost_basis"] += holding.total_cost_basis
-
-        # Use most recent price
-        if holding.price_as_of and (
-            not holdings_by_ticker[holding.ticker]["price_as_of"]
-            or holding.price_as_of > holdings_by_ticker[holding.ticker]["price_as_of"]
-        ):
-            holdings_by_ticker[holding.ticker]["current_price_per_share"] = (
-                holding.current_price_per_share
+    # Aggregate holdings by ticker using SQL GROUP BY
+    if investment_account_ids:
+        agg_query = (
+            select(
+                Holding.ticker,
+                func.max(Holding.name).label("name"),
+                func.sum(Holding.shares).label("total_shares"),
+                func.coalesce(func.sum(Holding.total_cost_basis), Decimal("0")).label(
+                    "total_cost_basis"
+                ),
+                func.max(Holding.asset_type).label("asset_type"),
+                func.max(Holding.sector).label("sector"),
+                func.max(Holding.industry).label("industry"),
+                func.max(Holding.country).label("country"),
+                func.max(Holding.expense_ratio).label("expense_ratio"),
+                # Use the price from the most recently updated holding
+                func.max(Holding.current_price_per_share).label("current_price_per_share"),
+                func.max(Holding.price_as_of).label("price_as_of"),
             )
-            holdings_by_ticker[holding.ticker]["price_as_of"] = holding.price_as_of
-            holdings_by_ticker[holding.ticker]["expense_ratio"] = holding.expense_ratio
+            .where(Holding.account_id.in_(investment_account_ids))
+            .group_by(Holding.ticker)
+        )
+        agg_result = await db.execute(agg_query)
+        aggregated_rows = agg_result.all()
+    else:
+        aggregated_rows = []
 
     # Calculate totals and summaries
     holdings_summaries = []
@@ -173,10 +169,10 @@ async def get_portfolio_summary(
     cash_value = Decimal("0")
     other_value = Decimal("0")
 
-    for ticker_data in holdings_by_ticker.values():
-        shares = ticker_data["total_shares"]
-        price = ticker_data["current_price_per_share"]
-        cost_basis = ticker_data["total_cost_basis"]
+    for row in aggregated_rows:
+        shares = row.total_shares
+        price = row.current_price_per_share
+        cost_basis = row.total_cost_basis
 
         current_total_value = shares * price if price else None
         gain_loss = (
@@ -189,7 +185,7 @@ async def get_portfolio_summary(
         )
 
         # Calculate annual fee if expense ratio exists
-        expense_ratio = ticker_data.get("expense_ratio")
+        expense_ratio = row.expense_ratio
         annual_fee = (
             (current_total_value * expense_ratio)
             if (current_total_value and expense_ratio)
@@ -197,16 +193,17 @@ async def get_portfolio_summary(
         )
 
         summary = HoldingSummary(
-            ticker=ticker_data["ticker"],
-            name=ticker_data["name"],
+            ticker=row.ticker,
+            name=row.name,
             total_shares=shares,
             total_cost_basis=cost_basis,
             current_price_per_share=price,
             current_total_value=current_total_value,
-            price_as_of=ticker_data["price_as_of"],
-            asset_type=ticker_data["asset_type"],
-            sector=ticker_data.get("sector"),
-            industry=ticker_data.get("industry"),
+            price_as_of=row.price_as_of,
+            asset_type=row.asset_type,
+            sector=row.sector,
+            industry=row.industry,
+            country=row.country,
             expense_ratio=expense_ratio,
             gain_loss=gain_loss,
             gain_loss_percent=gain_loss_percent,
@@ -222,7 +219,7 @@ async def get_portfolio_summary(
                 total_annual_fees += annual_fee
 
             # Accumulate by asset type
-            asset_type = ticker_data.get("asset_type")
+            asset_type = row.asset_type
             if asset_type == "stock":
                 stocks_value += current_total_value
             elif asset_type == "bond":
@@ -1118,15 +1115,31 @@ async def get_portfolio_summary(
 
 @router.get("/account/{account_id}", response_model=List[HoldingSchema])
 async def get_account_holdings(
+    response: Response,
     account: Account = Depends(get_verified_account),
     db: AsyncSession = Depends(get_db),
+    skip: int = Query(0, ge=0, description="Number of holdings to skip"),
+    limit: int = Query(100, ge=1, le=500, description="Max holdings to return"),
 ):
-    """Get all holdings for a specific account."""
-    # Fetch holdings
+    """Get holdings for a specific account with pagination."""
+    # Get total count
+    count_result = await db.execute(
+        select(func.count()).select_from(Holding).where(Holding.account_id == account.id)
+    )
+    total_count = count_result.scalar()
+
+    # Fetch paginated holdings
     result = await db.execute(
-        select(Holding).where(Holding.account_id == account.id).order_by(Holding.ticker)
+        select(Holding)
+        .where(Holding.account_id == account.id)
+        .order_by(Holding.ticker)
+        .offset(skip)
+        .limit(limit)
     )
     holdings = result.scalars().all()
+
+    # Set total count header for client pagination
+    response.headers["X-Total-Count"] = str(total_count)
 
     return holdings
 
@@ -1188,6 +1201,9 @@ async def create_holding(
     db.add(holding)
     await db.commit()
     await db.refresh(holding)
+
+    # Invalidate portfolio summary cache
+    await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
 
     logger.info(
         "create_holding: ticker=%s shares=%s account_id=%s user_id=%s org_id=%s",
@@ -1282,6 +1298,9 @@ async def update_holding(
     await db.commit()
     await db.refresh(holding)
 
+    # Invalidate portfolio summary cache
+    await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
+
     return holding
 
 
@@ -1314,6 +1333,9 @@ async def delete_holding(
 
     await db.delete(holding)
     await db.commit()
+
+    # Invalidate portfolio summary cache
+    await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
 
     return None
 

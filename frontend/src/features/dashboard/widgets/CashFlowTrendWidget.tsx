@@ -1,5 +1,11 @@
-import { Card, CardBody, Heading, useColorModeValue } from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
+import {
+  Box,
+  Card,
+  CardBody,
+  Heading,
+  useColorModeValue,
+} from "@chakra-ui/react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Bar,
   BarChart,
@@ -9,28 +15,28 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from 'recharts';
-import { useUserView } from '../../../contexts/UserViewContext';
-import api from '../../../services/api';
+} from "recharts";
+import { useUserView } from "../../../contexts/UserViewContext";
+import api from "../../../services/api";
 
 const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
 
 export const CashFlowTrendWidget: React.FC = () => {
   const { selectedUserId } = useUserView();
-  const tooltipBg = useColorModeValue('#FFFFFF', '#2D3748');
-  const tooltipBorder = useColorModeValue('#E2E8F0', '#4A5568');
+  const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
+  const tooltipBorder = useColorModeValue("#E2E8F0", "#4A5568");
 
   const { data } = useQuery({
-    queryKey: ['dashboard', selectedUserId],
+    queryKey: ["dashboard", selectedUserId],
     queryFn: async () => {
       const params = selectedUserId ? { user_id: selectedUserId } : {};
-      const response = await api.get('/dashboard/', { params });
+      const response = await api.get("/dashboard/", { params });
       return response.data;
     },
   });
@@ -44,20 +50,28 @@ export const CashFlowTrendWidget: React.FC = () => {
         <Heading size="md" mb={4}>
           Cash Flow Trend
         </Heading>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={cashFlowTrend}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" />
-            <YAxis />
-            <Tooltip
-              formatter={((v: number) => formatCurrency(v)) as any}
-              contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}` }}
-            />
-            <Legend />
-            <Bar dataKey="income" fill="#48BB78" name="Income" />
-            <Bar dataKey="expenses" fill="#F56565" name="Expenses" />
-          </BarChart>
-        </ResponsiveContainer>
+        <Box
+          role="img"
+          aria-label="Cash flow trend chart showing income and expenses"
+        >
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={cashFlowTrend}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip
+                formatter={((v: number) => formatCurrency(v)) as any}
+                contentStyle={{
+                  backgroundColor: tooltipBg,
+                  border: `1px solid ${tooltipBorder}`,
+                }}
+              />
+              <Legend />
+              <Bar dataKey="income" fill="#48BB78" name="Income" />
+              <Bar dataKey="expenses" fill="#F56565" name="Expenses" />
+            </BarChart>
+          </ResponsiveContainer>
+        </Box>
       </CardBody>
     </Card>
   );

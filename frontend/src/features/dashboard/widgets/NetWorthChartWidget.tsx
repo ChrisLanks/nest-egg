@@ -21,9 +21,9 @@ import {
   useColorModeValue,
   useDisclosure,
   VStack,
-} from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+} from "@chakra-ui/react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   AreaChart,
   Area,
@@ -33,110 +33,143 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from 'recharts';
-import api from '../../../services/api';
-import { useUserView } from '../../../contexts/UserViewContext';
+} from "recharts";
+import api from "../../../services/api";
+import { useUserView } from "../../../contexts/UserViewContext";
 
 const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
 
-type TimeRange = '1M' | '3M' | '6M' | '1Y' | 'ALL' | 'CUSTOM';
+type TimeRange = "1M" | "3M" | "6M" | "1Y" | "ALL" | "CUSTOM";
 
 export const NetWorthChartWidget: React.FC = () => {
   const { selectedUserId } = useUserView();
-  const overlayBg = useColorModeValue('whiteAlpha.800', 'blackAlpha.800');
-  const tooltipBg = useColorModeValue('#FFFFFF', '#2D3748');
-  const tooltipBorder = useColorModeValue('#E2E8F0', '#4A5568');
+  const overlayBg = useColorModeValue("whiteAlpha.800", "blackAlpha.800");
+  const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
+  const tooltipBorder = useColorModeValue("#E2E8F0", "#4A5568");
   const [timeRange, setTimeRange] = useState<TimeRange>(() => {
-    const saved = localStorage.getItem('dashboard-timeRange');
-    return (saved as TimeRange) || '1Y';
+    const saved = localStorage.getItem("dashboard-timeRange");
+    return (saved as TimeRange) || "1Y";
   });
-  const [customStartDate, setCustomStartDate] = useState<string>(() =>
-    localStorage.getItem('dashboard-customStartDate') || ''
+  const [customStartDate, setCustomStartDate] = useState<string>(
+    () => localStorage.getItem("dashboard-customStartDate") || "",
   );
-  const [customEndDate, setCustomEndDate] = useState<string>(() =>
-    localStorage.getItem('dashboard-customEndDate') || ''
+  const [customEndDate, setCustomEndDate] = useState<string>(
+    () => localStorage.getItem("dashboard-customEndDate") || "",
   );
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   const { data: dashboardData } = useQuery({
-    queryKey: ['dashboard', selectedUserId],
+    queryKey: ["dashboard", selectedUserId],
     queryFn: async () => {
       const params = selectedUserId ? { user_id: selectedUserId } : {};
-      const response = await api.get('/dashboard/', { params });
+      const response = await api.get("/dashboard/", { params });
       return response.data;
     },
   });
 
-  const { data: historicalData, isFetching, isLoading } = useQuery({
-    queryKey: ['historical-net-worth', timeRange, customStartDate, customEndDate],
+  const {
+    data: historicalData,
+    isFetching,
+    isLoading,
+  } = useQuery({
+    queryKey: [
+      "historical-net-worth",
+      timeRange,
+      customStartDate,
+      customEndDate,
+    ],
     queryFn: async () => {
       const now = new Date();
       let startDate: Date;
       let endDate: Date | null = null;
 
       switch (timeRange) {
-        case '1M':
-          startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+        case "1M":
+          startDate = new Date(
+            now.getFullYear(),
+            now.getMonth() - 1,
+            now.getDate(),
+          );
           break;
-        case '3M':
-          startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+        case "3M":
+          startDate = new Date(
+            now.getFullYear(),
+            now.getMonth() - 3,
+            now.getDate(),
+          );
           break;
-        case '6M':
-          startDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+        case "6M":
+          startDate = new Date(
+            now.getFullYear(),
+            now.getMonth() - 6,
+            now.getDate(),
+          );
           break;
-        case '1Y':
-          startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+        case "1Y":
+          startDate = new Date(
+            now.getFullYear() - 1,
+            now.getMonth(),
+            now.getDate(),
+          );
           break;
-        case 'ALL':
+        case "ALL":
           startDate = new Date(now.getFullYear() - 10, 0, 1);
           break;
-        case 'CUSTOM':
+        case "CUSTOM":
           startDate = customStartDate
             ? new Date(customStartDate)
             : new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
           if (customEndDate) endDate = new Date(customEndDate);
           break;
         default:
-          startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+          startDate = new Date(
+            now.getFullYear() - 1,
+            now.getMonth(),
+            now.getDate(),
+          );
       }
 
       const params: Record<string, string> = {
-        start_date: startDate.toISOString().split('T')[0],
+        start_date: startDate.toISOString().split("T")[0],
       };
-      if (endDate) params.end_date = endDate.toISOString().split('T')[0];
+      if (endDate) params.end_date = endDate.toISOString().split("T")[0];
 
-      const response = await api.get('/holdings/historical', { params });
+      const response = await api.get("/holdings/historical", { params });
       return response.data;
     },
   });
 
   const setRange = (range: TimeRange) => {
     setTimeRange(range);
-    localStorage.setItem('dashboard-timeRange', range);
+    localStorage.setItem("dashboard-timeRange", range);
   };
 
-  const rawHistory: { snapshot_date: string; total_value: number }[] = historicalData ?? [];
+  const rawHistory: { snapshot_date: string; total_value: number }[] =
+    historicalData ?? [];
   const currentNetWorth: number | undefined = dashboardData?.summary?.net_worth;
 
   const chartData =
     rawHistory.length > 0
       ? rawHistory.map((s) => ({
-          date: new Date(s.snapshot_date).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
+          date: new Date(s.snapshot_date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
           }),
           value: Number(s.total_value),
         }))
       : currentNetWorth !== undefined
         ? [
             {
-              date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+              date: new Date().toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              }),
               value: currentNetWorth,
             },
           ]
@@ -164,48 +197,71 @@ export const NetWorthChartWidget: React.FC = () => {
         <HStack justify="space-between" mb={4}>
           <Heading size="md">Net Worth Over Time</Heading>
           <ButtonGroup size="sm" isAttached variant="outline">
-            {(['1M', '3M', '6M', '1Y', 'ALL'] as TimeRange[]).map((r) => (
-              <Button key={r} onClick={() => setRange(r)} colorScheme={timeRange === r ? 'brand' : 'gray'}>
+            {(["1M", "3M", "6M", "1Y", "ALL"] as TimeRange[]).map((r) => (
+              <Button
+                key={r}
+                onClick={() => setRange(r)}
+                colorScheme={timeRange === r ? "brand" : "gray"}
+              >
                 {r}
               </Button>
             ))}
-            <Button onClick={onOpen} colorScheme={timeRange === 'CUSTOM' ? 'brand' : 'gray'}>
+            <Button
+              onClick={onOpen}
+              colorScheme={timeRange === "CUSTOM" ? "brand" : "gray"}
+            >
               Custom
             </Button>
           </ButtonGroup>
         </HStack>
 
         {!isLoading && chartData.length === 0 ? (
-          <Box height={300} display="flex" alignItems="center" justifyContent="center">
+          <Box
+            height={300}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+          >
             <Text color="text.muted">No net worth data yet.</Text>
           </Box>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip
-                formatter={((v: number) => formatCurrency(v)) as any}
-                contentStyle={{ backgroundColor: tooltipBg, border: `1px solid ${tooltipBorder}` }}
-              />
-              <Legend />
-              <defs>
-                <linearGradient id="colorNetWorth" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3182CE" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="#3182CE" stopOpacity={0.1} />
-                </linearGradient>
-              </defs>
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke="#3182CE"
-                strokeWidth={2}
-                fill="url(#colorNetWorth)"
-                name="Net Worth"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <Box role="img" aria-label="Net worth over time chart">
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip
+                  formatter={((v: number) => formatCurrency(v)) as any}
+                  contentStyle={{
+                    backgroundColor: tooltipBg,
+                    border: `1px solid ${tooltipBorder}`,
+                  }}
+                />
+                <Legend />
+                <defs>
+                  <linearGradient
+                    id="colorNetWorth"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="5%" stopColor="#3182CE" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#3182CE" stopOpacity={0.1} />
+                  </linearGradient>
+                </defs>
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#3182CE"
+                  strokeWidth={2}
+                  fill="url(#colorNetWorth)"
+                  name="Net Worth"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Box>
         )}
       </CardBody>
 
@@ -223,7 +279,10 @@ export const NetWorthChartWidget: React.FC = () => {
                   value={customStartDate}
                   onChange={(e) => {
                     setCustomStartDate(e.target.value);
-                    localStorage.setItem('dashboard-customStartDate', e.target.value);
+                    localStorage.setItem(
+                      "dashboard-customStartDate",
+                      e.target.value,
+                    );
                   }}
                 />
               </FormControl>
@@ -234,7 +293,10 @@ export const NetWorthChartWidget: React.FC = () => {
                   value={customEndDate}
                   onChange={(e) => {
                     setCustomEndDate(e.target.value);
-                    localStorage.setItem('dashboard-customEndDate', e.target.value);
+                    localStorage.setItem(
+                      "dashboard-customEndDate",
+                      e.target.value,
+                    );
                   }}
                 />
               </FormControl>
@@ -246,8 +308,8 @@ export const NetWorthChartWidget: React.FC = () => {
               mr={3}
               isDisabled={!customStartDate}
               onClick={() => {
-                localStorage.setItem('dashboard-timeRange', 'CUSTOM');
-                setTimeRange('CUSTOM');
+                localStorage.setItem("dashboard-timeRange", "CUSTOM");
+                setTimeRange("CUSTOM");
                 onClose();
               }}
             >

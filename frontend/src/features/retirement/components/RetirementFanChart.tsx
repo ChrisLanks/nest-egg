@@ -3,7 +3,7 @@
  * Percentile bands (p10-p90) with median line and retirement age marker.
  */
 
-import { Box, Text, useColorModeValue } from '@chakra-ui/react';
+import { Box, Text, useColorModeValue } from "@chakra-ui/react";
 import {
   Area,
   CartesianGrid,
@@ -14,8 +14,8 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from 'recharts';
-import type { ProjectionDataPoint } from '../types/retirement';
+} from "recharts";
+import type { ProjectionDataPoint } from "../types/retirement";
 
 interface RetirementFanChartProps {
   projections: ProjectionDataPoint[];
@@ -30,15 +30,24 @@ function formatCurrency(value: number): string {
   return `$${value.toFixed(0)}`;
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label: _label }: any) {
   if (!active || !payload?.length) return null;
 
   const data = payload[0]?.payload as ProjectionDataPoint;
   if (!data) return null;
 
   return (
-    <Box bg="gray.800" color="white" p={3} borderRadius="md" fontSize="sm" shadow="lg">
-      <Text fontWeight="bold" mb={1}>Age {data.age}</Text>
+    <Box
+      bg="gray.800"
+      color="white"
+      p={3}
+      borderRadius="md"
+      fontSize="sm"
+      shadow="lg"
+    >
+      <Text fontWeight="bold" mb={1}>
+        Age {data.age}
+      </Text>
       <Text>90th: {formatCurrency(data.p90)}</Text>
       <Text>75th: {formatCurrency(data.p75)}</Text>
       <Text fontWeight="bold">Median: {formatCurrency(data.p50)}</Text>
@@ -59,15 +68,15 @@ export function RetirementFanChart({
   socialSecurityStartAge,
   isLoading,
 }: RetirementFanChartProps) {
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const gridColor = useColorModeValue('#E2E8F0', '#2D3748');
-  const textColor = useColorModeValue('#718096', '#A0AEC0');
+  const bgColor = useColorModeValue("white", "gray.800");
+  const gridColor = useColorModeValue("#E2E8F0", "#2D3748");
+  const textColor = useColorModeValue("#718096", "#A0AEC0");
 
   if (isLoading || !projections.length) {
     return (
       <Box bg={bgColor} p={6} borderRadius="xl" shadow="sm" h="400px">
         <Text color={textColor} textAlign="center" pt="150px">
-          {isLoading ? 'Running simulation...' : 'No projection data yet'}
+          {isLoading ? "Running simulation..." : "No projection data yet"}
         </Text>
       </Box>
     );
@@ -84,16 +93,31 @@ export function RetirementFanChart({
   }));
 
   return (
-    <Box bg={bgColor} p={4} borderRadius="xl" shadow="sm">
+    <Box
+      bg={bgColor}
+      p={4}
+      borderRadius="xl"
+      shadow="sm"
+      role="img"
+      aria-label="Retirement projection fan chart"
+    >
       <Text fontSize="md" fontWeight="semibold" mb={3} color={textColor}>
         Portfolio Projection
       </Text>
       <ResponsiveContainer width="100%" height={380}>
-        <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+        <ComposedChart
+          data={chartData}
+          margin={{ top: 10, right: 30, left: 10, bottom: 10 }}
+        >
           <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
           <XAxis
             dataKey="age"
-            label={{ value: 'Age', position: 'insideBottom', offset: -5, fill: textColor }}
+            label={{
+              value: "Age",
+              position: "insideBottom",
+              offset: -5,
+              fill: textColor,
+            }}
             stroke={textColor}
             tick={{ fill: textColor, fontSize: 12 }}
           />
@@ -186,9 +210,9 @@ export function RetirementFanChart({
             strokeWidth={2}
             strokeDasharray="6 3"
             label={{
-              value: 'Retire',
-              position: 'top',
-              fill: '#ED8936',
+              value: "Retire",
+              position: "top",
+              fill: "#ED8936",
               fontSize: 12,
             }}
           />
@@ -201,9 +225,9 @@ export function RetirementFanChart({
               strokeWidth={1.5}
               strokeDasharray="4 4"
               label={{
-                value: 'SS',
-                position: 'top',
-                fill: '#9F7AEA',
+                value: "SS",
+                position: "top",
+                fill: "#9F7AEA",
                 fontSize: 11,
               }}
             />
@@ -217,9 +241,9 @@ export function RetirementFanChart({
               strokeWidth={1}
               strokeDasharray="3 3"
               label={{
-                value: 'Medicare',
-                position: 'insideTopRight',
-                fill: '#38B2AC',
+                value: "Medicare",
+                position: "insideTopRight",
+                fill: "#38B2AC",
                 fontSize: 10,
               }}
             />

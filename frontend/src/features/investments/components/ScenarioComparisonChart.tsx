@@ -6,7 +6,7 @@
  * Draws a vertical dashed line at the retirement year if set.
  */
 
-import { Box, Text, Card, CardBody, useColorModeValue } from '@chakra-ui/react';
+import { Box, Text, Card, CardBody, useColorModeValue } from "@chakra-ui/react";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -18,8 +18,8 @@ import {
   Tooltip,
   Legend,
   ReferenceLine,
-} from 'recharts';
-import type { ProjectionResult, SimulationSummary } from '../../../utils/monteCarloSimulation';
+} from "recharts";
+import type { SimulationSummary } from "../../../utils/monteCarloSimulation";
 
 export interface ScenarioData {
   name: string;
@@ -34,12 +34,12 @@ interface ScenarioComparisonChartProps {
   retirementYear?: number;
 }
 
-const SCENARIO_COLORS = ['#4299E1', '#ED8936', '#48BB78'];
+const SCENARIO_COLORS = ["#4299E1", "#ED8936", "#48BB78"];
 
 const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
@@ -50,12 +50,14 @@ export const ScenarioComparisonChart = ({
   showInflationAdjusted,
   retirementYear,
 }: ScenarioComparisonChartProps) => {
-  const gridColor = useColorModeValue('#e0e0e0', '#4A5568');
-  const tooltipBg = useColorModeValue('white', 'gray.700');
-  const tooltipBorder = useColorModeValue('gray.200', 'gray.600');
+  const gridColor = useColorModeValue("#e0e0e0", "#4A5568");
+  const tooltipBg = useColorModeValue("white", "gray.700");
+  const tooltipBorder = useColorModeValue("gray.200", "gray.600");
 
   // Merge all scenario projections into unified data keyed by year
-  const maxYears = Math.max(...scenarios.map((s) => s.summary.projections.length));
+  const maxYears = Math.max(
+    ...scenarios.map((s) => s.summary.projections.length),
+  );
   const chartData = Array.from({ length: maxYears }, (_, i) => {
     const row: Record<string, number> = { year: i };
     scenarios.forEach((s, si) => {
@@ -80,7 +82,12 @@ export const ScenarioComparisonChart = ({
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
     return (
-      <Card size="sm" bg={tooltipBg} borderColor={tooltipBorder} borderWidth={1}>
+      <Card
+        size="sm"
+        bg={tooltipBg}
+        borderColor={tooltipBorder}
+        borderWidth={1}
+      >
         <CardBody py={2} px={3}>
           <Text fontWeight="bold" mb={1}>
             Year {label}
@@ -90,7 +97,11 @@ export const ScenarioComparisonChart = ({
             const entry = payload.find((p: any) => p.dataKey === medianKey);
             if (!entry) return null;
             return (
-              <Text key={si} fontSize="sm" color={s.color || SCENARIO_COLORS[si]}>
+              <Text
+                key={si}
+                fontSize="sm"
+                color={s.color || SCENARIO_COLORS[si]}
+              >
                 {s.name}: {formatCurrency(entry.value)}
               </Text>
             );
@@ -103,18 +114,26 @@ export const ScenarioComparisonChart = ({
   const ap = `s${activeIndex}`; // Active prefix for bands
 
   return (
-    <Box>
+    <Box
+      role="img"
+      aria-label={`Portfolio growth projection chart comparing ${scenarios.map((s) => s.name).join(", ")} scenarios over ${chartData.length} years`}
+    >
       <ResponsiveContainer width="100%" height={400}>
         <ComposedChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
           <XAxis
             dataKey="year"
-            label={{ value: 'Years', position: 'insideBottom', offset: -5 }}
+            label={{ value: "Years", position: "insideBottom", offset: -5 }}
           />
           <YAxis
             tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
-            label={{ value: 'Portfolio Value', angle: -90, position: 'insideLeft' }}
+            label={{
+              value: "Portfolio Value",
+              angle: -90,
+              position: "insideLeft",
+            }}
           />
+          {/* eslint-disable-next-line react-hooks/static-components */}
           <Tooltip content={<CustomTooltip />} />
           <Legend />
 
@@ -124,7 +143,7 @@ export const ScenarioComparisonChart = ({
               x={retirementYear}
               stroke="#A0AEC0"
               strokeDasharray="6 4"
-              label={{ value: 'Retirement', position: 'top', fill: '#A0AEC0' }}
+              label={{ value: "Retirement", position: "top", fill: "#A0AEC0" }}
             />
           )}
 
@@ -156,7 +175,7 @@ export const ScenarioComparisonChart = ({
               dataKey={`s${si}_median`}
               stroke={s.color || SCENARIO_COLORS[si]}
               strokeWidth={si === activeIndex ? 3 : 2}
-              strokeDasharray={si === activeIndex ? undefined : '5 5'}
+              strokeDasharray={si === activeIndex ? undefined : "5 5"}
               name={s.name}
               dot={false}
             />

@@ -195,14 +195,25 @@ async def lifespan(app: FastAPI):
 
 
 # Create FastAPI application
-# Disable interactive API docs in production to reduce attack surface
+# OpenAPI schema is always available for self-documentation.
+# Interactive docs (Swagger UI / ReDoc) are only enabled in development.
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
+    description=(
+        "Personal finance tracking API for households. "
+        "Manages accounts, transactions, investments, budgets, savings goals, "
+        "retirement planning, and bank integrations (Plaid, Teller, MX).\n\n"
+        "**Authentication:** JWT access tokens via `Authorization: Bearer <token>` header. "
+        "Refresh tokens are stored in httpOnly cookies.\n\n"
+        "**Multi-tenancy:** All data is scoped to an organization (household). "
+        "Users within an organization can share data via the permissions system.\n\n"
+        "**OpenAPI schema:** Always available at `/openapi.json`."
+    ),
     lifespan=lifespan,
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
-    openapi_url="/openapi.json" if settings.DEBUG else None,
+    openapi_url="/openapi.json",
 )
 
 # Instrument the app with Prometheus (metrics served on admin port, not here)

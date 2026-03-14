@@ -33,17 +33,15 @@ import {
   Tr,
   Th,
   Td,
-  Wrap,
-  WrapItem,
   Divider,
   Input,
   IconButton,
   useColorModeValue,
   useToast,
-} from '@chakra-ui/react';
-import { AddIcon, CloseIcon, CheckIcon } from '@chakra-ui/icons';
-import { useState, useRef, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+} from "@chakra-ui/react";
+import { AddIcon, CloseIcon, CheckIcon } from "@chakra-ui/icons";
+import { useState, useRef, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ResponsiveContainer,
   BarChart,
@@ -53,9 +51,8 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  Cell,
-} from 'recharts';
-import api from '../../../services/api';
+} from "recharts";
+import api from "../../../services/api";
 
 interface AllocationSlice {
   asset_class: string;
@@ -81,13 +78,13 @@ interface DriftItem {
   current_value: number;
   drift_percent: number;
   drift_value: number;
-  status: 'overweight' | 'underweight' | 'on_target';
+  status: "overweight" | "underweight" | "on_target";
 }
 
 interface TradeRecommendation {
   asset_class: string;
   label: string;
-  action: 'BUY' | 'SELL';
+  action: "BUY" | "SELL";
   amount: number;
   current_value: number;
   target_value: number;
@@ -111,49 +108,55 @@ interface PresetPortfolio {
 }
 
 const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
 
 export const RebalancingPanel = () => {
   const [showCustomBuilder, setShowCustomBuilder] = useState(false);
-  const [customName, setCustomName] = useState('');
+  const [customName, setCustomName] = useState("");
   const [customSlices, setCustomSlices] = useState<AllocationSlice[]>([
-    { asset_class: 'domestic', target_percent: 60, label: 'US Stocks' },
-    { asset_class: 'international', target_percent: 30, label: 'International Stocks' },
-    { asset_class: 'bond', target_percent: 10, label: 'Bonds' },
+    { asset_class: "domestic", target_percent: 60, label: "US Stocks" },
+    {
+      asset_class: "international",
+      target_percent: 30,
+      label: "International Stocks",
+    },
+    { asset_class: "bond", target_percent: 10, label: "Bonds" },
   ]);
 
   const toast = useToast();
   const queryClient = useQueryClient();
 
   // Dark mode colors
-  const overweightColor = useColorModeValue('red.600', 'red.300');
-  const underweightColor = useColorModeValue('orange.600', 'orange.300');
-  const onTargetColor = useColorModeValue('green.600', 'green.300');
-  const buyBadgeBg = useColorModeValue('green.50', 'green.900');
-  const sellBadgeBg = useColorModeValue('red.50', 'red.900');
-  const cardBg = useColorModeValue('gray.50', 'gray.700');
-  const barCurrentColor = useColorModeValue('#4299E1', '#63B3ED');
-  const barTargetColor = useColorModeValue('#A0AEC0', '#718096');
+  const overweightColor = useColorModeValue("red.600", "red.300");
+  const underweightColor = useColorModeValue("orange.600", "orange.300");
+  const onTargetColor = useColorModeValue("green.600", "green.300");
+  const buyBadgeBg = useColorModeValue("green.50", "green.900");
+  const sellBadgeBg = useColorModeValue("red.50", "red.900");
+  const cardBg = useColorModeValue("gray.50", "gray.700");
+  const barCurrentColor = useColorModeValue("#4299E1", "#63B3ED");
+  const barTargetColor = useColorModeValue("#A0AEC0", "#718096");
 
   // Fetch presets
   const { data: presets } = useQuery<Record<string, PresetPortfolio>>({
-    queryKey: ['rebalancing-presets'],
+    queryKey: ["rebalancing-presets"],
     queryFn: async () => {
-      const res = await api.get('/rebalancing/presets');
+      const res = await api.get("/rebalancing/presets");
       return res.data;
     },
   });
 
   // Fetch active target allocation
-  const { data: allocations, isLoading: allocationsLoading } = useQuery<TargetAllocation[]>({
-    queryKey: ['target-allocations'],
+  const { data: allocations, isLoading: allocationsLoading } = useQuery<
+    TargetAllocation[]
+  >({
+    queryKey: ["target-allocations"],
     queryFn: async () => {
-      const res = await api.get('/rebalancing/target-allocations');
+      const res = await api.get("/rebalancing/target-allocations");
       return res.data;
     },
   });
@@ -161,52 +164,68 @@ export const RebalancingPanel = () => {
   const activeAllocation = allocations?.find((a) => a.is_active);
 
   // Fetch analysis (only when active allocation exists)
-  const {
-    data: analysis,
-    isLoading: analysisLoading,
-  } = useQuery<RebalancingAnalysis>({
-    queryKey: ['rebalancing-analysis'],
-    queryFn: async () => {
-      const res = await api.get('/rebalancing/analysis');
-      return res.data;
-    },
-    enabled: !!activeAllocation,
-  });
+  const { data: analysis, isLoading: analysisLoading } =
+    useQuery<RebalancingAnalysis>({
+      queryKey: ["rebalancing-analysis"],
+      queryFn: async () => {
+        const res = await api.get("/rebalancing/analysis");
+        return res.data;
+      },
+      enabled: !!activeAllocation,
+    });
 
   // Create from preset
   const createFromPreset = useMutation({
     mutationFn: async (presetKey: string) => {
-      const res = await api.post(`/rebalancing/target-allocations/from-preset?preset_key=${presetKey}`);
+      const res = await api.post(
+        `/rebalancing/target-allocations/from-preset?preset_key=${presetKey}`,
+      );
       return res.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['target-allocations'] });
-      queryClient.invalidateQueries({ queryKey: ['rebalancing-analysis'] });
-      toast({ title: 'Target allocation set', status: 'success', duration: 3000 });
+      queryClient.invalidateQueries({ queryKey: ["target-allocations"] });
+      queryClient.invalidateQueries({ queryKey: ["rebalancing-analysis"] });
+      toast({
+        title: "Target allocation set",
+        status: "success",
+        duration: 3000,
+      });
     },
     onError: () => {
-      toast({ title: 'Failed to set allocation', status: 'error', duration: 3000 });
+      toast({
+        title: "Failed to set allocation",
+        status: "error",
+        duration: 3000,
+      });
     },
   });
 
   // Create custom
   const createCustom = useMutation({
     mutationFn: async () => {
-      const res = await api.post('/rebalancing/target-allocations', {
-        name: customName || 'Custom Allocation',
+      const res = await api.post("/rebalancing/target-allocations", {
+        name: customName || "Custom Allocation",
         allocations: customSlices,
         drift_threshold: 5.0,
       });
       return res.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['target-allocations'] });
-      queryClient.invalidateQueries({ queryKey: ['rebalancing-analysis'] });
+      queryClient.invalidateQueries({ queryKey: ["target-allocations"] });
+      queryClient.invalidateQueries({ queryKey: ["rebalancing-analysis"] });
       setShowCustomBuilder(false);
-      toast({ title: 'Custom allocation created', status: 'success', duration: 3000 });
+      toast({
+        title: "Custom allocation created",
+        status: "success",
+        duration: 3000,
+      });
     },
     onError: () => {
-      toast({ title: 'Allocations must sum to 100%', status: 'error', duration: 3000 });
+      toast({
+        title: "Allocations must sum to 100%",
+        status: "error",
+        duration: 3000,
+      });
     },
   });
 
@@ -216,35 +235,47 @@ export const RebalancingPanel = () => {
       await api.delete(`/rebalancing/target-allocations/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['target-allocations'] });
-      queryClient.invalidateQueries({ queryKey: ['rebalancing-analysis'] });
-      toast({ title: 'Allocation removed', status: 'info', duration: 3000 });
+      queryClient.invalidateQueries({ queryKey: ["target-allocations"] });
+      queryClient.invalidateQueries({ queryKey: ["rebalancing-analysis"] });
+      toast({ title: "Allocation removed", status: "info", duration: 3000 });
     },
   });
 
   // Deactivate allocation (return to setup view without deleting)
   const deactivateAllocation = useMutation({
     mutationFn: async (id: string) => {
-      await api.patch(`/rebalancing/target-allocations/${id}`, { is_active: false });
+      await api.patch(`/rebalancing/target-allocations/${id}`, {
+        is_active: false,
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['target-allocations'] });
-      queryClient.invalidateQueries({ queryKey: ['rebalancing-analysis'] });
-      toast({ title: 'Allocation deactivated — choose a new one', status: 'info', duration: 3000 });
+      queryClient.invalidateQueries({ queryKey: ["target-allocations"] });
+      queryClient.invalidateQueries({ queryKey: ["rebalancing-analysis"] });
+      toast({
+        title: "Allocation deactivated — choose a new one",
+        status: "info",
+        duration: 3000,
+      });
     },
   });
 
   // Update drift threshold
   const updateThreshold = useMutation({
-    mutationFn: async ({ id, threshold }: { id: string; threshold: number }) => {
+    mutationFn: async ({
+      id,
+      threshold,
+    }: {
+      id: string;
+      threshold: number;
+    }) => {
       const res = await api.patch(`/rebalancing/target-allocations/${id}`, {
         drift_threshold: threshold,
       });
       return res.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['target-allocations'] });
-      queryClient.invalidateQueries({ queryKey: ['rebalancing-analysis'] });
+      queryClient.invalidateQueries({ queryKey: ["target-allocations"] });
+      queryClient.invalidateQueries({ queryKey: ["rebalancing-analysis"] });
     },
   });
 
@@ -260,13 +291,16 @@ export const RebalancingPanel = () => {
     [updateThreshold],
   );
 
-  const customTotal = customSlices.reduce((s, c) => s + Number(c.target_percent), 0);
+  const customTotal = customSlices.reduce(
+    (s, c) => s + Number(c.target_percent),
+    0,
+  );
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'overweight':
+      case "overweight":
         return <Badge colorScheme="red">Overweight</Badge>;
-      case 'underweight':
+      case "underweight":
         return <Badge colorScheme="orange">Underweight</Badge>;
       default:
         return <Badge colorScheme="green">On Target</Badge>;
@@ -288,7 +322,8 @@ export const RebalancingPanel = () => {
         <VStack spacing={2} align="flex-start">
           <Heading size="md">Portfolio Rebalancing</Heading>
           <Text color="text.secondary">
-            Select a target allocation to see how your portfolio compares and get rebalancing recommendations.
+            Select a target allocation to see how your portfolio compares and
+            get rebalancing recommendations.
           </Text>
         </VStack>
 
@@ -297,7 +332,12 @@ export const RebalancingPanel = () => {
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
           {presets &&
             Object.entries(presets).map(([key, preset]) => (
-              <Card key={key} variant="outline" cursor="pointer" _hover={{ borderColor: 'blue.400' }}>
+              <Card
+                key={key}
+                variant="outline"
+                cursor="pointer"
+                _hover={{ borderColor: "blue.400" }}
+              >
                 <CardBody>
                   <VStack align="stretch" spacing={3}>
                     <Text fontWeight="bold">{preset.name}</Text>
@@ -405,7 +445,11 @@ export const RebalancingPanel = () => {
                       icon={<CloseIcon />}
                       size="sm"
                       variant="ghost"
-                      onClick={() => setCustomSlices((prev) => prev.filter((_, j) => j !== i))}
+                      onClick={() =>
+                        setCustomSlices((prev) =>
+                          prev.filter((_, j) => j !== i),
+                        )
+                      }
                       isDisabled={customSlices.length <= 1}
                     />
                   </HStack>
@@ -419,14 +463,20 @@ export const RebalancingPanel = () => {
                     onClick={() =>
                       setCustomSlices((prev) => [
                         ...prev,
-                        { asset_class: '', target_percent: 0, label: '' },
+                        { asset_class: "", target_percent: 0, label: "" },
                       ])
                     }
                   >
                     Add Class
                   </Button>
-                  <Text fontSize="sm" color={customTotal === 100 ? onTargetColor : overweightColor}>
-                    Total: {customTotal}%{customTotal !== 100 && ' (must be 100%)'}
+                  <Text
+                    fontSize="sm"
+                    color={
+                      customTotal === 100 ? onTargetColor : overweightColor
+                    }
+                  >
+                    Total: {customTotal}%
+                    {customTotal !== 100 && " (must be 100%)"}
                   </Text>
                 </HStack>
 
@@ -500,7 +550,9 @@ export const RebalancingPanel = () => {
           <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
             <Card>
               <CardBody>
-                <Text fontSize="sm" color="text.secondary">Portfolio Total</Text>
+                <Text fontSize="sm" color="text.secondary">
+                  Portfolio Total
+                </Text>
                 <Text fontSize="2xl" fontWeight="bold">
                   {formatCurrency(Number(analysis.portfolio_total))}
                 </Text>
@@ -508,11 +560,15 @@ export const RebalancingPanel = () => {
             </Card>
             <Card>
               <CardBody>
-                <Text fontSize="sm" color="text.secondary">Max Drift</Text>
+                <Text fontSize="sm" color="text.secondary">
+                  Max Drift
+                </Text>
                 <Text
                   fontSize="2xl"
                   fontWeight="bold"
-                  color={analysis.needs_rebalancing ? overweightColor : onTargetColor}
+                  color={
+                    analysis.needs_rebalancing ? overweightColor : onTargetColor
+                  }
                 >
                   {Number(analysis.max_drift_percent).toFixed(1)}%
                 </Text>
@@ -520,7 +576,9 @@ export const RebalancingPanel = () => {
             </Card>
             <Card>
               <CardBody>
-                <Text fontSize="sm" color="text.secondary">Status</Text>
+                <Text fontSize="sm" color="text.secondary">
+                  Status
+                </Text>
                 <Text fontSize="2xl" fontWeight="bold">
                   {analysis.needs_rebalancing ? (
                     <Badge colorScheme="orange" fontSize="lg" px={3} py={1}>
@@ -542,24 +600,36 @@ export const RebalancingPanel = () => {
               <Heading size="sm" mb={4}>
                 Current vs Target Allocation
               </Heading>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={analysis.drift_items.map((d) => ({
-                    name: d.label,
-                    Current: Number(d.current_percent),
-                    Target: Number(d.target_percent),
-                    status: d.status,
-                  }))}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis tickFormatter={(v) => `${v}%`} />
-                  <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
-                  <Legend />
-                  <Bar dataKey="Current" fill={barCurrentColor} name="Current %" />
-                  <Bar dataKey="Target" fill={barTargetColor} name="Target %" />
-                </BarChart>
-              </ResponsiveContainer>
+              <Box role="img" aria-label="Portfolio rebalancing chart">
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={analysis.drift_items.map((d) => ({
+                      name: d.label,
+                      Current: Number(d.current_percent),
+                      Target: Number(d.target_percent),
+                      status: d.status,
+                    }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis tickFormatter={(v) => `${v}%`} />
+                    <Tooltip
+                      formatter={(value: number) => `${value.toFixed(1)}%`}
+                    />
+                    <Legend />
+                    <Bar
+                      dataKey="Current"
+                      fill={barCurrentColor}
+                      name="Current %"
+                    />
+                    <Bar
+                      dataKey="Target"
+                      fill={barTargetColor}
+                      name="Target %"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Box>
             </CardBody>
           </Card>
 
@@ -574,26 +644,32 @@ export const RebalancingPanel = () => {
                   </HStack>
                   <SimpleGrid columns={2} spacing={2} fontSize="sm">
                     <Text color="text.secondary">Target</Text>
-                    <Text textAlign="right">{Number(item.target_percent).toFixed(1)}%</Text>
+                    <Text textAlign="right">
+                      {Number(item.target_percent).toFixed(1)}%
+                    </Text>
                     <Text color="text.secondary">Current</Text>
-                    <Text textAlign="right">{Number(item.current_percent).toFixed(1)}%</Text>
+                    <Text textAlign="right">
+                      {Number(item.current_percent).toFixed(1)}%
+                    </Text>
                     <Text color="text.secondary">Drift</Text>
                     <Text
                       textAlign="right"
                       fontWeight="bold"
                       color={
-                        item.status === 'overweight'
+                        item.status === "overweight"
                           ? overweightColor
-                          : item.status === 'underweight'
-                          ? underweightColor
-                          : onTargetColor
+                          : item.status === "underweight"
+                            ? underweightColor
+                            : onTargetColor
                       }
                     >
-                      {Number(item.drift_percent) > 0 ? '+' : ''}
+                      {Number(item.drift_percent) > 0 ? "+" : ""}
                       {Number(item.drift_percent).toFixed(1)}%
                     </Text>
                     <Text color="text.secondary">Value</Text>
-                    <Text textAlign="right">{formatCurrency(Number(item.current_value))}</Text>
+                    <Text textAlign="right">
+                      {formatCurrency(Number(item.current_value))}
+                    </Text>
                   </SimpleGrid>
                 </CardBody>
               </Card>
@@ -629,72 +705,89 @@ export const RebalancingPanel = () => {
                   </NumberInput>
                 </FormControl>
                 <Text fontSize="xs" color="text.muted">
-                  Trade suggestions appear when any asset class drifts beyond this threshold.
+                  Trade suggestions appear when any asset class drifts beyond
+                  this threshold.
                 </Text>
               </HStack>
             </CardBody>
           </Card>
 
           {/* Trade recommendations */}
-          {analysis.needs_rebalancing && analysis.trade_recommendations.length > 0 && (
-            <Card>
-              <CardBody>
-                <Heading size="sm" mb={4}>
-                  Suggested Trades
-                </Heading>
-                <Alert status="info" mb={4}>
-                  <AlertIcon />
-                  These are suggestions only. Consider tax implications and transaction costs before trading.
-                </Alert>
-                <Box overflowX="auto">
-                  <Table size="sm" variant="simple">
-                    <Thead>
-                      <Tr>
-                        <Th>Asset Class</Th>
-                        <Th>Action</Th>
-                        <Th isNumeric>Amount</Th>
-                        <Th isNumeric>Current</Th>
-                        <Th isNumeric>Target</Th>
-                      </Tr>
-                    </Thead>
-                    <Tbody>
-                      {analysis.trade_recommendations.map((rec) => (
-                        <Tr key={rec.asset_class}>
-                          <Td fontWeight="medium">{rec.label}</Td>
-                          <Td>
-                            <Badge
-                              bg={rec.action === 'BUY' ? buyBadgeBg : sellBadgeBg}
-                              color={rec.action === 'BUY' ? onTargetColor : overweightColor}
-                              px={2}
-                            >
-                              {rec.action}
-                            </Badge>
-                          </Td>
-                          <Td isNumeric fontWeight="bold">
-                            {formatCurrency(Number(rec.amount))}
-                          </Td>
-                          <Td isNumeric>{Number(rec.current_percent).toFixed(1)}%</Td>
-                          <Td isNumeric>{Number(rec.target_percent).toFixed(1)}%</Td>
+          {analysis.needs_rebalancing &&
+            analysis.trade_recommendations.length > 0 && (
+              <Card>
+                <CardBody>
+                  <Heading size="sm" mb={4}>
+                    Suggested Trades
+                  </Heading>
+                  <Alert status="info" mb={4}>
+                    <AlertIcon />
+                    These are suggestions only. Consider tax implications and
+                    transaction costs before trading.
+                  </Alert>
+                  <Box overflowX="auto">
+                    <Table size="sm" variant="simple">
+                      <Thead>
+                        <Tr>
+                          <Th>Asset Class</Th>
+                          <Th>Action</Th>
+                          <Th isNumeric>Amount</Th>
+                          <Th isNumeric>Current</Th>
+                          <Th isNumeric>Target</Th>
                         </Tr>
-                      ))}
-                    </Tbody>
-                  </Table>
-                </Box>
-              </CardBody>
-            </Card>
-          )}
+                      </Thead>
+                      <Tbody>
+                        {analysis.trade_recommendations.map((rec) => (
+                          <Tr key={rec.asset_class}>
+                            <Td fontWeight="medium">{rec.label}</Td>
+                            <Td>
+                              <Badge
+                                bg={
+                                  rec.action === "BUY"
+                                    ? buyBadgeBg
+                                    : sellBadgeBg
+                                }
+                                color={
+                                  rec.action === "BUY"
+                                    ? onTargetColor
+                                    : overweightColor
+                                }
+                                px={2}
+                              >
+                                {rec.action}
+                              </Badge>
+                            </Td>
+                            <Td isNumeric fontWeight="bold">
+                              {formatCurrency(Number(rec.amount))}
+                            </Td>
+                            <Td isNumeric>
+                              {Number(rec.current_percent).toFixed(1)}%
+                            </Td>
+                            <Td isNumeric>
+                              {Number(rec.target_percent).toFixed(1)}%
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </Box>
+                </CardBody>
+              </Card>
+            )}
 
           {!analysis.needs_rebalancing && (
             <Alert status="success">
               <AlertIcon />
-              Your portfolio is within the drift threshold. No rebalancing needed right now.
+              Your portfolio is within the drift threshold. No rebalancing
+              needed right now.
             </Alert>
           )}
         </>
       ) : (
         <Alert status="warning">
           <AlertIcon />
-          Unable to load analysis. Make sure you have holdings data in your portfolio.
+          Unable to load analysis. Make sure you have holdings data in your
+          portfolio.
         </Alert>
       )}
     </VStack>

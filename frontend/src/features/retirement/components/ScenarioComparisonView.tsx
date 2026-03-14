@@ -11,7 +11,7 @@ import {
   Text,
   useColorModeValue,
   VStack,
-} from '@chakra-ui/react';
+} from "@chakra-ui/react";
 import {
   Area,
   ComposedChart,
@@ -21,19 +21,21 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from 'recharts';
-import { useMemo } from 'react';
-import type { ScenarioComparisonItem } from '../types/retirement';
+} from "recharts";
+import { useMemo } from "react";
+import type { ScenarioComparisonItem } from "../types/retirement";
 
-const SCENARIO_COLORS = ['#4299E1', '#ED8936', '#48BB78'];
+const SCENARIO_COLORS = ["#4299E1", "#ED8936", "#48BB78"];
 
 interface ScenarioComparisonViewProps {
   scenarios: ScenarioComparisonItem[];
 }
 
-export function ScenarioComparisonView({ scenarios }: ScenarioComparisonViewProps) {
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const labelColor = useColorModeValue('gray.500', 'gray.400');
+export function ScenarioComparisonView({
+  scenarios,
+}: ScenarioComparisonViewProps) {
+  const bgColor = useColorModeValue("white", "gray.800");
+  const labelColor = useColorModeValue("gray.500", "gray.400");
 
   const formatCurrency = (value: number) => {
     if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
@@ -85,10 +87,22 @@ export function ScenarioComparisonView({ scenarios }: ScenarioComparisonViewProp
             >
               <VStack spacing={1} align="stretch">
                 <HStack justify="space-between">
-                  <Text fontSize="sm" fontWeight="bold" color={SCENARIO_COLORS[i]}>
+                  <Text
+                    fontSize="sm"
+                    fontWeight="bold"
+                    color={SCENARIO_COLORS[i]}
+                  >
                     {s.scenario_name}
                   </Text>
-                  <Badge colorScheme={s.readiness_score >= 70 ? 'green' : s.readiness_score >= 40 ? 'yellow' : 'red'}>
+                  <Badge
+                    colorScheme={
+                      s.readiness_score >= 70
+                        ? "green"
+                        : s.readiness_score >= 40
+                          ? "yellow"
+                          : "red"
+                    }
+                  >
                     {s.readiness_score}
                   </Badge>
                 </HStack>
@@ -103,7 +117,9 @@ export function ScenarioComparisonView({ scenarios }: ScenarioComparisonViewProp
                 {s.median_portfolio_at_end !== null && (
                   <HStack justify="space-between" fontSize="xs">
                     <Text color={labelColor}>End Portfolio</Text>
-                    <Text fontWeight="medium">{formatCurrency(s.median_portfolio_at_end)}</Text>
+                    <Text fontWeight="medium">
+                      {formatCurrency(s.median_portfolio_at_end)}
+                    </Text>
                   </HStack>
                 )}
               </VStack>
@@ -112,13 +128,22 @@ export function ScenarioComparisonView({ scenarios }: ScenarioComparisonViewProp
         </SimpleGrid>
 
         {/* Overlay chart */}
-        <Box h="350px">
+        <Box
+          h="350px"
+          role="img"
+          aria-label="Retirement scenario comparison chart"
+        >
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chartData}>
               <XAxis
                 dataKey="age"
                 tick={{ fontSize: 11 }}
-                label={{ value: 'Age', position: 'insideBottom', offset: -5, fontSize: 12 }}
+                label={{
+                  value: "Age",
+                  position: "insideBottom",
+                  offset: -5,
+                  fontSize: 12,
+                }}
               />
               <YAxis
                 tickFormatter={(v) => formatCurrency(v)}
@@ -127,8 +152,9 @@ export function ScenarioComparisonView({ scenarios }: ScenarioComparisonViewProp
               />
               <Tooltip
                 formatter={(value: number, name: string) => {
-                  const idx = parseInt(name.split('_')[0].replace('s', ''), 10);
-                  const scenarioName = scenarios[idx]?.scenario_name || `Scenario ${idx + 1}`;
+                  const idx = parseInt(name.split("_")[0].replace("s", ""), 10);
+                  const scenarioName =
+                    scenarios[idx]?.scenario_name || `Scenario ${idx + 1}`;
                   return [formatCurrency(value), `${scenarioName} (Median)`];
                 }}
                 labelFormatter={(age) => `Age ${age}`}

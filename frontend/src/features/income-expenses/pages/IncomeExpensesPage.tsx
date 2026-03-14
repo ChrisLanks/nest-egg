@@ -1899,35 +1899,37 @@ export const IncomeExpensesPage = () => {
                         <Heading size="md" mb={4}>
                           Monthly Trend
                         </Heading>
-                        <ResponsiveContainer width="100%" height={350}>
-                          <BarChart data={trend}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="month" />
-                            <YAxis />
-                            <Tooltip
-                              formatter={
-                                ((value: number) =>
-                                  formatCurrency(value)) as any
-                              }
-                              contentStyle={{
-                                backgroundColor: tooltipBg,
-                                border: "1px solid #ccc",
-                              }}
-                            />
-                            <Legend />
-                            <Bar
-                              dataKey="income"
-                              fill="#48BB78"
-                              name="Income"
-                            />
-                            <Bar
-                              dataKey="expenses"
-                              fill="#F56565"
-                              name="Expenses"
-                            />
-                            <Bar dataKey="net" fill="#4299E1" name="Net" />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <Box role="img" aria-label="Income vs expenses chart">
+                          <ResponsiveContainer width="100%" height={350}>
+                            <BarChart data={trend}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="month" />
+                              <YAxis />
+                              <Tooltip
+                                formatter={
+                                  ((value: number) =>
+                                    formatCurrency(value)) as any
+                                }
+                                contentStyle={{
+                                  backgroundColor: tooltipBg,
+                                  border: "1px solid #ccc",
+                                }}
+                              />
+                              <Legend />
+                              <Bar
+                                dataKey="income"
+                                fill="#48BB78"
+                                name="Income"
+                              />
+                              <Bar
+                                dataKey="expenses"
+                                fill="#F56565"
+                                name="Expenses"
+                              />
+                              <Bar dataKey="net" fill="#4299E1" name="Net" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </Box>
                       </Box>
                     )}
 

@@ -1,12 +1,11 @@
 """Unit tests for MFAService — TOTP, backup codes, encryption."""
 
-import pytest
 import re
 import time
+
 import pyotp
 
 from app.services.mfa_service import MFAService
-
 
 svc = MFAService
 
@@ -43,10 +42,10 @@ class TestBackupCodes:
         codes = svc.generate_backup_codes(10)
         assert len(codes) == 10
 
-    def test_format_xxxx_xxxx(self):
+    def test_format_xxxx_xxxx_xxxx(self):
         codes = svc.generate_backup_codes(5)
         for code in codes:
-            assert re.match(r"^[0-9A-F]{4}-[0-9A-F]{4}$", code), f"Bad format: {code}"
+            assert re.match(r"^[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}$", code), f"Bad format: {code}"
 
     def test_custom_count(self):
         codes = svc.generate_backup_codes(3)

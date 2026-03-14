@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo } from "react";
 import {
   Box,
   VStack,
@@ -17,7 +17,7 @@ import {
   AlertIcon,
   AlertDescription,
   Tooltip,
-} from '@chakra-ui/react';
+} from "@chakra-ui/react";
 import {
   BarChart,
   Bar,
@@ -27,10 +27,10 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
   Cell,
-} from 'recharts';
-import { useQuery } from '@tanstack/react-query';
-import { format, subMonths } from 'date-fns';
-import api from '../../../services/api';
+} from "recharts";
+import { useQuery } from "@tanstack/react-query";
+import { format, subMonths } from "date-fns";
+import api from "../../../services/api";
 
 interface Snapshot {
   id: string;
@@ -78,8 +78,9 @@ const calculateVolatility = (snapshots: Snapshot[]): number => {
 
   // Calculate standard deviation
   const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-  const squaredDiffs = returns.map(r => Math.pow(r - mean, 2));
-  const variance = squaredDiffs.reduce((sum, sd) => sum + sd, 0) / returns.length;
+  const squaredDiffs = returns.map((r) => Math.pow(r - mean, 2));
+  const variance =
+    squaredDiffs.reduce((sum, sd) => sum + sd, 0) / returns.length;
   const stdDev = Math.sqrt(variance);
 
   // Annualize (√252 trading days)
@@ -89,12 +90,15 @@ const calculateVolatility = (snapshots: Snapshot[]): number => {
 };
 
 // Calculate diversification score using Herfindahl-Hirschman Index (HHI)
-const calculateDiversificationScore = (holdings: HoldingSummary[], totalValue: number): number => {
+const calculateDiversificationScore = (
+  holdings: HoldingSummary[],
+  totalValue: number,
+): number => {
   if (holdings.length === 0 || totalValue === 0) return 0;
 
   // Calculate HHI (sum of squared market shares)
   let hhi = 0;
-  holdings.forEach(holding => {
+  holdings.forEach((holding) => {
     if (holding.current_total_value) {
       const marketShare = holding.current_total_value / totalValue;
       hhi += Math.pow(marketShare, 2);
@@ -102,20 +106,29 @@ const calculateDiversificationScore = (holdings: HoldingSummary[], totalValue: n
   });
 
   // Ideal HHI for perfect diversification (equal weights)
-  const numHoldings = holdings.filter(h => h.current_total_value && h.current_total_value > 0).length;
+  const numHoldings = holdings.filter(
+    (h) => h.current_total_value && h.current_total_value > 0,
+  ).length;
   const idealHHI = numHoldings > 0 ? 1 / numHoldings : 1;
 
   // Convert to score (0-100, where 100 is perfectly diversified)
   // Score = (1 - (HHI - ideal) / (1 - ideal)) × 100
-  const diversificationScore = numHoldings > 1
-    ? Math.max(0, Math.min(100, (1 - (hhi - idealHHI) / (1 - idealHHI)) * 100))
-    : 0;
+  const diversificationScore =
+    numHoldings > 1
+      ? Math.max(
+          0,
+          Math.min(100, (1 - (hhi - idealHHI) / (1 - idealHHI)) * 100),
+        )
+      : 0;
 
   return diversificationScore;
 };
 
 // Calculate overall risk score
-const calculateRiskScore = (volatility: number, diversificationScore: number): number => {
+const calculateRiskScore = (
+  volatility: number,
+  diversificationScore: number,
+): number => {
   // Normalize volatility to 0-100 scale (assume 0-50% volatility range)
   const normalizedVolatility = Math.min(100, (volatility / 50) * 100);
 
@@ -123,36 +136,40 @@ const calculateRiskScore = (volatility: number, diversificationScore: number): n
   const diversificationRisk = 100 - diversificationScore;
 
   // Weighted risk: 60% volatility + 40% diversification risk
-  const riskScore = (normalizedVolatility * 0.6) + (diversificationRisk * 0.4);
+  const riskScore = normalizedVolatility * 0.6 + diversificationRisk * 0.4;
 
   return Math.round(riskScore);
 };
 
 // Get risk color and label
-const getRiskLevel = (riskScore: number): { color: string; label: string; colorScheme: string } => {
+const getRiskLevel = (
+  riskScore: number,
+): { color: string; label: string; colorScheme: string } => {
   if (riskScore < 40) {
-    return { color: '#48BB78', label: 'Low Risk', colorScheme: 'green' };
+    return { color: "#48BB78", label: "Low Risk", colorScheme: "green" };
   } else if (riskScore < 70) {
-    return { color: '#ECC94B', label: 'Moderate Risk', colorScheme: 'yellow' };
+    return { color: "#ECC94B", label: "Moderate Risk", colorScheme: "yellow" };
   } else {
-    return { color: '#F56565', label: 'High Risk', colorScheme: 'red' };
+    return { color: "#F56565", label: "High Risk", colorScheme: "red" };
   }
 };
 
-export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps) {
+export default function RiskAnalysisPanel({
+  portfolio,
+}: RiskAnalysisPanelProps) {
   // Fetch historical snapshots for volatility calculation
   const { data: snapshots } = useQuery({
-    queryKey: ['portfolio-snapshots-risk'],
+    queryKey: ["portfolio-snapshots-risk"],
     queryFn: async () => {
-      const startDate = format(subMonths(new Date(), 6), 'yyyy-MM-dd');
-      const endDate = format(new Date(), 'yyyy-MM-dd');
+      const startDate = format(subMonths(new Date(), 6), "yyyy-MM-dd");
+      const endDate = format(new Date(), "yyyy-MM-dd");
 
       try {
         const response = await api.get(`/holdings/historical`, {
           params: { start_date: startDate, end_date: endDate },
         });
         return response.data as Snapshot[];
-      } catch (err) {
+      } catch {
         return [];
       }
     },
@@ -164,10 +181,11 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
 
   // Calculate metrics
   const metrics = useMemo(() => {
-    const volatility = snapshots && snapshots.length >= 2 ? calculateVolatility(snapshots) : 0;
+    const volatility =
+      snapshots && snapshots.length >= 2 ? calculateVolatility(snapshots) : 0;
     const diversificationScore = calculateDiversificationScore(
       portfolio.holdings_by_ticker,
-      portfolio.total_value
+      portfolio.total_value,
     );
     const riskScore = calculateRiskScore(volatility, diversificationScore);
     const riskLevel = getRiskLevel(riskScore);
@@ -183,13 +201,21 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
   // Asset allocation data for chart
   const assetAllocationData = useMemo(() => {
     const data = [
-      { name: 'Stocks', value: Number(portfolio.stocks_value), color: '#3182CE' },
-      { name: 'ETFs', value: Number(portfolio.etf_value), color: '#38B2AC' },
-      { name: 'Mutual Funds', value: Number(portfolio.mutual_funds_value), color: '#805AD5' },
-      { name: 'Bonds', value: Number(portfolio.bonds_value), color: '#48BB78' },
-      { name: 'Cash', value: Number(portfolio.cash_value), color: '#ECC94B' },
-      { name: 'Other', value: Number(portfolio.other_value), color: '#718096' },
-    ].filter(item => item.value > 0);
+      {
+        name: "Stocks",
+        value: Number(portfolio.stocks_value),
+        color: "#3182CE",
+      },
+      { name: "ETFs", value: Number(portfolio.etf_value), color: "#38B2AC" },
+      {
+        name: "Mutual Funds",
+        value: Number(portfolio.mutual_funds_value),
+        color: "#805AD5",
+      },
+      { name: "Bonds", value: Number(portfolio.bonds_value), color: "#48BB78" },
+      { name: "Cash", value: Number(portfolio.cash_value), color: "#ECC94B" },
+      { name: "Other", value: Number(portfolio.other_value), color: "#718096" },
+    ].filter((item) => item.value > 0);
 
     return data;
   }, [portfolio]);
@@ -197,8 +223,12 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
   // Top concentrations (holdings > 20% of portfolio)
   const topConcentrations = useMemo(() => {
     return portfolio.holdings_by_ticker
-      .filter(h => h.current_total_value && (h.current_total_value / portfolio.total_value) > 0.20)
-      .map(h => ({
+      .filter(
+        (h) =>
+          h.current_total_value &&
+          h.current_total_value / portfolio.total_value > 0.2,
+      )
+      .map((h) => ({
         ticker: h.ticker,
         name: h.name,
         value: h.current_total_value!,
@@ -215,7 +245,8 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
         <Alert status="info">
           <AlertIcon />
           <AlertDescription>
-            Volatility metrics require at least 2 days of historical data. Diversification analysis is available now.
+            Volatility metrics require at least 2 days of historical data.
+            Diversification analysis is available now.
           </AlertDescription>
         </Alert>
       )}
@@ -240,9 +271,18 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
             Overall Risk Score
           </Text>
           <Flex justify="center" align="center" mb={4}>
-            <Circle size="120px" borderWidth="8px" borderColor={metrics.riskLevel.color} position="relative">
+            <Circle
+              size="120px"
+              borderWidth="8px"
+              borderColor={metrics.riskLevel.color}
+              position="relative"
+            >
               <VStack spacing={0}>
-                <Text fontSize="3xl" fontWeight="bold" color={metrics.riskLevel.color}>
+                <Text
+                  fontSize="3xl"
+                  fontWeight="bold"
+                  color={metrics.riskLevel.color}
+                >
                   {metrics.riskScore}
                 </Text>
                 <Text fontSize="xs" color="text.muted">
@@ -251,7 +291,12 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
               </VStack>
             </Circle>
           </Flex>
-          <Badge colorScheme={metrics.riskLevel.colorScheme} fontSize="md" px={3} py={1}>
+          <Badge
+            colorScheme={metrics.riskLevel.colorScheme}
+            fontSize="md"
+            px={3}
+            py={1}
+          >
             {metrics.riskLevel.label}
           </Badge>
           <Text fontSize="xs" color="text.muted" mt={2}>
@@ -276,7 +321,7 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
               </Tooltip>
             </StatLabel>
             <StatNumber>
-              {hasVolatilityData ? `${metrics.volatility.toFixed(2)}%` : 'N/A'}
+              {hasVolatilityData ? `${metrics.volatility.toFixed(2)}%` : "N/A"}
             </StatNumber>
             <StatHelpText>Annualized (6 months)</StatHelpText>
           </Stat>
@@ -284,12 +329,22 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
             <Box mt={4}>
               <Progress
                 value={Math.min(100, (metrics.volatility / 50) * 100)}
-                colorScheme={metrics.volatility < 15 ? 'green' : metrics.volatility < 25 ? 'yellow' : 'red'}
+                colorScheme={
+                  metrics.volatility < 15
+                    ? "green"
+                    : metrics.volatility < 25
+                      ? "yellow"
+                      : "red"
+                }
                 size="sm"
                 borderRadius="md"
               />
               <Text fontSize="xs" color="text.muted" mt={2}>
-                {metrics.volatility < 15 ? 'Low volatility' : metrics.volatility < 25 ? 'Moderate volatility' : 'High volatility'}
+                {metrics.volatility < 15
+                  ? "Low volatility"
+                  : metrics.volatility < 25
+                    ? "Moderate volatility"
+                    : "High volatility"}
               </Text>
             </Box>
           )}
@@ -312,22 +367,35 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
               </Tooltip>
             </StatLabel>
             <StatNumber>
-              {hasHoldingsData ? metrics.diversificationScore.toFixed(0) : 'Unknown'}
+              {hasHoldingsData
+                ? metrics.diversificationScore.toFixed(0)
+                : "Unknown"}
             </StatNumber>
             <StatHelpText>
-              {hasHoldingsData ? 'out of 100' : 'No holdings data'}
+              {hasHoldingsData ? "out of 100" : "No holdings data"}
             </StatHelpText>
           </Stat>
           {hasHoldingsData && (
             <Box mt={4}>
               <Progress
                 value={metrics.diversificationScore}
-                colorScheme={metrics.diversificationScore > 70 ? 'green' : metrics.diversificationScore > 40 ? 'yellow' : 'red'}
+                colorScheme={
+                  metrics.diversificationScore > 70
+                    ? "green"
+                    : metrics.diversificationScore > 40
+                      ? "yellow"
+                      : "red"
+                }
                 size="sm"
                 borderRadius="md"
               />
               <Text fontSize="xs" color="text.muted" mt={2}>
-                {portfolio.holdings_by_ticker.filter(h => h.current_total_value && h.current_total_value > 0).length} holdings
+                {
+                  portfolio.holdings_by_ticker.filter(
+                    (h) => h.current_total_value && h.current_total_value > 0,
+                  ).length
+                }{" "}
+                holdings
               </Text>
             </Box>
           )}
@@ -342,6 +410,8 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
           borderWidth="1px"
           borderColor="border.default"
           borderRadius="md"
+          role="img"
+          aria-label="Risk analysis chart"
         >
           <Text fontSize="md" fontWeight="medium" mb={4}>
             Asset Class Allocation
@@ -355,13 +425,20 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
                   tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                   tick={{ fontSize: 12 }}
                 />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={100} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fontSize: 12 }}
+                  width={100}
+                />
                 <RechartsTooltip
-                  formatter={((value: number) => [
-                    `$${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-                    'Value',
-                  ]) as any}
-                  labelStyle={{ color: '#000' }}
+                  formatter={
+                    ((value: number) => [
+                      `$${value.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+                      "Value",
+                    ]) as any
+                  }
+                  labelStyle={{ color: "#000" }}
                 />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                   {assetAllocationData.map((entry, index) => (
@@ -424,9 +501,14 @@ export default function RiskAnalysisPanel({ portfolio }: RiskAnalysisPanelProps)
                       )}
                     </VStack>
                     <VStack align="end" spacing={0}>
-                      <Badge colorScheme="orange">{holding.percentage.toFixed(1)}%</Badge>
+                      <Badge colorScheme="orange">
+                        {holding.percentage.toFixed(1)}%
+                      </Badge>
                       <Text fontSize="xs" color="text.secondary">
-                        ${holding.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        $
+                        {holding.value.toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                        })}
                       </Text>
                     </VStack>
                   </HStack>

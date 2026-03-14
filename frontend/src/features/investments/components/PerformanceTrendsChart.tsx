@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo } from "react";
 import {
   Box,
   HStack,
@@ -17,7 +17,7 @@ import {
   AlertIcon,
   AlertTitle,
   AlertDescription,
-} from '@chakra-ui/react';
+} from "@chakra-ui/react";
 import {
   LineChart,
   Line,
@@ -27,10 +27,10 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
-} from 'recharts';
-import { useQuery } from '@tanstack/react-query';
-import { format, subMonths, subYears } from 'date-fns';
-import api from '../../../services/api';
+} from "recharts";
+import { useQuery } from "@tanstack/react-query";
+import { format, subMonths, subYears } from "date-fns";
+import api from "../../../services/api";
 
 interface Snapshot {
   id: string;
@@ -43,14 +43,17 @@ interface Snapshot {
   created_at: string;
 }
 
-type TimeRange = '1M' | '3M' | '6M' | '1Y' | 'ALL';
+type TimeRange = "1M" | "3M" | "6M" | "1Y" | "ALL";
 
 interface PerformanceTrendsChartProps {
   currentValue: number;
 }
 
 // Generate mock snapshots for development/testing
-const generateMockSnapshots = (currentValue: number, months: number = 12): Snapshot[] => {
+const generateMockSnapshots = (
+  currentValue: number,
+  months: number = 12,
+): Snapshot[] => {
   const snapshots: Snapshot[] = [];
   const today = new Date();
 
@@ -66,8 +69,8 @@ const generateMockSnapshots = (currentValue: number, months: number = 12): Snaps
 
     snapshots.push({
       id: `mock-${i}`,
-      organization_id: 'mock-org',
-      snapshot_date: format(date, 'yyyy-MM-dd'),
+      organization_id: "mock-org",
+      snapshot_date: format(date, "yyyy-MM-dd"),
       total_value: value,
       total_cost_basis: costBasis,
       total_gain_loss: value - costBasis,
@@ -79,8 +82,10 @@ const generateMockSnapshots = (currentValue: number, months: number = 12): Snaps
   return snapshots.reverse();
 };
 
-export default function PerformanceTrendsChart({ currentValue }: PerformanceTrendsChartProps) {
-  const [timeRange, setTimeRange] = useState<TimeRange>('1Y');
+export default function PerformanceTrendsChart({
+  currentValue,
+}: PerformanceTrendsChartProps) {
+  const [timeRange, setTimeRange] = useState<TimeRange>("1Y");
 
   // Calculate date range
   const { startDate, endDate } = useMemo(() => {
@@ -88,32 +93,36 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
     let start = new Date();
 
     switch (timeRange) {
-      case '1M':
+      case "1M":
         start = subMonths(end, 1);
         break;
-      case '3M':
+      case "3M":
         start = subMonths(end, 3);
         break;
-      case '6M':
+      case "6M":
         start = subMonths(end, 6);
         break;
-      case '1Y':
+      case "1Y":
         start = subYears(end, 1);
         break;
-      case 'ALL':
+      case "ALL":
         start = subYears(end, 10); // 10 years max
         break;
     }
 
     return {
-      startDate: format(start, 'yyyy-MM-dd'),
-      endDate: format(end, 'yyyy-MM-dd'),
+      startDate: format(start, "yyyy-MM-dd"),
+      endDate: format(end, "yyyy-MM-dd"),
     };
   }, [timeRange]);
 
   // Fetch historical snapshots
-  const { data: snapshots, isLoading, error } = useQuery({
-    queryKey: ['portfolio-snapshots', startDate, endDate],
+  const {
+    data: snapshots,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["portfolio-snapshots", startDate, endDate],
     queryFn: async () => {
       try {
         const response = await api.get(`/holdings/historical`, {
@@ -124,12 +133,19 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
         if (response.data && response.data.length > 0) {
           return response.data as Snapshot[];
         }
-      } catch (err) {
-        console.warn('No historical data available, using mock data');
+      } catch {
+        console.warn("No historical data available, using mock data");
       }
 
       // Fall back to mock data
-      const months = timeRange === '1M' ? 1 : timeRange === '3M' ? 3 : timeRange === '6M' ? 6 : 12;
+      const months =
+        timeRange === "1M"
+          ? 1
+          : timeRange === "3M"
+            ? 3
+            : timeRange === "6M"
+              ? 6
+              : 12;
       return generateMockSnapshots(currentValue, months);
     },
     staleTime: 15 * 60 * 1000, // 15 minutes
@@ -158,21 +174,30 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
     // Calculate CAGR
     const startDate = new Date(firstSnapshot.snapshot_date);
     const endDate = new Date(lastSnapshot.snapshot_date);
-    const years = (endDate.getTime() - startDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
-    const cagr = years > 0 ? (Math.pow(endValue / startValue, 1 / years) - 1) * 100 : 0;
+    const years =
+      (endDate.getTime() - startDate.getTime()) /
+      (365.25 * 24 * 60 * 60 * 1000);
+    const cagr =
+      years > 0 ? (Math.pow(endValue / startValue, 1 / years) - 1) * 100 : 0;
 
     // YoY Growth (if we have data >= 1 year apart)
     let yoyGrowth = 0;
     if (years >= 1) {
       const oneYearAgo = new Date(endDate);
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-      const oneYearSnapshot = snapshots.find(s => {
+      const oneYearSnapshot = snapshots.find((s) => {
         const snapDate = new Date(s.snapshot_date);
-        return Math.abs(snapDate.getTime() - oneYearAgo.getTime()) < 7 * 24 * 60 * 60 * 1000; // Within 7 days
+        return (
+          Math.abs(snapDate.getTime() - oneYearAgo.getTime()) <
+          7 * 24 * 60 * 60 * 1000
+        ); // Within 7 days
       });
 
       if (oneYearSnapshot) {
-        yoyGrowth = ((endValue - oneYearSnapshot.total_value) / oneYearSnapshot.total_value) * 100;
+        yoyGrowth =
+          ((endValue - oneYearSnapshot.total_value) /
+            oneYearSnapshot.total_value) *
+          100;
       }
     }
 
@@ -189,14 +214,17 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
   const chartData = useMemo(() => {
     if (!snapshots) return [];
 
-    return snapshots.map(snapshot => ({
-      date: format(new Date(snapshot.snapshot_date), 'MMM dd, yyyy'),
+    return snapshots.map((snapshot) => ({
+      date: format(new Date(snapshot.snapshot_date), "MMM dd, yyyy"),
       value: Number(snapshot.total_value),
-      costBasis: snapshot.total_cost_basis ? Number(snapshot.total_cost_basis) : undefined,
+      costBasis: snapshot.total_cost_basis
+        ? Number(snapshot.total_cost_basis)
+        : undefined,
     }));
   }, [snapshots]);
 
-  const isMockData = snapshots && snapshots.length > 0 && snapshots[0].id.startsWith('mock-');
+  const isMockData =
+    snapshots && snapshots.length > 0 && snapshots[0].id.startsWith("mock-");
 
   if (isLoading) {
     return (
@@ -235,7 +263,8 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
         <Alert status="warning">
           <AlertIcon />
           <AlertDescription>
-            Displaying mock data for visualization. Real historical data will appear once daily snapshots are captured.
+            Displaying mock data for visualization. Real historical data will
+            appear once daily snapshots are captured.
           </AlertDescription>
         </Alert>
       )}
@@ -245,12 +274,12 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
           Performance Trends
         </Text>
         <ButtonGroup size="sm" isAttached variant="outline">
-          {(['1M', '3M', '6M', '1Y', 'ALL'] as TimeRange[]).map((range) => (
+          {(["1M", "3M", "6M", "1Y", "ALL"] as TimeRange[]).map((range) => (
             <Button
               key={range}
               onClick={() => setTimeRange(range)}
-              colorScheme={timeRange === range ? 'brand' : 'gray'}
-              variant={timeRange === range ? 'solid' : 'outline'}
+              colorScheme={timeRange === range ? "brand" : "gray"}
+              variant={timeRange === range ? "solid" : "outline"}
             >
               {range}
             </Button>
@@ -270,10 +299,14 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
           <Stat>
             <StatLabel>Total Return</StatLabel>
             <StatNumber>
-              ${Math.abs(metrics.totalReturn).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              $
+              {Math.abs(metrics.totalReturn).toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </StatNumber>
             <StatHelpText>
-              <StatArrow type={metrics.isPositive ? 'increase' : 'decrease'} />
+              <StatArrow type={metrics.isPositive ? "increase" : "decrease"} />
               {Math.abs(metrics.totalReturnPercent).toFixed(2)}%
             </StatHelpText>
           </Stat>
@@ -302,7 +335,11 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
         >
           <Stat>
             <StatLabel>YoY Growth</StatLabel>
-            <StatNumber>{metrics.yoyGrowth === 0 ? 'N/A' : `${metrics.yoyGrowth.toFixed(2)}%`}</StatNumber>
+            <StatNumber>
+              {metrics.yoyGrowth === 0
+                ? "N/A"
+                : `${metrics.yoyGrowth.toFixed(2)}%`}
+            </StatNumber>
             <StatHelpText>Year over Year</StatHelpText>
           </Stat>
         </Box>
@@ -315,6 +352,8 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
         borderWidth="1px"
         borderColor="border.default"
         borderRadius="md"
+        role="img"
+        aria-label="Investment performance trends chart"
       >
         <ResponsiveContainer width="100%" height={400}>
           <LineChart data={chartData}>
@@ -331,11 +370,13 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
               tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
             />
             <Tooltip
-              formatter={((value: number) => [
-                `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                'Value',
-              ]) as any}
-              labelStyle={{ color: '#000' }}
+              formatter={
+                ((value: number) => [
+                  `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                  "Value",
+                ]) as any
+              }
+              labelStyle={{ color: "#000" }}
             />
             <Legend />
             <Line
@@ -347,7 +388,7 @@ export default function PerformanceTrendsChart({ currentValue }: PerformanceTren
               dot={{ r: 3 }}
               activeDot={{ r: 5 }}
             />
-            {chartData.some(d => d.costBasis !== undefined) && (
+            {chartData.some((d) => d.costBasis !== undefined) && (
               <Line
                 type="monotone"
                 dataKey="costBasis"

@@ -1,73 +1,93 @@
-# React + TypeScript + Vite
+# Nest Egg Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React single-page application for personal/household finance tracking.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **React 18** with TypeScript
+- **Vite** — build tooling and dev server
+- **Chakra UI** — component library with dark mode support
+- **React Router** — client-side routing
+- **TanStack React Query** — server state management and caching
+- **Zustand** — lightweight client state (auth store)
+- **React Hook Form + Zod** — form handling with schema validation
+- **Recharts** — charts and data visualization
+- **Axios** — HTTP client with interceptors for auth token refresh
+- **dnd-kit** — drag-and-drop for dashboard layout customization
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm ci          # install dependencies
+npm run dev     # start dev server (http://localhost:5173)
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The dev server proxies `/api` requests to the backend at `http://localhost:8000`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Scripts
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Command             | Description                              |
+| ------------------- | ---------------------------------------- |
+| `npm run dev`       | Start Vite dev server with HMR           |
+| `npm run build`     | Type-check and build for production      |
+| `npm run preview`   | Preview production build locally         |
+| `npm run lint`      | Run ESLint                               |
+| `npm test`          | Run Vitest test suite                    |
+| `npm run test:coverage` | Run tests with coverage report       |
+| `npm run test:watch`    | Run tests in watch mode              |
+
+## Project Structure
+
 ```
+src/
+├── components/        # Shared components (ForecastChart, Layout, ProtectedRoute)
+├── contexts/          # React contexts (UserViewContext for household multi-user)
+├── features/          # Feature modules (domain-organized)
+│   ├── auth/          #   Login, registration, MFA, password reset
+│   ├── accounts/      #   Bank accounts, investment accounts, manual accounts
+│   ├── budgets/       #   Budget tracking and alerts
+│   ├── dashboard/     #   Dashboard widgets (net worth, cash flow, allocations)
+│   ├── goals/         #   Savings goals with allocation strategies
+│   ├── income-expenses/ # Income vs expenses analysis
+│   ├── investments/   #   Holdings, growth projections, rebalancing, risk analysis
+│   ├── notifications/ #   In-app notification center
+│   ├── permissions/   #   Household member data sharing permissions
+│   ├── retirement/    #   Retirement planning with Monte Carlo simulation
+│   ├── rules/         #   Transaction auto-categorization rules
+│   └── transactions/  #   Transaction list, splits, merges, CSV import
+├── hooks/             # Shared hooks (useHouseholdMembers, useColorModePreference)
+├── pages/             # Top-level route pages
+├── services/          # API client (Axios instance with refresh token interceptor)
+├── types/             # Shared TypeScript types
+└── utils/             # Utilities (formatting, Monte Carlo simulation engine)
+```
+
+## Key Architectural Decisions
+
+- **Feature-based organization**: Each feature owns its pages, components, API layer, and stores.
+- **Auth**: Access tokens stored in memory (Zustand). Refresh tokens in httpOnly cookies. CSRF double-submit pattern via `X-CSRF-Token` header.
+- **Multi-user household**: `UserViewContext` manages which household member's data is displayed. Supports combined view, single-member view, and filtered multi-member view.
+- **Server state**: All API data flows through React Query with stale-time and cache invalidation on mutations.
+- **Dark mode**: System preference detection with manual override via `useColorModePreference` hook, persisted to localStorage.
+
+## Environment Variables
+
+| Variable            | Default   | Description                       |
+| ------------------- | --------- | --------------------------------- |
+| `VITE_API_BASE_URL` | `/api/v1` | Backend API base URL              |
+
+In production, nginx proxies `/api` to the backend container so the default works without changes.
+
+## Build & Deploy
+
+Production builds are created by the Dockerfile:
+
+```bash
+docker build -t nestegg-frontend .
+```
+
+The multi-stage build produces an nginx image serving the static assets with:
+- Gzip compression
+- SPA fallback routing
+- Security headers (CSP, HSTS)
+- Health check endpoint at `/health`

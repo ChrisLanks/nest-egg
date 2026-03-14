@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Optional, Any
+from typing import Any, Optional
 
 from app.config import settings
 
@@ -42,3 +42,35 @@ async def setex(key: str, ttl: int, value: Any) -> bool:
     except Exception as e:
         logging.error(f"Cache set error: {e}")
         return False
+
+
+async def delete(key: str) -> bool:
+    """Delete a specific cache key."""
+    if not redis_client:
+        return False
+    try:
+        await redis_client.delete(key)
+        return True
+    except Exception as e:
+        logging.error(f"Cache delete error: {e}")
+        return False
+
+
+async def delete_pattern(pattern: str) -> int:
+    """Delete all keys matching a pattern. Returns count of deleted keys."""
+    if not redis_client:
+        return 0
+    try:
+        cursor = 0
+        deleted = 0
+        while True:
+            cursor, keys = await redis_client.scan(cursor, match=pattern, count=100)
+            if keys:
+                await redis_client.delete(*keys)
+                deleted += len(keys)
+            if cursor == 0:
+                break
+        return deleted
+    except Exception as e:
+        logging.error(f"Cache delete_pattern error: {e}")
+        return 0

@@ -39,7 +39,8 @@ class RateLimitService:
             Redis key for rate limiting
         """
         # Hash to normalize key length — not used for security
-        hash_key = hashlib.md5(f"{identifier}:{endpoint}".encode(), usedforsecurity=False).hexdigest()  # nosec B324
+        raw = f"{identifier}:{endpoint}".encode()
+        hash_key = hashlib.md5(raw, usedforsecurity=False).hexdigest()  # nosec B324
         return f"rate_limit:{hash_key}"
 
     async def check_rate_limit(
@@ -63,15 +64,9 @@ class RateLimitService:
         """
         # Use IP address if no custom identifier provided
         if identifier is None:
-            # Use the rightmost X-Forwarded-For IP (set by the last trusted proxy).
-            # The leftmost IPs are client-supplied and can be spoofed; only the
-            # rightmost entry is appended by infrastructure we control.
-            forwarded = request.headers.get("X-Forwarded-For")
-            if forwarded:
-                ips = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
-                identifier = ips[-1] if ips else (request.client.host if request.client else "unknown")
-            else:
-                identifier = request.client.host if request.client else "unknown"
+            # Always use the direct client IP from the ASGI server.
+            # X-Forwarded-For is not trustworthy without a verified proxy chain.
+            identifier = request.client.host if request.client else "unknown"
 
         # Skip rate limiting when no real client IP is available (e.g., test environment)
         if identifier == "unknown":

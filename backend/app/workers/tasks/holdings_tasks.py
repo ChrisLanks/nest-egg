@@ -6,14 +6,15 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, update
 
-from app.workers.celery_app import celery_app
+from app.core.cache import delete_pattern as cache_delete_pattern
 from app.core.database import AsyncSessionLocal as async_session_factory
+from app.models.holding import Holding
 from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.user import User
-from app.models.holding import Holding
 from app.services.market_data import get_market_data_provider
 from app.services.snapshot_service import snapshot_service
 from app.utils.datetime_utils import utc_now
+from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,9 @@ async def _enrich_metadata_async():
 
             await db.commit()
 
+            # Invalidate portfolio summary cache for all organizations (metadata affects all)
+            await cache_delete_pattern("portfolio:summary:*")
+
             logger.info(
                 f"Holdings metadata enrichment complete. "
                 f"Enriched: {enriched_count}, Failed: {failed_count}, "
@@ -144,13 +148,15 @@ async def _capture_snapshots_async():
                     # Idempotency check: skip if snapshot already captured today
                     # (e.g. by the orchestrate_portfolio_snapshots Celery task)
                     existing = await db.execute(
-                        select(PortfolioSnapshot.id).where(
+                        select(PortfolioSnapshot.id)
+                        .where(
                             PortfolioSnapshot.organization_id == org_id,
                             PortfolioSnapshot.snapshot_date == today,
-                        ).limit(1)
+                        )
+                        .limit(1)
                     )
                     if existing.scalar_one_or_none():
-                        logger.debug(f"Snapshot already exists for org {org_id} on {today}, skipping")
+                        logger.debug("Snapshot exists for org %s on %s", org_id, today)
                         continue
 
                     # Get any user from this organization
@@ -165,7 +171,9 @@ async def _capture_snapshots_async():
 
                     # Get current portfolio summary (this handles all the complex logic)
                     portfolio = await get_portfolio_summary(
-                        user_id=None, current_user=user, db=db  # Get combined household view
+                        user_id=None,
+                        current_user=user,
+                        db=db,  # Get combined household view
                     )
 
                     # Capture snapshot for this organization
@@ -261,14 +269,15 @@ async def _update_prices_async():
                         )
                         updated_count += result.rowcount
                     except Exception as e:
-                        logger.error(
-                            f"Error updating holdings for ticker {ticker}: {e}"
-                        )
+                        logger.error(f"Error updating holdings for ticker {ticker}: {e}")
                 else:
                     logger.warning(f"No quote available for {ticker}")
                     skipped_count += 1
 
             await db.commit()
+
+            # Invalidate portfolio summary cache for all organizations (prices affect all)
+            await cache_delete_pattern("portfolio:summary:*")
 
             logger.info(
                 f"Holdings price update complete. "

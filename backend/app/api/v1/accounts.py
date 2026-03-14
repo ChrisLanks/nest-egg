@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.config import settings
+from app.core.cache import delete_pattern as cache_delete_pattern
 from app.core.database import get_db
 from app.dependencies import (
     get_all_household_accounts,
@@ -357,6 +358,10 @@ async def create_manual_account(
     await db.commit()
     await db.refresh(account)
 
+    # Invalidate portfolio and dashboard caches
+    await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
+
     # Create holdings if provided (for investment accounts)
     if account_data.holdings:
         for holding_data in account_data.holdings:
@@ -428,6 +433,10 @@ async def bulk_update_visibility(
         update(Account).where(Account.id.in_(allowed_ids)).values(is_active=request.is_active)
     )
     await db.commit()
+
+    # Invalidate portfolio and dashboard caches
+    await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
 
     return {"updated_count": result.rowcount}
 
@@ -555,6 +564,10 @@ async def update_account(
 
     await db.commit()
     await db.refresh(account)
+
+    # Invalidate portfolio and dashboard caches
+    await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
 
     return account
 
@@ -712,6 +725,10 @@ async def refresh_account_valuation(
     )
     await db.commit()
 
+    # Invalidate portfolio and dashboard caches
+    await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
+
     return {
         "id": str(account.id),
         "raw_value": float(raw_value),
@@ -768,6 +785,11 @@ async def bulk_delete_accounts(
 
     result = await db.execute(delete(Account).where(Account.id.in_(allowed_ids)))
     await db.commit()
+
+    # Invalidate portfolio and dashboard caches
+    await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
+
     return {"deleted_count": result.rowcount}
 
 

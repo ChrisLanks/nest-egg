@@ -2,14 +2,14 @@
 
 import logging
 from decimal import Decimal
-from typing import List, Dict, Tuple
-from uuid import UUID
+from typing import Dict, List
 
-from sqlalchemy import select, delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.holding import Holding
+from app.core.cache import delete_pattern as cache_delete_pattern
 from app.models.account import Account
+from app.models.holding import Holding
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -36,9 +36,7 @@ class PlaidHoldingsSyncService:
             sec_map[sec["security_id"]] = sec
 
         # Get existing holdings for this account
-        result = await db.execute(
-            select(Holding).where(Holding.account_id == account.id)
-        )
+        result = await db.execute(select(Holding).where(Holding.account_id == account.id))
         existing = {h.ticker: h for h in result.scalars().all()}
 
         synced_tickers = set()
@@ -55,9 +53,7 @@ class PlaidHoldingsSyncService:
 
             shares = Decimal(str(h.get("quantity", 0)))
             price = Decimal(str(security.get("close_price", 0)))
-            cost_basis = (
-                Decimal(str(h.get("cost_basis", 0))) if h.get("cost_basis") else None
-            )
+            cost_basis = Decimal(str(h.get("cost_basis", 0))) if h.get("cost_basis") else None
             value = Decimal(str(h.get("institution_value", 0)))
             total_value += value
 
@@ -71,9 +67,7 @@ class PlaidHoldingsSyncService:
                 holding.current_total_value = value
                 holding.total_cost_basis = cost_basis
                 if cost_basis and shares > 0:
-                    holding.cost_basis_per_share = (cost_basis / shares).quantize(
-                        Decimal("0.01")
-                    )
+                    holding.cost_basis_per_share = (cost_basis / shares).quantize(Decimal("0.01"))
                 holding.asset_type = asset_type
                 holding.name = security.get("name")
                 holding.price_as_of = utc_now()
@@ -88,9 +82,7 @@ class PlaidHoldingsSyncService:
                     current_price_per_share=price,
                     current_total_value=value,
                     total_cost_basis=cost_basis,
-                    cost_basis_per_share=(cost_basis / shares).quantize(
-                        Decimal("0.01")
-                    )
+                    cost_basis_per_share=(cost_basis / shares).quantize(Decimal("0.01"))
                     if cost_basis and shares > 0
                     else None,
                     asset_type=asset_type,
@@ -113,6 +105,10 @@ class PlaidHoldingsSyncService:
         account.last_synced_at = utc_now()
 
         await db.commit()
+
+        # Invalidate portfolio summary cache for this account's organization
+        await cache_delete_pattern(f"portfolio:summary:{account.organization_id}:*")
+
         return len(synced_tickers)
 
     @staticmethod

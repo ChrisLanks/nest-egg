@@ -45,12 +45,12 @@ import {
   Wrap,
   WrapItem,
   useColorModeValue,
-} from '@chakra-ui/react';
-import { CloseIcon, AddIcon } from '@chakra-ui/icons';
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import api from '../../../services/api';
+} from "@chakra-ui/react";
+import { CloseIcon, AddIcon } from "@chakra-ui/icons";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { Link as RouterLink } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import api from "../../../services/api";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -62,15 +62,18 @@ import {
   Tooltip,
   Legend,
   ReferenceLine,
-} from 'recharts';
+} from "recharts";
 import {
   runMonteCarloSimulation,
   STRESS_SCENARIOS,
   type SimulationParams,
   type SimulationSummary,
   type StressScenario,
-} from '../../../utils/monteCarloSimulation';
-import { ScenarioComparisonChart, type ScenarioData } from './ScenarioComparisonChart';
+} from "../../../utils/monteCarloSimulation";
+import {
+  ScenarioComparisonChart,
+  type ScenarioData,
+} from "./ScenarioComparisonChart";
 
 interface GrowthProjectionsChartProps {
   currentValue: number;
@@ -88,15 +91,15 @@ interface ScenarioConfig {
   retirementYear?: number;
   annualWithdrawal?: number;
   withdrawalRate?: number;
-  withdrawalStrategy: 'fixed' | 'percent';
+  withdrawalStrategy: "fixed" | "percent";
   enableRetirement: boolean;
   stressOverrides?: StressScenario;
 }
 
-const SCENARIO_COLORS = ['#4299E1', '#ED8936', '#48BB78'];
+const SCENARIO_COLORS = ["#4299E1", "#ED8936", "#48BB78"];
 let scenarioCounter = 0;
 
-const STORAGE_KEY = 'nest-egg-growth-projections';
+const STORAGE_KEY = "nest-egg-growth-projections";
 
 interface PersistedState {
   scenarios: ScenarioConfig[];
@@ -104,15 +107,17 @@ interface PersistedState {
   showInflationAdjusted: boolean;
 }
 
-const makeDefaultScenario = (overrides?: Partial<ScenarioConfig>): ScenarioConfig => ({
+const makeDefaultScenario = (
+  overrides?: Partial<ScenarioConfig>,
+): ScenarioConfig => ({
   id: `scenario-${++scenarioCounter}`,
-  name: 'Base Case',
+  name: "Base Case",
   color: SCENARIO_COLORS[0],
   annualReturn: 7,
   volatility: 15,
   inflationRate: 3,
   years: 10,
-  withdrawalStrategy: 'percent',
+  withdrawalStrategy: "percent",
   enableRetirement: false,
   ...overrides,
 });
@@ -122,23 +127,34 @@ function loadPersistedState(): PersistedState | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed && Array.isArray(parsed.scenarios) && parsed.scenarios.length > 0) {
+    if (
+      parsed &&
+      Array.isArray(parsed.scenarios) &&
+      parsed.scenarios.length > 0
+    ) {
       // Restore scenarioCounter so new scenarios get unique IDs
-      const maxId = parsed.scenarios.reduce((max: number, s: ScenarioConfig) => {
-        const num = parseInt(s.id.replace('scenario-', ''), 10);
-        return isNaN(num) ? max : Math.max(max, num);
-      }, 0);
+      const maxId = parsed.scenarios.reduce(
+        (max: number, s: ScenarioConfig) => {
+          const num = parseInt(s.id.replace("scenario-", ""), 10);
+          return isNaN(num) ? max : Math.max(max, num);
+        },
+        0,
+      );
       scenarioCounter = maxId;
       return parsed as PersistedState;
     }
-  } catch { /* ignore corrupt localStorage */ }
+  } catch {
+    /* ignore corrupt localStorage */
+  }
   return null;
 }
 
 function savePersistedState(state: PersistedState): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 function computeDefaultYears(birthYear: number | null | undefined): number {
@@ -149,12 +165,15 @@ function computeDefaultYears(birthYear: number | null | undefined): number {
   return Math.max(1, yearsUntilRetirement);
 }
 
-export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }: GrowthProjectionsChartProps) => {
+export const GrowthProjectionsChart = ({
+  currentValue,
+  monthlyContribution = 0,
+}: GrowthProjectionsChartProps) => {
   // Fetch user birth year for smart default
   const { data: profile } = useQuery<{ birth_year?: number | null }>({
-    queryKey: ['userProfile'],
+    queryKey: ["userProfile"],
     queryFn: async () => {
-      const response = await api.get('/settings/profile');
+      const response = await api.get("/settings/profile");
       return response.data;
     },
     retry: false,
@@ -180,7 +199,8 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
   // Local slider state so dragging doesn't recompute simulations per pixel
   const [sliderYears, setSliderYears] = useState(() => {
     const persisted = loadPersistedState();
-    if (persisted) return persisted.scenarios[persisted.activeScenarioIndex]?.years ?? 10;
+    if (persisted)
+      return persisted.scenarios[persisted.activeScenarioIndex]?.years ?? 10;
     return 10;
   });
 
@@ -191,33 +211,37 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
     const persisted = loadPersistedState();
     if (!persisted && profile.birth_year) {
       const years = computeDefaultYears(profile.birth_year);
-      setScenarios((prev) => prev.map((s) => ({ ...s, years })));
+      setScenarios((prev) => prev.map((s) => ({ ...s, years }))); // eslint-disable-line react-hooks/set-state-in-effect
       setSliderYears(years);
     }
   }, [profile]);
 
   // Persist state changes to localStorage
   useEffect(() => {
-    savePersistedState({ scenarios, activeScenarioIndex, showInflationAdjusted });
+    savePersistedState({
+      scenarios,
+      activeScenarioIndex,
+      showInflationAdjusted,
+    });
   }, [scenarios, activeScenarioIndex, showInflationAdjusted]);
 
   const activeScenario = scenarios[activeScenarioIndex] || scenarios[0];
 
   // Keep slider in sync when active scenario changes
   useEffect(() => {
-    setSliderYears(activeScenario.years);
+    setSliderYears(activeScenario.years); // eslint-disable-line react-hooks/set-state-in-effect
   }, [activeScenario.years]);
 
   // Dark mode colors
-  const successBg = useColorModeValue('green.50', 'green.900');
-  const successColor = useColorModeValue('green.700', 'green.200');
-  const warningBg = useColorModeValue('orange.50', 'orange.900');
-  const warningColor = useColorModeValue('orange.700', 'orange.200');
-  const dangerBg = useColorModeValue('red.50', 'red.900');
-  const dangerColor = useColorModeValue('red.700', 'red.200');
-  const gridColor = useColorModeValue('#e0e0e0', '#4A5568');
-  const scenarioCardBg = useColorModeValue('gray.50', 'gray.700');
-  const stressBtnVariant = useColorModeValue('outline', 'solid');
+  const successBg = useColorModeValue("green.50", "green.900");
+  const successColor = useColorModeValue("green.700", "green.200");
+  const warningBg = useColorModeValue("orange.50", "orange.900");
+  const warningColor = useColorModeValue("orange.700", "orange.200");
+  const dangerBg = useColorModeValue("red.50", "red.900");
+  const dangerColor = useColorModeValue("red.700", "red.200");
+  const gridColor = useColorModeValue("#e0e0e0", "#4A5568");
+  const scenarioCardBg = useColorModeValue("gray.50", "gray.700");
+  const stressBtnVariant = useColorModeValue("outline", "solid");
 
   // Run all simulations
   const simulationResults: SimulationSummary[] = useMemo(() => {
@@ -235,7 +259,7 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
       if (sc.enableRetirement && sc.retirementYear != null) {
         params.retirementYear = sc.retirementYear;
         params.inflationAdjustWithdrawals = true;
-        if (sc.withdrawalStrategy === 'fixed') {
+        if (sc.withdrawalStrategy === "fixed") {
           params.annualWithdrawal = sc.annualWithdrawal || 0;
         } else {
           params.withdrawalRate = sc.withdrawalRate || 4;
@@ -245,7 +269,8 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
     });
   }, [scenarios, currentValue, monthlyContribution]);
 
-  const activeSummary = simulationResults[activeScenarioIndex] || simulationResults[0];
+  const activeSummary =
+    simulationResults[activeScenarioIndex] || simulationResults[0];
   const activeProjections = activeSummary.projections;
 
   // Summary stats for active scenario
@@ -254,7 +279,8 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
     return {
       medianValue: finalYear.median,
       medianGain: finalYear.median - currentValue,
-      medianGainPercent: ((finalYear.median - currentValue) / currentValue) * 100,
+      medianGainPercent:
+        ((finalYear.median - currentValue) / currentValue) * 100,
       pessimistic: finalYear.percentile10,
       optimistic: finalYear.percentile90,
       inflationAdjustedMedian: finalYear.medianInflationAdjusted,
@@ -267,10 +293,12 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
   const updateField = useCallback(
     <K extends keyof ScenarioConfig>(field: K, value: ScenarioConfig[K]) => {
       setScenarios((prev) =>
-        prev.map((s, i) => (i === activeScenarioIndex ? { ...s, [field]: value } : s))
+        prev.map((s, i) =>
+          i === activeScenarioIndex ? { ...s, [field]: value } : s,
+        ),
       );
     },
-    [activeScenarioIndex]
+    [activeScenarioIndex],
   );
 
   // Add scenario
@@ -287,7 +315,7 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
       setScenarios((prev) => [...prev, newSc]);
       setActiveScenarioIndex(idx);
     },
-    [scenarios.length, activeScenario.years]
+    [scenarios.length, activeScenario.years],
   );
 
   // Remove scenario (Base Case at index 0 is protected)
@@ -295,9 +323,11 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
     (idx: number) => {
       if (scenarios.length <= 1 || idx === 0) return;
       setScenarios((prev) => prev.filter((_, i) => i !== idx));
-      setActiveScenarioIndex((prev) => (prev >= idx ? Math.max(0, prev - 1) : prev));
+      setActiveScenarioIndex((prev) =>
+        prev >= idx ? Math.max(0, prev - 1) : prev,
+      );
     },
-    [scenarios.length]
+    [scenarios.length],
   );
 
   // Apply stress preset as new scenario
@@ -307,8 +337,8 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
       if (!preset) return;
       if (scenarios.length >= 3) {
         // Replace active scenario's stress overrides
-        updateField('stressOverrides', preset);
-        updateField('name', preset.name);
+        updateField("stressOverrides", preset);
+        updateField("name", preset.name);
       } else {
         addScenario({
           name: preset.name,
@@ -316,7 +346,7 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
         });
       }
     },
-    [scenarios.length, addScenario, updateField]
+    [scenarios.length, addScenario, updateField],
   );
 
   // Reset active to defaults
@@ -326,13 +356,15 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
       name: activeScenario.name,
       color: activeScenario.color,
     });
-    setScenarios((prev) => prev.map((s, i) => (i === activeScenarioIndex ? defaults : s)));
+    setScenarios((prev) =>
+      prev.map((s, i) => (i === activeScenarioIndex ? defaults : s)),
+    );
   };
 
   const formatCurrency = (value: number) =>
-    new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
@@ -360,9 +392,11 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
 
   // Success rate badge color
   const getSuccessRateProps = (rate: number) => {
-    if (rate >= 80) return { bg: successBg, color: successColor, label: 'High' };
-    if (rate >= 50) return { bg: warningBg, color: warningColor, label: 'Moderate' };
-    return { bg: dangerBg, color: dangerColor, label: 'Low' };
+    if (rate >= 80)
+      return { bg: successBg, color: successColor, label: "High" };
+    if (rate >= 50)
+      return { bg: warningBg, color: warningColor, label: "Moderate" };
+    return { bg: dangerBg, color: dangerColor, label: "Low" };
   };
 
   const showMultiScenario = scenarios.length > 1;
@@ -377,7 +411,10 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
   return (
     <VStack spacing={6} align="stretch">
       {/* Summary Statistics */}
-      <SimpleGrid columns={{ base: 1, md: activeScenario.enableRetirement ? 4 : 3 }} spacing={4}>
+      <SimpleGrid
+        columns={{ base: 1, md: activeScenario.enableRetirement ? 4 : 3 }}
+        spacing={4}
+      >
         <Card>
           <CardBody>
             <Stat>
@@ -386,8 +423,9 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                 {formatCurrency(summaryStats.medianValue)}
               </StatNumber>
               <StatHelpText>
-                {summaryStats.medianGainPercent >= 0 ? '+' : ''}
-                {summaryStats.medianGainPercent.toFixed(1)}% ({formatCurrency(summaryStats.medianGain)})
+                {summaryStats.medianGainPercent >= 0 ? "+" : ""}
+                {summaryStats.medianGainPercent.toFixed(1)}% (
+                {formatCurrency(summaryStats.medianGain)})
               </StatHelpText>
             </Stat>
           </CardBody>
@@ -422,13 +460,15 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
             <CardBody>
               <Stat>
                 <StatLabel>Probability of Success</StatLabel>
-                <StatNumber color={getSuccessRateProps(summaryStats.successRate).color}>
+                <StatNumber
+                  color={getSuccessRateProps(summaryStats.successRate).color}
+                >
                   {summaryStats.successRate.toFixed(0)}%
                 </StatNumber>
                 <StatHelpText>
                   {summaryStats.medianDepletionYear != null
                     ? `Median depletion: Year ${summaryStats.medianDepletionYear}`
-                    : 'Portfolio survives in most scenarios'}
+                    : "Portfolio survives in most scenarios"}
                 </StatHelpText>
               </Stat>
             </CardBody>
@@ -444,15 +484,30 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
               key={sc.id}
               size="sm"
               cursor="pointer"
+              tabIndex={0}
+              role="tab"
+              aria-selected={i === activeScenarioIndex}
+              aria-label={`Scenario: ${sc.name}`}
               onClick={() => setActiveScenarioIndex(i)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setActiveScenarioIndex(i);
+                }
+              }}
               borderWidth={2}
-              borderColor={i === activeScenarioIndex ? sc.color : 'border.default'}
+              borderColor={
+                i === activeScenarioIndex ? sc.color : "border.default"
+              }
               bg={i === activeScenarioIndex ? scenarioCardBg : undefined}
             >
               <CardBody py={2} px={3}>
                 <HStack spacing={2}>
                   <Box w={3} h={3} borderRadius="full" bg={sc.color} />
-                  <Text fontSize="sm" fontWeight={i === activeScenarioIndex ? 'bold' : 'normal'}>
+                  <Text
+                    fontSize="sm"
+                    fontWeight={i === activeScenarioIndex ? "bold" : "normal"}
+                  >
                     {sc.name}
                   </Text>
                   {sc.stressOverrides && (
@@ -495,52 +550,148 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
           scenarios={scenarioChartData}
           activeIndex={activeScenarioIndex}
           showInflationAdjusted={showInflationAdjusted}
-          retirementYear={activeScenario.enableRetirement ? activeScenario.retirementYear : undefined}
+          retirementYear={
+            activeScenario.enableRetirement
+              ? activeScenario.retirementYear
+              : undefined
+          }
         />
       ) : (
-        <Box>
+        <Box
+          role="img"
+          aria-label={`Portfolio growth projection for ${activeScenario.name} over ${activeScenario.years} years with ${activeScenario.annualReturn}% annual return`}
+        >
           <ResponsiveContainer width="100%" height={400}>
             <ComposedChart data={activeProjections}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
               <XAxis
                 dataKey="year"
-                label={{ value: 'Years', position: 'insideBottom', offset: -5 }}
+                label={{ value: "Years", position: "insideBottom", offset: -5 }}
               />
               <YAxis
                 tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                label={{ value: 'Portfolio Value', angle: -90, position: 'insideLeft' }}
+                label={{
+                  value: "Portfolio Value",
+                  angle: -90,
+                  position: "insideLeft",
+                }}
               />
+              {/* eslint-disable-next-line react-hooks/static-components */}
               <Tooltip content={<CustomTooltip />} />
               <Legend />
 
-              {activeScenario.enableRetirement && activeScenario.retirementYear != null && (
-                <ReferenceLine
-                  x={activeScenario.retirementYear}
-                  stroke="#A0AEC0"
-                  strokeDasharray="6 4"
-                  label={{ value: 'Retirement', position: 'top', fill: '#A0AEC0' }}
-                />
-              )}
+              {activeScenario.enableRetirement &&
+                activeScenario.retirementYear != null && (
+                  <ReferenceLine
+                    x={activeScenario.retirementYear}
+                    stroke="#A0AEC0"
+                    strokeDasharray="6 4"
+                    label={{
+                      value: "Retirement",
+                      position: "top",
+                      fill: "#A0AEC0",
+                    }}
+                  />
+                )}
 
               {/* Percentile bands */}
-              <Area type="monotone" dataKey="percentile90" stroke="transparent" fill="#48BB78" fillOpacity={0.1} name="" legendType="none" />
-              <Area type="monotone" dataKey="percentile75" stroke="transparent" fill="#4299E1" fillOpacity={0.15} name="" legendType="none" />
-              <Area type="monotone" dataKey="percentile25" stroke="transparent" fill="#ED8936" fillOpacity={0.15} name="" legendType="none" />
-              <Area type="monotone" dataKey="percentile10" stroke="transparent" fill="#F56565" fillOpacity={0.1} name="" legendType="none" />
+              <Area
+                type="monotone"
+                dataKey="percentile90"
+                stroke="transparent"
+                fill="#48BB78"
+                fillOpacity={0.1}
+                name=""
+                legendType="none"
+              />
+              <Area
+                type="monotone"
+                dataKey="percentile75"
+                stroke="transparent"
+                fill="#4299E1"
+                fillOpacity={0.15}
+                name=""
+                legendType="none"
+              />
+              <Area
+                type="monotone"
+                dataKey="percentile25"
+                stroke="transparent"
+                fill="#ED8936"
+                fillOpacity={0.15}
+                name=""
+                legendType="none"
+              />
+              <Area
+                type="monotone"
+                dataKey="percentile10"
+                stroke="transparent"
+                fill="#F56565"
+                fillOpacity={0.1}
+                name=""
+                legendType="none"
+              />
 
               {!showInflationAdjusted && (
                 <>
-                  <Line type="monotone" dataKey="percentile90" stroke="#48BB78" strokeWidth={2} strokeDasharray="3 3" name="Optimistic (90th percentile)" dot={false} />
-                  <Line type="monotone" dataKey="median" stroke="#4299E1" strokeWidth={3} name="Average (50th percentile)" dot={false} />
-                  <Line type="monotone" dataKey="percentile10" stroke="#F56565" strokeWidth={2} strokeDasharray="3 3" name="Conservative (10th percentile)" dot={false} />
+                  <Line
+                    type="monotone"
+                    dataKey="percentile90"
+                    stroke="#48BB78"
+                    strokeWidth={2}
+                    strokeDasharray="3 3"
+                    name="Optimistic (90th percentile)"
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="median"
+                    stroke="#4299E1"
+                    strokeWidth={3}
+                    name="Average (50th percentile)"
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="percentile10"
+                    stroke="#F56565"
+                    strokeWidth={2}
+                    strokeDasharray="3 3"
+                    name="Conservative (10th percentile)"
+                    dot={false}
+                  />
                 </>
               )}
 
               {showInflationAdjusted && (
                 <>
-                  <Line type="monotone" dataKey="percentile90InflationAdjusted" stroke="#48BB78" strokeWidth={2} strokeDasharray="5 5" name="Optimistic (90th, Inflation Adjusted)" dot={false} />
-                  <Line type="monotone" dataKey="medianInflationAdjusted" stroke="#ED8936" strokeWidth={3} strokeDasharray="5 5" name="Average (50th, Inflation Adjusted)" dot={false} />
-                  <Line type="monotone" dataKey="percentile10InflationAdjusted" stroke="#F56565" strokeWidth={2} strokeDasharray="5 5" name="Conservative (10th, Inflation Adjusted)" dot={false} />
+                  <Line
+                    type="monotone"
+                    dataKey="percentile90InflationAdjusted"
+                    stroke="#48BB78"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    name="Optimistic (90th, Inflation Adjusted)"
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="medianInflationAdjusted"
+                    stroke="#ED8936"
+                    strokeWidth={3}
+                    strokeDasharray="5 5"
+                    name="Average (50th, Inflation Adjusted)"
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="percentile10InflationAdjusted"
+                    stroke="#F56565"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    name="Conservative (10th, Inflation Adjusted)"
+                    dot={false}
+                  />
                 </>
               )}
             </ComposedChart>
@@ -555,7 +706,9 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
             <Text fontWeight="bold" fontSize="lg">
               Simulation Parameters
               {scenarios.length > 1 && (
-                <Badge ml={2} colorScheme="blue">{activeScenario.name}</Badge>
+                <Badge ml={2} colorScheme="blue">
+                  {activeScenario.name}
+                </Badge>
               )}
             </Text>
 
@@ -566,7 +719,9 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                 <HStack spacing={4}>
                   <NumberInput
                     value={activeScenario.annualReturn}
-                    onChange={(_, val) => !isNaN(val) && updateField('annualReturn', val)}
+                    onChange={(_, val) =>
+                      !isNaN(val) && updateField("annualReturn", val)
+                    }
                     min={-20}
                     max={30}
                     step={0.5}
@@ -590,7 +745,9 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                 <HStack spacing={4}>
                   <NumberInput
                     value={activeScenario.volatility}
-                    onChange={(_, val) => !isNaN(val) && updateField('volatility', val)}
+                    onChange={(_, val) =>
+                      !isNaN(val) && updateField("volatility", val)
+                    }
                     min={0}
                     max={50}
                     step={1}
@@ -614,7 +771,9 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                 <HStack spacing={4}>
                   <NumberInput
                     value={activeScenario.inflationRate}
-                    onChange={(_, val) => !isNaN(val) && updateField('inflationRate', val)}
+                    onChange={(_, val) =>
+                      !isNaN(val) && updateField("inflationRate", val)
+                    }
                     min={0}
                     max={10}
                     step={0.5}
@@ -640,7 +799,7 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                 <Slider
                   value={sliderYears}
                   onChange={(val) => setSliderYears(val)}
-                  onChangeEnd={(val) => updateField('years', val)}
+                  onChangeEnd={(val) => updateField("years", val)}
                   min={1}
                   max={100}
                   step={1}
@@ -662,7 +821,9 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                 </FormLabel>
                 <Switch
                   isChecked={activeScenario.enableRetirement}
-                  onChange={(e) => updateField('enableRetirement', e.target.checked)}
+                  onChange={(e) =>
+                    updateField("enableRetirement", e.target.checked)
+                  }
                   colorScheme="brand"
                 />
               </FormControl>
@@ -672,8 +833,13 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                   <FormControl>
                     <FormLabel>Retirement Year</FormLabel>
                     <NumberInput
-                      value={activeScenario.retirementYear ?? Math.round(activeScenario.years / 2)}
-                      onChange={(_, val) => !isNaN(val) && updateField('retirementYear', val)}
+                      value={
+                        activeScenario.retirementYear ??
+                        Math.round(activeScenario.years / 2)
+                      }
+                      onChange={(_, val) =>
+                        !isNaN(val) && updateField("retirementYear", val)
+                      }
                       min={1}
                       max={activeScenario.years}
                       step={1}
@@ -691,7 +857,12 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                     <FormLabel>Withdrawal Strategy</FormLabel>
                     <RadioGroup
                       value={activeScenario.withdrawalStrategy}
-                      onChange={(val) => updateField('withdrawalStrategy', val as 'fixed' | 'percent')}
+                      onChange={(val) =>
+                        updateField(
+                          "withdrawalStrategy",
+                          val as "fixed" | "percent",
+                        )
+                      }
                     >
                       <Stack direction="row" spacing={4}>
                         <Radio value="percent">% of Portfolio (4% Rule)</Radio>
@@ -700,12 +871,14 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                     </RadioGroup>
                   </FormControl>
 
-                  {activeScenario.withdrawalStrategy === 'fixed' ? (
+                  {activeScenario.withdrawalStrategy === "fixed" ? (
                     <FormControl>
                       <FormLabel>Annual Withdrawal ($)</FormLabel>
                       <NumberInput
                         value={activeScenario.annualWithdrawal ?? 40000}
-                        onChange={(_, val) => !isNaN(val) && updateField('annualWithdrawal', val)}
+                        onChange={(_, val) =>
+                          !isNaN(val) && updateField("annualWithdrawal", val)
+                        }
                         min={0}
                         max={1000000}
                         step={1000}
@@ -723,7 +896,9 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                       <FormLabel>Withdrawal Rate (%)</FormLabel>
                       <NumberInput
                         value={activeScenario.withdrawalRate ?? 4}
-                        onChange={(_, val) => !isNaN(val) && updateField('withdrawalRate', val)}
+                        onChange={(_, val) =>
+                          !isNaN(val) && updateField("withdrawalRate", val)
+                        }
                         min={0}
                         max={20}
                         step={0.5}
@@ -760,7 +935,8 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
                 ))}
               </Wrap>
               <Text fontSize="xs" color="text.muted">
-                Applies deterministic market conditions then resumes randomized simulation.
+                Applies deterministic market conditions then resumes randomized
+                simulation.
               </Text>
             </VStack>
 
@@ -786,8 +962,14 @@ export const GrowthProjectionsChart = ({ currentValue, monthlyContribution = 0 }
 
             {/* Link to Retirement Planner */}
             <Text fontSize="sm" color="text.secondary">
-              Want a more detailed retirement plan with life events, Social Security, and tax-optimized withdrawals?{' '}
-              <Link as={RouterLink} to="/retirement" color="brand.500" fontWeight="medium">
+              Want a more detailed retirement plan with life events, Social
+              Security, and tax-optimized withdrawals?{" "}
+              <Link
+                as={RouterLink}
+                to="/retirement"
+                color="brand.500"
+                fontWeight="medium"
+              >
                 Open Retirement Planner →
               </Link>
             </Text>
