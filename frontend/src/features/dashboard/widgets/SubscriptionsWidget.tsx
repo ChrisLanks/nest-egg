@@ -13,34 +13,37 @@ import {
   StatNumber,
   Text,
   VStack,
-} from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
-import { Link as RouterLink } from 'react-router-dom';
-import { subscriptionsApi } from '../../../api/subscriptions';
+} from "@chakra-ui/react";
+import { useQuery } from "@tanstack/react-query";
+import { Link as RouterLink } from "react-router-dom";
+import { subscriptionsApi } from "../../../api/subscriptions";
+import { useUserView } from "../../../contexts/UserViewContext";
 
 const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
 
 const frequencyLabel = (freq: string) => {
   const map: Record<string, string> = {
-    weekly: 'Weekly',
-    biweekly: 'Biweekly',
-    monthly: 'Monthly',
-    quarterly: 'Quarterly',
-    yearly: 'Yearly',
+    weekly: "Weekly",
+    biweekly: "Biweekly",
+    monthly: "Monthly",
+    quarterly: "Quarterly",
+    yearly: "Yearly",
   };
   return map[freq] ?? freq;
 };
 
 export const SubscriptionsWidget: React.FC = () => {
+  const { selectedUserId } = useUserView();
+
   const { data, isLoading } = useQuery({
-    queryKey: ['subscriptions-widget'],
-    queryFn: () => subscriptionsApi.get(),
+    queryKey: ["subscriptions-widget", selectedUserId],
+    queryFn: () => subscriptionsApi.get(selectedUserId || undefined),
   });
 
   if (isLoading) {
@@ -60,7 +63,12 @@ export const SubscriptionsWidget: React.FC = () => {
       <CardBody>
         <HStack justify="space-between" mb={4}>
           <Heading size="md">Subscriptions</Heading>
-          <Link as={RouterLink} to="/recurring?tab=subscriptions" fontSize="sm" color="brand.500">
+          <Link
+            as={RouterLink}
+            to="/recurring?tab=subscriptions"
+            fontSize="sm"
+            color="brand.500"
+          >
             View all →
           </Link>
         </HStack>
@@ -73,8 +81,12 @@ export const SubscriptionsWidget: React.FC = () => {
           <>
             <Stat mb={4}>
               <StatLabel>Monthly Cost</StatLabel>
-              <StatNumber color="finance.negative">{formatCurrency(data?.monthly_cost ?? 0)}</StatNumber>
-              <StatHelpText>{formatCurrency((data?.yearly_cost ?? 0))} / year</StatHelpText>
+              <StatNumber color="finance.negative">
+                {formatCurrency(data?.monthly_cost ?? 0)}
+              </StatNumber>
+              <StatHelpText>
+                {formatCurrency(data?.yearly_cost ?? 0)} / year
+              </StatHelpText>
             </Stat>
 
             <VStack align="stretch" spacing={0}>

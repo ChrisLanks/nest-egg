@@ -11,11 +11,12 @@ import {
   Spinner,
   Text,
   VStack,
-} from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
-import api from '../../../services/api';
+} from "@chakra-ui/react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
+import api from "../../../services/api";
+import { useUserView } from "../../../contexts/UserViewContext";
 
 interface ScenarioSummary {
   id: string;
@@ -28,18 +29,23 @@ interface ScenarioSummary {
 }
 
 const scoreColor = (score: number): string => {
-  if (score >= 70) return 'green.400';
-  if (score >= 40) return 'yellow.400';
-  return 'red.400';
+  if (score >= 70) return "green.400";
+  if (score >= 40) return "yellow.400";
+  return "red.400";
 };
 
 export const RetirementReadinessWidget: React.FC = () => {
+  const { selectedUserId } = useUserView();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { data: scenarios, isLoading } = useQuery<ScenarioSummary[]>({
-    queryKey: ['retirement-scenarios-widget'],
+    queryKey: ["retirement-scenarios-widget", selectedUserId],
     queryFn: async () => {
-      const { data } = await api.get<ScenarioSummary[]>('/retirement/scenarios');
+      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const { data } = await api.get<ScenarioSummary[]>(
+        "/retirement/scenarios",
+        { params },
+      );
       return data;
     },
     retry: false,
@@ -64,7 +70,12 @@ export const RetirementReadinessWidget: React.FC = () => {
       <CardBody>
         <HStack justify="space-between" mb={4}>
           <Heading size="md">Retirement Readiness</Heading>
-          <Link as={RouterLink} to="/retirement" fontSize="sm" color="brand.500">
+          <Link
+            as={RouterLink}
+            to="/retirement"
+            fontSize="sm"
+            color="brand.500"
+          >
             Plan details →
           </Link>
         </HStack>
@@ -90,7 +101,7 @@ export const RetirementReadinessWidget: React.FC = () => {
             {scenarios.length > 1 && (
               <Select
                 size="xs"
-                value={activeScenario?.id ?? ''}
+                value={activeScenario?.id ?? ""}
                 onChange={(e) => setSelectedId(e.target.value || null)}
                 borderRadius="md"
               >
@@ -102,7 +113,8 @@ export const RetirementReadinessWidget: React.FC = () => {
               </Select>
             )}
 
-            {activeScenario?.readiness_score !== null && activeScenario?.readiness_score !== undefined ? (
+            {activeScenario?.readiness_score !== null &&
+            activeScenario?.readiness_score !== undefined ? (
               <CircularProgress
                 value={activeScenario.readiness_score}
                 size="100px"

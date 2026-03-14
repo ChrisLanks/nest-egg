@@ -1,17 +1,17 @@
 """Service for detecting recurring transaction patterns."""
 
+from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 from uuid import UUID
-from collections import defaultdict
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
-from app.models.transaction import Transaction, Label, TransactionLabel
+from app.models.recurring_transaction import RecurringFrequency, RecurringTransaction
+from app.models.transaction import Label, Transaction, TransactionLabel
 from app.models.user import User
 from app.utils.datetime_utils import utc_now
 
@@ -254,7 +254,9 @@ class RecurringDetectionService:
             )
 
         # Mark auto-detected patterns not seen in this run as "no longer found"
-        detected_keys = {(merchant_name, str(account_id)) for (merchant_name, account_id) in grouped.keys()}
+        detected_keys = {
+            (merchant_name, str(account_id)) for (merchant_name, account_id) in grouped.keys()
+        }
         all_auto_result = await db.execute(
             select(RecurringTransaction).where(
                 and_(
@@ -397,6 +399,7 @@ class RecurringDetectionService:
         db: AsyncSession,
         user: User,
         days_ahead: int = 30,
+        user_id: Optional[UUID] = None,
     ) -> List[Dict]:
         """
         Get upcoming bills that are due within the specified time window.
@@ -405,6 +408,7 @@ class RecurringDetectionService:
             db: Database session
             user: Current user
             days_ahead: Days to look ahead for upcoming bills
+            user_id: Optional user ID to filter bills by account ownership
 
         Returns:
             List of upcoming bills with due dates and details
@@ -413,7 +417,7 @@ class RecurringDetectionService:
         future_date = today + timedelta(days=days_ahead)
 
         # Query for recurring transactions marked as bills
-        result = await db.execute(
+        query = (
             select(RecurringTransaction)
             .where(
                 and_(
@@ -426,6 +430,13 @@ class RecurringDetectionService:
             )
             .order_by(RecurringTransaction.next_expected_date)
         )
+
+        if user_id is not None:
+            query = query.join(Account, RecurringTransaction.account_id == Account.id).where(
+                Account.user_id == user_id
+            )
+
+        result = await db.execute(query)
         bills = list(result.scalars().all())
 
         # Format response
@@ -593,10 +604,12 @@ class RecurringDetectionService:
         count = 0
         for txn_id in transaction_ids:
             if txn_id not in already_labelled:
-                db.add(TransactionLabel(
-                    transaction_id=txn_id,
-                    label_id=label_id,
-                ))
+                db.add(
+                    TransactionLabel(
+                        transaction_id=txn_id,
+                        label_id=label_id,
+                    )
+                )
                 count += 1
 
         return count

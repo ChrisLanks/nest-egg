@@ -75,9 +75,13 @@ class SavingsGoalService:
         db: AsyncSession,
         user: User,
         is_completed: Optional[bool] = None,
+        user_id: Optional[UUID] = None,
     ) -> List[SavingsGoal]:
         """Get all savings goals for organization, ordered by priority."""
         query = select(SavingsGoal).where(SavingsGoal.organization_id == user.organization_id)
+
+        if user_id is not None:
+            query = query.where(SavingsGoal.user_id == user_id)
 
         if is_completed is not None:
             if is_completed:
@@ -94,7 +98,10 @@ class SavingsGoalService:
                     )
                 )
 
-        query = query.order_by(SavingsGoal.priority.asc().nullslast(), SavingsGoal.target_date.asc().nullslast())
+        query = query.order_by(
+            SavingsGoal.priority.asc().nullslast(),
+            SavingsGoal.target_date.asc().nullslast(),
+        )
 
         result = await db.execute(query)
         return list(result.scalars().all())
@@ -247,7 +254,8 @@ class SavingsGoalService:
         """
         # Get all active auto-sync goals with an account linked, ordered by priority
         result = await db.execute(
-            select(SavingsGoal).where(
+            select(SavingsGoal)
+            .where(
                 and_(
                     SavingsGoal.organization_id == user.organization_id,
                     SavingsGoal.is_completed == False,  # noqa: E712
@@ -255,7 +263,8 @@ class SavingsGoalService:
                     SavingsGoal.auto_sync == True,  # noqa: E712
                     SavingsGoal.account_id.is_not(None),
                 )
-            ).order_by(SavingsGoal.priority.asc().nullslast())
+            )
+            .order_by(SavingsGoal.priority.asc().nullslast())
         )
         goals = list(result.scalars().all())
 
@@ -445,19 +454,19 @@ class SavingsGoalService:
 
         # --- Find best liquid account to link ---
         liquid_result = await db.execute(
-            select(Account).where(
+            select(Account)
+            .where(
                 and_(
                     Account.organization_id == user.organization_id,
                     Account.account_type.in_([AccountType.CHECKING, AccountType.SAVINGS]),
                     Account.is_active == True,  # noqa: E712
                 )
-            ).order_by(Account.current_balance.desc())
+            )
+            .order_by(Account.current_balance.desc())
         )
         liquid_account = liquid_result.scalars().first()
 
-        description = (
-            f"6 months of expenses (~${avg_monthly_expenses:,.0f}/month average)"
-        )
+        description = f"6 months of expenses (~${avg_monthly_expenses:,.0f}/month average)"
 
         return await SavingsGoalService.create_goal(
             db=db,
@@ -468,7 +477,9 @@ class SavingsGoalService:
             start_date=date.today(),
             account_id=liquid_account.id if liquid_account else None,
             auto_sync=bool(liquid_account),
-            current_amount=Decimal(liquid_account.current_balance) if liquid_account else Decimal("0"),
+            current_amount=(
+                Decimal(liquid_account.current_balance) if liquid_account else Decimal("0")
+            ),
         )
 
 

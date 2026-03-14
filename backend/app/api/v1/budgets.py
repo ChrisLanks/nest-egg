@@ -3,7 +3,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
@@ -37,6 +37,7 @@ async def create_budget(
 @router.get("/", response_model=List[BudgetResponse])
 async def list_budgets(
     is_active: Optional[bool] = None,
+    user_id: Optional[UUID] = Query(None, description="Filter by user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -45,6 +46,7 @@ async def list_budgets(
         db=db,
         user=current_user,
         is_active=is_active,
+        user_id=user_id,
     )
     return budgets
 

@@ -79,6 +79,11 @@ const RetirementPage = lazy(() =>
 const EducationPlanningPage = lazy(
   () => import("./pages/EducationPlanningPage"),
 );
+const CalendarPage = lazy(() =>
+  import("./pages/CalendarPage").then((m) => ({
+    default: m.CalendarPage,
+  })),
+);
 const FireMetricsPage = lazy(() =>
   import("./pages/FireMetricsPage").then((m) => ({
     default: m.FireMetricsPage,
@@ -184,9 +189,10 @@ function App() {
                         element={<RecurringTransactionsPage />}
                       />
                       <Route path="/bills" element={<BillsPage />} />
+                      <Route path="/calendar" element={<CalendarPage />} />
                       <Route
                         path="/bill-calendar"
-                        element={<Navigate to="/bills?tab=calendar" replace />}
+                        element={<Navigate to="/calendar" replace />}
                       />
                       {/* Redirect old subscriptions route to recurring page */}
                       <Route

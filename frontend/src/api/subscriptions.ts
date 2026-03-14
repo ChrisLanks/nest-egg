@@ -2,7 +2,7 @@
  * Subscriptions API client
  */
 
-import api from '../services/api';
+import api from "../services/api";
 
 export interface SubscriptionItem {
   id: string;
@@ -23,8 +23,11 @@ export interface SubscriptionSummary {
 }
 
 export const subscriptionsApi = {
-  get: async (): Promise<SubscriptionSummary> => {
-    const { data } = await api.get<SubscriptionSummary>('/subscriptions/');
+  get: async (userId?: string): Promise<SubscriptionSummary> => {
+    const params = userId ? { user_id: userId } : {};
+    const { data } = await api.get<SubscriptionSummary>("/subscriptions/", {
+      params,
+    });
     return data;
   },
 

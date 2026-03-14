@@ -5,7 +5,7 @@ from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,6 +58,7 @@ async def create_goal(
 @router.get("/", response_model=List[SavingsGoalResponse])
 async def list_goals(
     is_completed: Optional[bool] = None,
+    user_id: Optional[UUID] = Query(None, description="Filter by user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -66,6 +67,7 @@ async def list_goals(
         db=db,
         user=current_user,
         is_completed=is_completed,
+        user_id=user_id,
     )
     return goals
 

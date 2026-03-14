@@ -17,38 +17,46 @@ import {
   Box,
   HStack,
   useToast,
-} from '@chakra-ui/react';
-import { BellIcon } from '@chakra-ui/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { notificationsApi } from '../../../api/notifications';
-import NotificationItem from './NotificationItem';
+} from "@chakra-ui/react";
+import { BellIcon } from "@chakra-ui/icons";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { notificationsApi } from "../../../api/notifications";
+import NotificationItem from "./NotificationItem";
 
 export default function NotificationBell() {
   const toast = useToast();
   const queryClient = useQueryClient();
 
-  // Get unread count
+  // Get unread count — poll every 2 min, pause when tab not focused,
+  // refresh instantly when popover opens
   const { data: unreadCount } = useQuery({
-    queryKey: ['notifications', 'unread-count'],
+    queryKey: ["notifications", "unread-count"],
     queryFn: notificationsApi.getUnreadCount,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 120_000,
+    refetchIntervalInBackground: false,
   });
 
   // Get recent notifications
   const { data: notifications = [], isLoading } = useQuery({
-    queryKey: ['notifications', 'recent'],
-    queryFn: () => notificationsApi.getNotifications({ include_read: false, limit: 10 }),
-    refetchInterval: 30000,
+    queryKey: ["notifications", "recent"],
+    queryFn: () =>
+      notificationsApi.getNotifications({ include_read: false, limit: 10 }),
+    refetchInterval: 120_000,
+    refetchIntervalInBackground: false,
   });
+
+  const onPopoverOpen = () => {
+    queryClient.invalidateQueries({ queryKey: ["notifications"] });
+  };
 
   // Mark all as read mutation
   const markAllReadMutation = useMutation({
     mutationFn: notificationsApi.markAllAsRead,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
       toast({
-        title: 'All notifications marked as read',
-        status: 'success',
+        title: "All notifications marked as read",
+        status: "success",
         duration: 2000,
       });
     },
@@ -57,7 +65,7 @@ export default function NotificationBell() {
   const hasUnread = (unreadCount?.count ?? 0) > 0;
 
   return (
-    <Popover placement="bottom-end">
+    <Popover placement="bottom-end" onOpen={onPopoverOpen}>
       <PopoverTrigger>
         <IconButton
           aria-label="Notifications"
@@ -80,7 +88,7 @@ export default function NotificationBell() {
                   justifyContent="center"
                   px={0}
                 >
-                  {(unreadCount?.count ?? 0) > 99 ? '99+' : unreadCount?.count}
+                  {(unreadCount?.count ?? 0) > 99 ? "99+" : unreadCount?.count}
                 </Badge>
               )}
             </Box>
@@ -118,7 +126,10 @@ export default function NotificationBell() {
           ) : (
             <VStack spacing={0} align="stretch">
               {notifications.map((notification) => (
-                <NotificationItem key={notification.id} notification={notification} />
+                <NotificationItem
+                  key={notification.id}
+                  notification={notification}
+                />
               ))}
             </VStack>
           )}

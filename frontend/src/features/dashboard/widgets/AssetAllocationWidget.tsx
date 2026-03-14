@@ -11,6 +11,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { holdingsApi } from "../../../api/holdings";
+import { useUserView } from "../../../contexts/UserViewContext";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-US", {
@@ -30,9 +31,11 @@ const SLICES = [
 ] as const;
 
 export const AssetAllocationWidget: React.FC = () => {
+  const { selectedUserId } = useUserView();
+
   const { data: portfolio, isLoading } = useQuery({
-    queryKey: ["portfolio-widget"],
-    queryFn: () => holdingsApi.getPortfolioSummary(),
+    queryKey: ["portfolio-widget", selectedUserId],
+    queryFn: () => holdingsApi.getPortfolioSummary(selectedUserId || undefined),
   });
 
   if (isLoading) {

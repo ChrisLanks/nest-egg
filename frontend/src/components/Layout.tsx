@@ -61,6 +61,7 @@ interface Account {
   plaid_item_hash: string | null;
   plaid_item_id: string | null;
   exclude_from_cash_flow: boolean;
+  is_rental_property?: boolean;
   // Sync status
   last_synced_at: string | null;
   last_error_code: string | null;
@@ -494,33 +495,7 @@ export const Layout = () => {
     }
   };
 
-  const planningMenuItems = [
-    { label: "Budgets", path: "/budgets" },
-    { label: "Goals", path: "/goals" },
-    { label: "Retirement", path: "/retirement" },
-    { label: "Education", path: "/education" },
-    { label: "FIRE", path: "/fire" },
-    { label: "Debt Payoff", path: "/debt-payoff" },
-  ];
-
-  const analyticsMenuItems = [
-    { label: "Cash Flow", path: "/income-expenses" },
-    { label: "Trends", path: "/trends" },
-    { label: "Year in Review", path: "/year-in-review" },
-    { label: "Reports", path: "/reports" },
-    { label: "Tax Deductible", path: "/tax-deductible" },
-    { label: "Rental Properties", path: "/rental-properties" },
-  ];
-
-  const transactionsMenuItems = [
-    { label: "Transactions", path: "/transactions" },
-    { label: "Categories", path: "/categories" },
-    { label: "Rules", path: "/rules" },
-    { label: "Recurring", path: "/recurring" },
-    { label: "Bills", path: "/bills" },
-  ];
-
-  // Fetch accounts with user filtering
+  // Fetch accounts with user filtering (must be above nav visibility logic)
   const { data: accounts, isLoading: accountsLoading } = useQuery<Account[]>({
     queryKey: ["accounts", selectedUserId],
     queryFn: async () => {
@@ -529,6 +504,64 @@ export const Layout = () => {
       return response.data;
     },
   });
+
+  // ── Nav visibility: auto-hide items when user has no relevant data ──
+
+  const DEBT_TYPES = new Set([
+    "credit_card",
+    "loan",
+    "student_loan",
+    "mortgage",
+  ]);
+
+  const showAllNav = (() => {
+    try {
+      return localStorage.getItem("nest-egg-show-all-nav") === "true";
+    } catch {
+      return false;
+    }
+  })();
+
+  const hasDebt =
+    showAllNav ||
+    accountsLoading ||
+    (accounts ?? []).some((a) => DEBT_TYPES.has(a.account_type));
+  const hasRental =
+    showAllNav ||
+    accountsLoading ||
+    (accounts ?? []).some((a) => a.is_rental_property);
+  const has529 =
+    showAllNav ||
+    accountsLoading ||
+    (accounts ?? []).some((a) => a.account_type === "retirement_529");
+
+  const spendingMenuItems = [
+    { label: "Transactions", path: "/transactions" },
+    { label: "Budgets", path: "/budgets" },
+    { label: "Recurring", path: "/recurring" },
+    { label: "Bills", path: "/bills" },
+    { label: "Categories", path: "/categories" },
+    { label: "Rules", path: "/rules" },
+  ];
+
+  const analyticsMenuItems = [
+    { label: "Cash Flow", path: "/income-expenses" },
+    { label: "Trends", path: "/trends" },
+    { label: "Reports", path: "/reports" },
+    { label: "Year in Review", path: "/year-in-review" },
+    { label: "Tax Deductible", path: "/tax-deductible" },
+    ...(hasRental
+      ? [{ label: "Rental Properties", path: "/rental-properties" }]
+      : []),
+  ];
+
+  const planningMenuItems = [
+    { label: "Goals", path: "/goals" },
+    { label: "Retirement", path: "/retirement" },
+    ...(has529 ? [{ label: "Education", path: "/education" }] : []),
+    { label: "FIRE", path: "/fire" },
+    ...(hasDebt ? [{ label: "Debt Payoff", path: "/debt-payoff" }] : []),
+  ];
 
   // Fetch dashboard summary for net worth (filtered by user)
   const { data: dashboardSummary } = useQuery({
@@ -760,10 +793,17 @@ export const Layout = () => {
                 onClick={() => navigateWithParams("/overview")}
               />
 
-              {/* Planning & Goals Dropdown */}
+              {/* Calendar */}
+              <TopNavItem
+                label="Calendar"
+                isActive={location.pathname === "/calendar"}
+                onClick={() => navigateWithParams("/calendar")}
+              />
+
+              {/* Spending Dropdown */}
               <NavDropdown
-                label="Planning & Goals"
-                items={planningMenuItems}
+                label="Spending"
+                items={spendingMenuItems}
                 currentPath={location.pathname}
                 onNavigate={navigateWithParams}
               />
@@ -776,10 +816,10 @@ export const Layout = () => {
                 onNavigate={navigateWithParams}
               />
 
-              {/* Transactions Dropdown */}
+              {/* Planning Dropdown */}
               <NavDropdown
-                label="Transactions"
-                items={transactionsMenuItems}
+                label="Planning"
+                items={planningMenuItems}
                 currentPath={location.pathname}
                 onNavigate={navigateWithParams}
               />

@@ -2,16 +2,16 @@
 
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_, or_, func
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import Budget, BudgetPeriod
-from app.models.transaction import Transaction, Category, TransactionLabel
+from app.models.notification import NotificationPriority, NotificationType
+from app.models.transaction import Category, Transaction, TransactionLabel
 from app.models.user import Organization, User
-from app.models.notification import NotificationType, NotificationPriority
 from app.services.notification_service import NotificationService
 from app.utils.datetime_utils import utc_now
 
@@ -44,7 +44,9 @@ class BudgetService:
             else:
                 # Start is in the previous month
                 if reference_date.month == 1:
-                    start = reference_date.replace(year=reference_date.year - 1, month=12, day=start_day)
+                    start = reference_date.replace(
+                        year=reference_date.year - 1, month=12, day=start_day
+                    )
                 else:
                     start = reference_date.replace(month=reference_date.month - 1, day=start_day)
 
@@ -157,12 +159,16 @@ class BudgetService:
         db: AsyncSession,
         user: User,
         is_active: Optional[bool] = None,
+        user_id: Optional[UUID] = None,
     ) -> List[Budget]:
         """Get all budgets for organization."""
         query = select(Budget).where(Budget.organization_id == user.organization_id)
 
         if is_active is not None:
             query = query.where(Budget.is_active == is_active)
+
+        if user_id is not None:
+            query = query.where(Budget.user_id == user_id)
 
         query = query.order_by(Budget.created_at.desc())
 
@@ -268,9 +274,7 @@ class BudgetService:
         if budget.category_id:
             # Load the category and all its children so that transactions assigned
             # to a sub-category roll up into the parent budget.
-            cat_result = await db.execute(
-                select(Category).where(Category.id == budget.category_id)
-            )
+            cat_result = await db.execute(select(Category).where(Category.id == budget.category_id))
             category = cat_result.scalar_one_or_none()
 
             if category:

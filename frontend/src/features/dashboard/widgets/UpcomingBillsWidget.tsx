@@ -11,34 +11,59 @@ import {
   Text,
   VStack,
   useColorModeValue,
-} from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
-import { Link as RouterLink } from 'react-router-dom';
-import { recurringTransactionsApi } from '../../../api/recurring-transactions';
-import type { UpcomingBill } from '../../../types/recurring-transaction';
+} from "@chakra-ui/react";
+import { useQuery } from "@tanstack/react-query";
+import { Link as RouterLink } from "react-router-dom";
+import { recurringTransactionsApi } from "../../../api/recurring-transactions";
+import type { UpcomingBill } from "../../../types/recurring-transaction";
+import { useUserView } from "../../../contexts/UserViewContext";
 
 const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
 
 export const UpcomingBillsWidget: React.FC = () => {
+  const { selectedUserId } = useUserView();
   const isDark = useColorModeValue(false, true);
 
   const urgencyProps = (
-    bill: UpcomingBill
+    bill: UpcomingBill,
   ): { badge: string; color: string; bg: string } => {
-    if (bill.is_overdue) return { badge: 'Overdue', color: isDark ? 'red.200' : 'red.700', bg: isDark ? 'red.900' : 'red.50' };
-    if (bill.days_until_due <= 3) return { badge: `${bill.days_until_due}d`, color: isDark ? 'orange.200' : 'orange.700', bg: isDark ? 'orange.900' : 'orange.50' };
-    if (bill.days_until_due <= 7) return { badge: `${bill.days_until_due}d`, color: isDark ? 'yellow.200' : 'yellow.700', bg: isDark ? 'yellow.900' : 'yellow.50' };
-    return { badge: `${bill.days_until_due}d`, color: 'text.secondary', bg: 'bg.subtle' };
+    if (bill.is_overdue)
+      return {
+        badge: "Overdue",
+        color: isDark ? "red.200" : "red.700",
+        bg: isDark ? "red.900" : "red.50",
+      };
+    if (bill.days_until_due <= 3)
+      return {
+        badge: `${bill.days_until_due}d`,
+        color: isDark ? "orange.200" : "orange.700",
+        bg: isDark ? "orange.900" : "orange.50",
+      };
+    if (bill.days_until_due <= 7)
+      return {
+        badge: `${bill.days_until_due}d`,
+        color: isDark ? "yellow.200" : "yellow.700",
+        bg: isDark ? "yellow.900" : "yellow.50",
+      };
+    return {
+      badge: `${bill.days_until_due}d`,
+      color: "text.secondary",
+      bg: "bg.subtle",
+    };
   };
   const { data: bills, isLoading } = useQuery({
-    queryKey: ['upcoming-bills'],
-    queryFn: () => recurringTransactionsApi.getUpcomingBills(30),
+    queryKey: ["upcoming-bills", selectedUserId],
+    queryFn: () =>
+      recurringTransactionsApi.getUpcomingBills(
+        30,
+        selectedUserId || undefined,
+      ),
   });
 
   if (isLoading) {
@@ -62,7 +87,12 @@ export const UpcomingBillsWidget: React.FC = () => {
       <CardBody>
         <HStack justify="space-between" mb={4}>
           <Heading size="md">Upcoming Bills</Heading>
-          <Link as={RouterLink} to="/bill-calendar" fontSize="sm" color="brand.500">
+          <Link
+            as={RouterLink}
+            to="/bill-calendar"
+            fontSize="sm"
+            color="brand.500"
+          >
             Calendar →
           </Link>
         </HStack>
@@ -84,8 +114,20 @@ export const UpcomingBillsWidget: React.FC = () => {
                       </Text>
                       <Text fontSize="xs" color="text.muted">
                         {bill.is_overdue
-                          ? 'Was due ' + new Date(bill.next_expected_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                          : 'Due ' + new Date(bill.next_expected_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          ? "Was due " +
+                            new Date(
+                              bill.next_expected_date,
+                            ).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "Due " +
+                            new Date(
+                              bill.next_expected_date,
+                            ).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })}
                       </Text>
                     </VStack>
                     <HStack spacing={2} flexShrink={0}>

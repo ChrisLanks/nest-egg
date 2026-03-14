@@ -568,7 +568,7 @@ async def get_financial_calendar(
     month: str = Query(
         ...,
         description="Month in YYYY-MM format",
-        regex=r"^\d{4}-\d{2}$",
+        pattern=r"^\d{4}-\d{2}$",
     ),
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"

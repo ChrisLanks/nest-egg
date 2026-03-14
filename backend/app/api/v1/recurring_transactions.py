@@ -11,15 +11,18 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
-from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
+from app.models.recurring_transaction import RecurringFrequency, RecurringTransaction
 from app.models.user import User
 from app.schemas.recurring_transaction import (
     RecurringTransactionCreate,
-    RecurringTransactionUpdate,
     RecurringTransactionResponse,
+    RecurringTransactionUpdate,
     UpcomingBillResponse,
 )
-from app.services.recurring_detection_service import recurring_detection_service, RecurringDetectionService
+from app.services.recurring_detection_service import (
+    RecurringDetectionService,
+    recurring_detection_service,
+)
 from app.utils.datetime_utils import utc_now
 
 router = APIRouter()
@@ -296,6 +299,7 @@ async def preview_label_matches(
 @router.get("/bills/upcoming", response_model=List[UpcomingBillResponse])
 async def get_upcoming_bills(
     days_ahead: int = 30,
+    user_id: Optional[UUID] = Query(None, description="Filter by user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -304,5 +308,6 @@ async def get_upcoming_bills(
         db=db,
         user=current_user,
         days_ahead=days_ahead,
+        user_id=user_id,
     )
     return bills

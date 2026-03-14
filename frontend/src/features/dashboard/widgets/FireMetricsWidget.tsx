@@ -17,6 +17,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { fireApi, type FireMetricsResponse } from "../../../api/fire";
+import { useUserView } from "../../../contexts/UserViewContext";
 
 const scoreColor = (ratio: number): string => {
   if (ratio >= 1) return "green.400";
@@ -25,9 +26,14 @@ const scoreColor = (ratio: number): string => {
 };
 
 export const FireMetricsWidget: React.FC = () => {
+  const { selectedUserId } = useUserView();
+
   const { data, isLoading, isError } = useQuery<FireMetricsResponse>({
-    queryKey: ["fire-metrics-widget"],
-    queryFn: () => fireApi.getMetrics(),
+    queryKey: ["fire-metrics-widget", selectedUserId],
+    queryFn: () =>
+      fireApi.getMetrics(
+        selectedUserId ? { user_id: selectedUserId } : undefined,
+      ),
     retry: false,
   });
 

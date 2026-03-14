@@ -9,23 +9,30 @@ import {
   Spinner,
   Text,
   VStack,
-} from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
-import { Link as RouterLink } from 'react-router-dom';
-import { savingsGoalsApi } from '../../../api/savings-goals';
+} from "@chakra-ui/react";
+import { useQuery } from "@tanstack/react-query";
+import { Link as RouterLink } from "react-router-dom";
+import { savingsGoalsApi } from "../../../api/savings-goals";
+import { useUserView } from "../../../contexts/UserViewContext";
 
 const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
 
 export const SavingsGoalsWidget: React.FC = () => {
+  const { selectedUserId } = useUserView();
+
   const { data: goals, isLoading } = useQuery({
-    queryKey: ['goals-widget'],
-    queryFn: () => savingsGoalsApi.getAll({ is_completed: false }),
+    queryKey: ["goals-widget", selectedUserId],
+    queryFn: () =>
+      savingsGoalsApi.getAll({
+        is_completed: false,
+        ...(selectedUserId ? { user_id: selectedUserId } : {}),
+      }),
   });
 
   if (isLoading) {
@@ -59,23 +66,32 @@ export const SavingsGoalsWidget: React.FC = () => {
         ) : (
           <VStack align="stretch" spacing={4}>
             {activeGoals.map((goal) => {
-              const pct = goal.target_amount > 0
-                ? Math.min(100, (goal.current_amount / goal.target_amount) * 100)
-                : 0;
+              const pct =
+                goal.target_amount > 0
+                  ? Math.min(
+                      100,
+                      (goal.current_amount / goal.target_amount) * 100,
+                    )
+                  : 0;
               return (
                 <Box key={goal.id}>
                   <HStack justify="space-between" mb={1}>
                     <Text fontWeight="medium" fontSize="sm" noOfLines={1}>
                       {goal.name}
                     </Text>
-                    <Text fontSize="sm" color="text.secondary" whiteSpace="nowrap">
-                      {formatCurrency(goal.current_amount)} / {formatCurrency(goal.target_amount)}
+                    <Text
+                      fontSize="sm"
+                      color="text.secondary"
+                      whiteSpace="nowrap"
+                    >
+                      {formatCurrency(goal.current_amount)} /{" "}
+                      {formatCurrency(goal.target_amount)}
                     </Text>
                   </HStack>
                   <Progress
                     value={pct}
                     size="sm"
-                    colorScheme={pct >= 100 ? 'green' : 'brand'}
+                    colorScheme={pct >= 100 ? "green" : "brand"}
                     borderRadius="full"
                   />
                 </Box>

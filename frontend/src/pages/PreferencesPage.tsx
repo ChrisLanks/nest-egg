@@ -581,6 +581,50 @@ export default function PreferencesPage() {
         {/* Email Notifications Section */}
         <EmailNotificationsSection />
 
+        {/* Navigation Section */}
+        <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
+          <Heading size="md" mb={1}>
+            Navigation
+          </Heading>
+          <Text color="text.secondary" fontSize="sm" mb={4}>
+            Control which items appear in the sidebar.
+          </Text>
+          <FormControl>
+            <HStack justify="space-between">
+              <FormLabel mb={0}>Show all navigation items</FormLabel>
+              <Switch
+                isChecked={(() => {
+                  try {
+                    return (
+                      localStorage.getItem("nest-egg-show-all-nav") === "true"
+                    );
+                  } catch {
+                    return false;
+                  }
+                })()}
+                onChange={(e) => {
+                  try {
+                    localStorage.setItem(
+                      "nest-egg-show-all-nav",
+                      e.target.checked ? "true" : "false",
+                    );
+                  } catch {
+                    /* ignore */
+                  }
+                  // Force re-render of Layout by reloading
+                  window.location.reload();
+                }}
+                colorScheme="brand"
+              />
+            </HStack>
+            <FormHelperText>
+              When off, navigation items like Debt Payoff, Rental Properties,
+              and Education are hidden if you have no relevant accounts. Turn on
+              to always show every page.
+            </FormHelperText>
+          </FormControl>
+        </Box>
+
         {/* Export Data Section */}
         <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
           <Heading size="md" mb={1}>

@@ -2,7 +2,7 @@
  * Holdings API client
  */
 
-import api from '../services/api';
+import api from "../services/api";
 
 export interface StyleBoxItem {
   style_class: string;
@@ -31,8 +31,9 @@ export const holdingsApi = {
   /**
    * Get portfolio summary
    */
-  getPortfolioSummary: async () => {
-    const { data } = await api.get('/holdings/portfolio');
+  getPortfolioSummary: async (userId?: string) => {
+    const params = userId ? { user_id: userId } : {};
+    const { data } = await api.get("/holdings/portfolio", { params });
     return data;
   },
 
@@ -40,7 +41,7 @@ export const holdingsApi = {
    * Get market cap and style breakdown
    */
   getStyleBox: async (): Promise<StyleBoxItem[]> => {
-    const { data } = await api.get<StyleBoxItem[]>('/holdings/style-box');
+    const { data } = await api.get<StyleBoxItem[]>("/holdings/style-box");
     return data;
   },
 

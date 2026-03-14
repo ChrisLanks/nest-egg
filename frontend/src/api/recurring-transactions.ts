@@ -105,12 +105,15 @@ export const recurringTransactionsApi = {
   /**
    * Get upcoming bills
    */
-  getUpcomingBills: async (daysAhead: number = 30): Promise<UpcomingBill[]> => {
+  getUpcomingBills: async (
+    daysAhead: number = 30,
+    userId?: string,
+  ): Promise<UpcomingBill[]> => {
+    const params: Record<string, any> = { days_ahead: daysAhead };
+    if (userId) params.user_id = userId;
     const { data } = await api.get<UpcomingBill[]>(
       "/recurring-transactions/bills/upcoming",
-      {
-        params: { days_ahead: daysAhead },
-      },
+      { params },
     );
     return data;
   },
