@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies (prefer-offline uses cached packages when available)
+RUN npm ci --prefer-offline
 
 # Copy source code
 COPY . .

@@ -9,6 +9,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  pre-commit:
+    name: Pre-commit Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - uses: pre-commit/action@v3.0.1
+
   lint-backend:
     name: Lint Backend
     runs-on: ubuntu-latest
@@ -151,6 +175,13 @@ jobs:
           echo "Chunk sizes:"
           ls -lh dist/assets/
 
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 7
+
   # Migration and API change alerts (informational only)
   change-alerts:
     name: Change Alerts
@@ -177,6 +208,7 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     needs:
+      - pre-commit
       - test-backend
       - test-frontend
       - build-frontend
@@ -184,7 +216,8 @@ jobs:
     steps:
       - name: Verify all checks passed
         run: |
-          if [ "${{ needs.test-backend.result }}" != "success" ] ||
+          if [ "${{ needs.pre-commit.result }}" != "success" ] ||
+             [ "${{ needs.test-backend.result }}" != "success" ] ||
              [ "${{ needs.test-frontend.result }}" != "success" ] ||
              [ "${{ needs.build-frontend.result }}" != "success" ]; then
             echo "::error::Some checks failed"
