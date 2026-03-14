@@ -154,9 +154,10 @@ export const RentalPropertiesPage = () => {
         {/* Header */}
         <HStack justify="space-between" align="center">
           <VStack align="start" spacing={0}>
-            <Heading size="lg">Rental Properties</Heading>
+            <Heading size="lg">Rental Property Profit & Loss</Heading>
             <Text color="text.secondary" fontSize="sm">
-              Schedule E-style P&L for your rental properties
+              Track income, expenses, and net profit for each rental property
+              (organized by Schedule E tax categories)
             </Text>
           </VStack>
           <Select
