@@ -3,6 +3,7 @@
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
+
 from app.config import settings
 
 
@@ -15,24 +16,41 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Content Security Policy - Prevent XSS attacks
         # This is an API-only backend (no HTML served), so we use strict CSP
         # No unsafe-inline or unsafe-eval in production for maximum security
-        if settings.DEBUG:
-            # Development: Allow eval for debugging
-            script_src = "'self' 'unsafe-eval'"
-        else:
-            # Production: No unsafe directives
-            script_src = "'self'"
+        is_docs_path = request.url.path in ("/docs", "/redoc", "/openapi.json")
 
-        # Strict CSP for API responses (no inline scripts/styles)
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'none'; "  # Block everything by default (API doesn't need resources)
-            f"script-src {script_src}; "  # Only if API docs served
-            "style-src 'self'; "  # Only for API docs styling
-            "img-src 'self' data:; "  # Only for API docs images
-            "connect-src 'self'; "  # API calls to self only
-            "frame-ancestors 'none'; "  # Prevent embedding
-            "base-uri 'self'; "
-            "form-action 'self'"
-        )
+        if settings.DEBUG and is_docs_path:
+            # Swagger UI / ReDoc need CDN resources + inline scripts
+            cdn = "https://cdn.jsdelivr.net"
+            fastapi_cdn = "https://fastapi.tiangolo.com"
+            unpkg = "https://unpkg.com"
+            csp = (
+                "default-src 'self'; "
+                f"script-src 'self' 'unsafe-inline' 'unsafe-eval' {cdn}; "
+                f"style-src 'self' 'unsafe-inline' {cdn} {unpkg}; "
+                f"img-src 'self' data: {fastapi_cdn}; "
+                "connect-src 'self'; "
+                "frame-ancestors 'none'; "
+                "base-uri 'self'; "
+                "form-action 'self'"
+            )
+        else:
+            if settings.DEBUG:
+                script_src = "'self' 'unsafe-eval'"
+            else:
+                script_src = "'self'"
+
+            csp = (
+                "default-src 'none'; "
+                f"script-src {script_src}; "
+                "style-src 'self'; "
+                "img-src 'self' data:; "
+                "connect-src 'self'; "
+                "frame-ancestors 'none'; "
+                "base-uri 'self'; "
+                "form-action 'self'"
+            )
+
+        response.headers["Content-Security-Policy"] = csp
 
         # Prevent clickjacking attacks
         response.headers["X-Frame-Options"] = "DENY"
