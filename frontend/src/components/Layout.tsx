@@ -165,6 +165,7 @@ const UserMenu = ({
   user,
   onNavigate,
   onLogout,
+  isMultiMemberHousehold,
 }: {
   user: {
     first_name?: string;
@@ -174,6 +175,7 @@ const UserMenu = ({
   } | null;
   onNavigate: (path: string) => void;
   onLogout: () => void;
+  isMultiMemberHousehold: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -191,8 +193,16 @@ const UserMenu = ({
 
   const menuItems = [
     { label: "Household Settings", icon: <FiUsers />, path: "/household" },
-    { label: "Permissions", icon: <FiSettings />, path: "/permissions" },
-    { label: "Preferences", icon: <FiSettings />, path: "/preferences" },
+    ...(isMultiMemberHousehold
+      ? [
+          {
+            label: "My Permissions",
+            icon: <FiSettings />,
+            path: "/permissions",
+          },
+        ]
+      : []),
+    { label: "My Preferences", icon: <FiSettings />, path: "/preferences" },
   ];
 
   return (
@@ -514,28 +524,32 @@ export const Layout = () => {
     "mortgage",
   ]);
 
-  const showAllNav = (() => {
+  // Per-item visibility overrides from localStorage
+  const navOverrides: Record<string, boolean> = (() => {
     try {
-      return localStorage.getItem("nest-egg-show-all-nav") === "true";
+      const raw = localStorage.getItem("nest-egg-nav-visibility");
+      return raw ? JSON.parse(raw) : {};
     } catch {
-      return false;
+      return {};
     }
   })();
 
-  const hasDebt =
-    showAllNav ||
-    accountsLoading ||
-    (accounts ?? []).some((a) => DEBT_TYPES.has(a.account_type));
-  const hasRental =
-    showAllNav ||
-    accountsLoading ||
-    (accounts ?? []).some((a) => a.is_rental_property);
-  const has529 =
-    showAllNav ||
-    accountsLoading ||
-    (accounts ?? []).some((a) => a.account_type === "retirement_529");
+  // Helper: check if a nav item is visible
+  // Priority: user override > account-based default > always visible
+  const isNavVisible = (path: string, defaultVisible: boolean): boolean => {
+    if (path in navOverrides) return navOverrides[path];
+    if (accountsLoading) return true; // show while loading
+    return defaultVisible;
+  };
 
-  const spendingMenuItems = [
+  const hasDebt = (accounts ?? []).some((a) => DEBT_TYPES.has(a.account_type));
+  const hasRental = (accounts ?? []).some((a) => a.is_rental_property);
+  const has529 = (accounts ?? []).some(
+    (a) => a.account_type === "retirement_529",
+  );
+
+  // All nav items with default visibility
+  const allSpendingItems = [
     { label: "Transactions", path: "/transactions" },
     { label: "Budgets", path: "/budgets" },
     { label: "Recurring", path: "/recurring" },
@@ -544,24 +558,40 @@ export const Layout = () => {
     { label: "Rules", path: "/rules" },
   ];
 
-  const analyticsMenuItems = [
+  const allAnalyticsItems = [
     { label: "Cash Flow", path: "/income-expenses" },
     { label: "Trends", path: "/trends" },
     { label: "Reports", path: "/reports" },
     { label: "Year in Review", path: "/year-in-review" },
     { label: "Tax Deductible", path: "/tax-deductible" },
-    ...(hasRental
-      ? [{ label: "Rental Properties", path: "/rental-properties" }]
-      : []),
+    { label: "Rental Properties", path: "/rental-properties" },
   ];
 
-  const planningMenuItems = [
+  const allPlanningItems = [
     { label: "Goals", path: "/goals" },
     { label: "Retirement", path: "/retirement" },
-    ...(has529 ? [{ label: "Education", path: "/education" }] : []),
+    { label: "Education", path: "/education" },
     { label: "FIRE", path: "/fire" },
-    ...(hasDebt ? [{ label: "Debt Payoff", path: "/debt-payoff" }] : []),
+    { label: "Debt Payoff", path: "/debt-payoff" },
   ];
+
+  // Default visibility for conditional items
+  const conditionalDefaults: Record<string, boolean> = {
+    "/rental-properties": hasRental,
+    "/education": has529,
+    "/debt-payoff": hasDebt,
+  };
+
+  const filterVisible = (
+    items: { label: string; path: string }[],
+  ): { label: string; path: string }[] =>
+    items.filter((item) =>
+      isNavVisible(item.path, conditionalDefaults[item.path] ?? true),
+    );
+
+  const spendingMenuItems = filterVisible(allSpendingItems);
+  const analyticsMenuItems = filterVisible(allAnalyticsItems);
+  const planningMenuItems = filterVisible(allPlanningItems);
 
   // Fetch dashboard summary for net worth (filtered by user)
   const { data: dashboardSummary } = useQuery({
@@ -858,6 +888,7 @@ export const Layout = () => {
               }
               onNavigate={navigateWithParams}
               onLogout={handleLogout}
+              isMultiMemberHousehold={(members?.length ?? 0) >= 2}
             />
           </HStack>
         </HStack>

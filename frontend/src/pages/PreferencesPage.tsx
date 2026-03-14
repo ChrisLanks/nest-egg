@@ -135,6 +135,187 @@ function EmailNotificationsSection() {
   );
 }
 
+// ── All nav items grouped by section, with default-visibility flags ──
+const NAV_SECTIONS = [
+  {
+    group: "Top Level",
+    items: [
+      { label: "Overview", path: "/overview", alwaysOn: true },
+      { label: "Calendar", path: "/calendar", alwaysOn: true },
+      { label: "Investments", path: "/investments", alwaysOn: true },
+      { label: "Accounts", path: "/accounts", alwaysOn: true },
+    ],
+  },
+  {
+    group: "Spending",
+    items: [
+      { label: "Transactions", path: "/transactions" },
+      { label: "Budgets", path: "/budgets" },
+      { label: "Recurring", path: "/recurring" },
+      { label: "Bills", path: "/bills" },
+      { label: "Categories", path: "/categories" },
+      { label: "Rules", path: "/rules" },
+    ],
+  },
+  {
+    group: "Analytics",
+    items: [
+      { label: "Cash Flow", path: "/income-expenses" },
+      { label: "Trends", path: "/trends" },
+      { label: "Reports", path: "/reports" },
+      { label: "Year in Review", path: "/year-in-review" },
+      { label: "Tax Deductible", path: "/tax-deductible" },
+      {
+        label: "Rental Properties",
+        path: "/rental-properties",
+        conditional: true,
+      },
+    ],
+  },
+  {
+    group: "Planning",
+    items: [
+      { label: "Goals", path: "/goals" },
+      { label: "Retirement", path: "/retirement" },
+      { label: "Education", path: "/education", conditional: true },
+      { label: "FIRE", path: "/fire" },
+      { label: "Debt Payoff", path: "/debt-payoff", conditional: true },
+    ],
+  },
+];
+
+function NavigationVisibilitySection() {
+  const toast = useToast();
+
+  // Read overrides from localStorage
+  const [overrides, setOverrides] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem("nest-egg-nav-visibility");
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const persist = (next: Record<string, boolean>) => {
+    setOverrides(next);
+    try {
+      if (Object.keys(next).length === 0) {
+        localStorage.removeItem("nest-egg-nav-visibility");
+      } else {
+        localStorage.setItem("nest-egg-nav-visibility", JSON.stringify(next));
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const toggleItem = (path: string, checked: boolean) => {
+    const next = { ...overrides, [path]: checked };
+    persist(next);
+  };
+
+  const resetToDefaults = () => {
+    persist({});
+    // Also remove the legacy key if present
+    try {
+      localStorage.removeItem("nest-egg-show-all-nav");
+    } catch {
+      /* ignore */
+    }
+    toast({
+      title: "Navigation reset to defaults",
+      description:
+        "Tabs will auto-hide based on your accounts. Reload to apply.",
+      status: "success",
+      duration: 3000,
+    });
+  };
+
+  const hasOverrides = Object.keys(overrides).length > 0;
+
+  // Check if an item is currently "on"
+  const isItemOn = (item: {
+    path: string;
+    alwaysOn?: boolean;
+    conditional?: boolean;
+  }): boolean => {
+    if (item.alwaysOn) return true;
+    if (item.path in overrides) return overrides[item.path];
+    // Default: conditional items show "Default" (unset), others are on
+    return !item.conditional;
+  };
+
+  return (
+    <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
+      <HStack justify="space-between" mb={1}>
+        <Heading size="md">Navigation</Heading>
+        {hasOverrides && (
+          <Button size="xs" variant="ghost" onClick={resetToDefaults}>
+            Reset to Default
+          </Button>
+        )}
+      </HStack>
+      <Text color="text.secondary" fontSize="sm" mb={4}>
+        Toggle tabs and sub-tabs on or off. By default, items like Debt Payoff,
+        Rental Properties, and Education are hidden if you have no relevant
+        accounts.
+      </Text>
+      <VStack align="stretch" spacing={4}>
+        {NAV_SECTIONS.map((section) => (
+          <Box key={section.group}>
+            <Text
+              fontSize="xs"
+              fontWeight="bold"
+              textTransform="uppercase"
+              color="text.muted"
+              mb={2}
+            >
+              {section.group}
+            </Text>
+            <VStack align="stretch" spacing={1}>
+              {section.items.map((item) => {
+                const isOn = isItemOn(item);
+                const isOverridden = item.path in overrides;
+                return (
+                  <HStack
+                    key={item.path}
+                    justify="space-between"
+                    px={3}
+                    py={1.5}
+                  >
+                    <HStack spacing={2}>
+                      <Text fontSize="sm">{item.label}</Text>
+                      {item.conditional && !isOverridden && (
+                        <Text fontSize="xs" color="text.muted">
+                          (auto)
+                        </Text>
+                      )}
+                    </HStack>
+                    <Switch
+                      size="sm"
+                      isChecked={isOn}
+                      isDisabled={item.alwaysOn}
+                      onChange={(e) => {
+                        if (item.alwaysOn) return;
+                        toggleItem(item.path, e.target.checked);
+                      }}
+                      colorScheme="brand"
+                    />
+                  </HStack>
+                );
+              })}
+            </VStack>
+          </Box>
+        ))}
+      </VStack>
+      <FormHelperText mt={3}>
+        Changes apply after navigating away or refreshing.
+      </FormHelperText>
+    </Box>
+  );
+}
+
 export default function PreferencesPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -582,48 +763,7 @@ export default function PreferencesPage() {
         <EmailNotificationsSection />
 
         {/* Navigation Section */}
-        <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
-          <Heading size="md" mb={1}>
-            Navigation
-          </Heading>
-          <Text color="text.secondary" fontSize="sm" mb={4}>
-            Control which items appear in the sidebar.
-          </Text>
-          <FormControl>
-            <HStack justify="space-between">
-              <FormLabel mb={0}>Show all navigation items</FormLabel>
-              <Switch
-                isChecked={(() => {
-                  try {
-                    return (
-                      localStorage.getItem("nest-egg-show-all-nav") === "true"
-                    );
-                  } catch {
-                    return false;
-                  }
-                })()}
-                onChange={(e) => {
-                  try {
-                    localStorage.setItem(
-                      "nest-egg-show-all-nav",
-                      e.target.checked ? "true" : "false",
-                    );
-                  } catch {
-                    /* ignore */
-                  }
-                  // Force re-render of Layout by reloading
-                  window.location.reload();
-                }}
-                colorScheme="brand"
-              />
-            </HStack>
-            <FormHelperText>
-              When off, navigation items like Debt Payoff, Rental Properties,
-              and Education are hidden if you have no relevant accounts. Turn on
-              to always show every page.
-            </FormHelperText>
-          </FormControl>
-        </Box>
+        <NavigationVisibilitySection />
 
         {/* Export Data Section */}
         <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
