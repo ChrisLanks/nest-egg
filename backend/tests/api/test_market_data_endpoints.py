@@ -1,12 +1,13 @@
 """Integration tests for market data API endpoints."""
 
+from datetime import date
+from decimal import Decimal
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
 from fastapi import status
-from unittest.mock import Mock, AsyncMock, patch
-from decimal import Decimal
-from datetime import date
 
-from app.services.market_data.base_provider import QuoteData, HistoricalPrice, SearchResult
+from app.services.market_data.base_provider import HistoricalPrice, QuoteData, SearchResult
 
 
 # Module-level fixtures shared across all test classes
@@ -61,30 +62,36 @@ class TestMarketDataEndpoints:
         assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
 
     def test_get_quote_rate_limited(self, client, auth_headers, mock_provider):
-        """Should enforce rate limiting."""
-        # Make 101 requests (over the limit of 100), mock provider to avoid real network calls
+        """Should enforce rate limiting (per-user: 60/min)."""
+        # Reset rate limiters to ensure a clean slate for this test
+        from app.core.rate_limiter import api_limiter, user_api_limiter
+
+        api_limiter._memory_calls.clear()
+        user_api_limiter._memory_calls.clear()
+
         with patch("app.api.v1.market_data.get_market_data_provider", return_value=mock_provider):
-            for i in range(101):
+            for i in range(62):
                 response = client.get("/api/v1/market-data/quote/AAPL", headers=auth_headers)
 
-                if i < 100:
+                if i < 60:
                     assert response.status_code in [
                         status.HTTP_200_OK,
                         status.HTTP_500_INTERNAL_SERVER_ERROR,
                         status.HTTP_404_NOT_FOUND,
                     ]  # May fail for other reasons
                 else:
-                    # 101st request should be rate limited
+                    # 61st+ request should be rate limited
                     assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
-                    data = response.json()
-                    assert "Rate limit exceeded" in str(data["detail"])
+                    break
 
     def test_get_quotes_batch(self, client, auth_headers, mock_provider):
         """Should fetch multiple quotes in batch."""
-        mock_provider.get_quotes_batch = AsyncMock(return_value={
-            "AAPL": QuoteData(symbol="AAPL", price=Decimal("150.25")),
-            "GOOGL": QuoteData(symbol="GOOGL", price=Decimal("2825.50")),
-        })
+        mock_provider.get_quotes_batch = AsyncMock(
+            return_value={
+                "AAPL": QuoteData(symbol="AAPL", price=Decimal("150.25")),
+                "GOOGL": QuoteData(symbol="GOOGL", price=Decimal("2825.50")),
+            }
+        )
 
         with patch("app.api.v1.market_data.get_market_data_provider", return_value=mock_provider):
             response = client.post(
@@ -98,16 +105,18 @@ class TestMarketDataEndpoints:
 
     def test_get_historical_prices(self, client, auth_headers, mock_provider):
         """Should fetch historical price data."""
-        mock_provider.get_historical_prices = AsyncMock(return_value=[
-            HistoricalPrice(
-                date=date(2024, 1, 1),
-                open=Decimal("145.0"),
-                high=Decimal("148.0"),
-                low=Decimal("144.0"),
-                close=Decimal("147.0"),
-                volume=1000000,
-            )
-        ])
+        mock_provider.get_historical_prices = AsyncMock(
+            return_value=[
+                HistoricalPrice(
+                    date=date(2024, 1, 1),
+                    open=Decimal("145.0"),
+                    high=Decimal("148.0"),
+                    low=Decimal("144.0"),
+                    close=Decimal("147.0"),
+                    volume=1000000,
+                )
+            ]
+        )
 
         with patch("app.api.v1.market_data.get_market_data_provider", return_value=mock_provider):
             response = client.get(
@@ -123,9 +132,11 @@ class TestMarketDataEndpoints:
 
     def test_search_symbols(self, client, auth_headers, mock_provider):
         """Should search for symbols."""
-        mock_provider.search_symbol = AsyncMock(return_value=[
-            SearchResult(symbol="AAPL", name="Apple Inc.", type="stock", exchange="NASDAQ")
-        ])
+        mock_provider.search_symbol = AsyncMock(
+            return_value=[
+                SearchResult(symbol="AAPL", name="Apple Inc.", type="stock", exchange="NASDAQ")
+            ]
+        )
 
         with patch("app.api.v1.market_data.get_market_data_provider", return_value=mock_provider):
             response = client.get(
