@@ -309,9 +309,9 @@ function NavigationVisibilitySection() {
           </Box>
         ))}
       </VStack>
-      <FormHelperText mt={3}>
+      <Text fontSize="xs" color="text.muted" mt={3}>
         Changes apply after navigating away or refreshing.
-      </FormHelperText>
+      </Text>
     </Box>
   );
 }

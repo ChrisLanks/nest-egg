@@ -83,9 +83,29 @@ Comprehensive 9-tab portfolio analysis with **multi-provider** market data:
 - **User-Specific**: Create budgets for household members or combined
 - **Shared Budgets**: Share budgets with specific household members or the entire household
 
+## Per-User Historical Snapshots
+
+Net worth history filtered by household member:
+
+- **Per-User Snapshots**: Daily snapshot task captures both household-level and per-user portfolio snapshots
+- **Dashboard Integration**: Net Worth Over Time, Spending Insights, Cash Flow Forecast, and Financial Health widgets all update when switching user view
+- **API Support**: `user_id` query parameter on `/holdings/snapshots` endpoint with household member verification
+- **Partial Unique Indexes**: One household snapshot and one per-user snapshot per org per day, enforced at the database level
+
+## Customizable Navigation Visibility
+
+Per-user control over which tabs and sub-tabs appear in the navigation:
+
+- **Per-Item Toggle**: Show or hide individual nav items from Preferences page
+- **Account-Based Defaults**: Debt Payoff, Rental Properties, and Education tabs auto-hide when no relevant accounts exist
+- **User Override**: Manually force-show or force-hide any item, overriding the account-based default
+- **Reset to Default**: One-click reset clears all overrides and returns to auto-hide behavior
+- **Per-User Storage**: Preferences stored in localStorage, independent per logged-in user
+- **Conditional Permissions**: "My Permissions" menu item only appears for multi-member households
+
 ## Smart Notification System
 
-- **Real-Time Alerts**: Auto-refresh every 30 seconds
+- **Real-Time Alerts**: Auto-refresh every 120 seconds (pauses when tab is unfocused)
 - **Notification Types**:
   - Budget alerts (exceeding thresholds)
   - Large transaction warnings
@@ -106,6 +126,7 @@ Scheduled tasks for hands-free operation:
 - **Daily Cash Flow Forecast** (6:30am): Check for projected negative balances
 - **Daily Data Retention** (3:30am): Purge transactions older than `DATA_RETENTION_DAYS` (disabled by default; dry-run safety)
 - **Daily Portfolio Snapshots** (11:59pm): Capture end-of-day holdings values
+  - Household-level snapshot (combined) plus per-user snapshots for each active member
   - Smart offset-based scheduling distributes load across 24 hours
   - Each organization runs at a consistent time based on UUID hash
 
