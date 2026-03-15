@@ -2658,6 +2658,7 @@ class TestRefreshAdditional:
         mock_user.is_active = True
         mock_user.is_org_admin = False
         mock_user.email_verified = True
+        mock_user.onboarding_completed = True
         mock_user.dashboard_layout = []
         mock_user.mfa_enabled = False
         mock_user.birth_year = None
