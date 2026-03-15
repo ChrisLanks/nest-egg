@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     TELLER_CERT_PATH: str = (
         ""  # Path to Teller-issued mTLS certificate (.pem) - required for API calls
     )
+    TELLER_KEY_PATH: str = ""  # Path to private key (.pem) if separate from cert file
 
     # MX Platform API (enterprise — requires sales contract for production)
     # Sandbox: https://int-api.mx.com, Production: https://api.mx.com

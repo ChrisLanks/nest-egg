@@ -78,7 +78,13 @@ class TellerService:
         auth = (access_token or self.api_key, "")
 
         # mTLS client certificate — required by Teller for all API calls
-        cert = settings.TELLER_CERT_PATH if settings.TELLER_CERT_PATH else None
+        # Supports combined PEM (cert_path only) or separate cert+key files
+        cert = None
+        if settings.TELLER_CERT_PATH:
+            if settings.TELLER_KEY_PATH:
+                cert = (settings.TELLER_CERT_PATH, settings.TELLER_KEY_PATH)
+            else:
+                cert = settings.TELLER_CERT_PATH
 
         try:
             async with httpx.AsyncClient(cert=cert) as client:

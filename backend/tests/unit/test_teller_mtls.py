@@ -37,6 +37,7 @@ class TestTellerMtls:
 
         with patch("app.services.teller_service.settings") as mock_settings:
             mock_settings.TELLER_CERT_PATH = "/path/to/teller_cert.pem"
+            mock_settings.TELLER_KEY_PATH = ""
             mock_settings.TELLER_APP_ID = "app_123"
             mock_settings.TELLER_API_KEY = "key_abc"
             mock_settings.TELLER_ENV = "production"
@@ -66,6 +67,7 @@ class TestTellerMtls:
 
         with patch("app.services.teller_service.settings") as mock_settings:
             mock_settings.TELLER_CERT_PATH = ""
+            mock_settings.TELLER_KEY_PATH = ""
             mock_settings.TELLER_APP_ID = "app_123"
             mock_settings.TELLER_API_KEY = "key_abc"
             mock_settings.TELLER_ENV = "sandbox"
@@ -78,6 +80,37 @@ class TestTellerMtls:
                 await service._make_request("GET", "/accounts")
 
                 mock_client_cls.assert_called_once_with(cert=None)
+
+    @pytest.mark.asyncio
+    async def test_separate_cert_and_key_passed_as_tuple(self):
+        """Should pass (cert_path, key_path) tuple when both are configured."""
+        service = TellerService()
+
+        mock_response = MagicMock()
+        mock_response.content = b'{"id": "acc_1"}'
+        mock_response.json.return_value = {"id": "acc_1"}
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.request = AsyncMock(return_value=mock_response)
+
+        with patch("app.services.teller_service.settings") as mock_settings:
+            mock_settings.TELLER_CERT_PATH = "/certs/teller_cert.pem"
+            mock_settings.TELLER_KEY_PATH = "/certs/teller_key.pem"
+            mock_settings.TELLER_APP_ID = "app_123"
+            mock_settings.TELLER_API_KEY = "key_abc"
+            mock_settings.TELLER_ENV = "production"
+
+            with patch("app.services.teller_service.httpx.AsyncClient") as mock_client_cls:
+                mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+                mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+                mock_client.request = AsyncMock(return_value=mock_response)
+
+                await service._make_request("GET", "/accounts", access_token="tok_abc")
+
+                mock_client_cls.assert_called_once_with(
+                    cert=("/certs/teller_cert.pem", "/certs/teller_key.pem")
+                )
 
     @pytest.mark.asyncio
     async def test_access_token_used_as_basic_auth_username(self):
@@ -94,6 +127,7 @@ class TestTellerMtls:
 
         with patch("app.services.teller_service.settings") as mock_settings:
             mock_settings.TELLER_CERT_PATH = "/cert.pem"
+            mock_settings.TELLER_KEY_PATH = ""
             mock_settings.TELLER_APP_ID = "app_123"
             mock_settings.TELLER_API_KEY = "key_abc"
             mock_settings.TELLER_ENV = "production"
@@ -124,6 +158,7 @@ class TestTellerMtls:
 
         with patch("app.services.teller_service.settings") as mock_settings:
             mock_settings.TELLER_CERT_PATH = ""
+            mock_settings.TELLER_KEY_PATH = ""
             mock_settings.TELLER_APP_ID = "app_123"
             mock_settings.TELLER_API_KEY = "live_key_abc"
             mock_settings.TELLER_ENV = "production"
@@ -156,6 +191,7 @@ class TestTellerMtls:
 
         with patch("app.services.teller_service.settings") as mock_settings:
             mock_settings.TELLER_CERT_PATH = "/certs/teller.pem"
+            mock_settings.TELLER_KEY_PATH = ""
             mock_settings.TELLER_APP_ID = "app_123"
             mock_settings.TELLER_API_KEY = "key_abc"
             mock_settings.TELLER_ENV = "production"
@@ -194,6 +230,7 @@ class TestTellerMtls:
 
         with patch("app.services.teller_service.settings") as mock_settings:
             mock_settings.TELLER_CERT_PATH = ""
+            mock_settings.TELLER_KEY_PATH = ""
             mock_settings.TELLER_APP_ID = "app_123"
             mock_settings.TELLER_API_KEY = "key"
             mock_settings.TELLER_ENV = "production"
@@ -226,6 +263,7 @@ class TestTellerMtls:
 
         with patch("app.services.teller_service.settings") as mock_settings:
             mock_settings.TELLER_CERT_PATH = ""
+            mock_settings.TELLER_KEY_PATH = ""
             mock_settings.TELLER_APP_ID = "app_123"
             mock_settings.TELLER_API_KEY = "key"
             mock_settings.TELLER_ENV = "sandbox"

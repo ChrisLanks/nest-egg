@@ -5,8 +5,9 @@ Centralizes provider selection logic.
 """
 
 import logging
-import os
 from typing import Optional
+
+from app.config import settings
 
 from .base_provider import MarketDataProvider
 from .yahoo_finance_provider import YahooFinanceProvider
@@ -40,7 +41,7 @@ class MarketDataProviderFactory:
 
         # Determine which provider to use
         if provider_name is None:
-            provider_name = os.getenv("MARKET_DATA_PROVIDER", "yahoo_finance")
+            provider_name = settings.MARKET_DATA_PROVIDER
 
         provider_name = provider_name.lower()
 
@@ -70,7 +71,7 @@ class MarketDataProviderFactory:
         elif provider_name == "coingecko":
             from .coingecko_provider import CoinGeckoProvider
 
-            api_key = os.getenv("COINGECKO_API_KEY")
+            api_key = settings.COINGECKO_API_KEY
             provider = CoinGeckoProvider(api_key=api_key)
         else:
             raise ValueError(
