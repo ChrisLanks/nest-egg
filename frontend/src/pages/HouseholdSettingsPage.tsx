@@ -243,7 +243,7 @@ export const HouseholdSettingsPage: React.FC = () => {
       const response = await api.get("/settings/organization");
       return response.data;
     },
-    enabled: user?.is_org_admin === true,
+    enabled: !!user,
   });
 
   // Sync monthlyStartDay when org preferences load or change
@@ -300,6 +300,37 @@ export const HouseholdSettingsPage: React.FC = () => {
     onError: (error: any) => {
       toast({
         title: "Failed to cancel invitation",
+        description: getErrorMessage(error),
+        status: "error",
+        duration: 5000,
+      });
+    },
+  });
+
+  // Update member role mutation (promote/demote)
+  const updateRoleMutation = useMutation({
+    mutationFn: async ({
+      memberId,
+      isAdmin,
+    }: {
+      memberId: string;
+      isAdmin: boolean;
+    }) => {
+      await api.patch(`/household/members/${memberId}/role`, {
+        is_admin: isAdmin,
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Role updated",
+        status: "success",
+        duration: 3000,
+      });
+      queryClient.invalidateQueries({ queryKey: ["household-members"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to update role",
         description: getErrorMessage(error),
         status: "error",
         duration: 5000,
@@ -409,15 +440,17 @@ export const HouseholdSettingsPage: React.FC = () => {
           <CardHeader>
             <HStack justify="space-between">
               <Heading size="md">Household Members</Heading>
-              <Button
-                leftIcon={<EmailIcon />}
-                colorScheme="blue"
-                size="sm"
-                onClick={onOpen}
-                isDisabled={members && members.length >= 5}
-              >
-                Invite Member
-              </Button>
+              {user?.is_org_admin && (
+                <Button
+                  leftIcon={<EmailIcon />}
+                  colorScheme="blue"
+                  size="sm"
+                  onClick={onOpen}
+                  isDisabled={members && members.length >= 5}
+                >
+                  Invite Member
+                </Button>
+              )}
             </HStack>
           </CardHeader>
           <CardBody>
@@ -464,26 +497,58 @@ export const HouseholdSettingsPage: React.FC = () => {
                             fontStyle="italic"
                             pr={1}
                           >
-                            Use "Leave Household" below
+                            Use &quot;Leave Household&quot; below
                           </Text>
-                        ) : !member.is_primary_household_member &&
-                          user?.is_org_admin ? (
-                          <IconButton
-                            aria-label="Remove member"
-                            icon={<DeleteIcon />}
-                            colorScheme="red"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  `Remove ${getDisplayName(member)} from household?`,
-                                )
-                              ) {
-                                removeMutation.mutate(member.id);
-                              }
-                            }}
-                          />
+                        ) : member.id !== user?.id && user?.is_org_admin ? (
+                          <HStack spacing={2}>
+                            {!member.is_primary_household_member && (
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                colorScheme={
+                                  member.is_org_admin ? "orange" : "blue"
+                                }
+                                isLoading={updateRoleMutation.isPending}
+                                onClick={() => {
+                                  const action = member.is_org_admin
+                                    ? "demote"
+                                    : "promote";
+                                  if (
+                                    window.confirm(
+                                      `${action === "promote" ? "Promote" : "Demote"} ${getDisplayName(member)} ${action === "promote" ? "to Admin" : "to Member"}?`,
+                                    )
+                                  ) {
+                                    updateRoleMutation.mutate({
+                                      memberId: member.id,
+                                      isAdmin: !member.is_org_admin,
+                                    });
+                                  }
+                                }}
+                              >
+                                {member.is_org_admin
+                                  ? "Demote to Member"
+                                  : "Promote to Admin"}
+                              </Button>
+                            )}
+                            {!member.is_primary_household_member && (
+                              <IconButton
+                                aria-label="Remove member"
+                                icon={<DeleteIcon />}
+                                colorScheme="red"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      `Remove ${getDisplayName(member)} from household?`,
+                                    )
+                                  ) {
+                                    removeMutation.mutate(member.id);
+                                  }
+                                }}
+                              />
+                            )}
+                          </HStack>
                         ) : null}
                       </HStack>
                     </CardBody>
@@ -528,24 +593,26 @@ export const HouseholdSettingsPage: React.FC = () => {
                         <Td textAlign="right">
                           <HStack spacing={1} justify="flex-end">
                             <CopyLinkButton url={invitation.join_url} />
-                            <Button
-                              size="xs"
-                              colorScheme="red"
-                              variant="ghost"
-                              onClick={() => {
-                                if (
-                                  window.confirm(
-                                    `Cancel invitation to ${invitation.email}?`,
-                                  )
-                                ) {
-                                  cancelInvitationMutation.mutate(
-                                    invitation.id,
-                                  );
-                                }
-                              }}
-                            >
-                              Cancel
-                            </Button>
+                            {user?.is_org_admin && (
+                              <Button
+                                size="xs"
+                                colorScheme="red"
+                                variant="ghost"
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      `Cancel invitation to ${invitation.email}?`,
+                                    )
+                                  ) {
+                                    cancelInvitationMutation.mutate(
+                                      invitation.id,
+                                    );
+                                  }
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                            )}
                           </HStack>
                         </Td>
                       </Tr>
@@ -594,7 +661,7 @@ export const HouseholdSettingsPage: React.FC = () => {
           })()}
 
         {/* Organization Preferences */}
-        {user?.is_org_admin && (
+        {orgPrefs && (
           <Card>
             <CardHeader>
               <Heading size="md">Organization Preferences</Heading>
@@ -603,19 +670,25 @@ export const HouseholdSettingsPage: React.FC = () => {
               <Stack spacing={4}>
                 <FormControl>
                   <FormLabel>Monthly Start Day</FormLabel>
-                  <NumberInput
-                    value={monthlyStartDay}
-                    onChange={(_, value) => setMonthlyStartDay(value)}
-                    min={1}
-                    max={28}
-                    maxW="120px"
-                  >
-                    <NumberInputField />
-                    <NumberInputStepper>
-                      <NumberIncrementStepper />
-                      <NumberDecrementStepper />
-                    </NumberInputStepper>
-                  </NumberInput>
+                  {user?.is_org_admin ? (
+                    <NumberInput
+                      value={monthlyStartDay}
+                      onChange={(_, value) => setMonthlyStartDay(value)}
+                      min={1}
+                      max={28}
+                      maxW="120px"
+                    >
+                      <NumberInputField />
+                      <NumberInputStepper>
+                        <NumberIncrementStepper />
+                        <NumberDecrementStepper />
+                      </NumberInputStepper>
+                    </NumberInput>
+                  ) : (
+                    <Text fontWeight="medium">
+                      {orgPrefs.monthly_start_day}
+                    </Text>
+                  )}
                   <FormHelperText>
                     Day of the month to start tracking (1-28). For example, set
                     to 16 to track from the 16th of each month. Transactions,
@@ -623,14 +696,16 @@ export const HouseholdSettingsPage: React.FC = () => {
                     monthly based on this day.
                   </FormHelperText>
                 </FormControl>
-                <Button
-                  colorScheme="blue"
-                  onClick={handleUpdateOrgPreferences}
-                  isLoading={updateOrgMutation.isPending}
-                  alignSelf="flex-start"
-                >
-                  Save Preferences
-                </Button>
+                {user?.is_org_admin && (
+                  <Button
+                    colorScheme="blue"
+                    onClick={handleUpdateOrgPreferences}
+                    isLoading={updateOrgMutation.isPending}
+                    alignSelf="flex-start"
+                  >
+                    Save Preferences
+                  </Button>
+                )}
               </Stack>
             </CardBody>
           </Card>
