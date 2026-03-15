@@ -4,9 +4,9 @@ Provider factory for market data.
 Centralizes provider selection logic.
 """
 
+import logging
 import os
 from typing import Optional
-import logging
 
 from .base_provider import MarketDataProvider
 from .yahoo_finance_provider import YahooFinanceProvider
@@ -25,7 +25,7 @@ class MarketDataProviderFactory:
         Get market data provider instance.
 
         Args:
-            provider_name: Override provider (yahoo_finance, alpha_vantage, finnhub)
+            provider_name: Override provider (yahoo_finance, alpha_vantage, finnhub, coingecko)
                           If None, uses environment variable MARKET_DATA_PROVIDER
 
         Returns:
@@ -50,6 +50,7 @@ class MarketDataProviderFactory:
         elif provider_name == "alpha_vantage":
             try:
                 from .alpha_vantage_provider import AlphaVantageProvider
+
                 provider = AlphaVantageProvider()
             except ImportError:
                 raise ValueError(
@@ -59,16 +60,23 @@ class MarketDataProviderFactory:
         elif provider_name == "finnhub":
             try:
                 from .finnhub_provider import FinnhubProvider
+
                 provider = FinnhubProvider()
             except ImportError:
                 raise ValueError(
                     "Finnhub provider is not yet implemented. "
                     "Configure FINNHUB_API_KEY and add the provider module."
                 )
+        elif provider_name == "coingecko":
+            from .coingecko_provider import CoinGeckoProvider
+
+            api_key = os.getenv("COINGECKO_API_KEY")
+            provider = CoinGeckoProvider(api_key=api_key)
         else:
             raise ValueError(
                 f"Unsupported market data provider: {provider_name}. "
-                f"Supported: yahoo_finance, alpha_vantage, finnhub"
+                f"Supported: yahoo_finance, alpha_vantage, "
+                f"finnhub, coingecko"
             )
 
         logger.info(f"Using market data provider: {provider.get_provider_name()}")

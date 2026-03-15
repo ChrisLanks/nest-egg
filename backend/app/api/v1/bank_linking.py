@@ -6,7 +6,7 @@ to the frontend.
 """
 
 import logging
-from typing import List, Dict, Any, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -23,10 +23,13 @@ from app.dependencies import get_current_user
 from app.models.account import Account, AccountSource, MxMember, PlaidItem, TellerEnrollment
 from app.models.user import User
 from app.schemas.plaid import PublicTokenExchangeRequest
-from app.services.plaid_service import PlaidService
+from app.services.encryption_service import get_encryption_service
 from app.services.mx_service import get_mx_service
+from app.services.plaid_service import PlaidService
 from app.services.rate_limit_service import rate_limit_service
 from app.services.teller_service import get_teller_service
+
+_encryption_service = get_encryption_service()
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -366,13 +369,9 @@ async def sync_transactions(
             mx_service = get_mx_service()
 
             if not account.mx_member:
-                raise HTTPException(
-                    status_code=400, detail="Account is not linked to an MX member"
-                )
+                raise HTTPException(status_code=400, detail="Account is not linked to an MX member")
 
-            transactions = await mx_service.sync_transactions(
-                db=db, account=account, days_back=90
-            )
+            transactions = await mx_service.sync_transactions(db=db, account=account, days_back=90)
 
             return {
                 "success": True,
@@ -502,14 +501,23 @@ async def disconnect_account(
 
     try:
         if account.account_source == AccountSource.PLAID:
-            # Mark PlaidItem as inactive (Plaid access token revocation
-            # requires calling /item/remove — done here if credentials are available)
             if account.plaid_item_id:
                 item_result = await db.execute(
                     select(PlaidItem).where(PlaidItem.id == account.plaid_item_id)
                 )
                 plaid_item = item_result.scalar_one_or_none()
                 if plaid_item:
+                    # Call Plaid /item/remove to revoke the
+                    # access token before marking inactive
+                    try:
+                        access_token = _encryption_service.decrypt_token(plaid_item.access_token)
+                        plaid_service = PlaidService()
+                        await plaid_service.remove_item(access_token)
+                    except Exception as e:
+                        logger.warning(
+                            "Plaid item/remove failed: %s",
+                            e,
+                        )
                     plaid_item.is_active = False
 
         elif account.account_source == AccountSource.TELLER:

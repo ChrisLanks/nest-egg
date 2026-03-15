@@ -421,8 +421,8 @@ class TestSyncTransactions:
             assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_sync_rejects_non_test_users(self, mock_user, mock_request):
-        """Should reject non-test users with 501."""
+    async def test_sync_real_user_calls_plaid_api(self, mock_user, mock_request):
+        """Should call real Plaid sync for non-test users."""
         mock_db = AsyncMock(spec=AsyncSession)
         plaid_item_id = uuid4()
 
@@ -432,22 +432,37 @@ class TestSyncTransactions:
         mock_plaid_item = Mock(spec=PlaidItem)
         mock_plaid_item.id = plaid_item_id
         mock_plaid_item.organization_id = mock_user.organization_id
+        mock_plaid_item.access_token = "encrypted_token"
 
         mock_result = Mock()
         mock_result.scalar_one_or_none.return_value = mock_plaid_item
         mock_db.execute.return_value = mock_result
 
-        with patch("app.api.v1.plaid.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with pytest.raises(HTTPException) as exc_info:
-                await sync_transactions(
-                    plaid_item_id=plaid_item_id,
-                    http_request=mock_request,
-                    current_user=mock_user,
-                    db=mock_db,
-                )
+        mock_sync_service = AsyncMock()
+        mock_sync_service.sync_transactions_for_item.return_value = {"created": 5, "updated": 0}
+        mock_sync_service.remove_transactions = AsyncMock(return_value=0)
 
-            assert exc_info.value.status_code == 501
-            assert "not yet implemented" in exc_info.value.detail
+        with (
+            patch("app.api.v1.plaid.rate_limit_service.check_rate_limit", new=AsyncMock()),
+            patch("app.api.v1.plaid.encryption_service") as mock_enc,
+            patch("app.api.v1.plaid.PlaidService") as mock_plaid_cls,
+            patch("app.api.v1.plaid.PlaidTransactionSyncService", return_value=mock_sync_service),
+        ):
+            mock_enc.decrypt_token.return_value = "decrypted_token"
+            mock_plaid = AsyncMock()
+            mock_plaid.sync_transactions_real.return_value = ([{"transaction_id": "t1"}], [])
+            mock_plaid_cls.return_value = mock_plaid
+
+            result = await sync_transactions(
+                plaid_item_id=plaid_item_id,
+                http_request=mock_request,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+            assert result["success"] is True
+            assert result["is_test_mode"] is False
+            mock_plaid.sync_transactions_real.assert_called_once()
 
 
 @pytest.mark.unit
@@ -969,12 +984,13 @@ class TestHandleTransactionsWebhookRealUser:
     """Cover the real-user (non-test) branch of DEFAULT_UPDATE."""
 
     @pytest.mark.asyncio
-    async def test_real_user_logs_warning(self):
+    async def test_real_user_triggers_sync(self):
         mock_db = AsyncMock()
         mock_plaid_item = Mock(spec=PlaidItem)
         mock_plaid_item.id = uuid4()
         mock_plaid_item.organization_id = uuid4()
         mock_plaid_item.item_id = "item_abc"
+        mock_plaid_item.access_token = "encrypted_token"
 
         # User is not test@test.com
         mock_user_obj = Mock(spec=User)
@@ -984,10 +1000,25 @@ class TestHandleTransactionsWebhookRealUser:
 
         mock_db.execute = AsyncMock(return_value=user_result)
 
-        await _handle_transactions_webhook(
-            db=mock_db,
-            plaid_item=mock_plaid_item,
-            webhook_code="DEFAULT_UPDATE",
-            webhook_data={},
-        )
-        # No error, just logs a warning
+        with (
+            patch("app.api.v1.plaid.encryption_service") as mock_enc,
+            patch("app.api.v1.plaid.PlaidService") as MockPlaidSvc,
+            patch("app.api.v1.plaid.PlaidTransactionSyncService") as MockSyncSvc,
+        ):
+            mock_enc.decrypt_token.return_value = "decrypted_token"
+            mock_plaid_svc = MockPlaidSvc.return_value
+            mock_plaid_svc.sync_transactions_real = AsyncMock(return_value=([], []))
+            mock_sync_svc = MockSyncSvc.return_value
+            mock_sync_svc.sync_transactions_for_item = AsyncMock(
+                return_value={"added": 0, "modified": 0, "removed": 0}
+            )
+
+            await _handle_transactions_webhook(
+                db=mock_db,
+                plaid_item=mock_plaid_item,
+                webhook_code="DEFAULT_UPDATE",
+                webhook_data={},
+            )
+
+            mock_enc.decrypt_token.assert_called_once_with("encrypted_token")
+            mock_plaid_svc.sync_transactions_real.assert_called_once()

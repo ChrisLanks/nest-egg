@@ -312,7 +312,12 @@ class MxService:
         This operation is atomic (all-or-nothing) using a database savepoint
         and protected by a Redis idempotency lock to prevent concurrent syncs.
         """
-        member = account.mx_member
+        # Use explicit async query instead of lazy-loaded relationship
+        # to avoid MissingGreenlet error in async context
+        member_result = await db.execute(
+            select(MxMember).where(MxMember.id == account.mx_member_id)
+        )
+        member = member_result.scalar_one_or_none()
         if not member:
             raise ValueError("Account does not have MX member")
 
@@ -334,12 +339,32 @@ class MxService:
         try:
             from_date = (utc_now().date() - timedelta(days=days_back)).isoformat()
 
-            data = await self._make_request(
-                "GET",
-                f"/users/{member.mx_user_guid}/accounts/{account.external_account_id}/transactions",
-                params={"from_date": from_date, "records_per_page": 250},
-            )
-            mx_transactions = data.get("transactions", [])
+            # MX paginates responses; loop until all pages are fetched
+            mx_transactions: list = []
+            page_num = 1
+
+            while True:
+                data = await self._make_request(
+                    "GET",
+                    f"/users/{member.mx_user_guid}"
+                    f"/accounts/"
+                    f"{account.external_account_id}"
+                    f"/transactions",
+                    params={
+                        "from_date": from_date,
+                        "records_per_page": 250,
+                        "page": page_num,
+                    },
+                )
+                mx_transactions.extend(data.get("transactions", []))
+
+                pagination = data.get("pagination", {})
+                current_page = pagination.get("current_page", 1)
+                total_pages = pagination.get("total_pages", 1)
+
+                if current_page >= total_pages:
+                    break
+                page_num += 1
 
             # Pre-fetch existing external IDs for this account to avoid N+1 queries
             ext_result = await db.execute(

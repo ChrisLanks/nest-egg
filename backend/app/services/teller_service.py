@@ -286,16 +286,43 @@ class TellerService:
         try:
             access_token = enrollment.get_decrypted_access_token()
 
-            # Calculate date range
-            from_date = (utc_now().date() - timedelta(days=days_back)).isoformat()
+            # Teller uses cursor-based pagination (from_id), not
+            # date-based filtering.  Fetch all pages then filter
+            # client-side by the requested date window.
+            cutoff_date = utc_now().date() - timedelta(days=days_back)
+            transactions_data: list = []
+            from_id: Optional[str] = None
 
-            # Get transactions from Teller
-            transactions_data = await self._make_request(
-                "GET",
-                f"/accounts/{account.external_account_id}/transactions",
-                access_token=access_token,
-                params={"from_date": from_date},
-            )
+            while True:
+                params: Dict[str, str] = {"count": "250"}
+                if from_id:
+                    params["from_id"] = from_id
+
+                page = await self._make_request(
+                    "GET",
+                    f"/accounts/{account.external_account_id}" f"/transactions",
+                    access_token=access_token,
+                    params=params,
+                )
+
+                if not page:
+                    break
+
+                reached_cutoff = False
+                for txn in page:
+                    txn_date = datetime.fromisoformat(txn["date"].replace("Z", "+00:00")).date()
+                    if txn_date < cutoff_date:
+                        reached_cutoff = True
+                        break
+                    transactions_data.append(txn)
+
+                # Stop if we hit the cutoff or got fewer than
+                # a full page (no more data).
+                if reached_cutoff or len(page) < 250:
+                    break
+
+                # Use the last transaction ID as cursor
+                from_id = page[-1]["id"]
 
             synced_transactions = []
 

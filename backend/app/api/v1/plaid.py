@@ -4,7 +4,7 @@ import json as _json
 import logging
 import uuid as _uuid_module
 from datetime import timedelta
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -13,27 +13,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User, Organization
-from app.models.account import Account, AccountSource, PlaidItem, AccountType, TaxTreatment
-from app.utils.account_type_groups import PLAID_EXCLUDE_CASH_FLOW_TYPES
-from app.models.notification import NotificationType, NotificationPriority
+from app.models.account import Account, AccountSource, AccountType, PlaidItem, TaxTreatment
+from app.models.notification import NotificationPriority, NotificationType
+from app.models.user import Organization, User
 from app.schemas.plaid import (
     LinkTokenCreateRequest,
     LinkTokenCreateResponse,
+    PlaidAccount,
     PublicTokenExchangeRequest,
     PublicTokenExchangeResponse,
-    PlaidAccount,
 )
-from app.services.plaid_service import PlaidService
-from app.services.plaid_transaction_sync_service import (
-    PlaidTransactionSyncService,
-    MockPlaidTransactionGenerator,
-)
-from app.services.plaid_holdings_sync_service import plaid_holdings_sync_service
-from app.services.notification_service import notification_service
 from app.services.deduplication_service import DeduplicationService
 from app.services.encryption_service import get_encryption_service
+from app.services.notification_service import notification_service
+from app.services.plaid_holdings_sync_service import plaid_holdings_sync_service
+from app.services.plaid_service import PlaidService
+from app.services.plaid_transaction_sync_service import (
+    MockPlaidTransactionGenerator,
+    PlaidTransactionSyncService,
+)
 from app.services.rate_limit_service import rate_limit_service
+from app.utils.account_type_groups import PLAID_EXCLUDE_CASH_FLOW_TYPES
 from app.utils.datetime_utils import utc_now
 
 router = APIRouter()
@@ -140,7 +140,8 @@ async def exchange_public_token(
 
             # Determine if account should be excluded from cash flow by default
             # Loans and mortgages are excluded to prevent double-counting
-            # Credit cards are INCLUDED - we want to see purchases, and payments are filtered via is_transfer
+            # Credit cards are INCLUDED - we want to see purchases,
+            # and payments are filtered via is_transfer
             exclude_from_cash_flow = account_type in PLAID_EXCLUDE_CASH_FLOW_TYPES
 
             account = Account(
@@ -489,12 +490,35 @@ async def sync_transactions(
                 "is_test_mode": True,
             }
         else:
-            # Real Plaid API call would go here
-            raise HTTPException(
-                status_code=501,
-                detail="Real Plaid API integration not yet implemented. "
-                "Only available for test@test.com users.",
+            # Real Plaid transaction sync
+            access_token = encryption_service.decrypt_token(plaid_item.access_token)
+            plaid_service = PlaidService()
+            transactions, removed_ids = await plaid_service.sync_transactions_real(
+                access_token=access_token
             )
+
+            sync_service = PlaidTransactionSyncService()
+            stats = await sync_service.sync_transactions_for_item(
+                db=db,
+                plaid_item_id=plaid_item.id,
+                transactions_data=transactions,
+                is_test_mode=False,
+            )
+
+            if removed_ids:
+                removed = await sync_service.remove_transactions(
+                    db=db,
+                    plaid_item_id=plaid_item.id,
+                    removed_transaction_ids=removed_ids,
+                )
+                stats["removed"] = removed
+
+            return {
+                "success": True,
+                "message": "Transactions synced successfully",
+                "stats": stats,
+                "is_test_mode": False,
+            }
 
     except HTTPException:
         raise
@@ -543,7 +567,11 @@ async def _handle_item_webhook(
             organization_id=plaid_item.organization_id,
             type=NotificationType.REAUTH_REQUIRED,
             title=f"Reconnect {plaid_item.institution_name}",
-            message=f"Your connection to {plaid_item.institution_name} will expire soon. Please reconnect to continue syncing.",
+            message=(
+                f"Your connection to {plaid_item.institution_name}"
+                " will expire soon. Please reconnect to"
+                " continue syncing."
+            ),
             priority=NotificationPriority.HIGH,
             related_entity_type="plaid_item",
             related_entity_id=plaid_item.id,
@@ -562,7 +590,11 @@ async def _handle_item_webhook(
             organization_id=plaid_item.organization_id,
             type=NotificationType.ACCOUNT_ERROR,
             title=f"Connection Revoked: {plaid_item.institution_name}",
-            message=f"Access to {plaid_item.institution_name} has been revoked. Reconnect to continue syncing.",
+            message=(
+                f"Access to {plaid_item.institution_name}"
+                " has been revoked. Reconnect to continue"
+                " syncing."
+            ),
             priority=NotificationPriority.HIGH,
             related_entity_type="plaid_item",
             related_entity_id=plaid_item.id,
@@ -579,9 +611,16 @@ async def _handle_transactions_webhook(
     webhook_data: Dict[str, Any],
 ):
     """Handle TRANSACTIONS webhook events."""
-    if webhook_code in ["DEFAULT_UPDATE", "INITIAL_UPDATE", "HISTORICAL_UPDATE"]:
+    if webhook_code in [
+        "DEFAULT_UPDATE",
+        "INITIAL_UPDATE",
+        "HISTORICAL_UPDATE",
+        "SYNC_UPDATES_AVAILABLE",
+    ]:
         # New transaction data is available - trigger sync
-        logger.info(f"Transaction data available for item: {plaid_item.item_id}")
+        logger.info(
+            "Transaction data available for item: " f"{plaid_item.item_id} (code={webhook_code})"
+        )
 
         # Check if this is a test user
         result = await db.execute(
@@ -606,16 +645,16 @@ async def _handle_transactions_webhook(
             # Generate transactions for each account
             all_transactions = []
             end_date = utc_now().date()
-            start_date = end_date - timedelta(days=90)  # Last 3 months
+            start_date = end_date - timedelta(days=90)
 
             for account in accounts:
-                mock_transactions = MockPlaidTransactionGenerator.generate_mock_transactions(
+                mock_txns = MockPlaidTransactionGenerator.generate_mock_transactions(
                     account_id=account.external_account_id,
                     start_date=start_date,
                     end_date=end_date,
-                    count=30,  # 30 transactions per account
+                    count=30,
                 )
-                all_transactions.extend(mock_transactions)
+                all_transactions.extend(mock_txns)
 
             # Sync transactions
             sync_service = PlaidTransactionSyncService()
@@ -628,11 +667,29 @@ async def _handle_transactions_webhook(
 
             logger.info(f"Synced mock transactions: {stats}")
         else:
-            # Real Plaid API call would go here
-            logger.warning("Real Plaid API integration not yet implemented")
-            # In production, you would:
-            # 1. Call Plaid API to fetch transactions
-            # 2. Pass them to sync_service.sync_transactions_for_item()
+            # Real Plaid transaction sync
+            access_token = encryption_service.decrypt_token(plaid_item.access_token)
+            plaid_service = PlaidService()
+            transactions, removed_ids = await plaid_service.sync_transactions_real(
+                access_token=access_token
+            )
+
+            sync_service = PlaidTransactionSyncService()
+            stats = await sync_service.sync_transactions_for_item(
+                db=db,
+                plaid_item_id=plaid_item.id,
+                transactions_data=transactions,
+                is_test_mode=False,
+            )
+
+            if removed_ids:
+                await sync_service.remove_transactions(
+                    db=db,
+                    plaid_item_id=plaid_item.id,
+                    removed_transaction_ids=removed_ids,
+                )
+
+            logger.info(f"Synced real transactions: {stats}")
 
     elif webhook_code == "TRANSACTIONS_REMOVED":
         # Transactions were removed (e.g., duplicates)

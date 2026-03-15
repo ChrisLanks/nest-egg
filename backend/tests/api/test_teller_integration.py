@@ -166,7 +166,7 @@ class TestTellerService:
         mock_transactions_data = [
             {
                 "id": "txn_1",
-                "date": "2024-01-15T00:00:00Z",
+                "date": "2026-03-10T00:00:00Z",
                 "amount": "-50.00",
                 "description": "Starbucks",
                 "details": {
@@ -177,7 +177,7 @@ class TestTellerService:
             },
             {
                 "id": "txn_2",
-                "date": "2024-01-14T00:00:00Z",
+                "date": "2026-03-09T00:00:00Z",
                 "amount": "-25.50",
                 "description": "Gas Station",
                 "details": {"category": "transportation", "counterparty": {"name": "Shell Gas"}},
@@ -234,7 +234,7 @@ class TestTellerService:
         mock_transactions_data = [
             {
                 "id": "txn_1",  # Same ID as existing
-                "date": "2024-01-15T00:00:00Z",
+                "date": "2026-03-10T00:00:00Z",
                 "amount": "-50.00",
                 "description": "Starbucks",
                 "details": {"category": "food", "counterparty": {"name": "Starbucks"}},
@@ -305,7 +305,7 @@ class TestTellerService:
 
         txn_data = {
             "id": "txn_123",
-            "date": "2024-01-15",
+            "date": "2026-03-10",
             "amount": "-50.00",
             "description": "Test Merchant",
         }

@@ -608,7 +608,7 @@ class TestSyncTransactions:
             teller_transactions = [
                 {
                     "id": "txn_1",
-                    "date": "2024-06-15",
+                    "date": "2026-03-10",
                     "amount": "-50.00",
                     "description": "Coffee Shop",
                     "status": "posted",
@@ -662,7 +662,7 @@ class TestSyncTransactions:
             teller_transactions = [
                 {
                     "id": "txn_existing",
-                    "date": "2024-06-15",
+                    "date": "2026-03-10",
                     "amount": "-50.00",
                     "description": "Coffee",
                     "status": "posted",
@@ -755,7 +755,7 @@ class TestSyncTransactions:
             teller_transactions = [
                 {
                     "id": "txn_pending",
-                    "date": "2024-06-15",
+                    "date": "2026-03-10",
                     "amount": "-25.00",
                     "description": "Pending Payment",
                     "status": "pending",

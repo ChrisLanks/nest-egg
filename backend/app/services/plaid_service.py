@@ -14,10 +14,18 @@ from jwt import PyJWK
 from plaid.api import plaid_api
 from plaid.model.accounts_get_request import AccountsGetRequest
 from plaid.model.country_code import CountryCode
-from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
+from plaid.model.item_public_token_exchange_request import (
+    ItemPublicTokenExchangeRequest,
+)
+from plaid.model.item_remove_request import ItemRemoveRequest
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
-from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
+from plaid.model.link_token_create_request_user import (
+    LinkTokenCreateRequestUser,
+)
 from plaid.model.products import Products
+from plaid.model.transactions_sync_request import (
+    TransactionsSyncRequest,
+)
 
 from app.config import settings
 from app.models.user import User
@@ -428,6 +436,89 @@ class PlaidService:
         except httpx.HTTPError as exc:
             logger.error("Plaid investments/holdings/get request failed: %s", exc)
             raise HTTPException(status_code=502, detail="Plaid API unavailable") from exc
+
+    async def sync_transactions_real(self, access_token: str) -> List[dict]:
+        """Sync transactions using Plaid's /transactions/sync endpoint.
+
+        Uses cursor-based pagination: keeps calling until has_more
+        is False. Returns all added/modified transactions in the
+        normalised dict format expected by
+        PlaidTransactionSyncService.sync_transactions_for_item().
+        """
+        client = self._get_plaid_api()
+        all_added: List[dict] = []
+        all_modified: List[dict] = []
+        all_removed: List[str] = []
+        cursor: str = ""
+
+        try:
+            has_more = True
+            while has_more:
+                kwargs = {"access_token": access_token}
+                if cursor:
+                    kwargs["cursor"] = cursor
+                request = TransactionsSyncRequest(**kwargs)
+                response = client.transactions_sync(request)
+
+                all_added.extend(self._normalize_sync_txn(t) for t in (response.added or []))
+                all_modified.extend(self._normalize_sync_txn(t) for t in (response.modified or []))
+                all_removed.extend(t.transaction_id for t in (response.removed or []))
+
+                has_more = response.has_more
+                cursor = response.next_cursor
+
+        except plaid.ApiException as e:
+            logger.error(
+                "Plaid transactions_sync failed: %s",
+                e,
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=502,
+                detail="Failed to sync transactions from Plaid",
+            )
+
+        # Combine added + modified; caller treats them the same
+        # (upsert by external_transaction_id).
+        combined = all_added + all_modified
+        return combined, all_removed
+
+    @staticmethod
+    def _normalize_sync_txn(txn) -> dict:
+        """Convert a Plaid Transaction object from /transactions/sync
+        into the dict format expected by PlaidTransactionSyncService.
+        """
+        category_list = []
+        if hasattr(txn, "category") and txn.category:
+            category_list = list(txn.category)
+
+        return {
+            "transaction_id": txn.transaction_id,
+            "account_id": txn.account_id,
+            "date": txn.date.isoformat() if hasattr(txn.date, "isoformat") else str(txn.date),
+            "amount": float(txn.amount),
+            "name": txn.name or "",
+            "merchant_name": getattr(txn, "merchant_name", None) or txn.name or "",
+            "category": category_list,
+            "pending": getattr(txn, "pending", False),
+        }
+
+    async def remove_item(self, access_token: str) -> bool:
+        """Call Plaid /item/remove to revoke an access token.
+
+        Returns True on success, raises on failure.
+        """
+        client = self._get_plaid_api()
+        try:
+            client.item_remove(ItemRemoveRequest(access_token=access_token))
+            return True
+        except plaid.ApiException as e:
+            logger.error(
+                "Plaid item_remove failed: %s",
+                e,
+                exc_info=True,
+            )
+            raise
 
     def _create_dummy_holdings(self) -> Tuple[List[dict], List[dict]]:
         """Create dummy investment holdings for testing."""

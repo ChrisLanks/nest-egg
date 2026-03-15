@@ -382,7 +382,12 @@ class TestMxServiceTransactionSync:
     async def test_sync_transactions_no_member_raises(self, mx_service, db_session):
         """Should raise ValueError if account has no MX member."""
         account = MagicMock()
-        account.mx_member = None
+        account.mx_member_id = uuid4()
+
+        # The code now does an explicit async DB query instead of lazy-loading
+        member_result = MagicMock()
+        member_result.scalar_one_or_none.return_value = None
+        db_session.execute = AsyncMock(return_value=member_result)
 
         with pytest.raises(ValueError, match="does not have MX member"):
             await mx_service.sync_transactions(db_session, account)

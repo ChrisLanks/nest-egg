@@ -5,7 +5,7 @@ import hmac
 import json
 import logging
 from decimal import Decimal
-from typing import Dict, Any
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.database import get_db
 from app.models.account import Account, TellerEnrollment
-from app.models.notification import NotificationType, NotificationPriority
+from app.models.notification import NotificationPriority, NotificationType
 from app.services.notification_service import notification_service
 from app.services.rate_limit_service import rate_limit_service
 from app.services.teller_service import get_teller_service
@@ -50,14 +50,11 @@ def verify_teller_webhook_signature(
     if not secret:
         raise HTTPException(
             status_code=500,
-            detail="Webhook verification secret not configured. "
-            "Set TELLER_WEBHOOK_SECRET.",
+            detail="Webhook verification secret not configured. " "Set TELLER_WEBHOOK_SECRET.",
         )
 
     if not signature_header:
-        raise HTTPException(
-            status_code=401, detail="Missing Teller-Signature header"
-        )
+        raise HTTPException(status_code=401, detail="Missing Teller-Signature header")
 
     try:
         expected_signature = hmac.new(
@@ -65,9 +62,7 @@ def verify_teller_webhook_signature(
         ).hexdigest()
 
         if not hmac.compare_digest(expected_signature, signature_header):
-            raise HTTPException(
-                status_code=401, detail="Invalid webhook signature"
-            )
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
         return True
 
@@ -75,9 +70,7 @@ def verify_teller_webhook_signature(
         raise
     except Exception as e:
         logger.error("Webhook verification error: %s", e)
-        raise HTTPException(
-            status_code=401, detail="Webhook verification failed"
-        )
+        raise HTTPException(status_code=401, detail="Webhook verification failed")
 
 
 @router.post("/webhook")
@@ -214,7 +207,10 @@ async def _handle_enrollment_disconnected(
         user_id=enrollment.user_id,
         type=NotificationType.ACCOUNT_ERROR,
         title=f"Connection Lost: {enrollment.institution_name}",
-        message=f"Your {enrollment.institution_name} connection was disconnected. Reconnect to continue syncing.",
+        message=(
+            f"Your {enrollment.institution_name} connection was disconnected."
+            " Reconnect to continue syncing."
+        ),
         priority=NotificationPriority.HIGH,
         related_entity_type="teller_enrollment",
         related_entity_id=enrollment.id,
@@ -355,7 +351,12 @@ async def _handle_balance_updated(
 ):
     """Handle balance.updated webhook - update account balance."""
     account_id = payload.get("account_id")
-    new_balance = payload.get("balance", {}).get("available")
+    balance_data = payload.get("balance", {})
+
+    # Use same priority as account sync: ledger > current > available
+    new_balance = (
+        balance_data.get("ledger") or balance_data.get("current") or balance_data.get("available")
+    )
 
     if not account_id or new_balance is None:
         logger.warning("balance.updated webhook missing account_id or balance")
