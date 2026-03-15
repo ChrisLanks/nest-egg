@@ -20,6 +20,8 @@
 #   --skip-backend     Skip backend setup
 #   --seed-user        Create test@test.com with mock data (password: test1234)
 #   --seed-user2       Create test2@test.com with mock data (password: test1234)
+#   --new N            Create N random test users (password: test1234)
+#   --delete EMAIL     Delete user by email (removes all data)
 #   --yes              Answer yes to all prompts (non-interactive)
 #   --help             Show this help message
 ###############################################################################
@@ -44,6 +46,8 @@ SKIP_FRONTEND=false
 SKIP_BACKEND=false
 SEED_USER=false
 SEED_USER2=false
+NEW_USERS=0
+DELETE_EMAIL=""
 AUTO_YES=false
 
 # Parse arguments
@@ -68,6 +72,24 @@ while [[ $# -gt 0 ]]; do
         --seed-user2)
             SEED_USER2=true
             shift
+            ;;
+        --new)
+            if [[ -n "$2" ]] && [[ "$2" =~ ^[0-9]+$ ]]; then
+                NEW_USERS="$2"
+                shift 2
+            else
+                echo -e "${RED}--new requires a number (e.g. --new 5)${NC}"
+                exit 1
+            fi
+            ;;
+        --delete)
+            if [[ -n "$2" ]] && [[ "$2" == *@* ]]; then
+                DELETE_EMAIL="$2"
+                shift 2
+            else
+                echo -e "${RED}--delete requires an email address${NC}"
+                exit 1
+            fi
             ;;
         --yes|-y)
             AUTO_YES=true
@@ -624,6 +646,150 @@ asyncio.run(seed())
 }
 
 ###############################################################################
+# Create Random Users (--new N)
+###############################################################################
+
+create_random_users() {
+    if [ "$NEW_USERS" -eq 0 ]; then
+        return
+    fi
+
+    print_header "Creating $NEW_USERS Random Test Users"
+
+    pushd backend > /dev/null
+    source venv/bin/activate
+
+    python3 -c "
+import asyncio, random, string, sys
+from uuid import uuid4
+from datetime import datetime
+
+from app.core.database import AsyncSessionLocal
+from app.core.security import hash_password
+from app.models.user import User, Organization
+from sqlalchemy import select
+
+FIRST_NAMES = [
+    'Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Hank',
+    'Iris', 'Jack', 'Karen', 'Leo', 'Mona', 'Nate', 'Olivia', 'Paul',
+    'Quinn', 'Rosa', 'Sam', 'Tina', 'Uma', 'Vic', 'Wendy', 'Xander',
+    'Yara', 'Zane', 'Amber', 'Blake', 'Cora', 'Derek', 'Ella', 'Felix',
+    'Gina', 'Hugo', 'Ivy', 'Joel', 'Kira', 'Liam', 'Maya', 'Noah',
+]
+
+LAST_NAMES = [
+    'Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller',
+    'Davis', 'Rodriguez', 'Martinez', 'Anderson', 'Taylor', 'Thomas',
+    'Moore', 'Jackson', 'Lee', 'White', 'Harris', 'Clark', 'Lewis',
+    'Walker', 'Hall', 'Young', 'King', 'Wright', 'Lopez', 'Hill',
+    'Scott', 'Green', 'Adams', 'Baker', 'Nelson', 'Carter', 'Mitchell',
+]
+
+async def create_users(count):
+    async with AsyncSessionLocal() as db:
+        created = 0
+        for i in range(count):
+            first = random.choice(FIRST_NAMES)
+            last = random.choice(LAST_NAMES)
+            tag = ''.join(random.choices(string.digits, k=4))
+            email = f'{first.lower()}.{last.lower()}{tag}@test.local'
+
+            # Check if email already exists
+            result = await db.execute(select(User).where(User.email == email))
+            if result.scalar_one_or_none():
+                continue
+
+            org = Organization(
+                id=uuid4(), name=f'{first} {last} Household',
+                created_at=datetime.utcnow(),
+            )
+            db.add(org)
+            await db.flush()
+
+            user = User(
+                id=uuid4(), email=email,
+                password_hash=hash_password('test1234'),
+                first_name=first, last_name=last,
+                organization_id=org.id, is_org_admin=True,
+                is_primary_household_member=True, is_active=True,
+                email_verified=True, created_at=datetime.utcnow(),
+            )
+            db.add(user)
+            created += 1
+            print(f'  Created {email}')
+
+        await db.commit()
+        print(f'\n  {created} user(s) created (password: test1234)')
+
+asyncio.run(create_users($NEW_USERS))
+" 2>&1
+
+    popd > /dev/null
+    print_success "Random user creation complete"
+}
+
+###############################################################################
+# Delete User (--delete EMAIL)
+###############################################################################
+
+delete_user() {
+    if [ -z "$DELETE_EMAIL" ]; then
+        return
+    fi
+
+    print_header "Deleting User: $DELETE_EMAIL"
+
+    pushd backend > /dev/null
+    source venv/bin/activate
+
+    python3 -c "
+import asyncio, sys
+
+from app.core.database import AsyncSessionLocal
+from app.models.user import User, Organization
+from sqlalchemy import select, func
+
+async def delete_user(email):
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            print(f'  User {email} not found')
+            sys.exit(1)
+
+        org_id = user.organization_id
+
+        # Count other members in the org
+        count_result = await db.execute(
+            select(func.count()).select_from(User).where(
+                User.organization_id == org_id,
+                User.id != user.id,
+            )
+        )
+        other_members = count_result.scalar()
+
+        if other_members == 0:
+            # Sole member — delete entire org (FK CASCADE handles data)
+            org = await db.get(Organization, org_id)
+            if org:
+                await db.delete(org)
+                print(f'  Deleted org {org.name} and all associated data')
+        else:
+            # Other members exist — just delete the user
+            await db.delete(user)
+            print(f'  Deleted user {email} (org kept — {other_members} members remain)')
+
+        await db.commit()
+        print(f'  Done.')
+
+asyncio.run(delete_user('$DELETE_EMAIL'))
+" 2>&1
+
+    popd > /dev/null
+}
+
+###############################################################################
 # Verification & Health Checks
 ###############################################################################
 
@@ -731,6 +897,24 @@ print_next_steps() {
 ###############################################################################
 
 main() {
+    # Standalone operations: --new or --delete can run without full setup
+    if [ "$NEW_USERS" -gt 0 ] || [ -n "$DELETE_EMAIL" ]; then
+        if [ ! -d "backend/venv" ]; then
+            print_error "Backend venv not found. Run full setup first: ./scripts/dev-setup.sh"
+            exit 1
+        fi
+
+        if [ "$NEW_USERS" -gt 0 ]; then
+            create_random_users
+        fi
+
+        if [ -n "$DELETE_EMAIL" ]; then
+            delete_user
+        fi
+
+        return
+    fi
+
     echo -e "${BLUE}"
     cat << "EOF"
     ╔═══════════════════════════════════════════════════════════╗

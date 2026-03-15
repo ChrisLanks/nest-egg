@@ -1,19 +1,30 @@
 """Development/testing endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import timedelta, date
-from decimal import Decimal
-import uuid
 import hashlib
+import logging
+import random
+import string
+import uuid
+from datetime import date, timedelta
+from decimal import Decimal
+from typing import List, Optional
+from uuid import UUID
 
-from app.core.database import get_db
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import settings
-from app.dependencies import get_current_user
-from app.models.user import User
-from app.models.account import Account, AccountType, AccountSource
+from app.core.database import get_db
+from app.core.security import hash_password
+from app.dependencies import get_current_admin_user, get_current_user
+from app.models.account import Account, AccountSource, AccountType
 from app.models.transaction import Transaction
+from app.models.user import User
 from app.services.category_service import get_category_id_for_plaid_category
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -36,7 +47,7 @@ async def debug_transactions(
     if settings.ENVIRONMENT == "production":
         raise HTTPException(status_code=404, detail="Not found")
 
-    from sqlalchemy import select, func
+    from sqlalchemy import func, select
 
     # Get transaction count
     txn_count = await db.execute(
@@ -238,3 +249,187 @@ async def seed_mock_data(
         "message": "Mock data seeded successfully",
         **result,
     }
+
+
+# ---------------------------------------------------------------------------
+# User management (dev-only)
+# ---------------------------------------------------------------------------
+
+_FIRST_NAMES = [
+    "Alice",
+    "Bob",
+    "Charlie",
+    "Diana",
+    "Eve",
+    "Frank",
+    "Grace",
+    "Hank",
+    "Iris",
+    "Jack",
+    "Karen",
+    "Leo",
+    "Mona",
+    "Nate",
+    "Olivia",
+    "Paul",
+    "Quinn",
+    "Rosa",
+    "Sam",
+    "Tina",
+    "Uma",
+    "Vic",
+    "Wendy",
+    "Xander",
+]
+
+_LAST_NAMES = [
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Rodriguez",
+    "Martinez",
+    "Anderson",
+    "Taylor",
+    "Thomas",
+    "Moore",
+    "Jackson",
+    "Lee",
+    "White",
+    "Harris",
+    "Clark",
+    "Lewis",
+]
+
+
+class DevUserResponse(BaseModel):
+    id: UUID
+    email: str
+    first_name: Optional[str]
+    last_name: Optional[str]
+    is_active: bool
+    is_org_admin: bool
+    organization_id: UUID
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/users", response_model=List[DevUserResponse])
+async def list_all_users(
+    current_user: User = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all users in the current organization. Admin only, dev only."""
+    result = await db.execute(
+        select(User)
+        .where(User.organization_id == current_user.organization_id)
+        .order_by(User.created_at)
+    )
+    return result.scalars().all()
+
+
+class CreateRandomUsersRequest(BaseModel):
+    count: int = 1
+
+
+class CreateRandomUsersResponse(BaseModel):
+    created: List[DevUserResponse]
+
+
+@router.post("/users/random", response_model=CreateRandomUsersResponse)
+async def create_random_users(
+    body: CreateRandomUsersRequest,
+    current_user: User = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create N random test users in the current org. Dev only."""
+    if body.count < 1 or body.count > 50:
+        raise HTTPException(status_code=400, detail="count must be 1-50")
+
+    created = []
+    for _ in range(body.count):
+        first = random.choice(_FIRST_NAMES)
+        last = random.choice(_LAST_NAMES)
+        tag = "".join(random.choices(string.digits, k=4))
+        email = f"{first.lower()}.{last.lower()}{tag}@test.local"
+
+        # Check uniqueness
+        existing = await db.execute(select(User).where(User.email == email))
+        if existing.scalar_one_or_none():
+            continue
+
+        user = User(
+            id=uuid.uuid4(),
+            email=email,
+            password_hash=hash_password("test1234"),
+            first_name=first,
+            last_name=last,
+            organization_id=current_user.organization_id,
+            is_org_admin=False,
+            is_primary_household_member=False,
+            is_active=True,
+            email_verified=True,
+        )
+        db.add(user)
+        await db.flush()
+        created.append(user)
+
+    await db.commit()
+    logger.info(
+        "dev: created %d random users in org=%s", len(created), current_user.organization_id
+    )
+    return {"created": created}
+
+
+@router.delete("/users/{user_id}", status_code=204)
+async def hard_delete_user(
+    user_id: UUID,
+    current_user: User = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Permanently delete a user and their data. Admin only, dev only.
+
+    If the user is the sole member of their org, deletes the org too.
+    Cannot delete yourself or the primary household member.
+    """
+    result = await db.execute(
+        select(User).where(
+            User.id == user_id,
+            User.organization_id == current_user.organization_id,
+        )
+    )
+    target = result.scalar_one_or_none()
+
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if target.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+
+    if target.is_primary_household_member:
+        raise HTTPException(status_code=400, detail="Cannot delete the primary household member")
+
+    # Count remaining members
+    count_result = await db.execute(
+        select(func.count())
+        .select_from(User)
+        .where(
+            User.organization_id == target.organization_id,
+            User.id != target.id,
+        )
+    )
+    remaining = count_result.scalar()
+
+    await db.delete(target)
+    await db.commit()
+
+    logger.info(
+        "dev: hard-deleted user=%s email=%s (%d members remain)",
+        user_id,
+        target.email,
+        remaining,
+    )
