@@ -465,4 +465,4 @@ class TestRetirementPermission:
     def test_resource_types_count(self):
         from app.models.permission import RESOURCE_TYPES
 
-        assert len(RESOURCE_TYPES) == 13
+        assert len(RESOURCE_TYPES) == 15

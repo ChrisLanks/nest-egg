@@ -178,6 +178,7 @@ class TestFireAPIEndpoint:
 
         with (
             patch("app.api.v1.fire.verify_household_member") as mock_verify,
+            patch("app.api.v1.fire.permission_service.require", new=AsyncMock()),
             patch("app.api.v1.fire.FireService") as MockService,
         ):
             mock_verify.return_value = None
