@@ -152,6 +152,7 @@ class TestListGoals:
         ) as mock_get:
             result = await list_goals(
                 is_completed=True,
+                user_id=None,
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -161,6 +162,7 @@ class TestListGoals:
                 db=mock_db,
                 user=mock_user,
                 is_completed=True,
+                user_id=None,
             )
 
     @pytest.mark.asyncio

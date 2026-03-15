@@ -79,7 +79,10 @@ class TestComputeFeeDragProjection:
 
         assert result.without_fees[0] == expected_no_fees
         assert result.with_fees[0] == expected_with_fees
-        assert result.fee_cost[0] == round(expected_no_fees - expected_with_fees, 2)
+        # fee_cost is computed from raw (unrounded) values before individual rounding
+        raw_no_fees = pv * (1.07**5)
+        raw_with_fees = pv * (1.06**5)
+        assert result.fee_cost[0] == round(raw_no_fees - raw_with_fees, 2)
 
 
 @pytest.mark.unit

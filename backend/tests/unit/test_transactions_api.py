@@ -138,6 +138,8 @@ class TestListTransactions:
         txn.category_detailed = "Clothing"
         txn.is_pending = False
         txn.is_transfer = False
+        txn.notes = None
+        txn.flagged_for_review = False
         txn.created_at = datetime(2024, 1, 15, 10, 0, 0)
         txn.updated_at = datetime(2024, 1, 15, 10, 0, 0)
 
@@ -788,6 +790,8 @@ class TestListTransactionsAdditionalBranches:
         txn.category_detailed = None
         txn.is_pending = False
         txn.is_transfer = False
+        txn.notes = None
+        txn.flagged_for_review = False
         txn.created_at = datetime(2024, 1, 15, 10, 0, 0)
         txn.updated_at = datetime(2024, 1, 15, 10, 0, 0)
         txn.account = Mock(spec=Account)

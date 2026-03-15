@@ -40,6 +40,7 @@ def _make_upload_file(
     f.filename = filename
     f.content_type = content_type
     f.read = AsyncMock(return_value=content)
+    f.seek = AsyncMock(return_value=None)
     return f
 
 
@@ -142,7 +143,8 @@ class TestValidateCsvEndpoint:
     ):
         mock_rate_limit.check_rate_limit = AsyncMock()
         file = _make_upload_file()
-        file.read = AsyncMock(side_effect=Exception("read error"))
+        # First read (in validate_csv_content) returns valid bytes; second read raises
+        file.read = AsyncMock(side_effect=[b"date,amount\n2024-01-01,50", Exception("read error")])
 
         with pytest.raises(HTTPException) as exc_info:
             await validate_csv(mock_http_request, file, mock_user)

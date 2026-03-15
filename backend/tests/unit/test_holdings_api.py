@@ -2,7 +2,7 @@
 
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -22,6 +22,60 @@ from app.api.v1.holdings import (
 from app.models.account import Account, AccountType
 from app.models.holding import Holding
 from app.models.user import User
+
+
+def _make_agg_result(holdings):
+    """Return a mock whose .all() yields aggregated row objects built from holdings.
+
+    The production code issues a second db.execute() for a GROUP-BY aggregation
+    query.  Each result row has the attributes:
+        ticker, name, total_shares, total_cost_basis, asset_type, sector,
+        industry, country, expense_ratio, current_price_per_share, price_as_of
+
+    For unit tests there is normally one holding per ticker, so the aggregated
+    values are identical to the holding's own values.
+    """
+    rows = []
+    # Group by ticker (mirrors the SQL GROUP BY)
+    by_ticker: dict = {}
+    for h in holdings:
+        t = h.ticker
+        if t not in by_ticker:
+            by_ticker[t] = []
+        by_ticker[t].append(h)
+
+    for ticker, group in by_ticker.items():
+        row = Mock()
+        row.ticker = ticker
+        row.name = group[0].name
+        row.total_shares = sum(h.shares for h in group)
+        row.total_cost_basis = sum(
+            (h.total_cost_basis if h.total_cost_basis else Decimal("0")) for h in group
+        )
+        row.asset_type = group[0].asset_type
+        row.sector = group[0].sector
+        row.industry = group[0].industry
+        row.country = group[0].country
+        row.expense_ratio = group[0].expense_ratio
+        row.current_price_per_share = group[0].current_price_per_share
+        row.price_as_of = group[0].price_as_of
+        rows.append(row)
+
+    agg_mock = Mock()
+    agg_mock.all.return_value = rows
+    return agg_mock
+
+
+def _make_portfolio_execute_side_effect(holdings):
+    """Return a side_effect list for mock_db.execute covering both SQL calls in
+    get_portfolio_summary:
+      1. SELECT holdings … (uses .scalars().all())
+      2. SELECT aggregated GROUP BY ticker … (uses .all())
+    """
+    holdings_mock = Mock()
+    holdings_mock.scalars.return_value.all.return_value = holdings
+    agg_mock = _make_agg_result(holdings)
+    return [holdings_mock, agg_mock]
 
 
 @pytest.mark.unit
@@ -49,11 +103,17 @@ class TestGetAccountHoldings:
         holding2 = Mock(spec=Holding)
         holding2.ticker = "GOOGL"
 
-        mock_result = Mock()
-        mock_result.scalars.return_value.all.return_value = [holding1, holding2]
-        mock_db.execute.return_value = mock_result
+        # First execute: count query (uses .scalar())
+        count_result = Mock()
+        count_result.scalar.return_value = 2
+        # Second execute: paginated holdings query (uses .scalars().all())
+        holdings_result = Mock()
+        holdings_result.scalars.return_value.all.return_value = [holding1, holding2]
+        mock_db.execute.side_effect = [count_result, holdings_result]
 
-        result = await get_account_holdings(account=mock_account, db=mock_db)
+        result = await get_account_holdings(
+            response=MagicMock(), account=mock_account, db=mock_db, skip=0, limit=100
+        )
 
         assert result == [holding1, holding2]
         assert mock_db.execute.called
@@ -61,11 +121,17 @@ class TestGetAccountHoldings:
     @pytest.mark.asyncio
     async def test_returns_empty_list_when_no_holdings(self, mock_db, mock_account):
         """Should return empty list when account has no holdings."""
-        mock_result = Mock()
-        mock_result.scalars.return_value.all.return_value = []
-        mock_db.execute.return_value = mock_result
+        # First execute: count query (uses .scalar())
+        count_result = Mock()
+        count_result.scalar.return_value = 0
+        # Second execute: paginated holdings query (uses .scalars().all())
+        holdings_result = Mock()
+        holdings_result.scalars.return_value.all.return_value = []
+        mock_db.execute.side_effect = [count_result, holdings_result]
 
-        result = await get_account_holdings(account=mock_account, db=mock_db)
+        result = await get_account_holdings(
+            response=MagicMock(), account=mock_account, db=mock_db, skip=0, limit=100
+        )
 
         assert result == []
 
@@ -540,6 +606,8 @@ class TestGetPortfolioSummary:
             ) as mock_get_user_accounts:
                 mock_result = Mock()
                 mock_result.scalars.return_value.all.return_value = []
+                # .all() is called on the second execute (aggregated query) — must be iterable
+                mock_result.all.return_value = []
                 mock_db.execute.return_value = mock_result
 
                 await get_portfolio_summary(user_id=user_id, current_user=mock_user, db=mock_db)
@@ -567,6 +635,8 @@ class TestGetPortfolioSummary:
             ) as mock_dedupe:
                 mock_result = Mock()
                 mock_result.scalars.return_value.all.return_value = []
+                # .all() is called on the second execute (aggregated query) — must be iterable
+                mock_result.all.return_value = []
                 mock_db.execute.return_value = mock_result
 
                 await get_portfolio_summary(user_id=None, current_user=mock_user, db=mock_db)
@@ -845,9 +915,7 @@ class TestGetPortfolioSummaryComprehensive:
                 return_value=[account],
             ):
                 # Mock holdings query
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -898,9 +966,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -946,9 +1012,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -987,9 +1051,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1042,9 +1104,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1072,9 +1132,7 @@ class TestGetPortfolioSummaryComprehensive:
                 return_value=[property_account],
             ):
                 # No holdings for property accounts
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = []
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect([])
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1106,9 +1164,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[crypto_account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = []
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect([])
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1153,9 +1209,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[retirement_account, taxable_account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1203,9 +1257,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1248,9 +1300,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account1, account2],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1285,9 +1335,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[checking, savings],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = []
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect([])
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1326,9 +1374,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[credit_card, loan],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = []
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect([])
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1361,9 +1407,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1418,9 +1462,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1471,9 +1513,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1534,9 +1574,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1571,9 +1609,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1611,9 +1647,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1665,9 +1699,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1705,9 +1737,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1744,9 +1774,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1783,9 +1811,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1820,9 +1846,7 @@ class TestGetPortfolioSummaryComprehensive:
                 "app.api.v1.holdings.deduplication_service.deduplicate_accounts",
                 return_value=[account],
             ):
-                holdings_result = Mock()
-                holdings_result.scalars.return_value.all.return_value = holdings
-                mock_db.execute.return_value = holdings_result
+                mock_db.execute.side_effect = _make_portfolio_execute_side_effect(holdings)
 
                 result = await get_portfolio_summary(
                     user_id=None, current_user=mock_user, db=mock_db
@@ -1977,9 +2001,7 @@ class TestInvestmentAccountsWithoutHoldings:
             return_value=[brokerage_account],
         ):
             # No holdings for this account
-            holdings_result = Mock()
-            holdings_result.scalars.return_value.all.return_value = []
-            mock_db.execute.return_value = holdings_result
+            mock_db.execute.side_effect = _make_portfolio_execute_side_effect([])
 
             result = await get_portfolio_summary(user_id=None, current_user=mock_user, db=mock_db)
 
@@ -2042,9 +2064,7 @@ class TestInvestmentAccountsWithoutHoldings:
             "app.api.v1.holdings.get_all_household_accounts",
             return_value=[checking, savings, brokerage],
         ):
-            holdings_result = Mock()
-            holdings_result.scalars.return_value.all.return_value = []
-            mock_db.execute.return_value = holdings_result
+            mock_db.execute.side_effect = _make_portfolio_execute_side_effect([])
 
             result = await get_portfolio_summary(user_id=None, current_user=mock_user, db=mock_db)
 
@@ -2106,9 +2126,7 @@ class TestInvestmentAccountsWithoutHoldings:
             "app.api.v1.holdings.get_all_household_accounts",
             return_value=[brokerage1, brokerage2],
         ):
-            holdings_result = Mock()
-            holdings_result.scalars.return_value.all.return_value = []
-            mock_db.execute.return_value = holdings_result
+            mock_db.execute.side_effect = _make_portfolio_execute_side_effect([])
 
             result = await get_portfolio_summary(user_id=None, current_user=mock_user, db=mock_db)
 
@@ -2183,9 +2201,7 @@ class TestInvestmentAccountsWithoutHoldings:
             "app.api.v1.holdings.get_all_household_accounts",
             return_value=[account_with, account_without],
         ):
-            holdings_result = Mock()
-            holdings_result.scalars.return_value.all.return_value = [holding]
-            mock_db.execute.return_value = holdings_result
+            mock_db.execute.side_effect = _make_portfolio_execute_side_effect([holding])
 
             result = await get_portfolio_summary(user_id=None, current_user=mock_user, db=mock_db)
 

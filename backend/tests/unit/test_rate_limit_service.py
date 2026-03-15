@@ -1,8 +1,8 @@
 """Unit tests for RateLimitService — rate limiting, IP extraction, fail-open."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi import HTTPException
 
 from app.services.rate_limit_service import RateLimitService
@@ -126,8 +126,8 @@ class TestCheckRateLimit:
 class TestIPExtraction:
     @pytest.mark.asyncio
     @patch("app.services.rate_limit_service.settings")
-    async def test_uses_rightmost_xff(self, mock_settings, service):
-        """Should use rightmost (last) X-Forwarded-For IP, not leftmost."""
+    async def test_uses_direct_client_host(self, mock_settings, service):
+        """Should use request.client.host directly, ignoring X-Forwarded-For."""
         mock_settings.ENVIRONMENT = "production"
         mock_settings.REDIS_URL = "redis://localhost:6379"
 
@@ -138,11 +138,11 @@ class TestIPExtraction:
 
         service.redis_client = mock_redis
 
-        request = _make_request(xff="spoofed.ip, real.proxy.ip")
+        request = _make_request(xff="spoofed.ip, real.proxy.ip", client_host="trusted.client.ip")
         await service.check_rate_limit(request, max_requests=5)
 
-        # The key should be based on "real.proxy.ip", not "spoofed.ip"
-        expected_key = service._get_rate_limit_key("real.proxy.ip", "/api/test")
+        # The key should be based on client.host, not X-Forwarded-For
+        expected_key = service._get_rate_limit_key("trusted.client.ip", "/api/test")
         actual_calls = mock_pipe.incr.call_args_list
         assert len(actual_calls) == 1
         assert actual_calls[0][0][0] == expected_key

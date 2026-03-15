@@ -146,7 +146,7 @@ class TestValidateProductionSecrets:
         )
         s.DATABASE_URL = overrides.get(
             "DATABASE_URL",
-            "postgresql://u:StR0ng9K@db:5432/prod",  # pragma: allowlist secret
+            "postgresql://u:X9kQ!mZ2vL8nR4wY@db:5432/prod",  # pragma: allowlist secret
         )
         s.MASTER_ENCRYPTION_KEY = overrides.get("MASTER_ENCRYPTION_KEY", "a" * 32)
         s.CORS_ORIGINS = overrides.get("CORS_ORIGINS", ["https://app.example.com"])
@@ -290,7 +290,7 @@ class TestValidateProductionSecrets:
             patch.dict(
                 "os.environ",
                 {
-                    "DATABASE_URL": "postgresql://user:pass@host/db",  # pragma: allowlist secret
+                    "DATABASE_URL": "postgresql://u:p@h/db",  # pragma: allowlist secret
                     "DATABASE_URL_TEST": "postgresql://u:p@h/db",  # pragma: allowlist secret
                 },
             ),
@@ -332,7 +332,7 @@ class TestGenerateSecurityChecklist:
         )
         s.DATABASE_URL = overrides.get(
             "DATABASE_URL",
-            "postgresql://u:StR0ng9K@db:5432/prod",  # pragma: allowlist secret
+            "postgresql://u:X9kQ!mZ2vL8nR4wY@db:5432/prod",  # pragma: allowlist secret
         )
         s.MASTER_ENCRYPTION_KEY = overrides.get("MASTER_ENCRYPTION_KEY", "b" * 32)
         s.CORS_ORIGINS = overrides.get("CORS_ORIGINS", ["https://app.example.com"])

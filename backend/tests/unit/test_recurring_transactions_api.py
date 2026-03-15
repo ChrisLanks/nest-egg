@@ -425,6 +425,7 @@ class TestGetUpcomingBills:
 
             await get_upcoming_bills(
                 days_ahead=14,
+                user_id=None,
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -433,6 +434,7 @@ class TestGetUpcomingBills:
                 db=mock_db,
                 user=mock_user,
                 days_ahead=14,
+                user_id=None,
             )
 
 

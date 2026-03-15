@@ -155,11 +155,11 @@ class TestListBudgets:
 
             assert len(result) == 1
             assert result[0].is_active is True
-            mock_get.assert_called_once_with(
-                db=mock_db,
-                user=mock_user,
-                is_active=True,
-            )
+            mock_get.assert_called_once()
+            call_kwargs = mock_get.call_args.kwargs
+            assert call_kwargs["db"] is mock_db
+            assert call_kwargs["user"] is mock_user
+            assert call_kwargs["is_active"] is True
 
     @pytest.mark.asyncio
     async def test_returns_empty_list_when_no_budgets(self, mock_db, mock_user):

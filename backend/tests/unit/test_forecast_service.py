@@ -1658,8 +1658,9 @@ class TestGetTotalBalance:
         db.execute.return_value = result_mock
 
         total = await ForecastService._get_total_balance(db, org_id)
-        # Both vesting entries count (100 + 200 shares * $50)
-        assert total == Decimal("15000")
+        # Only past/today vesting entries count: 100 shares * $50 = $5000
+        # (tomorrow's 200 shares are not yet vested)
+        assert total == Decimal("5000")
 
     @pytest.mark.asyncio
     async def test_private_equity_malformed_vesting_fallback(self):
