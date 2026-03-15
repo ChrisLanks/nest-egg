@@ -902,6 +902,7 @@ class TestLoginEndpoint:
             ):
                 with patch("app.api.v1.auth.settings") as mock_settings:
                     mock_settings.ENVIRONMENT = "production"
+                    mock_settings.ENFORCE_ACCOUNT_LOCKOUT = True
                     with pytest.raises(HTTPException) as exc_info:
                         await login(mock_request, Mock(), mock_data, mock_db)
 
@@ -963,6 +964,7 @@ class TestLoginEndpoint:
                 with patch("app.api.v1.auth.verify_password", return_value=False):
                     with patch("app.api.v1.auth.settings") as mock_settings:
                         mock_settings.ENVIRONMENT = "production"
+                        mock_settings.ENFORCE_ACCOUNT_LOCKOUT = True
                         mock_settings.MAX_LOGIN_ATTEMPTS = 5
                         mock_settings.ACCOUNT_LOCKOUT_MINUTES = 30
                         with pytest.raises(HTTPException) as exc_info:
@@ -994,6 +996,7 @@ class TestLoginEndpoint:
                 with patch("app.api.v1.auth.verify_password", return_value=False):
                     with patch("app.api.v1.auth.settings") as mock_settings:
                         mock_settings.ENVIRONMENT = "production"
+                        mock_settings.ENFORCE_ACCOUNT_LOCKOUT = True
                         mock_settings.MAX_LOGIN_ATTEMPTS = 5
                         mock_settings.ACCOUNT_LOCKOUT_MINUTES = 30
                         with pytest.raises(HTTPException) as exc_info:
@@ -1837,10 +1840,12 @@ class TestForgotPassword:
                 with patch(
                     "app.api.v1.auth.email_service.send_password_reset_email", new=AsyncMock()
                 ):
-                    with patch("app.api.v1.auth.settings.ENVIRONMENT", "development"):
+                    with patch("app.api.v1.auth.settings") as mock_settings:
+                        mock_settings.ENVIRONMENT = "development"
+                        mock_settings.DEBUG = True
                         result = await forgot_password(data, mock_request, db=mock_db)
 
-        assert result.get("token") == "raw_tok"
+        assert result.get("debug_token") == "raw_tok"
 
     @pytest.mark.asyncio
     async def test_production_mode_does_not_return_token(self):
@@ -1870,10 +1875,12 @@ class TestForgotPassword:
                 with patch(
                     "app.api.v1.auth.email_service.send_password_reset_email", new=AsyncMock()
                 ):
-                    with patch("app.api.v1.auth.settings.ENVIRONMENT", "production"):
+                    with patch("app.api.v1.auth.settings") as mock_settings:
+                        mock_settings.ENVIRONMENT = "production"
+                        mock_settings.DEBUG = False
                         result = await forgot_password(data, mock_request, db=mock_db)
 
-        assert "token" not in result
+        assert "debug_token" not in result
 
 
 # ---------------------------------------------------------------------------
@@ -2764,6 +2771,7 @@ class TestResendVerificationDev:
                 ):
                     with patch("app.api.v1.auth.settings") as mock_settings:
                         mock_settings.ENVIRONMENT = "development"
+                        mock_settings.DEBUG = True
                         result = await resend_verification(mock_request, mock_user, mock_db)
 
-        assert result["token"] == "raw_tok"
+        assert result["debug_token"] == "raw_tok"

@@ -1,13 +1,14 @@
 """Integration tests for Teller API endpoints and service."""
 
-import pytest
-from fastapi import status
-from unittest.mock import AsyncMock, patch, MagicMock
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from app.models.account import TellerEnrollment, Account, AccountSource, AccountType, TaxTreatment
+import pytest
+from fastapi import status
+
+from app.models.account import Account, AccountSource, AccountType, TaxTreatment, TellerEnrollment
 from app.services.teller_service import TellerService
 
 pytestmark = pytest.mark.asyncio
@@ -50,7 +51,7 @@ class TestTellerService:
         enrollment = TellerEnrollment(
             organization_id=test_user.organization_id,
             user_id=test_user.id,
-            enrollment_id="enr_test",
+            enrollment_id=f"enr_test_{uuid4().hex[:8]}",
             access_token=encrypted_token,
             institution_name="Test Bank",
         )
@@ -99,7 +100,7 @@ class TestTellerService:
         enrollment = TellerEnrollment(
             organization_id=test_user.organization_id,
             user_id=test_user.id,
-            enrollment_id="enr_test",
+            enrollment_id=f"enr_test_{uuid4().hex[:8]}",
             access_token=encrypted_token,
         )
         db.add(enrollment)
@@ -149,7 +150,7 @@ class TestTellerService:
         enrollment = TellerEnrollment(
             organization_id=test_user.organization_id,
             user_id=test_user.id,
-            enrollment_id="enr_test",
+            enrollment_id=f"enr_test_{uuid4().hex[:8]}",
             access_token=encrypted_token,
         )
         db.add(enrollment)
@@ -205,7 +206,7 @@ class TestTellerService:
         enrollment = TellerEnrollment(
             organization_id=test_user.organization_id,
             user_id=test_user.id,
-            enrollment_id="enr_test",
+            enrollment_id=f"enr_test_{uuid4().hex[:8]}",
             access_token=encrypted_token,
         )
         db.add(enrollment)
@@ -254,19 +255,49 @@ class TestTellerService:
         assert service._map_account_type("depository") == (AccountType.CHECKING, None)
         assert service._map_account_type("credit") == (AccountType.CREDIT_CARD, None)
         assert service._map_account_type("loan") == (AccountType.LOAN, None)
-        assert service._map_account_type("investment") == (AccountType.BROKERAGE, TaxTreatment.TAXABLE)
+        assert service._map_account_type("investment") == (
+            AccountType.BROKERAGE,
+            TaxTreatment.TAXABLE,
+        )
         assert service._map_account_type("unknown") == (AccountType.OTHER, None)
         # Roth subtypes
-        assert service._map_account_type("investment", "roth_401k") == (AccountType.RETIREMENT_401K, TaxTreatment.ROTH)
-        assert service._map_account_type("investment", "401k") == (AccountType.RETIREMENT_401K, TaxTreatment.PRE_TAX)
-        assert service._map_account_type("investment", "roth") == (AccountType.RETIREMENT_ROTH, TaxTreatment.ROTH)
-        assert service._map_account_type("investment", "ira") == (AccountType.RETIREMENT_IRA, TaxTreatment.PRE_TAX)
+        assert service._map_account_type("investment", "roth_401k") == (
+            AccountType.RETIREMENT_401K,
+            TaxTreatment.ROTH,
+        )
+        assert service._map_account_type("investment", "401k") == (
+            AccountType.RETIREMENT_401K,
+            TaxTreatment.PRE_TAX,
+        )
+        assert service._map_account_type("investment", "roth") == (
+            AccountType.RETIREMENT_ROTH,
+            TaxTreatment.ROTH,
+        )
+        assert service._map_account_type("investment", "ira") == (
+            AccountType.RETIREMENT_IRA,
+            TaxTreatment.PRE_TAX,
+        )
         # New retirement subtypes
-        assert service._map_account_type("investment", "403b") == (AccountType.RETIREMENT_403B, TaxTreatment.PRE_TAX)
-        assert service._map_account_type("investment", "roth_403b") == (AccountType.RETIREMENT_403B, TaxTreatment.ROTH)
-        assert service._map_account_type("investment", "457b") == (AccountType.RETIREMENT_457B, TaxTreatment.PRE_TAX)
-        assert service._map_account_type("investment", "sep_ira") == (AccountType.RETIREMENT_SEP_IRA, TaxTreatment.PRE_TAX)
-        assert service._map_account_type("investment", "simple_ira") == (AccountType.RETIREMENT_SIMPLE_IRA, TaxTreatment.PRE_TAX)
+        assert service._map_account_type("investment", "403b") == (
+            AccountType.RETIREMENT_403B,
+            TaxTreatment.PRE_TAX,
+        )
+        assert service._map_account_type("investment", "roth_403b") == (
+            AccountType.RETIREMENT_403B,
+            TaxTreatment.ROTH,
+        )
+        assert service._map_account_type("investment", "457b") == (
+            AccountType.RETIREMENT_457B,
+            TaxTreatment.PRE_TAX,
+        )
+        assert service._map_account_type("investment", "sep_ira") == (
+            AccountType.RETIREMENT_SEP_IRA,
+            TaxTreatment.PRE_TAX,
+        )
+        assert service._map_account_type("investment", "simple_ira") == (
+            AccountType.RETIREMENT_SIMPLE_IRA,
+            TaxTreatment.PRE_TAX,
+        )
 
     async def test_generate_dedup_hash_deterministic(self, test_account):
         """Should generate deterministic hash for transaction deduplication."""
@@ -292,7 +323,7 @@ class TestTellerWebhookHandling:
 
     @pytest.mark.skip(
         reason="Rate limiting is bypassed in development (ENVIRONMENT=development) "
-               "and requires a live Redis instance; cannot be exercised in the test suite."
+        "and requires a live Redis instance; cannot be exercised in the test suite."
     )
     async def test_webhook_requires_rate_limiting(self, async_client):
         """Should enforce rate limiting on webhook endpoint."""
@@ -333,8 +364,13 @@ class TestTellerWebhookHandling:
             "payload": {"enrollment_id": "enr_test123"},
         }
 
-        with patch("app.services.rate_limit_service.RateLimitService.check_rate_limit", new_callable=AsyncMock), \
-             patch("app.api.v1.teller.verify_teller_webhook_signature", return_value=True):
+        with (
+            patch(
+                "app.services.rate_limit_service.RateLimitService.check_rate_limit",
+                new_callable=AsyncMock,
+            ),
+            patch("app.api.v1.teller.verify_teller_webhook_signature", return_value=True),
+        ):
             response = await async_client.post("/api/v1/teller/webhook", json=webhook_data)
 
         # Should acknowledge webhook
@@ -349,7 +385,7 @@ class TestTellerWebhookHandling:
         enrollment = TellerEnrollment(
             organization_id=test_user.organization_id,
             user_id=test_user.id,
-            enrollment_id="enr_test",
+            enrollment_id=f"enr_test_{uuid4().hex[:8]}",
             access_token="encrypted",
         )
         db.add(enrollment)
@@ -363,12 +399,17 @@ class TestTellerWebhookHandling:
 
         webhook_data = {
             "event": "transaction.posted",
-            "payload": {"enrollment_id": "enr_test", "account_id": "acc_123"},
+            "payload": {"enrollment_id": enrollment.enrollment_id, "account_id": "acc_123"},
         }
 
-        with patch("app.services.rate_limit_service.RateLimitService.check_rate_limit", new_callable=AsyncMock), \
-             patch("app.api.v1.teller.verify_teller_webhook_signature", return_value=True), \
-             patch("app.api.v1.teller.get_teller_service") as mock_get_service:
+        with (
+            patch(
+                "app.services.rate_limit_service.RateLimitService.check_rate_limit",
+                new_callable=AsyncMock,
+            ),
+            patch("app.api.v1.teller.verify_teller_webhook_signature", return_value=True),
+            patch("app.api.v1.teller.get_teller_service") as mock_get_service,
+        ):
             mock_teller = AsyncMock()
             mock_get_service.return_value = mock_teller
 
@@ -386,8 +427,13 @@ class TestTellerWebhookHandling:
             "payload": {"enrollment_id": "nonexistent"},
         }
 
-        with patch("app.services.rate_limit_service.RateLimitService.check_rate_limit", new_callable=AsyncMock), \
-             patch("app.api.v1.teller.verify_teller_webhook_signature", return_value=True):
+        with (
+            patch(
+                "app.services.rate_limit_service.RateLimitService.check_rate_limit",
+                new_callable=AsyncMock,
+            ),
+            patch("app.api.v1.teller.verify_teller_webhook_signature", return_value=True),
+        ):
             response = await async_client.post("/api/v1/teller/webhook", json=webhook_data)
 
         assert response.status_code == status.HTTP_200_OK
@@ -405,7 +451,7 @@ class TestTellerErrorHandling:
         enrollment = TellerEnrollment(
             organization_id=test_user.organization_id,
             user_id=test_user.id,
-            enrollment_id="enr_test",
+            enrollment_id=f"enr_test_{uuid4().hex[:8]}",
             access_token="encrypted",
         )
         db.add(enrollment)
@@ -424,7 +470,7 @@ class TestTellerErrorHandling:
         enrollment = TellerEnrollment(
             organization_id=test_user.organization_id,
             user_id=test_user.id,
-            enrollment_id="enr_test",
+            enrollment_id=f"enr_test_{uuid4().hex[:8]}",
             access_token="invalid_encrypted_token",
         )
         db.add(enrollment)

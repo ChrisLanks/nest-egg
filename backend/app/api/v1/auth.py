@@ -9,10 +9,11 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select, update as sa_update
+from sqlalchemy import select
+from sqlalchemy import update as sa_update
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.core.database import AsyncSessionLocal, get_db
@@ -21,14 +22,21 @@ from app.core.security import (
     create_mfa_pending_token,
     create_refresh_token,
     decode_token,
-    verify_password,
     hash_password,
+    verify_password,
 )
 from app.crud.user import organization_crud, refresh_token_crud, user_crud
 from app.dependencies import get_current_user
 from app.models.holding import Holding
 from app.models.mfa import UserMFA
-from app.models.user import User, EmailVerificationToken, PasswordResetToken, RefreshToken, UserConsent, ConsentType
+from app.models.user import (
+    ConsentType,
+    EmailVerificationToken,
+    PasswordResetToken,
+    RefreshToken,
+    User,
+    UserConsent,
+)
 from app.schemas.auth import (
     AccessTokenResponse,
     LoginRequest,
@@ -37,20 +45,19 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.schemas.user import User as UserSchema
-from app.services.market_data import get_market_data_provider
-from app.services.mfa_service import mfa_service
-from app.services.rate_limit_service import get_rate_limit_service
-from app.services.password_validation_service import password_validation_service
 from app.services.email_service import (
-    email_service,
-    create_verification_token,
     create_password_reset_token,
+    create_verification_token,
+    email_service,
     hash_token,
 )
 from app.services.input_sanitization_service import input_sanitization_service
+from app.services.market_data import get_market_data_provider
+from app.services.mfa_service import mfa_service
+from app.services.password_validation_service import password_validation_service
+from app.services.rate_limit_service import get_rate_limit_service
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import redact_email
-
 
 # Module-level set holding references to fire-and-forget background tasks.
 # asyncio only keeps weak references to tasks; without a strong reference the
@@ -92,10 +99,10 @@ def _set_refresh_cookie(response: Response, refresh_token_str: str) -> None:
         key="refresh_token",
         value=refresh_token_str,
         httponly=True,
-        secure=not settings.DEBUG,   # False in dev (http), True in prod (https)
-        samesite="lax",              # lax works across same-host different ports in dev
+        secure=not settings.DEBUG,  # False in dev (http), True in prod (https)
+        samesite="lax",  # lax works across same-host different ports in dev
         max_age=_REFRESH_COOKIE_MAX_AGE,
-        path="/api/v1/auth",         # Scope cookie to auth endpoints only
+        path="/api/v1/auth",  # Scope cookie to auth endpoints only
     )
 
 
@@ -175,9 +182,7 @@ async def register(
     )
 
     # Always validate password strength and check for breaches
-    await password_validation_service.validate_and_raise_async(
-        data.password, check_breach=True
-    )
+    await password_validation_service.validate_and_raise_async(data.password, check_breach=True)
 
     # Check if user already exists — return same-shaped response to prevent enumeration.
     # Use JSONResponse to bypass the TokenResponse response_model validation.
@@ -185,7 +190,10 @@ async def register(
     if existing_user:
         return JSONResponse(
             status_code=status.HTTP_201_CREATED,
-            content={"message": "Registration successful. Please check your email to verify your account."},
+            content={
+                "message": "Registration successful."
+                " Please check your email to verify your account."
+            },
         )
 
     # Create organization — use provided name or derive from display_name
@@ -218,12 +226,14 @@ async def register(
     # Record consent (GDPR / CCPA compliance)
     client_ip = request.client.host if request.client else None
     for consent_type in (ConsentType.TERMS_OF_SERVICE, ConsentType.PRIVACY_POLICY):
-        db.add(UserConsent(
-            user_id=user.id,
-            consent_type=consent_type.value,
-            version=settings.TERMS_VERSION,
-            ip_address=client_ip,
-        ))
+        db.add(
+            UserConsent(
+                user_id=user.id,
+                consent_type=consent_type.value,
+                version=settings.TERMS_VERSION,
+                ip_address=client_ip,
+            )
+        )
     await db.flush()
 
     # Update last login
@@ -280,19 +290,21 @@ async def login(
                 detail="Incorrect email or password",
             )
 
-        # Account lockout — skipped in development to avoid locking devs out
-        # during rapid iteration. In production, locks after MAX_LOGIN_ATTEMPTS
-        # failed attempts for ACCOUNT_LOCKOUT_MINUTES.
-        if settings.ENVIRONMENT == "development":
-            logger.warning("Account lockout skipped in development mode")
-        if settings.ENVIRONMENT != "development":
+        # Account lockout — controlled by ENFORCE_ACCOUNT_LOCKOUT flag
+        # (auto-disabled in development, enabled in staging/production).
+        if not settings.ENFORCE_ACCOUNT_LOCKOUT:
+            logger.debug("Account lockout disabled (ENFORCE_ACCOUNT_LOCKOUT=false)")
+        else:
             locked_until = getattr(user, "locked_until", None)
             if locked_until and locked_until > utc_now():
                 minutes_remaining = max(1, int((locked_until - utc_now()).total_seconds() / 60))
                 logger.warning(f"Login failed: Account locked - {redact_email(data.email)}")
                 raise HTTPException(
                     status_code=423,
-                    detail=f"Account is locked due to too many failed login attempts. Try again in {minutes_remaining} minutes.",
+                    detail=(
+                        "Account is locked due to too many failed login attempts."
+                        f" Try again in {minutes_remaining} minutes."
+                    ),
                 )
 
             # If lockout period has expired, reset failed attempts
@@ -308,8 +320,8 @@ async def login(
         if not verify_password(data.password, user.password_hash):
             logger.warning(f"Login failed: Incorrect password for {redact_email(data.email)}")
 
-            # Increment failed login attempts and lock if threshold reached (production only)
-            if settings.ENVIRONMENT != "development" and hasattr(user, "failed_login_attempts"):
+            # Increment failed login attempts and lock if threshold reached
+            if settings.ENFORCE_ACCOUNT_LOCKOUT and hasattr(user, "failed_login_attempts"):
                 user.failed_login_attempts += 1
 
                 # Lock account if too many failed attempts
@@ -318,12 +330,16 @@ async def login(
                         minutes=settings.ACCOUNT_LOCKOUT_MINUTES
                     )
                     await db.commit()
+                    lockout_min = settings.ACCOUNT_LOCKOUT_MINUTES
                     logger.warning(
-                        f"Account locked for {settings.ACCOUNT_LOCKOUT_MINUTES} minutes: {redact_email(data.email)}"
+                        f"Account locked for {lockout_min} minutes:" f" {redact_email(data.email)}"
                     )
                     raise HTTPException(
                         status_code=423,
-                        detail=f"Account locked due to too many failed login attempts. Try again in {settings.ACCOUNT_LOCKOUT_MINUTES} minutes.",
+                        detail=(
+                            "Account locked due to too many failed attempts."
+                            f" Try again in {lockout_min} minutes."
+                        ),
                     )
 
                 await db.commit()
@@ -348,14 +364,12 @@ async def login(
                 detail="User account is inactive",
             )
 
-        # MFA enforcement — skipped in development so devs can log in without
-        # configuring a TOTP app locally. Enforced in staging and production.
-        if settings.ENVIRONMENT == "development":
-            logger.warning("MFA enforcement skipped in development mode")
-        if settings.ENVIRONMENT != "development":
-            mfa_result = await db.execute(
-                select(UserMFA).where(UserMFA.user_id == user.id)
-            )
+        # MFA enforcement — controlled by ENFORCE_MFA flag
+        # (auto-disabled in development, enabled in staging/production).
+        if not settings.ENFORCE_MFA:
+            logger.debug("MFA enforcement disabled (ENFORCE_MFA=false)")
+        else:
+            mfa_result = await db.execute(select(UserMFA).where(UserMFA.user_id == user.id))
             user_mfa = mfa_result.scalar_one_or_none()
             if user_mfa and user_mfa.is_enabled and user_mfa.is_verified:
                 mfa_token = create_mfa_pending_token(
@@ -414,10 +428,12 @@ async def _maybe_refresh_prices_on_login(organization_id) -> None:
             cutoff = datetime.now(timezone.utc) - timedelta(hours=STALE_AFTER_HOURS)
             # Check whether any holding in this org has a stale (or missing) price
             result = await db.execute(
-                select(Holding.id).where(
+                select(Holding.id)
+                .where(
                     Holding.organization_id == organization_id,
                     (Holding.price_as_of.is_(None)) | (Holding.price_as_of < cutoff),
-                ).limit(1)
+                )
+                .limit(1)
             )
             if result.scalar_one_or_none() is None:
                 logger.debug("Holdings prices are fresh; skipping login-triggered refresh")
@@ -483,7 +499,9 @@ async def _verify_and_consume_backup_code(
         if hashed_code and mfa_service.verify_backup_code(code, hashed_code):
             stored_hashes[i] = ""
             remaining = [c for c in stored_hashes if c]
-            user_mfa.backup_codes = mfa_service.encrypt_backup_codes(remaining) if remaining else None
+            user_mfa.backup_codes = (
+                mfa_service.encrypt_backup_codes(remaining) if remaining else None
+            )
             await db.flush()
             return True
     return False
@@ -653,7 +671,8 @@ async def refresh_access_token(
         user = await user_crud.get_by_id(db, refresh_token.user_id)
         if not user or not user.is_active:
             logger.warning(
-                f"Token refresh failed: User not found or inactive (user_id: {refresh_token.user_id})"
+                "Token refresh failed: User not found or inactive"
+                f" (user_id: {refresh_token.user_id})"
             )
             _clear_refresh_cookie(response)
             raise HTTPException(
@@ -723,9 +742,7 @@ async def verify_email(
 
     token_hash = hash_token(token)
     result = await db.execute(
-        select(EmailVerificationToken).where(
-            EmailVerificationToken.token_hash == token_hash
-        )
+        select(EmailVerificationToken).where(EmailVerificationToken.token_hash == token_hash)
     )
     record = result.scalar_one_or_none()
 
@@ -772,9 +789,10 @@ async def resend_verification(
     )
 
     response: dict = {"message": "Verification email sent"}
-    # In development, return the raw token so devs can test without a real SMTP server
-    if settings.ENVIRONMENT == "development":
-        response["token"] = raw_token
+    # In development+debug, return the raw token so devs can test without SMTP.
+    # Requires both flags to prevent accidental token leakage.
+    if settings.ENVIRONMENT == "development" and settings.DEBUG:
+        response["debug_token"] = raw_token
     return response
 
 
@@ -798,8 +816,8 @@ async def forgot_password(
 
     Always returns 200 regardless of whether the email is registered — this
     prevents user enumeration. Rate limited to 5 requests per hour per IP.
-    In development mode, the raw token is included in the response for testing
-    without a real SMTP server.
+    In development+debug mode, the raw token is included in the response for
+    testing without a real SMTP server.
     """
     await rate_limit_service.check_rate_limit(request=request, max_requests=5, window_seconds=3600)
 
@@ -820,9 +838,9 @@ async def forgot_password(
             display_name=user.display_name or user.first_name or user.email,
         )
         logger.info("Password reset requested for %s", redact_email(user.email))
-        # In development, return the raw token so devs can test without SMTP
-        if settings.ENVIRONMENT == "development":
-            response["token"] = raw_token
+        # In development+debug, return the raw token so devs can test without SMTP.
+        if settings.ENVIRONMENT == "development" and settings.DEBUG:
+            response["debug_token"] = raw_token
 
     return response
 
@@ -859,9 +877,7 @@ async def reset_password(
 
     # Validate password strength and check against breach database —
     # same checks applied at registration and change-password endpoints.
-    await password_validation_service.validate_and_raise_async(
-        data.new_password, check_breach=True
-    )
+    await password_validation_service.validate_and_raise_async(data.new_password, check_breach=True)
 
     user.password_hash = hash_password(data.new_password)
     user.failed_login_attempts = 0

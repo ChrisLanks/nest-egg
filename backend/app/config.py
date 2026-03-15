@@ -129,6 +129,12 @@ class Settings(BaseSettings):
     # Authentication & Account Security
     MAX_LOGIN_ATTEMPTS: int = 5
     ACCOUNT_LOCKOUT_MINUTES: int = 30
+    # Explicit flags for security features — default based on ENVIRONMENT.
+    # Override with env vars to enable in dev (testing) or disable in staging.
+    ENFORCE_ACCOUNT_LOCKOUT: Optional[bool] = (
+        None  # None = auto (enabled unless ENVIRONMENT=development)
+    )
+    ENFORCE_MFA: Optional[bool] = None  # None = auto (enabled unless ENVIRONMENT=development)
 
     # Monitoring
     SENTRY_DSN: Optional[str] = None
@@ -290,6 +296,16 @@ class Settings(BaseSettings):
                 )
 
         return v
+
+    @field_validator("ENFORCE_ACCOUNT_LOCKOUT", "ENFORCE_MFA")
+    @classmethod
+    def resolve_security_flags(cls, v: Optional[bool]) -> bool:
+        """Default security flags to True unless ENVIRONMENT=development."""
+        if v is not None:
+            return v
+        import os
+
+        return os.getenv("ENVIRONMENT", "development") != "development"
 
     @field_validator("APP_BASE_URL")
     @classmethod

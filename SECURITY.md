@@ -10,7 +10,7 @@
    - Generate: `openssl rand -hex 32`
    - Used for: JWT token generation and validation
 
-2. **ENCRYPTION_KEY** - Data encryption key
+2. **MASTER_ENCRYPTION_KEY** - Data encryption key
    - Minimum length: 32 characters
    - Generate: `openssl rand -base64 32`
    - Used for: Encrypting Plaid access tokens in database
@@ -67,7 +67,7 @@
 1. **DO NOT rotate without data migration plan**
 2. Generate new key: `openssl rand -base64 32`
 3. Create migration script to re-encrypt all Plaid tokens
-4. Update `ENCRYPTION_KEY`
+4. Update `MASTER_ENCRYPTION_KEY`
 5. Run migration
 6. Restart application
 
@@ -111,7 +111,7 @@
 ```bash
 # Critical - Must be set
 SECRET_KEY=<64-char-hex-string>
-ENCRYPTION_KEY=<base64-encoded-32-bytes>
+MASTER_ENCRYPTION_KEY=<base64-encoded-32-bytes>
 DATABASE_URL=postgresql://user:strong_password@prod-db:5432/nestegg
 DEBUG=false
 
@@ -131,7 +131,7 @@ PLAID_WEBHOOK_SECRET=<from-plaid-dashboard>
 ```bash
 # Development - Can use test values
 SECRET_KEY=dev-secret-key-at-least-32-characters-long
-ENCRYPTION_KEY=dev-encryption-key-base64-encoded
+MASTER_ENCRYPTION_KEY=dev-encryption-key-base64-encoded
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/nestegg_dev
 DEBUG=true
 
@@ -151,7 +151,7 @@ PLAID_SECRET=<sandbox-secret>
 
 - [ ] DEBUG mode disabled (`DEBUG=false`)
 - [ ] Strong SECRET_KEY (32+ chars, random)
-- [ ] Strong ENCRYPTION_KEY (32+ bytes, random)
+- [ ] Strong MASTER_ENCRYPTION_KEY (32+ bytes, random)
 - [ ] Strong database password (16+ chars)
 - [ ] CORS_ORIGINS set to specific domain(s)
 - [ ] ALLOWED_HOSTS set to specific domain(s)
