@@ -34,41 +34,44 @@ import {
   Radio,
   Stack,
   ButtonGroup,
-} from '@chakra-ui/react';
-import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { permissionsApi } from '../api/permissionsApi';
+} from "@chakra-ui/react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { permissionsApi } from "../api/permissionsApi";
 import type {
   GrantAction,
   PermissionGrant,
   ResourceType,
-} from '../api/permissionsApi';
+} from "../api/permissionsApi";
 
 const RESOURCE_TYPE_LABELS: Record<string, string> = {
-  account: 'Accounts',
-  transaction: 'Transactions',
-  bill: 'Bills',
-  holding: 'Investments / Holdings',
-  budget: 'Budgets',
-  category: 'Categories',
-  rule: 'Transaction Rules',
-  savings_goal: 'Savings Goals',
-  contribution: 'Contributions',
-  recurring_transaction: 'Recurring Transactions',
-  report: 'Reports',
-  org_settings: 'Household Settings',
-  retirement_scenario: 'Retirement Planner',
+  account: "Accounts",
+  transaction: "Transactions",
+  bill: "Bills",
+  holding: "Investments / Holdings",
+  budget: "Budgets",
+  category: "Categories",
+  rule: "Transaction Rules",
+  savings_goal: "Savings Goals",
+  contribution: "Contributions",
+  recurring_transaction: "Recurring Transactions",
+  report: "Reports",
+  org_settings: "Household Settings",
+  retirement_scenario: "Retirement Planner",
+  education_plan: "Education Planning",
+  fire_plan: "FIRE Calculator",
 };
 
 /** All grantable resource types (matches backend RESOURCE_TYPES). */
 const ALL_RESOURCE_TYPES = Object.keys(RESOURCE_TYPE_LABELS) as ResourceType[];
 
 /** Write-only actions shown in the UI — read is always included in the payload. */
-const WRITE_ACTIONS: { value: Exclude<GrantAction, 'read'>; label: string }[] = [
-  { value: 'create', label: 'Create' },
-  { value: 'update', label: 'Edit' },
-  { value: 'delete', label: 'Delete' },
-];
+const WRITE_ACTIONS: { value: Exclude<GrantAction, "read">; label: string }[] =
+  [
+    { value: "create", label: "Create" },
+    { value: "update", label: "Edit" },
+    { value: "delete", label: "Delete" },
+  ];
 
 interface GrantModalProps {
   isOpen: boolean;
@@ -81,41 +84,48 @@ export const GrantModal = ({ isOpen, onClose, editGrant }: GrantModalProps) => {
   const queryClient = useQueryClient();
 
   const { data: members = [] } = useQuery({
-    queryKey: ['permissions', 'members'],
+    queryKey: ["permissions", "members"],
     queryFn: () => permissionsApi.listMembers(),
     enabled: isOpen,
   });
 
-  const [granteeId, setGranteeId] = useState<string>(editGrant?.grantee_id ?? '');
-  const [scope, setScope] = useState<'specific' | 'all'>('specific');
+  const [granteeId, setGranteeId] = useState<string>(
+    editGrant?.grantee_id ?? "",
+  );
+  const [scope, setScope] = useState<"specific" | "all">("specific");
   const [resourceType, setResourceType] = useState<ResourceType>(
-    (editGrant?.resource_type as ResourceType) ?? 'account',
+    (editGrant?.resource_type as ResourceType) ?? "account",
   );
   // Write actions only — read is always prepended before submission
-  const [writeActions, setWriteActions] = useState<Exclude<GrantAction, 'read'>[]>(() => {
+  const [writeActions, setWriteActions] = useState<
+    Exclude<GrantAction, "read">[]
+  >(() => {
     if (!editGrant) return [];
-    return editGrant.actions.filter((a) => a !== 'read') as Exclude<GrantAction, 'read'>[];
+    return editGrant.actions.filter((a) => a !== "read") as Exclude<
+      GrantAction,
+      "read"
+    >[];
   });
   const [expiresAt, setExpiresAt] = useState<string>(
-    editGrant?.expires_at ? editGrant.expires_at.split('T')[0] : '',
+    editGrant?.expires_at ? editGrant.expires_at.split("T")[0] : "",
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['permissions', 'given'] });
-    queryClient.invalidateQueries({ queryKey: ['permissions', 'audit'] });
-    queryClient.invalidateQueries({ queryKey: ['permissions', 'received'] });
+    queryClient.invalidateQueries({ queryKey: ["permissions", "given"] });
+    queryClient.invalidateQueries({ queryKey: ["permissions", "audit"] });
+    queryClient.invalidateQueries({ queryKey: ["permissions", "received"] });
   };
 
   const createMutation = useMutation({
     mutationFn: async (payload: {
-      scope: 'specific' | 'all';
+      scope: "specific" | "all";
       grantee_id: string;
       resource_type: ResourceType;
       actions: GrantAction[];
       expires_at: string | null;
     }) => {
-      if (payload.scope === 'all') {
+      if (payload.scope === "all") {
         await Promise.all(
           ALL_RESOURCE_TYPES.map((rt) =>
             permissionsApi.createGrant({
@@ -152,7 +162,7 @@ export const GrantModal = ({ isOpen, onClose, editGrant }: GrantModalProps) => {
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
-    if (!granteeId) e.granteeId = 'Please select a household member';
+    if (!granteeId) e.granteeId = "Please select a household member";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -161,13 +171,19 @@ export const GrantModal = ({ isOpen, onClose, editGrant }: GrantModalProps) => {
     if (!validate()) return;
 
     // Always include 'read' in the submitted actions
-    const actions: GrantAction[] = ['read', ...writeActions];
+    const actions: GrantAction[] = ["read", ...writeActions];
     const expires_at = expiresAt ? new Date(expiresAt).toISOString() : null;
 
     if (editGrant) {
       updateMutation.mutate({ actions, expires_at });
     } else {
-      createMutation.mutate({ scope, grantee_id: granteeId, resource_type: resourceType, actions, expires_at });
+      createMutation.mutate({
+        scope,
+        grantee_id: granteeId,
+        resource_type: resourceType,
+        actions,
+        expires_at,
+      });
     }
   };
 
@@ -180,7 +196,7 @@ export const GrantModal = ({ isOpen, onClose, editGrant }: GrantModalProps) => {
     <Modal isOpen={isOpen} onClose={onClose} size="md">
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>{editGrant ? 'Edit Grant' : 'Grant Access'}</ModalHeader>
+        <ModalHeader>{editGrant ? "Edit Grant" : "Grant Access"}</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <VStack spacing={4} align="stretch">
@@ -201,7 +217,7 @@ export const GrantModal = ({ isOpen, onClose, editGrant }: GrantModalProps) => {
                   {members.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.display_name ||
-                        [m.first_name, m.last_name].filter(Boolean).join(' ') ||
+                        [m.first_name, m.last_name].filter(Boolean).join(" ") ||
                         m.email}
                     </option>
                   ))}
@@ -214,7 +230,10 @@ export const GrantModal = ({ isOpen, onClose, editGrant }: GrantModalProps) => {
             {!editGrant && (
               <FormControl isRequired>
                 <FormLabel>Sections</FormLabel>
-                <RadioGroup value={scope} onChange={(v) => setScope(v as 'specific' | 'all')}>
+                <RadioGroup
+                  value={scope}
+                  onChange={(v) => setScope(v as "specific" | "all")}
+                >
                   <Stack direction="row" spacing={4}>
                     <Radio value="specific">Specific section</Radio>
                     <Radio value="all">All sections</Radio>
@@ -224,18 +243,22 @@ export const GrantModal = ({ isOpen, onClose, editGrant }: GrantModalProps) => {
             )}
 
             {/* Section picker (create + specific scope only) */}
-            {!editGrant && scope === 'specific' && (
+            {!editGrant && scope === "specific" && (
               <FormControl isRequired>
                 <FormLabel>Section</FormLabel>
                 <Select
                   value={resourceType}
-                  onChange={(e) => setResourceType(e.target.value as ResourceType)}
+                  onChange={(e) =>
+                    setResourceType(e.target.value as ResourceType)
+                  }
                 >
-                  {Object.entries(RESOURCE_TYPE_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
+                  {Object.entries(RESOURCE_TYPE_LABELS).map(
+                    ([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ),
+                  )}
                 </Select>
               </FormControl>
             )}
@@ -248,8 +271,12 @@ export const GrantModal = ({ isOpen, onClose, editGrant }: GrantModalProps) => {
                 <FormLabel mb={0}>Write permissions</FormLabel>
                 <ButtonGroup size="xs" variant="outline">
                   <Button
-                    colorScheme={writeActions.length === 3 ? 'brand' : undefined}
-                    onClick={() => setWriteActions(['create', 'update', 'delete'])}
+                    colorScheme={
+                      writeActions.length === 3 ? "brand" : undefined
+                    }
+                    onClick={() =>
+                      setWriteActions(["create", "update", "delete"])
+                    }
                   >
                     Full Edit
                   </Button>
@@ -257,12 +284,13 @@ export const GrantModal = ({ isOpen, onClose, editGrant }: GrantModalProps) => {
                 </ButtonGroup>
               </HStack>
               <Text fontSize="xs" color="text.muted" mb={2}>
-                Read access is always included. Select extra write permissions below.
+                Read access is always included. Select extra write permissions
+                below.
               </Text>
               <CheckboxGroup
                 value={writeActions}
                 onChange={(vals) =>
-                  setWriteActions(vals as Exclude<GrantAction, 'read'>[])
+                  setWriteActions(vals as Exclude<GrantAction, "read">[])
                 }
               >
                 <HStack spacing={4} wrap="wrap">
@@ -282,22 +310,31 @@ export const GrantModal = ({ isOpen, onClose, editGrant }: GrantModalProps) => {
                 type="date"
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
+                min={new Date().toISOString().split("T")[0]}
               />
             </FormControl>
           </VStack>
         </ModalBody>
 
         <ModalFooter>
-          <Button variant="ghost" mr={3} onClick={onClose} isDisabled={isLoading}>
+          <Button
+            variant="ghost"
+            mr={3}
+            onClick={onClose}
+            isDisabled={isLoading}
+          >
             Cancel
           </Button>
-          <Button colorScheme="brand" onClick={handleSubmit} isLoading={isLoading}>
+          <Button
+            colorScheme="brand"
+            onClick={handleSubmit}
+            isLoading={isLoading}
+          >
             {editGrant
-              ? 'Save Changes'
-              : scope === 'all'
-              ? 'Grant All Sections'
-              : 'Grant Access'}
+              ? "Save Changes"
+              : scope === "all"
+                ? "Grant All Sections"
+                : "Grant Access"}
           </Button>
         </ModalFooter>
       </ModalContent>

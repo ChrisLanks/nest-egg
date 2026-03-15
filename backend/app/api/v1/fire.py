@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user, verify_household_member
 from app.models.user import User
 from app.services.fire_service import FireService
+from app.services.permission_service import permission_service
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,13 @@ async def get_fire_metrics(
     """
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
+        await permission_service.require(
+            db,
+            actor=current_user,
+            action="read",
+            resource_type="fire_plan",
+            owner_id=user_id,
+        )
 
     service = FireService(db)
     metrics = await service.get_fire_dashboard(

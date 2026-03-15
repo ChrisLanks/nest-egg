@@ -175,6 +175,12 @@ describe("getResourceTypeForPath", () => {
     expect(getResourceTypeForPath("/reports")).toBe("report");
     expect(getResourceTypeForPath("/tax-deductible")).toBe("report");
     expect(getResourceTypeForPath("/debt-payoff")).toBe("report");
+    expect(getResourceTypeForPath("/year-in-review")).toBe("report");
+    expect(getResourceTypeForPath("/rental-properties")).toBe("report");
+    expect(getResourceTypeForPath("/education")).toBe("education_plan");
+    expect(getResourceTypeForPath("/fire")).toBe("fire_plan");
+    expect(getResourceTypeForPath("/calendar")).toBe("recurring_transaction");
+    expect(getResourceTypeForPath("/retirement")).toBe("retirement_scenario");
   });
 
   it("resolves dynamic sub-routes via prefix matching", () => {

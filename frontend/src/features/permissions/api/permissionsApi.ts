@@ -2,24 +2,26 @@
  * Permissions API — grant management for household data sharing.
  */
 
-import api from '../../../services/api';
+import api from "../../../services/api";
 
-export type GrantAction = 'read' | 'create' | 'update' | 'delete';
+export type GrantAction = "read" | "create" | "update" | "delete";
 
 export type ResourceType =
-  | 'account'
-  | 'transaction'
-  | 'bill'
-  | 'holding'
-  | 'budget'
-  | 'category'
-  | 'rule'
-  | 'savings_goal'
-  | 'contribution'
-  | 'recurring_transaction'
-  | 'report'
-  | 'org_settings'
-  | 'retirement_scenario';
+  | "account"
+  | "transaction"
+  | "bill"
+  | "holding"
+  | "budget"
+  | "category"
+  | "rule"
+  | "savings_goal"
+  | "contribution"
+  | "recurring_transaction"
+  | "report"
+  | "org_settings"
+  | "retirement_scenario"
+  | "education_plan"
+  | "fire_plan";
 
 export interface PermissionGrant {
   id: string;
@@ -39,7 +41,7 @@ export interface PermissionGrant {
 export interface GrantAuditEntry {
   id: string;
   grant_id: string | null;
-  action: 'created' | 'updated' | 'revoked';
+  action: "created" | "updated" | "revoked";
   actor_id: string | null;
   grantor_id: string | null;
   grantee_id: string | null;
@@ -74,37 +76,45 @@ export interface GrantUpdatePayload {
 
 export const permissionsApi = {
   listGiven: async (): Promise<PermissionGrant[]> => {
-    const res = await api.get<PermissionGrant[]>('/permissions/given');
+    const res = await api.get<PermissionGrant[]>("/permissions/given");
     return res.data;
   },
 
   listReceived: async (): Promise<PermissionGrant[]> => {
-    const res = await api.get<PermissionGrant[]>('/permissions/received');
+    const res = await api.get<PermissionGrant[]>("/permissions/received");
     return res.data;
   },
 
   listAudit: async (): Promise<GrantAuditEntry[]> => {
-    const res = await api.get<GrantAuditEntry[]>('/permissions/audit');
+    const res = await api.get<GrantAuditEntry[]>("/permissions/audit");
     return res.data;
   },
 
   listMembers: async (): Promise<HouseholdMember[]> => {
-    const res = await api.get<HouseholdMember[]>('/permissions/members');
+    const res = await api.get<HouseholdMember[]>("/permissions/members");
     return res.data;
   },
 
   listResourceTypes: async (): Promise<string[]> => {
-    const res = await api.get<string[]>('/permissions/resource-types');
+    const res = await api.get<string[]>("/permissions/resource-types");
     return res.data;
   },
 
-  createGrant: async (payload: GrantCreatePayload): Promise<PermissionGrant> => {
-    const res = await api.post<PermissionGrant>('/permissions/grants', payload);
+  createGrant: async (
+    payload: GrantCreatePayload,
+  ): Promise<PermissionGrant> => {
+    const res = await api.post<PermissionGrant>("/permissions/grants", payload);
     return res.data;
   },
 
-  updateGrant: async (grantId: string, payload: GrantUpdatePayload): Promise<PermissionGrant> => {
-    const res = await api.put<PermissionGrant>(`/permissions/grants/${grantId}`, payload);
+  updateGrant: async (
+    grantId: string,
+    payload: GrantUpdatePayload,
+  ): Promise<PermissionGrant> => {
+    const res = await api.put<PermissionGrant>(
+      `/permissions/grants/${grantId}`,
+      payload,
+    );
     return res.data;
   },
 

@@ -4,12 +4,12 @@ import uuid
 from typing import Final
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Column,
     DateTime,
     ForeignKey,
     Index,
-    JSON,
     String,
     UniqueConstraint,
 )
@@ -37,6 +37,8 @@ RESOURCE_TYPES: Final[tuple] = (
     "report",
     "org_settings",
     "retirement_scenario",
+    "education_plan",
+    "fire_plan",
 )
 
 GRANT_ACTIONS: Final[tuple] = ("read", "create", "update", "delete")

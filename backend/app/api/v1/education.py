@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user, verify_household_member
 from app.models.user import User
 from app.services.education_planning_service import education_planning_service
+from app.services.permission_service import permission_service
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,13 @@ async def list_education_plans(
     target_user_id = None
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
+        await permission_service.require(
+            db,
+            actor=current_user,
+            action="read",
+            resource_type="education_plan",
+            owner_id=user_id,
+        )
         target_user_id = user_id
 
     plans = await education_planning_service.get_education_plans(

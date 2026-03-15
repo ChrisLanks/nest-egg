@@ -28,6 +28,11 @@ export const ROUTE_TO_RESOURCE_TYPE: Record<string, string> = {
   "/tax-deductible": "report",
   "/debt-payoff": "report",
   "/retirement": "retirement_scenario",
+  "/year-in-review": "report",
+  "/rental-properties": "report",
+  "/education": "education_plan",
+  "/fire": "fire_plan",
+  "/calendar": "recurring_transaction",
 };
 
 /** Human-friendly label for each resource type */
@@ -45,6 +50,8 @@ export const RESOURCE_TYPE_LABELS: Record<string, string> = {
   contribution: "Contributions",
   org_settings: "Settings",
   retirement_scenario: "Retirement Planner",
+  education_plan: "Education Planning",
+  fire_plan: "FIRE Calculator",
 };
 
 /**
