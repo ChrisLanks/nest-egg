@@ -789,6 +789,192 @@ class TestSyncTransactions:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# sync_transactions — cursor-based pagination
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestSyncTransactionsPagination:
+    """Tests for Teller cursor-based pagination in sync_transactions."""
+
+    @pytest.mark.asyncio
+    async def test_multi_page_pagination(self):
+        """Should paginate using from_id when first page returns a full 250 items."""
+        with patch("app.services.teller_service.settings") as mock_settings:
+            mock_settings.TELLER_APP_ID = "app_123"
+            mock_settings.TELLER_API_KEY = "key"  # pragma: allowlist secret
+            mock_settings.TELLER_CERT_PATH = ""
+            service = TellerService()
+
+            enrollment = _make_enrollment()
+            account = _make_account(
+                org_id=enrollment.organization_id,
+                enrollment_id=enrollment.id,
+            )
+
+            # Page 1: 250 items (full page)
+            page1 = [
+                {
+                    "id": f"txn_{i}",
+                    "date": "2026-03-10",
+                    "amount": f"-{i}.00",
+                    "description": f"Merchant {i}",
+                    "status": "posted",
+                    "details": {},
+                }
+                for i in range(250)
+            ]
+
+            # Page 2: 3 items (partial page, triggers stop)
+            page2 = [
+                {
+                    "id": f"txn_25{i}",
+                    "date": "2026-03-09",
+                    "amount": f"-{i + 250}.00",
+                    "description": f"Merchant {i + 250}",
+                    "status": "posted",
+                    "details": {},
+                }
+                for i in range(3)
+            ]
+
+            service._make_request = AsyncMock(side_effect=[page1, page2])
+
+            db = AsyncMock()
+
+            enrollment_result = MagicMock()
+            enrollment_result.scalar_one_or_none.return_value = enrollment
+
+            ext_ids_result = MagicMock()
+            ext_ids_result.all.return_value = []
+
+            db.execute = AsyncMock(side_effect=[enrollment_result, ext_ids_result])
+
+            nested_ctx = AsyncMock()
+            nested_ctx.__aenter__ = AsyncMock()
+            nested_ctx.__aexit__ = AsyncMock(return_value=False)
+            db.begin_nested = MagicMock(return_value=nested_ctx)
+            db.commit = AsyncMock()
+
+            with patch("app.services.teller_service.redis_client", None):
+                result = await service.sync_transactions(db, account)
+
+            # All 253 transactions should be synced
+            assert len(result) == 253
+
+            # Verify pagination: second call should have from_id set
+            assert service._make_request.call_count == 2
+            second_call_kwargs = service._make_request.call_args_list[1]
+            params = second_call_kwargs.kwargs.get("params") or second_call_kwargs[1].get("params")
+            assert params["from_id"] == "txn_249"
+
+    @pytest.mark.asyncio
+    async def test_cutoff_date_filters_old_transactions(self):
+        """Transactions older than 90 days should stop pagination."""
+        with patch("app.services.teller_service.settings") as mock_settings:
+            mock_settings.TELLER_APP_ID = "app_123"
+            mock_settings.TELLER_API_KEY = "key"  # pragma: allowlist secret
+            mock_settings.TELLER_CERT_PATH = ""
+            service = TellerService()
+
+            enrollment = _make_enrollment()
+            account = _make_account(
+                org_id=enrollment.organization_id,
+                enrollment_id=enrollment.id,
+            )
+
+            # Mix of recent and old transactions
+            page = [
+                {
+                    "id": "txn_recent",
+                    "date": "2026-03-10",
+                    "amount": "-50.00",
+                    "description": "Recent",
+                    "status": "posted",
+                    "details": {},
+                },
+                {
+                    "id": "txn_old",
+                    "date": "2025-01-01",
+                    "amount": "-30.00",
+                    "description": "Old",
+                    "status": "posted",
+                    "details": {},
+                },
+            ]
+
+            service._make_request = AsyncMock(return_value=page)
+
+            db = AsyncMock()
+
+            enrollment_result = MagicMock()
+            enrollment_result.scalar_one_or_none.return_value = enrollment
+
+            ext_ids_result = MagicMock()
+            ext_ids_result.all.return_value = []
+
+            db.execute = AsyncMock(side_effect=[enrollment_result, ext_ids_result])
+
+            nested_ctx = AsyncMock()
+            nested_ctx.__aenter__ = AsyncMock()
+            nested_ctx.__aexit__ = AsyncMock(return_value=False)
+            db.begin_nested = MagicMock(return_value=nested_ctx)
+            db.commit = AsyncMock()
+
+            with patch("app.services.teller_service.redis_client", None):
+                result = await service.sync_transactions(db, account)
+
+            # Only the recent transaction should be synced
+            assert len(result) == 1
+            # Only one API call since cutoff was reached in first page
+            assert service._make_request.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_empty_page_stops_pagination(self):
+        """Empty response from _make_request should exit the loop."""
+        with patch("app.services.teller_service.settings") as mock_settings:
+            mock_settings.TELLER_APP_ID = "app_123"
+            mock_settings.TELLER_API_KEY = "key"  # pragma: allowlist secret
+            mock_settings.TELLER_CERT_PATH = ""
+            service = TellerService()
+
+            enrollment = _make_enrollment()
+            account = _make_account(
+                org_id=enrollment.organization_id,
+                enrollment_id=enrollment.id,
+            )
+
+            service._make_request = AsyncMock(return_value=[])
+
+            db = AsyncMock()
+
+            enrollment_result = MagicMock()
+            enrollment_result.scalar_one_or_none.return_value = enrollment
+
+            ext_ids_result = MagicMock()
+            ext_ids_result.all.return_value = []
+
+            db.execute = AsyncMock(side_effect=[enrollment_result, ext_ids_result])
+
+            nested_ctx = AsyncMock()
+            nested_ctx.__aenter__ = AsyncMock()
+            nested_ctx.__aexit__ = AsyncMock(return_value=False)
+            db.begin_nested = MagicMock(return_value=nested_ctx)
+            db.commit = AsyncMock()
+
+            with patch("app.services.teller_service.redis_client", None):
+                result = await service.sync_transactions(db, account)
+
+            assert result == []
+            assert service._make_request.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# get_teller_service
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.unit
 class TestGetTellerService:
     def test_returns_teller_service_instance(self):

@@ -440,6 +440,158 @@ class TestMxServiceAccountTypeMapping:
         assert mx_service._map_account_type("checking") == (AccountType.CHECKING, None)
 
 
+class TestMxTransactionPagination:
+    """Test MX page-based pagination in sync_transactions."""
+
+    @pytest.mark.asyncio
+    async def test_multi_page_transaction_sync(self, mx_service, db_session):
+        """Should fetch multiple pages when total_pages > 1."""
+        from app.models.user import Organization, User
+
+        org = Organization(id=uuid4(), name="Test Org")
+        db_session.add(org)
+        await db_session.flush()
+
+        user = User(
+            id=uuid4(),
+            organization_id=org.id,
+            email="test@test.com",
+            password_hash="hash",
+            first_name="Test",
+            last_name="User",
+        )
+        db_session.add(user)
+        await db_session.flush()
+
+        member = MxMember(
+            id=uuid4(),
+            organization_id=org.id,
+            user_id=user.id,
+            mx_user_guid="USR-abc123",
+            member_guid="MBR-xyz789",
+        )
+        db_session.add(member)
+        await db_session.flush()
+
+        account = Account(
+            id=uuid4(),
+            organization_id=org.id,
+            user_id=user.id,
+            mx_member_id=member.id,
+            external_account_id="ACT-001",
+            name="Chase Checking",
+            account_type=AccountType.CHECKING,
+            account_source=AccountSource.MX,
+        )
+        db_session.add(account)
+        await db_session.flush()
+
+        page1_data = {
+            "transactions": [
+                {
+                    "guid": "TRN-P1-001",
+                    "date": "2026-03-10",
+                    "amount": -25.00,
+                    "description": "Coffee Shop",
+                    "top_level_category": "Food & Dining",
+                    "category": "Coffee Shops",
+                    "status": "POSTED",
+                },
+            ],
+            "pagination": {"current_page": 1, "total_pages": 2},
+        }
+
+        page2_data = {
+            "transactions": [
+                {
+                    "guid": "TRN-P2-001",
+                    "date": "2026-03-09",
+                    "amount": -15.00,
+                    "description": "Uber",
+                    "top_level_category": "Auto & Transport",
+                    "category": "Ride Share",
+                    "status": "POSTED",
+                },
+            ],
+            "pagination": {"current_page": 2, "total_pages": 2},
+        }
+
+        mx_service._make_request = AsyncMock(side_effect=[page1_data, page2_data])
+
+        transactions = await mx_service.sync_transactions(db_session, account)
+
+        assert len(transactions) == 2
+        assert transactions[0].external_transaction_id == "TRN-P1-001"
+        assert transactions[1].external_transaction_id == "TRN-P2-001"
+        assert mx_service._make_request.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_single_page_stops_immediately(self, mx_service, db_session):
+        """Should only make one API call when total_pages == 1."""
+        from app.models.user import Organization, User
+
+        org = Organization(id=uuid4(), name="Test Org")
+        db_session.add(org)
+        await db_session.flush()
+
+        user = User(
+            id=uuid4(),
+            organization_id=org.id,
+            email="test@test.com",
+            password_hash="hash",
+            first_name="Test",
+            last_name="User",
+        )
+        db_session.add(user)
+        await db_session.flush()
+
+        member = MxMember(
+            id=uuid4(),
+            organization_id=org.id,
+            user_id=user.id,
+            mx_user_guid="USR-abc123",
+            member_guid="MBR-xyz789",
+        )
+        db_session.add(member)
+        await db_session.flush()
+
+        account = Account(
+            id=uuid4(),
+            organization_id=org.id,
+            user_id=user.id,
+            mx_member_id=member.id,
+            external_account_id="ACT-001",
+            name="Chase Checking",
+            account_type=AccountType.CHECKING,
+            account_source=AccountSource.MX,
+        )
+        db_session.add(account)
+        await db_session.flush()
+
+        single_page_data = {
+            "transactions": [
+                {
+                    "guid": "TRN-SINGLE-001",
+                    "date": "2026-03-10",
+                    "amount": -42.50,
+                    "description": "STARBUCKS #1234",
+                    "top_level_category": "Food & Dining",
+                    "category": "Coffee Shops",
+                    "status": "POSTED",
+                },
+            ],
+            "pagination": {"current_page": 1, "total_pages": 1},
+        }
+
+        mx_service._make_request = AsyncMock(return_value=single_page_data)
+
+        transactions = await mx_service.sync_transactions(db_session, account)
+
+        assert len(transactions) == 1
+        assert transactions[0].external_transaction_id == "TRN-SINGLE-001"
+        assert mx_service._make_request.call_count == 1
+
+
 class TestMxServiceMakeRequest:
     """Test the HTTP request layer."""
 

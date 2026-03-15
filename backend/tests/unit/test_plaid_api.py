@@ -1,6 +1,6 @@
 """Unit tests for Plaid API endpoints."""
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -1022,3 +1022,357 @@ class TestHandleTransactionsWebhookRealUser:
 
             mock_enc.decrypt_token.assert_called_once_with("encrypted_token")
             mock_plaid_svc.sync_transactions_real.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# PlaidService.sync_transactions_real — cursor pagination
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestSyncTransactionsReal:
+    """Tests for PlaidService.sync_transactions_real() pagination logic."""
+
+    def _make_mock_txn(self, txn_id="txn_1", account_id="acc_1", amount=50.0, name="Starbucks"):
+        from datetime import date
+
+        txn = Mock()
+        txn.transaction_id = txn_id
+        txn.account_id = account_id
+        txn.date = date(2026, 3, 10)
+        txn.amount = amount
+        txn.name = name
+        txn.merchant_name = "Starbucks Coffee"
+        txn.category = ["Food", "Coffee"]
+        txn.pending = False
+        return txn
+
+    @pytest.mark.asyncio
+    async def test_single_page_sync(self):
+        """Single page with has_more=False should return all transactions."""
+        from app.services.plaid_service import PlaidService
+
+        mock_txn = self._make_mock_txn()
+
+        mock_response = Mock()
+        mock_response.added = [mock_txn]
+        mock_response.modified = []
+        mock_response.removed = []
+        mock_response.has_more = False
+        mock_response.next_cursor = "cursor_abc"
+
+        with patch("app.services.plaid_service.settings") as mock_settings:
+            mock_settings.PLAID_CLIENT_ID = "client_id"
+            mock_settings.PLAID_SECRET = "secret"  # pragma: allowlist secret
+            mock_settings.PLAID_ENV = "sandbox"
+            service = PlaidService()
+            service._get_plaid_api = Mock()
+            service._get_plaid_api().transactions_sync.return_value = mock_response
+
+            combined, removed = await service.sync_transactions_real("access_token_123")
+
+            assert len(combined) == 1
+            assert combined[0]["transaction_id"] == "txn_1"
+            assert combined[0]["amount"] == 50.0
+            assert removed == []
+
+    @pytest.mark.asyncio
+    async def test_multi_page_cursor_pagination(self):
+        """Two pages: first has_more=True, second has_more=False."""
+        from app.services.plaid_service import PlaidService
+
+        txn1 = self._make_mock_txn(txn_id="txn_1")
+        txn2 = self._make_mock_txn(txn_id="txn_2", amount=75.0)
+
+        resp1 = Mock()
+        resp1.added = [txn1]
+        resp1.modified = []
+        resp1.removed = []
+        resp1.has_more = True
+        resp1.next_cursor = "cursor_page2"
+
+        resp2 = Mock()
+        resp2.added = [txn2]
+        resp2.modified = []
+        resp2.removed = []
+        resp2.has_more = False
+        resp2.next_cursor = "cursor_page3"
+
+        with patch("app.services.plaid_service.settings") as mock_settings:
+            mock_settings.PLAID_CLIENT_ID = "client_id"
+            mock_settings.PLAID_SECRET = "secret"  # pragma: allowlist secret
+            mock_settings.PLAID_ENV = "sandbox"
+            service = PlaidService()
+            mock_client = Mock()
+            mock_client.transactions_sync.side_effect = [resp1, resp2]
+            service._get_plaid_api = Mock(return_value=mock_client)
+
+            combined, removed = await service.sync_transactions_real("access_token_123")
+
+            assert len(combined) == 2
+            assert combined[0]["transaction_id"] == "txn_1"
+            assert combined[1]["transaction_id"] == "txn_2"
+            assert mock_client.transactions_sync.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_handles_modified_and_removed(self):
+        """Should collect modified transactions and removed IDs."""
+        from app.services.plaid_service import PlaidService
+
+        added_txn = self._make_mock_txn(txn_id="txn_added")
+        modified_txn = self._make_mock_txn(txn_id="txn_modified", amount=99.0)
+
+        removed_obj = Mock()
+        removed_obj.transaction_id = "txn_removed_1"
+
+        mock_response = Mock()
+        mock_response.added = [added_txn]
+        mock_response.modified = [modified_txn]
+        mock_response.removed = [removed_obj]
+        mock_response.has_more = False
+        mock_response.next_cursor = "cursor_end"
+
+        with patch("app.services.plaid_service.settings") as mock_settings:
+            mock_settings.PLAID_CLIENT_ID = "client_id"
+            mock_settings.PLAID_SECRET = "secret"  # pragma: allowlist secret
+            mock_settings.PLAID_ENV = "sandbox"
+            service = PlaidService()
+            service._get_plaid_api = Mock()
+            service._get_plaid_api().transactions_sync.return_value = mock_response
+
+            combined, removed = await service.sync_transactions_real("access_token_123")
+
+            assert len(combined) == 2
+            assert combined[0]["transaction_id"] == "txn_added"
+            assert combined[1]["transaction_id"] == "txn_modified"
+            assert removed == ["txn_removed_1"]
+
+    @pytest.mark.asyncio
+    async def test_empty_response(self):
+        """Empty response should return empty lists."""
+        from app.services.plaid_service import PlaidService
+
+        mock_response = Mock()
+        mock_response.added = []
+        mock_response.modified = []
+        mock_response.removed = []
+        mock_response.has_more = False
+        mock_response.next_cursor = ""
+
+        with patch("app.services.plaid_service.settings") as mock_settings:
+            mock_settings.PLAID_CLIENT_ID = "client_id"
+            mock_settings.PLAID_SECRET = "secret"  # pragma: allowlist secret
+            mock_settings.PLAID_ENV = "sandbox"
+            service = PlaidService()
+            service._get_plaid_api = Mock()
+            service._get_plaid_api().transactions_sync.return_value = mock_response
+
+            combined, removed = await service.sync_transactions_real("access_token_123")
+
+            assert combined == []
+            assert removed == []
+
+    @pytest.mark.asyncio
+    async def test_plaid_api_exception_raises_502(self):
+        """plaid.ApiException should be converted to HTTPException(502)."""
+        import plaid as plaid_mod
+
+        from app.services.plaid_service import PlaidService
+
+        with patch("app.services.plaid_service.settings") as mock_settings:
+            mock_settings.PLAID_CLIENT_ID = "client_id"
+            mock_settings.PLAID_SECRET = "secret"  # pragma: allowlist secret
+            mock_settings.PLAID_ENV = "sandbox"
+            service = PlaidService()
+            mock_client = Mock()
+            mock_client.transactions_sync.side_effect = plaid_mod.ApiException(
+                status=400, reason="Bad Request"
+            )
+            service._get_plaid_api = Mock(return_value=mock_client)
+
+            with pytest.raises(HTTPException) as exc_info:
+                await service.sync_transactions_real("access_token_123")
+
+            assert exc_info.value.status_code == 502
+
+
+# ---------------------------------------------------------------------------
+# PlaidService._normalize_sync_txn
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestNormalizeSyncTxn:
+    """Tests for PlaidService._normalize_sync_txn static method."""
+
+    def test_normalizes_full_transaction(self):
+        from datetime import date
+
+        from app.services.plaid_service import PlaidService
+
+        txn = Mock()
+        txn.transaction_id = "txn_123"
+        txn.account_id = "acc_456"
+        txn.date = date(2026, 3, 10)
+        txn.amount = 42.50
+        txn.name = "Starbucks"
+        txn.merchant_name = "Starbucks Coffee"
+        txn.category = ["Food", "Coffee"]
+        txn.pending = False
+
+        result = PlaidService._normalize_sync_txn(txn)
+
+        assert result["transaction_id"] == "txn_123"
+        assert result["account_id"] == "acc_456"
+        assert result["date"] == "2026-03-10"
+        assert result["amount"] == 42.50
+        assert result["name"] == "Starbucks"
+        assert result["merchant_name"] == "Starbucks Coffee"
+        assert result["category"] == ["Food", "Coffee"]
+        assert result["pending"] is False
+
+    def test_normalizes_with_no_category(self):
+        from datetime import date
+
+        from app.services.plaid_service import PlaidService
+
+        txn = Mock()
+        txn.transaction_id = "txn_no_cat"
+        txn.account_id = "acc_1"
+        txn.date = date(2026, 3, 10)
+        txn.amount = 10.0
+        txn.name = "Test"
+        txn.merchant_name = None
+        txn.category = None
+        txn.pending = True
+
+        result = PlaidService._normalize_sync_txn(txn)
+
+        assert result["category"] == []
+        assert result["merchant_name"] == "Test"  # Falls back to name
+        assert result["pending"] is True
+
+    def test_normalizes_with_no_merchant_name_attr(self):
+        from datetime import date
+
+        from app.services.plaid_service import PlaidService
+
+        txn = Mock(spec=["transaction_id", "account_id", "date", "amount", "name", "category"])
+        txn.transaction_id = "txn_no_merch"
+        txn.account_id = "acc_1"
+        txn.date = date(2026, 3, 10)
+        txn.amount = 5.0
+        txn.name = "Store"
+        txn.category = []
+
+        result = PlaidService._normalize_sync_txn(txn)
+
+        assert result["merchant_name"] == "Store"
+        assert result["pending"] is False
+
+
+# ---------------------------------------------------------------------------
+# PlaidService.remove_item
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRemoveItem:
+    """Tests for PlaidService.remove_item()."""
+
+    @pytest.mark.asyncio
+    async def test_remove_item_success(self):
+        """Should return True on successful item removal."""
+        from app.services.plaid_service import PlaidService
+
+        with patch("app.services.plaid_service.settings") as mock_settings:
+            mock_settings.PLAID_CLIENT_ID = "client_id"
+            mock_settings.PLAID_SECRET = "secret"  # pragma: allowlist secret
+            mock_settings.PLAID_ENV = "sandbox"
+            service = PlaidService()
+            mock_client = Mock()
+            mock_client.item_remove.return_value = Mock()
+            service._get_plaid_api = Mock(return_value=mock_client)
+
+            result = await service.remove_item("access_token_123")
+
+            assert result is True
+            mock_client.item_remove.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_remove_item_api_exception(self):
+        """plaid.ApiException should propagate."""
+        import plaid as plaid_mod
+
+        from app.services.plaid_service import PlaidService
+
+        with patch("app.services.plaid_service.settings") as mock_settings:
+            mock_settings.PLAID_CLIENT_ID = "client_id"
+            mock_settings.PLAID_SECRET = "secret"  # pragma: allowlist secret
+            mock_settings.PLAID_ENV = "sandbox"
+            service = PlaidService()
+            mock_client = Mock()
+            mock_client.item_remove.side_effect = plaid_mod.ApiException(
+                status=400, reason="Bad Request"
+            )
+            service._get_plaid_api = Mock(return_value=mock_client)
+
+            with pytest.raises(plaid_mod.ApiException):
+                await service.remove_item("access_token_123")
+
+
+# ---------------------------------------------------------------------------
+# Disconnect endpoint calls remove_item
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestPlaidDisconnectRemovesItem:
+    """Verify the disconnect endpoint calls PlaidService.remove_item()."""
+
+    @pytest.mark.asyncio
+    async def test_disconnect_calls_remove_item(self):
+        """Disconnect should call remove_item to revoke the Plaid access token."""
+        from app.api.v1.bank_linking import disconnect_account
+        from app.models.account import AccountSource
+
+        mock_plaid_item = MagicMock()
+        mock_plaid_item.is_active = True
+        mock_plaid_item.access_token = "encrypted_token"
+
+        mock_account = MagicMock()
+        mock_account.account_source = AccountSource.PLAID
+        mock_account.plaid_item_id = uuid4()
+        mock_account.is_active = True
+
+        mock_db = AsyncMock()
+        mock_result1 = MagicMock()
+        mock_result1.scalar_one_or_none.return_value = mock_account
+        mock_result2 = MagicMock()
+        mock_result2.scalar_one_or_none.return_value = mock_plaid_item
+        mock_db.execute = AsyncMock(side_effect=[mock_result1, mock_result2])
+        mock_db.commit = AsyncMock()
+
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.organization_id = uuid4()
+
+        mock_request = MagicMock()
+        mock_request.client = MagicMock()
+        mock_request.client.host = "127.0.0.1"
+
+        with (
+            patch("app.api.v1.bank_linking.rate_limit_service") as mock_rate_limit,
+            patch("app.api.v1.bank_linking._encryption_service") as mock_enc,
+            patch("app.api.v1.bank_linking.PlaidService") as MockPlaidSvc,
+        ):
+            mock_rate_limit.check_rate_limit = AsyncMock()
+            mock_enc.decrypt_token.return_value = "decrypted_token"
+            mock_plaid_svc = MockPlaidSvc.return_value
+            mock_plaid_svc.remove_item = AsyncMock(return_value=True)
+
+            result = await disconnect_account(uuid4(), mock_request, mock_user, mock_db)
+
+            assert result["success"] is True
+            mock_plaid_svc.remove_item.assert_called_once_with("decrypted_token")
+            assert mock_plaid_item.is_active is False
