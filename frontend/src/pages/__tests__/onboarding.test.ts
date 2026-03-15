@@ -1,41 +1,57 @@
 /**
  * Tests for onboarding flow logic.
  *
- * Covers: localStorage-based onboarding tracking, WelcomePage step flow,
+ * Covers: DB-backed onboarding tracking, WelcomePage step flow,
  * routing behavior for new vs. returning users, and first-invite celebration.
  *
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
+import type { User } from "../../types/user";
 
-// ── localStorage onboarding gate ─────────────────────────────────────────────
+// Helper to build a minimal User object for testing
+function makeUser(overrides: Partial<User> = {}): User {
+  return {
+    id: "u1",
+    organization_id: "org1",
+    email: "test@example.com",
+    first_name: null,
+    last_name: null,
+    display_name: "Test",
+    is_active: true,
+    is_org_admin: true,
+    email_verified: false,
+    onboarding_completed: false,
+    last_login_at: null,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+// ── DB-backed onboarding gate ────────────────────────────────────────────────
 
 describe("onboarding completion tracking", () => {
-  const ONBOARDING_KEY = "nest-egg-onboarding-complete";
-
-  beforeEach(() => {
-    localStorage.clear();
+  it("new user has onboarding_completed = false", () => {
+    const user = makeUser();
+    expect(user.onboarding_completed).toBe(false);
   });
 
-  it("new user has no onboarding flag", () => {
-    expect(localStorage.getItem(ONBOARDING_KEY)).toBeNull();
-  });
-
-  it("setting the flag marks onboarding as complete", () => {
-    localStorage.setItem(ONBOARDING_KEY, "true");
-    expect(localStorage.getItem(ONBOARDING_KEY)).toBe("true");
+  it("completed user has onboarding_completed = true", () => {
+    const user = makeUser({ onboarding_completed: true });
+    expect(user.onboarding_completed).toBe(true);
   });
 
   it("Layout redirect logic: unonboarded user should be redirected", () => {
-    // Simulates what Layout.tsx checks
-    const shouldRedirect = !localStorage.getItem(ONBOARDING_KEY);
+    const user = makeUser({ onboarding_completed: false });
+    const shouldRedirect = user && !user.onboarding_completed;
     expect(shouldRedirect).toBe(true);
   });
 
   it("Layout redirect logic: onboarded user should NOT be redirected", () => {
-    localStorage.setItem(ONBOARDING_KEY, "true");
-    const shouldRedirect = !localStorage.getItem(ONBOARDING_KEY);
+    const user = makeUser({ onboarding_completed: true });
+    const shouldRedirect = user && !user.onboarding_completed;
     expect(shouldRedirect).toBe(false);
   });
 });
@@ -83,9 +99,11 @@ describe("WelcomePage step progression", () => {
     expect(shouldUpdateName).toBe(false);
   });
 
-  it("finish() sets onboarding complete in localStorage", () => {
-    localStorage.setItem("nest-egg-onboarding-complete", "true");
-    expect(localStorage.getItem("nest-egg-onboarding-complete")).toBe("true");
+  it("finish() updates user.onboarding_completed in auth store", () => {
+    const user = makeUser();
+    // Simulate what finish() does after API call succeeds
+    const updatedUser = { ...user, onboarding_completed: true };
+    expect(updatedUser.onboarding_completed).toBe(true);
   });
 });
 

@@ -36,6 +36,7 @@ import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import api from "../services/api";
 import { AddAccountModal } from "../features/accounts/components/AddAccountModal";
+import { useAuthStore } from "../features/auth/stores/authStore";
 
 const STEPS = [
   { label: "Welcome", icon: FiHome },
@@ -53,6 +54,7 @@ export default function WelcomePage() {
   const [inviteSent, setInviteSent] = useState(false);
   const navigate = useNavigate();
   const toast = useToast();
+  const { user, setUser } = useAuthStore();
 
   const updateHouseholdMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -87,8 +89,15 @@ export default function WelcomePage() {
     },
   });
 
-  const finish = () => {
-    localStorage.setItem("nest-egg-onboarding-complete", "true");
+  const finish = async () => {
+    try {
+      await api.post("/onboarding/complete");
+      if (user) {
+        setUser({ ...user, onboarding_completed: true });
+      }
+    } catch {
+      // Best-effort — don't block navigation
+    }
     navigate("/overview");
   };
 

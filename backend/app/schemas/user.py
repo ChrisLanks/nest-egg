@@ -58,6 +58,7 @@ class UserInDB(UserBase):
     is_active: bool
     is_org_admin: bool
     email_verified: bool
+    onboarding_completed: bool = False
     dashboard_layout: Optional[List[Any]] = None
     last_login_at: Optional[datetime] = None
     created_at: datetime

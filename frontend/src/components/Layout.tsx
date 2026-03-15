@@ -790,7 +790,7 @@ export const Layout = () => {
   };
 
   // Redirect new users who haven't completed onboarding
-  if (!localStorage.getItem("nest-egg-onboarding-complete")) {
+  if (user && !user.onboarding_completed) {
     return <Navigate to="/welcome" replace />;
   }
 
