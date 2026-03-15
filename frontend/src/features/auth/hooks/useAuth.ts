@@ -2,13 +2,13 @@
  * Auth hooks using React Query
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { authApi } from '../services/authApi';
-import { useAuthStore } from '../stores/authStore';
-import type { LoginRequest, RegisterRequest } from '../../../types/auth';
-import { isMFAChallenge } from '../../../types/auth';
-import { queryKeys } from '../../../services/queryClient';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { authApi } from "../services/authApi";
+import { useAuthStore } from "../stores/authStore";
+import type { LoginRequest, RegisterRequest } from "../../../types/auth";
+import { isMFAChallenge } from "../../../types/auth";
+import { queryKeys } from "../../../services/queryClient";
 
 export const useLogin = () => {
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ export const useLogin = () => {
       // MFA challenge requires user interaction — LoginPage handles that flow directly
       if (isMFAChallenge(data)) return;
       setTokens(data.access_token, data.user);
-      navigate('/dashboard');
+      navigate("/dashboard");
     },
   });
 };
@@ -33,7 +33,7 @@ export const useRegister = () => {
     mutationFn: (data: RegisterRequest) => authApi.register(data),
     onSuccess: (data) => {
       setTokens(data.access_token, data.user);
-      navigate('/dashboard');
+      navigate("/welcome");
     },
   });
 };
@@ -48,13 +48,13 @@ export const useLogout = () => {
     onSuccess: () => {
       logout();
       queryClient.clear();
-      navigate('/login');
+      navigate("/login");
     },
     onError: () => {
       // Logout locally even if API call fails
       logout();
       queryClient.clear();
-      navigate('/login');
+      navigate("/login");
     },
   });
 };

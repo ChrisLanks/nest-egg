@@ -27,6 +27,7 @@ import {
 } from "@chakra-ui/icons";
 import { FiSettings, FiLogOut, FiUsers } from "react-icons/fi";
 import {
+  Navigate,
   Outlet,
   useNavigate,
   useLocation,
@@ -787,6 +788,11 @@ export const Layout = () => {
       maximumFractionDigits: 2,
     }).format(amount);
   };
+
+  // Redirect new users who haven't completed onboarding
+  if (!localStorage.getItem("nest-egg-onboarding-complete")) {
+    return <Navigate to="/welcome" replace />;
+  }
 
   return (
     <Flex h="100vh" flexDirection="column" overflow="hidden">

@@ -20,12 +20,14 @@ import {
   AlertDescription,
   Spinner,
   HStack,
-} from '@chakra-ui/react';
-import { CheckCircleIcon, WarningIcon } from '@chakra-ui/icons';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
-import api from '../services/api';
+  Icon,
+} from "@chakra-ui/react";
+import { CheckCircleIcon, WarningIcon } from "@chakra-ui/icons";
+import { FiBarChart2, FiEye, FiShield, FiUsers } from "react-icons/fi";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+import api from "../services/api";
 
 interface InvitationDetails {
   email: string;
@@ -38,12 +40,16 @@ interface InvitationDetails {
 export const AcceptInvitationPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const invitationCode = searchParams.get('code');
+  const invitationCode = searchParams.get("code");
   const [accepted, setAccepted] = useState(false);
 
   // Fetch invitation details
-  const { data: invitation, isLoading, error } = useQuery<InvitationDetails>({
-    queryKey: ['invitation-details', invitationCode],
+  const {
+    data: invitation,
+    isLoading,
+    error,
+  } = useQuery<InvitationDetails>({
+    queryKey: ["invitation-details", invitationCode],
     queryFn: async () => {
       const response = await api.get(`/household/invitation/${invitationCode}`);
       return response.data;
@@ -62,7 +68,7 @@ export const AcceptInvitationPage: React.FC = () => {
       setAccepted(true);
       // Redirect to login after 3 seconds
       setTimeout(() => {
-        navigate('/login');
+        navigate("/login");
       }, 3000);
     },
   });
@@ -77,9 +83,10 @@ export const AcceptInvitationPage: React.FC = () => {
               <WarningIcon w={12} h={12} color="red.500" />
               <Heading size="md">Invalid Invitation Link</Heading>
               <Text color="text.secondary" textAlign="center">
-                The invitation link is missing or invalid. Please check the link and try again.
+                The invitation link is missing or invalid. Please check the link
+                and try again.
               </Text>
-              <Button colorScheme="blue" onClick={() => navigate('/login')}>
+              <Button colorScheme="blue" onClick={() => navigate("/login")}>
                 Go to Login
               </Button>
             </VStack>
@@ -115,9 +122,10 @@ export const AcceptInvitationPage: React.FC = () => {
               <WarningIcon w={12} h={12} color="red.500" />
               <Heading size="md">Invitation Not Found</Heading>
               <Text color="text.secondary" textAlign="center">
-                This invitation link is invalid, has expired, or has already been used.
+                This invitation link is invalid, has expired, or has already
+                been used.
               </Text>
-              <Button colorScheme="blue" onClick={() => navigate('/register')}>
+              <Button colorScheme="blue" onClick={() => navigate("/register")}>
                 Create New Account
               </Button>
             </VStack>
@@ -130,20 +138,76 @@ export const AcceptInvitationPage: React.FC = () => {
   // Check if invitation is expired
   const isExpired = new Date(invitation.expires_at) < new Date();
 
-  // Success state (after accepting)
+  // Success state (after accepting) — enhanced onboarding for new household member
   if (accepted) {
     return (
       <Container maxW="container.md" py={16}>
         <Card>
           <CardBody>
-            <VStack spacing={4} align="center">
+            <VStack spacing={6} align="center">
               <CheckCircleIcon w={16} h={16} color="green.500" />
-              <Heading size="lg">Invitation Accepted!</Heading>
-              <Text color="text.secondary" textAlign="center">
-                You have successfully joined the household. You will be redirected to login in a few seconds...
+              <Heading size="lg">Welcome to the Household!</Heading>
+              <Text color="text.secondary" textAlign="center" maxW="md">
+                You've joined{" "}
+                {invitation?.organization_name
+                  ? `${invitation.organization_name}'s`
+                  : "the"}{" "}
+                household on Nest Egg. Here's what you can do:
               </Text>
-              <Button colorScheme="blue" onClick={() => navigate('/login')}>
-                Go to Login Now
+
+              <VStack spacing={3} align="stretch" w="full" maxW="sm">
+                {[
+                  {
+                    icon: FiBarChart2,
+                    title: "Combined Dashboard",
+                    desc: "See household net worth, spending, and financial health together",
+                  },
+                  {
+                    icon: FiEye,
+                    title: "Individual & Household Views",
+                    desc: "Switch between your personal view and the combined household view",
+                  },
+                  {
+                    icon: FiUsers,
+                    title: "Shared Goals & Budgets",
+                    desc: "Collaborate on savings goals, budgets, and retirement planning",
+                  },
+                  {
+                    icon: FiShield,
+                    title: "Privacy Controls",
+                    desc: "Your data visibility is controlled by the household admin via permissions",
+                  },
+                ].map((item) => (
+                  <HStack
+                    key={item.title}
+                    spacing={3}
+                    p={3}
+                    borderRadius="md"
+                    bg="gray.50"
+                    _dark={{ bg: "gray.700" }}
+                  >
+                    <Icon as={item.icon} boxSize={5} color="blue.500" />
+                    <VStack align="start" spacing={0}>
+                      <Text fontSize="sm" fontWeight="semibold">
+                        {item.title}
+                      </Text>
+                      <Text fontSize="xs" color="text.secondary">
+                        {item.desc}
+                      </Text>
+                    </VStack>
+                  </HStack>
+                ))}
+              </VStack>
+
+              <Text fontSize="sm" color="text.muted" textAlign="center">
+                Redirecting to login in a few seconds...
+              </Text>
+              <Button
+                colorScheme="blue"
+                size="lg"
+                onClick={() => navigate("/login")}
+              >
+                Log In Now
               </Button>
             </VStack>
           </CardBody>
@@ -162,15 +226,16 @@ export const AcceptInvitationPage: React.FC = () => {
               <WarningIcon w={12} h={12} color="orange.500" />
               <Heading size="md">Invitation Expired</Heading>
               <Text color="text.secondary" textAlign="center">
-                This invitation expired on{' '}
-                {new Date(invitation.expires_at).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}.
-                Please contact {invitation.invited_by_email} to send you a new invitation.
+                This invitation expired on{" "}
+                {new Date(invitation.expires_at).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+                . Please contact {invitation.invited_by_email} to send you a new
+                invitation.
               </Text>
-              <Button colorScheme="blue" onClick={() => navigate('/login')}>
+              <Button colorScheme="blue" onClick={() => navigate("/login")}>
                 Go to Login
               </Button>
             </VStack>
@@ -181,7 +246,7 @@ export const AcceptInvitationPage: React.FC = () => {
   }
 
   // Invitation already accepted/declined
-  if (invitation.status !== 'pending') {
+  if (invitation.status !== "pending") {
     return (
       <Container maxW="container.md" py={16}>
         <Card>
@@ -192,7 +257,7 @@ export const AcceptInvitationPage: React.FC = () => {
               <Text color="text.secondary" textAlign="center">
                 This invitation has already been {invitation.status}.
               </Text>
-              <Button colorScheme="blue" onClick={() => navigate('/login')}>
+              <Button colorScheme="blue" onClick={() => navigate("/login")}>
                 Go to Login
               </Button>
             </VStack>
@@ -237,12 +302,12 @@ export const AcceptInvitationPage: React.FC = () => {
                   Expires:
                 </Text>
                 <Text>
-                  {new Date(invitation.expires_at).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
+                  {new Date(invitation.expires_at).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
                   })}
                 </Text>
               </Box>
@@ -253,10 +318,20 @@ export const AcceptInvitationPage: React.FC = () => {
                   <AlertTitle>What happens when you accept?</AlertTitle>
                   <AlertDescription>
                     <VStack align="start" spacing={1} mt={2}>
-                      <Text fontSize="sm">• You'll join this household and see combined financial data</Text>
-                      <Text fontSize="sm">• Your existing accounts will be linked to this household</Text>
-                      <Text fontSize="sm">• You can view individual and combined household views</Text>
-                      <Text fontSize="sm">• Household members can see shared accounts</Text>
+                      <Text fontSize="sm">
+                        • You'll join this household and see combined financial
+                        data
+                      </Text>
+                      <Text fontSize="sm">
+                        • Your existing accounts will be linked to this
+                        household
+                      </Text>
+                      <Text fontSize="sm">
+                        • You can view individual and combined household views
+                      </Text>
+                      <Text fontSize="sm">
+                        • Household members can see shared accounts
+                      </Text>
                     </VStack>
                   </AlertDescription>
                 </Box>
@@ -276,7 +351,7 @@ export const AcceptInvitationPage: React.FC = () => {
                   variant="outline"
                   size="lg"
                   flex={1}
-                  onClick={() => navigate('/login')}
+                  onClick={() => navigate("/login")}
                 >
                   Decline
                 </Button>
@@ -289,7 +364,7 @@ export const AcceptInvitationPage: React.FC = () => {
                     <AlertTitle>Failed to Accept Invitation</AlertTitle>
                     <AlertDescription>
                       {(acceptMutation.error as any)?.response?.data?.detail ||
-                        'An error occurred. Please try again or contact support.'}
+                        "An error occurred. Please try again or contact support."}
                     </AlertDescription>
                   </Box>
                 </Alert>

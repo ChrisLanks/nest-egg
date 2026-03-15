@@ -261,7 +261,7 @@ class RetirementMonteCarloService:
         )
 
         # Simulation parameters
-        num_sims = scenario.num_simulations or 1000
+        num_sims = scenario.num_simulations or 2500
         retirement_age = scenario.retirement_age
         life_expectancy = scenario.life_expectancy
         total_years = life_expectancy - current_age

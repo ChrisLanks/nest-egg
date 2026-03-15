@@ -2,6 +2,7 @@
  * Source selection step for adding accounts
  */
 
+import { useState, useEffect } from "react";
 import {
   VStack,
   Text,
@@ -11,12 +12,12 @@ import {
   Badge,
   Spinner,
   Tooltip,
-} from '@chakra-ui/react';
-import { FiLink, FiEdit3, FiDollarSign, FiAlertCircle } from 'react-icons/fi';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../../../services/api';
+} from "@chakra-ui/react";
+import { FiLink, FiEdit3, FiDollarSign, FiAlertCircle } from "react-icons/fi";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../../../services/api";
 
-export type AccountSource = 'plaid' | 'teller' | 'mx' | 'manual';
+export type AccountSource = "plaid" | "teller" | "mx" | "manual";
 
 interface ProviderAvailability {
   plaid: boolean;
@@ -26,16 +27,38 @@ interface ProviderAvailability {
 
 interface SourceSelectionStepProps {
   onSelectSource: (source: AccountSource) => void;
+  skipAutoSelect?: boolean;
 }
 
-export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps) => {
+export const SourceSelectionStep = ({
+  onSelectSource,
+  skipAutoSelect,
+}: SourceSelectionStepProps) => {
+  const [autoSelected, setAutoSelected] = useState(false);
   const { data: availability, isLoading } = useQuery<ProviderAvailability>({
-    queryKey: ['provider-availability'],
+    queryKey: ["provider-availability"],
     queryFn: async () => {
-      const response = await api.get('/accounts/providers/availability');
+      const response = await api.get("/accounts/providers/availability");
       return response.data;
     },
   });
+
+  // Auto-select when exactly one bank provider is enabled.
+  // setState in effect is intentional here: we need to trigger parent navigation
+  // once provider data loads, and this only fires once (guarded by autoSelected).
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (skipAutoSelect || autoSelected || isLoading || !availability) return;
+    const enabled: AccountSource[] = [];
+    if (availability.plaid) enabled.push("plaid");
+    if (availability.teller) enabled.push("teller");
+    if (availability.mx) enabled.push("mx");
+    if (enabled.length === 1) {
+      setAutoSelected(true);
+      onSelectSource(enabled[0]);
+    }
+  }, [skipAutoSelect, availability, isLoading, autoSelected, onSelectSource]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (isLoading) {
     return (
@@ -65,19 +88,23 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
         >
           <Box
             as="button"
-            onClick={plaidEnabled ? () => onSelectSource('plaid') : undefined}
+            onClick={plaidEnabled ? () => onSelectSource("plaid") : undefined}
             p={6}
             borderWidth={2}
             borderRadius="lg"
             borderColor="border.default"
-            _hover={plaidEnabled ? {
-              borderColor: 'brand.500',
-              bg: 'brand.subtle',
-              transform: 'translateY(-2px)',
-              shadow: 'md',
-            } : {}}
+            _hover={
+              plaidEnabled
+                ? {
+                    borderColor: "brand.500",
+                    bg: "brand.subtle",
+                    transform: "translateY(-2px)",
+                    shadow: "md",
+                  }
+                : {}
+            }
             transition="all 0.2s"
-            cursor={plaidEnabled ? 'pointer' : 'not-allowed'}
+            cursor={plaidEnabled ? "pointer" : "not-allowed"}
             opacity={plaidEnabled ? 1 : 0.5}
             position="relative"
           >
@@ -114,19 +141,23 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
         >
           <Box
             as="button"
-            onClick={tellerEnabled ? () => onSelectSource('teller') : undefined}
+            onClick={tellerEnabled ? () => onSelectSource("teller") : undefined}
             p={6}
             borderWidth={2}
             borderRadius="lg"
             borderColor="border.default"
-            _hover={tellerEnabled ? {
-              borderColor: 'green.500',
-              bg: 'bg.success',
-              transform: 'translateY(-2px)',
-              shadow: 'md',
-            } : {}}
+            _hover={
+              tellerEnabled
+                ? {
+                    borderColor: "green.500",
+                    bg: "bg.success",
+                    transform: "translateY(-2px)",
+                    shadow: "md",
+                  }
+                : {}
+            }
             transition="all 0.2s"
-            cursor={tellerEnabled ? 'pointer' : 'not-allowed'}
+            cursor={tellerEnabled ? "pointer" : "not-allowed"}
             opacity={tellerEnabled ? 1 : 0.5}
             position="relative"
           >
@@ -173,19 +204,23 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
         >
           <Box
             as="button"
-            onClick={mxEnabled ? () => onSelectSource('mx') : undefined}
+            onClick={mxEnabled ? () => onSelectSource("mx") : undefined}
             p={6}
             borderWidth={2}
             borderRadius="lg"
             borderColor="border.default"
-            _hover={mxEnabled ? {
-              borderColor: 'purple.500',
-              bg: 'purple.50',
-              transform: 'translateY(-2px)',
-              shadow: 'md',
-            } : {}}
+            _hover={
+              mxEnabled
+                ? {
+                    borderColor: "purple.500",
+                    bg: "purple.50",
+                    transform: "translateY(-2px)",
+                    shadow: "md",
+                  }
+                : {}
+            }
             transition="all 0.2s"
-            cursor={mxEnabled ? 'pointer' : 'not-allowed'}
+            cursor={mxEnabled ? "pointer" : "not-allowed"}
             opacity={mxEnabled ? 1 : 0.5}
             position="relative"
           >
@@ -217,16 +252,16 @@ export const SourceSelectionStep = ({ onSelectSource }: SourceSelectionStepProps
         {/* Manual */}
         <Box
           as="button"
-          onClick={() => onSelectSource('manual')}
+          onClick={() => onSelectSource("manual")}
           p={6}
           borderWidth={2}
           borderRadius="lg"
           borderColor="border.default"
           _hover={{
-            borderColor: 'brand.500',
-            bg: 'brand.subtle',
-            transform: 'translateY(-2px)',
-            shadow: 'md',
+            borderColor: "brand.500",
+            bg: "brand.subtle",
+            transform: "translateY(-2px)",
+            shadow: "md",
           }}
           transition="all 0.2s"
           cursor="pointer"

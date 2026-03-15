@@ -130,7 +130,7 @@ class RetirementScenarioCreate(BaseModel):
     healthcare_ltc_override: Optional[Decimal] = Field(None, ge=0)
 
     # Config
-    num_simulations: int = Field(default=1000, ge=100, le=10000)
+    num_simulations: int = Field(default=2500, ge=100, le=10000)
     inflation_adjusted: bool = True
     distribution_type: DistributionType = DistributionType.NORMAL
     is_shared: bool = True

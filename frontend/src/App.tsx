@@ -104,6 +104,7 @@ const AcceptInvitationPage = lazy(() =>
     default: m.AcceptInvitationPage,
   })),
 );
+const WelcomePage = lazy(() => import("./pages/WelcomePage"));
 const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage"));
 const ForgotPasswordPage = lazy(() =>
   import("./features/auth/pages/ForgotPasswordPage").then((m) => ({
@@ -148,6 +149,11 @@ function App() {
                     path="/reset-password"
                     element={<ResetPasswordPage />}
                   />
+
+                  {/* Protected routes without layout (onboarding) */}
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="/welcome" element={<WelcomePage />} />
+                  </Route>
 
                   {/* Protected routes with layout */}
                   <Route element={<ProtectedRoute />}>

@@ -249,7 +249,7 @@ export const GrowthProjectionsChart = ({
       const params: SimulationParams = {
         currentValue,
         years: sc.years,
-        simulations: 1000,
+        simulations: 2500,
         annualReturn: sc.annualReturn,
         volatility: sc.volatility,
         inflationRate: sc.inflationRate,

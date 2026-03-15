@@ -56,7 +56,13 @@ import {
   Th,
   Td,
 } from "@chakra-ui/react";
-import { EmailIcon, DeleteIcon, CopyIcon, CheckIcon } from "@chakra-ui/icons";
+import {
+  EmailIcon,
+  DeleteIcon,
+  CopyIcon,
+  CheckIcon,
+  CheckCircleIcon,
+} from "@chakra-ui/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useRef, useEffect } from "react";
 import api from "../services/api";
@@ -138,8 +144,14 @@ export const HouseholdSettingsPage: React.FC = () => {
     onOpen: onLeaveOpen,
     onClose: onLeaveClose,
   } = useDisclosure();
+  const {
+    isOpen: isCelebrationOpen,
+    onOpen: onCelebrationOpen,
+    onClose: onCelebrationClose,
+  } = useDisclosure();
   const leaveCancelRef = useRef<HTMLButtonElement>(null);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [celebrationEmail, setCelebrationEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const { user, logout } = useAuthStore();
   const [monthlyStartDay, setMonthlyStartDay] = useState(1);
@@ -173,15 +185,22 @@ export const HouseholdSettingsPage: React.FC = () => {
       return response.data as Invitation;
     },
     onSuccess: (data) => {
+      const isFirstInvite = !invitations || invitations.length === 0;
       toast({
         title: "Invitation sent",
         description: email_configured_hint(data),
         status: "success",
         duration: 5000,
       });
+      const sentTo = inviteEmail;
       setInviteEmail("");
       onClose();
       queryClient.invalidateQueries({ queryKey: ["household-invitations"] });
+      // Show celebration modal for first-ever invitation
+      if (isFirstInvite) {
+        setCelebrationEmail(sentTo);
+        onCelebrationOpen();
+      }
     },
     onError: (error: any) => {
       toast({
@@ -228,11 +247,13 @@ export const HouseholdSettingsPage: React.FC = () => {
   });
 
   // Sync monthlyStartDay when org preferences load or change
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (orgPrefs) {
       setMonthlyStartDay(orgPrefs.monthly_start_day || 1);
     }
   }, [orgPrefs]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Update org preferences mutation
   const updateOrgMutation = useMutation({
@@ -695,6 +716,75 @@ export const HouseholdSettingsPage: React.FC = () => {
               isLoading={inviteMutation.isPending}
             >
               Send Invitation
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* First-invite celebration modal */}
+      <Modal
+        isOpen={isCelebrationOpen}
+        onClose={onCelebrationClose}
+        isCentered
+        size="md"
+      >
+        <ModalOverlay />
+        <ModalContent>
+          <ModalCloseButton />
+          <ModalBody py={8}>
+            <VStack spacing={5} align="center">
+              <CheckCircleIcon w={16} h={16} color="green.400" />
+              <Heading size="lg" textAlign="center">
+                Your Household Is Growing!
+              </Heading>
+              <Text color="text.secondary" textAlign="center">
+                You just sent your first invitation to{" "}
+                <Text as="span" fontWeight="semibold">
+                  {celebrationEmail}
+                </Text>
+                . Once they accept, you'll both be able to:
+              </Text>
+              <VStack align="start" spacing={2} w="full" px={4}>
+                <HStack spacing={2}>
+                  <CheckCircleIcon color="green.400" />
+                  <Text fontSize="sm">
+                    View combined household net worth and spending
+                  </Text>
+                </HStack>
+                <HStack spacing={2}>
+                  <CheckCircleIcon color="green.400" />
+                  <Text fontSize="sm">
+                    Switch between individual and household views
+                  </Text>
+                </HStack>
+                <HStack spacing={2}>
+                  <CheckCircleIcon color="green.400" />
+                  <Text fontSize="sm">
+                    Share budgets, goals, and retirement plans
+                  </Text>
+                </HStack>
+                <HStack spacing={2}>
+                  <CheckCircleIcon color="green.400" />
+                  <Text fontSize="sm">
+                    Control data visibility with granular permissions
+                  </Text>
+                </HStack>
+              </VStack>
+              <Alert status="info" borderRadius="md">
+                <AlertIcon />
+                <Text fontSize="sm">
+                  You can manage permissions for each member from the{" "}
+                  <Text as="span" fontWeight="semibold">
+                    Permissions
+                  </Text>{" "}
+                  page once they join.
+                </Text>
+              </Alert>
+            </VStack>
+          </ModalBody>
+          <ModalFooter justifyContent="center">
+            <Button colorScheme="brand" onClick={onCelebrationClose} size="lg">
+              Got It
             </Button>
           </ModalFooter>
         </ModalContent>

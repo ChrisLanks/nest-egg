@@ -118,7 +118,7 @@ class RetirementScenario(Base):
     healthcare_ltc_override = Column(Numeric(10, 2), nullable=True)
 
     # Simulation config
-    num_simulations = Column(Integer, default=1000, nullable=False)
+    num_simulations = Column(Integer, default=2500, nullable=False)
     inflation_adjusted = Column(Boolean, default=True, nullable=False, server_default="true")
     distribution_type = Column(
         SQLEnum(DistributionType),

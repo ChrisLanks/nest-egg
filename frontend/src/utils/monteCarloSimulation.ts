@@ -10,7 +10,7 @@
 export interface SimulationParams {
   currentValue: number;
   years: number;
-  simulations: number; // Number of simulation runs (typically 1000)
+  simulations: number; // Number of simulation runs (typically 2500)
   annualReturn: number; // Expected annual return (e.g., 7 for 7%)
   volatility: number; // Annual volatility/std deviation (e.g., 15 for 15%)
   inflationRate: number; // Annual inflation rate (e.g., 3 for 3%)
@@ -54,8 +54,8 @@ export interface StressScenario {
 
 export const STRESS_SCENARIOS: Record<string, StressScenario> = {
   financial_crisis: {
-    name: '2008 Financial Crisis',
-    description: '40% drop in year 1, slow recovery over 3 years',
+    name: "2008 Financial Crisis",
+    description: "40% drop in year 1, slow recovery over 3 years",
     returnOverrides: [
       { yearOffset: 1, returnOverride: -40 },
       { yearOffset: 2, returnOverride: 5 },
@@ -63,8 +63,8 @@ export const STRESS_SCENARIOS: Record<string, StressScenario> = {
     ],
   },
   high_inflation: {
-    name: 'Prolonged High Inflation',
-    description: '6% inflation for 5 years with reduced real returns',
+    name: "Prolonged High Inflation",
+    description: "6% inflation for 5 years with reduced real returns",
     returnOverrides: [],
     inflationOverrides: [
       { yearOffset: 1, inflationOverride: 6 },
@@ -75,8 +75,8 @@ export const STRESS_SCENARIOS: Record<string, StressScenario> = {
     ],
   },
   lost_decade: {
-    name: 'Lost Decade',
-    description: 'Near-zero returns (0.5%) for 10 years',
+    name: "Lost Decade",
+    description: "Near-zero returns (0.5%) for 10 years",
     returnOverrides: Array.from({ length: 10 }, (_, i) => ({
       yearOffset: i + 1,
       returnOverride: 0.5,
@@ -105,7 +105,9 @@ function generateNormalReturn(mean: number, stdDev: number): number {
  * Returns percentiles at each year to show range of potential outcomes.
  * When retirementYear is set, switches from contributions to withdrawals at that point.
  */
-export function runMonteCarloSimulation(params: SimulationParams): SimulationSummary {
+export function runMonteCarloSimulation(
+  params: SimulationParams,
+): SimulationSummary {
   const {
     currentValue,
     years,
@@ -182,7 +184,8 @@ export function runMonteCarloSimulation(params: SimulationParams): SimulationSum
         let withdrawal = baseWithdrawal;
         if (inflationAdjustWithdrawals && yearsInRetirement > 0) {
           // Compound cumulative inflation year-over-year (not single rate ^ years)
-          const yearInflation = inflationOverrideMap.get(year) ?? inflationDecimal;
+          const yearInflation =
+            inflationOverrideMap.get(year) ?? inflationDecimal;
           cumulativeInflation *= 1 + yearInflation;
           withdrawal = baseWithdrawal * cumulativeInflation;
         }
@@ -210,19 +213,18 @@ export function runMonteCarloSimulation(params: SimulationParams): SimulationSum
   const projections: ProjectionResult[] = [];
 
   for (let year = 0; year <= years; year++) {
-    const yearValues = allPaths.map(path => path[year]).sort((a, b) => a - b);
+    const yearValues = allPaths.map((path) => path[year]).sort((a, b) => a - b);
 
-    const yearInflation = inflationOverrideMap.get(year) ?? inflationDecimal;
     // Use base inflation for adjustment factor (stress inflation only affects withdrawals)
     const inflationAdjustment = Math.pow(1 + inflationDecimal, year);
 
-    const p10Index = Math.floor(simulations * 0.10);
+    const p10Index = Math.floor(simulations * 0.1);
     const p25Index = Math.floor(simulations * 0.25);
-    const p50Index = Math.floor(simulations * 0.50);
+    const p50Index = Math.floor(simulations * 0.5);
     const p75Index = Math.floor(simulations * 0.75);
-    const p90Index = Math.floor(simulations * 0.90);
+    const p90Index = Math.floor(simulations * 0.9);
 
-    const depletedCount = depletedAtYear.filter(d => d <= year).length;
+    const depletedCount = depletedAtYear.filter((d) => d <= year).length;
     const depletionRate = (depletedCount / simulations) * 100;
 
     projections.push({
@@ -240,10 +242,12 @@ export function runMonteCarloSimulation(params: SimulationParams): SimulationSum
   }
 
   // Summary stats
-  const finalDepleted = depletedAtYear.filter(d => d <= years).length;
+  const finalDepleted = depletedAtYear.filter((d) => d <= years).length;
   const successRate = ((simulations - finalDepleted) / simulations) * 100;
 
-  const sortedDepletion = depletedAtYear.filter(d => d <= years).sort((a, b) => a - b);
+  const sortedDepletion = depletedAtYear
+    .filter((d) => d <= years)
+    .sort((a, b) => a - b);
   const medianDepletionYear =
     sortedDepletion.length > simulations / 2
       ? sortedDepletion[Math.floor(sortedDepletion.length / 2)]
@@ -255,7 +259,9 @@ export function runMonteCarloSimulation(params: SimulationParams): SimulationSum
 /**
  * Backward-compatible wrapper that returns just ProjectionResult[] for existing callers.
  */
-export function runSimulationProjections(params: SimulationParams): ProjectionResult[] {
+export function runSimulationProjections(
+  params: SimulationParams,
+): ProjectionResult[] {
   return runMonteCarloSimulation(params).projections;
 }
 
@@ -266,7 +272,7 @@ export function runSimulationProjections(params: SimulationParams): ProjectionRe
 export function calculateCompoundGrowth(
   currentValue: number,
   years: number,
-  annualReturn: number
+  annualReturn: number,
 ): number {
   return currentValue * Math.pow(1 + annualReturn / 100, years);
 }
