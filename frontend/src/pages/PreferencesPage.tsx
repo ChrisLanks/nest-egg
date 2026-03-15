@@ -15,6 +15,7 @@ import {
   Box,
   Button,
   ButtonGroup,
+  Collapse,
   Container,
   Divider,
   FormControl,
@@ -35,6 +36,7 @@ import {
   FormHelperText,
   HStack,
 } from "@chakra-ui/react";
+import { ChevronDownIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { FiSun, FiMoon, FiMonitor } from "react-icons/fi";
 import {
   useColorModePreference,
@@ -186,6 +188,7 @@ const NAV_SECTIONS = [
 
 function NavigationVisibilitySection() {
   const toast = useToast();
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Read overrides from localStorage
   const [overrides, setOverrides] = useState<Record<string, boolean>>(() => {
@@ -248,70 +251,91 @@ function NavigationVisibilitySection() {
 
   return (
     <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
-      <HStack justify="space-between" mb={1}>
-        <Heading size="md">Navigation</Heading>
-        {hasOverrides && (
-          <Button size="xs" variant="ghost" onClick={resetToDefaults}>
-            Reset to Default
-          </Button>
-        )}
-      </HStack>
-      <Text color="text.secondary" fontSize="sm" mb={4}>
-        Toggle tabs and sub-tabs on or off. By default, items like Debt Payoff,
-        Rental Properties, and Education are hidden if you have no relevant
-        accounts.
-      </Text>
-      <VStack align="stretch" spacing={4}>
-        {NAV_SECTIONS.map((section) => (
-          <Box key={section.group}>
-            <Text
-              fontSize="xs"
-              fontWeight="bold"
-              textTransform="uppercase"
-              color="text.muted"
-              mb={2}
+      <HStack
+        justify="space-between"
+        cursor="pointer"
+        onClick={() => setIsExpanded((v) => !v)}
+        userSelect="none"
+      >
+        <HStack spacing={2}>
+          <Icon
+            as={isExpanded ? ChevronDownIcon : ChevronRightIcon}
+            boxSize={5}
+            color="text.secondary"
+          />
+          <Heading size="md">Navigation</Heading>
+        </HStack>
+        <HStack spacing={2}>
+          {hasOverrides && (
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation();
+                resetToDefaults();
+              }}
             >
-              {section.group}
-            </Text>
-            <VStack align="stretch" spacing={1}>
-              {section.items.map((item) => {
-                const isOn = isItemOn(item);
-                const isOverridden = item.path in overrides;
-                return (
-                  <HStack
-                    key={item.path}
-                    justify="space-between"
-                    px={3}
-                    py={1.5}
-                  >
-                    <HStack spacing={2}>
-                      <Text fontSize="sm">{item.label}</Text>
-                      {item.conditional && !isOverridden && (
-                        <Text fontSize="xs" color="text.muted">
-                          (auto)
-                        </Text>
-                      )}
-                    </HStack>
-                    <Switch
-                      size="sm"
-                      isChecked={isOn}
-                      isDisabled={item.alwaysOn}
-                      onChange={(e) => {
-                        if (item.alwaysOn) return;
-                        toggleItem(item.path, e.target.checked);
-                      }}
-                      colorScheme="brand"
-                    />
-                  </HStack>
-                );
-              })}
-            </VStack>
-          </Box>
-        ))}
-      </VStack>
-      <Text fontSize="xs" color="text.muted" mt={3}>
-        Changes apply after navigating away or refreshing.
+              Reset to Default
+            </Button>
+          )}
+        </HStack>
+      </HStack>
+      <Text color="text.secondary" fontSize="sm" mt={1}>
+        Customize which tabs appear in the sidebar.
       </Text>
+      <Collapse in={isExpanded} animateOpacity>
+        <VStack align="stretch" spacing={4} mt={4}>
+          {NAV_SECTIONS.map((section) => (
+            <Box key={section.group}>
+              <Text
+                fontSize="xs"
+                fontWeight="bold"
+                textTransform="uppercase"
+                color="text.muted"
+                mb={2}
+              >
+                {section.group}
+              </Text>
+              <VStack align="stretch" spacing={1}>
+                {section.items.map((item) => {
+                  const isOn = isItemOn(item);
+                  const isOverridden = item.path in overrides;
+                  return (
+                    <HStack
+                      key={item.path}
+                      justify="space-between"
+                      px={3}
+                      py={1.5}
+                    >
+                      <HStack spacing={2}>
+                        <Text fontSize="sm">{item.label}</Text>
+                        {item.conditional && !isOverridden && (
+                          <Text fontSize="xs" color="text.muted">
+                            (auto)
+                          </Text>
+                        )}
+                      </HStack>
+                      <Switch
+                        size="sm"
+                        isChecked={isOn}
+                        isDisabled={item.alwaysOn}
+                        onChange={(e) => {
+                          if (item.alwaysOn) return;
+                          toggleItem(item.path, e.target.checked);
+                        }}
+                        colorScheme="brand"
+                      />
+                    </HStack>
+                  );
+                })}
+              </VStack>
+            </Box>
+          ))}
+        </VStack>
+        <Text fontSize="xs" color="text.muted" mt={3}>
+          Changes apply after navigating away or refreshing.
+        </Text>
+      </Collapse>
     </Box>
   );
 }
@@ -762,29 +786,6 @@ export default function PreferencesPage() {
         {/* Email Notifications Section */}
         <EmailNotificationsSection />
 
-        {/* Navigation Section */}
-        <NavigationVisibilitySection />
-
-        {/* Export Data Section */}
-        <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
-          <Heading size="md" mb={1}>
-            Export Data
-          </Heading>
-          <Text color="text.secondary" fontSize="sm" mb={4}>
-            Download all your accounts, transactions, and holdings as a ZIP of
-            CSV files.
-          </Text>
-          <Button
-            colorScheme="blue"
-            variant="outline"
-            onClick={handleExport}
-            isLoading={isExporting}
-            loadingText="Preparing export…"
-          >
-            Download CSV Export
-          </Button>
-        </Box>
-
         {/* Change Password Section */}
         <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
           <Heading size="md" mb={4}>
@@ -831,6 +832,29 @@ export default function PreferencesPage() {
               Change Password
             </Button>
           </Stack>
+        </Box>
+
+        {/* Navigation Section (collapsible) */}
+        <NavigationVisibilitySection />
+
+        {/* Export Data Section */}
+        <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
+          <Heading size="md" mb={1}>
+            Export Data
+          </Heading>
+          <Text color="text.secondary" fontSize="sm" mb={4}>
+            Download all your accounts, transactions, and holdings as a ZIP of
+            CSV files.
+          </Text>
+          <Button
+            colorScheme="blue"
+            variant="outline"
+            onClick={handleExport}
+            isLoading={isExporting}
+            loadingText="Preparing export…"
+          >
+            Download CSV Export
+          </Button>
         </Box>
 
         {/* Danger Zone — Delete Account */}
