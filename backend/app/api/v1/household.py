@@ -264,6 +264,48 @@ async def remove_member(
     return None
 
 
+class UpdateMemberRoleRequest(BaseModel):
+    is_admin: bool
+
+
+@router.patch("/members/{user_id}/role", response_model=HouseholdMember)
+async def update_member_role(
+    user_id: UUID,
+    body: UpdateMemberRoleRequest,
+    current_user: User = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Promote or demote a household member. Only admins can change roles."""
+
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.organization_id == current_user.organization_id)
+    )
+    target_user = result.scalar_one_or_none()
+
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Cannot change your own role
+    if target_user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change your own role",
+        )
+
+    # Cannot demote the primary household member
+    if target_user.is_primary_household_member and not body.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot demote the primary household member",
+        )
+
+    target_user.is_org_admin = body.is_admin
+    await db.commit()
+    await db.refresh(target_user)
+
+    return target_user
+
+
 @router.delete("/invitations/{invitation_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_invitation(
     invitation_id: UUID,

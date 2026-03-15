@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from app.api.v1.household import (
     MAX_HOUSEHOLD_MEMBERS,
     InviteMemberRequest,
+    UpdateMemberRoleRequest,
     accept_invitation,
     cancel_invitation,
     get_invitation_details,
@@ -18,6 +19,7 @@ from app.api.v1.household import (
     list_household_members,
     list_invitations,
     remove_member,
+    update_member_role,
 )
 from app.models.user import HouseholdInvitation, InvitationStatus, User
 
@@ -1653,3 +1655,111 @@ class TestLeaveHousehold:
         assert len(goal_copies) == 1
         assert goal_copies[0].name == "Family Vacation"
         assert goal_copies[0].is_shared is False
+
+
+@pytest.mark.unit
+class TestUpdateMemberRole:
+    """Test update_member_role endpoint."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def admin_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        user.is_org_admin = True
+        return user
+
+    @pytest.mark.asyncio
+    async def test_promotes_member_to_admin(self, mock_db, admin_user):
+        """Should set is_org_admin=True on target user."""
+        target = Mock(spec=User)
+        target.id = uuid4()
+        target.organization_id = admin_user.organization_id
+        target.is_primary_household_member = False
+        target.is_org_admin = False
+
+        result = Mock()
+        result.scalar_one_or_none.return_value = target
+        mock_db.execute.return_value = result
+
+        body = UpdateMemberRoleRequest(is_admin=True)
+        await update_member_role(user_id=target.id, body=body, current_user=admin_user, db=mock_db)
+
+        assert target.is_org_admin is True
+        mock_db.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_demotes_admin_to_member(self, mock_db, admin_user):
+        """Should set is_org_admin=False on target user."""
+        target = Mock(spec=User)
+        target.id = uuid4()
+        target.organization_id = admin_user.organization_id
+        target.is_primary_household_member = False
+        target.is_org_admin = True
+
+        result = Mock()
+        result.scalar_one_or_none.return_value = target
+        mock_db.execute.return_value = result
+
+        body = UpdateMemberRoleRequest(is_admin=False)
+        await update_member_role(user_id=target.id, body=body, current_user=admin_user, db=mock_db)
+
+        assert target.is_org_admin is False
+
+    @pytest.mark.asyncio
+    async def test_rejects_self_role_change(self, mock_db, admin_user):
+        """Admin cannot change their own role."""
+        target = Mock(spec=User)
+        target.id = admin_user.id  # Same user
+        target.organization_id = admin_user.organization_id
+
+        result = Mock()
+        result.scalar_one_or_none.return_value = target
+        mock_db.execute.return_value = result
+
+        body = UpdateMemberRoleRequest(is_admin=False)
+        with pytest.raises(HTTPException) as exc_info:
+            await update_member_role(
+                user_id=admin_user.id, body=body, current_user=admin_user, db=mock_db
+            )
+        assert exc_info.value.status_code == 400
+        assert "own role" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_rejects_demote_primary_member(self, mock_db, admin_user):
+        """Cannot demote the primary household member."""
+        target = Mock(spec=User)
+        target.id = uuid4()
+        target.organization_id = admin_user.organization_id
+        target.is_primary_household_member = True
+        target.is_org_admin = True
+
+        result = Mock()
+        result.scalar_one_or_none.return_value = target
+        mock_db.execute.return_value = result
+
+        body = UpdateMemberRoleRequest(is_admin=False)
+        with pytest.raises(HTTPException) as exc_info:
+            await update_member_role(
+                user_id=target.id, body=body, current_user=admin_user, db=mock_db
+            )
+        assert exc_info.value.status_code == 400
+        assert "primary" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_404_for_unknown_user(self, mock_db, admin_user):
+        """Should 404 if user not found in household."""
+        result = Mock()
+        result.scalar_one_or_none.return_value = None
+        mock_db.execute.return_value = result
+
+        body = UpdateMemberRoleRequest(is_admin=True)
+        with pytest.raises(HTTPException) as exc_info:
+            await update_member_role(
+                user_id=uuid4(), body=body, current_user=admin_user, db=mock_db
+            )
+        assert exc_info.value.status_code == 404
