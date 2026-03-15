@@ -204,7 +204,7 @@ class Settings(BaseSettings):
 
     # Storage (CSV uploads, attachments)
     STORAGE_BACKEND: str = "local"  # "local" or "s3"
-    LOCAL_UPLOAD_DIR: str = "/tmp/nestegg-uploads"  # nosec B108 — override via env var in production
+    LOCAL_UPLOAD_DIR: str = "./uploads"  # Override via env var in production
     AWS_S3_BUCKET: Optional[str] = None
     AWS_REGION: str = "us-east-1"
     AWS_ACCESS_KEY_ID: Optional[str] = None  # Omit to use IAM instance role

@@ -137,13 +137,13 @@ class PlaidTransactionSyncService:
                     Transaction.account_id,
                     Transaction.external_transaction_id,
                 ).where(
-                    Transaction.organization_id == organization_id,
+                    Transaction.account_id.in_(account_ids),
                     Transaction.external_transaction_id.isnot(None),
                 )
             )
             existing_ext_ids = {(row[0], row[1]) for row in ext_id_result.all()}
-            # Also build org-level set for cross-account dedup
-            org_ext_ids = {row[1] for row in existing_ext_ids}
+            # Cross-account dedup within this Plaid item
+            item_ext_ids = {row[1] for row in existing_ext_ids}
 
             dedup_result = await db.execute(
                 select(
@@ -166,7 +166,7 @@ class PlaidTransactionSyncService:
                             txn_data=txn_data,
                             stats=stats,
                             existing_ext_ids=existing_ext_ids,
-                            org_ext_ids=org_ext_ids,
+                            item_ext_ids=item_ext_ids,
                             existing_dedup_hashes=existing_dedup_hashes,
                         )
                     except Exception as e:
@@ -200,7 +200,7 @@ class PlaidTransactionSyncService:
         txn_data: Dict[str, Any],
         stats: Dict[str, int],
         existing_ext_ids: set = None,
-        org_ext_ids: set = None,
+        item_ext_ids: set = None,
         existing_dedup_hashes: set = None,
     ) -> None:
         """Process a single transaction from Plaid."""
@@ -246,8 +246,8 @@ class PlaidTransactionSyncService:
                 return
 
         # Check if transaction already exists by external_id (cross-account check)
-        if org_ext_ids is not None:
-            if external_id in org_ext_ids:
+        if item_ext_ids is not None:
+            if external_id in item_ext_ids:
                 stats["skipped"] += 1
                 return
         elif await self.check_external_id_exists(db, organization_id, external_id):

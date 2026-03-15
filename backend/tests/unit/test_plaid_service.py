@@ -742,9 +742,11 @@ class TestFetchJWK:
     @pytest.mark.asyncio
     async def test_returns_cached_key(self):
         """Should return cached key if already fetched."""
+        import time
+
         key_id = "cached-key-id"
         mock_jwk = MagicMock()
-        _jwk_cache[key_id] = mock_jwk
+        _jwk_cache[key_id] = (mock_jwk, time.time())
 
         result = await PlaidService._fetch_jwk(key_id)
         assert result == mock_jwk

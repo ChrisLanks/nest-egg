@@ -57,26 +57,23 @@ class TestOrchestratePortfolioSnapshots:
         """Should call apply_async once for every org in the list."""
         from app.workers.tasks.snapshot_tasks import _dispatch_snapshot_tasks
 
-        org1 = MagicMock()
-        org1.id = uuid4()
-        org2 = MagicMock()
-        org2.id = uuid4()
+        org1_id = uuid4()
+        org2_id = uuid4()
 
         with patch("app.workers.tasks.snapshot_tasks.capture_org_portfolio_snapshot") as mock_task:
             mock_task.apply_async = MagicMock()
-            _dispatch_snapshot_tasks([org1, org2])
+            _dispatch_snapshot_tasks([org1_id, org2_id])
             assert mock_task.apply_async.call_count == 2
 
     def test_countdown_is_nonnegative(self):
         """The countdown passed to apply_async should never be negative."""
         from app.workers.tasks.snapshot_tasks import _dispatch_snapshot_tasks
 
-        org = MagicMock()
-        org.id = uuid4()
+        org_id = uuid4()
 
         with patch("app.workers.tasks.snapshot_tasks.capture_org_portfolio_snapshot") as mock_task:
             mock_task.apply_async = MagicMock()
-            _dispatch_snapshot_tasks([org])
+            _dispatch_snapshot_tasks([org_id])
             _, kwargs = mock_task.apply_async.call_args
             assert kwargs["countdown"] >= 0
 

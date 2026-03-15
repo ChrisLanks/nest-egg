@@ -37,6 +37,7 @@ import {
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FiEdit2, FiX } from "react-icons/fi";
+import { useQueryClient } from "@tanstack/react-query";
 import api from "../../../services/api";
 import { useUserView } from "../../../contexts/UserViewContext";
 import { AccountDataSummary } from "../components/AccountDataSummary";
@@ -84,6 +85,7 @@ export function RetirementPage() {
     selectedMemberIds,
     householdMembers,
   } = useUserView();
+  const queryClient = useQueryClient();
   const readOnly = !canWriteResource("retirement_scenario");
 
   const selectedIds = selectedMemberIds;
@@ -227,10 +229,22 @@ export function RetirementPage() {
   const handleUpdate = useCallback(
     (updates: Record<string, unknown>) => {
       if (!selectedScenarioId) return;
-      updateMutation.mutate({ id: selectedScenarioId, updates });
+      updateMutation
+        .mutateAsync({ id: selectedScenarioId, updates })
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ["retirement-scenarios"] });
+        })
+        .catch((err: any) => {
+          toast({
+            title: "Failed to update scenario",
+            description: err?.response?.data?.detail || "An error occurred.",
+            status: "error",
+            duration: 3000,
+          });
+        });
       setSettingsDirty(true);
     },
-    [selectedScenarioId, updateMutation],
+    [selectedScenarioId, updateMutation, queryClient, toast],
   );
 
   // Handle tab rename

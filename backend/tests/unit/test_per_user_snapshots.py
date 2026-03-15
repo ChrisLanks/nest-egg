@@ -376,13 +376,11 @@ class TestSnapshotTaskPerUser:
             capture_org_portfolio_snapshot,
         )
 
-        org1 = Mock()
-        org1.id = uuid4()
-        org2 = Mock()
-        org2.id = uuid4()
+        org1_id = uuid4()
+        org2_id = uuid4()
 
         with patch.object(capture_org_portfolio_snapshot, "apply_async") as mock_apply:
-            count = _dispatch_snapshot_tasks([org1, org2])
+            count = _dispatch_snapshot_tasks([org1_id, org2_id])
 
         assert count == 2
         assert mock_apply.call_count == 2

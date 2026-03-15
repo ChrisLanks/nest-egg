@@ -48,8 +48,12 @@ _PLAID_ENVIRONMENTS = {
     "production": plaid.Environment.Production,
 }
 
+import time as _time
+
 # Cache for Plaid webhook verification JWK keys, keyed by key_id
-_jwk_cache: Dict[str, PyJWK] = {}
+_JWK_CACHE_TTL = 86400  # 24 hours
+_JWK_CACHE_MAX_SIZE = 20  # Max keys to cache
+_jwk_cache: Dict[str, tuple[PyJWK, float]] = {}  # key_id -> (jwk, timestamp)
 
 
 class PlaidService:
@@ -98,8 +102,12 @@ class PlaidService:
         Plaid rotates keys; we cache them by key_id and fetch a new one
         when an unknown key_id appears in a webhook JWT header.
         """
+        # Check cache (with TTL)
         if key_id in _jwk_cache:
-            return _jwk_cache[key_id]
+            jwk, cached_at = _jwk_cache[key_id]
+            if _time.time() - cached_at < _JWK_CACHE_TTL:
+                return jwk
+            del _jwk_cache[key_id]
 
         base_url = _PLAID_BASE_URLS.get(settings.PLAID_ENV, _PLAID_BASE_URLS["sandbox"])
 
@@ -120,7 +128,11 @@ class PlaidService:
             raise ValueError(f"No key returned from Plaid for key_id={key_id}")
 
         key = PyJWK(jwk_data)
-        _jwk_cache[key_id] = key
+        # Evict oldest if at capacity
+        if len(_jwk_cache) >= _JWK_CACHE_MAX_SIZE:
+            oldest_key = min(_jwk_cache, key=lambda k: _jwk_cache[k][1])
+            del _jwk_cache[oldest_key]
+        _jwk_cache[key_id] = (key, _time.time())
         return key
 
     @staticmethod

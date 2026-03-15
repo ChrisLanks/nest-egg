@@ -67,11 +67,11 @@ class TestDispatchSnapshotTasksReturnValue:
     """Test return value of _dispatch_snapshot_tasks."""
 
     def test_returns_count(self):
-        orgs = [MagicMock(id=uuid4()) for _ in range(3)]
+        org_ids = [uuid4() for _ in range(3)]
 
         with patch("app.workers.tasks.snapshot_tasks.capture_org_portfolio_snapshot") as mock_task:
             mock_task.apply_async = MagicMock()
-            result = _dispatch_snapshot_tasks(orgs)
+            result = _dispatch_snapshot_tasks(org_ids)
 
         assert result == 3
 
@@ -83,12 +83,11 @@ class TestDispatchSnapshotTasksReturnValue:
         assert result == 0
 
     def test_org_ids_passed_as_strings(self):
-        org = MagicMock()
-        org.id = uuid4()
+        org_id = uuid4()
 
         with patch("app.workers.tasks.snapshot_tasks.capture_org_portfolio_snapshot") as mock_task:
             mock_task.apply_async = MagicMock()
-            _dispatch_snapshot_tasks([org])
+            _dispatch_snapshot_tasks([org_id])
 
         args_passed = mock_task.apply_async.call_args[1]["args"]
         assert isinstance(args_passed[0], str)

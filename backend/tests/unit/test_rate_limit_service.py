@@ -26,13 +26,11 @@ def _make_request(path="/api/test", xff=None, client_host="1.2.3.4"):
     return request
 
 
-def _make_pipeline_mock(count=1):
-    """Build a mock redis pipeline with sync incr/expire and async execute."""
-    mock_pipe = MagicMock()
-    mock_pipe.incr = MagicMock(return_value=mock_pipe)
-    mock_pipe.expire = MagicMock(return_value=mock_pipe)
-    mock_pipe.execute = AsyncMock(return_value=[count, True])
-    return mock_pipe
+def _make_eval_redis(count=1, ttl=55):
+    """Build a mock redis client whose eval() returns [count, ttl]."""
+    mock_redis = AsyncMock()
+    mock_redis.eval = AsyncMock(return_value=[count, ttl])
+    return mock_redis
 
 
 class TestRateLimitKeyGeneration:
@@ -76,13 +74,7 @@ class TestCheckRateLimit:
         mock_settings.ENVIRONMENT = "production"
         mock_settings.REDIS_URL = "redis://localhost:6379"
 
-        mock_pipe = _make_pipeline_mock(count=6)
-
-        mock_redis = AsyncMock()
-        mock_redis.pipeline = MagicMock(return_value=mock_pipe)
-        mock_redis.ttl = AsyncMock(return_value=55)
-
-        service.redis_client = mock_redis
+        service.redis_client = _make_eval_redis(count=6, ttl=55)
 
         request = _make_request()
         with pytest.raises(HTTPException) as exc_info:
@@ -95,12 +87,7 @@ class TestCheckRateLimit:
         mock_settings.ENVIRONMENT = "production"
         mock_settings.REDIS_URL = "redis://localhost:6379"
 
-        mock_pipe = _make_pipeline_mock(count=3)
-
-        mock_redis = AsyncMock()
-        mock_redis.pipeline = MagicMock(return_value=mock_pipe)
-
-        service.redis_client = mock_redis
+        service.redis_client = _make_eval_redis(count=3, ttl=58)
 
         request = _make_request()
         # Should not raise
@@ -114,7 +101,7 @@ class TestCheckRateLimit:
         mock_settings.REDIS_URL = "redis://localhost:6379"
 
         mock_redis = AsyncMock()
-        mock_redis.pipeline = MagicMock(side_effect=ConnectionError("Redis down"))
+        mock_redis.eval = AsyncMock(side_effect=ConnectionError("Redis down"))
 
         service.redis_client = mock_redis
 
@@ -131,11 +118,7 @@ class TestIPExtraction:
         mock_settings.ENVIRONMENT = "production"
         mock_settings.REDIS_URL = "redis://localhost:6379"
 
-        mock_pipe = _make_pipeline_mock(count=1)
-
-        mock_redis = AsyncMock()
-        mock_redis.pipeline = MagicMock(return_value=mock_pipe)
-
+        mock_redis = _make_eval_redis(count=1, ttl=60)
         service.redis_client = mock_redis
 
         request = _make_request(xff="spoofed.ip, real.proxy.ip", client_host="trusted.client.ip")
@@ -143,9 +126,10 @@ class TestIPExtraction:
 
         # The key should be based on client.host, not X-Forwarded-For
         expected_key = service._get_rate_limit_key("trusted.client.ip", "/api/test")
-        actual_calls = mock_pipe.incr.call_args_list
+        actual_calls = mock_redis.eval.call_args_list
         assert len(actual_calls) == 1
-        assert actual_calls[0][0][0] == expected_key
+        # eval args: script, num_keys, key, limit, window
+        assert actual_calls[0][0][2] == expected_key
 
 
 class TestGetRemainingAttempts:

@@ -11,6 +11,19 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Atomic rate-limit check via Lua script: INCR + conditional EXPIRE + TTL
+_RATE_LIMIT_SCRIPT = """
+local key = KEYS[1]
+local limit = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local current = redis.call('INCR', key)
+if current == 1 then
+    redis.call('EXPIRE', key, window)
+end
+local ttl = redis.call('TTL', key)
+return {current, ttl}
+"""
+
 
 class RateLimitService:
     """Service for rate limiting API endpoints using Redis."""
@@ -84,16 +97,14 @@ class RateLimitService:
         key = self._get_rate_limit_key(identifier, request.url.path)
 
         try:
-            # Atomic increment-then-expire to prevent race conditions
-            pipe = redis_client.pipeline()
-            pipe.incr(key)
-            pipe.expire(key, window_seconds)
-            results = await pipe.execute()
-            current_count = results[0]
+            # Atomic increment + expire + TTL via Lua script
+            result = await redis_client.eval(
+                _RATE_LIMIT_SCRIPT, 1, key, max_requests, window_seconds
+            )
+            current_count, ttl = result[0], result[1]
 
             if current_count > max_requests:
                 # Rate limit exceeded
-                ttl = await redis_client.ttl(key)
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     detail={

@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Dict, Optional
 from uuid import UUID
 
+from dateutil.relativedelta import relativedelta
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -184,7 +185,7 @@ class FireService:
             Dict with savings_rate, income, spending, savings
         """
         end_date = utc_now().date()
-        start_date = end_date - timedelta(days=months * 30)
+        start_date = end_date - relativedelta(months=months)
 
         account_ids = None
         if user_id is not None:
@@ -243,7 +244,17 @@ class FireService:
         annual_income = await self._get_trailing_annual_income(organization_id, user_id)
 
         annual_savings = float(annual_income - annual_expenses)
-        fi_number = float(annual_expenses) / withdrawal_rate if withdrawal_rate > 0 else 0
+        if withdrawal_rate <= 0:
+            return {
+                "years_to_fi": None,
+                "fi_number": None,
+                "investable_assets": float(investable),
+                "annual_savings": annual_savings,
+                "withdrawal_rate": withdrawal_rate,
+                "expected_return": expected_return,
+                "already_fi": False,
+            }
+        fi_number = float(annual_expenses) / withdrawal_rate
         current = float(investable)
 
         # Already FI
@@ -279,7 +290,7 @@ class FireService:
 
         if annual_savings <= 0:
             # Only portfolio growth, no contributions
-            if current <= 0:
+            if current <= 0 or target <= 0:
                 years = None
             else:
                 years = math.log(target / current) / math.log(1 + r)
@@ -288,7 +299,7 @@ class FireService:
             # (PV*r + C) * (1+r)^n = target*r + C
             numerator = target * r + annual_savings
             denominator = current * r + annual_savings
-            if denominator <= 0:
+            if denominator <= 0 or numerator <= 0:
                 years = None
             else:
                 years = math.log(numerator / denominator) / math.log(1 + r)

@@ -417,7 +417,7 @@ class TestProcessTransaction:
             txn_data=txn_data,
             stats=stats,
             existing_ext_ids=set(),
-            org_ext_ids=set(),
+            item_ext_ids=set(),
             existing_dedup_hashes={(account_id, dedup_hash)},
         )
 
@@ -445,7 +445,7 @@ class TestProcessTransaction:
             txn_data=txn_data,
             stats=stats,
             existing_ext_ids=set(),
-            org_ext_ids={"existing_ext_id"},
+            item_ext_ids={"existing_ext_id"},
             existing_dedup_hashes=set(),
         )
 
@@ -483,7 +483,7 @@ class TestProcessTransaction:
             txn_data=txn_data,
             stats=stats,
             existing_ext_ids=None,
-            org_ext_ids=None,
+            item_ext_ids=None,
             existing_dedup_hashes=None,
         )
 
@@ -511,7 +511,7 @@ class TestProcessTransaction:
             txn_data=txn_data,
             stats=stats,
             existing_ext_ids=set(),
-            org_ext_ids=set(),
+            item_ext_ids=set(),
             existing_dedup_hashes=set(),
         )
 

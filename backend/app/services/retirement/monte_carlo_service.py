@@ -448,11 +448,12 @@ class RetirementMonteCarloService:
         for year in range(total_years + 1):
             year_values = sorted(p[year] for p in all_paths)
 
-            p10_idx = int(num_sims * 0.10)
-            p25_idx = int(num_sims * 0.25)
-            p50_idx = int(num_sims * 0.50)
-            p75_idx = int(num_sims * 0.75)
-            p90_idx = min(int(num_sims * 0.90), num_sims - 1)
+            n = len(year_values)
+            p10_idx = min(int(n * 0.10), n - 1)
+            p25_idx = min(int(n * 0.25), n - 1)
+            p50_idx = min(int(n * 0.50), n - 1)
+            p75_idx = min(int(n * 0.75), n - 1)
+            p90_idx = min(int(n * 0.90), n - 1)
 
             depleted_count = sum(1 for d in depleted_at_year if d <= year)
             depletion_pct = (depleted_count / num_sims) * 100
@@ -647,11 +648,12 @@ class RetirementMonteCarloService:
         projections = []
         for year in range(total_years + 1):
             year_values = sorted(p[year] for p in all_paths)
-            p10_idx = int(num_sims * 0.10)
-            p25_idx = int(num_sims * 0.25)
-            p50_idx = int(num_sims * 0.50)
-            p75_idx = int(num_sims * 0.75)
-            p90_idx = min(int(num_sims * 0.90), num_sims - 1)
+            n = len(year_values)
+            p10_idx = min(int(n * 0.10), n - 1)
+            p25_idx = min(int(n * 0.25), n - 1)
+            p50_idx = min(int(n * 0.50), n - 1)
+            p75_idx = min(int(n * 0.75), n - 1)
+            p90_idx = min(int(n * 0.90), n - 1)
 
             depleted_count = sum(1 for d in depleted_at_year if d <= year)
             depletion_pct = (depleted_count / num_sims) * 100
