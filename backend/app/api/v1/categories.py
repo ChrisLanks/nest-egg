@@ -4,15 +4,16 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User
 from app.models.transaction import Category, Transaction
-from app.schemas.transaction import CategoryCreate, CategoryUpdate, CategoryResponse
+from app.models.user import User
+from app.schemas.transaction import CategoryCreate, CategoryResponse, CategoryUpdate
 from app.services.hierarchy_validation_service import hierarchy_validation_service
+from app.services.input_sanitization_service import input_sanitization_service
 
 router = APIRouter()
 
@@ -64,7 +65,8 @@ async def list_categories(
                 name=category.name,
                 color=category.color,
                 parent_category_id=category.parent_category_id,
-                plaid_category_name=category.plaid_category_name,  # Legacy field, kept for compatibility
+                # Legacy field, kept for compatibility
+                plaid_category_name=category.plaid_category_name,
                 is_custom=True,
                 transaction_count=tx_count,
                 created_at=category.created_at,
@@ -114,9 +116,12 @@ async def create_category(
         entity_name="category",
     )
 
+    # Sanitize user text input
+    sanitized_name = input_sanitization_service.sanitize_html(category_data.name)
+
     category = Category(
         organization_id=current_user.organization_id,
-        name=category_data.name,
+        name=sanitized_name,
         color=category_data.color,
         parent_category_id=category_data.parent_category_id,
         plaid_category_name=category_data.plaid_category_name,
@@ -161,7 +166,11 @@ async def update_category(
         if has_children and category_data.parent_category_id:
             raise HTTPException(
                 status_code=400,
-                detail="Cannot assign a parent to this category because it already has children. Maximum 2 levels allowed.",
+                detail=(
+                    "Cannot assign a parent to this category"
+                    " because it already has children."
+                    " Maximum 2 levels allowed."
+                ),
             )
 
         # Validate the new parent
@@ -175,7 +184,7 @@ async def update_category(
         )
 
     if category_data.name is not None:
-        category.name = category_data.name
+        category.name = input_sanitization_service.sanitize_html(category_data.name)
     if category_data.color is not None:
         category.color = category_data.color
     if category_data.parent_category_id is not None:

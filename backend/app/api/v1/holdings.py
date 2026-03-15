@@ -53,6 +53,7 @@ from app.schemas.holding import (
 )
 from app.schemas.rmd import AccountRMD, RMDSummary
 from app.services.deduplication_service import deduplication_service
+from app.services.input_sanitization_service import input_sanitization_service
 from app.services.market_data import get_market_data_provider
 from app.services.snapshot_service import snapshot_service
 from app.utils.account_type_groups import (
@@ -1192,12 +1193,19 @@ async def create_holding(
     if holding_data.cost_basis_per_share:
         total_cost_basis = holding_data.shares * holding_data.cost_basis_per_share
 
+    # Sanitize user text input
+    sanitized_name = (
+        input_sanitization_service.sanitize_html(holding_data.name)
+        if holding_data.name
+        else holding_data.name
+    )
+
     # Create holding
     holding = Holding(
         account_id=holding_data.account_id,
         organization_id=current_user.organization_id,
         ticker=holding_data.ticker.upper(),  # Normalize to uppercase
-        name=holding_data.name,
+        name=sanitized_name,
         shares=holding_data.shares,
         cost_basis_per_share=holding_data.cost_basis_per_share,
         total_cost_basis=total_cost_basis,
@@ -1285,7 +1293,7 @@ async def update_holding(
     if holding_data.ticker is not None:
         holding.ticker = holding_data.ticker.upper()
     if holding_data.name is not None:
-        holding.name = holding_data.name
+        holding.name = input_sanitization_service.sanitize_html(holding_data.name)
     if holding_data.shares is not None:
         holding.shares = holding_data.shares
     if holding_data.cost_basis_per_share is not None:

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.dependencies import get_current_user, verify_household_member
 from app.models.user import User
+from app.services.input_sanitization_service import input_sanitization_service
 from app.services.rental_property_service import RentalPropertyService
 
 router = APIRouter()
@@ -107,13 +108,20 @@ async def update_rental_fields(
     Allows setting/unsetting an account as a rental property and
     updating monthly income and address.
     """
+    # Sanitize user text input
+    sanitized_address = (
+        input_sanitization_service.sanitize_html(body.rental_address)
+        if body.rental_address
+        else body.rental_address
+    )
+
     service = RentalPropertyService(db)
     result = await service.update_rental_fields(
         organization_id=current_user.organization_id,
         account_id=account_id,
         is_rental_property=body.is_rental_property,
         rental_monthly_income=body.rental_monthly_income,
-        rental_address=body.rental_address,
+        rental_address=sanitized_address,
     )
 
     if "error" in result:

@@ -21,6 +21,7 @@ from app.schemas.savings_goal import (
     SavingsGoalResponse,
     SavingsGoalUpdate,
 )
+from app.services.input_sanitization_service import input_sanitization_service
 from app.services.savings_goal_service import savings_goal_service
 from app.utils.datetime_utils import utc_now
 
@@ -47,10 +48,18 @@ async def create_goal(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new savings goal."""
+    # Sanitize user text input
+    sanitized = goal_data.model_dump()
+    if sanitized.get("name"):
+        sanitized["name"] = input_sanitization_service.sanitize_html(sanitized["name"])
+    if sanitized.get("description"):
+        sanitized["description"] = input_sanitization_service.sanitize_html(
+            sanitized["description"]
+        )
     goal = await savings_goal_service.create_goal(
         db=db,
         user=current_user,
-        **goal_data.model_dump(),
+        **sanitized,
     )
     return goal
 
@@ -161,11 +170,19 @@ async def update_goal(
     db: AsyncSession = Depends(get_db),
 ):
     """Update a savings goal."""
+    # Sanitize user text input
+    sanitized = goal_data.model_dump(exclude_unset=True)
+    if sanitized.get("name"):
+        sanitized["name"] = input_sanitization_service.sanitize_html(sanitized["name"])
+    if sanitized.get("description"):
+        sanitized["description"] = input_sanitization_service.sanitize_html(
+            sanitized["description"]
+        )
     goal = await savings_goal_service.update_goal(
         db=db,
         goal_id=goal_id,
         user=current_user,
-        **goal_data.model_dump(exclude_unset=True),
+        **sanitized,
     )
 
     if not goal:

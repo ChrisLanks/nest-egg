@@ -15,6 +15,7 @@ from app.schemas.budget import (
     BudgetUpdate,
 )
 from app.services.budget_service import budget_service
+from app.services.input_sanitization_service import input_sanitization_service
 
 router = APIRouter()
 
@@ -26,10 +27,14 @@ async def create_budget(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new budget."""
+    # Sanitize user text input
+    sanitized = budget_data.model_dump()
+    if sanitized.get("name"):
+        sanitized["name"] = input_sanitization_service.sanitize_html(sanitized["name"])
     budget = await budget_service.create_budget(
         db=db,
         user=current_user,
-        **budget_data.model_dump(),
+        **sanitized,
     )
     return budget
 
@@ -151,11 +156,15 @@ async def update_budget(
     db: AsyncSession = Depends(get_db),
 ):
     """Update a budget."""
+    # Sanitize user text input
+    sanitized = budget_data.model_dump(exclude_unset=True)
+    if sanitized.get("name"):
+        sanitized["name"] = input_sanitization_service.sanitize_html(sanitized["name"])
     budget = await budget_service.update_budget(
         db=db,
         budget_id=budget_id,
         user=current_user,
-        **budget_data.model_dump(exclude_unset=True),
+        **sanitized,
     )
 
     if not budget:

@@ -11,12 +11,13 @@ from sqlalchemy.orm import joinedload
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User
-from app.models.rule import Rule, RuleCondition, RuleAction
+from app.models.rule import Rule, RuleAction, RuleCondition
 from app.models.transaction import Transaction
+from app.models.user import User
 from app.schemas.rule import RuleCreate, RuleResponse, RuleUpdate
-from app.services.rule_engine import RuleEngine
+from app.services.input_sanitization_service import input_sanitization_service
 from app.services.rate_limit_service import get_rate_limit_service
+from app.services.rule_engine import RuleEngine
 
 router = APIRouter()
 rate_limit_service = get_rate_limit_service()
@@ -62,11 +63,23 @@ async def create_rule(
         window_seconds=3600,  # 1 hour
     )
 
+    # Sanitize user text input
+    sanitized_name = (
+        input_sanitization_service.sanitize_html(rule_data.name)
+        if rule_data.name
+        else rule_data.name
+    )
+    sanitized_description = (
+        input_sanitization_service.sanitize_html(rule_data.description)
+        if rule_data.description
+        else rule_data.description
+    )
+
     # Create rule
     rule = Rule(
         organization_id=current_user.organization_id,
-        name=rule_data.name,
-        description=rule_data.description,
+        name=sanitized_name,
+        description=sanitized_description,
         match_type=rule_data.match_type,
         apply_to=rule_data.apply_to,
         priority=rule_data.priority,
@@ -88,10 +101,15 @@ async def create_rule(
 
     # Create actions
     for action_data in rule_data.actions:
+        sanitized_action_value = (
+            input_sanitization_service.sanitize_html(action_data.action_value)
+            if action_data.action_value
+            else action_data.action_value
+        )
         action = RuleAction(
             rule_id=rule.id,
             action_type=action_data.action_type,
-            action_value=action_data.action_value,
+            action_value=sanitized_action_value,
         )
         db.add(action)
 
@@ -162,11 +180,11 @@ async def update_rule(
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
 
-    # Update scalar fields
+    # Update scalar fields (sanitize text inputs)
     if rule_data.name is not None:
-        rule.name = rule_data.name
+        rule.name = input_sanitization_service.sanitize_html(rule_data.name)
     if rule_data.description is not None:
-        rule.description = rule_data.description
+        rule.description = input_sanitization_service.sanitize_html(rule_data.description)
     if rule_data.match_type is not None:
         rule.match_type = rule_data.match_type
     if rule_data.apply_to is not None:
@@ -182,13 +200,15 @@ async def update_rule(
             await db.delete(condition)
         await db.flush()
         for c in rule_data.conditions:
-            db.add(RuleCondition(
-                rule_id=rule.id,
-                field=c.field,
-                operator=c.operator,
-                value=c.value,
-                value_max=c.value_max,
-            ))
+            db.add(
+                RuleCondition(
+                    rule_id=rule.id,
+                    field=c.field,
+                    operator=c.operator,
+                    value=c.value,
+                    value_max=c.value_max,
+                )
+            )
 
     # Replace actions if provided
     if rule_data.actions is not None:
@@ -196,11 +216,18 @@ async def update_rule(
             await db.delete(action)
         await db.flush()
         for a in rule_data.actions:
-            db.add(RuleAction(
-                rule_id=rule.id,
-                action_type=a.action_type,
-                action_value=a.action_value,
-            ))
+            sanitized_action_value = (
+                input_sanitization_service.sanitize_html(a.action_value)
+                if a.action_value
+                else a.action_value
+            )
+            db.add(
+                RuleAction(
+                    rule_id=rule.id,
+                    action_type=a.action_type,
+                    action_value=sanitized_action_value,
+                )
+            )
 
     await db.commit()
 
@@ -347,8 +374,12 @@ async def test_rule(
     # Create temporary rule object (not saved to database)
     temp_rule = Rule(
         organization_id=current_user.organization_id,
-        name=rule_data.name,
-        description=rule_data.description,
+        name=input_sanitization_service.sanitize_html(rule_data.name)
+        if rule_data.name
+        else rule_data.name,
+        description=input_sanitization_service.sanitize_html(rule_data.description)
+        if rule_data.description
+        else rule_data.description,
         match_type=rule_data.match_type,
         apply_to=rule_data.apply_to,
         priority=rule_data.priority or 0,
@@ -433,5 +464,8 @@ async def test_rule(
         "matching_count": len(matching_transactions),
         "matching_transactions": matching_transactions[:50],  # Limit to 50 for response size
         "total_tested": len(transactions),
-        "message": f"Rule would match {len(matching_transactions)} of {len(transactions)} tested transactions",
+        "message": (
+            f"Rule would match {len(matching_transactions)}"
+            f" of {len(transactions)} tested transactions"
+        ),
     }

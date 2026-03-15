@@ -19,6 +19,7 @@ from app.schemas.recurring_transaction import (
     RecurringTransactionUpdate,
     UpcomingBillResponse,
 )
+from app.services.input_sanitization_service import input_sanitization_service
 from app.services.recurring_detection_service import (
     RecurringDetectionService,
     recurring_detection_service,
@@ -116,10 +117,16 @@ async def create_recurring_transaction(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a manually defined recurring transaction pattern."""
+    # Sanitize user text input
+    sanitized = recurring_data.model_dump()
+    if sanitized.get("merchant_name"):
+        sanitized["merchant_name"] = input_sanitization_service.sanitize_html(
+            sanitized["merchant_name"]
+        )
     pattern = await recurring_detection_service.create_manual_recurring(
         db=db,
         user=current_user,
-        **recurring_data.model_dump(),
+        **sanitized,
     )
     return pattern
 
@@ -147,11 +154,17 @@ async def update_recurring_transaction(
     db: AsyncSession = Depends(get_db),
 ):
     """Update a recurring transaction pattern."""
+    # Sanitize user text input
+    sanitized = recurring_data.model_dump(exclude_unset=True)
+    if sanitized.get("merchant_name"):
+        sanitized["merchant_name"] = input_sanitization_service.sanitize_html(
+            sanitized["merchant_name"]
+        )
     pattern = await recurring_detection_service.update_recurring_transaction(
         db=db,
         recurring_id=recurring_id,
         user=current_user,
-        **recurring_data.model_dump(exclude_unset=True),
+        **sanitized,
     )
 
     if not pattern:

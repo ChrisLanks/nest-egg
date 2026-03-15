@@ -10,11 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User
 from app.models.transaction import Label
-from app.schemas.transaction import LabelCreate, LabelUpdate, LabelResponse
-from app.services.tax_service import TaxService
+from app.models.user import User
+from app.schemas.transaction import LabelCreate, LabelResponse, LabelUpdate
 from app.services.hierarchy_validation_service import hierarchy_validation_service
+from app.services.input_sanitization_service import input_sanitization_service
+from app.services.tax_service import TaxService
 
 router = APIRouter()
 
@@ -205,9 +206,12 @@ async def create_label(
             entity_name="label",
         )
 
+    # Sanitize user text input
+    sanitized_name = input_sanitization_service.sanitize_html(label_data.name)
+
     label = Label(
         organization_id=current_user.organization_id,
-        name=label_data.name,
+        name=sanitized_name,
         color=label_data.color,
         is_income=label_data.is_income,
         parent_label_id=label_data.parent_label_id,
@@ -259,7 +263,11 @@ async def update_label(
         if has_children and label_data.parent_label_id:
             raise HTTPException(
                 status_code=400,
-                detail="Cannot assign a parent to this label because it already has children. Maximum 2 levels allowed.",
+                detail=(
+                    "Cannot assign a parent to this label"
+                    " because it already has children."
+                    " Maximum 2 levels allowed."
+                ),
             )
 
         # Validate the new parent
@@ -273,7 +281,7 @@ async def update_label(
         )
 
     if label_data.name is not None:
-        label.name = label_data.name
+        label.name = input_sanitization_service.sanitize_html(label_data.name)
     if label_data.color is not None:
         label.color = label_data.color
     if label_data.is_income is not None:

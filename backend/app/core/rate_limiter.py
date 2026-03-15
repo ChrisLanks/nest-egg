@@ -9,12 +9,13 @@ Two implementations are provided:
   (used by the global RateLimitMiddleware so it works across multiple workers)
 """
 
-import uuid
-from typing import Dict, Optional
-from time import time
-from collections import defaultdict
-from fastapi import HTTPException, status
 import logging
+import uuid
+from collections import defaultdict
+from time import time
+from typing import Dict, Optional
+
+from fastapi import HTTPException, status
 
 from app.config import settings
 
@@ -166,9 +167,7 @@ class AsyncRateLimiter:
                 self._redis_client = client
                 logger.debug("AsyncRateLimiter: Redis connection established")
             except Exception as e:
-                logger.debug(
-                    f"AsyncRateLimiter: Redis unavailable, using in-memory fallback ({e})"
-                )
+                logger.debug(f"AsyncRateLimiter: Redis unavailable, using in-memory fallback ({e})")
                 self._redis_client = None
             finally:
                 self._redis_initialized = True
@@ -267,8 +266,15 @@ class AsyncRateLimiter:
 
 
 # Global rate limiters for different endpoint types
-market_data_limiter = AsyncRateLimiter(calls_per_minute=100)  # Market data endpoints (async, Redis-backed)
-api_limiter = AsyncRateLimiter(calls_per_minute=1000)  # Global middleware (async, Redis-backed)
+market_data_limiter = AsyncRateLimiter(
+    calls_per_minute=100
+)  # Market data endpoints (async, Redis-backed)
+api_limiter = AsyncRateLimiter(
+    calls_per_minute=1000
+)  # Global middleware IP-based (async, Redis-backed)
+user_api_limiter = AsyncRateLimiter(
+    calls_per_minute=settings.USER_RATE_LIMIT_PER_MINUTE
+)  # Per-user rate limit for authenticated endpoints
 
 
 async def check_rate_limit(
@@ -299,7 +305,11 @@ async def check_rate_limit(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
                 "error": "Rate limit exceeded",
-                "message": f"Too many requests. Maximum {limiter.calls_per_minute} requests per minute.",
+                "message": (
+                    f"Too many requests. Maximum"
+                    f" {limiter.calls_per_minute}"
+                    " requests per minute."
+                ),
                 "retry_after": 60,  # seconds
                 "remaining_calls": remaining,
             },

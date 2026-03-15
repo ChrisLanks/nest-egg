@@ -4,10 +4,13 @@ Global rate limiting middleware.
 Applies rate limiting to all API endpoints except health checks and documentation.
 """
 
-from fastapi import Request, HTTPException, status
-from starlette.middleware.base import BaseHTTPMiddleware
-from app.core.rate_limiter import api_limiter
 import logging
+
+from fastapi import Request, status
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from app.core.rate_limiter import api_limiter, user_api_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -28,52 +31,97 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """Middleware to apply rate limiting globally."""
 
     async def dispatch(self, request: Request, call_next):
-        """Apply rate limiting to all requests except exempt paths."""
+        """Apply rate limiting to all requests except exempt paths.
+
+        Two layers are checked:
+        1. IP-based limit (``api_limiter``) — always applied.
+        2. Per-user limit (``user_api_limiter``) — applied only when the
+           request carries a valid JWT (``request.state.user_id`` set by
+           ``UserContextMiddleware``).
+
+        Both layers use the same Redis-backed ``AsyncRateLimiter`` with an
+        in-memory fallback, so the system degrades gracefully when Redis is
+        unavailable.
+        """
 
         # Skip rate limiting for exempt paths
         if any(request.url.path.startswith(path) for path in EXEMPT_PATHS):
             return await call_next(request)
 
-        # Get user ID from request state (set by auth middleware)
-        # For unauthenticated requests, use IP address
-        user_id = getattr(request.state, "user_id", None)
-        if not user_id:
-            # Use IP address for unauthenticated requests
-            client_ip = request.client.host if request.client else "unknown"
-            rate_limit_key = f"ip:{client_ip}"
-        else:
-            rate_limit_key = f"user:{user_id}"
+        # Build the IP-based key (always present)
+        client_ip = request.client.host if request.client else "unknown"
+        ip_key = f"ip:{client_ip}"
 
-        # Check rate limit.  The AsyncRateLimiter already falls back to an
-        # in-memory sliding window when Redis is unavailable.  The outer
-        # try/except here ensures that any unexpected error in the limiter
-        # itself never hard-fails a request — we allow it through and log.
+        # Check if authenticated — UserContextMiddleware sets user_id from JWT
+        user_id = getattr(request.state, "user_id", None)
+        user_key = f"user:{user_id}" if user_id else None
+
+        # Track remaining counts for response headers
+        ip_remaining = None
+        user_remaining = None
+
         try:
-            if not await api_limiter.is_allowed(rate_limit_key):
-                remaining = await api_limiter.get_remaining_calls(rate_limit_key)
+            # --- Layer 1: IP-based rate limit (all requests) ---
+            if not await api_limiter.is_allowed(ip_key):
+                ip_remaining = await api_limiter.get_remaining_calls(ip_key)
                 logger.warning(
-                    f"Rate limit exceeded for {rate_limit_key} on {request.url.path}. "
-                    f"Remaining: {remaining}/{api_limiter.calls_per_minute}"
+                    f"IP rate limit exceeded for {ip_key} on {request.url.path}. "
+                    f"Remaining: {ip_remaining}/{api_limiter.calls_per_minute}"
                 )
-                raise HTTPException(
+                return JSONResponse(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail={
-                        "error": "Rate limit exceeded",
-                        "message": f"Too many requests. Maximum {api_limiter.calls_per_minute} requests per minute.",
-                        "retry_after": 60,  # seconds
-                        "remaining_calls": remaining,
+                    content={
+                        "detail": {
+                            "error": "Rate limit exceeded",
+                            "message": (
+                                f"Too many requests. Maximum"
+                                f" {api_limiter.calls_per_minute}"
+                                " requests per minute."
+                            ),
+                            "retry_after": 60,
+                            "remaining_calls": 0,
+                        }
                     },
                 )
 
-            # Log rate limit status for monitoring (only when approaching limit)
-            remaining = await api_limiter.get_remaining_calls(rate_limit_key)
-            if remaining < 10:
+            ip_remaining = await api_limiter.get_remaining_calls(ip_key)
+            if ip_remaining < 10:
                 logger.info(
-                    f"{rate_limit_key} approaching rate limit on {request.url.path}. "
-                    f"Remaining: {remaining}/{api_limiter.calls_per_minute}"
+                    f"{ip_key} approaching rate limit on {request.url.path}. "
+                    f"Remaining: {ip_remaining}/{api_limiter.calls_per_minute}"
                 )
-        except HTTPException:
-            raise  # Let 429s propagate normally
+
+            # --- Layer 2: Per-user rate limit (authenticated requests only) ---
+            if user_key is not None:
+                if not await user_api_limiter.is_allowed(user_key):
+                    user_remaining = await user_api_limiter.get_remaining_calls(user_key)
+                    logger.warning(
+                        f"User rate limit exceeded for {user_key} on {request.url.path}. "
+                        f"Remaining: {user_remaining}/{user_api_limiter.calls_per_minute}"
+                    )
+                    return JSONResponse(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        content={
+                            "detail": {
+                                "error": "Rate limit exceeded",
+                                "message": (
+                                    "Too many requests. Maximum"
+                                    f" {user_api_limiter.calls_per_minute}"
+                                    "requests per minute per user."
+                                ),
+                                "retry_after": 60,
+                                "remaining_calls": 0,
+                            }
+                        },
+                    )
+
+                user_remaining = await user_api_limiter.get_remaining_calls(user_key)
+                if user_remaining < 10:
+                    logger.info(
+                        f"{user_key} approaching rate limit on {request.url.path}. "
+                        f"Remaining: {user_remaining}/{user_api_limiter.calls_per_minute}"
+                    )
+
         except Exception as e:
             # Rate limiter is entirely unavailable — allow request through rather
             # than hard-failing every user.  Log at ERROR so Sentry captures it.
@@ -85,10 +133,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
 
-        # Add rate limit headers (best-effort; skip on limiter failure)
+        # Add rate limit headers (best-effort; skip on limiter failure).
+        # When both limits apply, expose the more restrictive one so clients
+        # can throttle proactively.
         try:
-            response.headers["X-RateLimit-Limit"] = str(api_limiter.calls_per_minute)
-            response.headers["X-RateLimit-Remaining"] = str(remaining)
+            if user_key is not None and user_remaining is not None:
+                effective_limit = user_api_limiter.calls_per_minute
+                effective_remaining = user_remaining
+            else:
+                effective_limit = api_limiter.calls_per_minute
+                effective_remaining = ip_remaining if ip_remaining is not None else 0
+
+            response.headers["X-RateLimit-Limit"] = str(effective_limit)
+            response.headers["X-RateLimit-Remaining"] = str(effective_remaining)
             response.headers["X-RateLimit-Reset"] = "60"  # seconds until reset
         except Exception:
             pass

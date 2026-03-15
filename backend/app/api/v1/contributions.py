@@ -8,10 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db, get_verified_account
-from app.models.user import User
 from app.models.account import Account
 from app.models.contribution import AccountContribution
+from app.models.user import User
 from app.schemas.contribution import Contribution, ContributionCreate, ContributionUpdate
+from app.services.input_sanitization_service import input_sanitization_service
 
 router = APIRouter()
 
@@ -28,11 +29,16 @@ async def create_contribution(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new recurring contribution for an account."""
+    # Sanitize user text input
+    sanitized = contribution_data.model_dump()
+    if sanitized.get("notes"):
+        sanitized["notes"] = input_sanitization_service.sanitize_html(sanitized["notes"])
+
     # Create contribution
     contribution = AccountContribution(
         organization_id=current_user.organization_id,
         account_id=account.id,
-        **contribution_data.model_dump(),
+        **sanitized,
     )
 
     db.add(contribution)
@@ -108,8 +114,10 @@ async def update_contribution(
     if not contribution:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contribution not found")
 
-    # Update fields
+    # Sanitize user text input and update fields
     update_data = contribution_update.model_dump(exclude_unset=True)
+    if update_data.get("notes"):
+        update_data["notes"] = input_sanitization_service.sanitize_html(update_data["notes"])
     for field, value in update_data.items():
         setattr(contribution, field, value)
 

@@ -13,7 +13,6 @@ from starlette.types import ASGIApp
 from app.core.security import decode_token
 from app.utils.logging_utils import redact_email, redact_ip
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -37,12 +36,15 @@ class UserContextMiddleware(BaseHTTPMiddleware):
             token = auth_header.replace("Bearer ", "")
 
             try:
-                # Decode token to get email (don't validate, just extract)
+                # Decode token to get email and user ID (don't validate, just extract)
                 payload = decode_token(token)
                 user_email = payload.get("email")
+                user_id = payload.get("sub")
 
                 if user_email:
                     request.state.user_email = user_email
+                if user_id:
+                    request.state.user_id = user_id
 
             except (JWTError, Exception):
                 # Token invalid or expired - ignore, will be handled by auth dependency

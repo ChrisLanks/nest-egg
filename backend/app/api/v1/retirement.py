@@ -21,20 +21,21 @@ from app.schemas.retirement import (
     LifeEventPresetRequest,
     LifeEventResponse,
     LifeEventUpdate,
+    ProjectionDataPoint,
     QuickSimulationRequest,
     QuickSimulationResponse,
-    ProjectionDataPoint,
+    RetirementAccountDataResponse,
     RetirementScenarioCreate,
     RetirementScenarioResponse,
     RetirementScenarioSummary,
     RetirementScenarioUpdate,
     ScenarioComparisonItem,
     ScenarioComparisonRequest,
-    RetirementAccountDataResponse,
     ScenarioComparisonResponse,
     SimulationResultResponse,
     SocialSecurityEstimateResponse,
 )
+from app.services.input_sanitization_service import input_sanitization_service
 from app.services.retirement.healthcare_cost_estimator import (
     estimate_annual_healthcare_cost,
 )
@@ -60,11 +61,19 @@ async def create_scenario(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new retirement scenario."""
+    # Sanitize user text input
+    sanitized = data.model_dump()
+    if sanitized.get("name"):
+        sanitized["name"] = input_sanitization_service.sanitize_html(sanitized["name"])
+    if sanitized.get("description"):
+        sanitized["description"] = input_sanitization_service.sanitize_html(
+            sanitized["description"]
+        )
     scenario = await RetirementPlannerService.create_scenario(
         db=db,
         organization_id=str(current_user.organization_id),
         user_id=str(current_user.id),
-        **data.model_dump(),
+        **sanitized,
     )
     await db.commit()
     return scenario
@@ -81,6 +90,7 @@ async def list_scenarios(
     # Verify target user belongs to the same organization
     if user_id and user_id != str(current_user.id):
         from app.models.user import User as UserModel
+
         target = await db.get(UserModel, user_id)
         if not target or str(target.organization_id) != str(current_user.organization_id):
             raise HTTPException(status_code=403, detail="Cannot access another organization's data")
@@ -102,7 +112,9 @@ async def create_default_scenario(
 ):
     """Auto-generate a default scenario from user profile and accounts."""
     if not current_user.birthdate:
-        raise HTTPException(status_code=400, detail="Please set your birthdate in preferences first")
+        raise HTTPException(
+            status_code=400, detail="Please set your birthdate in preferences first"
+        )
 
     scenario = await RetirementPlannerService.create_default_scenario(db=db, user=current_user)
     await db.commit()
@@ -140,8 +152,14 @@ async def update_scenario(
     if str(scenario.user_id) != str(current_user.id):
         raise HTTPException(status_code=403, detail="Cannot edit another user's scenario")
 
+    # Sanitize user text input
+    updates = data.model_dump(exclude_unset=True)
+    if updates.get("name"):
+        updates["name"] = input_sanitization_service.sanitize_html(updates["name"])
+    if updates.get("description"):
+        updates["description"] = input_sanitization_service.sanitize_html(updates["description"])
     updated = await RetirementPlannerService.update_scenario(
-        db=db, scenario=scenario, updates=data.model_dump(exclude_unset=True)
+        db=db, scenario=scenario, updates=updates
     )
     await db.commit()
     return updated
@@ -166,7 +184,9 @@ async def delete_scenario(
     await db.commit()
 
 
-@router.post("/scenarios/{scenario_id}/duplicate", response_model=RetirementScenarioResponse, status_code=201)
+@router.post(
+    "/scenarios/{scenario_id}/duplicate", response_model=RetirementScenarioResponse, status_code=201
+)
 async def duplicate_scenario(
     scenario_id: UUID,
     name: Optional[str] = None,
@@ -180,7 +200,11 @@ async def duplicate_scenario(
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
 
-    dup = await RetirementPlannerService.duplicate_scenario(db=db, scenario=scenario, new_name=name)
+    # Sanitize user text input
+    sanitized_name = input_sanitization_service.sanitize_html(name) if name else name
+    dup = await RetirementPlannerService.duplicate_scenario(
+        db=db, scenario=scenario, new_name=sanitized_name
+    )
     await db.commit()
     return dup
 
@@ -188,7 +212,9 @@ async def duplicate_scenario(
 # --- Life Events ---
 
 
-@router.post("/scenarios/{scenario_id}/life-events", response_model=LifeEventResponse, status_code=201)
+@router.post(
+    "/scenarios/{scenario_id}/life-events", response_model=LifeEventResponse, status_code=201
+)
 async def add_life_event(
     scenario_id: UUID,
     data: LifeEventCreate,
@@ -204,7 +230,11 @@ async def add_life_event(
     if str(scenario.user_id) != str(current_user.id):
         raise HTTPException(status_code=403, detail="Cannot modify another user's scenario")
 
-    event = LifeEvent(scenario_id=scenario.id, **data.model_dump())
+    # Sanitize user text input
+    sanitized = data.model_dump()
+    if sanitized.get("name"):
+        sanitized["name"] = input_sanitization_service.sanitize_html(sanitized["name"])
+    event = LifeEvent(scenario_id=scenario.id, **sanitized)
     db.add(event)
     await db.flush()
     await db.commit()
@@ -234,6 +264,9 @@ async def update_life_event(
 
     for key, value in data.model_dump(exclude_unset=True).items():
         if value is not None:
+            # Sanitize text fields
+            if key == "name":
+                value = input_sanitization_service.sanitize_html(value)
             setattr(event, key, value)
     await db.flush()
     await db.commit()
@@ -320,7 +353,9 @@ async def get_social_security_estimate(
 ):
     """Estimate Social Security benefits based on user profile or overrides."""
     if not current_user.birthdate:
-        raise HTTPException(status_code=400, detail="Please set your birthdate in preferences first")
+        raise HTTPException(
+            status_code=400, detail="Please set your birthdate in preferences first"
+        )
 
     current_age = calculate_age(current_user.birthdate)
     birth_year = current_user.birthdate.year
@@ -354,7 +389,9 @@ async def get_healthcare_estimate(
 ):
     """Estimate healthcare costs across retirement phases."""
     if not current_user.birthdate:
-        raise HTTPException(status_code=400, detail="Please set your birthdate in preferences first")
+        raise HTTPException(
+            status_code=400, detail="Please set your birthdate in preferences first"
+        )
 
     current_age = calculate_age(current_user.birthdate)
 
@@ -410,6 +447,7 @@ async def get_account_data(
     # Verify target user belongs to the same organization
     if user_id and user_id != str(current_user.id):
         from app.models.user import User as UserModel
+
         target = await db.get(UserModel, user_id)
         if not target or str(target.organization_id) != str(current_user.organization_id):
             raise HTTPException(status_code=403, detail="Cannot access another organization's data")
@@ -448,7 +486,9 @@ async def run_simulation(
         raise HTTPException(status_code=404, detail="Scenario not found")
 
     if not current_user.birthdate:
-        raise HTTPException(status_code=400, detail="Please set your birthdate in preferences first")
+        raise HTTPException(
+            status_code=400, detail="Please set your birthdate in preferences first"
+        )
 
     result = await RetirementPlannerService.run_or_get_cached_simulation(
         db=db, scenario=scenario, user=current_user
@@ -473,7 +513,9 @@ async def get_latest_results(
 
     result = await RetirementPlannerService.get_latest_result(db=db, scenario_id=scenario_id)
     if not result:
-        raise HTTPException(status_code=404, detail="No simulation results yet. Run a simulation first.")
+        raise HTTPException(
+            status_code=404, detail="No simulation results yet. Run a simulation first."
+        )
 
     return _format_simulation_result(result)
 
@@ -532,7 +574,10 @@ async def compare_scenarios(
         if not result:
             raise HTTPException(
                 status_code=400,
-                detail=f"No simulation results for scenario '{scenario.name}'. Run simulation first.",
+                detail=(
+                    f"No simulation results for scenario"
+                    f" '{scenario.name}'. Run simulation first."
+                ),
             )
 
         projections = json.loads(result.projections_json)
@@ -543,7 +588,9 @@ async def compare_scenarios(
                 retirement_age=scenario.retirement_age,
                 readiness_score=result.readiness_score,
                 success_rate=float(result.success_rate),
-                median_portfolio_at_end=float(result.median_portfolio_at_end) if result.median_portfolio_at_end else None,
+                median_portfolio_at_end=float(result.median_portfolio_at_end)
+                if result.median_portfolio_at_end
+                else None,
                 projections=[ProjectionDataPoint(**p) for p in projections],
             )
         )
@@ -569,31 +616,37 @@ async def export_projections_csv(
 
     result = await RetirementPlannerService.get_latest_result(db=db, scenario_id=scenario_id)
     if not result:
-        raise HTTPException(status_code=404, detail="No simulation results yet. Run a simulation first.")
+        raise HTTPException(
+            status_code=404, detail="No simulation results yet. Run a simulation first."
+        )
 
     projections = json.loads(result.projections_json)
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow([
-        "Age",
-        "10th Percentile",
-        "25th Percentile",
-        "Median (50th)",
-        "75th Percentile",
-        "90th Percentile",
-        "Depletion Probability %",
-    ])
+    writer.writerow(
+        [
+            "Age",
+            "10th Percentile",
+            "25th Percentile",
+            "Median (50th)",
+            "75th Percentile",
+            "90th Percentile",
+            "Depletion Probability %",
+        ]
+    )
     for p in projections:
-        writer.writerow([
-            p["age"],
-            round(p["p10"], 2),
-            round(p["p25"], 2),
-            round(p["p50"], 2),
-            round(p["p75"], 2),
-            round(p["p90"], 2),
-            round(p["depletion_pct"], 1),
-        ])
+        writer.writerow(
+            [
+                p["age"],
+                round(p["p10"], 2),
+                round(p["p25"], 2),
+                round(p["p50"], 2),
+                round(p["p75"], 2),
+                round(p["p90"], 2),
+                round(p["depletion_pct"], 1),
+            ]
+        )
 
     output.seek(0)
     safe_name = scenario.name.replace(" ", "_").replace("/", "_")[:50]
@@ -625,9 +678,13 @@ def _format_simulation_result(result) -> SimulationResultResponse:
         success_rate=float(result.success_rate),
         readiness_score=result.readiness_score,
         median_portfolio_at_retirement=(
-            float(result.median_portfolio_at_retirement) if result.median_portfolio_at_retirement else None
+            float(result.median_portfolio_at_retirement)
+            if result.median_portfolio_at_retirement
+            else None
         ),
-        median_portfolio_at_end=float(result.median_portfolio_at_end) if result.median_portfolio_at_end else None,
+        median_portfolio_at_end=float(result.median_portfolio_at_end)
+        if result.median_portfolio_at_end
+        else None,
         median_depletion_age=result.median_depletion_age,
         estimated_pia=float(result.estimated_pia) if result.estimated_pia else None,
         projections=[ProjectionDataPoint(**p) for p in projections],
