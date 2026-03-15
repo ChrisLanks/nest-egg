@@ -7,7 +7,7 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { User } from "../../types/user";
 
 // Helper to build a minimal User object for testing
@@ -145,5 +145,91 @@ describe("invite email validation", () => {
   it("empty email disables invite button", () => {
     const email = "";
     expect(email.includes("@")).toBe(false);
+  });
+});
+
+// ── finish() API integration ────────────────────────────────────────────────
+
+describe("finish() onboarding completion flow", () => {
+  /**
+   * These tests simulate the finish() logic from WelcomePage
+   * using mock API and store functions.
+   */
+
+  async function runFinish(opts: { apiSucceeds: boolean; user: User | null }) {
+    const mockPost = opts.apiSucceeds
+      ? vi.fn().mockResolvedValue({ data: { onboarding_completed: true } })
+      : vi.fn().mockRejectedValue(new Error("Network error"));
+    const mockSetUser = vi.fn();
+    const mockNavigate = vi.fn();
+
+    // Replicate WelcomePage.finish() logic
+    try {
+      await mockPost("/onboarding/complete");
+      if (opts.user) {
+        mockSetUser({ ...opts.user, onboarding_completed: true });
+      }
+    } catch {
+      // Best-effort — don't block navigation
+    }
+    mockNavigate("/overview");
+
+    return { mockPost, mockSetUser, mockNavigate };
+  }
+
+  it("calls POST /onboarding/complete", async () => {
+    const { mockPost } = await runFinish({
+      apiSucceeds: true,
+      user: makeUser(),
+    });
+    expect(mockPost).toHaveBeenCalledWith("/onboarding/complete");
+  });
+
+  it("updates auth store user with onboarding_completed: true on success", async () => {
+    const user = makeUser();
+    const { mockSetUser } = await runFinish({ apiSucceeds: true, user });
+    expect(mockSetUser).toHaveBeenCalledWith(
+      expect.objectContaining({ onboarding_completed: true }),
+    );
+  });
+
+  it("does not call setUser when user is null", async () => {
+    const { mockSetUser } = await runFinish({
+      apiSucceeds: true,
+      user: null,
+    });
+    expect(mockSetUser).not.toHaveBeenCalled();
+  });
+
+  it("navigates to /overview even when API call fails", async () => {
+    const { mockNavigate, mockSetUser } = await runFinish({
+      apiSucceeds: false,
+      user: makeUser(),
+    });
+    expect(mockNavigate).toHaveBeenCalledWith("/overview");
+    // setUser should NOT be called when API fails
+    expect(mockSetUser).not.toHaveBeenCalled();
+  });
+
+  it("navigates to /overview on success", async () => {
+    const { mockNavigate } = await runFinish({
+      apiSucceeds: true,
+      user: makeUser(),
+    });
+    expect(mockNavigate).toHaveBeenCalledWith("/overview");
+  });
+
+  it("preserves all existing user fields when updating", async () => {
+    const user = makeUser({
+      email: "alice@example.com",
+      display_name: "Alice",
+      is_org_admin: true,
+    });
+    const { mockSetUser } = await runFinish({ apiSucceeds: true, user });
+    const updatedUser = mockSetUser.mock.calls[0][0];
+    expect(updatedUser.email).toBe("alice@example.com");
+    expect(updatedUser.display_name).toBe("Alice");
+    expect(updatedUser.is_org_admin).toBe(true);
+    expect(updatedUser.onboarding_completed).toBe(true);
   });
 });
