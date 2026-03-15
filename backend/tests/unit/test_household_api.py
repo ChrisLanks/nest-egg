@@ -689,7 +689,41 @@ class TestAcceptInvitation:
             assert result["message"] == "Invitation accepted successfully"
             assert result["accounts_migrated"] == 0
             assert current_user.organization_id == invitation.organization_id
+            assert current_user.is_org_admin is False  # Invited members are not admins
             assert invitation.status == InvitationStatus.ACCEPTED
+
+    @pytest.mark.asyncio
+    async def test_resets_admin_flag_on_acceptance(self, mock_db, mock_request):
+        """Invited user who was admin in their old org should join as regular member."""
+        invitation_code = "test-code"
+
+        invitation = Mock(spec=HouseholdInvitation)
+        invitation.email = "former-admin@example.com"
+        invitation.organization_id = uuid4()
+        invitation.status = InvitationStatus.PENDING
+        invitation.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
+
+        current_user = Mock(spec=User)
+        current_user.email = "former-admin@example.com"
+        current_user.organization_id = None
+        current_user.is_org_admin = True  # Was admin in previous org
+
+        invitation_result = Mock()
+        invitation_result.scalar_one_or_none.return_value = invitation
+        mock_db.execute.side_effect = [invitation_result]
+
+        with patch(
+            "app.api.v1.household.rate_limit_service.check_rate_limit",
+            return_value=None,
+        ):
+            await accept_invitation(
+                invitation_code=invitation_code,
+                request=mock_request,
+                current_user=current_user,
+                db=mock_db,
+            )
+
+            assert current_user.is_org_admin is False
 
     @pytest.mark.asyncio
     async def test_raises_404_for_invalid_code(self, mock_db, mock_request):
@@ -897,6 +931,7 @@ class TestAcceptInvitation:
             # Verify user migration
             assert current_user.organization_id == new_org_id
             assert current_user.is_primary_household_member is False
+            assert current_user.is_org_admin is False  # Invited members are not admins
 
             # Verify invitation marked as accepted
             assert invitation.status == InvitationStatus.ACCEPTED
@@ -963,6 +998,7 @@ class TestAcceptInvitation:
 
             assert result["accounts_migrated"] == 0
             assert current_user.organization_id == new_org_id
+            assert current_user.is_org_admin is False  # Invited members are not admins
 
     @pytest.mark.asyncio
     async def test_handles_missing_old_organization(self, mock_db, mock_request):

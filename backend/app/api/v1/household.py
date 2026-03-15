@@ -574,6 +574,7 @@ async def accept_invitation(
         # Update user's organization
         existing_user.organization_id = invitation.organization_id
         existing_user.is_primary_household_member = False  # Not primary in new household
+        existing_user.is_org_admin = False  # Invited members join as regular members
 
         # Mark invitation as accepted before migrating
         invitation.status = InvitationStatus.ACCEPTED
@@ -599,6 +600,7 @@ async def accept_invitation(
     else:
         # User has no organization - simple case
         existing_user.organization_id = invitation.organization_id
+        existing_user.is_org_admin = False  # Invited members join as regular members
 
         # Mark invitation as accepted
         invitation.status = InvitationStatus.ACCEPTED
