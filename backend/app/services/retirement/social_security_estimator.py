@@ -4,36 +4,17 @@ Implements PIA (Primary Insurance Amount) estimation using 2024 bend points,
 early/delayed claiming adjustments, and FRA (Full Retirement Age) lookup.
 """
 
-from decimal import Decimal
 from typing import Optional
 
+from app.constants.financial import SS
 
-# 2024 PIA bend points (monthly amounts)
-BEND_POINT_1 = 1174  # First bend point
-BEND_POINT_2 = 7078  # Second bend point
-
-# Replacement rates at each segment
-RATE_1 = 0.90  # 90% of first $1,174
-RATE_2 = 0.32  # 32% between $1,174 and $7,078
-RATE_3 = 0.15  # 15% above $7,078
-
-# FRA by birth year
-FRA_TABLE = {
-    # birth_year: (years, months)
-    1937: (65, 0),
-    1938: (65, 2),
-    1939: (65, 4),
-    1940: (65, 6),
-    1941: (65, 8),
-    1942: (65, 10),
-    # 1943-1954: FRA = 66
-    1955: (66, 2),
-    1956: (66, 4),
-    1957: (66, 6),
-    1958: (66, 8),
-    1959: (66, 10),
-    # 1960+: FRA = 67
-}
+# Re-export from centralized constants for backward compatibility
+BEND_POINT_1 = SS.BEND_POINT_1
+BEND_POINT_2 = SS.BEND_POINT_2
+RATE_1 = SS.RATE_1
+RATE_2 = SS.RATE_2
+RATE_3 = SS.RATE_3
+FRA_TABLE = SS.FRA_TABLE
 
 
 def get_fra(birth_year: int) -> float:
@@ -106,7 +87,7 @@ def estimate_aime_from_salary(
         return 0.0
 
     years_worked = current_age - career_start_age
-    wage_growth = 0.025  # Assumed historical wage growth
+    wage_growth = SS.WAGE_GROWTH  # Assumed historical wage growth
 
     # Build earnings history (in today's dollars, roughly indexed)
     earnings = []
@@ -115,7 +96,7 @@ def estimate_aime_from_salary(
         years_ago = years_worked - y
         past_salary = current_salary / ((1 + wage_growth) ** years_ago)
         # Cap at Social Security taxable maximum (approximate: $168,600 for 2024)
-        earnings.append(min(past_salary, 168600))
+        earnings.append(min(past_salary, SS.TAXABLE_MAX))
 
     # Use top 35 years (or all if less)
     earnings.sort(reverse=True)

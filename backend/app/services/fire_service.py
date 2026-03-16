@@ -11,6 +11,7 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import FIRE
 from app.models.account import Account, AccountType
 from app.services.dashboard_service import DashboardService
 from app.utils.account_type_groups import ALL_RETIREMENT_TYPES
@@ -155,7 +156,7 @@ class FireService:
         investable = await self._get_investable_assets(organization_id, user_id)
         annual_expenses = await self._get_trailing_annual_spending(organization_id, user_id)
 
-        fi_number = annual_expenses * 25  # 4% rule target
+        fi_number = annual_expenses * FIRE.FI_MULTIPLIER  # 4% rule target
         fi_ratio = float(investable / fi_number) if fi_number > 0 else 0.0
 
         return {
@@ -270,7 +271,7 @@ class FireService:
             }
 
         # Cannot reach FI with negative savings and no portfolio
-        real_return = expected_return - 0.03  # Assume 3% inflation
+        real_return = expected_return - FIRE.DEFAULT_INFLATION  # Assume 3% inflation
         if real_return <= 0 or (annual_savings <= 0 and current <= 0):
             return {
                 "years_to_fi": None,
@@ -341,13 +342,13 @@ class FireService:
         investable = await self._get_investable_assets(organization_id, user_id)
         annual_expenses = await self._get_trailing_annual_spending(organization_id, user_id)
 
-        fi_number = float(annual_expenses) * 25  # 4% rule
+        fi_number = float(annual_expenses) * FIRE.FI_MULTIPLIER  # 4% rule
 
         # Estimate years until retirement (assume user is ~30 if we can't determine age)
         # In a production system, this would come from the user's profile/birth date
         years_until_retirement = max(retirement_age - 30, 1)
 
-        real_return = expected_return - 0.03  # Assume 3% inflation
+        real_return = expected_return - FIRE.DEFAULT_INFLATION  # Assume 3% inflation
 
         # Coast FI = FI number discounted back to present
         coast_fi = fi_number / ((1 + real_return) ** years_until_retirement)

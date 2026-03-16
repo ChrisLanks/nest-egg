@@ -13,6 +13,7 @@ from uuid import UUID
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import HEALTH
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -24,32 +25,27 @@ from app.utils.account_type_groups import (
 from app.utils.datetime_utils import utc_now
 
 # ---------------------------------------------------------------------------
-# Grade mapping
+# Grade mapping (from centralized constants)
 # ---------------------------------------------------------------------------
 
 
 def _grade(score: float) -> str:
-    if score >= 90:
+    if score >= HEALTH.GRADE_A:
         return "A"
-    if score >= 75:
+    if score >= HEALTH.GRADE_B:
         return "B"
-    if score >= 60:
+    if score >= HEALTH.GRADE_C:
         return "C"
-    if score >= 40:
+    if score >= HEALTH.GRADE_D:
         return "D"
     return "F"
 
 
 # ---------------------------------------------------------------------------
-# Fidelity age-based retirement benchmarks (multiples of annual salary)
+# Fidelity age-based retirement benchmarks (from centralized constants)
 # ---------------------------------------------------------------------------
 
-_RETIREMENT_BENCHMARKS = [
-    (30, Decimal(1)),
-    (40, Decimal(3)),
-    (50, Decimal(6)),
-    (60, Decimal(8)),
-]
+_RETIREMENT_BENCHMARKS = [(age, Decimal(mult)) for age, mult in HEALTH.RETIREMENT_BENCHMARKS]
 
 
 def _retirement_target_multiple(age: int) -> Decimal:
@@ -80,12 +76,17 @@ def _savings_rate_score(monthly_savings: Decimal, monthly_income: Decimal) -> Di
     else:
         rate = monthly_savings / monthly_income
         pct = float(rate * 100)
-        if pct >= 20:
+        if pct >= HEALTH.SAVINGS_RATE_EXCELLENT:
             score = 100.0
-        elif pct >= 10:
-            score = 50 + (pct - 10) / 10 * 50
+        elif pct >= HEALTH.SAVINGS_RATE_GOOD:
+            score = (
+                50
+                + (pct - HEALTH.SAVINGS_RATE_GOOD)
+                / (HEALTH.SAVINGS_RATE_EXCELLENT - HEALTH.SAVINGS_RATE_GOOD)
+                * 50
+            )
         elif pct >= 0:
-            score = pct / 10 * 50
+            score = pct / HEALTH.SAVINGS_RATE_GOOD * 50
         else:
             score = 0.0
 
@@ -104,12 +105,17 @@ def _emergency_fund_score(liquid_savings: Decimal, monthly_expenses: Decimal) ->
     else:
         months = float(liquid_savings / monthly_expenses)
 
-    if months >= 6:
+    if months >= HEALTH.EMERGENCY_FUND_EXCELLENT:
         score = 100.0
-    elif months >= 3:
-        score = 50 + (months - 3) / 3 * 50
+    elif months >= HEALTH.EMERGENCY_FUND_GOOD:
+        score = (
+            50
+            + (months - HEALTH.EMERGENCY_FUND_GOOD)
+            / (HEALTH.EMERGENCY_FUND_EXCELLENT - HEALTH.EMERGENCY_FUND_GOOD)
+            * 50
+        )
     elif months >= 0:
-        score = months / 3 * 50
+        score = months / HEALTH.EMERGENCY_FUND_GOOD * 50
     else:
         score = 0.0
 
@@ -131,12 +137,12 @@ def _debt_to_income_score(
     else:
         ratio = float(monthly_debt_payments / monthly_income * 100)
 
-    if ratio <= 15:
+    if ratio <= HEALTH.DTI_EXCELLENT:
         score = 100.0
-    elif ratio <= 35:
-        score = 50 + (35 - ratio) / 20 * 50
+    elif ratio <= HEALTH.DTI_FAIR:
+        score = 50 + (HEALTH.DTI_FAIR - ratio) / (HEALTH.DTI_FAIR - HEALTH.DTI_EXCELLENT) * 50
     elif ratio <= 50:
-        score = (50 - ratio) / 15 * 50
+        score = (50 - ratio) / (50 - HEALTH.DTI_FAIR) * 50
     else:
         score = 0.0
 

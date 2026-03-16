@@ -3,21 +3,21 @@
 Each preset provides sensible default values that users can customize.
 """
 
-from decimal import Decimal
 from typing import Optional
 
+from app.constants.financial import LIFE_EVENTS as LE
 from app.models.retirement import LifeEventCategory
 
-
 # Preset definitions: key -> preset config
+# Dollar amounts sourced from app.constants.financial.LIFE_EVENTS
 LIFE_EVENT_PRESETS: dict[str, dict] = {
     # --- Children ---
     "child_daycare": {
         "name": "Child - Daycare",
         "category": LifeEventCategory.CHILD,
         "description": "Daycare/preschool costs for ages 0-5",
-        "annual_cost": Decimal("15000"),
-        "duration_years": 5,
+        "annual_cost": LE.DAYCARE_ANNUAL,
+        "duration_years": LE.DAYCARE_YEARS,
         "use_medical_inflation": False,
         "icon": "baby",
     },
@@ -25,8 +25,8 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Child - Activities & School",
         "category": LifeEventCategory.CHILD,
         "description": "Sports, activities, school expenses ages 5-18",
-        "annual_cost": Decimal("5000"),
-        "duration_years": 13,
+        "annual_cost": LE.ACTIVITIES_ANNUAL,
+        "duration_years": LE.ACTIVITIES_YEARS,
         "use_medical_inflation": False,
         "icon": "school",
     },
@@ -34,8 +34,8 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Child - College (Public)",
         "category": LifeEventCategory.CHILD,
         "description": "In-state public university tuition + room & board",
-        "annual_cost": Decimal("25000"),
-        "duration_years": 4,
+        "annual_cost": LE.COLLEGE_PUBLIC_ANNUAL,
+        "duration_years": LE.COLLEGE_YEARS,
         "use_medical_inflation": False,
         "icon": "graduation",
     },
@@ -43,8 +43,8 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Child - College (Private)",
         "category": LifeEventCategory.CHILD,
         "description": "Private university tuition + room & board",
-        "annual_cost": Decimal("60000"),
-        "duration_years": 4,
+        "annual_cost": LE.COLLEGE_PRIVATE_ANNUAL,
+        "duration_years": LE.COLLEGE_YEARS,
         "use_medical_inflation": False,
         "icon": "graduation",
     },
@@ -53,8 +53,8 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Dog",
         "category": LifeEventCategory.PET,
         "description": "Annual dog ownership costs (food, vet, grooming)",
-        "annual_cost": Decimal("3000"),
-        "duration_years": 12,
+        "annual_cost": LE.DOG_ANNUAL,
+        "duration_years": LE.DOG_LIFESPAN,
         "use_medical_inflation": False,
         "icon": "dog",
     },
@@ -62,8 +62,8 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Cat",
         "category": LifeEventCategory.PET,
         "description": "Annual cat ownership costs (food, vet, litter)",
-        "annual_cost": Decimal("1500"),
-        "duration_years": 15,
+        "annual_cost": LE.CAT_ANNUAL,
+        "duration_years": LE.CAT_LIFESPAN,
         "use_medical_inflation": False,
         "icon": "cat",
     },
@@ -72,7 +72,7 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Home Purchase",
         "category": LifeEventCategory.HOME_PURCHASE,
         "description": "Down payment and closing costs for home purchase",
-        "one_time_cost": Decimal("100000"),
+        "one_time_cost": LE.HOME_PURCHASE_COST,
         "use_medical_inflation": False,
         "icon": "home",
     },
@@ -80,7 +80,7 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Major Home Renovation",
         "category": LifeEventCategory.HOME_PURCHASE,
         "description": "Kitchen, bathroom, or whole-home renovation",
-        "one_time_cost": Decimal("50000"),
+        "one_time_cost": LE.HOME_RENOVATION_COST,
         "use_medical_inflation": False,
         "icon": "hammer",
     },
@@ -88,7 +88,7 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Home Downsize",
         "category": LifeEventCategory.HOME_DOWNSIZE,
         "description": "Net proceeds from downsizing (reduces costs)",
-        "income_change": Decimal("150000"),
+        "income_change": LE.HOME_DOWNSIZE_PROCEEDS,
         "use_medical_inflation": False,
         "icon": "home_small",
     },
@@ -97,7 +97,7 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Sabbatical / Career Break",
         "category": LifeEventCategory.CAREER_CHANGE,
         "description": "Year without income for sabbatical or career change",
-        "income_change": Decimal("-50000"),
+        "income_change": LE.SABBATICAL_INCOME_LOSS,
         "duration_years": 1,
         "use_medical_inflation": False,
         "icon": "briefcase",
@@ -106,7 +106,7 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Expected Raise / Promotion",
         "category": LifeEventCategory.BONUS,
         "description": "Anticipated salary increase",
-        "income_change": Decimal("20000"),
+        "income_change": LE.RAISE_INCOME_GAIN,
         "duration_years": None,  # Permanent
         "use_medical_inflation": False,
         "icon": "trending_up",
@@ -115,7 +115,7 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "One-Time Bonus / Windfall",
         "category": LifeEventCategory.BONUS,
         "description": "One-time bonus, inheritance, or windfall",
-        "income_change": Decimal("50000"),
+        "income_change": LE.BONUS_AMOUNT,
         "use_medical_inflation": False,
         "icon": "cash",
     },
@@ -124,7 +124,7 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Pre-65 Health Insurance",
         "category": LifeEventCategory.HEALTHCARE,
         "description": "ACA marketplace insurance before Medicare eligibility",
-        "annual_cost": Decimal("7200"),
+        "annual_cost": LE.PRE_65_INSURANCE_ANNUAL,
         "use_medical_inflation": True,
         "icon": "hospital",
     },
@@ -132,8 +132,8 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Long-Term Care",
         "category": LifeEventCategory.HEALTHCARE,
         "description": "Long-term care costs (home care + facility)",
-        "annual_cost": Decimal("60000"),
-        "duration_years": 3,
+        "annual_cost": LE.LTC_ANNUAL,
+        "duration_years": LE.LTC_YEARS,
         "use_medical_inflation": True,
         "icon": "medical",
     },
@@ -141,7 +141,7 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Major Medical Procedure",
         "category": LifeEventCategory.HEALTHCARE,
         "description": "Surgery, dental work, or other major procedure",
-        "one_time_cost": Decimal("15000"),
+        "one_time_cost": LE.MAJOR_PROCEDURE,
         "use_medical_inflation": True,
         "icon": "hospital",
     },
@@ -150,7 +150,7 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Annual Travel Budget",
         "category": LifeEventCategory.TRAVEL,
         "description": "Moderate annual travel (domestic + occasional international)",
-        "annual_cost": Decimal("10000"),
+        "annual_cost": LE.TRAVEL_MODERATE_ANNUAL,
         "use_medical_inflation": False,
         "icon": "plane",
     },
@@ -158,7 +158,7 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Premium Travel Budget",
         "category": LifeEventCategory.TRAVEL,
         "description": "Premium travel with international destinations",
-        "annual_cost": Decimal("25000"),
+        "annual_cost": LE.TRAVEL_PREMIUM_ANNUAL,
         "use_medical_inflation": False,
         "icon": "globe",
     },
@@ -167,7 +167,7 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Vehicle Replacement",
         "category": LifeEventCategory.VEHICLE,
         "description": "New or used vehicle purchase",
-        "one_time_cost": Decimal("35000"),
+        "one_time_cost": LE.VEHICLE_PURCHASE,
         "use_medical_inflation": False,
         "icon": "car",
     },
@@ -175,7 +175,7 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Vehicle Expenses",
         "category": LifeEventCategory.VEHICLE,
         "description": "Insurance, maintenance, fuel, registration",
-        "annual_cost": Decimal("5000"),
+        "annual_cost": LE.VEHICLE_ANNUAL,
         "use_medical_inflation": False,
         "icon": "car",
     },
@@ -184,8 +184,8 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "name": "Parent Elder Care",
         "category": LifeEventCategory.ELDER_CARE,
         "description": "Financial support for aging parent(s)",
-        "annual_cost": Decimal("25000"),
-        "duration_years": 5,
+        "annual_cost": LE.ELDER_CARE_ANNUAL,
+        "duration_years": LE.ELDER_CARE_YEARS,
         "use_medical_inflation": True,
         "icon": "elderly",
     },
@@ -196,18 +196,20 @@ def get_all_presets() -> list[dict]:
     """Return all presets formatted for the API response."""
     presets = []
     for key, config in LIFE_EVENT_PRESETS.items():
-        presets.append({
-            "key": key,
-            "name": config["name"],
-            "category": config["category"].value,
-            "description": config["description"],
-            "annual_cost": float(config.get("annual_cost") or 0) or None,
-            "one_time_cost": float(config.get("one_time_cost") or 0) or None,
-            "income_change": float(config.get("income_change") or 0) or None,
-            "duration_years": config.get("duration_years"),
-            "use_medical_inflation": config.get("use_medical_inflation", False),
-            "icon": config.get("icon", "event"),
-        })
+        presets.append(
+            {
+                "key": key,
+                "name": config["name"],
+                "category": config["category"].value,
+                "description": config["description"],
+                "annual_cost": float(config.get("annual_cost") or 0) or None,
+                "one_time_cost": float(config.get("one_time_cost") or 0) or None,
+                "income_change": float(config.get("income_change") or 0) or None,
+                "duration_years": config.get("duration_years"),
+                "use_medical_inflation": config.get("use_medical_inflation", False),
+                "icon": config.get("icon", "event"),
+            }
+        )
     return presets
 
 

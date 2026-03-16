@@ -7,43 +7,20 @@ Models healthcare costs across retirement phases:
 All costs inflated by medical inflation rate.
 """
 
-from typing import Optional
+from app.constants.financial import HEALTHCARE, MEDICARE
 
-
-# --- Base costs (2024 dollars) ---
-
-# Pre-65 ACA marketplace (single, mid-tier Silver plan, no subsidies)
-ACA_MONTHLY_SINGLE = 600
-ACA_MONTHLY_COUPLE = 1200
-
-# Medicare Part B (2024)
-MEDICARE_PART_B_MONTHLY = 174.70
-
-# Medicare Part D average premium (2024)
-MEDICARE_PART_D_MONTHLY = 34.70
-
-# Medicare Supplement (Medigap Plan G average)
-MEDIGAP_MONTHLY = 150.00
-
-# Out-of-pocket medical (dental, vision, copays, etc.)
-OOP_ANNUAL = 3000
-
-# --- IRMAA brackets (2024, single filer MAGI thresholds) ---
-# (threshold, monthly Part B surcharge, monthly Part D surcharge)
-IRMAA_BRACKETS_SINGLE = [
-    (103000, 0.00, 0.00),        # Standard
-    (129000, 70.90, 12.90),      # Tier 1
-    (161000, 161.40, 33.30),     # Tier 2
-    (193000, 251.90, 53.80),     # Tier 3
-    (500000, 342.30, 74.20),     # Tier 4
-    (float("inf"), 395.60, 81.00),  # Tier 5
-]
-
-# Long-term care defaults
-LTC_FACILITY_MONTHLY = 5900    # Nursing home (semi-private, national median)
-LTC_HOME_CARE_MONTHLY = 1966   # Home health aide (national median)
-LTC_DEFAULT_MONTHS_HOME = 12   # Average months of home care first
-LTC_DEFAULT_MONTHS_FACILITY = 16  # Average months in facility after
+# Re-export from centralized constants for backward compatibility
+ACA_MONTHLY_SINGLE = HEALTHCARE.ACA_MONTHLY_SINGLE
+ACA_MONTHLY_COUPLE = HEALTHCARE.ACA_MONTHLY_COUPLE
+MEDICARE_PART_B_MONTHLY = MEDICARE.PART_B_MONTHLY
+MEDICARE_PART_D_MONTHLY = MEDICARE.PART_D_MONTHLY
+MEDIGAP_MONTHLY = MEDICARE.MEDIGAP_MONTHLY
+OOP_ANNUAL = HEALTHCARE.OOP_ANNUAL
+IRMAA_BRACKETS_SINGLE = MEDICARE.IRMAA_BRACKETS_SINGLE
+LTC_FACILITY_MONTHLY = HEALTHCARE.LTC_FACILITY_MONTHLY
+LTC_HOME_CARE_MONTHLY = HEALTHCARE.LTC_HOME_CARE_MONTHLY
+LTC_DEFAULT_MONTHS_HOME = HEALTHCARE.LTC_DEFAULT_MONTHS_HOME
+LTC_DEFAULT_MONTHS_FACILITY = HEALTHCARE.LTC_DEFAULT_MONTHS_FACILITY
 
 
 def get_irmaa_surcharge(
@@ -96,12 +73,6 @@ def estimate_annual_healthcare_cost(
     Returns:
         Dict with cost breakdown and total annual cost (in today's dollars)
     """
-    med_inflation = medical_inflation_rate / 100
-    years_from_now = max(age - current_age, 0)
-
-    # Inflation multiplier from today to the target age
-    inflation_mult = (1 + med_inflation) ** years_from_now
-
     costs = {
         "aca_insurance": 0.0,
         "medicare_part_b": 0.0,
@@ -129,9 +100,7 @@ def estimate_annual_healthcare_cost(
 
         # IRMAA surcharges
         filing = "married" if is_married else "single"
-        part_b_surcharge, part_d_surcharge = get_irmaa_surcharge(
-            retirement_income, filing
-        )
+        part_b_surcharge, part_d_surcharge = get_irmaa_surcharge(retirement_income, filing)
         costs["irmaa_surcharge"] = (part_b_surcharge + part_d_surcharge) * 12
 
     # Out-of-pocket costs (all ages)

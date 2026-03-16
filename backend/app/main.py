@@ -27,7 +27,9 @@ from app.api.v1 import (
     dashboard,
     debt_payoff,
     dev,
+    dividend_income,
     education,
+    enhanced_trends,
     enrichment,
     fire,
     guest_access,
@@ -49,6 +51,7 @@ from app.api.v1 import (
     rules,
     savings_goals,
     subscriptions,
+    tax_advisor,
     tax_lots,
     teller,
     transaction_merges,
@@ -446,3 +449,8 @@ app.include_router(
 )
 app.include_router(onboarding.router, prefix="/api/v1/onboarding", tags=["Onboarding"])
 app.include_router(guest_access.router, prefix="/api/v1/guest-access", tags=["Guest Access"])
+app.include_router(
+    dividend_income.router, prefix="/api/v1/dividend-income", tags=["Dividend Income"]
+)
+app.include_router(tax_advisor.router, prefix="/api/v1/tax-advisor", tags=["Tax Advisor"])
+app.include_router(enhanced_trends.router, prefix="/api/v1/trends", tags=["Enhanced Trends"])

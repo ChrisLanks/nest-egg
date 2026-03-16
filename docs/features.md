@@ -39,7 +39,7 @@ Detailed feature documentation for Nest Egg. For a quick overview, see the [READ
 
 ## Investment Analysis Dashboard
 
-Comprehensive 9-tab portfolio analysis with **multi-provider** market data:
+Comprehensive 10-tab portfolio analysis with **multi-provider** market data:
 
 - **Real-Time Market Data**: Yahoo Finance (free, unlimited), Finnhub (60/min free), or Alpha Vantage (25/day free)
 - **Asset Allocation**: Interactive treemap visualization with drill-down
@@ -57,6 +57,7 @@ Comprehensive 9-tab portfolio analysis with **multi-provider** market data:
 - **Holdings Detail**: Sortable table with CSV export
 - **Roth Conversion Analyzer**: Model tax-efficient Roth conversion strategies
 - **Tax-Loss Harvesting**: Identify unrealized losses, estimate tax savings (27% combined rate), wash-sale rule warnings, and same-sector replacement suggestions
+- **Dividend Income**: Track dividend and investment income with summary stats, monthly chart, and top payers table (see Dividend & Investment Income section below)
 
 ## Cash Flow Analytics (Income vs Expenses)
 
@@ -454,6 +455,71 @@ Per-property financial tracking for real estate investors:
 - **Cap Rate Calculation**: Automatic capitalization rate based on NOI and property value
 - **Monthly Breakdown**: Month-by-month P&L table with year-to-date totals
 - **Dedicated Page**: `RentalPropertiesPage` with multi-property dashboard
+
+## Dividend & Investment Income
+
+Track all forms of investment income with detailed analytics:
+
+- **Income Types**: Dividend, qualified dividend, capital gain distribution, return of capital, interest, reinvested dividend
+- **DRIP Support**: Record reinvested dividends with shares acquired, reinvestment price, and automatic cost basis tracking
+- **Summary Dashboard**: YTD income, trailing 12-month income, monthly average, projected annual income
+- **Year-over-Year Growth**: Automatic calculation of income growth percentage vs prior year
+- **Monthly Trend Chart**: Bar chart showing dividend income by month (last 12 months) in the Investments page
+- **Top Payers Table**: Ranked list of highest-paying holdings with total income, payment count, and yield-on-cost
+- **By-Ticker Breakdown**: Per-holding income totals with average per-share amount and latest ex-date
+- **By-Month Breakdown**: Monthly aggregates with income type breakdown (dividends vs interest vs distributions)
+- **Filtering**: Filter by account, ticker, income type, and date range
+- **API Endpoints**: `GET /api/v1/dividend-income/summary`, `GET /api/v1/dividend-income/`, `POST /api/v1/dividend-income/`, `DELETE /api/v1/dividend-income/{id}`
+
+## Age-Aware Tax Advisor
+
+Proactive tax insights that adapt to the user's age and financial situation:
+
+- **LTCG 0% Bracket Detection**: Identifies when taxable income is low enough for 0% long-term capital gains rate (single: <$47,025, married: <$94,050)
+- **Social Security Taxation**: Calculates what percentage of SS benefits are taxable (0%, 50%, or 85%) based on combined income
+- **IRMAA Planning**: Warns when MAGI approaches Medicare Part B/D surcharge brackets (starts at $103,000 single / $206,000 married)
+- **Net Investment Income Surtax**: Flags the 3.8% NII surtax when MAGI exceeds $200,000 (single) / $250,000 (married)
+- **RMD Planning**: Age 73+ reminders with calculated Required Minimum Distribution amounts from pre-tax accounts
+- **Roth Conversion Window**: Identifies tax-efficient conversion opportunities (between retirement and RMD age, or low-income years)
+- **Standard Deduction (65+)**: Notes the additional $1,950 (single) / $1,550 (married) deduction for seniors
+- **HSA Triple Tax Advantage**: Highlights HSA benefits for those still eligible (under 65)
+- **Age-Appropriate Contribution Limits**: Shows catch-up limits for 401k ($7,500 at 50+), IRA ($1,000 at 50+), and HSA ($1,000 at 55+)
+- **API Endpoint**: `GET /api/v1/tax-advisor/insights`
+
+## Enhanced Financial Trends
+
+Additional trend analysis endpoints for deeper financial insight:
+
+- **Net Worth History**: Time series from daily snapshots with asset/liability breakdown, filterable by user and date range
+  - `GET /api/v1/enhanced-trends/net-worth-history`
+- **Investment Performance**: Per-holding gain/loss analysis with total return, top winners, and biggest losers
+  - `GET /api/v1/enhanced-trends/investment-performance`
+- **Spending Velocity**: Month-over-month spending change with acceleration/deceleration trend detection
+  - `GET /api/v1/enhanced-trends/spending-velocity`
+- **Cash Flow History**: Monthly income vs expenses time series with savings rate per month
+  - `GET /api/v1/enhanced-trends/cash-flow-history`
+- **Investment Income Trend**: Monthly dividend/interest income with cumulative total for charting
+  - `GET /api/v1/enhanced-trends/investment-income-trend`
+
+## Centralized Financial Constants
+
+All tax rates, contribution limits, RMD tables, and financial thresholds in a single admin-editable file:
+
+- **Location**: `backend/app/constants/financial.py`
+- **Organized by Domain**: `TAX`, `RETIREMENT`, `SS`, `MEDICARE`, `HEALTHCARE`, `RMD`, `EDUCATION`, `FIRE`, `HEALTH`, `PORTFOLIO`, `LIFE_EVENTS`
+- **Annual Review Tags**: Constants that change with tax law are marked with `# ANNUAL` comments for easy grep
+- **Single Source of Truth**: All 11 backend services import from this one file — no hardcoded tax rates scattered across the codebase
+- **Key Constants Include**:
+  - Federal/state tax rates, LTCG brackets (0%/15%/20%), NII surtax (3.8%), standard deductions
+  - 401k/IRA/HSA/SEP/SIMPLE/529 contribution limits with age-based catch-ups
+  - Social Security PIA bend points, replacement rates, FRA table, taxable max ($168,600)
+  - Medicare Part B/D premiums, IRMAA brackets (6 tiers)
+  - RMD Uniform Lifetime Table (ages 72-120), trigger age 73, penalty rates
+  - FIRE assumptions (4% rule, 25x multiplier, default return/inflation)
+  - Financial health grade thresholds and retirement benchmarks
+  - Portfolio preset allocations (Bogleheads, 60/40, Target 2050, Conservative, All Weather)
+  - Life event dollar amounts for retirement planning presets
+- **Backward Compatible**: Services that previously defined their own constants now import from `financial.py` with no API changes
 
 ## Scalability Safeguards
 

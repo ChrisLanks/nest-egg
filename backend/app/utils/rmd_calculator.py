@@ -10,59 +10,10 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
+from app.constants.financial import RMD as RMD_CONSTANTS
 
-# IRS Uniform Lifetime Table (2022+)
-# Maps age to distribution period (life expectancy factor)
-UNIFORM_LIFETIME_TABLE = {
-    73: Decimal("26.5"),
-    74: Decimal("25.5"),
-    75: Decimal("24.6"),
-    76: Decimal("23.7"),
-    77: Decimal("22.9"),
-    78: Decimal("22.0"),
-    79: Decimal("21.1"),
-    80: Decimal("20.2"),
-    81: Decimal("19.4"),
-    82: Decimal("18.5"),
-    83: Decimal("17.7"),
-    84: Decimal("16.8"),
-    85: Decimal("16.0"),
-    86: Decimal("15.2"),
-    87: Decimal("14.4"),
-    88: Decimal("13.7"),
-    89: Decimal("12.9"),
-    90: Decimal("12.2"),
-    91: Decimal("11.5"),
-    92: Decimal("10.8"),
-    93: Decimal("10.1"),
-    94: Decimal("9.5"),
-    95: Decimal("8.9"),
-    96: Decimal("8.4"),
-    97: Decimal("7.8"),
-    98: Decimal("7.3"),
-    99: Decimal("6.8"),
-    100: Decimal("6.4"),
-    101: Decimal("6.0"),
-    102: Decimal("5.6"),
-    103: Decimal("5.2"),
-    104: Decimal("4.9"),
-    105: Decimal("4.6"),
-    106: Decimal("4.3"),
-    107: Decimal("4.1"),
-    108: Decimal("3.9"),
-    109: Decimal("3.7"),
-    110: Decimal("3.5"),
-    111: Decimal("3.4"),
-    112: Decimal("3.3"),
-    113: Decimal("3.1"),
-    114: Decimal("3.0"),
-    115: Decimal("2.9"),
-    116: Decimal("2.8"),
-    117: Decimal("2.7"),
-    118: Decimal("2.5"),
-    119: Decimal("2.3"),
-    120: Decimal("2.0"),
-}
+# Re-export from centralized constants for backward compatibility
+UNIFORM_LIFETIME_TABLE = RMD_CONSTANTS.UNIFORM_LIFETIME_TABLE
 
 
 def calculate_age(birthdate: date, as_of_date: Optional[date] = None) -> int:
@@ -84,7 +35,7 @@ def requires_rmd(age: int) -> bool:
 
     RMD age is 73 as of 2023 (SECURE 2.0 Act).
     """
-    return age >= 73
+    return age >= RMD_CONSTANTS.TRIGGER_AGE
 
 
 def calculate_rmd(account_balance: Decimal, age: int) -> Optional[Decimal]:
@@ -128,5 +79,5 @@ def calculate_rmd_penalty(shortfall: Decimal) -> Decimal:
     Penalty is 25% of the amount not withdrawn (reduced from 50% by SECURE 2.0).
     Penalty can be reduced to 10% if corrected within 2 years.
     """
-    penalty_rate = Decimal("0.25")  # 25%
+    penalty_rate = RMD_CONSTANTS.PENALTY_RATE
     return (shortfall * penalty_rate).quantize(Decimal("0.01"))

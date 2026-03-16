@@ -65,7 +65,7 @@ Note: there is dark mode and light mode
 
 - **Transaction & Account Management** — multi-source import (Plaid, Teller, MX, CSV), smart deduplication, bulk operations, advanced filtering
 - **Smart Categorization** — custom categories, automatic mapping, rule engine, tax-deductible tracking
-- **Investment Dashboard** — 9-tab analysis: allocation, sectors, Monte Carlo growth, performance trends, risk analysis, Roth conversion, tax-loss harvesting
+- **Investment Dashboard** — 10-tab analysis: allocation, sectors, Monte Carlo growth, performance trends, risk analysis, Roth conversion, tax-loss harvesting, dividend income
 - **Cash Flow Analytics** — income vs expenses with drill-down, time periods, category/label grouping
 - **Budget Management** — flexible periods, category-based limits, proactive alerts, shared budgets
 - **Retirement Planner** — Monte Carlo simulation, Social Security estimator, healthcare cost modeling, scenario comparison
@@ -91,6 +91,10 @@ Note: there is dark mode and light mode
 - **Subscription Tracking** — recurring charge detection, annual cost summaries, cancellation reminders
 - **Tax Lot Tracking** — cost basis methods (FIFO, LIFO, specific ID), realized/unrealized gains
 - **Portfolio Rebalancing** — target allocation drift alerts, rebalance suggestions
+- **Dividend & Investment Income** — track dividends, interest, capital gain distributions with DRIP support, yield-on-cost, and monthly trend charts
+- **Tax Advisor** — age-aware tax insights: LTCG 0% bracket, Social Security taxation, IRMAA planning, NII surtax, RMD planning, Roth conversion windows
+- **Enhanced Trends** — net worth history, investment performance (winners/losers), spending velocity, cash flow history, investment income trend
+- **Centralized Financial Constants** — single-source tax rates, contribution limits, RMD tables, and thresholds (`backend/app/constants/financial.py`) for easy annual updates
 - **Security** — rate limiting, CSRF, encryption at rest, MFA, GDPR compliance, webhook verification
 
 > **Full details**: [docs/features.md](docs/features.md)
@@ -220,6 +224,7 @@ nest-egg/
 ├── backend/                      # FastAPI backend
 │   ├── app/
 │   │   ├── api/v1/              # API endpoints (40+ modules)
+│   │   ├── constants/            # Centralized financial rules (tax rates, limits, RMD tables)
 │   │   ├── core/                # Config, database, security, encryption
 │   │   ├── middleware/          # CSRF, rate limiting, security headers
 │   │   ├── models/              # SQLAlchemy models
@@ -256,7 +261,7 @@ nest-egg/
 ## Roadmap
 
 ### Completed
-Transaction management, multi-provider bank sync (Plaid/Teller/MX), investment analysis (9 tabs), retirement planner with Monte Carlo, FIRE planning, multi-user households with RBAC, guest access, budget management, cash flow analytics, debt payoff strategies, subscription tracking, education planning, rental property P&L, rule engine, dark mode, IdP-agnostic auth, GDPR compliance, and more. See [docs/features.md](docs/features.md) for the full list.
+Transaction management, multi-provider bank sync (Plaid/Teller/MX), investment analysis (10 tabs incl. dividend income), retirement planner with Monte Carlo, FIRE planning, age-aware tax advisor, enhanced financial trends, multi-user households with RBAC, guest access, budget management, cash flow analytics, debt payoff strategies, subscription tracking, education planning, rental property P&L, rule engine, dark mode, IdP-agnostic auth, GDPR compliance, centralized financial constants, and more. See [docs/features.md](docs/features.md) for the full list.
 
 ## License
 

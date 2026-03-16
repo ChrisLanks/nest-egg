@@ -7,6 +7,7 @@ from app.models.audit_log import AuditLog
 from app.models.budget import Budget
 from app.models.bulk_operation_log import BulkOperationLog
 from app.models.contribution import AccountContribution
+from app.models.dividend import DividendIncome
 from app.models.holding import Holding
 from app.models.identity import UserIdentity
 from app.models.mfa import UserMFA
@@ -61,4 +62,5 @@ __all__ = [
     "CostBasisMethod",
     "BulkOperationLog",
     "AuditLog",
+    "DividendIncome",
 ]

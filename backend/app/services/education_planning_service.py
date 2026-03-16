@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import EDUCATION
 from app.models.account import Account, AccountType
 from app.models.contribution import AccountContribution
 
@@ -16,15 +17,11 @@ logger = logging.getLogger(__name__)
 class EducationPlanningService:
     """Project 529 savings against estimated college costs."""
 
-    # Average annual college costs (2024 dollars, CollegeBoard data)
-    COLLEGE_COSTS: Dict[str, int] = {
-        "public_in_state": 23250,  # Tuition + room/board
-        "public_out_of_state": 41000,
-        "private": 57000,
-    }
-    COLLEGE_INFLATION_RATE = 0.05  # 5% annual college cost inflation
-    DEFAULT_ANNUAL_RETURN = 0.06  # 6% expected annual return
-    COLLEGE_YEARS = 4
+    # Re-export from centralized constants
+    COLLEGE_COSTS = EDUCATION.COLLEGE_COSTS
+    COLLEGE_INFLATION_RATE = EDUCATION.COLLEGE_INFLATION_RATE
+    DEFAULT_ANNUAL_RETURN = EDUCATION.DEFAULT_ANNUAL_RETURN
+    COLLEGE_YEARS = EDUCATION.COLLEGE_YEARS
 
     # ------------------------------------------------------------------
     # Public helpers

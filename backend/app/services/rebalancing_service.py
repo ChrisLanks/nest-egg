@@ -4,9 +4,10 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import select, and_, update
+from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import PORTFOLIO
 from app.models.target_allocation import TargetAllocation
 from app.schemas.target_allocation import (
     AllocationSlice,
@@ -14,50 +15,8 @@ from app.schemas.target_allocation import (
     TradeRecommendation,
 )
 
-# Preset portfolio allocations
-PRESET_PORTFOLIOS: Dict[str, Dict] = {
-    "bogleheads_3fund": {
-        "name": "Bogleheads Three-Fund Portfolio",
-        "allocations": [
-            {"asset_class": "domestic", "target_percent": 60, "label": "US Stocks"},
-            {"asset_class": "international", "target_percent": 30, "label": "International Stocks"},
-            {"asset_class": "bond", "target_percent": 10, "label": "Bonds"},
-        ],
-    },
-    "balanced_60_40": {
-        "name": "Balanced 60/40 Portfolio",
-        "allocations": [
-            {"asset_class": "domestic", "target_percent": 42, "label": "US Stocks"},
-            {"asset_class": "international", "target_percent": 18, "label": "International Stocks"},
-            {"asset_class": "bond", "target_percent": 40, "label": "Bonds"},
-        ],
-    },
-    "target_date_2050": {
-        "name": "Target Date 2050",
-        "allocations": [
-            {"asset_class": "domestic", "target_percent": 54, "label": "US Stocks"},
-            {"asset_class": "international", "target_percent": 36, "label": "International Stocks"},
-            {"asset_class": "bond", "target_percent": 10, "label": "Bonds"},
-        ],
-    },
-    "conservative_30_70": {
-        "name": "Conservative 30/70 Portfolio",
-        "allocations": [
-            {"asset_class": "domestic", "target_percent": 21, "label": "US Stocks"},
-            {"asset_class": "international", "target_percent": 9, "label": "International Stocks"},
-            {"asset_class": "bond", "target_percent": 60, "label": "Bonds"},
-            {"asset_class": "cash", "target_percent": 10, "label": "Cash"},
-        ],
-    },
-    "all_weather": {
-        "name": "All Weather Portfolio",
-        "allocations": [
-            {"asset_class": "domestic", "target_percent": 30, "label": "US Stocks"},
-            {"asset_class": "bond", "target_percent": 55, "label": "Bonds"},
-            {"asset_class": "other", "target_percent": 15, "label": "Alternatives"},
-        ],
-    },
-}
+# Re-export from centralized constants for backward compatibility
+PRESET_PORTFOLIOS = PORTFOLIO.PRESETS
 
 
 class RebalancingService:
@@ -124,17 +83,9 @@ class RebalancingService:
 
         # Lock matching rows first to prevent race condition where two
         # concurrent creates both deactivate and both insert active rows
-        await db.execute(
-            select(TargetAllocation.id)
-            .where(and_(*conditions))
-            .with_for_update()
-        )
+        await db.execute(select(TargetAllocation.id).where(and_(*conditions)).with_for_update())
 
-        await db.execute(
-            update(TargetAllocation)
-            .where(and_(*conditions))
-            .values(is_active=False)
-        )
+        await db.execute(update(TargetAllocation).where(and_(*conditions)).values(is_active=False))
 
     @staticmethod
     def calculate_drift(

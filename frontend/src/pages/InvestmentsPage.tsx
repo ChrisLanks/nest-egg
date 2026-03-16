@@ -66,6 +66,7 @@ import { RothConversionAnalyzer } from "../features/investments/components/RothC
 import TaxLossHarvestingPanel from "../features/investments/components/TaxLossHarvestingPanel";
 import { RebalancingPanel } from "../features/investments/components/RebalancingPanel";
 import { FeeAnalysisPanel } from "../features/investments/components/FeeAnalysisPanel";
+import { DividendIncomePanel } from "../features/investments/components/DividendIncomePanel";
 import { useRetirementAccountData } from "../features/retirement/hooks/useRetirementScenarios";
 
 interface Holding {
@@ -1214,6 +1215,7 @@ export const InvestmentsPage = () => {
                 <Tab>Roth Conversion</Tab>
                 <Tab>Tax-Loss Harvesting</Tab>
                 <Tab>Rebalancing</Tab>
+                <Tab>Dividend Income</Tab>
               </TabList>
 
               <TabPanels>
@@ -1282,6 +1284,11 @@ export const InvestmentsPage = () => {
                 {/* Tab 10: Rebalancing */}
                 <TabPanel>
                   <RebalancingPanel />
+                </TabPanel>
+
+                {/* Tab 11: Dividend Income */}
+                <TabPanel>
+                  <DividendIncomePanel />
                 </TabPanel>
               </TabPanels>
             </Tabs>

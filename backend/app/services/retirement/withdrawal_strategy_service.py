@@ -9,6 +9,8 @@ Used by Monte Carlo simulation to compare strategy outcomes.
 
 from decimal import Decimal
 
+from app.constants.financial import FIRE
+from app.constants.financial import RMD as RMD_CONSTANTS
 from app.utils.rmd_calculator import UNIFORM_LIFETIME_TABLE
 
 
@@ -50,7 +52,7 @@ def compute_rmd_amount(pre_tax_balance: float, age: int) -> float:
 
     RMDs are required at age 73+ from pre-tax accounts.
     """
-    if age < 73 or pre_tax_balance <= 0:
+    if age < RMD_CONSTANTS.TRIGGER_AGE or pre_tax_balance <= 0:
         return 0.0
 
     # Use the Uniform Lifetime Table factor
@@ -99,7 +101,7 @@ def tax_optimized_withdrawal(
         # Need to withdraw enough to cover remaining + capital gains tax
         # gross * (1 - cap_gains_rate) = remaining → gross = remaining / (1 - cap_gains_rate)
         # Cap rate at 50% to prevent unreasonable gross-up from bad inputs
-        safe_cg_rate = min(capital_gains_rate, 0.50)
+        safe_cg_rate = min(capital_gains_rate, FIRE.MAX_CAPITAL_GAINS_RATE)
         gross_needed = remaining / (1 - safe_cg_rate)
         actual = min(gross_needed, buckets.taxable)
         buckets.taxable -= actual
@@ -111,7 +113,7 @@ def tax_optimized_withdrawal(
     # Step 3: Tax-deferred (ordinary income tax)
     if buckets.pre_tax > 0 and remaining > 0:
         # Cap combined rate at 70% (highest realistic federal + state)
-        income_rate = min(federal_rate + state_rate, 0.70)
+        income_rate = min(federal_rate + state_rate, FIRE.MAX_INCOME_TAX_RATE)
         gross_needed = remaining / (1 - income_rate)
         actual = min(gross_needed, buckets.pre_tax)
         buckets.pre_tax -= actual

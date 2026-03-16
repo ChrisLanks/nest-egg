@@ -124,6 +124,10 @@ class AccountType(str, enum.Enum):
     # Business
     BUSINESS_EQUITY = "business_equity"
 
+    # Trust & Estate
+    TRUST = "trust"  # Revocable/irrevocable trust accounts
+    CUSTODIAL_UGMA = "custodial_ugma"  # UGMA/UTMA minor accounts
+
     # Other
     MANUAL = "manual"
     OTHER = "other"

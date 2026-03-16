@@ -9,15 +9,16 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import TAX
 from app.models.account import Account, TaxTreatment
 from app.models.holding import Holding
 
 logger = logging.getLogger(__name__)
 
-# Default tax rates for estimation
-FEDERAL_TAX_RATE = Decimal("0.22")  # 22% marginal
-STATE_TAX_RATE = Decimal("0.05")  # 5% average state
-COMBINED_TAX_RATE = FEDERAL_TAX_RATE + STATE_TAX_RATE
+# Re-export from centralized constants for backward compatibility
+FEDERAL_TAX_RATE = TAX.FEDERAL_MARGINAL_RATE
+STATE_TAX_RATE = TAX.STATE_AVERAGE_RATE
+COMBINED_TAX_RATE = TAX.COMBINED_RATE
 
 
 class TaxLossOpportunity:
@@ -79,6 +80,7 @@ class TaxLossHarvestingService:
 
         # Also include accounts with NULL tax_treatment that look taxable (brokerage, crypto)
         from app.models.account import AccountType
+
         fallback_result = await db.execute(
             select(Account.id).where(
                 Account.organization_id == organization_id,
@@ -123,16 +125,12 @@ class TaxLossHarvestingService:
                 if h.total_cost_basis > 0
                 else Decimal("0")
             )
-            tax_savings = (abs(unrealized_loss) * COMBINED_TAX_RATE).quantize(
-                Decimal("0.01")
-            )
+            tax_savings = (abs(unrealized_loss) * COMBINED_TAX_RATE).quantize(Decimal("0.01"))
 
             # Suggest same-sector replacements (excluding current ticker)
             replacements = []
             if h.sector and h.sector in sector_tickers:
-                replacements = [
-                    t for t in sector_tickers[h.sector] if t != h.ticker
-                ]
+                replacements = [t for t in sector_tickers[h.sector] if t != h.ticker]
 
             opportunities.append(
                 TaxLossOpportunity(
@@ -145,7 +143,7 @@ class TaxLossHarvestingService:
                     unrealized_loss=abs(unrealized_loss),
                     loss_percentage=abs(loss_pct),
                     estimated_tax_savings=tax_savings,
-                    wash_sale_risk=False,  # Simplified -- would need transaction history for full check
+                    wash_sale_risk=False,  # Needs txn history
                     wash_sale_reason=None,
                     sector=h.sector,
                     suggested_replacements=replacements[:3],
