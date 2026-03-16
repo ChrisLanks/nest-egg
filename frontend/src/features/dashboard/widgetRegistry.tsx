@@ -21,6 +21,9 @@ import { NetWorthProjectionWidget } from "./widgets/NetWorthProjectionWidget";
 import { RetirementReadinessWidget } from "./widgets/RetirementReadinessWidget";
 import { FireMetricsWidget } from "./widgets/FireMetricsWidget";
 import { FinancialHealthWidget } from "./widgets/FinancialHealthWidget";
+import { DividendIncomeWidget } from "./widgets/DividendIncomeWidget";
+import { TaxInsightsWidget } from "./widgets/TaxInsightsWidget";
+import { SpendingVelocityWidget } from "./widgets/SpendingVelocityWidget";
 import type { LayoutItem, WidgetDefinition } from "./types";
 
 export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
@@ -162,6 +165,30 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
       "Composite 0-100 score based on savings rate, emergency fund, debt-to-income, and retirement progress.",
     defaultSpan: 1,
     component: FinancialHealthWidget,
+  },
+  "dividend-income": {
+    id: "dividend-income",
+    title: "Dividend Income",
+    description:
+      "YTD, trailing 12-month, and projected annual dividend income with top payers.",
+    defaultSpan: 1,
+    component: DividendIncomeWidget,
+  },
+  "tax-insights": {
+    id: "tax-insights",
+    title: "Tax Insights",
+    description:
+      "Age-based tax action items: LTCG brackets, IRMAA, RMDs, Roth conversion windows.",
+    defaultSpan: 1,
+    component: TaxInsightsWidget,
+  },
+  "spending-velocity": {
+    id: "spending-velocity",
+    title: "Spending Velocity",
+    description:
+      "Month-over-month spending acceleration or deceleration trend.",
+    defaultSpan: 1,
+    component: SpendingVelocityWidget,
   },
 };
 

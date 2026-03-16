@@ -77,10 +77,20 @@ describe("WIDGET_REGISTRY", () => {
       "net-worth-projection",
       "retirement-readiness",
       "fire-metrics",
+      "financial-health",
+      "dividend-income",
+      "tax-insights",
+      "spending-velocity",
     ];
     for (const id of expectedIds) {
       expect(WIDGET_REGISTRY[id], `missing widget "${id}"`).toBeDefined();
     }
+  });
+
+  it("new widgets have correct defaultSpan of 1", () => {
+    expect(WIDGET_REGISTRY["dividend-income"].defaultSpan).toBe(1);
+    expect(WIDGET_REGISTRY["tax-insights"].defaultSpan).toBe(1);
+    expect(WIDGET_REGISTRY["spending-velocity"].defaultSpan).toBe(1);
   });
 });
 
@@ -124,6 +134,9 @@ describe("DEFAULT_LAYOUT", () => {
     expect(ids.has("net-worth-projection")).toBe(false);
     expect(ids.has("retirement-readiness")).toBe(false);
     expect(ids.has("fire-metrics")).toBe(false);
+    expect(ids.has("dividend-income")).toBe(false);
+    expect(ids.has("tax-insights")).toBe(false);
+    expect(ids.has("spending-velocity")).toBe(false);
   });
 
   it("core widgets ARE in the default layout", () => {
