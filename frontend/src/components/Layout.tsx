@@ -41,6 +41,9 @@ import api from "../services/api";
 import { useHouseholdMembers } from "../hooks/useHouseholdMembers";
 import { AddAccountModal } from "../features/accounts/components/AddAccountModal";
 import NotificationBell from "../features/notifications/components/NotificationBell";
+import MilestoneCelebration from "../features/notifications/components/MilestoneCelebration";
+import { HouseholdSwitcher } from "./HouseholdSwitcher";
+import { useHouseholdStore } from "../stores/householdStore";
 import { UserViewToggle } from "./UserViewToggle";
 import { useUserView } from "../contexts/UserViewContext";
 import { EmailVerificationBanner } from "./EmailVerificationBanner";
@@ -458,6 +461,41 @@ const AccountItem = ({
 
 const accountTypeConfig = ACCOUNT_TYPE_SIDEBAR_CONFIG;
 
+const GuestBanner = () => {
+  const { isGuest, activeHouseholdName, guestRole, setActiveHousehold } =
+    useHouseholdStore();
+  const bannerBg = useColorModeValue("purple.50", "purple.900");
+  const bannerBorder = useColorModeValue("purple.200", "purple.700");
+  const bannerText = useColorModeValue("purple.800", "purple.100");
+
+  if (!isGuest) return null;
+
+  return (
+    <Box
+      bg={bannerBg}
+      px={4}
+      py={2}
+      borderBottomWidth={1}
+      borderColor={bannerBorder}
+    >
+      <HStack justify="center" spacing={4}>
+        <Text fontSize="sm" color={bannerText} fontWeight="medium">
+          Viewing {activeHouseholdName || "guest household"} as guest (
+          {guestRole === "viewer" ? "read-only" : "advisor"})
+        </Text>
+        <Button
+          size="xs"
+          colorScheme="purple"
+          variant="outline"
+          onClick={() => setActiveHousehold(null)}
+        >
+          Return to My Household
+        </Button>
+      </HStack>
+    </Box>
+  );
+};
+
 export const Layout = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -619,6 +657,7 @@ export const Layout = () => {
     ["blue.50", "green.50", "purple.50", "orange.50", "pink.50"],
     ["blue.900", "green.900", "purple.900", "orange.900", "pink.900"],
   );
+  const householdBannerBg = useColorModeValue("teal.50", "teal.900");
 
   const getUserColorIndex = (userId: string): number => {
     if (!members) return 0;
@@ -799,6 +838,12 @@ export const Layout = () => {
       {/* Email verification banner — shown when user's email is not yet verified */}
       <EmailVerificationBanner />
 
+      {/* Milestone celebration overlay — confetti on $100K, $500K, $1M etc. */}
+      <MilestoneCelebration />
+
+      {/* Guest household banner */}
+      <GuestBanner />
+
       {/* Top Header */}
       <Box
         bg="bg.surface"
@@ -876,8 +921,9 @@ export const Layout = () => {
             </HStack>
           </HStack>
 
-          {/* Right: User View Toggle, Notification Bell and User Menu */}
+          {/* Right: Household Switcher, User View Toggle, Notification Bell and User Menu */}
           <HStack spacing={4}>
+            <HouseholdSwitcher />
             <Box ml={10}>
               <UserViewToggle />
             </Box>
@@ -1079,9 +1125,9 @@ export const Layout = () => {
           }
 
           // Distinct banner colors:
-          //   All members selected → amber (bg.warning)
+          //   All members selected → teal (pleasant in both light & dark)
           //   Partial selection    → green (bg.success) — distinct from self-view's blue
-          const bannerBg = isAllSelected ? "bg.warning" : "bg.success";
+          const bannerBg = isAllSelected ? householdBannerBg : "bg.success";
 
           return (
             <Box

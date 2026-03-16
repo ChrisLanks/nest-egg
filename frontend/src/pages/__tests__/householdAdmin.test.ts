@@ -215,3 +215,125 @@ describe("org preferences visibility", () => {
     expect(canEdit).toBe(false);
   });
 });
+
+// ── Confirmation dialog config logic ─────────────────────────────────────────
+
+interface ConfirmConfig {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  colorScheme: string;
+}
+
+function buildPromoteConfig(
+  name: string,
+  isCurrentlyAdmin: boolean,
+): ConfirmConfig {
+  const promoting = !isCurrentlyAdmin;
+  return {
+    title: promoting
+      ? `Promote ${name} to Admin?`
+      : `Demote ${name} to Member?`,
+    body: promoting
+      ? `${name} will gain admin privileges including the ability to manage members, invitations, and household settings.`
+      : `${name} will lose admin privileges and become a regular member.`,
+    confirmLabel: promoting ? "Promote" : "Demote",
+    colorScheme: promoting ? "blue" : "orange",
+  };
+}
+
+function buildRemoveConfig(name: string): ConfirmConfig {
+  return {
+    title: `Remove ${name}?`,
+    body: `${name} will be removed from this household. Their accounts will be moved to a new solo household.`,
+    confirmLabel: "Remove",
+    colorScheme: "red",
+  };
+}
+
+function buildCancelInvitationConfig(email: string): ConfirmConfig {
+  return {
+    title: "Cancel Invitation?",
+    body: `The invitation to ${email} will be cancelled and can no longer be used to join.`,
+    confirmLabel: "Cancel Invitation",
+    colorScheme: "red",
+  };
+}
+
+function buildRevokeGuestConfig(email: string): ConfirmConfig {
+  return {
+    title: "Revoke Guest Access?",
+    body: `${email} will immediately lose access to your household data.`,
+    confirmLabel: "Revoke Access",
+    colorScheme: "red",
+  };
+}
+
+function buildCancelGuestInvitationConfig(email: string): ConfirmConfig {
+  return {
+    title: "Cancel Guest Invitation?",
+    body: `The invitation to ${email} will be cancelled.`,
+    confirmLabel: "Cancel Invitation",
+    colorScheme: "red",
+  };
+}
+
+describe("confirmation dialog config — promote/demote", () => {
+  it("builds promote config for a regular member", () => {
+    const config = buildPromoteConfig("Alice", false);
+    expect(config.title).toBe("Promote Alice to Admin?");
+    expect(config.confirmLabel).toBe("Promote");
+    expect(config.colorScheme).toBe("blue");
+    expect(config.body).toContain("gain admin privileges");
+  });
+
+  it("builds demote config for an admin member", () => {
+    const config = buildPromoteConfig("Bob", true);
+    expect(config.title).toBe("Demote Bob to Member?");
+    expect(config.confirmLabel).toBe("Demote");
+    expect(config.colorScheme).toBe("orange");
+    expect(config.body).toContain("lose admin privileges");
+  });
+});
+
+describe("confirmation dialog config — remove member", () => {
+  it("builds remove config with member name", () => {
+    const config = buildRemoveConfig("Charlie");
+    expect(config.title).toBe("Remove Charlie?");
+    expect(config.confirmLabel).toBe("Remove");
+    expect(config.colorScheme).toBe("red");
+    expect(config.body).toContain("moved to a new solo household");
+  });
+});
+
+describe("confirmation dialog config — cancel invitation", () => {
+  it("builds cancel invitation config with email", () => {
+    const config = buildCancelInvitationConfig("test@example.com");
+    expect(config.title).toBe("Cancel Invitation?");
+    expect(config.body).toContain("test@example.com");
+    expect(config.body).toContain("can no longer be used to join");
+    expect(config.confirmLabel).toBe("Cancel Invitation");
+    expect(config.colorScheme).toBe("red");
+  });
+});
+
+describe("confirmation dialog config — revoke guest", () => {
+  it("builds revoke guest config with email", () => {
+    const config = buildRevokeGuestConfig("guest@example.com");
+    expect(config.title).toBe("Revoke Guest Access?");
+    expect(config.body).toContain("guest@example.com");
+    expect(config.body).toContain("immediately lose access");
+    expect(config.confirmLabel).toBe("Revoke Access");
+    expect(config.colorScheme).toBe("red");
+  });
+});
+
+describe("confirmation dialog config — cancel guest invitation", () => {
+  it("builds cancel guest invitation config with email", () => {
+    const config = buildCancelGuestInvitationConfig("invited@example.com");
+    expect(config.title).toBe("Cancel Guest Invitation?");
+    expect(config.body).toContain("invited@example.com");
+    expect(config.confirmLabel).toBe("Cancel Invitation");
+    expect(config.colorScheme).toBe("red");
+  });
+});

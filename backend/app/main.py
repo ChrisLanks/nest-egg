@@ -30,6 +30,7 @@ from app.api.v1 import (
     education,
     enrichment,
     fire,
+    guest_access,
     holdings,
     household,
     income_expenses,
@@ -59,7 +60,7 @@ from app.config import settings
 from app.core.database import close_db, init_db
 from app.core.logging_config import setup_logging
 from app.core.metrics import create_metrics_app, setup_metrics
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_organization_scoped_user
 from app.middleware.anomaly_detection import AnomalyDetectionMiddleware
 from app.middleware.csrf_protection import CSRFProtectionMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
@@ -219,6 +220,10 @@ app = FastAPI(
     redoc_url="/redoc" if settings.DEBUG else None,
     openapi_url="/openapi.json",
 )
+
+# Guest access: override get_current_user so all endpoints automatically
+# resolve X-Household-Id header and scope data to the guest household.
+app.dependency_overrides[get_current_user] = get_organization_scoped_user
 
 # Instrument the app with Prometheus (metrics served on admin port, not here)
 if settings.METRICS_ENABLED:
@@ -426,3 +431,4 @@ app.include_router(
     bulk_operations.router, prefix="/api/v1/bulk-operations", tags=["Bulk Operations"]
 )
 app.include_router(onboarding.router, prefix="/api/v1/onboarding", tags=["Onboarding"])
+app.include_router(guest_access.router, prefix="/api/v1/guest-access", tags=["Guest Access"])

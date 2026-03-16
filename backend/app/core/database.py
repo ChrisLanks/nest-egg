@@ -2,7 +2,7 @@
 
 from typing import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 
 from app.config import settings
@@ -52,6 +52,10 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """Initialize database tables (use Alembic migrations in production)."""
+    # Note: The guest-access org_id override uses __dict__ assignment which
+    # bypasses SQLAlchemy's instrumented attribute setter. Combined with
+    # autoflush=False (set above), the overridden org_id is never flushed
+    # to the database — no event listener needed.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

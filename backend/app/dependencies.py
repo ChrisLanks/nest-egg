@@ -1,19 +1,22 @@
 """FastAPI dependencies for authentication and authorization."""
 
+import logging
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, Path, status
+from fastapi import Depends, HTTPException, Path, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.config import settings
 from app.core.database import get_db
 from app.crud.user import user_crud
-from app.models.user import User, AccountShare, SharePermission
 from app.models.account import Account
+from app.models.user import AccountShare, HouseholdGuest, SharePermission, User
 from app.services.identity.chain import get_chain
-from sqlalchemy.orm import joinedload
+
+_logger = logging.getLogger(__name__)
 
 # HTTP Bearer token scheme
 security = HTTPBearer()
@@ -75,6 +78,102 @@ async def get_current_user(
     return user
 
 
+async def get_organization_scoped_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """
+    Resolve the organization context for the current request.
+
+    If the ``X-Household-Id`` header is present and points to a different
+    organization, validate that the user has an active ``HouseholdGuest``
+    record for that organization and temporarily override
+    ``current_user.organization_id`` for this request.
+
+    This is the core of the guest-access system: all existing endpoints that
+    filter by ``current_user.organization_id`` automatically see the host
+    household's data when the header is present.
+    """
+    # Authenticate first (reuse normal flow)
+    user = await get_current_user(credentials, db)
+
+    # Stamp home org and guest metadata on every request
+    user._home_org_id = user.organization_id  # type: ignore[attr-defined]
+    user._is_guest = False  # type: ignore[attr-defined]
+    user._guest_role = None  # type: ignore[attr-defined]
+
+    header = request.headers.get("X-Household-Id")
+    if not header:
+        return user
+
+    # Parse target org ID
+    try:
+        target_org_id = UUID(header)
+    except (ValueError, AttributeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid X-Household-Id header",
+        )
+
+    # Same as home org — no-op
+    if target_org_id == user.organization_id:
+        return user
+
+    # Validate guest record
+    result = await db.execute(
+        select(HouseholdGuest).where(
+            HouseholdGuest.user_id == user.id,
+            HouseholdGuest.organization_id == target_org_id,
+            HouseholdGuest.is_active.is_(True),
+        )
+    )
+    guest_record = result.scalar_one_or_none()
+    if not guest_record:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No active guest access to this household",
+        )
+
+    # Block write operations for viewers
+    if guest_record.role == "viewer" and request.method in (
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Guest has read-only access to this household",
+        )
+
+    # Override org_id in __dict__ (bypasses SQLAlchemy change tracking —
+    # the User row is never written back with the guest org_id)
+    user._is_guest = True  # type: ignore[attr-defined]
+    user._guest_role = guest_record.role  # type: ignore[attr-defined]
+    user.__dict__["organization_id"] = target_org_id
+
+    return user
+
+
+def _guard_guest_org_flush(session, flush_context, instances):
+    """
+    SQLAlchemy before_flush event listener that prevents accidental writes
+    of a guest-overridden organization_id back to the database.
+    """
+    from sqlalchemy import inspect as sa_inspect
+
+    for obj in session.dirty:
+        if isinstance(obj, User) and getattr(obj, "_is_guest", False):
+            history = sa_inspect(obj).attrs.organization_id.history
+            if history.has_changes():
+                _logger.critical(
+                    "BLOCKED: attempt to flush guest-overridden org_id for user %s",
+                    obj.id,
+                )
+                raise RuntimeError("Cannot flush guest-overridden organization_id to database")
+
+
 async def get_current_active_user(
     current_user: User = Depends(get_current_user),
 ) -> User:
@@ -104,6 +203,9 @@ async def get_current_admin_user(
     """
     Get current user if they are an organization admin.
 
+    Guests are never admins of the host household, even if they are
+    admins in their home household.
+
     Args:
         current_user: Current user from token
 
@@ -111,8 +213,13 @@ async def get_current_admin_user(
         Current user if admin
 
     Raises:
-        HTTPException: If user is not an org admin
+        HTTPException: If user is not an org admin or is a guest
     """
+    if getattr(current_user, "_is_guest", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Guests cannot perform admin operations",
+        )
     if not current_user.is_org_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

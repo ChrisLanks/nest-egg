@@ -34,6 +34,22 @@ class InvitationStatus(str, enum.Enum):
     EXPIRED = "expired"
 
 
+class GuestRole(str, enum.Enum):
+    """Role assigned to a household guest."""
+
+    VIEWER = "viewer"  # Read-only access
+    ADVISOR = "advisor"  # Can edit (with PermissionGrant)
+
+
+class GuestInvitationStatus(str, enum.Enum):
+    """Status of a guest invitation."""
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    EXPIRED = "expired"
+
+
 class SharePermission(str, enum.Enum):
     """Account share permission enum."""
 
@@ -327,3 +343,106 @@ class UserConsent(Base):
 
     def __repr__(self):
         return f"<UserConsent user={self.user_id} type={self.consent_type} version={self.version}>"
+
+
+class HouseholdGuest(Base):
+    """
+    Guest access record: allows a user to view another household's data
+    without becoming a member. The guest's own accounts/data never appear
+    in the host household.
+    """
+
+    __tablename__ = "household_guests"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    organization_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    invited_by_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    role = Column(
+        SQLEnum(GuestRole, name="guest_role"),
+        nullable=False,
+        default=GuestRole.VIEWER,
+    )
+    label = Column(String(100), nullable=True)  # Display name: "Mom & Dad", "Kids"
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+    revoked_by_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    __table_args__ = (UniqueConstraint("user_id", "organization_id", name="uq_guest_user_org"),)
+
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id])
+    organization = relationship("Organization")
+    invited_by = relationship("User", foreign_keys=[invited_by_id])
+    revoked_by = relationship("User", foreign_keys=[revoked_by_id])
+
+    def __repr__(self):
+        return f"<HouseholdGuest user={self.user_id} org={self.organization_id} role={self.role}>"
+
+
+class HouseholdGuestInvitation(Base):
+    """Invitation for guest access to a household (does NOT make user a member)."""
+
+    __tablename__ = "household_guest_invitations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    email = Column(String(255), nullable=False)
+    invited_by_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    invitation_code = Column(String(64), nullable=False, unique=True, index=True)
+    role = Column(
+        SQLEnum(GuestRole, name="guest_role"),
+        nullable=False,
+        default=GuestRole.VIEWER,
+    )
+    label = Column(String(100), nullable=True)
+    status = Column(
+        SQLEnum(GuestInvitationStatus, name="guest_invitation_status"),
+        nullable=False,
+        default=GuestInvitationStatus.PENDING,
+    )
+    expires_at = Column(DateTime, nullable=False)
+    accepted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+
+    # Relationships
+    organization = relationship("Organization")
+    invited_by = relationship("User", foreign_keys=[invited_by_id])
+
+    def __repr__(self):
+        return f"<HouseholdGuestInvitation {self.email} to org {self.organization_id}>"
+
+    @property
+    def is_expired(self) -> bool:
+        return utc_now() > self.expires_at
+
+    @property
+    def is_valid(self) -> bool:
+        return self.status == GuestInvitationStatus.PENDING and not self.is_expired

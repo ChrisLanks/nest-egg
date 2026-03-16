@@ -114,6 +114,104 @@ class TestCheckMilestones:
         "app.services.milestone_service.NotificationService.create_notification",
         new_callable=AsyncMock,
     )
+    async def test_multiple_milestones_creates_single_notification(
+        self, mock_notify, db, test_user
+    ):
+        """Crossing multiple thresholds should only create ONE notification for the highest."""
+        prev = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=None,
+            snapshot_date=date.today() - timedelta(days=1),
+            total_net_worth=Decimal("9000"),
+            total_assets=Decimal("9000"),
+            total_liabilities=Decimal("0"),
+        )
+        db.add(prev)
+        await db.commit()
+
+        await check_milestones(db, test_user.organization_id, Decimal("60000"))
+
+        # Only one notification created despite crossing $10k, $25k, $50k
+        milestone_calls = [
+            c
+            for c in mock_notify.call_args_list
+            if c.kwargs.get("title", "").startswith("Milestone")
+        ]
+        assert len(milestone_calls) == 1
+        assert "$50,000" in milestone_calls[0].kwargs["title"]
+
+    @pytest.mark.asyncio
+    @patch(
+        "app.services.milestone_service.NotificationService.create_notification",
+        new_callable=AsyncMock,
+    )
+    async def test_massive_jump_only_notifies_highest(self, mock_notify, db, test_user):
+        """Jumping from $5k to $2M should only notify for $1M (the highest crossed)."""
+        prev = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=None,
+            snapshot_date=date.today() - timedelta(days=1),
+            total_net_worth=Decimal("5000"),
+            total_assets=Decimal("5000"),
+            total_liabilities=Decimal("0"),
+        )
+        db.add(prev)
+        await db.commit()
+
+        result = await check_milestones(db, test_user.organization_id, Decimal("2000000"))
+
+        # Return value still lists all crossed thresholds
+        thresholds_hit = [m["threshold"] for m in result if m["type"] == "milestone"]
+        assert 10_000 in thresholds_hit
+        assert 1_000_000 in thresholds_hit
+
+        # But only ONE milestone notification — for $1M
+        milestone_calls = [
+            c
+            for c in mock_notify.call_args_list
+            if c.kwargs.get("title", "").startswith("Milestone")
+        ]
+        assert len(milestone_calls) == 1
+        assert "$1M" in milestone_calls[0].kwargs["title"]
+
+    @pytest.mark.asyncio
+    @patch(
+        "app.services.milestone_service.NotificationService.create_notification",
+        new_callable=AsyncMock,
+    )
+    async def test_single_milestone_crossing_creates_one_notification(
+        self, mock_notify, db, test_user
+    ):
+        """Crossing exactly one threshold still creates one notification."""
+        prev = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=None,
+            snapshot_date=date.today() - timedelta(days=1),
+            total_net_worth=Decimal("8000"),
+            total_assets=Decimal("8000"),
+            total_liabilities=Decimal("0"),
+        )
+        db.add(prev)
+        await db.commit()
+
+        await check_milestones(db, test_user.organization_id, Decimal("12000"))
+
+        milestone_calls = [
+            c
+            for c in mock_notify.call_args_list
+            if c.kwargs.get("title", "").startswith("Milestone")
+        ]
+        assert len(milestone_calls) == 1
+        assert "$10,000" in milestone_calls[0].kwargs["title"]
+
+    @pytest.mark.asyncio
+    @patch(
+        "app.services.milestone_service.NotificationService.create_notification",
+        new_callable=AsyncMock,
+    )
     async def test_no_milestone_when_already_above(self, mock_notify, db, test_user):
         """No milestone if previous was already above the threshold."""
         prev = NetWorthSnapshot(

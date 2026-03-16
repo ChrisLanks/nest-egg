@@ -80,40 +80,45 @@ async def check_milestones(
     previous_net_worth = float(prev_row) if prev_row is not None else 0.0
 
     # Check milestone crossings: previous < threshold <= current
+    # Only notify for the highest crossed threshold to avoid notification spam
+    # (e.g. jumping from $5K to $1M should only celebrate $1M, not every step)
+    highest_crossed: Optional[int] = None
     for threshold in MILESTONE_THRESHOLDS:
         if previous_net_worth < threshold <= current_value:
-            milestone_label = _format_milestone(threshold)
             milestones_hit.append(
                 {
                     "type": "milestone",
                     "threshold": threshold,
-                    "label": milestone_label,
+                    "label": _format_milestone(threshold),
                     "net_worth": current_value,
                     "date": today.isoformat(),
                 }
             )
+            highest_crossed = threshold
 
-            await NotificationService.create_notification(
-                db=db,
-                organization_id=organization_id,
-                type=NotificationType.MILESTONE,
-                title=f"Milestone reached: {milestone_label}!",
-                message=(
-                    f"Congratulations! Your household net worth has crossed "
-                    f"{milestone_label}. Current net worth: ${current_value:,.2f}."
-                ),
-                priority=NotificationPriority.LOW,
-                action_url="/dashboard",
-                action_label="View Dashboard",
-                expires_in_days=30,
-            )
+    if highest_crossed is not None:
+        milestone_label = _format_milestone(highest_crossed)
+        await NotificationService.create_notification(
+            db=db,
+            organization_id=organization_id,
+            type=NotificationType.MILESTONE,
+            title=f"Milestone reached: {milestone_label}!",
+            message=(
+                f"Congratulations! Your household net worth has crossed "
+                f"{milestone_label}. Current net worth: ${current_value:,.2f}."
+            ),
+            priority=NotificationPriority.LOW,
+            action_url="/dashboard",
+            action_label="View Dashboard",
+            expires_in_days=30,
+        )
 
-            logger.info(
-                "Milestone %s reached for org %s (net worth: $%s)",
-                milestone_label,
-                organization_id,
-                f"{current_value:,.2f}",
-            )
+        logger.info(
+            "Milestone %s reached for org %s (net worth: $%s)",
+            milestone_label,
+            organization_id,
+            f"{current_value:,.2f}",
+        )
 
     # Check all-time high
     ath_query = select(func.max(NetWorthSnapshot.total_net_worth)).where(

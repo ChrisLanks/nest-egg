@@ -43,6 +43,7 @@ import {
   NumberDecrementStepper,
   Stack,
   FormErrorMessage,
+  Select,
   useToast,
   Alert,
   AlertIcon,
@@ -67,6 +68,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useRef, useEffect } from "react";
 import api from "../services/api";
 import { useAuthStore } from "../features/auth/stores/authStore";
+import {
+  guestAccessApi,
+  type GuestRecord,
+  type GuestInvitation as GuestAccessInvitation,
+} from "../api/guest-access";
 
 /** Short human-readable hint about whether an email was sent. */
 const email_configured_hint = (inv: Invitation) =>
@@ -153,8 +159,55 @@ export const HouseholdSettingsPage: React.FC = () => {
   const [inviteEmail, setInviteEmail] = useState("");
   const [celebrationEmail, setCelebrationEmail] = useState("");
   const [emailError, setEmailError] = useState("");
+  // Guest access state
+  const {
+    isOpen: isGuestInviteOpen,
+    onOpen: onGuestInviteOpen,
+    onClose: onGuestInviteClose,
+  } = useDisclosure();
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestRole, setGuestRole] = useState<"viewer" | "advisor">("viewer");
+  const [guestLabel, setGuestLabel] = useState("");
+  const [guestEmailError, setGuestEmailError] = useState("");
   const { user, logout } = useAuthStore();
   const [monthlyStartDay, setMonthlyStartDay] = useState(1);
+  // Reusable confirmation dialog state
+  const {
+    isOpen: isConfirmOpen,
+    onOpen: onConfirmOpen,
+    onClose: onConfirmClose,
+  } = useDisclosure();
+  const confirmCancelRef = useRef<HTMLButtonElement>(null);
+  const [confirmConfig, setConfirmConfig] = useState<{
+    title: string;
+    body: string;
+    confirmLabel: string;
+    colorScheme: string;
+    onConfirm: () => void;
+  }>({
+    title: "",
+    body: "",
+    confirmLabel: "Confirm",
+    colorScheme: "red",
+    onConfirm: () => {},
+  });
+
+  const openConfirmDialog = (config: {
+    title: string;
+    body: string;
+    confirmLabel?: string;
+    colorScheme?: string;
+    onConfirm: () => void;
+  }) => {
+    setConfirmConfig({
+      title: config.title,
+      body: config.body,
+      confirmLabel: config.confirmLabel || "Confirm",
+      colorScheme: config.colorScheme || "red",
+      onConfirm: config.onConfirm,
+    });
+    onConfirmOpen();
+  };
 
   // Fetch household members
   const { data: members, isLoading: loadingMembers } = useQuery<
@@ -368,6 +421,114 @@ export const HouseholdSettingsPage: React.FC = () => {
     },
   });
 
+  // --- Guest Access queries & mutations ---
+
+  const { data: guestRecords, isLoading: loadingGuests } = useQuery<
+    GuestRecord[]
+  >({
+    queryKey: ["guest-access-guests"],
+    queryFn: guestAccessApi.listGuests,
+    enabled: !!user?.is_org_admin,
+  });
+
+  const { data: guestInvitations } = useQuery<GuestAccessInvitation[]>({
+    queryKey: ["guest-access-invitations"],
+    queryFn: guestAccessApi.listInvitations,
+    enabled: !!user?.is_org_admin,
+  });
+
+  const guestInviteMutation = useMutation({
+    mutationFn: (data: {
+      email: string;
+      role: "viewer" | "advisor";
+      label?: string;
+    }) => guestAccessApi.invite(data),
+    onSuccess: () => {
+      toast({
+        title: "Guest invitation sent",
+        description:
+          "The guest will receive an email with instructions to join.",
+        status: "success",
+        duration: 5000,
+      });
+      setGuestEmail("");
+      setGuestRole("viewer");
+      setGuestLabel("");
+      onGuestInviteClose();
+      queryClient.invalidateQueries({
+        queryKey: ["guest-access-invitations"],
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to invite guest",
+        description: getErrorMessage(error),
+        status: "error",
+        duration: 5000,
+      });
+    },
+  });
+
+  const revokeGuestMutation = useMutation({
+    mutationFn: (guestId: string) => guestAccessApi.revokeGuest(guestId),
+    onSuccess: () => {
+      toast({
+        title: "Guest access revoked",
+        status: "success",
+        duration: 3000,
+      });
+      queryClient.invalidateQueries({ queryKey: ["guest-access-guests"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to revoke guest",
+        description: getErrorMessage(error),
+        status: "error",
+        duration: 5000,
+      });
+    },
+  });
+
+  const cancelGuestInvitationMutation = useMutation({
+    mutationFn: (id: string) => guestAccessApi.cancelInvitation(id),
+    onSuccess: () => {
+      toast({
+        title: "Guest invitation cancelled",
+        status: "success",
+        duration: 3000,
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["guest-access-invitations"],
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to cancel invitation",
+        description: getErrorMessage(error),
+        status: "error",
+        duration: 5000,
+      });
+    },
+  });
+
+  const handleGuestInvite = () => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!guestEmail) {
+      setGuestEmailError("Email is required");
+      return;
+    }
+    if (!emailRegex.test(guestEmail)) {
+      setGuestEmailError("Invalid email address");
+      return;
+    }
+    setGuestEmailError("");
+    guestInviteMutation.mutate({
+      email: guestEmail,
+      role: guestRole,
+      label: guestLabel || undefined,
+    });
+  };
+
   // Validate email
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -510,19 +671,25 @@ export const HouseholdSettingsPage: React.FC = () => {
                                 }
                                 isLoading={updateRoleMutation.isPending}
                                 onClick={() => {
-                                  const action = member.is_org_admin
-                                    ? "demote"
-                                    : "promote";
-                                  if (
-                                    window.confirm(
-                                      `${action === "promote" ? "Promote" : "Demote"} ${getDisplayName(member)} ${action === "promote" ? "to Admin" : "to Member"}?`,
-                                    )
-                                  ) {
-                                    updateRoleMutation.mutate({
-                                      memberId: member.id,
-                                      isAdmin: !member.is_org_admin,
-                                    });
-                                  }
+                                  const name = getDisplayName(member);
+                                  const promoting = !member.is_org_admin;
+                                  openConfirmDialog({
+                                    title: promoting
+                                      ? `Promote ${name} to Admin?`
+                                      : `Demote ${name} to Member?`,
+                                    body: promoting
+                                      ? `${name} will gain admin privileges including the ability to manage members, invitations, and household settings.`
+                                      : `${name} will lose admin privileges and become a regular member.`,
+                                    confirmLabel: promoting
+                                      ? "Promote"
+                                      : "Demote",
+                                    colorScheme: promoting ? "blue" : "orange",
+                                    onConfirm: () =>
+                                      updateRoleMutation.mutate({
+                                        memberId: member.id,
+                                        isAdmin: promoting,
+                                      }),
+                                  });
                                 }}
                               >
                                 {member.is_org_admin
@@ -538,13 +705,15 @@ export const HouseholdSettingsPage: React.FC = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => {
-                                  if (
-                                    window.confirm(
-                                      `Remove ${getDisplayName(member)} from household?`,
-                                    )
-                                  ) {
-                                    removeMutation.mutate(member.id);
-                                  }
+                                  const name = getDisplayName(member);
+                                  openConfirmDialog({
+                                    title: `Remove ${name}?`,
+                                    body: `${name} will be removed from this household. Their accounts will be moved to a new solo household.`,
+                                    confirmLabel: "Remove",
+                                    colorScheme: "red",
+                                    onConfirm: () =>
+                                      removeMutation.mutate(member.id),
+                                  });
                                 }}
                               />
                             )}
@@ -598,17 +767,18 @@ export const HouseholdSettingsPage: React.FC = () => {
                                 size="xs"
                                 colorScheme="red"
                                 variant="ghost"
-                                onClick={() => {
-                                  if (
-                                    window.confirm(
-                                      `Cancel invitation to ${invitation.email}?`,
-                                    )
-                                  ) {
-                                    cancelInvitationMutation.mutate(
-                                      invitation.id,
-                                    );
-                                  }
-                                }}
+                                onClick={() =>
+                                  openConfirmDialog({
+                                    title: "Cancel Invitation?",
+                                    body: `The invitation to ${invitation.email} will be cancelled and can no longer be used to join.`,
+                                    confirmLabel: "Cancel Invitation",
+                                    colorScheme: "red",
+                                    onConfirm: () =>
+                                      cancelInvitationMutation.mutate(
+                                        invitation.id,
+                                      ),
+                                  })
+                                }
                               >
                                 Cancel
                               </Button>
@@ -659,6 +829,160 @@ export const HouseholdSettingsPage: React.FC = () => {
               </Card>
             );
           })()}
+
+        {/* Guest Access section — admin only */}
+        {user?.is_org_admin && (
+          <Card>
+            <CardHeader>
+              <HStack justify="space-between">
+                <Box>
+                  <Heading size="md">Guest Access</Heading>
+                  <Text fontSize="sm" color="text.secondary" mt={1}>
+                    Invite external users to view your household data without
+                    joining as a member
+                  </Text>
+                </Box>
+                <Button
+                  colorScheme="teal"
+                  size="sm"
+                  onClick={onGuestInviteOpen}
+                >
+                  Invite Guest
+                </Button>
+              </HStack>
+            </CardHeader>
+            <CardBody>
+              <VStack spacing={6} align="stretch">
+                {/* Active guests */}
+                {loadingGuests ? (
+                  <HStack justify="center" py={4}>
+                    <Spinner />
+                  </HStack>
+                ) : guestRecords && guestRecords.length > 0 ? (
+                  <Box>
+                    <Text fontWeight="medium" mb={3}>
+                      Active Guests
+                    </Text>
+                    <Table variant="simple" size="sm">
+                      <Thead>
+                        <Tr>
+                          <Th>Email</Th>
+                          <Th>Role</Th>
+                          <Th>Label</Th>
+                          <Th>Since</Th>
+                          <Th></Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {guestRecords.map((guest) => (
+                          <Tr key={guest.id}>
+                            <Td>{guest.user_email}</Td>
+                            <Td>
+                              <Badge
+                                colorScheme={
+                                  guest.role === "advisor" ? "purple" : "gray"
+                                }
+                              >
+                                {guest.role}
+                              </Badge>
+                            </Td>
+                            <Td fontSize="sm" color="text.secondary">
+                              {guest.label || "—"}
+                            </Td>
+                            <Td fontSize="sm">
+                              {formatDate(guest.created_at)}
+                            </Td>
+                            <Td textAlign="right">
+                              <Button
+                                size="xs"
+                                colorScheme="red"
+                                variant="ghost"
+                                onClick={() =>
+                                  openConfirmDialog({
+                                    title: "Revoke Guest Access?",
+                                    body: `${guest.user_email} will immediately lose access to your household data.`,
+                                    confirmLabel: "Revoke Access",
+                                    colorScheme: "red",
+                                    onConfirm: () =>
+                                      revokeGuestMutation.mutate(guest.id),
+                                  })
+                                }
+                              >
+                                Revoke
+                              </Button>
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </Box>
+                ) : (
+                  <Text fontSize="sm" color="text.secondary">
+                    No active guests. Invite someone to give them read-only or
+                    advisory access to your household.
+                  </Text>
+                )}
+
+                {/* Pending guest invitations */}
+                {guestInvitations && guestInvitations.length > 0 && (
+                  <Box>
+                    <Text fontWeight="medium" mb={3}>
+                      Pending Guest Invitations
+                    </Text>
+                    <Table variant="simple" size="sm">
+                      <Thead>
+                        <Tr>
+                          <Th>Email</Th>
+                          <Th>Role</Th>
+                          <Th>Expires</Th>
+                          <Th></Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {guestInvitations.map((inv) => (
+                          <Tr key={inv.id}>
+                            <Td>{inv.email}</Td>
+                            <Td>
+                              <Badge
+                                colorScheme={
+                                  inv.role === "advisor" ? "purple" : "gray"
+                                }
+                              >
+                                {inv.role}
+                              </Badge>
+                            </Td>
+                            <Td fontSize="sm">{formatDate(inv.expires_at)}</Td>
+                            <Td textAlign="right">
+                              <Button
+                                size="xs"
+                                colorScheme="red"
+                                variant="ghost"
+                                onClick={() =>
+                                  openConfirmDialog({
+                                    title: "Cancel Guest Invitation?",
+                                    body: `The invitation to ${inv.email} will be cancelled.`,
+                                    confirmLabel: "Cancel Invitation",
+                                    colorScheme: "red",
+                                    onConfirm: () =>
+                                      cancelGuestInvitationMutation.mutate(
+                                        inv.id,
+                                      ),
+                                  })
+                                }
+                              >
+                                Cancel
+                              </Button>
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </Box>
+                )}
+              </VStack>
+            </CardBody>
+          </Card>
+        )}
 
         {/* Organization Preferences */}
         {orgPrefs && (
@@ -750,6 +1074,38 @@ export const HouseholdSettingsPage: React.FC = () => {
         </AlertDialogOverlay>
       </AlertDialog>
 
+      {/* Reusable confirmation dialog */}
+      <AlertDialog
+        isOpen={isConfirmOpen}
+        leastDestructiveRef={confirmCancelRef}
+        onClose={onConfirmClose}
+        isCentered
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              {confirmConfig.title}
+            </AlertDialogHeader>
+            <AlertDialogBody>{confirmConfig.body}</AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={confirmCancelRef} onClick={onConfirmClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme={confirmConfig.colorScheme}
+                ml={3}
+                onClick={() => {
+                  confirmConfig.onConfirm();
+                  onConfirmClose();
+                }}
+              >
+                {confirmConfig.confirmLabel}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
       {/* Invite modal */}
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
@@ -789,6 +1145,79 @@ export const HouseholdSettingsPage: React.FC = () => {
               colorScheme="blue"
               onClick={handleInvite}
               isLoading={inviteMutation.isPending}
+            >
+              Send Invitation
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Guest invite modal */}
+      <Modal isOpen={isGuestInviteOpen} onClose={onGuestInviteClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Invite Guest</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4}>
+              <FormControl isInvalid={!!guestEmailError}>
+                <FormLabel>Email Address</FormLabel>
+                <Input
+                  type="email"
+                  placeholder="guest@example.com"
+                  value={guestEmail}
+                  onChange={(e) => {
+                    setGuestEmail(e.target.value);
+                    setGuestEmailError("");
+                  }}
+                />
+                <FormErrorMessage>{guestEmailError}</FormErrorMessage>
+              </FormControl>
+              <FormControl>
+                <FormLabel>Role</FormLabel>
+                <Select
+                  value={guestRole}
+                  onChange={(e) =>
+                    setGuestRole(e.target.value as "viewer" | "advisor")
+                  }
+                >
+                  <option value="viewer">Viewer (read-only)</option>
+                  <option value="advisor">Advisor (can edit)</option>
+                </Select>
+                <FormHelperText>
+                  Viewers can see your data but cannot make changes. Advisors
+                  can also create and edit records.
+                </FormHelperText>
+              </FormControl>
+              <FormControl>
+                <FormLabel>Label (optional)</FormLabel>
+                <Input
+                  placeholder='e.g. "Mom & Dad", "Financial Advisor"'
+                  value={guestLabel}
+                  onChange={(e) => setGuestLabel(e.target.value)}
+                />
+                <FormHelperText>
+                  A display name to help you remember who this guest is.
+                </FormHelperText>
+              </FormControl>
+              <Alert status="info" borderRadius="md">
+                <AlertIcon />
+                <Text fontSize="sm">
+                  Guests can view your household data without becoming a
+                  household member. Their own accounts remain separate.
+                  Invitations expire after 7 days.
+                </Text>
+              </Alert>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onGuestInviteClose}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="teal"
+              onClick={handleGuestInvite}
+              isLoading={guestInviteMutation.isPending}
             >
               Send Invitation
             </Button>
