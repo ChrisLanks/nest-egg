@@ -37,6 +37,7 @@ import {
 } from "@chakra-ui/react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getErrorMessage } from "../../../utils/errorHandling";
 import { permissionsApi } from "../api/permissionsApi";
 import type {
   GrantAction,
@@ -188,9 +189,8 @@ export const GrantModal = ({ isOpen, onClose, editGrant }: GrantModalProps) => {
   };
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
-  const serverError =
-    (createMutation.error as any)?.response?.data?.detail ||
-    (updateMutation.error as any)?.response?.data?.detail;
+  const rawError = createMutation.error || updateMutation.error;
+  const serverError = rawError ? getErrorMessage(rawError) : null;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="md">

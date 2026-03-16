@@ -1,11 +1,15 @@
 """Database configuration and session management."""
 
+import logging
 from typing import AsyncGenerator
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import Session, declarative_base
 
 from app.config import settings
+
+_logger = logging.getLogger(__name__)
 
 # Create async engine with security and performance settings
 engine = create_async_engine(
@@ -50,12 +54,33 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+def _guard_guest_org_flush(session, flush_context, instances):
+    """
+    SQLAlchemy before_flush event listener that prevents accidental writes
+    of a guest-overridden organization_id back to the database.
+    """
+    from sqlalchemy import inspect as sa_inspect
+
+    from app.models.user import User
+
+    for obj in session.dirty:
+        if isinstance(obj, User) and getattr(obj, "_is_guest", False):
+            history = sa_inspect(obj).attrs.organization_id.history
+            if history.has_changes():
+                _logger.critical(
+                    "BLOCKED: attempt to flush guest-overridden org_id for user %s",
+                    obj.id,
+                )
+                raise RuntimeError("Cannot flush guest-overridden organization_id to database")
+
+
+# Register the flush guard on the sync Session class so it fires on every flush.
+# AsyncSession delegates flush to its inner sync Session, so this covers async too.
+event.listen(Session, "before_flush", _guard_guest_org_flush)
+
+
 async def init_db() -> None:
     """Initialize database tables (use Alembic migrations in production)."""
-    # Note: The guest-access org_id override uses __dict__ assignment which
-    # bypasses SQLAlchemy's instrumented attribute setter. Combined with
-    # autoflush=False (set above), the overridden org_id is never flushed
-    # to the database — no event listener needed.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

@@ -73,22 +73,12 @@ import {
   type GuestRecord,
   type GuestInvitation as GuestAccessInvitation,
 } from "../api/guest-access";
+import { getErrorMessage } from "../utils/errorHandling";
+import { validateEmail as sharedValidateEmail } from "../utils/validation";
 
 /** Short human-readable hint about whether an email was sent. */
 const email_configured_hint = (inv: Invitation) =>
   `Invitation created. ${inv.join_url ? "Share the join link if the invitee doesn't receive an email." : ""}`;
-
-/** Safely extract a string message from an API error response.
- *  Some endpoints (e.g. the rate limiter) return detail as an object
- *  { message, retry_after } — passing that object to a Chakra toast
- *  description crashes React ("Objects are not valid as a React child"). */
-const getErrorMessage = (error: any): string => {
-  const detail = error?.response?.data?.detail;
-  if (!detail) return "An error occurred";
-  if (typeof detail === "object")
-    return (detail as any).message || "An error occurred";
-  return String(detail);
-};
 
 interface HouseholdMember {
   id: string;
@@ -512,13 +502,9 @@ export const HouseholdSettingsPage: React.FC = () => {
   });
 
   const handleGuestInvite = () => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!guestEmail) {
-      setGuestEmailError("Email is required");
-      return;
-    }
-    if (!emailRegex.test(guestEmail)) {
-      setGuestEmailError("Invalid email address");
+    const result = sharedValidateEmail(guestEmail);
+    if (!result.valid) {
+      setGuestEmailError(result.error);
       return;
     }
     setGuestEmailError("");
@@ -531,13 +517,9 @@ export const HouseholdSettingsPage: React.FC = () => {
 
   // Validate email
   const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email) {
-      setEmailError("Email is required");
-      return false;
-    }
-    if (!emailRegex.test(email)) {
-      setEmailError("Invalid email address");
+    const result = sharedValidateEmail(email);
+    if (!result.valid) {
+      setEmailError(result.error);
       return false;
     }
     setEmailError("");

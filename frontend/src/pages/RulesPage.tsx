@@ -20,40 +20,53 @@ import {
   CardBody,
   Divider,
   Collapse,
-} from '@chakra-ui/react';
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DeleteIcon, ChevronDownIcon, ChevronUpIcon, AddIcon, EditIcon } from '@chakra-ui/icons';
-import { useNavigate } from 'react-router-dom';
-import { RuleBuilderModal } from '../components/RuleBuilderModal';
-import type { Rule } from '../types/rule';
-import api from '../services/api';
-import { useUserView } from '../contexts/UserViewContext';
+  useDisclosure,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+} from "@chakra-ui/react";
+import { useState, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  DeleteIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  AddIcon,
+  EditIcon,
+} from "@chakra-ui/icons";
+import { useNavigate } from "react-router-dom";
+import { RuleBuilderModal } from "../components/RuleBuilderModal";
+import type { Rule } from "../types/rule";
+import api from "../services/api";
+import { useUserView } from "../contexts/UserViewContext";
 
 const FIELD_LABELS: Record<string, string> = {
-  merchant_name: 'Merchant',
-  amount: 'Amount',
-  amount_exact: 'Amount (Exact)',
-  category: 'Category',
-  description: 'Description',
+  merchant_name: "Merchant",
+  amount: "Amount",
+  amount_exact: "Amount (Exact)",
+  category: "Category",
+  description: "Description",
 };
 
 const OPERATOR_LABELS: Record<string, string> = {
-  equals: '=',
-  contains: 'contains',
-  starts_with: 'starts with',
-  ends_with: 'ends with',
-  greater_than: '>',
-  less_than: '<',
-  between: 'between',
-  regex: 'matches regex',
+  equals: "=",
+  contains: "contains",
+  starts_with: "starts with",
+  ends_with: "ends with",
+  greater_than: ">",
+  less_than: "<",
+  between: "between",
+  regex: "matches regex",
 };
 
 const ACTION_LABELS: Record<string, string> = {
-  set_category: 'Set category',
-  add_label: 'Add label',
-  remove_label: 'Remove label',
-  set_merchant: 'Set merchant',
+  set_category: "Set category",
+  add_label: "Add label",
+  remove_label: "Remove label",
+  set_merchant: "Set merchant",
 };
 
 export const RulesPage = () => {
@@ -64,33 +77,79 @@ export const RulesPage = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { canWriteResource } = useUserView();
-  const canEdit = canWriteResource('rule');
+  const canEdit = canWriteResource("rule");
+
+  // Confirmation dialog state
+  const {
+    isOpen: isConfirmOpen,
+    onOpen: onConfirmOpen,
+    onClose: onConfirmClose,
+  } = useDisclosure();
+  const confirmCancelRef = useRef<HTMLButtonElement>(null);
+  const [confirmConfig, setConfirmConfig] = useState<{
+    title: string;
+    body: string;
+    confirmLabel: string;
+    colorScheme: string;
+    onConfirm: () => void;
+  }>({
+    title: "",
+    body: "",
+    confirmLabel: "Confirm",
+    colorScheme: "red",
+    onConfirm: () => {},
+  });
+
+  const openConfirmDialog = (config: {
+    title: string;
+    body: string;
+    confirmLabel?: string;
+    colorScheme?: string;
+    onConfirm: () => void;
+  }) => {
+    setConfirmConfig({
+      title: config.title,
+      body: config.body,
+      confirmLabel: config.confirmLabel || "Confirm",
+      colorScheme: config.colorScheme || "red",
+      onConfirm: config.onConfirm,
+    });
+    onConfirmOpen();
+  };
 
   const { data: rules, isLoading } = useQuery({
-    queryKey: ['rules'],
+    queryKey: ["rules"],
     queryFn: async () => {
-      const response = await api.get<Rule[]>('/rules');
+      const response = await api.get<Rule[]>("/rules");
       return response.data;
     },
   });
 
   const toggleActiveMutation = useMutation({
-    mutationFn: async ({ ruleId, isActive }: { ruleId: string; isActive: boolean }) => {
-      const response = await api.patch(`/rules/${ruleId}`, { is_active: isActive });
+    mutationFn: async ({
+      ruleId,
+      isActive,
+    }: {
+      ruleId: string;
+      isActive: boolean;
+    }) => {
+      const response = await api.patch(`/rules/${ruleId}`, {
+        is_active: isActive,
+      });
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['rules'] });
+      queryClient.invalidateQueries({ queryKey: ["rules"] });
       toast({
-        title: 'Rule updated',
-        status: 'success',
+        title: "Rule updated",
+        status: "success",
         duration: 2000,
       });
     },
     onError: () => {
       toast({
-        title: 'Failed to update rule',
-        status: 'error',
+        title: "Failed to update rule",
+        status: "error",
         duration: 5000,
       });
     },
@@ -101,17 +160,17 @@ export const RulesPage = () => {
       await api.delete(`/rules/${ruleId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['rules'] });
+      queryClient.invalidateQueries({ queryKey: ["rules"] });
       toast({
-        title: 'Rule deleted',
-        status: 'success',
+        title: "Rule deleted",
+        status: "success",
         duration: 2000,
       });
     },
     onError: () => {
       toast({
-        title: 'Failed to delete rule',
-        status: 'error',
+        title: "Failed to delete rule",
+        status: "error",
         duration: 5000,
       });
     },
@@ -122,9 +181,13 @@ export const RulesPage = () => {
   };
 
   const handleDelete = (ruleId: string, ruleName: string) => {
-    if (window.confirm(`Are you sure you want to delete the rule "${ruleName}"?`)) {
-      deleteRuleMutation.mutate(ruleId);
-    }
+    openConfirmDialog({
+      title: "Delete Rule",
+      body: `Are you sure you want to delete the rule "${ruleName}"?`,
+      confirmLabel: "Delete",
+      colorScheme: "red",
+      onConfirm: () => deleteRuleMutation.mutate(ruleId),
+    });
   };
 
   const toggleExpanded = (ruleId: string) => {
@@ -132,12 +195,12 @@ export const RulesPage = () => {
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
@@ -156,14 +219,12 @@ export const RulesPage = () => {
           <Box>
             <Heading size="lg">Rules</Heading>
             <Text color="text.secondary" mt={2}>
-              Manage automation rules for transaction categorization. {rules?.length || 0} rule(s) total.
+              Manage automation rules for transaction categorization.{" "}
+              {rules?.length || 0} rule(s) total.
             </Text>
           </Box>
           <HStack>
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/transactions')}
-            >
+            <Button variant="ghost" onClick={() => navigate("/transactions")}>
               Back to Transactions
             </Button>
             <Button
@@ -212,7 +273,13 @@ export const RulesPage = () => {
                       <HStack justify="space-between">
                         <HStack spacing={3} flex={1}>
                           <IconButton
-                            icon={isExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
+                            icon={
+                              isExpanded ? (
+                                <ChevronUpIcon />
+                              ) : (
+                                <ChevronDownIcon />
+                              )
+                            }
                             aria-label="Expand rule"
                             size="sm"
                             variant="ghost"
@@ -223,17 +290,22 @@ export const RulesPage = () => {
                               <Text fontWeight="bold" fontSize="lg">
                                 {rule.name}
                               </Text>
-                              <Badge colorScheme={rule.is_active ? 'green' : 'gray'}>
-                                {rule.is_active ? 'Active' : 'Inactive'}
+                              <Badge
+                                colorScheme={rule.is_active ? "green" : "gray"}
+                              >
+                                {rule.is_active ? "Active" : "Inactive"}
                               </Badge>
                               <Badge colorScheme="purple">
-                                {rule.match_type === 'all' ? 'ALL conditions' : 'ANY condition'}
+                                {rule.match_type === "all"
+                                  ? "ALL conditions"
+                                  : "ANY condition"}
                               </Badge>
                               <Badge colorScheme="blue">
-                                {rule.apply_to === 'new_only' && 'New only'}
-                                {rule.apply_to === 'existing_only' && 'Existing only'}
-                                {rule.apply_to === 'both' && 'New & existing'}
-                                {rule.apply_to === 'single' && 'Single use'}
+                                {rule.apply_to === "new_only" && "New only"}
+                                {rule.apply_to === "existing_only" &&
+                                  "Existing only"}
+                                {rule.apply_to === "both" && "New & existing"}
+                                {rule.apply_to === "single" && "Single use"}
                               </Badge>
                             </HStack>
                             {rule.description && (
@@ -243,7 +315,8 @@ export const RulesPage = () => {
                             )}
                             <Text fontSize="xs" color="text.muted" mt={1}>
                               Applied {rule.times_applied} times
-                              {rule.last_applied_at && ` • Last: ${formatDate(rule.last_applied_at)}`}
+                              {rule.last_applied_at &&
+                                ` • Last: ${formatDate(rule.last_applied_at)}`}
                             </Text>
                           </Box>
                         </HStack>
@@ -251,13 +324,17 @@ export const RulesPage = () => {
                         <HStack spacing={2}>
                           <HStack spacing={2}>
                             <Text fontSize="sm" color="text.secondary">
-                              {rule.is_active ? 'Enabled' : 'Disabled'}
+                              {rule.is_active ? "Enabled" : "Disabled"}
                             </Text>
                             <Switch
                               colorScheme="green"
                               isChecked={rule.is_active}
-                              onChange={() => handleToggleActive(rule.id, rule.is_active)}
-                              isDisabled={!canEdit || toggleActiveMutation.isPending}
+                              onChange={() =>
+                                handleToggleActive(rule.id, rule.is_active)
+                              }
+                              isDisabled={
+                                !canEdit || toggleActiveMutation.isPending
+                              }
                             />
                           </HStack>
                           <IconButton
@@ -291,20 +368,31 @@ export const RulesPage = () => {
 
                           {/* Conditions */}
                           <Box mb={4}>
-                            <Text fontWeight="semibold" fontSize="sm" color="text.heading" mb={2}>
+                            <Text
+                              fontWeight="semibold"
+                              fontSize="sm"
+                              color="text.heading"
+                              mb={2}
+                            >
                               Conditions ({rule.conditions?.length || 0}):
                             </Text>
                             <VStack align="stretch" spacing={1}>
                               {rule.conditions?.map((condition, idx) => (
-                                <HStack key={condition.id} spacing={2} fontSize="sm">
+                                <HStack
+                                  key={condition.id}
+                                  spacing={2}
+                                  fontSize="sm"
+                                >
                                   <Badge colorScheme="blue" variant="subtle">
                                     {idx + 1}
                                   </Badge>
                                   <Text>
-                                    {FIELD_LABELS[condition.field] || condition.field}
+                                    {FIELD_LABELS[condition.field] ||
+                                      condition.field}
                                   </Text>
                                   <Text fontWeight="semibold">
-                                    {OPERATOR_LABELS[condition.operator] || condition.operator}
+                                    {OPERATOR_LABELS[condition.operator] ||
+                                      condition.operator}
                                   </Text>
                                   <Text fontWeight="medium" color="blue.600">
                                     "{condition.value}"
@@ -312,7 +400,10 @@ export const RulesPage = () => {
                                   {condition.value_max && (
                                     <>
                                       <Text>and</Text>
-                                      <Text fontWeight="medium" color="blue.600">
+                                      <Text
+                                        fontWeight="medium"
+                                        color="blue.600"
+                                      >
                                         "{condition.value_max}"
                                       </Text>
                                     </>
@@ -324,17 +415,27 @@ export const RulesPage = () => {
 
                           {/* Actions */}
                           <Box>
-                            <Text fontWeight="semibold" fontSize="sm" color="text.heading" mb={2}>
+                            <Text
+                              fontWeight="semibold"
+                              fontSize="sm"
+                              color="text.heading"
+                              mb={2}
+                            >
                               Actions ({rule.actions?.length || 0}):
                             </Text>
                             <VStack align="stretch" spacing={1}>
                               {rule.actions?.map((action, idx) => (
-                                <HStack key={action.id} spacing={2} fontSize="sm">
+                                <HStack
+                                  key={action.id}
+                                  spacing={2}
+                                  fontSize="sm"
+                                >
                                   <Badge colorScheme="green" variant="subtle">
                                     {idx + 1}
                                   </Badge>
                                   <Text>
-                                    {ACTION_LABELS[action.action_type] || action.action_type}
+                                    {ACTION_LABELS[action.action_type] ||
+                                      action.action_type}
                                   </Text>
                                   <Text>to</Text>
                                   <Text fontWeight="medium" color="green.600">
@@ -366,6 +467,38 @@ export const RulesPage = () => {
           }}
           rule={editingRule ?? undefined}
         />
+
+        {/* Confirmation dialog */}
+        <AlertDialog
+          isOpen={isConfirmOpen}
+          leastDestructiveRef={confirmCancelRef}
+          onClose={onConfirmClose}
+          isCentered
+        >
+          <AlertDialogOverlay>
+            <AlertDialogContent>
+              <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                {confirmConfig.title}
+              </AlertDialogHeader>
+              <AlertDialogBody>{confirmConfig.body}</AlertDialogBody>
+              <AlertDialogFooter>
+                <Button ref={confirmCancelRef} onClick={onConfirmClose}>
+                  Cancel
+                </Button>
+                <Button
+                  colorScheme={confirmConfig.colorScheme}
+                  ml={3}
+                  onClick={() => {
+                    confirmConfig.onConfirm();
+                    onConfirmClose();
+                  }}
+                >
+                  {confirmConfig.confirmLabel}
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialogOverlay>
+        </AlertDialog>
       </VStack>
     </Container>
   );

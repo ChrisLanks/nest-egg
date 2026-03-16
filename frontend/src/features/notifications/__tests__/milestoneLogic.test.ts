@@ -8,44 +8,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-
-// ── Threshold extraction (mirrors MilestoneCelebration.tsx) ─────────────────
-
-const MILESTONE_EMOJIS: Record<string, string> = {
-  "$10,000": "🎯",
-  "$25,000": "🚀",
-  "$50,000": "💪",
-  "$100,000": "🔥",
-  "$250,000": "⭐",
-  "$500,000": "🏆",
-  "$1,000,000": "👑",
-  "$2,500,000": "💎",
-  "$5,000,000": "🌟",
-  "$10,000,000": "🏰",
-};
-
-function extractThreshold(title: string): number {
-  // Sort by label length descending so "$10,000,000" matches before "$10,000"
-  const sorted = Object.keys(MILESTONE_EMOJIS).sort(
-    (a, b) => b.length - a.length,
-  );
-  for (const label of sorted) {
-    if (title.includes(label)) {
-      return Number(label.replace(/[$,]/g, ""));
-    }
-  }
-  return 0;
-}
-
-function getEmoji(title: string): string {
-  const sorted = Object.entries(MILESTONE_EMOJIS).sort(
-    ([a], [b]) => b.length - a.length,
-  );
-  for (const [threshold, emoji] of sorted) {
-    if (title.includes(threshold)) return emoji;
-  }
-  return "🎉";
-}
+import { extractThreshold, getEmoji } from "../../../utils/milestoneUtils";
 
 // ── Highest milestone selection ─────────────────────────────────────────────
 

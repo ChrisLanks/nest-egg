@@ -144,6 +144,22 @@ Scheduled tasks for hands-free operation:
 - **Deep Linking**: URL state preservation (`?user=<uuid>`)
 - **RMD Calculations**: Age-specific Required Minimum Distribution per member
 
+## Household Guest Access
+
+Invite external users to view or collaborate on your household data without joining as full members:
+
+- **Guest Roles**:
+  - **Viewer**: Read-only access to household financial data — ideal for family members who want visibility
+  - **Advisor**: Can view and edit household data — designed for financial advisors or accountants
+- **Invite by Email**: Send invitations to any email address; recipients accept or decline from their account
+- **Accept / Decline Flow**: Invited users receive a pending invitation they can accept or decline
+- **Revoke Access**: Household admins can instantly revoke a guest's access at any time
+- **Household Switcher**: Guests can switch between their own household and any households they have guest access to
+- **Security**:
+  - Guest data is fully isolated — guests cannot see other guests or access data beyond their granted role
+  - Revocation is instant and severs all access immediately
+  - Rate limiting on invitation endpoints to prevent abuse
+
 ## RBAC Permission Grants
 
 Fine-grained access delegation between household members:
@@ -375,6 +391,9 @@ Composite snapshot of your overall financial wellness:
 Celebrate progress and stay informed:
 
 - **Milestone Detection**: Configurable net worth thresholds (e.g., $100k, $250k, $500k)
+- **Confetti Celebration Modal**: Crossing a milestone triggers a confetti animation with a celebration modal
+- **Highest Threshold Only**: When multiple milestones are crossed at once, only the highest threshold is displayed — no redundant celebrations for intermediate levels
+- **Batch Dismissal**: Dismiss all pending milestone notifications at once instead of clearing them one by one
 - **All-Time-High Alerts**: Automatic notification when net worth exceeds its previous peak
 - **Notification Integration**: Milestones delivered through the existing notification system (in-app + optional email)
 - **Household Support**: Tracks milestones for combined household and individual members

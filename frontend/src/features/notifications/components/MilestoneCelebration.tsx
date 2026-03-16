@@ -19,30 +19,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notificationsApi } from "../../../api/notifications";
 import { NotificationType } from "../../../types/notification";
 import type { Notification } from "../../../types/notification";
-
-const MILESTONE_EMOJIS: Record<string, string> = {
-  "$10,000": "🎯",
-  "$25,000": "🚀",
-  "$50,000": "💪",
-  "$100,000": "🔥",
-  "$250,000": "⭐",
-  "$500,000": "🏆",
-  "$1,000,000": "👑",
-  "$2,500,000": "💎",
-  "$5,000,000": "🌟",
-  "$10,000,000": "🏰",
-};
-
-function getEmoji(title: string): string {
-  // Sort by key length descending so "$10,000,000" matches before "$10,000"
-  const sorted = Object.entries(MILESTONE_EMOJIS).sort(
-    ([a], [b]) => b.length - a.length,
-  );
-  for (const [threshold, emoji] of sorted) {
-    if (title.includes(threshold)) return emoji;
-  }
-  return "🎉";
-}
+import { extractThreshold, getEmoji } from "../../../utils/milestoneUtils";
 
 function fireConfetti() {
   const duration = 3000;
@@ -78,23 +55,6 @@ function fireConfetti() {
   });
 
   frame();
-}
-
-/**
- * Extract the dollar threshold from a milestone notification title.
- * e.g. "Milestone reached: $1,000,000!" → 1000000
- */
-function extractThreshold(title: string): number {
-  // Sort by label length descending so "$10,000,000" matches before "$10,000"
-  const sorted = Object.keys(MILESTONE_EMOJIS).sort(
-    (a, b) => b.length - a.length,
-  );
-  for (const label of sorted) {
-    if (title.includes(label)) {
-      return Number(label.replace(/[$,]/g, ""));
-    }
-  }
-  return 0;
 }
 
 export default function MilestoneCelebration() {

@@ -70,6 +70,7 @@ Note: there is dark mode and light mode
 - **Budget Management** — flexible periods, category-based limits, proactive alerts, shared budgets
 - **Retirement Planner** — Monte Carlo simulation, Social Security estimator, healthcare cost modeling, scenario comparison
 - **Multi-User Households** — up to 5 members, combined/individual views, account deduplication
+- **Guest Access** — invite external users (family, financial advisors) to view or edit household data without joining as members
 - **RBAC Permissions** — fine-grained per-action grants, immutable audit log, per-page UI enforcement
 - **Notifications** — real-time alerts for budgets, large transactions, low balances, forecasts; optional email delivery
 - **Background Automation** — Celery tasks for budget checks, recurring detection, portfolio snapshots, data retention

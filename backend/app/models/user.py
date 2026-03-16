@@ -10,6 +10,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
@@ -387,7 +388,10 @@ class HouseholdGuest(Base):
         nullable=True,
     )
 
-    __table_args__ = (UniqueConstraint("user_id", "organization_id", name="uq_guest_user_org"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "organization_id", name="uq_guest_user_org"),
+        Index("ix_household_guest_user_org_active", "user_id", "organization_id", "is_active"),
+    )
 
     # Relationships
     user = relationship("User", foreign_keys=[user_id])
@@ -431,6 +435,10 @@ class HouseholdGuestInvitation(Base):
     expires_at = Column(DateTime, nullable=False)
     accepted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+
+    __table_args__ = (
+        Index("ix_guest_invitation_email_org_status", "email", "organization_id", "status"),
+    )
 
     # Relationships
     organization = relationship("Organization")

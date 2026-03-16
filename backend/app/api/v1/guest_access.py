@@ -5,13 +5,14 @@ without making them full members. Guests keep their own household and
 accounts separate — only the host household's data is visible.
 """
 
+import logging
 import secrets
 from datetime import datetime, timedelta
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +31,8 @@ from app.services.email_service import email_service
 from app.services.rate_limit_service import get_rate_limit_service
 from app.utils.datetime_utils import utc_now
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 rate_limit_service = get_rate_limit_service()
 
@@ -43,12 +46,12 @@ MAX_GUEST_INVITATIONS_PER_HOUR = 5
 class InviteGuestRequest(BaseModel):
     email: EmailStr
     role: GuestRole = GuestRole.VIEWER
-    label: Optional[str] = None
+    label: Optional[str] = Field(None, max_length=100)
 
 
 class UpdateGuestRequest(BaseModel):
     role: Optional[GuestRole] = None
-    label: Optional[str] = None
+    label: Optional[str] = Field(None, max_length=100)
 
 
 class GuestResponse(BaseModel):
@@ -101,10 +104,12 @@ class InvitationPreviewResponse(BaseModel):
 
 def _mask_email(email: str) -> str:
     """Mask email for public display: j***n@g***.com"""
+    if not email or "@" not in email:
+        return "***"
     local, domain = email.split("@", 1)
-    domain_name, tld = domain.rsplit(".", 1)
+    domain_name, tld = domain.rsplit(".", 1) if "." in domain else (domain, "")
     masked_local = local[0] + "***" + (local[-1] if len(local) > 1 else "")
-    masked_domain = domain_name[0] + "***" + "." + tld
+    masked_domain = domain_name[0] + "***" + ("." + tld if tld else "")
     return f"{masked_local}@{masked_domain}"
 
 
@@ -205,7 +210,12 @@ async def invite_guest(
             household_name=household_name,
         )
     except Exception:
-        pass  # Email is optional — invitation code works without it
+        logger.warning(
+            "Failed to send guest invitation email to %s for org %s",
+            body.email,
+            admin.organization_id,
+            exc_info=True,
+        )
 
     return GuestInvitationResponse(
         id=invitation.id,
@@ -412,10 +422,13 @@ async def accept_guest_invitation(
     db: AsyncSession = Depends(get_db),
 ):
     """Accept a guest invitation using the invitation code."""
+    # Lock the invitation row to prevent concurrent acceptance
     result = await db.execute(
-        select(HouseholdGuestInvitation).where(
+        select(HouseholdGuestInvitation)
+        .where(
             HouseholdGuestInvitation.invitation_code == code,
         )
+        .with_for_update()
     )
     invitation = result.scalar_one_or_none()
     if not invitation:
