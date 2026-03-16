@@ -86,6 +86,11 @@ Note: there is dark mode and light mode
 - **Unified Financial Calendar** — bills + subscriptions + income with toggles and projected daily balance
 - **Education Planning** — 529 contribution tracking and college cost projections
 - **Rental Property P&L** — per-property profit & loss with Schedule E categories and cap rate
+- **FIRE Planning** — financial independence calculator, savings rate tracking, coast FIRE projections
+- **Debt Payoff** — snowball/avalanche strategies, payoff timeline, interest saved projections
+- **Subscription Tracking** — recurring charge detection, annual cost summaries, cancellation reminders
+- **Tax Lot Tracking** — cost basis methods (FIFO, LIFO, specific ID), realized/unrealized gains
+- **Portfolio Rebalancing** — target allocation drift alerts, rebalance suggestions
 - **Security** — rate limiting, CSRF, encryption at rest, MFA, GDPR compliance, webhook verification
 
 > **Full details**: [docs/features.md](docs/features.md)
@@ -126,6 +131,14 @@ cd nest-egg
 ./scripts/dev-run.sh
 ```
 
+Run options:
+```
+--skip-docker      Don't start Docker services (already running)
+--skip-celery      Don't start Celery worker/beat
+--skip-frontend    Don't start frontend dev server
+--skip-backend     Don't start backend API server
+```
+
 Setup options:
 ```
 --skip-docker      Skip Docker Compose services
@@ -163,6 +176,29 @@ If you ran setup with `--seed-user`, log in as `test@test.com` / `test1234`. Oth
 
 > **Full guide**: [docs/deployment.md](docs/deployment.md)
 
+### Makefile Shortcuts
+
+A `Makefile` wraps common development commands:
+
+```bash
+make dev              # Start all services (same as ./scripts/dev-run.sh)
+make test             # Run all tests (backend + frontend)
+make test-backend     # Run backend tests only
+make test-frontend    # Run frontend tests only
+make test-coverage    # Tests with coverage reports
+make lint             # Run all linters
+make format           # Format all code
+make db-migrate       # Run database migrations
+make db-revision      # Create new Alembic migration
+make db-shell         # Open PostgreSQL shell
+make docker-up        # Start Docker services
+make docker-down      # Stop Docker services
+make health           # Check health of all services
+make ci               # Run full CI checks locally (lint + test)
+```
+
+Run `make help` for the full list.
+
 ## Documentation
 
 | Document | Description |
@@ -173,6 +209,7 @@ If you ran setup with `--seed-user`, log in as `test@test.com` / `test1234`. Oth
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues, debugging tips, CLI recipes |
 | [docs/MONITORING.md](docs/MONITORING.md) | Prometheus metrics, structured logging, Sentry, alerting |
 | [docs/TELLER_API.md](docs/TELLER_API.md) | Teller API integration details and provider comparison |
+| [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Banking provider setup (Plaid, Teller, MX), market data sources |
 | [SECURITY.md](SECURITY.md) | Secrets management, rotation procedures, security checklist |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow, code standards, PR process |
 
@@ -182,7 +219,7 @@ If you ran setup with `--seed-user`, log in as `test@test.com` / `test1234`. Oth
 nest-egg/
 ├── backend/                      # FastAPI backend
 │   ├── app/
-│   │   ├── api/v1/              # API endpoints (30+ modules)
+│   │   ├── api/v1/              # API endpoints (40+ modules)
 │   │   ├── core/                # Config, database, security, encryption
 │   │   ├── middleware/          # CSRF, rate limiting, security headers
 │   │   ├── models/              # SQLAlchemy models
@@ -199,6 +236,7 @@ nest-egg/
 │   │   ├── components/          # Shared components
 │   │   ├── contexts/            # React contexts
 │   │   ├── services/            # API client
+│   │   ├── stores/              # Zustand state stores
 │   │   └── hooks/               # Custom hooks
 │   └── Dockerfile
 │
@@ -218,15 +256,7 @@ nest-egg/
 ## Roadmap
 
 ### Completed
-Transaction management, multi-provider bank sync (Plaid/Teller/MX), investment analysis (9 tabs), retirement planner with Monte Carlo, multi-user households with RBAC, budget management, cash flow analytics, rule engine, dark mode, IdP-agnostic auth, GDPR compliance, and 50+ more features. See [docs/features.md](docs/features.md) for the full list.
-
-### In Progress
-- [ ] Mobile app (React Native)
-
-### Future
-- [ ] Receipt OCR and attachment storage
-- [ ] Advanced investment analytics (Sharpe ratio, alpha, beta)
-- [ ] Tax bracket optimization
+Transaction management, multi-provider bank sync (Plaid/Teller/MX), investment analysis (9 tabs), retirement planner with Monte Carlo, FIRE planning, multi-user households with RBAC, guest access, budget management, cash flow analytics, debt payoff strategies, subscription tracking, education planning, rental property P&L, rule engine, dark mode, IdP-agnostic auth, GDPR compliance, and more. See [docs/features.md](docs/features.md) for the full list.
 
 ## License
 
