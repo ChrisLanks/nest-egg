@@ -1,12 +1,11 @@
 """Celery tasks for authentication maintenance."""
 
 import logging
-from datetime import datetime, timezone
-from sqlalchemy import delete, or_
 
-from app.workers.celery_app import celery_app
-from app.core.database import AsyncSessionLocal as async_session_factory
+from sqlalchemy import delete, func, or_
+
 from app.models.user import RefreshToken
+from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -24,14 +23,14 @@ def cleanup_expired_refresh_tokens_task():
 
 async def _cleanup_expired_refresh_tokens_async():
     """Async implementation of refresh token cleanup."""
-    async with async_session_factory() as db:
-        try:
-            now = datetime.now(timezone.utc)
+    from app.workers.utils import get_celery_session
 
+    async with get_celery_session() as db:
+        try:
             result = await db.execute(
                 delete(RefreshToken).where(
                     or_(
-                        RefreshToken.expires_at < now,
+                        RefreshToken.expires_at < func.now(),
                         RefreshToken.revoked_at.is_not(None),
                     )
                 )
@@ -39,7 +38,9 @@ async def _cleanup_expired_refresh_tokens_async():
             await db.commit()
 
             deleted_count = result.rowcount
-            logger.info(f"Refresh token cleanup complete. Deleted {deleted_count} expired/revoked tokens.")
+            logger.info(
+                f"Refresh token cleanup complete. Deleted {deleted_count} expired/revoked tokens."
+            )
 
         except Exception as e:
             logger.error(f"Error cleaning up refresh tokens: {str(e)}", exc_info=True)
