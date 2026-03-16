@@ -1,13 +1,13 @@
 """Celery tasks for budget alerts."""
 
 import logging
+
 from sqlalchemy import select
 
-from app.workers.celery_app import celery_app
-from app.core.database import AsyncSessionLocal as async_session_factory
-from app.services.budget_service import BudgetService
-from app.models.user import User
 from app.models.budget import Budget
+from app.models.user import User
+from app.services.budget_service import BudgetService
+from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,9 @@ def check_budget_alerts_task():
 
 async def _check_budget_alerts_async():
     """Async implementation of budget alert checking."""
-    async with async_session_factory() as db:
+    from app.workers.utils import get_celery_session
+
+    async with get_celery_session() as db:
         try:
             # Get all organizations with active budgets
             result = await db.execute(

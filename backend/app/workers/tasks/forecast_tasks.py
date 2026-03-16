@@ -1,12 +1,12 @@
 """Celery tasks for cash flow forecast alerts."""
 
 import logging
+
 from sqlalchemy import select
 
-from app.workers.celery_app import celery_app
-from app.core.database import AsyncSessionLocal as async_session_factory
-from app.services.forecast_service import ForecastService
 from app.models.user import User
+from app.services.forecast_service import ForecastService
+from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,9 @@ def check_cash_flow_forecast_task():
 
 async def _check_forecast_async():
     """Async implementation of forecast checking."""
-    async with async_session_factory() as db:
+    from app.workers.utils import get_celery_session
+
+    async with get_celery_session() as db:
         try:
             # Get all unique organization IDs
             result = await db.execute(select(User.organization_id).distinct())

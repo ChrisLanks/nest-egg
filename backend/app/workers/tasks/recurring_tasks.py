@@ -1,12 +1,12 @@
 """Celery tasks for recurring transaction detection."""
 
 import logging
+
 from sqlalchemy import select
 
-from app.workers.celery_app import celery_app
-from app.core.database import AsyncSessionLocal as async_session_factory
-from app.services.recurring_detection_service import RecurringDetectionService
 from app.models.user import User
+from app.services.recurring_detection_service import RecurringDetectionService
+from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,9 @@ def detect_recurring_patterns_task():
 
 async def _detect_recurring_async():
     """Async implementation of recurring pattern detection."""
-    async with async_session_factory() as db:
+    from app.workers.utils import get_celery_session
+
+    async with get_celery_session() as db:
         try:
             # Get all unique organization IDs
             result = await db.execute(select(User.organization_id).distinct())

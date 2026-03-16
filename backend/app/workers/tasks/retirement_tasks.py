@@ -11,10 +11,9 @@ import logging
 
 from sqlalchemy import select
 
-from app.workers.celery_app import celery_app
-from app.core.database import AsyncSessionLocal
 from app.models.retirement import RetirementScenario
 from app.models.user import User
+from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +26,11 @@ def run_retirement_simulation(scenario_id: str, user_id: str):
     Called from the API when the scenario requests more than the inline
     threshold (e.g., >2000 simulations).
     """
+
     async def _run():
-        async with AsyncSessionLocal() as db:
+        from app.workers.utils import get_celery_session
+
+        async with get_celery_session() as db:
             # Load scenario with life events
             result = await db.execute(
                 select(RetirementScenario).where(
@@ -46,9 +48,7 @@ def run_retirement_simulation(scenario_id: str, user_id: str):
             # Load life events (may not be eagerly loaded)
             await db.refresh(scenario, ["life_events"])
 
-            user_result = await db.execute(
-                select(User).where(User.id == user_id)
-            )
+            user_result = await db.execute(select(User).where(User.id == user_id))
             user = user_result.scalar_one_or_none()
             if not user:
                 logger.warning(

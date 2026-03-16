@@ -43,9 +43,11 @@ async def get_celery_session():
         autocommit=False,
         autoflush=False,
     )
-    async with session_factory() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
-    await engine.dispose()
+    try:
+        async with session_factory() as session:
+            try:
+                yield session
+            finally:
+                await session.close()
+    finally:
+        await engine.dispose()

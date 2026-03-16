@@ -8,10 +8,9 @@ from decimal import Decimal
 
 from sqlalchemy import and_, select
 
-from app.workers.celery_app import celery_app
-from app.core.database import AsyncSessionLocal
 from app.models.account import Account, AccountType, CompoundingFrequency
 from app.models.transaction import Transaction
+from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,9 @@ async def _accrue_interest_async():
     today = date.today()
     first_of_month = today.replace(day=1)
 
-    async with AsyncSessionLocal() as db:
+    from app.workers.utils import get_celery_session
+
+    async with get_celery_session() as db:
         try:
             # Find all accounts that need interest accrual
             result = await db.execute(
@@ -98,7 +99,7 @@ async def _accrue_interest_async():
                     organization_id=account.organization_id,
                     account_id=account.id,
                     date=first_of_month,
-                    amount=interest,          # Positive = income
+                    amount=interest,  # Positive = income
                     merchant_name=f"Interest — {account.name}",
                     category_primary="Interest Income",
                     is_pending=False,

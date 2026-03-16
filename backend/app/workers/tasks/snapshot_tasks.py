@@ -19,12 +19,12 @@ import logging
 
 from sqlalchemy import delete, select
 
-from app.core.database import AsyncSessionLocal
 from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.user import EmailVerificationToken, Organization, PasswordResetToken, User
 from app.services.snapshot_service import snapshot_service
 from app.utils.datetime_utils import utc_now
 from app.workers.celery_app import celery_app
+from app.workers.utils import get_celery_session
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def _fetch_all_organizations():
     """
 
     async def _inner():
-        async with AsyncSessionLocal() as db:
+        async with get_celery_session() as db:
             result = await db.execute(select(Organization.id))
             return result.scalars().all()
 
@@ -98,7 +98,7 @@ def capture_org_portfolio_snapshot(organization_id: str):
     """
 
     async def _run():
-        async with AsyncSessionLocal() as db:
+        async with get_celery_session() as db:
             today = utc_now().date()
 
             # Idempotency check for household snapshot
@@ -215,7 +215,7 @@ def cleanup_expired_auth_tokens():
     """
 
     async def _run():
-        async with AsyncSessionLocal() as db:
+        async with get_celery_session() as db:
             now = utc_now()
             r1 = await db.execute(
                 delete(PasswordResetToken).where(PasswordResetToken.expires_at < now)

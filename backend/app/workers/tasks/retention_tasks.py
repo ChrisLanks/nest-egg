@@ -3,7 +3,6 @@
 import logging
 
 from app.workers.celery_app import celery_app
-from app.core.database import AsyncSessionLocal as async_session_factory
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,9 @@ async def _run_data_retention_async():
 
     dry_run = settings.DATA_RETENTION_DRY_RUN
 
-    async with async_session_factory() as db:
+    from app.workers.utils import get_celery_session
+
+    async with get_celery_session() as db:
         try:
             results = await DataRetentionService.purge_all_orgs(
                 db,

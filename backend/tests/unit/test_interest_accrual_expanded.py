@@ -57,7 +57,7 @@ class TestAccrueInterestAsync:
         result_mock.scalars.return_value = scalars_mock
         mock_db.execute.return_value = result_mock
 
-        with patch("app.workers.tasks.interest_accrual_tasks.AsyncSessionLocal") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             await _accrue_interest_async()
@@ -79,7 +79,7 @@ class TestAccrueInterestAsync:
         result_mock.scalars.return_value = scalars_mock
         mock_db.execute.return_value = result_mock
 
-        with patch("app.workers.tasks.interest_accrual_tasks.AsyncSessionLocal") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             await _accrue_interest_async()
@@ -114,7 +114,7 @@ class TestAccrueInterestAsync:
 
         mock_db.execute.side_effect = execute_side_effect
 
-        with patch("app.workers.tasks.interest_accrual_tasks.AsyncSessionLocal") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             await _accrue_interest_async()
@@ -133,7 +133,7 @@ class TestAccrueInterestAsync:
         result_mock.scalars.return_value = scalars_mock
         mock_db.execute.return_value = result_mock
 
-        with patch("app.workers.tasks.interest_accrual_tasks.AsyncSessionLocal") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             await _accrue_interest_async()
@@ -163,7 +163,7 @@ class TestAccrueInterestAsync:
 
         mock_db.execute.side_effect = execute_side_effect
 
-        with patch("app.workers.tasks.interest_accrual_tasks.AsyncSessionLocal") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             await _accrue_interest_async()
@@ -193,7 +193,7 @@ class TestAccrueInterestAsync:
 
         mock_db.execute.side_effect = execute_side_effect
 
-        with patch("app.workers.tasks.interest_accrual_tasks.AsyncSessionLocal") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             await _accrue_interest_async()
@@ -207,7 +207,7 @@ class TestAccrueInterestAsync:
         mock_db = AsyncMock()
         mock_db.execute.side_effect = Exception("DB error")
 
-        with patch("app.workers.tasks.interest_accrual_tasks.AsyncSessionLocal") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             with pytest.raises(Exception, match="DB error"):

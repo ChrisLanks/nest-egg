@@ -2,12 +2,11 @@
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from sqlalchemy import select, update
 
 from app.core.cache import delete_pattern as cache_delete_pattern
-from app.core.database import AsyncSessionLocal as async_session_factory
 from app.models.holding import Holding
 from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.user import User
@@ -36,7 +35,9 @@ def enrich_holdings_metadata_task():
 
 async def _enrich_metadata_async():
     """Async implementation of holdings metadata enrichment."""
-    async with async_session_factory() as db:
+    from app.workers.utils import get_celery_session
+
+    async with get_celery_session() as db:
         try:
             # Get all holdings that have a ticker
             result = await db.execute(select(Holding).where(Holding.ticker.isnot(None)))
@@ -131,8 +132,9 @@ async def _capture_snapshots_async():
     """Async implementation of holdings snapshot capture."""
     # Imported here to avoid circular dependency (holdings → services → tasks)
     from app.api.v1.holdings import get_portfolio_summary
+    from app.workers.utils import get_celery_session
 
-    async with async_session_factory() as db:
+    async with get_celery_session() as db:
         try:
             # Get all organizations
             result = await db.execute(select(User.organization_id).distinct())
@@ -220,7 +222,9 @@ async def _update_prices_async():
     STALE_AFTER_HOURS = 6
     cutoff = utc_now() - timedelta(hours=STALE_AFTER_HOURS)
 
-    async with async_session_factory() as db:
+    from app.workers.utils import get_celery_session
+
+    async with get_celery_session() as db:
         try:
             # Only fetch holdings whose price is stale or has never been fetched
             result = await db.execute(
@@ -248,7 +252,7 @@ async def _update_prices_async():
             # Update holdings
             updated_count = 0
             skipped_count = 0
-            now = datetime.now(timezone.utc)
+            now = utc_now()
 
             # Batch UPDATE per ticker instead of per holding
             for ticker in tickers:

@@ -77,7 +77,7 @@ class TestEnrichMetadataAsync:
         result_mock.scalars.return_value = scalars_mock
         mock_db.execute.return_value = result_mock
 
-        with patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             await _enrich_metadata_async()
@@ -103,7 +103,7 @@ class TestEnrichMetadataAsync:
         mock_provider.get_provider_name.return_value = "test_provider"
 
         with (
-            patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory,
+            patch("app.workers.utils.get_celery_session") as mock_factory,
             patch(
                 "app.workers.tasks.holdings_tasks.get_market_data_provider",
                 return_value=mock_provider,
@@ -133,7 +133,7 @@ class TestEnrichMetadataAsync:
         mock_provider.get_provider_name.return_value = "test_provider"
 
         with (
-            patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory,
+            patch("app.workers.utils.get_celery_session") as mock_factory,
             patch(
                 "app.workers.tasks.holdings_tasks.get_market_data_provider",
                 return_value=mock_provider,
@@ -173,7 +173,7 @@ class TestEnrichMetadataAsync:
         mock_provider.get_provider_name.return_value = "test_provider"
 
         with (
-            patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory,
+            patch("app.workers.utils.get_celery_session") as mock_factory,
             patch(
                 "app.workers.tasks.holdings_tasks.get_market_data_provider",
                 return_value=mock_provider,
@@ -191,7 +191,7 @@ class TestEnrichMetadataAsync:
         mock_db = AsyncMock()
         mock_db.execute.side_effect = Exception("DB down")
 
-        with patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             with pytest.raises(Exception, match="DB down"):
@@ -215,7 +215,7 @@ class TestUpdatePricesAsync:
         result_mock.scalars.return_value = scalars_mock
         mock_db.execute.return_value = result_mock
 
-        with patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             await _update_prices_async()
@@ -245,7 +245,7 @@ class TestUpdatePricesAsync:
         mock_provider.get_provider_name.return_value = "test_provider"
 
         with (
-            patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory,
+            patch("app.workers.utils.get_celery_session") as mock_factory,
             patch(
                 "app.workers.tasks.holdings_tasks.get_market_data_provider",
                 return_value=mock_provider,
@@ -274,7 +274,7 @@ class TestUpdatePricesAsync:
         mock_provider.get_provider_name.return_value = "test_provider"
 
         with (
-            patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory,
+            patch("app.workers.utils.get_celery_session") as mock_factory,
             patch(
                 "app.workers.tasks.holdings_tasks.get_market_data_provider",
                 return_value=mock_provider,
@@ -292,7 +292,7 @@ class TestUpdatePricesAsync:
         mock_db = AsyncMock()
         mock_db.execute.side_effect = Exception("DB down")
 
-        with patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             with pytest.raises(Exception, match="DB down"):
@@ -314,7 +314,7 @@ class TestCaptureSnapshotsAsync:
         result_mock.all.return_value = []
         mock_db.execute.return_value = result_mock
 
-        with patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             await _capture_snapshots_async()
@@ -325,7 +325,7 @@ class TestCaptureSnapshotsAsync:
         mock_db = AsyncMock()
         mock_db.execute.side_effect = Exception("DB down")
 
-        with patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             with pytest.raises(Exception, match="DB down"):
@@ -389,7 +389,7 @@ class TestUpdatePricesPerTickerError:
         mock_provider.get_provider_name.return_value = "test_provider"
 
         with (
-            patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory,
+            patch("app.workers.utils.get_celery_session") as mock_factory,
             patch(
                 "app.workers.tasks.holdings_tasks.get_market_data_provider",
                 return_value=mock_provider,
@@ -422,7 +422,7 @@ class TestUpdatePricesPerTickerError:
 
         mock_db.execute.side_effect = execute_side_effect
 
-        with patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             await _capture_snapshots_async()
@@ -449,7 +449,7 @@ class TestUpdatePricesPerTickerError:
 
         mock_db.execute.side_effect = execute_side_effect
 
-        with patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             await _capture_snapshots_async()
@@ -482,7 +482,7 @@ class TestUpdatePricesPerTickerError:
         mock_db.execute.side_effect = execute_side_effect
 
         with (
-            patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory,
+            patch("app.workers.utils.get_celery_session") as mock_factory,
             patch("app.workers.tasks.holdings_tasks.snapshot_service") as mock_snap_svc,
         ):
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
@@ -518,7 +518,7 @@ class TestUpdatePricesPerTickerError:
 
         mock_db.execute.side_effect = execute_side_effect
 
-        with patch("app.workers.tasks.holdings_tasks.async_session_factory") as mock_factory:
+        with patch("app.workers.utils.get_celery_session") as mock_factory:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             await _capture_snapshots_async()

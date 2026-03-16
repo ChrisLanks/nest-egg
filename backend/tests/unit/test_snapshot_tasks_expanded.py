@@ -32,7 +32,7 @@ class TestFetchAllOrganizations:
             return [org1]
 
         with (
-            patch("app.workers.tasks.snapshot_tasks.AsyncSessionLocal"),
+            patch("app.workers.utils.get_celery_session"),
             patch("asyncio.run") as mock_run,
         ):
             mock_run.return_value = [org1]
