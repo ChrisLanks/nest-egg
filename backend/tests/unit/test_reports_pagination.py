@@ -1,4 +1,4 @@
-"""Tests for GET /reports/templates pagination."""
+"""Tests for GET /reports/templates keyset pagination."""
 
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -9,7 +9,7 @@ import pytest
 
 @pytest.mark.unit
 class TestListReportTemplatesPagination:
-    """Test pagination parameters on the list_report_templates endpoint."""
+    """Test keyset pagination on the list_report_templates endpoint."""
 
     def _make_template(self):
         """Return a minimal mock ReportTemplate."""
@@ -27,8 +27,8 @@ class TestListReportTemplatesPagination:
         return t
 
     @pytest.mark.asyncio
-    async def test_default_pagination_passes_offset_and_limit(self):
-        """Default call (no skip/limit) should apply offset=0, limit=50 to the query."""
+    async def test_default_pagination_applies_limit(self):
+        """Default call (no after/limit) should apply limit=50 to the query."""
         from app.api.v1.reports import list_report_templates
 
         mock_user = MagicMock()
@@ -45,22 +45,20 @@ class TestListReportTemplatesPagination:
             mock_select.return_value = mock_query
             mock_query.where.return_value = mock_query
             mock_query.order_by.return_value = mock_query
-            mock_query.offset.return_value = mock_query
             mock_query.limit.return_value = mock_query
 
             await list_report_templates(
-                skip=0,
+                after=None,
                 limit=50,
                 current_user=mock_user,
                 db=mock_db,
             )
 
-            mock_query.offset.assert_called_once_with(0)
             mock_query.limit.assert_called_once_with(50)
 
     @pytest.mark.asyncio
-    async def test_custom_pagination_values(self):
-        """skip=10, limit=20 should be forwarded to the query."""
+    async def test_custom_limit_value(self):
+        """limit=20 should be forwarded to the query."""
         from app.api.v1.reports import list_report_templates
 
         mock_user = MagicMock()
@@ -77,17 +75,15 @@ class TestListReportTemplatesPagination:
             mock_select.return_value = mock_query
             mock_query.where.return_value = mock_query
             mock_query.order_by.return_value = mock_query
-            mock_query.offset.return_value = mock_query
             mock_query.limit.return_value = mock_query
 
             await list_report_templates(
-                skip=10,
+                after=None,
                 limit=20,
                 current_user=mock_user,
                 db=mock_db,
             )
 
-            mock_query.offset.assert_called_once_with(10)
             mock_query.limit.assert_called_once_with(20)
 
     @pytest.mark.asyncio
@@ -111,11 +107,10 @@ class TestListReportTemplatesPagination:
             mock_select.return_value = mock_query
             mock_query.where.return_value = mock_query
             mock_query.order_by.return_value = mock_query
-            mock_query.offset.return_value = mock_query
             mock_query.limit.return_value = mock_query
 
             result = await list_report_templates(
-                skip=0,
+                after=None,
                 limit=50,
                 current_user=mock_user,
                 db=mock_db,
@@ -143,11 +138,10 @@ class TestListReportTemplatesPagination:
             mock_select.return_value = mock_query
             mock_query.where.return_value = mock_query
             mock_query.order_by.return_value = mock_query
-            mock_query.offset.return_value = mock_query
             mock_query.limit.return_value = mock_query
 
             result = await list_report_templates(
-                skip=0,
+                after=None,
                 limit=50,
                 current_user=mock_user,
                 db=mock_db,

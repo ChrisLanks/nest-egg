@@ -83,7 +83,7 @@ class TestListReportTemplates:
         result_mock.scalars.return_value = scalars_mock
         db.execute = AsyncMock(return_value=result_mock)
 
-        result = await list_report_templates(skip=0, limit=50, current_user=user, db=db)
+        result = await list_report_templates(after=None, limit=50, current_user=user, db=db)
 
         assert len(result) == 1
         assert result[0].name == "Monthly Report"
@@ -99,7 +99,7 @@ class TestListReportTemplates:
         result_mock.scalars.return_value = scalars_mock
         db.execute = AsyncMock(return_value=result_mock)
 
-        result = await list_report_templates(skip=0, limit=50, current_user=user, db=db)
+        result = await list_report_templates(after=None, limit=50, current_user=user, db=db)
 
         assert result == []
 

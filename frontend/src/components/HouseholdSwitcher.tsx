@@ -11,6 +11,7 @@ import { Box, Button, HStack, Text, VStack, Badge } from "@chakra-ui/react";
 import { ChevronDownIcon } from "@chakra-ui/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useHouseholdStore } from "../stores/householdStore";
+import { useShallow } from "zustand/react/shallow";
 
 export function HouseholdSwitcher() {
   const {
@@ -19,7 +20,15 @@ export function HouseholdSwitcher() {
     guestHouseholds,
     setActiveHousehold,
     fetchGuestHouseholds,
-  } = useHouseholdStore();
+  } = useHouseholdStore(
+    useShallow((s) => ({
+      activeHouseholdId: s.activeHouseholdId,
+      activeHouseholdName: s.activeHouseholdName,
+      guestHouseholds: s.guestHouseholds,
+      setActiveHousehold: s.setActiveHousehold,
+      fetchGuestHouseholds: s.fetchGuestHouseholds,
+    })),
+  );
 
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);

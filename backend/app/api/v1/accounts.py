@@ -15,6 +15,8 @@ from sqlalchemy.orm import joinedload
 
 from app.config import settings
 from app.core.cache import delete_pattern as cache_delete_pattern
+from app.core.cache import get as cache_get
+from app.core.cache import setex as cache_setex
 from app.core.database import get_db
 from app.dependencies import (
     get_all_household_accounts,
@@ -110,6 +112,17 @@ async def list_accounts(
     db: AsyncSession = Depends(get_db),
 ):
     """List all accounts for the current user's organization (provider-agnostic)."""
+    # Check Redis cache for default (non-admin, non-filtered) requests
+    cache_key = None
+    if not include_hidden and not user_id:
+        cache_key = f"accounts:list:{current_user.organization_id}"
+        try:
+            cached = await cache_get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception:
+            pass  # fail-open on Redis errors
+
     # Query accounts directly to respect include_hidden parameter
     if include_hidden:
         # Admin view - include ALL accounts regardless of is_active status
@@ -184,6 +197,13 @@ async def list_accounts(
             needs_reauth=needs_reauth,
         )
         summaries.append(summary)
+
+    # Cache default account list for 60 seconds
+    if cache_key:
+        try:
+            await cache_setex(cache_key, 60, [s.model_dump(mode="json") for s in summaries])
+        except Exception:
+            pass  # fail-open on Redis errors
 
     return summaries
 
@@ -361,6 +381,7 @@ async def create_manual_account(
     # Invalidate portfolio and dashboard caches
     await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
     await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"accounts:list:{current_user.organization_id}")
 
     # Create holdings if provided (for investment accounts)
     if account_data.holdings:
@@ -437,6 +458,7 @@ async def bulk_update_visibility(
     # Invalidate portfolio and dashboard caches
     await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
     await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"accounts:list:{current_user.organization_id}")
 
     return {"updated_count": result.rowcount}
 
@@ -568,6 +590,7 @@ async def update_account(
     # Invalidate portfolio and dashboard caches
     await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
     await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"accounts:list:{current_user.organization_id}")
 
     return account
 
@@ -728,6 +751,7 @@ async def refresh_account_valuation(
     # Invalidate portfolio and dashboard caches
     await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
     await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"accounts:list:{current_user.organization_id}")
 
     return {
         "id": str(account.id),
@@ -789,6 +813,7 @@ async def bulk_delete_accounts(
     # Invalidate portfolio and dashboard caches
     await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
     await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"accounts:list:{current_user.organization_id}")
 
     return {"deleted_count": result.rowcount}
 

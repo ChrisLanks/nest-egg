@@ -15,6 +15,9 @@ from sqlalchemy import and_, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from app.core.cache import delete_pattern as cache_delete_pattern
+from app.core.cache import get as cache_get
+from app.core.cache import setex as cache_setex
 from app.core.database import get_db
 from app.dependencies import get_current_user, verify_household_member
 from app.models.account import Account
@@ -134,6 +137,7 @@ async def create_transaction(
     db.add(txn)
     await db.commit()
     await db.refresh(txn)
+    await cache_delete_pattern(f"transactions:{current_user.organization_id}:*")
 
     # Load related data
     result = await db.execute(
@@ -303,6 +307,20 @@ async def list_transactions(
     db: AsyncSession = Depends(get_db),
 ):
     """List transactions with filtering and cursor-based pagination."""
+    # Check Redis cache for first page of unfiltered queries (most common request)
+    cache_key = None
+    if not cursor and not search and not flagged:
+        cache_key = (
+            f"transactions:{current_user.organization_id}"
+            f":{user_id}:{account_id}:{start_date}:{end_date}:{page_size}"
+        )
+        try:
+            cached = await cache_get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception:
+            pass  # fail-open on Redis errors
+
     # Validate user_id belongs to the same household
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
@@ -466,7 +484,7 @@ async def list_transactions(
         )
         transaction_details.append(detail)
 
-    return TransactionListResponse(
+    response = TransactionListResponse(
         transactions=transaction_details,
         total=total,
         page=1,  # Always return 1 for cursor-based pagination
@@ -475,23 +493,38 @@ async def list_transactions(
         next_cursor=next_cursor,
     )
 
+    # Cache first-page unfiltered results for 5 minutes
+    if cache_key:
+        try:
+            await cache_setex(cache_key, 300, response.model_dump(mode="json"))
+        except Exception:
+            pass  # fail-open on Redis errors
+
+    return response
+
 
 @router.get("/merchants")
 async def get_merchant_names(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    search: Optional[str] = Query(None, description="Filter merchants by prefix"),
+    limit: int = Query(500, ge=1, le=1000, description="Max merchants to return"),
 ):
-    """Return all distinct merchant names for the org (filtered client-side)."""
+    """Return distinct merchant names for the org with optional prefix search."""
+    conditions = [
+        Transaction.organization_id == current_user.organization_id,
+        Transaction.merchant_name.isnot(None),
+        Transaction.merchant_name != "",
+    ]
+    if search:
+        conditions.append(Transaction.merchant_name.ilike(f"{search}%"))
+
     result = await db.execute(
         select(Transaction.merchant_name)
-        .where(
-            Transaction.organization_id == current_user.organization_id,
-            Transaction.merchant_name.isnot(None),
-            Transaction.merchant_name != "",
-        )
+        .where(*conditions)
         .distinct()
         .order_by(Transaction.merchant_name)
-        .limit(500)
+        .limit(limit)
     )
     return {"merchants": [row[0] for row in result.all()]}
 
@@ -628,6 +661,7 @@ async def update_transaction(
 
     await db.commit()
     await db.refresh(txn, ["labels"])
+    await cache_delete_pattern(f"transactions:{current_user.organization_id}:*")
 
     # Extract labels from the many-to-many relationship
     transaction_labels = [tl.label for tl in txn.labels if tl.label]

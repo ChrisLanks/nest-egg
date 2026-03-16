@@ -1125,24 +1125,25 @@ async def get_account_holdings(
     response: Response,
     account: Account = Depends(get_verified_account),
     db: AsyncSession = Depends(get_db),
-    skip: int = Query(0, ge=0, description="Number of holdings to skip"),
+    after_ticker: Optional[str] = Query(
+        None, description="Cursor: return holdings with ticker > this value"
+    ),
     limit: int = Query(100, ge=1, le=500, description="Max holdings to return"),
 ):
-    """Get holdings for a specific account with pagination."""
+    """Get holdings for a specific account with keyset pagination."""
     # Get total count
     count_result = await db.execute(
         select(func.count()).select_from(Holding).where(Holding.account_id == account.id)
     )
     total_count = count_result.scalar()
 
-    # Fetch paginated holdings
-    result = await db.execute(
-        select(Holding)
-        .where(Holding.account_id == account.id)
-        .order_by(Holding.ticker)
-        .offset(skip)
-        .limit(limit)
-    )
+    # Build keyset-paginated query
+    query = select(Holding).where(Holding.account_id == account.id)
+    if after_ticker:
+        query = query.where(Holding.ticker > after_ticker)
+    query = query.order_by(Holding.ticker).limit(limit)
+
+    result = await db.execute(query)
     holdings = result.scalars().all()
 
     # Set total count header for client pagination

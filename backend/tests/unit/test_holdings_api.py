@@ -112,7 +112,7 @@ class TestGetAccountHoldings:
         mock_db.execute.side_effect = [count_result, holdings_result]
 
         result = await get_account_holdings(
-            response=MagicMock(), account=mock_account, db=mock_db, skip=0, limit=100
+            response=MagicMock(), account=mock_account, db=mock_db, after_ticker=None, limit=100
         )
 
         assert result == [holding1, holding2]
@@ -130,7 +130,7 @@ class TestGetAccountHoldings:
         mock_db.execute.side_effect = [count_result, holdings_result]
 
         result = await get_account_holdings(
-            response=MagicMock(), account=mock_account, db=mock_db, skip=0, limit=100
+            response=MagicMock(), account=mock_account, db=mock_db, after_ticker=None, limit=100
         )
 
         assert result == []

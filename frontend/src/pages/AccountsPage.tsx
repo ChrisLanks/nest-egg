@@ -37,7 +37,7 @@ import {
   Tooltip,
   Icon,
 } from "@chakra-ui/react";
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ViewIcon,
@@ -183,13 +183,18 @@ export const AccountsPage = () => {
   // Same color palette as Layout.tsx household member colors
   const userColorSchemes = ["blue", "green", "purple", "orange", "pink"];
 
-  const getUserColorScheme = (userId: string): string => {
-    if (!users) return "blue";
-    const index = users.findIndex((u) => u.id === userId);
-    return userColorSchemes[(index >= 0 ? index : 0) % userColorSchemes.length];
-  };
+  const getUserColorScheme = useCallback(
+    (userId: string): string => {
+      if (!users) return "blue";
+      const index = users.findIndex((u) => u.id === userId);
+      return userColorSchemes[
+        (index >= 0 ? index : 0) % userColorSchemes.length
+      ];
+    },
+    [users],
+  );
 
-  const getUserDisplayName = (user: User): string => {
+  const getUserDisplayName = useCallback((user: User): string => {
     if (user.display_name?.trim()) return user.display_name.trim();
     if (user.first_name?.trim()) {
       return user.last_name?.trim()
@@ -197,13 +202,16 @@ export const AccountsPage = () => {
         : user.first_name.trim();
     }
     return user.email.split("@")[0];
-  };
+  }, []);
 
   // Check if current user can modify an account (owns it or has a write grant)
-  const canModifyAccount = (account: Account): boolean => {
-    if (!currentUser) return false;
-    return canWriteOwnedResource("account", account.user_id);
-  };
+  const canModifyAccount = useCallback(
+    (account: Account): boolean => {
+      if (!currentUser) return false;
+      return canWriteOwnedResource("account", account.user_id);
+    },
+    [currentUser, canWriteOwnedResource],
+  );
 
   // Bulk delete mutation
   const deleteMutation = useMutation({

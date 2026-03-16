@@ -1062,7 +1062,9 @@ class TestGetMerchantNames:
         mock_result.all.return_value = [("Starbucks",), ("Amazon",)]
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        result = await get_merchant_names(current_user=mock_user, db=mock_db)
+        result = await get_merchant_names(
+            current_user=mock_user, db=mock_db, search=None, limit=500
+        )
 
         assert result["merchants"] == ["Starbucks", "Amazon"]
 
@@ -1075,7 +1077,9 @@ class TestGetMerchantNames:
         mock_result.all.return_value = []
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        result = await get_merchant_names(current_user=mock_user, db=mock_db)
+        result = await get_merchant_names(
+            current_user=mock_user, db=mock_db, search=None, limit=500
+        )
 
         assert result["merchants"] == []
 

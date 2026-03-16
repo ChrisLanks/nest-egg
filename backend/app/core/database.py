@@ -22,7 +22,9 @@ engine = create_async_engine(
     connect_args={
         "server_settings": {
             "application_name": "nest_egg_api",  # Identify app in database logs
-            "statement_timeout": "30000",  # 30 second query timeout (prevents runaway queries)
+            "statement_timeout": str(
+                settings.DB_STATEMENT_TIMEOUT_MS
+            ),  # Configurable query timeout
         },
     },
 )

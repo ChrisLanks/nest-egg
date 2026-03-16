@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     DB_ECHO: bool = False
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
+    DB_STATEMENT_TIMEOUT_MS: int = 45000  # 45 second query timeout
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"

@@ -86,7 +86,9 @@ class ExecuteReportRequest(BaseModel):
 
 @router.get("/templates", response_model=List[ReportTemplateResponse])
 async def list_report_templates(
-    skip: int = Query(0, ge=0, le=10000),
+    after: Optional[str] = Query(
+        None, description="Cursor: return templates updated before this ISO datetime"
+    ),
     limit: int = Query(50, ge=1, le=200),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -95,20 +97,30 @@ async def list_report_templates(
     List all report templates for the organization.
 
     Returns templates created by the current user and shared templates.
+    Uses keyset pagination on updated_at (descending).
     """
+    from datetime import datetime
+
+    conditions = [
+        ReportTemplate.organization_id == current_user.organization_id,
+        (
+            (ReportTemplate.created_by_user_id == current_user.id)
+            | (ReportTemplate.is_shared.is_(True))
+        ),
+    ]
+    if after:
+        try:
+            cursor_dt = datetime.fromisoformat(after)
+        except ValueError:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=400, detail="Invalid cursor format")
+        conditions.append(ReportTemplate.updated_at < cursor_dt)
+
     result = await db.execute(
         select(ReportTemplate)
-        .where(
-            and_(
-                ReportTemplate.organization_id == current_user.organization_id,
-                (
-                    (ReportTemplate.created_by_user_id == current_user.id)
-                    | (ReportTemplate.is_shared.is_(True))
-                ),
-            )
-        )
+        .where(and_(*conditions))
         .order_by(ReportTemplate.updated_at.desc())
-        .offset(skip)
         .limit(limit)
     )
 

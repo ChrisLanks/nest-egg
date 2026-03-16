@@ -44,9 +44,11 @@ import NotificationBell from "../features/notifications/components/NotificationB
 import MilestoneCelebration from "../features/notifications/components/MilestoneCelebration";
 import { HouseholdSwitcher } from "./HouseholdSwitcher";
 import { useHouseholdStore } from "../stores/householdStore";
+import { useShallow } from "zustand/react/shallow";
 import { UserViewToggle } from "./UserViewToggle";
 import { useUserView } from "../contexts/UserViewContext";
 import { EmailVerificationBanner } from "./EmailVerificationBanner";
+import { RouteErrorBoundary } from "./RouteErrorBoundary";
 import {
   RESOURCE_TYPE_LABELS,
   getBannerAccess,
@@ -463,7 +465,14 @@ const accountTypeConfig = ACCOUNT_TYPE_SIDEBAR_CONFIG;
 
 const GuestBanner = () => {
   const { isGuest, activeHouseholdName, guestRole, setActiveHousehold } =
-    useHouseholdStore();
+    useHouseholdStore(
+      useShallow((s) => ({
+        isGuest: s.isGuest,
+        activeHouseholdName: s.activeHouseholdName,
+        guestRole: s.guestRole,
+        setActiveHousehold: s.setActiveHousehold,
+      })),
+    );
   const bannerBg = useColorModeValue("purple.50", "purple.900");
   const bannerBorder = useColorModeValue("purple.200", "purple.700");
   const bannerText = useColorModeValue("purple.800", "purple.100");
@@ -1411,7 +1420,9 @@ export const Layout = () => {
 
         {/* Main content area */}
         <Box flex={1} overflowY="auto" bg="bg.canvas" pl={8}>
-          <Outlet />
+          <RouteErrorBoundary>
+            <Outlet />
+          </RouteErrorBoundary>
         </Box>
       </Flex>
 

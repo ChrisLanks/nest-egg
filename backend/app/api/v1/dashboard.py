@@ -143,10 +143,7 @@ async def get_dashboard_summary(
 
     service = DashboardService(db)
 
-    # Fetch accounts once (eliminates 3 redundant identical queries)
-    accounts = await service.get_active_accounts(current_user.organization_id, account_ids)
-
-    # Compute account-based metrics synchronously from pre-fetched data
+    # Reuse the already-fetched accounts instead of re-querying
     net_worth = service.compute_net_worth(accounts)
     total_assets = service.compute_total_assets(accounts)
     total_debts = service.compute_total_debts(accounts)

@@ -1,11 +1,17 @@
 /**
- * Custom hook for infinite scroll transaction loading
+ * Custom hook for infinite scroll transaction loading.
+ *
+ * Caps accumulated transactions at MAX_RENDERED_ROWS to prevent
+ * unbounded DOM growth as users scroll through large datasets.
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { transactionApi } from "../services/transactionApi";
 import type { Transaction } from "../types/transaction";
+
+/** Maximum number of transactions to keep in DOM at once */
+const MAX_RENDERED_ROWS = 500;
 
 interface UseInfiniteTransactionsParams {
   accountId?: string;
@@ -71,7 +77,7 @@ export const useInfiniteTransactions = ({
       currentCursor,
     ],
     queryFn: async () => {
-      const result = await transactionApi.listTransactions({
+      return await transactionApi.listTransactions({
         page_size: pageSize,
         account_id: accountId,
         user_id: userId,
@@ -81,53 +87,37 @@ export const useInfiniteTransactions = ({
         flagged,
         cursor: currentCursor || undefined,
       });
-
-      // Update accumulated transactions
-      if (currentCursor) {
-        setAllTransactions((prev) => [...prev, ...result.transactions]);
-      } else {
-        setAllTransactions(result.transactions);
-      }
-
-      // Update pagination state
-      setNextCursor(result.next_cursor || null);
-      setHasMore(result.has_more);
-      if (result.total > 0) {
-        setTotal(result.total);
-      }
-
-      return result;
     },
     enabled,
-    refetchOnMount: "always", // Always refetch when component mounts
+    refetchOnMount: true, // Refetch only when stale (respects staleTime)
   });
 
-  // Reset isLoadingMore when query completes
+  // Single effect to sync query data → local state (eliminates duplicate sync)
   useEffect(() => {
-    if (!isLoading) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsLoadingMore(false);
-    }
-  }, [isLoading]);
+    if (!data) return;
 
-  // Sync query data with local state when data changes
-  // This handles cases where React Query returns cached data
-  useEffect(() => {
-    if (data) {
-      if (currentCursor) {
-        // Append to existing data (pagination)
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setAllTransactions((prev) => [...prev, ...data.transactions]);
-      } else {
-        // Replace data (new query or refetch)
-        setAllTransactions(data.transactions);
-      }
-      setNextCursor(data.next_cursor || null);
-      setHasMore(data.has_more);
-      if (data.total > 0) {
-        setTotal(data.total);
-      }
+    if (currentCursor) {
+      // Append new page, cap total to MAX_RENDERED_ROWS
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAllTransactions((prev) => {
+        const combined = [...prev, ...data.transactions];
+        if (combined.length > MAX_RENDERED_ROWS) {
+          return combined.slice(combined.length - MAX_RENDERED_ROWS);
+        }
+        return combined;
+      });
+    } else {
+      // First page / reset
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAllTransactions(data.transactions);
     }
+
+    setNextCursor(data.next_cursor || null);
+    setHasMore(data.has_more);
+    if (data.total > 0) {
+      setTotal(data.total);
+    }
+    setIsLoadingMore(false);
   }, [data, currentCursor]);
 
   const loadMore = useCallback(() => {
