@@ -571,9 +571,16 @@ export const TransactionsPage = () => {
     canWriteOwnedResource,
     isOtherUserView,
     selectedUserId,
+    isCombinedView,
+    memberEffectiveUserId,
+    isPartialMemberSelection,
+    matchesMemberFilter,
   } = useUserView();
   const canEdit = canWriteResource("transaction");
   const isMobile = useBreakpointValue({ base: true, md: false });
+
+  // In combined view, use multi-member filter; otherwise use global selectedUserId
+  const queryUserId = isCombinedView ? memberEffectiveUserId : selectedUserId;
 
   // Fetch current user for ownership checks
   const { data: currentUser } = useQuery({
@@ -669,7 +676,7 @@ export const TransactionsPage = () => {
     loadMore,
     refetch,
   } = useInfiniteTransactions({
-    userId: selectedUserId ?? undefined,
+    userId: queryUserId ?? undefined,
     startDate: dateRange.start,
     endDate: dateRange.end,
     flagged: showFlaggedOnly ? true : undefined,
@@ -997,6 +1004,14 @@ export const TransactionsPage = () => {
 
     let filtered = [...allTransactions];
 
+    // Filter by selected household members (partial multi-select in combined view)
+    if (isPartialMemberSelection) {
+      filtered = filtered.filter((t) => {
+        const ownerUserId = accountOwnershipMap.get(t.account_id);
+        return matchesMemberFilter(ownerUserId);
+      });
+    }
+
     // Filter by search query with intelligent parsing (debounced)
     if (debouncedSearchQuery) {
       const query = debouncedSearchQuery.toLowerCase();
@@ -1172,7 +1187,15 @@ export const TransactionsPage = () => {
     });
 
     return filtered;
-  }, [allTransactions, debouncedSearchQuery, sortField, sortDirection]);
+  }, [
+    allTransactions,
+    debouncedSearchQuery,
+    sortField,
+    sortDirection,
+    isPartialMemberSelection,
+    matchesMemberFilter,
+    accountOwnershipMap,
+  ]);
 
   // Group transactions by custom month periods based on monthly_start_day
   const transactionsByMonth = useMemo(() => {

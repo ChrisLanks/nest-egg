@@ -137,7 +137,7 @@ async def get_dashboard_summary(
         accounts = await get_user_accounts(db, user_id, current_user.organization_id)
     else:
         accounts = await get_all_household_accounts(db, current_user.organization_id)
-        accounts = deduplication_service.deduplicate_accounts(accounts)
+    accounts = deduplication_service.deduplicate_accounts(accounts)
 
     account_ids = [acc.id for acc in accounts]
 

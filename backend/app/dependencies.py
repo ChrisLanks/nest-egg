@@ -13,7 +13,7 @@ from app.config import settings
 from app.core.database import get_db
 from app.crud.user import user_crud
 from app.models.account import Account
-from app.models.user import AccountShare, HouseholdGuest, SharePermission, User
+from app.models.user import AccountShare, HouseholdGuest, User
 from app.services.identity.chain import get_chain
 
 _logger = logging.getLogger(__name__)
@@ -371,59 +371,3 @@ async def get_all_household_accounts(
         .where(Account.organization_id == organization_id, Account.is_active.is_(True))
     )
     return result.unique().scalars().all()
-
-
-async def verify_account_access(
-    account_id: UUID, current_user: User, db: AsyncSession, require_edit: bool = False
-) -> Account:
-    """Verify user has access to account (owned or shared).
-
-    Args:
-        account_id: Account ID to check
-        current_user: Current authenticated user
-        db: Database session
-        require_edit: If True, require edit permission (not just view)
-
-    Returns:
-        Account if user has access
-
-    Raises:
-        HTTPException: If user doesn't have access
-    """
-    # Get account
-    result = await db.execute(select(Account).where(Account.id == account_id))
-    account = result.scalar_one_or_none()
-
-    if not account:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-
-    # Check household membership
-    if account.organization_id != current_user.organization_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
-    # Owner has full access
-    if account.user_id == current_user.id:
-        return account
-
-    # Check shared access
-    result = await db.execute(
-        select(AccountShare).where(
-            AccountShare.account_id == account_id,
-            AccountShare.shared_with_user_id == current_user.id,
-        )
-    )
-    share = result.scalar_one_or_none()
-
-    if not share:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this account"
-        )
-
-    # If edit permission required, check it
-    if require_edit and share.permission != SharePermission.EDIT:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have edit permission for this account",
-        )
-
-    return account

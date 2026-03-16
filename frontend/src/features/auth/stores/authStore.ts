@@ -9,14 +9,14 @@
  * - This prevents XSS from stealing the long-lived refresh token
  */
 
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import type { User } from '../../../types/user';
-import { scheduleTokenRefresh, clearTokenRefresh } from '../../../services/api';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import type { User } from "../../../types/user";
+import { scheduleTokenRefresh, clearTokenRefresh } from "../../../services/api";
 
 interface AuthState {
   user: User | null;
-  accessToken: string | null;  // Memory only — NOT persisted to localStorage
+  accessToken: string | null; // Memory only — NOT persisted to localStorage
   isAuthenticated: boolean;
   isLoading: boolean;
 
@@ -64,7 +64,7 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         clearTokenRefresh(); // cancel any pending proactive refresh timer
-        localStorage.removeItem('nest-egg-view'); // clear persisted view selection
+        localStorage.removeItem("nest-egg-view"); // clear persisted view selection
         set({
           user: null,
           accessToken: null,
@@ -84,7 +84,7 @@ export const useAuthStore = create<AuthState>()(
       tryRestoreSession: async () => {
         try {
           // Lazy import to avoid circular dependency
-          const { authApi } = await import('../services/authApi');
+          const { authApi } = await import("../services/authApi");
           const data = await authApi.refresh();
           const user = data.user ?? get().user;
           if (data.access_token && user) {
@@ -99,10 +99,10 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'auth-storage',
-      // Only persist user + isAuthenticated flag — never tokens
+      name: "auth-storage",
+      // Only persist isAuthenticated flag — never tokens or user profile (PII).
+      // User data is re-fetched via tryRestoreSession on reload.
       partialize: (state) => ({
-        user: state.user,
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => {
@@ -110,10 +110,12 @@ export const useAuthStore = create<AuthState>()(
           // Access token is not persisted, so it will always be null after reload.
           // tryRestoreSession() (called in App.tsx) will restore it via the httpOnly cookie.
           if (state) {
-            console.log('[Auth] Storage rehydrated — session will be restored via cookie on startup');
+            console.log(
+              "[Auth] Storage rehydrated — session will be restored via cookie on startup",
+            );
           }
         };
       },
-    }
-  )
+    },
+  ),
 );

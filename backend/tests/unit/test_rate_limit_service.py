@@ -53,10 +53,10 @@ class TestRateLimitKeyGeneration:
 class TestCheckRateLimit:
     @pytest.mark.asyncio
     @patch("app.services.rate_limit_service.settings")
-    async def test_skips_in_development(self, mock_settings, service):
-        mock_settings.ENVIRONMENT = "development"
+    async def test_skips_in_test_environment(self, mock_settings, service):
+        mock_settings.ENVIRONMENT = "test"
         request = _make_request()
-        # Should not raise
+        # Should not raise — rate limiting is bypassed in test environment
         await service.check_rate_limit(request, max_requests=1)
 
     @pytest.mark.asyncio

@@ -14,10 +14,8 @@ from fastapi import HTTPException
 
 from app.dependencies import (
     get_current_admin_user,
-    verify_account_access,
     verify_household_member,
 )
-from app.models.account import Account
 from app.models.user import User
 
 
@@ -181,82 +179,3 @@ class TestVerifyHouseholdMember:
         result = await verify_household_member(mock_db, user.id, user.organization_id)
 
         assert result == user
-
-
-# ---------------------------------------------------------------------------
-# Cross-org account access via verify_account_access
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.unit
-class TestVerifyAccountAccess:
-    """Tests for cross-organization account access rejection."""
-
-    @pytest.mark.asyncio
-    async def test_rejects_cross_org_account_access(self, mock_db, mock_regular_user):
-        """Should raise 403 when account belongs to a different organization."""
-        account = Mock(spec=Account)
-        account.id = uuid4()
-        account.organization_id = uuid4()  # Different org
-        account.user_id = uuid4()
-
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = account
-        mock_db.execute.return_value = mock_result
-
-        with pytest.raises(HTTPException) as exc_info:
-            await verify_account_access(account.id, mock_regular_user, mock_db)
-
-        assert exc_info.value.status_code == 403
-        assert "Access denied" in exc_info.value.detail
-
-    @pytest.mark.asyncio
-    async def test_returns_404_for_nonexistent_account(self, mock_db, mock_regular_user):
-        """Should raise 404 when account does not exist."""
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_db.execute.return_value = mock_result
-
-        with pytest.raises(HTTPException) as exc_info:
-            await verify_account_access(uuid4(), mock_regular_user, mock_db)
-
-        assert exc_info.value.status_code == 404
-
-    @pytest.mark.asyncio
-    async def test_allows_account_owner(self, mock_db, mock_regular_user):
-        """Should return account when user owns it."""
-        account = Mock(spec=Account)
-        account.id = uuid4()
-        account.organization_id = mock_regular_user.organization_id
-        account.user_id = mock_regular_user.id
-
-        mock_result = Mock()
-        mock_result.scalar_one_or_none.return_value = account
-        mock_db.execute.return_value = mock_result
-
-        result = await verify_account_access(account.id, mock_regular_user, mock_db)
-
-        assert result == account
-
-    @pytest.mark.asyncio
-    async def test_rejects_non_owner_without_share(self, mock_db, mock_regular_user):
-        """Should raise 403 when user is in same org but doesn't own or have share."""
-        account = Mock(spec=Account)
-        account.id = uuid4()
-        account.organization_id = mock_regular_user.organization_id
-        account.user_id = uuid4()  # Different user owns it
-
-        # First execute returns the account, second returns no share
-        mock_result_account = Mock()
-        mock_result_account.scalar_one_or_none.return_value = account
-
-        mock_result_share = Mock()
-        mock_result_share.scalar_one_or_none.return_value = None
-
-        mock_db.execute.side_effect = [mock_result_account, mock_result_share]
-
-        with pytest.raises(HTTPException) as exc_info:
-            await verify_account_access(account.id, mock_regular_user, mock_db)
-
-        assert exc_info.value.status_code == 403
-        assert "don't have access" in exc_info.value.detail.lower()

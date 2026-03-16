@@ -86,11 +86,11 @@ class TestGetIp:
         request.client = Mock(host="127.0.0.1")
         assert _get_ip(request) == "1.2.3.4"
 
-    def test_x_forwarded_for_multiple_takes_last(self):
+    def test_x_forwarded_for_multiple_takes_first(self):
         request = Mock()
         request.headers = {"X-Forwarded-For": "1.2.3.4, 5.6.7.8, 9.10.11.12"}
         request.client = Mock(host="127.0.0.1")
-        assert _get_ip(request) == "9.10.11.12"
+        assert _get_ip(request) == "1.2.3.4"
 
     def test_no_forwarded_header_uses_client(self):
         request = Mock()

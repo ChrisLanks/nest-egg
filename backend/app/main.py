@@ -218,7 +218,7 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
-    openapi_url="/openapi.json",
+    openapi_url="/openapi.json" if settings.DEBUG else None,
 )
 
 # Guest access: override get_current_user so all endpoints automatically
@@ -235,7 +235,13 @@ app.add_middleware(
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Requested-With"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-CSRF-Token",
+        "X-Requested-With",
+        "X-Household-Id",
+    ],
 )
 
 # Error handler - Catch uncaught exceptions with PII redaction
@@ -264,16 +270,20 @@ app.add_middleware(RequestSizeLimitMiddleware, max_request_size=10 * 1024 * 1024
 # GZip compression for API responses > 1KB
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# User context extraction - Extract user from JWT for logging (runs BEFORE logging middleware)
-app.add_middleware(UserContextMiddleware)
+# Middleware execution order (Starlette processes last-added first on request):
+# Request → AnomalyDetection → UserContext → RequestLogging → AuditLog → route
+# UserContext extracts user from JWT first, then RequestLogging and AuditLog can use it.
 
-# Request logging - Track all API requests for audit trail
-app.add_middleware(RequestLoggingMiddleware)
-
-# Audit logging - Track sensitive operations
+# Audit logging - Track sensitive operations (innermost — runs after all context is set)
 app.add_middleware(AuditLogMiddleware)
 
-# Anomaly detection - Emit CRITICAL logs on breach signals (Sentry picks these up)
+# Request logging - Track all API requests, assign request_id (reads user_email from state)
+app.add_middleware(RequestLoggingMiddleware)
+
+# User context extraction - Extract user from JWT/cookie for logging (sets user_email/user_id)
+app.add_middleware(UserContextMiddleware)
+
+# Anomaly detection - Emit CRITICAL logs on breach signals (outermost — runs first)
 app.add_middleware(AnomalyDetectionMiddleware)
 
 
@@ -352,6 +362,10 @@ async def security_status(current_user: UserModel = Depends(get_current_user)):
     Returns checklist of security configurations.
     Only shows status, never exposes actual secrets.
     """
+    # Block guests — even if they're admin in their home org, they shouldn't
+    # see the security status of a household they're visiting.
+    if getattr(current_user, "_is_guest", False):
+        raise HTTPException(status_code=403, detail="Guests cannot view security status")
     if not current_user.is_org_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
 

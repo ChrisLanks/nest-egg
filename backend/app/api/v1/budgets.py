@@ -3,7 +3,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
@@ -59,30 +59,37 @@ async def list_budgets(
 # CSV Export must be defined before /{budget_id} to avoid route shadowing
 @router.get("/export/csv")
 async def export_budgets_csv(
+    request: Request,
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = all household budgets"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Export all budgets for the user's organization as a CSV file.
+    Export budgets as a CSV file.
 
     Returns budgets with their configuration and status, suitable for
     spreadsheet applications or archival purposes.
+    Accepts optional user_id to filter to a specific member's budgets.
     """
     import csv
     from io import StringIO
 
     from fastapi.responses import StreamingResponse
-    from sqlalchemy import select
 
-    from app.models.budget import Budget
+    from app.services.rate_limit_service import rate_limit_service
 
-    # Fetch all budgets for the organization
-    result = await db.execute(
-        select(Budget)
-        .where(Budget.organization_id == current_user.organization_id)
-        .order_by(Budget.name)
+    # Rate limit: 10 exports per hour per user
+    await rate_limit_service.check_rate_limit(
+        request=request,
+        max_requests=10,
+        window_seconds=3600,
+        identifier=str(current_user.id),
     )
-    budgets = result.scalars().all()
+
+    # Reuse the service which already handles user_id filtering
+    budgets = await budget_service.get_budgets(db=db, user=current_user, user_id=user_id)
 
     output = StringIO()
     writer = csv.writer(output)

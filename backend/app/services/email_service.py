@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings as _settings
 from app.models.user import EmailVerificationToken, PasswordResetToken
 from app.utils.datetime_utils import utc_now
+from app.utils.logging_utils import redact_email
 
 logger = logging.getLogger(__name__)
 
@@ -104,9 +105,17 @@ async def create_password_reset_token(db: AsyncSession, user_id: UUID) -> str:
 class EmailService:
     """Thin wrapper around aiosmtplib for sending transactional emails."""
 
-    def __init__(self, smtp_host: Optional[str], smtp_port: int, smtp_username: Optional[str],
-                 smtp_password: Optional[str], from_email: str, from_name: str,
-                 use_tls: bool, app_base_url: str):
+    def __init__(
+        self,
+        smtp_host: Optional[str],
+        smtp_port: int,
+        smtp_username: Optional[str],
+        smtp_password: Optional[str],
+        from_email: str,
+        from_name: str,
+        use_tls: bool,
+        app_base_url: str,
+    ):
         self._host = smtp_host
         self._port = smtp_port
         self._username = smtp_username or ""
@@ -121,14 +130,15 @@ class EmailService:
         """Return True when SMTP credentials are present."""
         return bool(self._host)
 
-    async def send_email(self, to_email: str, subject: str, html_body: str,
-                         text_body: str) -> bool:
+    async def send_email(self, to_email: str, subject: str, html_body: str, text_body: str) -> bool:
         """
         Send an email.  Returns True on success, False otherwise (never raises).
         When SMTP is not configured the call is a no-op that returns False.
         """
         if not self.is_configured:
-            logger.info("Email not configured — skipping send to %s: %s", to_email, subject)
+            logger.info(
+                "Email not configured — skipping send to %s: %s", redact_email(to_email), subject
+            )
             return False
 
         msg = MIMEMultipart("alternative")
@@ -145,17 +155,16 @@ class EmailService:
                 port=self._port,
                 username=self._username,
                 password=self._password,
-                use_tls=False,       # SSL on port 465
+                use_tls=False,  # SSL on port 465
                 start_tls=self._use_tls,  # STARTTLS on port 587 (default)
             )
-            logger.info("Email sent to %s: %s", to_email, subject)
+            logger.info("Email sent to %s: %s", redact_email(to_email), subject)
             return True
         except Exception as exc:
-            logger.error("Failed to send email to %s: %s", to_email, exc)
+            logger.error("Failed to send email to %s: %s", redact_email(to_email), exc)
             return False
 
-    async def send_verification_email(self, to_email: str, token: str,
-                                      display_name: str) -> bool:
+    async def send_verification_email(self, to_email: str, token: str, display_name: str) -> bool:
         """Send an email-address verification link."""
         verify_url = f"{self._base_url}/verify-email?token={token}"
         greeting = html.escape(display_name or to_email)
@@ -191,8 +200,7 @@ class EmailService:
         )
         return await self.send_email(to_email, subject, html_body, text_body)
 
-    async def send_password_reset_email(self, to_email: str, token: str,
-                                        display_name: str) -> bool:
+    async def send_password_reset_email(self, to_email: str, token: str, display_name: str) -> bool:
         """Send a password-reset link."""
         reset_url = f"{self._base_url}/reset-password?token={token}"
         greeting = html.escape(display_name or to_email)
@@ -204,7 +212,8 @@ class EmailService:
 <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
   <h2 style="color: #2D3748;">Reset your password</h2>
   <p>Hi {greeting},</p>
-  <p>We received a request to reset your Nest Egg password. Click the button below to choose a new one.</p>
+  <p>We received a request to reset your Nest Egg password.
+  Click the button below to choose a new one.</p>
   <p style="margin: 30px 0;">
     <a href="{reset_url}"
        style="background-color: #E53E3E; color: white; padding: 12px 24px;
@@ -229,8 +238,9 @@ class EmailService:
         )
         return await self.send_email(to_email, subject, html_body, text_body)
 
-    async def send_invitation_email(self, to_email: str, invitation_code: str,
-                                    invited_by: str, org_name: str) -> bool:
+    async def send_invitation_email(
+        self, to_email: str, invitation_code: str, invited_by: str, org_name: str
+    ) -> bool:
         """Send a household invitation email with a join link."""
         join_url = f"{self._base_url}/accept-invite?code={invitation_code}"
         safe_invited_by = html.escape(invited_by)

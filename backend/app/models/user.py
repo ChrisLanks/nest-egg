@@ -148,7 +148,7 @@ class User(Base):
     identities = relationship("UserIdentity", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<User {self.email}>"
+        return f"<User {self.id}>"
 
 
 class RefreshToken(Base):
@@ -208,7 +208,7 @@ class HouseholdInvitation(Base):
     invited_by = relationship("User", foreign_keys=[invited_by_user_id])
 
     def __repr__(self):
-        return f"<HouseholdInvitation {self.email} to org {self.organization_id}>"
+        return f"<HouseholdInvitation {self.id} to org {self.organization_id}>"
 
     @property
     def is_expired(self) -> bool:
@@ -445,7 +445,7 @@ class HouseholdGuestInvitation(Base):
     invited_by = relationship("User", foreign_keys=[invited_by_id])
 
     def __repr__(self):
-        return f"<HouseholdGuestInvitation {self.email} to org {self.organization_id}>"
+        return f"<HouseholdGuestInvitation {self.id} to org {self.organization_id}>"
 
     @property
     def is_expired(self) -> bool:

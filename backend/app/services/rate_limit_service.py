@@ -85,9 +85,9 @@ class RateLimitService:
         if identifier == "unknown":
             return
 
-        # Skip rate limiting in development — Redis may not be running locally,
-        # and devs need rapid iteration without hitting limits.
-        if settings.ENVIRONMENT == "development":
+        # Skip rate limiting in test environment only — not development.
+        # Development should still enforce rate limits for security parity.
+        if settings.ENVIRONMENT == "test":
             return
 
         # Get Redis client

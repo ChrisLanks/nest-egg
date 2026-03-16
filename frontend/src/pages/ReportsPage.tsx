@@ -37,10 +37,10 @@ import {
   Textarea,
   Select,
   IconButton,
-} from '@chakra-ui/react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { DeleteIcon, DownloadIcon, ViewIcon } from '@chakra-ui/icons';
+} from "@chakra-ui/react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { DeleteIcon, DownloadIcon, ViewIcon } from "@chakra-ui/icons";
 import {
   BarChart,
   Bar,
@@ -53,9 +53,9 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-} from 'recharts';
-import api from '../services/api';
-import { useUserView } from '../contexts/UserViewContext';
+} from "recharts";
+import api from "../services/api";
+import { useUserView } from "../contexts/UserViewContext";
 
 interface ReportTemplate {
   id: string;
@@ -78,27 +78,41 @@ interface ReportResult {
 }
 
 export default function ReportsPage() {
-  const { selectedUserId, canWriteResource } = useUserView();
-  const canEdit = canWriteResource('report');
+  const {
+    selectedUserId,
+    canWriteResource,
+    isCombinedView,
+    memberEffectiveUserId,
+  } = useUserView();
+  // In combined view, use multi-member filter; otherwise use global selectedUserId
+  const queryUserId = isCombinedView ? memberEffectiveUserId : selectedUserId;
+  const canEdit = canWriteResource("report");
   const queryClient = useQueryClient();
   const toast = useToast();
-  const { isOpen: isBuilderOpen, onOpen: onBuilderOpen, onClose: onBuilderClose } = useDisclosure();
-  const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null);
+  const {
+    isOpen: isBuilderOpen,
+    onOpen: onBuilderOpen,
+    onClose: onBuilderClose,
+  } = useDisclosure();
+  const [selectedTemplate, setSelectedTemplate] =
+    useState<ReportTemplate | null>(null);
   const [reportResult, setReportResult] = useState<ReportResult | null>(null);
 
   // New report form state
-  const [newReportName, setNewReportName] = useState('');
-  const [newReportDescription, setNewReportDescription] = useState('');
-  const [dateRangeType, setDateRangeType] = useState('preset');
-  const [preset, setPreset] = useState('last_30_days');
-  const [groupBy, setGroupBy] = useState('category');
-  const [chartType, setChartType] = useState<'bar' | 'pie' | 'table'>('bar');
+  const [newReportName, setNewReportName] = useState("");
+  const [newReportDescription, setNewReportDescription] = useState("");
+  const [dateRangeType, setDateRangeType] = useState("preset");
+  const [preset, setPreset] = useState("last_30_days");
+  const [groupBy, setGroupBy] = useState("category");
+  const [chartType, setChartType] = useState<"bar" | "pie" | "table">("bar");
 
   // Fetch templates
-  const { data: templates, isLoading: templatesLoading } = useQuery<ReportTemplate[]>({
-    queryKey: ['report-templates'],
+  const { data: templates, isLoading: templatesLoading } = useQuery<
+    ReportTemplate[]
+  >({
+    queryKey: ["report-templates"],
     queryFn: async () => {
-      const response = await api.get('/reports/templates');
+      const response = await api.get("/reports/templates");
       return response.data;
     },
   });
@@ -106,20 +120,24 @@ export default function ReportsPage() {
   // Create template mutation
   const createMutation = useMutation({
     mutationFn: async (templateData: any) => {
-      const response = await api.post('/reports/templates', templateData);
+      const response = await api.post("/reports/templates", templateData);
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['report-templates'] });
-      toast({ title: 'Report template created', status: 'success', duration: 3000 });
+      queryClient.invalidateQueries({ queryKey: ["report-templates"] });
+      toast({
+        title: "Report template created",
+        status: "success",
+        duration: 3000,
+      });
       onBuilderClose();
       resetForm();
     },
     onError: (error: any) => {
       toast({
-        title: 'Failed to create template',
-        description: error.response?.data?.detail || 'Unknown error',
-        status: 'error',
+        title: "Failed to create template",
+        description: error.response?.data?.detail || "Unknown error",
+        status: "error",
         duration: 5000,
       });
     },
@@ -131,8 +149,8 @@ export default function ReportsPage() {
       await api.delete(`/reports/templates/${templateId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['report-templates'] });
-      toast({ title: 'Template deleted', status: 'success', duration: 3000 });
+      queryClient.invalidateQueries({ queryKey: ["report-templates"] });
+      toast({ title: "Template deleted", status: "success", duration: 3000 });
     },
   });
 
@@ -140,29 +158,36 @@ export default function ReportsPage() {
   const executeMutation = useMutation({
     mutationFn: async (templateId: string) => {
       const params: any = {};
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (queryUserId) params.user_id = queryUserId;
 
-      const response = await api.get(`/reports/templates/${templateId}/execute`, { params });
+      const response = await api.get(
+        `/reports/templates/${templateId}/execute`,
+        { params },
+      );
       return response.data;
     },
     onSuccess: (data) => {
       setReportResult(data);
-      toast({ title: 'Report executed', status: 'success', duration: 2000 });
+      toast({ title: "Report executed", status: "success", duration: 2000 });
     },
   });
 
   const resetForm = () => {
-    setNewReportName('');
-    setNewReportDescription('');
-    setDateRangeType('preset');
-    setPreset('last_30_days');
-    setGroupBy('category');
-    setChartType('bar');
+    setNewReportName("");
+    setNewReportDescription("");
+    setDateRangeType("preset");
+    setPreset("last_30_days");
+    setGroupBy("category");
+    setChartType("bar");
   };
 
   const handleCreateReport = () => {
     if (!newReportName) {
-      toast({ title: 'Report name is required', status: 'warning', duration: 3000 });
+      toast({
+        title: "Report name is required",
+        status: "warning",
+        duration: 3000,
+      });
       return;
     }
 
@@ -173,16 +198,16 @@ export default function ReportsPage() {
       },
       groupBy,
       chartType,
-      metrics: ['sum', 'count'],
-      sortBy: 'amount',
-      sortDirection: 'desc',
+      metrics: ["sum", "count"],
+      sortBy: "amount",
+      sortDirection: "desc",
       limit: 20,
     };
 
     createMutation.mutate({
       name: newReportName,
       description: newReportDescription,
-      report_type: 'custom',
+      report_type: "custom",
       config,
       is_shared: false,
     });
@@ -196,37 +221,51 @@ export default function ReportsPage() {
   const handleDownloadReport = async (templateId: string) => {
     try {
       const params: any = {};
-      if (selectedUserId) params.user_id = selectedUserId;
+      if (queryUserId) params.user_id = queryUserId;
 
-      const response = await api.get(`/reports/templates/${templateId}/export`, {
-        params,
-        responseType: 'blob',
-      });
+      const response = await api.get(
+        `/reports/templates/${templateId}/export`,
+        {
+          params,
+          responseType: "blob",
+        },
+      );
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
-      link.setAttribute('download', 'report.csv');
+      link.setAttribute("download", "report.csv");
       document.body.appendChild(link);
       link.click();
       link.remove();
 
-      toast({ title: 'Report downloaded', status: 'success', duration: 2000 });
-    } catch (error) {
-      toast({ title: 'Failed to download report', status: 'error', duration: 3000 });
+      toast({ title: "Report downloaded", status: "success", duration: 2000 });
+    } catch {
+      toast({
+        title: "Failed to download report",
+        status: "error",
+        duration: 3000,
+      });
     }
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
   };
 
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+  const COLORS = [
+    "#0088FE",
+    "#00C49F",
+    "#FFBB28",
+    "#FF8042",
+    "#8884D8",
+    "#82CA9D",
+  ];
 
   if (templatesLoading) {
     return (
@@ -245,9 +284,15 @@ export default function ReportsPage() {
         <HStack justify="space-between">
           <Box>
             <Heading size="lg">📊 Custom Reports</Heading>
-            <Text color="text.secondary">Create and manage custom financial reports</Text>
+            <Text color="text.secondary">
+              Create and manage custom financial reports
+            </Text>
           </Box>
-          <Button colorScheme="blue" onClick={onBuilderOpen} isDisabled={!canEdit}>
+          <Button
+            colorScheme="blue"
+            onClick={onBuilderOpen}
+            isDisabled={!canEdit}
+          >
             Create New Report
           </Button>
         </HStack>
@@ -271,16 +316,24 @@ export default function ReportsPage() {
                   {templates.map((template) => (
                     <Tr key={template.id}>
                       <Td fontWeight="medium">{template.name}</Td>
-                      <Td>{template.description || '-'}</Td>
+                      <Td>{template.description || "-"}</Td>
                       <Td>
-                        <Badge colorScheme="purple">{template.config.groupBy}</Badge>
+                        <Badge colorScheme="purple">
+                          {template.config.groupBy}
+                        </Badge>
                       </Td>
                       <Td fontSize="sm">
-                        {template.config.dateRange.type === 'preset'
-                          ? template.config.dateRange.preset.replace(/_/g, ' ')
-                          : 'Custom range'}
+                        {template.config.dateRange.type === "preset"
+                          ? template.config.dateRange.preset.replace(/_/g, " ")
+                          : "Custom range"}
                       </Td>
-                      <Td>{template.is_shared ? <Badge colorScheme="green">Shared</Badge> : '-'}</Td>
+                      <Td>
+                        {template.is_shared ? (
+                          <Badge colorScheme="green">Shared</Badge>
+                        ) : (
+                          "-"
+                        )}
+                      </Td>
                       <Td>
                         <HStack spacing={2}>
                           <IconButton
@@ -340,7 +393,8 @@ export default function ReportsPage() {
                   <Box>
                     <Heading size="md">{selectedTemplate.name}</Heading>
                     <Text fontSize="sm" color="text.secondary">
-                      {reportResult.dateRange.startDate} to {reportResult.dateRange.endDate}
+                      {reportResult.dateRange.startDate} to{" "}
+                      {reportResult.dateRange.endDate}
                     </Text>
                   </Box>
                   <Button size="sm" onClick={() => setReportResult(null)}>
@@ -391,20 +445,24 @@ export default function ReportsPage() {
                 )}
 
                 {/* Chart */}
-                {selectedTemplate.config.chartType === 'bar' && (
+                {selectedTemplate.config.chartType === "bar" && (
                   <ResponsiveContainer width="100%" height={400}>
                     <BarChart data={reportResult.data}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis tickFormatter={(value) => formatCurrency(value)} />
-                      <Tooltip formatter={((value: number) => formatCurrency(value)) as any} />
+                      <Tooltip
+                        formatter={
+                          ((value: number) => formatCurrency(value)) as any
+                        }
+                      />
                       <Legend />
                       <Bar dataKey="amount" fill="#3182CE" />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
 
-                {selectedTemplate.config.chartType === 'pie' && (
+                {selectedTemplate.config.chartType === "pie" && (
                   <ResponsiveContainer width="100%" height={400}>
                     <PieChart>
                       <Pie
@@ -418,10 +476,17 @@ export default function ReportsPage() {
                         dataKey="amount"
                       >
                         {reportResult.data.map((_entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={COLORS[index % COLORS.length]}
+                          />
                         ))}
                       </Pie>
-                      <Tooltip formatter={((value: number) => formatCurrency(value)) as any} />
+                      <Tooltip
+                        formatter={
+                          ((value: number) => formatCurrency(value)) as any
+                        }
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 )}
@@ -433,8 +498,12 @@ export default function ReportsPage() {
                       <Tr>
                         <Th>Name</Th>
                         <Th isNumeric>Amount</Th>
-                        {reportResult.data[0]?.count !== undefined && <Th isNumeric>Count</Th>}
-                        {reportResult.data[0]?.percentage !== undefined && <Th isNumeric>%</Th>}
+                        {reportResult.data[0]?.count !== undefined && (
+                          <Th isNumeric>Count</Th>
+                        )}
+                        {reportResult.data[0]?.percentage !== undefined && (
+                          <Th isNumeric>%</Th>
+                        )}
                       </Tr>
                     </Thead>
                     <Tbody>
@@ -442,9 +511,13 @@ export default function ReportsPage() {
                         <Tr key={index}>
                           <Td>{row.name}</Td>
                           <Td isNumeric fontWeight="medium">
-                            {row.amount !== undefined ? formatCurrency(row.amount) : '-'}
+                            {row.amount !== undefined
+                              ? formatCurrency(row.amount)
+                              : "-"}
                           </Td>
-                          {row.count !== undefined && <Td isNumeric>{row.count}</Td>}
+                          {row.count !== undefined && (
+                            <Td isNumeric>{row.count}</Td>
+                          )}
                           {row.percentage !== undefined && (
                             <Td isNumeric>{row.percentage.toFixed(1)}%</Td>
                           )}
@@ -488,7 +561,10 @@ export default function ReportsPage() {
 
               <FormControl isRequired>
                 <FormLabel>Date Range</FormLabel>
-                <Select value={preset} onChange={(e) => setPreset(e.target.value)}>
+                <Select
+                  value={preset}
+                  onChange={(e) => setPreset(e.target.value)}
+                >
                   <option value="last_30_days">Last 30 Days</option>
                   <option value="last_90_days">Last 90 Days</option>
                   <option value="this_month">This Month</option>
@@ -499,7 +575,10 @@ export default function ReportsPage() {
 
               <FormControl isRequired>
                 <FormLabel>Group By</FormLabel>
-                <Select value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
+                <Select
+                  value={groupBy}
+                  onChange={(e) => setGroupBy(e.target.value)}
+                >
                   <option value="category">Category</option>
                   <option value="merchant">Merchant</option>
                   <option value="account">Account</option>
@@ -511,7 +590,9 @@ export default function ReportsPage() {
                 <FormLabel>Chart Type</FormLabel>
                 <Select
                   value={chartType}
-                  onChange={(e) => setChartType(e.target.value as 'bar' | 'pie' | 'table')}
+                  onChange={(e) =>
+                    setChartType(e.target.value as "bar" | "pie" | "table")
+                  }
                 >
                   <option value="bar">Bar Chart</option>
                   <option value="pie">Pie Chart</option>

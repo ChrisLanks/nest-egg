@@ -127,7 +127,8 @@ async def handle_teller_webhook(
             logger.warning("Webhook missing enrollment_id")
             return {"status": "acknowledged"}
 
-        # Get TellerEnrollment
+        # Get TellerEnrollment — enrollment_id is trusted because the webhook
+        # signature was verified above.  No org filter needed (webhook is external).
         result = await db.execute(
             select(TellerEnrollment).where(TellerEnrollment.enrollment_id == enrollment_id)
         )

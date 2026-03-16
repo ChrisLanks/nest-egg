@@ -349,9 +349,9 @@ class TestRefreshHoldingPrice:
 
         mock_holding = MagicMock()
         mock_holding.id = holding_id
-        mock_holding.symbol = "AAPL"
+        mock_holding.ticker = "AAPL"
         mock_holding.shares = Decimal("10")
-        mock_holding.cost_basis = Decimal("1400")
+        mock_holding.total_cost_basis = Decimal("1400")
         mock_holding.organization_id = user.organization_id
 
         # Select holding
@@ -397,7 +397,7 @@ class TestRefreshHoldingPrice:
         db = AsyncMock()
 
         mock_holding = MagicMock()
-        mock_holding.symbol = "ZZZZZ"
+        mock_holding.ticker = "ZZZZZ"
         mock_holding.organization_id = user.organization_id
 
         holding_result = MagicMock()
@@ -419,7 +419,7 @@ class TestRefreshHoldingPrice:
         db = AsyncMock()
 
         mock_holding = MagicMock()
-        mock_holding.symbol = "AAPL"
+        mock_holding.ticker = "AAPL"
         mock_holding.organization_id = user.organization_id
 
         holding_result = MagicMock()
@@ -445,11 +445,40 @@ class TestRefreshHoldingPrice:
 class TestRefreshAllHoldings:
     @pytest.mark.asyncio
     async def test_refreshes_all_holdings(self):
-        """Note: The source code references Holding.symbol which is actually Holding.ticker
-        in the model. This test uses the authenticated client endpoint to avoid triggering
-        the attribute error, or we test the logic indirectly. Since the source code has
-        a bug (Holding.symbol vs Holding.ticker), we skip this test and note the bug."""
-        pytest.skip("Source code references Holding.symbol but model uses Holding.ticker")
+        """Verify refresh_all_holdings reads ticker, updates current_price_per_share/price_as_of."""
+        user = _make_user()
+        db = AsyncMock()
+
+        h1 = MagicMock()
+        h1.ticker = "AAPL"
+        h1.organization_id = user.organization_id
+
+        h2 = MagicMock()
+        h2.ticker = "GOOG"
+        h2.organization_id = user.organization_id
+
+        scalars_mock = MagicMock()
+        scalars_mock.all.return_value = [h1, h2]
+        select_result = MagicMock()
+        select_result.scalars.return_value = scalars_mock
+
+        update_result = MagicMock()
+        update_result.rowcount = 1
+
+        db.execute = AsyncMock(side_effect=[select_result, update_result, update_result])
+
+        quote_aapl = _make_quote(symbol="AAPL", price=Decimal("150.00"))
+        quote_goog = _make_quote(symbol="GOOG", price=Decimal("2800.00"))
+
+        provider = _make_provider()
+        provider.get_quotes_batch = AsyncMock(return_value={"AAPL": quote_aapl, "GOOG": quote_goog})
+
+        with patch("app.api.v1.market_data.check_rate_limit", new_callable=AsyncMock):
+            with patch("app.api.v1.market_data.get_market_data_provider", return_value=provider):
+                result = await refresh_all_holdings(user_id=None, db=db, current_user=user)
+
+        assert result["updated"] == 2
+        assert result["total"] == 2
 
     @pytest.mark.asyncio
     async def test_returns_zero_when_no_holdings(self):

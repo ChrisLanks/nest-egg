@@ -4,29 +4,27 @@ Generic market data API endpoints.
 Provider-agnostic - works with Yahoo Finance, Alpha Vantage, Finnhub, etc.
 """
 
+import logging
 import re
-
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
-from typing import List, Optional
-from uuid import UUID
 from datetime import date
 from decimal import Decimal
+from typing import List, Optional
+from uuid import UUID
 
-import logging
-
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.rate_limiter import check_rate_limit, market_data_limiter
 from app.dependencies import get_current_user
-from app.models.user import User
 from app.models.account import Account
 from app.models.holding import Holding
+from app.models.user import User
 from app.services.market_data import (
     get_market_data_provider,
 )
-from app.core.rate_limiter import check_rate_limit, market_data_limiter
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -124,7 +122,7 @@ def _validate_symbol(symbol: str) -> str:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid ticker symbol '{symbol}'. "
-                   "Must be 1-15 characters: letters, digits, '.', '-', or '^'.",
+            "Must be 1-15 characters: letters, digits, '.', '-', or '^'.",
         )
     return upper
 
@@ -220,9 +218,7 @@ async def get_historical_prices(
     validated = _validate_symbol(symbol)
     try:
         market_data = get_market_data_provider(provider)
-        prices = await market_data.get_historical_prices(
-            validated, start_date, end_date, interval
-        )
+        prices = await market_data.get_historical_prices(validated, start_date, end_date, interval)
 
         return [HistoricalPriceResponse(**p.model_dump()) for p in prices]
 
@@ -301,15 +297,15 @@ async def refresh_holding_price(
     try:
         # Get quote
         market_data = get_market_data_provider()
-        quote = await market_data.get_quote(holding.symbol)
+        quote = await market_data.get_quote(holding.ticker)
 
         # Update holding
         await db.execute(
             update(Holding)
             .where(Holding.id == holding_id)
             .values(
-                current_price=quote.price,
-                last_price_update=utc_now(),
+                current_price_per_share=quote.price,
+                price_as_of=utc_now(),
             )
         )
         await db.commit()
@@ -317,14 +313,15 @@ async def refresh_holding_price(
         # Refresh holding
         await db.refresh(holding)
 
+        cost_basis = holding.total_cost_basis or Decimal(0)
         return {
             "id": str(holding.id),
-            "symbol": holding.symbol,
+            "symbol": holding.ticker,
             "shares": float(holding.shares),
-            "cost_basis": float(holding.cost_basis),
+            "cost_basis": float(cost_basis),
             "current_price": float(quote.price),
             "current_value": float(holding.shares * quote.price),
-            "total_gain": float((holding.shares * quote.price) - holding.cost_basis),
+            "total_gain": float((holding.shares * quote.price) - cost_basis),
             "provider": market_data.get_provider_name(),
         }
 
@@ -363,7 +360,7 @@ async def refresh_all_holdings(
         return {"updated": 0, "message": "No holdings to update"}
 
     # Get unique symbols
-    symbols = list(set(h.symbol for h in holdings))
+    symbols = list(set(h.ticker for h in holdings))
 
     # Batch fetch quotes from market data provider
     market_data = get_market_data_provider()
@@ -377,11 +374,11 @@ async def refresh_all_holdings(
             update(Holding)
             .where(
                 Holding.organization_id == current_user.organization_id,
-                Holding.symbol == symbol,
+                Holding.ticker == symbol,
             )
             .values(
-                current_price=quote.price,
-                last_price_update=now,
+                current_price_per_share=quote.price,
+                price_as_of=now,
             )
         )
         updated_count += result.rowcount

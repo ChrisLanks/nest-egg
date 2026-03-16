@@ -17,11 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.security import hash_password
 from app.models.identity import UserIdentity
-from app.models.user import Organization, User
-from app.models.user import UserConsent, ConsentType
+from app.models.user import ConsentType, Organization, User, UserConsent
 from app.services.identity.base import AuthenticatedIdentity, IdentityProvider
 from app.utils.datetime_utils import utc_now
-from app.utils.logging_utils import redact_email
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +32,8 @@ class OIDCProviderConfig:
     """Configuration for one OIDC provider instance."""
 
     provider_name: str  # 'cognito', 'keycloak', 'okta', 'google'
-    issuer: str         # Must match the JWT iss claim exactly
-    client_id: str      # Used for audience validation
+    issuer: str  # Must match the JWT iss claim exactly
+    client_id: str  # Used for audience validation
 
     # Group claim config (IdP-specific)
     admin_group: str = ""  # Group name that maps to is_org_admin=True
@@ -84,9 +82,7 @@ class OIDCIdentityProvider(IdentityProvider):
         except Exception:
             return False
 
-    async def validate_token(
-        self, token: str, db: AsyncSession
-    ) -> Optional[AuthenticatedIdentity]:
+    async def validate_token(self, token: str, db: AsyncSession) -> Optional[AuthenticatedIdentity]:
         """Validate RS256 OIDC token and return authenticated identity."""
         try:
             jwks_data = await self._get_jwks()
@@ -241,18 +237,19 @@ class OIDCIdentityProvider(IdentityProvider):
 
             # Record consent (IdP-provisioned users agree to terms on first login)
             for consent_type in (ConsentType.TERMS_OF_SERVICE, ConsentType.PRIVACY_POLICY):
-                db.add(UserConsent(
-                    user_id=user.id,
-                    consent_type=consent_type.value,
-                    version=settings.TERMS_VERSION,
-                ))
+                db.add(
+                    UserConsent(
+                        user_id=user.id,
+                        consent_type=consent_type.value,
+                        version=settings.TERMS_VERSION,
+                    )
+                )
 
             await db.commit()
             logger.info(
-                "Auto-provisioned user from %s: user_id=%s email=%s",
+                "Auto-provisioned user from %s: user_id=%s",
                 self.config.provider_name,
                 user.id,
-                redact_email(email),
             )
             return user.id
 

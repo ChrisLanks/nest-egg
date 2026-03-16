@@ -1317,16 +1317,24 @@ class TestExportAccountsCsv:
         mock_acc.mask = "1234"
         mock_acc.is_active = True
 
-        with patch(
-            "app.api.v1.accounts.get_all_household_accounts",
-            new_callable=AsyncMock,
-            return_value=[mock_acc],
-        ):
-            with patch(
+        with (
+            patch(
+                "app.api.v1.accounts.get_all_household_accounts",
+                new_callable=AsyncMock,
+                return_value=[mock_acc],
+            ),
+            patch(
                 "app.api.v1.accounts.deduplication_service.deduplicate_accounts",
                 return_value=[mock_acc],
-            ):
-                result = await export_accounts_csv(current_user=user, db=db)
+            ),
+            patch(
+                "app.api.v1.accounts.rate_limit_service.check_rate_limit",
+                new_callable=AsyncMock,
+            ),
+        ):
+            result = await export_accounts_csv(
+                request=Mock(), user_id=None, current_user=user, db=db
+            )
 
         assert result.media_type == "text/csv"
 
@@ -1339,16 +1347,24 @@ class TestExportAccountsCsv:
         user.organization_id = uuid4()
         db = AsyncMock()
 
-        with patch(
-            "app.api.v1.accounts.get_all_household_accounts",
-            new_callable=AsyncMock,
-            return_value=[],
-        ):
-            with patch(
+        with (
+            patch(
+                "app.api.v1.accounts.get_all_household_accounts",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
                 "app.api.v1.accounts.deduplication_service.deduplicate_accounts",
                 return_value=[],
-            ):
-                result = await export_accounts_csv(current_user=user, db=db)
+            ),
+            patch(
+                "app.api.v1.accounts.rate_limit_service.check_rate_limit",
+                new_callable=AsyncMock,
+            ),
+        ):
+            result = await export_accounts_csv(
+                request=Mock(), user_id=None, current_user=user, db=db
+            )
 
         assert result.media_type == "text/csv"
 

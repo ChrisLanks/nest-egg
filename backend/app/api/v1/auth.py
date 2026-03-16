@@ -57,7 +57,6 @@ from app.services.mfa_service import mfa_service
 from app.services.password_validation_service import password_validation_service
 from app.services.rate_limit_service import get_rate_limit_service
 from app.utils.datetime_utils import utc_now
-from app.utils.logging_utils import redact_email
 
 # Module-level set holding references to fire-and-forget background tasks.
 # asyncio only keeps weak references to tasks; without a strong reference the
@@ -99,7 +98,7 @@ def _set_refresh_cookie(response: Response, refresh_token_str: str) -> None:
         key="refresh_token",
         value=refresh_token_str,
         httponly=True,
-        secure=not settings.DEBUG,  # False in dev (http), True in prod (https)
+        secure=settings.ENVIRONMENT == "production",  # HTTPS-only in production
         samesite="lax",  # lax works across same-host different ports in dev
         max_age=_REFRESH_COOKIE_MAX_AGE,
         path="/api/v1/auth",  # Scope cookie to auth endpoints only
@@ -184,15 +183,19 @@ async def register(
     # Always validate password strength and check for breaches
     await password_validation_service.validate_and_raise_async(data.password, check_breach=True)
 
-    # Check if user already exists — return same-shaped response to prevent enumeration.
-    # Use JSONResponse to bypass the TokenResponse response_model validation.
+    # Check if user already exists — return identical-shaped response to prevent
+    # enumeration.  The response body MUST have the same keys as a real
+    # registration so that an attacker cannot distinguish the two.
     existing_user = await user_crud.get_by_email(db, data.email)
     if existing_user:
         return JSONResponse(
             status_code=status.HTTP_201_CREATED,
             content={
+                "access_token": None,
+                "refresh_token": None,
+                "user": None,
                 "message": "Registration successful."
-                " Please check your email to verify your account."
+                " Please check your email to verify your account.",
             },
         )
 
@@ -274,7 +277,7 @@ async def login(
         window_seconds=60,
     )
 
-    logger.info(f"Login attempt for email: {redact_email(data.email)}")
+    logger.info("Login attempt")
 
     try:
         # Get user by email
@@ -284,7 +287,7 @@ async def login(
             # This ensures the response time is consistent whether user exists or not
             # Uses dynamically generated hash to prevent precomputation attacks
             verify_password(data.password, DUMMY_PASSWORD_HASH)
-            logger.warning(f"Login failed: User not found - {redact_email(data.email)}")
+            logger.warning("Login failed: User not found")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password",
@@ -298,7 +301,7 @@ async def login(
             locked_until = getattr(user, "locked_until", None)
             if locked_until and locked_until > utc_now():
                 minutes_remaining = max(1, int((locked_until - utc_now()).total_seconds() / 60))
-                logger.warning(f"Login failed: Account locked - {redact_email(data.email)}")
+                logger.warning("Login failed: Account locked for user=%s", user.id)
                 raise HTTPException(
                     status_code=423,
                     detail=(
@@ -318,7 +321,7 @@ async def login(
 
         # Verify password
         if not verify_password(data.password, user.password_hash):
-            logger.warning(f"Login failed: Incorrect password for {redact_email(data.email)}")
+            logger.warning("Login failed: Incorrect password for user=%s", user.id)
 
             # Increment failed login attempts and lock if threshold reached
             if settings.ENFORCE_ACCOUNT_LOCKOUT and hasattr(user, "failed_login_attempts"):
@@ -331,9 +334,7 @@ async def login(
                     )
                     await db.commit()
                     lockout_min = settings.ACCOUNT_LOCKOUT_MINUTES
-                    logger.warning(
-                        f"Account locked for {lockout_min} minutes:" f" {redact_email(data.email)}"
-                    )
+                    logger.warning("Account locked for %d minutes: user=%s", lockout_min, user.id)
                     raise HTTPException(
                         status_code=423,
                         detail=(
@@ -358,7 +359,7 @@ async def login(
 
         # Check if user is active
         if not user.is_active:
-            logger.warning(f"Login failed: Inactive account - {redact_email(data.email)}")
+            logger.warning("Login failed: Inactive account for user=%s", user.id)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account is inactive",
@@ -400,13 +401,13 @@ async def login(
     except HTTPException:
         raise
     except SQLAlchemyError:
-        logger.error(f"Database error during login for {redact_email(data.email)}", exc_info=True)
+        logger.error("Database error during login", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during login",
         )
     except Exception as e:
-        logger.error(f"Login error for {redact_email(data.email)}: {str(e)}", exc_info=True)
+        logger.error("Login error: %s", str(e), exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during login",
@@ -837,7 +838,7 @@ async def forgot_password(
             token=raw_token,
             display_name=user.display_name or user.first_name or user.email,
         )
-        logger.info("Password reset requested for %s", redact_email(user.email))
+        logger.info("Password reset requested for user=%s", user.id)
         # In development+debug, return the raw token so devs can test without SMTP.
         if settings.ENVIRONMENT == "development" and settings.DEBUG:
             response["debug_token"] = raw_token

@@ -9,7 +9,7 @@ from io import StringIO
 from typing import Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import and_, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +19,12 @@ from app.core.cache import delete_pattern as cache_delete_pattern
 from app.core.cache import get as cache_get
 from app.core.cache import setex as cache_setex
 from app.core.database import get_db
-from app.dependencies import get_current_user, verify_household_member
+from app.dependencies import (
+    get_all_household_accounts,
+    get_current_user,
+    get_user_accounts,
+    verify_household_member,
+)
 from app.models.account import Account
 from app.models.transaction import Category, Label, Transaction, TransactionLabel
 from app.models.user import User
@@ -517,7 +522,8 @@ async def get_merchant_names(
         Transaction.merchant_name != "",
     ]
     if search:
-        conditions.append(Transaction.merchant_name.ilike(f"{search}%"))
+        escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        conditions.append(Transaction.merchant_name.ilike(f"{escaped}%"))
 
     result = await db.execute(
         select(Transaction.merchant_name)
@@ -772,18 +778,46 @@ async def remove_label_from_transaction(
 
 @router.get("/export/csv")
 async def export_transactions_csv(
+    request: Request = None,
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     account_id: Optional[UUID] = Query(None, description="Filter by account"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Export transactions as CSV file.
 
-    Returns all transactions matching the filters in CSV format suitable for
+    Returns transactions matching the filters in CSV format suitable for
     spreadsheet applications, tax software, or archival purposes.
+    Accepts optional user_id to filter to a specific member's transactions.
     """
+    # Rate limit: 10 exports per hour per user
+    if request is not None:
+        from app.services.rate_limit_service import rate_limit_service as _rls
+
+        await _rls.check_rate_limit(
+            request=request,
+            max_requests=10,
+            window_seconds=3600,
+            identifier=str(current_user.id),
+        )
+
+    # Resolve account scope based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        scoped_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        scoped_accounts = await get_all_household_accounts(db, current_user.organization_id)
+    scoped_account_ids = [acc.id for acc in scoped_accounts]
+
+    # Validate account_id belongs to the user's scoped accounts
+    if account_id and account_id not in scoped_account_ids:
+        raise HTTPException(status_code=403, detail="Account not accessible")
+
     # Build query
     query = (
         select(Transaction)
@@ -792,7 +826,10 @@ async def export_transactions_csv(
             joinedload(Transaction.category),
             joinedload(Transaction.labels).joinedload(TransactionLabel.label),
         )
-        .where(Transaction.organization_id == current_user.organization_id)
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Transaction.account_id.in_(scoped_account_ids),
+        )
     )
 
     # Apply filters

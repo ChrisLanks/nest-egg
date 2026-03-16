@@ -1330,6 +1330,7 @@ class TestExportTransactionsCSV:
         mock_account = Mock()
         mock_account.name = "Checking"
         mock_account.mask = "1234"
+        mock_account.id = uuid4()
 
         mock_cat = Mock()
         mock_cat.name = "Food"
@@ -1368,13 +1369,19 @@ class TestExportTransactionsCSV:
 
         mock_db.execute = AsyncMock(side_effect=[mock_execute_result, mock_execute_empty])
 
-        result = await export_transactions_csv(
-            start_date="2024-01-01",
-            end_date="2024-12-31",
-            account_id=None,
-            current_user=mock_user,
-            db=mock_db,
-        )
+        with patch(
+            "app.api.v1.transactions.get_all_household_accounts",
+            new_callable=AsyncMock,
+            return_value=[mock_account],
+        ):
+            result = await export_transactions_csv(
+                start_date="2024-01-01",
+                end_date="2024-12-31",
+                account_id=None,
+                user_id=None,
+                current_user=mock_user,
+                db=mock_db,
+            )
 
         assert result.media_type == "text/csv"
         # Read the CSV content
@@ -1399,35 +1406,46 @@ class TestExportTransactionsCSV:
         mock_result.unique.return_value = mock_unique
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        # Only start_date
-        result = await export_transactions_csv(
-            start_date="2024-01-01",
-            end_date=None,
-            account_id=None,
-            current_user=mock_user,
-            db=mock_db,
-        )
-        assert "from_2024-01-01" in result.headers["content-disposition"]
+        mock_acct = Mock()
+        mock_acct.id = uuid4()
 
-        # Only end_date
-        result = await export_transactions_csv(
-            start_date=None,
-            end_date="2024-12-31",
-            account_id=None,
-            current_user=mock_user,
-            db=mock_db,
-        )
-        assert "until_2024-12-31" in result.headers["content-disposition"]
+        with patch(
+            "app.api.v1.transactions.get_all_household_accounts",
+            new_callable=AsyncMock,
+            return_value=[mock_acct],
+        ):
+            # Only start_date
+            result = await export_transactions_csv(
+                start_date="2024-01-01",
+                end_date=None,
+                account_id=None,
+                user_id=None,
+                current_user=mock_user,
+                db=mock_db,
+            )
+            assert "from_2024-01-01" in result.headers["content-disposition"]
 
-        # No dates
-        result = await export_transactions_csv(
-            start_date=None,
-            end_date=None,
-            account_id=None,
-            current_user=mock_user,
-            db=mock_db,
-        )
-        assert "transactions.csv" in result.headers["content-disposition"]
+            # Only end_date
+            result = await export_transactions_csv(
+                start_date=None,
+                end_date="2024-12-31",
+                account_id=None,
+                user_id=None,
+                current_user=mock_user,
+                db=mock_db,
+            )
+            assert "until_2024-12-31" in result.headers["content-disposition"]
+
+            # No dates
+            result = await export_transactions_csv(
+                start_date=None,
+                end_date=None,
+                account_id=None,
+                user_id=None,
+                current_user=mock_user,
+                db=mock_db,
+            )
+            assert "transactions.csv" in result.headers["content-disposition"]
 
     @pytest.mark.asyncio
     async def test_export_csv_with_account_filter(self, mock_user):
@@ -1444,13 +1462,22 @@ class TestExportTransactionsCSV:
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         account_id = uuid4()
-        result = await export_transactions_csv(
-            start_date=None,
-            end_date=None,
-            account_id=account_id,
-            current_user=mock_user,
-            db=mock_db,
-        )
+        mock_acct = Mock()
+        mock_acct.id = account_id
+
+        with patch(
+            "app.api.v1.transactions.get_all_household_accounts",
+            new_callable=AsyncMock,
+            return_value=[mock_acct],
+        ):
+            result = await export_transactions_csv(
+                start_date=None,
+                end_date=None,
+                account_id=account_id,
+                user_id=None,
+                current_user=mock_user,
+                db=mock_db,
+            )
         assert result.media_type == "text/csv"
 
     @pytest.mark.asyncio
@@ -1459,6 +1486,11 @@ class TestExportTransactionsCSV:
         from app.api.v1.transactions import export_transactions_csv
 
         mock_db = AsyncMock()
+
+        mock_acct = Mock()
+        mock_acct.id = uuid4()
+        mock_acct.name = "Card"
+        mock_acct.mask = None
 
         mock_txn = Mock(spec=Transaction)
         mock_txn.id = uuid4()
@@ -1469,9 +1501,7 @@ class TestExportTransactionsCSV:
         mock_txn.category = None
         mock_txn.category_primary = "Shopping"
         mock_txn.labels = []
-        mock_txn.account = Mock()
-        mock_txn.account.name = "Card"
-        mock_txn.account.mask = None
+        mock_txn.account = mock_acct
         mock_txn.is_pending = True
         mock_txn.is_transfer = True
 
@@ -1491,13 +1521,19 @@ class TestExportTransactionsCSV:
 
         mock_db.execute = AsyncMock(side_effect=[mock_execute_result, mock_execute_empty])
 
-        result = await export_transactions_csv(
-            start_date=None,
-            end_date=None,
-            account_id=None,
-            current_user=mock_user,
-            db=mock_db,
-        )
+        with patch(
+            "app.api.v1.transactions.get_all_household_accounts",
+            new_callable=AsyncMock,
+            return_value=[mock_acct],
+        ):
+            result = await export_transactions_csv(
+                start_date=None,
+                end_date=None,
+                account_id=None,
+                user_id=None,
+                current_user=mock_user,
+                db=mock_db,
+            )
 
         csv_content = ""
         async for chunk in result.body_iterator:

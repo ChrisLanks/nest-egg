@@ -134,6 +134,7 @@ class TestSecurityStatus:
         """Should return security score and checklist for admin."""
         user = MagicMock()
         user.is_org_admin = True
+        user._is_guest = False
 
         mock_checklist = {
             "encryption_key_configured": True,
@@ -159,6 +160,7 @@ class TestSecurityStatus:
         """Should return 'Production ready' when score >= 90."""
         user = MagicMock()
         user.is_org_admin = True
+        user._is_guest = False
 
         # All checks pass
         mock_checklist = {f"check_{i}": True for i in range(10)}
@@ -176,6 +178,7 @@ class TestSecurityStatus:
         """Should return review message when score < 90."""
         user = MagicMock()
         user.is_org_admin = True
+        user._is_guest = False
 
         mock_checklist = {"check_1": True, "check_2": False, "check_3": False}
 
@@ -191,6 +194,7 @@ class TestSecurityStatus:
         """Should handle empty checklist."""
         user = MagicMock()
         user.is_org_admin = True
+        user._is_guest = False
 
         with patch("app.main.secrets_validation_service") as mock_svc:
             mock_svc.generate_security_checklist.return_value = {}

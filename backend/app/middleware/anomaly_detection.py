@@ -76,16 +76,17 @@ class _SlidingWindowCounter:
         """Remove fully-expired keys to prevent unbounded memory growth."""
         now = time()
         cutoff = now - self.window
-        self._events = {k: [t for t in v if t > cutoff]
-                        for k, v in self._events.items() if any(t > cutoff for t in v)}
+        self._events = {
+            k: [t for t in v if t > cutoff]
+            for k, v in self._events.items()
+            if any(t > cutoff for t in v)
+        }
 
 
 # --- Counters (module-level singletons) ---
 
 # 5 × 403s from same IP within 10 minutes
-_forbidden_counter = _SlidingWindowCounter(
-    window_seconds=600, threshold=5, label="forbidden_ip"
-)
+_forbidden_counter = _SlidingWindowCounter(window_seconds=600, threshold=5, label="forbidden_ip")
 
 # 10 × 401s from same IP within 10 minutes (credential stuffing)
 _unauthorized_counter = _SlidingWindowCounter(
@@ -93,9 +94,7 @@ _unauthorized_counter = _SlidingWindowCounter(
 )
 
 # 3 × export calls from same user within 30 minutes
-_export_counter = _SlidingWindowCounter(
-    window_seconds=1800, threshold=3, label="export_user"
-)
+_export_counter = _SlidingWindowCounter(window_seconds=1800, threshold=3, label="export_user")
 
 _EXPORT_PATH = "/api/v1/settings/export"
 
@@ -105,7 +104,8 @@ def _get_ip(request: Request) -> str:
     if forwarded:
         ips = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
         if ips:
-            return ips[-1]
+            # First entry is the original client IP; later entries are proxies.
+            return ips[0]
     return request.client.host if request.client else "unknown"
 
 
@@ -127,7 +127,10 @@ class AnomalyDetectionMiddleware(BaseHTTPMiddleware):
                     "ANOMALY: repeated 403 Forbidden from IP %s — "
                     "%d occurrences in %ds window on path %s. "
                     "Possible unauthorized access probe.",
-                    ip, count, _forbidden_counter.window, path,
+                    ip,
+                    count,
+                    _forbidden_counter.window,
+                    path,
                 )
 
         # --- Credential stuffing detection ---
@@ -138,7 +141,10 @@ class AnomalyDetectionMiddleware(BaseHTTPMiddleware):
                     "ANOMALY: repeated 401 Unauthorized from IP %s — "
                     "%d occurrences in %ds window on path %s. "
                     "Possible credential stuffing or brute-force attack.",
-                    ip, count, _unauthorized_counter.window, path,
+                    ip,
+                    count,
+                    _unauthorized_counter.window,
+                    path,
                 )
 
         # --- Data exfiltration detection ---
@@ -151,7 +157,9 @@ class AnomalyDetectionMiddleware(BaseHTTPMiddleware):
                     "ANOMALY: bulk data export by user/IP %s — "
                     "%d exports in %ds window. "
                     "Possible data exfiltration. Investigate immediately.",
-                    user_id, count, _export_counter.window,
+                    user_id,
+                    count,
+                    _export_counter.window,
                 )
 
         return response

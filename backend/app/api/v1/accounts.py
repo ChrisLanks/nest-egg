@@ -211,23 +211,40 @@ async def list_accounts(
 # CSV Export must be defined before /{account_id} to avoid route shadowing
 @router.get("/export/csv")
 async def export_accounts_csv(
+    request: Request,
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Export all accounts for the user's organization as a CSV file.
+    Export accounts as a CSV file.
 
     Returns active accounts with key financial details suitable for
     spreadsheet applications or archival purposes.
+    Accepts optional user_id to filter to a specific member's accounts.
     """
     import csv
     from io import StringIO
 
     from fastapi.responses import StreamingResponse
 
-    # Fetch all active accounts for the organization
-    accounts = await get_all_household_accounts(db, current_user.organization_id)
-    accounts = deduplication_service.deduplicate_accounts(accounts)
+    # Rate limit: 10 exports per hour per user
+    await rate_limit_service.check_rate_limit(
+        request=request,
+        max_requests=10,
+        window_seconds=3600,
+        identifier=str(current_user.id),
+    )
+
+    # Fetch accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
     accounts = sorted(accounts, key=lambda a: a.name)
 
     output = StringIO()

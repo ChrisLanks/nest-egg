@@ -15,7 +15,7 @@ from pathlib import Path
 backend_dir = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -113,7 +113,7 @@ async def set_primary_household_members(db: AsyncSession):
         if oldest_user:
             oldest_user.is_primary_household_member = True
             updated_count += 1
-            print(f"✓ Set {oldest_user.email} as primary for org {str(org_id)[:8]}...")
+            print(f"✓ Set user {oldest_user.id} as primary for org {str(org_id)[:8]}...")
 
     await db.commit()
     print(f"\n✅ Set {updated_count} primary household members")

@@ -2135,7 +2135,8 @@ class TestPrivateDebtEdgeCases:
             is_active=True,
         )
 
-        events = ForecastService._get_mortgage_payment_events([account], days_ahead=90)
+        # Use 120 days to guarantee >= 3 payment dates regardless of current day-of-month
+        events = ForecastService._get_mortgage_payment_events([account], days_ahead=120)
         assert len(events) >= 3
         # Payment should be based on 360-month term
         for e in events:

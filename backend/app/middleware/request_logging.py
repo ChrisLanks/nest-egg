@@ -1,9 +1,10 @@
 """Request/response logging middleware for audit trails."""
 
+import asyncio
 import logging
 import time
 import uuid
-from typing import Callable
+from typing import Callable, Optional
 
 from fastapi import Request, Response
 from jwt.exceptions import InvalidTokenError as JWTError
@@ -11,7 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
 from app.core.security import decode_token
-from app.utils.logging_utils import redact_email, redact_ip
+from app.utils.logging_utils import redact_ip
 
 logger = logging.getLogger(__name__)
 
@@ -28,21 +29,22 @@ class UserContextMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Extract user email from token if present."""
-        # Try to extract user email from Authorization header
+        """Extract user id from JWT token if present."""
+        token = None
+        # 1. Try Authorization header (access token)
         auth_header = request.headers.get("Authorization")
-
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header.replace("Bearer ", "")
 
+        # 2. Fallback: refresh token cookie
+        if not token:
+            token = request.cookies.get("refresh_token")
+
+        if token:
             try:
-                # Decode token to get email and user ID (don't validate, just extract)
                 payload = decode_token(token)
-                user_email = payload.get("email")
                 user_id = payload.get("sub")
 
-                if user_email:
-                    request.state.user_email = user_email
                 if user_id:
                     request.state.user_id = user_id
 
@@ -81,8 +83,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         client_host = request.client.host if request.client else "unknown"
 
-        # Get user email from request state (set by auth middleware)
-        user_email = getattr(request.state, "user_email", None)
+        # Get user ID from request state (set by UserContextMiddleware)
+        user_id = getattr(request.state, "user_id", None) or "N/A"
 
         # Log request start
         logger.info(
@@ -90,7 +92,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             f"id={request_id} | "
             f"method={method} | "
             f"path={path} | "
-            f"user={redact_email(user_email)} | "
+            f"user={user_id} | "
             f"ip={redact_ip(client_host)}"
         )
 
@@ -104,6 +106,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             # Calculate response time
             duration_ms = int((time.time() - start_time) * 1000)
 
+            # Re-read user_id in case it was set during request processing
+            completed_user = getattr(request.state, "user_id", None) or user_id
+
             # Log successful response
             logger.info(
                 f"Request completed | "
@@ -112,7 +117,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 f"path={path} | "
                 f"status={response.status_code} | "
                 f"duration={duration_ms}ms | "
-                f"user={redact_email(user_email)}"
+                f"user={completed_user}"
             )
 
             # Add request ID to response headers for debugging
@@ -124,6 +129,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             # Calculate response time
             duration_ms = int((time.time() - start_time) * 1000)
 
+            failed_user = getattr(request.state, "user_id", None) or user_id
+
             # Log failed request
             logger.error(
                 f"Request failed | "
@@ -131,7 +138,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 f"method={method} | "
                 f"path={path} | "
                 f"duration={duration_ms}ms | "
-                f"user={redact_email(user_email)} | "
+                f"user={failed_user} | "
                 f"error={type(e).__name__}: {str(e)}"
             )
 
@@ -158,6 +165,13 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         "/api/v1/accounts": "ACCOUNT_OPERATION",
         "/api/v1/transactions": "TRANSACTION_OPERATION",
         "/api/v1/household/members": "HOUSEHOLD_CHANGE",
+        "/api/v1/budgets": "BUDGET_OPERATION",
+        "/api/v1/reports": "REPORT_OPERATION",
+        "/api/v1/permissions": "PERMISSION_CHANGE",
+        "/api/v1/guest-access": "GUEST_ACCESS_OPERATION",
+        "/api/v1/plaid/exchange-token": "PLAID_LINK",
+        "/api/v1/teller/webhook": "TELLER_WEBHOOK",
+        "/api/v1/csv-import": "CSV_IMPORT",
     }
 
     # Sensitive read operations that should also be audited (GET requests)
@@ -165,6 +179,11 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         "/api/v1/settings/export": "DATA_EXPORT",
         "/api/v1/settings/profile": "PROFILE_VIEW",
         "/api/v1/holdings/portfolio": "PORTFOLIO_VIEW",
+        "/api/v1/accounts/export": "ACCOUNT_EXPORT",
+        "/api/v1/transactions/export": "TRANSACTION_EXPORT",
+        "/api/v1/budgets/export": "BUDGET_EXPORT",
+        "/api/v1/labels/tax-deductible/export": "TAX_DATA_EXPORT",
+        "/api/v1/reports/templates": "REPORT_TEMPLATE_VIEW",
     }
 
     # Methods that modify data
@@ -175,6 +194,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Audit sensitive operations."""
+        start_time = time.time()
         path = request.url.path
         method = request.method
 
@@ -199,7 +219,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Get request details
-        user_email = getattr(request.state, "user_email", None)
+        user_id = getattr(request.state, "user_id", None) or "N/A"
         client_host = request.client.host if request.client else "unknown"
         request_id = getattr(request.state, "request_id", "unknown")
 
@@ -215,9 +235,63 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
             f"method={method} | "
             f"path={path} | "
             f"status={response.status_code} | "
-            f"user={redact_email(user_email)} | "
+            f"user={user_id} | "
             f"ip={redact_ip(client_host)} | "
             f"request_id={request_id}"
         )
 
+        # Persist to database (fire-and-forget — never block the response)
+        duration_ms = int((time.time() - start_time) * 1000)
+        asyncio.ensure_future(
+            _persist_audit_log(
+                request_id=request_id,
+                action=action,
+                method=method,
+                path=path,
+                status_code=response.status_code,
+                user_id=user_id if user_id != "N/A" else None,
+                ip_address=redact_ip(client_host),
+                duration_ms=duration_ms,
+            )
+        )
+
         return response
+
+
+async def _persist_audit_log(
+    request_id: str,
+    action: str,
+    method: str,
+    path: str,
+    status_code: int,
+    user_id: Optional[str],
+    ip_address: str,
+    duration_ms: Optional[int],
+) -> None:
+    """Persist an audit log entry to the database (best-effort).
+
+    Runs as a fire-and-forget coroutine so that a database failure
+    never blocks or delays an API response.
+    """
+    try:
+        from uuid import UUID as _UUID
+
+        from app.core.database import AsyncSessionLocal
+        from app.models.audit_log import AuditLog
+
+        async with AsyncSessionLocal() as session:
+            entry = AuditLog(
+                request_id=request_id,
+                action=action,
+                method=method,
+                path=path,
+                status_code=status_code,
+                user_id=_UUID(user_id) if user_id else None,
+                ip_address=ip_address,
+                duration_ms=duration_ms,
+            )
+            session.add(entry)
+            await session.commit()
+    except Exception:
+        # Best-effort — the log-based audit entry was already written above.
+        logger.debug("Failed to persist audit log to database", exc_info=True)

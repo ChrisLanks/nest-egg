@@ -8,9 +8,8 @@ Used by Monte Carlo simulation to compare strategy outcomes.
 """
 
 from decimal import Decimal
-from typing import Optional
 
-from app.utils.rmd_calculator import calculate_rmd, UNIFORM_LIFETIME_TABLE
+from app.utils.rmd_calculator import UNIFORM_LIFETIME_TABLE
 
 
 class AccountBuckets:
@@ -90,7 +89,7 @@ def tax_optimized_withdrawal(
         rmd_tax = actual_rmd * (federal_rate + state_rate)
         taxes += rmd_tax
         # RMD counts toward needed withdrawal (net of taxes)
-        remaining -= (actual_rmd - rmd_tax)
+        remaining -= actual_rmd - rmd_tax
 
     if remaining <= 0:
         return {"withdrawals": withdrawals, "taxes": taxes, "rmd_amount": rmd}
@@ -99,24 +98,27 @@ def tax_optimized_withdrawal(
     if buckets.taxable > 0 and remaining > 0:
         # Need to withdraw enough to cover remaining + capital gains tax
         # gross * (1 - cap_gains_rate) = remaining → gross = remaining / (1 - cap_gains_rate)
-        gross_needed = remaining / max(1 - capital_gains_rate, 0.01)
+        # Cap rate at 50% to prevent unreasonable gross-up from bad inputs
+        safe_cg_rate = min(capital_gains_rate, 0.50)
+        gross_needed = remaining / (1 - safe_cg_rate)
         actual = min(gross_needed, buckets.taxable)
         buckets.taxable -= actual
         withdrawals["taxable"] += actual
-        tax = actual * capital_gains_rate
+        tax = actual * safe_cg_rate
         taxes += tax
-        remaining -= (actual - tax)
+        remaining -= actual - tax
 
     # Step 3: Tax-deferred (ordinary income tax)
     if buckets.pre_tax > 0 and remaining > 0:
-        income_rate = federal_rate + state_rate
-        gross_needed = remaining / max(1 - income_rate, 0.01)
+        # Cap combined rate at 70% (highest realistic federal + state)
+        income_rate = min(federal_rate + state_rate, 0.70)
+        gross_needed = remaining / (1 - income_rate)
         actual = min(gross_needed, buckets.pre_tax)
         buckets.pre_tax -= actual
         withdrawals["pre_tax"] += actual
         tax = actual * income_rate
         taxes += tax
-        remaining -= (actual - tax)
+        remaining -= actual - tax
 
     # Step 4: Roth (tax-free qualified withdrawals)
     if buckets.roth > 0 and remaining > 0:
@@ -220,13 +222,20 @@ def run_withdrawal_comparison(
             # Withdraw
             if strategy_name == "tax_optimized":
                 result = tax_optimized_withdrawal(
-                    buckets, net_needed, age,
-                    federal_rate, state_rate, capital_gains_rate,
+                    buckets,
+                    net_needed,
+                    age,
+                    federal_rate,
+                    state_rate,
+                    capital_gains_rate,
                 )
             else:
                 result = simple_rate_withdrawal(
-                    buckets, withdrawal_rate,
-                    federal_rate, state_rate, capital_gains_rate,
+                    buckets,
+                    withdrawal_rate,
+                    federal_rate,
+                    state_rate,
+                    capital_gains_rate,
                 )
 
             total_taxes += result["taxes"]

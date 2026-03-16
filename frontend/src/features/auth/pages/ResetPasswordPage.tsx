@@ -17,22 +17,26 @@ import {
   Text,
   Link as ChakraLink,
   VStack,
-} from '@chakra-ui/react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { authApi } from '../services/authApi';
+} from "@chakra-ui/react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { authApi } from "../services/authApi";
+import {
+  getErrorMessage,
+  isValidTokenFormat,
+} from "../../../utils/errorHandling";
 
 const schema = z
   .object({
-    new_password: z.string().min(8, 'Password must be at least 8 characters'),
+    new_password: z.string().min(8, "Password must be at least 8 characters"),
     confirm_password: z.string(),
   })
   .refine((d) => d.new_password === d.confirm_password, {
-    message: 'Passwords do not match',
-    path: ['confirm_password'],
+    message: "Passwords do not match",
+    path: ["confirm_password"],
   });
 
 type FormData = z.infer<typeof schema>;
@@ -40,7 +44,7 @@ type FormData = z.infer<typeof schema>;
 export const ResetPasswordPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const token = searchParams.get('token') ?? '';
+  const token = searchParams.get("token") ?? "";
 
   const [success, setSuccess] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -55,13 +59,13 @@ export const ResetPasswordPage = () => {
   // Redirect to login after successful reset
   useEffect(() => {
     if (success) {
-      const timer = setTimeout(() => navigate('/login'), 2500);
+      const timer = setTimeout(() => navigate("/login"), 2500);
       return () => clearTimeout(timer);
     }
   }, [success, navigate]);
 
-  // No token in URL — show error immediately
-  if (!token) {
+  // No token or malformed token in URL — show error immediately
+  if (!token || !isValidTokenFormat(token)) {
     return (
       <Container maxW="md" py={20}>
         <Box w="full" bg="bg.surface" p={8} borderRadius="lg" boxShadow="md">
@@ -70,7 +74,12 @@ export const ResetPasswordPage = () => {
               <AlertIcon />
               This password reset link is invalid or missing.
             </Alert>
-            <ChakraLink as={Link} to="/forgot-password" color="brand.500" fontWeight="semibold">
+            <ChakraLink
+              as={Link}
+              to="/forgot-password"
+              color="brand.500"
+              fontWeight="semibold"
+            >
               Request a new reset link
             </ChakraLink>
           </VStack>
@@ -86,11 +95,11 @@ export const ResetPasswordPage = () => {
       await authApi.resetPassword(token, data.new_password);
       setSuccess(true);
     } catch (error: any) {
-      const detail = error?.response?.data?.detail;
+      const msg = getErrorMessage(error);
       setApiError(
-        typeof detail === 'string'
-          ? detail
-          : 'This link is invalid or has expired.'
+        msg !== "An error occurred"
+          ? msg
+          : "This link is invalid or has expired.",
       );
     } finally {
       setIsLoading(false);
@@ -117,13 +126,18 @@ export const ResetPasswordPage = () => {
                 </Alert>
               </VStack>
             ) : (
-              <form onSubmit={handleSubmit(onSubmit)} style={{ width: '100%' }}>
+              <form onSubmit={handleSubmit(onSubmit)} style={{ width: "100%" }}>
                 <Stack spacing={4}>
                   {apiError && (
                     <Alert status="error" borderRadius="md">
                       <AlertIcon />
-                      {apiError}{' '}
-                      <ChakraLink as={Link} to="/forgot-password" color="red.700" ml={1}>
+                      {apiError}{" "}
+                      <ChakraLink
+                        as={Link}
+                        to="/forgot-password"
+                        color="red.700"
+                        ml={1}
+                      >
                         Request a new link.
                       </ChakraLink>
                     </Alert>
@@ -136,9 +150,11 @@ export const ResetPasswordPage = () => {
                       placeholder="At least 8 characters"
                       autoComplete="new-password"
                       autoFocus
-                      {...register('new_password')}
+                      {...register("new_password")}
                     />
-                    <FormErrorMessage>{errors.new_password?.message}</FormErrorMessage>
+                    <FormErrorMessage>
+                      {errors.new_password?.message}
+                    </FormErrorMessage>
                   </FormControl>
 
                   <FormControl isInvalid={!!errors.confirm_password}>
@@ -147,9 +163,11 @@ export const ResetPasswordPage = () => {
                       type="password"
                       placeholder="Repeat your new password"
                       autoComplete="new-password"
-                      {...register('confirm_password')}
+                      {...register("confirm_password")}
                     />
-                    <FormErrorMessage>{errors.confirm_password?.message}</FormErrorMessage>
+                    <FormErrorMessage>
+                      {errors.confirm_password?.message}
+                    </FormErrorMessage>
                   </FormControl>
 
                   <Button

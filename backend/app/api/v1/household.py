@@ -184,10 +184,10 @@ async def invite_member(
 
 @router.get("/invitations", response_model=List[InvitationResponse])
 async def list_invitations(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all pending invitations for the household."""
+    """List all pending invitations for the household (admin only)."""
     result = await db.execute(
         select(HouseholdInvitation)
         .where(

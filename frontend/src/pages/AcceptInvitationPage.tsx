@@ -28,6 +28,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
+import { getErrorMessage, isValidTokenFormat } from "../utils/errorHandling";
 
 interface InvitationDetails {
   email: string;
@@ -73,8 +74,8 @@ export const AcceptInvitationPage: React.FC = () => {
     },
   });
 
-  // Handle missing invitation code
-  if (!invitationCode) {
+  // Handle missing or malformed invitation code
+  if (!invitationCode || !isValidTokenFormat(invitationCode)) {
     return (
       <Container maxW="container.md" py={16}>
         <Card>
@@ -363,7 +364,7 @@ export const AcceptInvitationPage: React.FC = () => {
                   <Box>
                     <AlertTitle>Failed to Accept Invitation</AlertTitle>
                     <AlertDescription>
-                      {(acceptMutation.error as any)?.response?.data?.detail ||
+                      {getErrorMessage(acceptMutation.error) ||
                         "An error occurred. Please try again or contact support."}
                     </AlertDescription>
                   </Box>

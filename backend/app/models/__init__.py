@@ -3,6 +3,7 @@
 from app.models.account import Account, MxMember, PlaidItem, TellerEnrollment
 from app.models.account_migration import AccountMigrationLog, MigrationStatus
 from app.models.attachment import TransactionAttachment
+from app.models.audit_log import AuditLog
 from app.models.budget import Budget
 from app.models.bulk_operation_log import BulkOperationLog
 from app.models.contribution import AccountContribution
@@ -59,4 +60,5 @@ __all__ = [
     "TaxLot",
     "CostBasisMethod",
     "BulkOperationLog",
+    "AuditLog",
 ]
