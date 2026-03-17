@@ -276,18 +276,25 @@ export const GrowthProjectionsChart = ({
   // Summary stats for active scenario
   const summaryStats = useMemo(() => {
     const finalYear = activeProjections[activeProjections.length - 1];
+    const median = showInflationAdjusted
+      ? finalYear.medianInflationAdjusted
+      : finalYear.median;
+    const pessimistic = showInflationAdjusted
+      ? finalYear.percentile10InflationAdjusted
+      : finalYear.percentile10;
+    const optimistic = showInflationAdjusted
+      ? finalYear.percentile90InflationAdjusted
+      : finalYear.percentile90;
     return {
-      medianValue: finalYear.median,
-      medianGain: finalYear.median - currentValue,
-      medianGainPercent:
-        ((finalYear.median - currentValue) / currentValue) * 100,
-      pessimistic: finalYear.percentile10,
-      optimistic: finalYear.percentile90,
-      inflationAdjustedMedian: finalYear.medianInflationAdjusted,
+      medianValue: median,
+      medianGain: median - currentValue,
+      medianGainPercent: ((median - currentValue) / currentValue) * 100,
+      pessimistic,
+      optimistic,
       successRate: activeSummary.successRate,
       medianDepletionYear: activeSummary.medianDepletionYear,
     };
-  }, [activeProjections, currentValue, activeSummary]);
+  }, [activeProjections, currentValue, activeSummary, showInflationAdjusted]);
 
   // Update active scenario field
   const updateField = useCallback(
