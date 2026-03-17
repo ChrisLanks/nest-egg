@@ -777,7 +777,13 @@ export const IncomeExpensesPage = () => {
   // Fetch ALL transactions for the date range (with infinite loading)
   const { data: allTransactionsData, isLoading: transactionsLoading } =
     useQuery({
-      queryKey: ["all-transactions-infinite", dateRange.start, dateRange.end],
+      queryKey: [
+        "all-transactions-infinite",
+        dateRange.start,
+        dateRange.end,
+        activeUserId,
+        selectedIdsKey,
+      ],
       queryFn: async () => {
         let allTransactions: Transaction[] = [];
         let cursor: string | null = null;
@@ -790,6 +796,9 @@ export const IncomeExpensesPage = () => {
             end_date: dateRange.end,
             page_size: "500", // Fetch in batches of 500
           });
+          if (activeUserId) {
+            params.append("user_id", activeUserId);
+          }
           if (cursor) {
             params.append("cursor", cursor);
           }
