@@ -9,7 +9,11 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import (
+    get_current_user,
+    get_user_accounts,
+    verify_household_member,
+)
 from app.models.user import User
 from app.services.enhanced_trends_service import EnhancedTrendsService
 
@@ -37,13 +41,21 @@ async def get_net_worth_history(
 
 @router.get("/investment-performance")
 async def get_investment_performance(
+    user_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Get investment portfolio performance: total return, per-holding gains, winners/losers."""
+    account_ids = None
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        user_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+        account_ids = [acc.id for acc in user_accounts]
+
     service = EnhancedTrendsService(db)
     return await service.get_investment_performance(
         organization_id=current_user.organization_id,
+        account_ids=account_ids,
     )
 
 
@@ -82,12 +94,20 @@ async def get_cash_flow_history(
 @router.get("/investment-income-trend")
 async def get_investment_income_trend(
     months: int = Query(24, ge=3, le=60),
+    user_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Get monthly dividend/investment income trend for charting."""
+    account_ids = None
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        user_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+        account_ids = [acc.id for acc in user_accounts]
+
     service = EnhancedTrendsService(db)
     return await service.get_investment_income_trend(
         organization_id=current_user.organization_id,
         months=months,
+        account_ids=account_ids,
     )

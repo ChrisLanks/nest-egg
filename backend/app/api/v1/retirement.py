@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_db, verify_household_member
 from app.models.retirement import LifeEvent
 from app.models.user import User
 from app.schemas.retirement import (
@@ -349,16 +349,22 @@ async def get_social_security_estimate(
     claiming_age: int = Query(default=67, ge=62, le=70),
     override_salary: Optional[float] = Query(default=None, ge=0),
     override_pia: Optional[float] = Query(default=None, ge=0),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = current user"),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Estimate Social Security benefits based on user profile or overrides."""
-    if not current_user.birthdate:
+    target_user = current_user
+    if user_id and user_id != current_user.id:
+        target_user = await verify_household_member(db, user_id, current_user.organization_id)
+
+    if not target_user.birthdate:
         raise HTTPException(
             status_code=400, detail="Please set your birthdate in preferences first"
         )
 
-    current_age = calculate_age(current_user.birthdate)
-    birth_year = current_user.birthdate.year
+    current_age = calculate_age(target_user.birthdate)
+    birth_year = target_user.birthdate.year
 
     # Determine salary for estimation
     salary = override_salary or 0
@@ -385,15 +391,21 @@ async def get_healthcare_estimate(
     retirement_income: float = Query(default=50000, ge=0),
     medical_inflation_rate: float = Query(default=6.0, ge=0, le=20),
     include_ltc: bool = Query(default=True),
+    user_id: Optional[UUID] = Query(None, description="Filter by user. None = current user"),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Estimate healthcare costs across retirement phases."""
-    if not current_user.birthdate:
+    target_user = current_user
+    if user_id and user_id != current_user.id:
+        target_user = await verify_household_member(db, user_id, current_user.organization_id)
+
+    if not target_user.birthdate:
         raise HTTPException(
             status_code=400, detail="Please set your birthdate in preferences first"
         )
 
-    current_age = calculate_age(current_user.birthdate)
+    current_age = calculate_age(target_user.birthdate)
 
     # Sample ages for the response
     sample_ages_list = [55, 60, 65, 70, 75, 80, 85, 90, 95]

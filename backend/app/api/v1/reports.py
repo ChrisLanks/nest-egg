@@ -455,13 +455,23 @@ async def export_report_csv(
 
 @router.get("/tax-loss-harvesting", response_model=TaxLossHarvestingSummaryResponse)
 async def get_tax_loss_harvesting(
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get tax-loss harvesting opportunities."""
+    account_ids = None
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        user_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+        account_ids = {acc.id for acc in user_accounts}
+
     opportunities = await tax_loss_harvesting_service.get_opportunities(
         db=db,
         organization_id=current_user.organization_id,
+        account_ids=account_ids,
     )
 
     total_losses = sum(o.unrealized_loss for o in opportunities)

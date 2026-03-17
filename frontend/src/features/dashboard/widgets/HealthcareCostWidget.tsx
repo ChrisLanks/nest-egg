@@ -19,6 +19,7 @@ import {
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
+import { useUserView } from "../../../contexts/UserViewContext";
 import api from "../../../services/api";
 
 interface HealthcareCostBreakdown {
@@ -43,10 +44,13 @@ const fmt = (n: number): string =>
   }).format(n);
 
 export const HealthcareCostWidget: React.FC = () => {
+  const { selectedUserId } = useUserView();
+
   const { data, isLoading, isError } = useQuery<HealthcareCostData>({
-    queryKey: ["healthcare-cost-widget"],
+    queryKey: ["healthcare-cost-widget", selectedUserId],
     queryFn: async () => {
-      const res = await api.get("/retirement/healthcare-estimate");
+      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const res = await api.get("/retirement/healthcare-estimate", { params });
       return res.data;
     },
     retry: false,

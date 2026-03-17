@@ -21,6 +21,7 @@ import {
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
+import { useUserView } from "../../../contexts/UserViewContext";
 import api from "../../../services/api";
 
 interface TaxLossOpportunity {
@@ -48,10 +49,13 @@ const fmt = (n: number): string =>
   }).format(n);
 
 export const TaxLossHarvestingWidget: React.FC = () => {
+  const { selectedUserId } = useUserView();
+
   const { data, isLoading, isError } = useQuery<TaxLossHarvestingData>({
-    queryKey: ["tlh-widget"],
+    queryKey: ["tlh-widget", selectedUserId],
     queryFn: async () => {
-      const res = await api.get("/reports/tax-loss-harvesting");
+      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const res = await api.get("/reports/tax-loss-harvesting", { params });
       return res.data;
     },
     retry: false,

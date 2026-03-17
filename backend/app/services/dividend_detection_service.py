@@ -230,10 +230,12 @@ class DividendDetectionService:
         self,
         organization_id: UUID,
         batch_size: int = 500,
+        account_ids: Optional[set[UUID]] = None,
     ) -> int:
         """Scan all unlabeled transactions in an org and label matches.
 
         Processes in batches and commits after each batch.
+        If account_ids is provided, only scan transactions in those accounts.
         Returns total number of newly labeled transactions.
         """
         await self.ensure_system_label(organization_id)
@@ -241,9 +243,13 @@ class DividendDetectionService:
         offset = 0
 
         while True:
+            conditions = [Transaction.organization_id == organization_id]
+            if account_ids is not None:
+                conditions.append(Transaction.account_id.in_(account_ids))
+
             result = await self.db.execute(
                 select(Transaction)
-                .where(Transaction.organization_id == organization_id)
+                .where(and_(*conditions))
                 .order_by(Transaction.id)
                 .limit(batch_size)
                 .offset(offset)

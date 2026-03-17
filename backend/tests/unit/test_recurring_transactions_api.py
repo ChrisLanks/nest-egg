@@ -84,6 +84,7 @@ class TestDetectRecurringPatterns:
             result = await detect_recurring_patterns(
                 min_occurrences=3,
                 lookback_days=180,
+                user_id=None,
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -100,6 +101,7 @@ class TestDetectRecurringPatterns:
             result = await detect_recurring_patterns(
                 min_occurrences=3,
                 lookback_days=180,
+                user_id=None,
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -116,6 +118,7 @@ class TestDetectRecurringPatterns:
             await detect_recurring_patterns(
                 min_occurrences=5,
                 lookback_days=365,
+                user_id=None,
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -125,6 +128,7 @@ class TestDetectRecurringPatterns:
                 user=mock_user,
                 min_occurrences=5,
                 lookback_days=365,
+                account_ids=None,
             )
 
 
@@ -208,6 +212,7 @@ class TestListRecurringTransactions:
 
             result = await list_recurring_transactions(
                 is_active=None,
+                user_id=None,
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -222,6 +227,7 @@ class TestListRecurringTransactions:
 
             await list_recurring_transactions(
                 is_active=True,
+                user_id=None,
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -230,6 +236,7 @@ class TestListRecurringTransactions:
                 db=mock_db,
                 user=mock_user,
                 is_active=True,
+                account_ids=None,
             )
 
     @pytest.mark.asyncio
@@ -240,6 +247,7 @@ class TestListRecurringTransactions:
 
             result = await list_recurring_transactions(
                 is_active=None,
+                user_id=None,
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -566,7 +574,7 @@ class TestGetCalendar:
         mock_result.scalars.return_value.all.return_value = [pattern]
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        result = await get_calendar(days=90, current_user=mock_user, db=mock_db)
+        result = await get_calendar(days=90, user_id=None, current_user=mock_user, db=mock_db)
 
         assert len(result) >= 1
         # All entries should be CalendarEntry-like
@@ -580,7 +588,7 @@ class TestGetCalendar:
         mock_result.scalars.return_value.all.return_value = []
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        result = await get_calendar(days=30, current_user=mock_user, db=mock_db)
+        result = await get_calendar(days=30, user_id=None, current_user=mock_user, db=mock_db)
         assert result == []
 
 

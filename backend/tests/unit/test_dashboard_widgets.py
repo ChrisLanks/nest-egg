@@ -497,7 +497,7 @@ class TestTaxLossHarvestingWidget:
             new_callable=AsyncMock,
             return_value=[mock_opp],
         ):
-            result = await get_tax_loss_harvesting(current_user=user, db=db)
+            result = await get_tax_loss_harvesting(user_id=None, current_user=user, db=db)
 
         assert len(result.opportunities) == 1
         assert result.total_harvestable_losses == Decimal("-4500")
@@ -516,7 +516,7 @@ class TestTaxLossHarvestingWidget:
             new_callable=AsyncMock,
             return_value=[],
         ):
-            result = await get_tax_loss_harvesting(current_user=user, db=db)
+            result = await get_tax_loss_harvesting(user_id=None, current_user=user, db=db)
 
         assert result.opportunities == []
         assert result.total_harvestable_losses == 0
@@ -550,7 +550,7 @@ class TestTaxLossHarvestingWidget:
             new_callable=AsyncMock,
             return_value=[mock_opp],
         ):
-            result = await get_tax_loss_harvesting(current_user=user, db=db)
+            result = await get_tax_loss_harvesting(user_id=None, current_user=user, db=db)
 
         assert result.opportunities[0].wash_sale_risk is True
 
@@ -575,7 +575,9 @@ class TestSocialSecurityWidget:
             claiming_age=67,
             override_salary=100000.0,
             override_pia=None,
+            user_id=None,
             current_user=user,
+            db=AsyncMock(),
         )
 
         assert result.monthly_at_62 > 0
@@ -595,7 +597,9 @@ class TestSocialSecurityWidget:
                 claiming_age=67,
                 override_salary=None,
                 override_pia=None,
+                user_id=None,
                 current_user=user,
+                db=AsyncMock(),
             )
 
         assert exc_info.value.status_code == 400
@@ -611,13 +615,17 @@ class TestSocialSecurityWidget:
             claiming_age=62,
             override_salary=80000.0,
             override_pia=None,
+            user_id=None,
             current_user=user,
+            db=AsyncMock(),
         )
         result_70 = await get_social_security_estimate(
             claiming_age=70,
             override_salary=80000.0,
             override_pia=None,
+            user_id=None,
             current_user=user,
+            db=AsyncMock(),
         )
 
         assert result_70.monthly_benefit > result_62.monthly_benefit
@@ -633,7 +641,9 @@ class TestSocialSecurityWidget:
             claiming_age=67,
             override_salary=None,
             override_pia=2500.0,
+            user_id=None,
             current_user=user,
+            db=AsyncMock(),
         )
 
         # With PIA override of $2500 at FRA, benefit should be $2500
@@ -660,7 +670,9 @@ class TestHealthcareCostWidget:
             retirement_income=50000.0,
             medical_inflation_rate=6.0,
             include_ltc=True,
+            user_id=None,
             current_user=user,
+            db=AsyncMock(),
         )
 
         assert result.total_lifetime > 0
@@ -678,7 +690,9 @@ class TestHealthcareCostWidget:
                 retirement_income=50000.0,
                 medical_inflation_rate=6.0,
                 include_ltc=True,
+                user_id=None,
                 current_user=user,
+                db=AsyncMock(),
             )
 
         assert exc_info.value.status_code == 400
@@ -694,13 +708,17 @@ class TestHealthcareCostWidget:
             retirement_income=50000.0,
             medical_inflation_rate=6.0,
             include_ltc=True,
+            user_id=None,
             current_user=user,
+            db=AsyncMock(),
         )
         result_without = await get_healthcare_estimate(
             retirement_income=50000.0,
             medical_inflation_rate=6.0,
             include_ltc=False,
+            user_id=None,
             current_user=user,
+            db=AsyncMock(),
         )
 
         assert result_without.total_lifetime <= result_with.total_lifetime
@@ -716,7 +734,9 @@ class TestHealthcareCostWidget:
             retirement_income=50000.0,
             medical_inflation_rate=6.0,
             include_ltc=True,
+            user_id=None,
             current_user=user,
+            db=AsyncMock(),
         )
 
         for sample in result.sample_ages:

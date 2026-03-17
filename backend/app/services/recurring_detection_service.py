@@ -96,6 +96,7 @@ class RecurringDetectionService:
         user: User,
         min_occurrences: int = 3,
         lookback_days: int = 180,
+        account_ids: Optional[set] = None,
     ) -> List[RecurringTransaction]:
         """
         Auto-detect recurring transaction patterns.
@@ -105,12 +106,21 @@ class RecurringDetectionService:
             user: Current user
             min_occurrences: Minimum transactions to consider a pattern
             lookback_days: Days to look back for patterns
+            account_ids: If provided, only scan transactions in these accounts
 
         Returns:
             List of detected recurring patterns
         """
         # Get recent transactions
         cutoff_date = date.today() - timedelta(days=lookback_days)
+
+        conditions = [
+            Transaction.organization_id == user.organization_id,
+            Transaction.date >= cutoff_date,
+            Transaction.merchant_name.isnot(None),
+        ]
+        if account_ids is not None:
+            conditions.append(Transaction.account_id.in_(account_ids))
 
         # Fetch only needed columns, not full ORM objects
         result = await db.execute(
@@ -121,13 +131,7 @@ class RecurringDetectionService:
                 Transaction.amount,
                 Transaction.id,
             )
-            .where(
-                and_(
-                    Transaction.organization_id == user.organization_id,
-                    Transaction.date >= cutoff_date,
-                    Transaction.merchant_name.isnot(None),
-                )
-            )
+            .where(and_(*conditions))
             .order_by(Transaction.merchant_name, Transaction.account_id, Transaction.date)
         )
         rows = result.all()
@@ -323,6 +327,7 @@ class RecurringDetectionService:
         db: AsyncSession,
         user: User,
         is_active: Optional[bool] = None,
+        account_ids: Optional[set] = None,
     ) -> List[RecurringTransaction]:
         """Get all recurring transaction patterns."""
         query = select(RecurringTransaction).where(
@@ -331,6 +336,9 @@ class RecurringDetectionService:
 
         if is_active is not None:
             query = query.where(RecurringTransaction.is_active == is_active)
+
+        if account_ids is not None:
+            query = query.where(RecurringTransaction.account_id.in_(account_ids))
 
         query = query.order_by(RecurringTransaction.confidence_score.desc())
 

@@ -40,6 +40,7 @@ class DividendIncomeService:
         self,
         organization_id: UUID,
         account_id: Optional[UUID] = None,
+        account_ids: Optional[List[UUID]] = None,
         ticker: Optional[str] = None,
         income_type: Optional[IncomeType] = None,
         start_date: Optional[date] = None,
@@ -52,6 +53,8 @@ class DividendIncomeService:
 
         if account_id:
             conditions.append(DividendIncome.account_id == account_id)
+        elif account_ids:
+            conditions.append(DividendIncome.account_id.in_(account_ids))
         if ticker:
             conditions.append(DividendIncome.ticker == ticker.upper())
         if income_type:

@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_db, get_user_accounts, verify_household_member
 from app.models.recurring_transaction import RecurringFrequency, RecurringTransaction
 from app.models.user import User
 from app.schemas.recurring_transaction import (
@@ -93,15 +93,23 @@ def _expand_occurrences(
 async def detect_recurring_patterns(
     min_occurrences: int = Query(3, ge=2, le=50),
     lookback_days: int = Query(180, ge=30, le=730),
+    user_id: Optional[UUID] = Query(None, description="Filter by user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Auto-detect recurring transaction patterns."""
+    account_ids = None
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        user_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+        account_ids = {acc.id for acc in user_accounts}
+
     patterns = await recurring_detection_service.detect_recurring_patterns(
         db=db,
         user=current_user,
         min_occurrences=min_occurrences,
         lookback_days=lookback_days,
+        account_ids=account_ids,
     )
 
     return {
@@ -134,14 +142,22 @@ async def create_recurring_transaction(
 @router.get("/", response_model=List[RecurringTransactionResponse])
 async def list_recurring_transactions(
     is_active: Optional[bool] = None,
+    user_id: Optional[UUID] = Query(None, description="Filter by user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all recurring transaction patterns."""
+    account_ids = None
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        user_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+        account_ids = {acc.id for acc in user_accounts}
+
     patterns = await recurring_detection_service.get_recurring_transactions(
         db=db,
         user=current_user,
         is_active=is_active,
+        account_ids=account_ids,
     )
     return patterns
 
@@ -193,6 +209,7 @@ async def delete_recurring_transaction(
 @router.get("/calendar", response_model=List[CalendarEntry])
 async def get_calendar(
     days: int = Query(90, ge=1, le=365),
+    user_id: Optional[UUID] = Query(None, description="Filter by user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -203,15 +220,19 @@ async def get_calendar(
     today = date.today()
     end = today + timedelta(days=days)
 
-    result = await db.execute(
-        select(RecurringTransaction).where(
-            and_(
-                RecurringTransaction.organization_id == current_user.organization_id,
-                RecurringTransaction.is_active.is_(True),
-                RecurringTransaction.next_expected_date.isnot(None),
-            )
-        )
-    )
+    conditions = [
+        RecurringTransaction.organization_id == current_user.organization_id,
+        RecurringTransaction.is_active.is_(True),
+        RecurringTransaction.next_expected_date.isnot(None),
+    ]
+
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        user_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+        account_ids = {acc.id for acc in user_accounts}
+        conditions.append(RecurringTransaction.account_id.in_(account_ids))
+
+    result = await db.execute(select(RecurringTransaction).where(and_(*conditions)))
     patterns = list(result.scalars().all())
 
     entries: list[CalendarEntry] = []

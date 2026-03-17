@@ -17,6 +17,7 @@ import {
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link as RouterLink } from "react-router-dom";
+import { useUserView } from "../../../contexts/UserViewContext";
 import api from "../../../services/api";
 
 interface SocialSecurityData {
@@ -38,10 +39,15 @@ const fmt = (n: number): string =>
   }).format(n);
 
 export const SocialSecurityWidget: React.FC = () => {
+  const { selectedUserId } = useUserView();
+
   const { data, isLoading, isError } = useQuery<SocialSecurityData>({
-    queryKey: ["social-security-widget"],
+    queryKey: ["social-security-widget", selectedUserId],
     queryFn: async () => {
-      const res = await api.get("/retirement/social-security-estimate");
+      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const res = await api.get("/retirement/social-security-estimate", {
+        params,
+      });
       return res.data;
     },
     retry: false,

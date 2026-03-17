@@ -621,7 +621,7 @@ class TestTaxLossHarvesting:
             new_callable=AsyncMock,
             return_value=[opp],
         ):
-            result = await get_tax_loss_harvesting(current_user=user, db=db)
+            result = await get_tax_loss_harvesting(user_id=None, current_user=user, db=db)
 
         assert result.total_harvestable_losses == -500.0
         assert result.total_estimated_tax_savings == 150.0
@@ -637,7 +637,7 @@ class TestTaxLossHarvesting:
             new_callable=AsyncMock,
             return_value=[],
         ):
-            result = await get_tax_loss_harvesting(current_user=user, db=db)
+            result = await get_tax_loss_harvesting(user_id=None, current_user=user, db=db)
 
         assert result.total_harvestable_losses == 0
         assert result.total_estimated_tax_savings == 0

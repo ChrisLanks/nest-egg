@@ -62,11 +62,14 @@ class TaxLossHarvestingService:
         self,
         db: AsyncSession,
         organization_id: UUID,
+        account_ids: Optional[set[UUID]] = None,
     ) -> List[TaxLossOpportunity]:
         """Find holdings with unrealized losses in taxable accounts only.
 
         Tax-loss harvesting only applies to taxable accounts (brokerage, etc.).
         Losses in retirement accounts (401k, IRA, HSA, 529) cannot be claimed.
+
+        If account_ids is provided, only those accounts are considered.
         """
         # Get taxable account IDs — only these are eligible for tax-loss harvesting
         acct_result = await db.execute(
@@ -90,6 +93,10 @@ class TaxLossHarvestingService:
             )
         )
         taxable_account_ids.update(row[0] for row in fallback_result.all())
+
+        # Filter to specific user's accounts if requested
+        if account_ids is not None:
+            taxable_account_ids &= account_ids
 
         if not taxable_account_ids:
             return []

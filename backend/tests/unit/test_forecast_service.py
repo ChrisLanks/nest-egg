@@ -7,6 +7,7 @@ import pytest
 
 from app.models.recurring_transaction import RecurringFrequency, RecurringTransaction
 from app.services.forecast_service import ForecastService
+from app.utils.datetime_utils import utc_now
 
 
 @pytest.mark.unit
@@ -1633,8 +1634,9 @@ class TestGetTotalBalance:
         org_id = uuid4()
         db = AsyncMock()
 
-        yesterday = (date.today() - timedelta(days=1)).isoformat()
-        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        utc_today = utc_now().date()
+        yesterday = (utc_today - timedelta(days=1)).isoformat()
+        tomorrow = (utc_today + timedelta(days=1)).isoformat()
         schedule = json.dumps(
             [
                 {"date": yesterday, "quantity": 100},
