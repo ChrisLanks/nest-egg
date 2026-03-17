@@ -236,6 +236,45 @@ describe("Filter badge counts", () => {
   });
 });
 
+// ── Button disabled logic (mirrors BudgetsPage.tsx) ─────────────────────────
+
+/**
+ * Pure function mirroring the "New Budget" button disabled check.
+ * The key fix: self-view users can always create, even when
+ * isPartialSelection is true (1-of-N members selected = self).
+ */
+function isCreateDisabled(
+  canEdit: boolean,
+  isPartialSelection: boolean,
+  isSelfView: boolean,
+): boolean {
+  return !canEdit || (isPartialSelection && !isSelfView);
+}
+
+describe("New Budget button — disabled state", () => {
+  it("enabled in self view even when isPartialSelection is true", () => {
+    expect(isCreateDisabled(true, true, true)).toBe(false);
+  });
+
+  it("enabled in combined view with no partial selection", () => {
+    expect(isCreateDisabled(true, false, false)).toBe(false);
+  });
+
+  it("disabled when canEdit is false", () => {
+    expect(isCreateDisabled(false, false, true)).toBe(true);
+    expect(isCreateDisabled(false, true, true)).toBe(true);
+    expect(isCreateDisabled(false, false, false)).toBe(true);
+  });
+
+  it("disabled when partial selection and NOT self view", () => {
+    expect(isCreateDisabled(true, true, false)).toBe(true);
+  });
+
+  it("enabled when not partial selection and not self view", () => {
+    expect(isCreateDisabled(true, false, false)).toBe(false);
+  });
+});
+
 describe("Empty state detection", () => {
   it("detects when filtered results are empty", () => {
     const active = filterByTab(
