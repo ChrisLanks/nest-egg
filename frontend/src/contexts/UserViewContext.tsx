@@ -22,7 +22,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "../features/auth/stores/authStore";
 import {
@@ -97,7 +97,6 @@ const saveStoredView = (userId: string | null): void => {
 const UserViewInner = ({ children }: { children: ReactNode }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const { user, accessToken } = useAuthStore();
 
   const [selectedUserId, setSelectedUserIdState] = useState<string | null>(
@@ -121,7 +120,9 @@ const UserViewInner = ({ children }: { children: ReactNode }) => {
       setSelectedUserIdState(userId);
       saveStoredView(userId);
 
-      // Read current search params from the live URL to avoid stale closures
+      // Read live URL to avoid stale closures (this callback can be captured
+      // by other callbacks like handleSelectionChange that don't re-create
+      // when the pathname changes).
       const newParams = new URLSearchParams(window.location.search);
       if (userId) {
         newParams.set("user", userId);
@@ -129,13 +130,15 @@ const UserViewInner = ({ children }: { children: ReactNode }) => {
         newParams.delete("user");
       }
       const search = newParams.toString();
-      // Use navigate with explicit pathname to prevent redirects to other pages
       navigate(
-        { pathname: location.pathname, search: search ? `?${search}` : "" },
+        {
+          pathname: window.location.pathname,
+          search: search ? `?${search}` : "",
+        },
         { replace: true },
       );
     },
-    [navigate, location.pathname],
+    [navigate],
   );
 
   useEffect(() => {
@@ -144,7 +147,10 @@ const UserViewInner = ({ children }: { children: ReactNode }) => {
       newParams.set("user", selectedUserId);
       const search = newParams.toString();
       navigate(
-        { pathname: location.pathname, search: search ? `?${search}` : "" },
+        {
+          pathname: window.location.pathname,
+          search: search ? `?${search}` : "",
+        },
         { replace: true },
       );
     }
