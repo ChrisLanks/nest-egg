@@ -30,6 +30,7 @@ from app.core.cache import redis_client
 from app.models.account import Account, AccountSource, AccountType, MxMember, TaxTreatment
 from app.models.transaction import Transaction
 from app.services.circuit_breaker import CircuitOpenError, get_circuit_breaker
+from app.services.dividend_detection_service import DividendDetectionService
 from app.services.encryption_service import get_encryption_service
 from app.utils.datetime_utils import utc_now
 
@@ -402,6 +403,15 @@ class MxService:
                     )
                     db.add(transaction)
                     synced.append(transaction)
+
+            # Flush to assign IDs, then auto-detect dividend transactions
+            await db.flush()
+            if synced:
+                try:
+                    detector = DividendDetectionService(db)
+                    await detector.process_batch(synced, account.organization_id)
+                except Exception as e:
+                    logger.warning("Dividend auto-detection failed (non-fatal): %s", e)
 
             await db.commit()
             return synced

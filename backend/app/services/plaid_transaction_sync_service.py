@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.cache import redis_client
 from app.models.account import Account, PlaidItem
 from app.models.transaction import Transaction
+from app.services.dividend_detection_service import DividendDetectionService
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -156,10 +157,11 @@ class PlaidTransactionSyncService:
             stats = {"added": 0, "updated": 0, "skipped": 0, "errors": 0}
 
             # Use a savepoint so the entire batch is all-or-nothing
+            new_transactions: List[Transaction] = []
             async with db.begin_nested():
                 for txn_data in transactions_data:
                     try:
-                        await self._process_transaction(
+                        txn = await self._process_transaction(
                             db=db,
                             organization_id=organization_id,
                             accounts=accounts,
@@ -169,11 +171,22 @@ class PlaidTransactionSyncService:
                             item_ext_ids=item_ext_ids,
                             existing_dedup_hashes=existing_dedup_hashes,
                         )
+                        if txn is not None:
+                            new_transactions.append(txn)
                     except Exception as e:
                         logger.error(
                             f"Error processing transaction {txn_data.get('transaction_id')}: {e}"
                         )
                         stats["errors"] += 1
+
+            # Flush to assign IDs, then auto-detect dividend transactions
+            await db.flush()
+            if new_transactions:
+                try:
+                    detector = DividendDetectionService(db)
+                    await detector.process_batch(new_transactions, organization_id)
+                except Exception as e:
+                    logger.warning("Dividend auto-detection failed (non-fatal): %s", e)
 
             await db.commit()
 
@@ -202,8 +215,8 @@ class PlaidTransactionSyncService:
         existing_ext_ids: set = None,
         item_ext_ids: set = None,
         existing_dedup_hashes: set = None,
-    ) -> None:
-        """Process a single transaction from Plaid."""
+    ) -> Optional[Transaction]:
+        """Process a single transaction from Plaid. Returns created txn or None."""
         # Extract transaction data
         external_id = txn_data["transaction_id"]
         external_account_id = txn_data["account_id"]
@@ -213,7 +226,7 @@ class PlaidTransactionSyncService:
         if not account:
             logger.warning(f"Account {external_account_id} not found for transaction {external_id}")
             stats["errors"] += 1
-            return
+            return None
 
         # Parse transaction fields
         txn_date = datetime.strptime(txn_data["date"], "%Y-%m-%d").date()
@@ -237,34 +250,34 @@ class PlaidTransactionSyncService:
             existing_txn = await self._get_transaction_by_external_id(db, account.id, external_id)
             if existing_txn:
                 await self._update_transaction(existing_txn, txn_data, stats)
-                return
+                return None
         elif existing_ext_ids is None:
             # Fallback for callers that don't pass pre-fetched sets
             existing_txn = await self._get_transaction_by_external_id(db, account.id, external_id)
             if existing_txn:
                 await self._update_transaction(existing_txn, txn_data, stats)
-                return
+                return None
 
         # Check if transaction already exists by external_id (cross-account check)
         if item_ext_ids is not None:
             if external_id in item_ext_ids:
                 stats["skipped"] += 1
-                return
+                return None
         elif await self.check_external_id_exists(db, organization_id, external_id):
             stats["skipped"] += 1
-            return
+            return None
 
         # Check if transaction exists by deduplication hash
         if existing_dedup_hashes is not None:
             if (account.id, dedup_hash) in existing_dedup_hashes:
                 stats["skipped"] += 1
-                return
+                return None
         elif await self.transaction_exists(db, account.id, dedup_hash):
             stats["skipped"] += 1
-            return
+            return None
 
         # Create new transaction
-        await self._create_transaction(
+        return await self._create_transaction(
             db=db,
             organization_id=organization_id,
             account=account,
@@ -297,7 +310,7 @@ class PlaidTransactionSyncService:
         txn_data: Dict[str, Any],
         dedup_hash: str,
         stats: Dict[str, int],
-    ) -> None:
+    ) -> Transaction:
         """Create a new transaction from Plaid data."""
         txn_date = datetime.strptime(txn_data["date"], "%Y-%m-%d").date()
         amount = Decimal(str(txn_data["amount"]))
@@ -332,6 +345,7 @@ class PlaidTransactionSyncService:
             f"Created transaction: {external_id} for account {account.id} "
             f"({merchant_name}, ${amount})"
         )
+        return transaction
 
     async def _update_transaction(
         self, transaction: Transaction, txn_data: Dict[str, Any], stats: Dict[str, int]

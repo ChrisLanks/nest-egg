@@ -28,7 +28,7 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
 } from "@chakra-ui/react";
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   DeleteIcon,
@@ -155,6 +155,35 @@ export const RulesPage = () => {
     },
   });
 
+  const hasDividendRule = useMemo(
+    () => rules?.some((r) => r.name === "Dividend Income Detection") ?? false,
+    [rules],
+  );
+
+  const seedDividendRuleMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post<Rule>("/rules/seed-dividend-detection");
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["rules"] });
+      toast({
+        title: "Dividend detection rule added",
+        description:
+          "You can customize the patterns and actions in the rule editor.",
+        status: "success",
+        duration: 4000,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to add dividend rule",
+        status: "error",
+        duration: 5000,
+      });
+    },
+  });
+
   const deleteRuleMutation = useMutation({
     mutationFn: async (ruleId: string) => {
       await api.delete(`/rules/${ruleId}`);
@@ -237,6 +266,44 @@ export const RulesPage = () => {
             </Button>
           </HStack>
         </HStack>
+
+        {/* Suggested rules banner */}
+        {!hasDividendRule && canEdit && (
+          <Card
+            variant="outline"
+            borderColor="green.200"
+            bg="green.50"
+            _dark={{ bg: "green.900", borderColor: "green.700" }}
+          >
+            <CardBody py={3} px={4}>
+              <HStack justify="space-between" align="center">
+                <Box>
+                  <HStack spacing={2} mb={1}>
+                    <Text fontWeight="semibold" fontSize="sm">
+                      Suggested: Dividend Income Detection
+                    </Text>
+                    <Badge colorScheme="green" fontSize="2xs">
+                      Recommended
+                    </Badge>
+                  </HStack>
+                  <Text fontSize="xs" color="text.muted">
+                    Auto-labels dividend, interest, and capital gain
+                    transactions from your linked accounts. Fully customizable
+                    after setup.
+                  </Text>
+                </Box>
+                <Button
+                  size="sm"
+                  colorScheme="green"
+                  onClick={() => seedDividendRuleMutation.mutate()}
+                  isLoading={seedDividendRuleMutation.isPending}
+                >
+                  Add Rule
+                </Button>
+              </HStack>
+            </CardBody>
+          </Card>
+        )}
 
         {rules && rules.length === 0 ? (
           <Box

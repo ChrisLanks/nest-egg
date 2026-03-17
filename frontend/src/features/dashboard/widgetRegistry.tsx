@@ -24,6 +24,17 @@ import { FinancialHealthWidget } from "./widgets/FinancialHealthWidget";
 import { DividendIncomeWidget } from "./widgets/DividendIncomeWidget";
 import { TaxInsightsWidget } from "./widgets/TaxInsightsWidget";
 import { SpendingVelocityWidget } from "./widgets/SpendingVelocityWidget";
+import { FeeAnalysisWidget } from "./widgets/FeeAnalysisWidget";
+import { FundOverlapWidget } from "./widgets/FundOverlapWidget";
+import { YearOverYearWidget } from "./widgets/YearOverYearWidget";
+import { TaxLossHarvestingWidget } from "./widgets/TaxLossHarvestingWidget";
+import { TopMerchantsWidget } from "./widgets/TopMerchantsWidget";
+import { SocialSecurityWidget } from "./widgets/SocialSecurityWidget";
+import { RmdPlannerWidget } from "./widgets/RmdPlannerWidget";
+import { RothConversionWidget } from "./widgets/RothConversionWidget";
+import { QuarterlyPerformanceWidget } from "./widgets/QuarterlyPerformanceWidget";
+import { LabelInsightsWidget } from "./widgets/LabelInsightsWidget";
+import { HealthcareCostWidget } from "./widgets/HealthcareCostWidget";
 import type { LayoutItem, WidgetDefinition } from "./types";
 
 export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
@@ -189,6 +200,93 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
       "Month-over-month spending acceleration or deceleration trend.",
     defaultSpan: 1,
     component: SpendingVelocityWidget,
+  },
+  "fee-analysis": {
+    id: "fee-analysis",
+    title: "Fee Analysis",
+    description:
+      "Portfolio expense ratios, annual fee drag, and high-fee holdings.",
+    defaultSpan: 1,
+    component: FeeAnalysisWidget,
+  },
+  "fund-overlap": {
+    id: "fund-overlap",
+    title: "Fund Overlap",
+    description:
+      "Detects redundant holdings and concentration risk in your portfolio.",
+    defaultSpan: 1,
+    component: FundOverlapWidget,
+  },
+  "year-over-year": {
+    id: "year-over-year",
+    title: "Year over Year",
+    description:
+      "Compare monthly spending between the current year and last year.",
+    defaultSpan: 2,
+    component: YearOverYearWidget,
+  },
+  "tax-loss-harvesting": {
+    id: "tax-loss-harvesting",
+    title: "Tax Loss Harvesting",
+    description:
+      "Unrealized losses that could offset capital gains, with wash sale warnings.",
+    defaultSpan: 1,
+    component: TaxLossHarvestingWidget,
+  },
+  "top-merchants": {
+    id: "top-merchants",
+    title: "Top Merchants",
+    description: "Highest spending by merchant this month.",
+    defaultSpan: 1,
+    component: TopMerchantsWidget,
+  },
+  "social-security": {
+    id: "social-security",
+    title: "Social Security",
+    description:
+      "Estimated monthly Social Security benefits at ages 62, FRA, and 70.",
+    defaultSpan: 1,
+    component: SocialSecurityWidget,
+  },
+  "rmd-planner": {
+    id: "rmd-planner",
+    title: "RMD Planner",
+    description:
+      "Required Minimum Distribution tracking with deadlines and penalties.",
+    defaultSpan: 1,
+    component: RmdPlannerWidget,
+  },
+  "roth-conversion": {
+    id: "roth-conversion",
+    title: "Roth Conversion",
+    description:
+      "Traditional IRA/401k balances and Roth conversion opportunity analysis.",
+    defaultSpan: 1,
+    component: RothConversionWidget,
+  },
+  "quarterly-performance": {
+    id: "quarterly-performance",
+    title: "Quarterly Performance",
+    description:
+      "Quarterly net income comparison between the current and prior year.",
+    defaultSpan: 2,
+    component: QuarterlyPerformanceWidget,
+  },
+  "label-insights": {
+    id: "label-insights",
+    title: "Label Insights",
+    description:
+      "Spending and income breakdown by transaction labels this month.",
+    defaultSpan: 1,
+    component: LabelInsightsWidget,
+  },
+  "healthcare-costs": {
+    id: "healthcare-costs",
+    title: "Healthcare Costs",
+    description:
+      "Projected lifetime healthcare costs including Medicare, long-term care, and pre-65 insurance.",
+    defaultSpan: 1,
+    component: HealthcareCostWidget,
   },
 };
 

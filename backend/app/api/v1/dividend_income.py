@@ -15,6 +15,7 @@ from app.models.user import User
 from app.schemas.dividend import (
     DividendIncomeCreate,
 )
+from app.services.dividend_detection_service import DividendDetectionService
 from app.services.dividend_income_service import DividendIncomeService
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,24 @@ async def create_dividend_income(
     await db.commit()
     await db.refresh(record)
     return record
+
+
+@router.post("/detect", status_code=200)
+async def detect_dividend_transactions(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Scan all existing transactions and auto-label dividend income.
+
+    This is a backfill operation — useful after first linking accounts.
+    Newly synced transactions are auto-detected during sync.
+    """
+    detector = DividendDetectionService(db)
+    count = await detector.backfill_organization(
+        organization_id=current_user.organization_id,
+    )
+    await db.commit()
+    return {"labeled_count": count}
 
 
 @router.delete("/{record_id}", status_code=204)

@@ -11,10 +11,20 @@ from sqlalchemy.orm import joinedload
 
 from app.core.database import get_db
 from app.dependencies import get_current_user
-from app.models.rule import Rule, RuleAction, RuleCondition
+from app.models.rule import (
+    ActionType,
+    ConditionField,
+    ConditionOperator,
+    Rule,
+    RuleAction,
+    RuleApplyTo,
+    RuleCondition,
+    RuleMatchType,
+)
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.rule import RuleCreate, RuleResponse, RuleUpdate
+from app.services.dividend_detection_service import DividendDetectionService
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.rate_limit_service import get_rate_limit_service
 from app.services.rule_engine import RuleEngine
@@ -469,3 +479,113 @@ async def test_rule(
             f" of {len(transactions)} tested transactions"
         ),
     }
+
+
+# ── Default rule templates ────────────────────────────────────────────────
+
+# Two regex patterns (each ≤200 chars) covering dividend/income keywords.
+# Split to stay within the rule engine's per-pattern length limit.
+_DIVIDEND_REGEX_1 = (
+    r"\b(dividend|div (payment|reinv)|reinvest div|drip"
+    r"|cash div|ord div|qual div|non-?qual div"
+    r"|cap ?gain dist|capital gain dist"
+    r"|[ls]t cap gain|return of cap)"
+)
+_DIVIDEND_REGEX_2 = (
+    r"\b(bond int(erest)?|interest payment" r"|int income|money market (int|income))"
+)
+
+_DIVIDEND_RULE_NAME = "Dividend Income Detection"
+
+
+@router.post("/seed-dividend-detection", response_model=RuleResponse)
+async def seed_dividend_detection_rule(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create the default Dividend Income Detection rule.
+
+    Idempotent — returns the existing rule if one with this name exists.
+    The rule uses regex matching on transaction descriptions and category
+    keywords to auto-apply the system "Dividend Income" label.
+    Users can edit or disable it like any other rule.
+    """
+    org_id = current_user.organization_id
+
+    # Check if rule already exists
+    existing = await db.execute(
+        select(Rule)
+        .options(joinedload(Rule.conditions), joinedload(Rule.actions))
+        .where(Rule.organization_id == org_id, Rule.name == _DIVIDEND_RULE_NAME)
+    )
+    existing_rule = existing.unique().scalar_one_or_none()
+    if existing_rule:
+        return existing_rule
+
+    # Ensure the system label exists and get its ID
+    detector = DividendDetectionService(db)
+    label = await detector.ensure_system_label(org_id)
+
+    # Create the rule
+    rule = Rule(
+        organization_id=org_id,
+        name=_DIVIDEND_RULE_NAME,
+        description=(
+            "Auto-labels dividend, interest, and capital gain "
+            "transactions. Edit the patterns below to customize."
+        ),
+        match_type=RuleMatchType.ANY,
+        apply_to=RuleApplyTo.BOTH,
+        priority=10,
+        is_active=True,
+    )
+    db.add(rule)
+    await db.flush()
+
+    # Conditions — ANY match triggers the rule
+    conditions = [
+        RuleCondition(
+            rule_id=rule.id,
+            field=ConditionField.DESCRIPTION,
+            operator=ConditionOperator.REGEX,
+            value=_DIVIDEND_REGEX_1,
+        ),
+        RuleCondition(
+            rule_id=rule.id,
+            field=ConditionField.DESCRIPTION,
+            operator=ConditionOperator.REGEX,
+            value=_DIVIDEND_REGEX_2,
+        ),
+        RuleCondition(
+            rule_id=rule.id,
+            field=ConditionField.CATEGORY,
+            operator=ConditionOperator.CONTAINS,
+            value="dividend",
+        ),
+        RuleCondition(
+            rule_id=rule.id,
+            field=ConditionField.CATEGORY,
+            operator=ConditionOperator.CONTAINS,
+            value="interest",
+        ),
+    ]
+    for c in conditions:
+        db.add(c)
+
+    # Action — add the system "Dividend Income" label
+    action = RuleAction(
+        rule_id=rule.id,
+        action_type=ActionType.ADD_LABEL,
+        action_value=str(label.id),
+    )
+    db.add(action)
+
+    await db.commit()
+
+    # Reload with relationships
+    result = await db.execute(
+        select(Rule)
+        .options(joinedload(Rule.conditions), joinedload(Rule.actions))
+        .where(Rule.id == rule.id)
+    )
+    return result.unique().scalar_one()
