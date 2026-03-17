@@ -921,3 +921,200 @@ class TestWidgetEndpointConsistency:
         from app.api.v1.reports import get_tax_loss_harvesting
 
         assert callable(get_tax_loss_harvesting)
+
+
+# ---------------------------------------------------------------------------
+# User-ID Filtering: Social Security Widget
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestSocialSecurityUserIdFiltering:
+    """Tests that social security endpoint respects user_id filtering."""
+
+    @pytest.mark.asyncio
+    async def test_uses_target_user_birthdate_when_user_id_provided(self):
+        """Should call verify_household_member and use target user's birthdate."""
+        from app.api.v1.retirement import get_social_security_estimate
+
+        org_id = uuid4()
+        current_user = _make_user(org_id=org_id, birthdate=date(1980, 1, 1))
+        target_user = _make_user(org_id=org_id, birthdate=date(1965, 6, 15))
+
+        with patch(
+            "app.api.v1.retirement.verify_household_member",
+            new_callable=AsyncMock,
+            return_value=target_user,
+        ) as mock_verify:
+            result = await get_social_security_estimate(
+                claiming_age=67,
+                override_salary=80000.0,
+                override_pia=None,
+                user_id=target_user.id,
+                current_user=current_user,
+                db=AsyncMock(),
+            )
+
+        mock_verify.assert_awaited_once_with(
+            mock_verify.call_args[0][0],  # db
+            target_user.id,
+            current_user.organization_id,
+        )
+        # Result should be valid and based on target user's age (born 1965)
+        assert result.monthly_at_fra > 0
+        assert result.claiming_age == 67
+
+    @pytest.mark.asyncio
+    async def test_skips_verify_when_user_id_is_self(self):
+        """Should NOT call verify_household_member when user_id == current_user.id."""
+        from app.api.v1.retirement import get_social_security_estimate
+
+        user = _make_user(birthdate=date(1970, 5, 15))
+
+        with patch(
+            "app.api.v1.retirement.verify_household_member",
+            new_callable=AsyncMock,
+        ) as mock_verify:
+            await get_social_security_estimate(
+                claiming_age=67,
+                override_salary=80000.0,
+                override_pia=None,
+                user_id=user.id,
+                current_user=user,
+                db=AsyncMock(),
+            )
+
+        mock_verify.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# User-ID Filtering: Healthcare Cost Widget
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestHealthcareCostUserIdFiltering:
+    """Tests that healthcare cost endpoint respects user_id filtering."""
+
+    @pytest.mark.asyncio
+    async def test_uses_target_user_birthdate_when_user_id_provided(self):
+        """Should call verify_household_member and use target user's age."""
+        from app.api.v1.retirement import get_healthcare_estimate
+
+        org_id = uuid4()
+        current_user = _make_user(org_id=org_id, birthdate=date(1990, 1, 1))
+        target_user = _make_user(org_id=org_id, birthdate=date(1960, 3, 10))
+
+        with patch(
+            "app.api.v1.retirement.verify_household_member",
+            new_callable=AsyncMock,
+            return_value=target_user,
+        ) as mock_verify:
+            result = await get_healthcare_estimate(
+                retirement_income=50000.0,
+                medical_inflation_rate=6.0,
+                include_ltc=True,
+                user_id=target_user.id,
+                current_user=current_user,
+                db=AsyncMock(),
+            )
+
+        mock_verify.assert_awaited_once_with(
+            mock_verify.call_args[0][0],  # db
+            target_user.id,
+            current_user.organization_id,
+        )
+        # Target user born 1960 is ~66 years old; sample ages should start at 70+
+        assert result.total_lifetime > 0
+        for sample in result.sample_ages:
+            assert sample.age >= 55
+
+    @pytest.mark.asyncio
+    async def test_skips_verify_when_user_id_is_self(self):
+        """Should NOT call verify_household_member when user_id == current_user.id."""
+        from app.api.v1.retirement import get_healthcare_estimate
+
+        user = _make_user(birthdate=date(1970, 6, 15))
+
+        with patch(
+            "app.api.v1.retirement.verify_household_member",
+            new_callable=AsyncMock,
+        ) as mock_verify:
+            await get_healthcare_estimate(
+                retirement_income=50000.0,
+                medical_inflation_rate=6.0,
+                include_ltc=True,
+                user_id=user.id,
+                current_user=user,
+                db=AsyncMock(),
+            )
+
+        mock_verify.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# User-ID Filtering: Tax Loss Harvesting Widget
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestTaxLossHarvestingUserIdFiltering:
+    """Tests that TLH widget endpoint respects user_id filtering."""
+
+    @pytest.mark.asyncio
+    async def test_passes_account_ids_when_user_id_provided(self):
+        """Should call verify_household_member, get_user_accounts, and pass account_ids."""
+        from app.api.v1.reports import get_tax_loss_harvesting
+
+        org_id = uuid4()
+        current_user = _make_user(org_id=org_id)
+        target_user_id = uuid4()
+        acc1 = _make_account(org_id=org_id)
+        acc2 = _make_account(org_id=org_id)
+
+        with patch(
+            "app.api.v1.reports.verify_household_member",
+            new_callable=AsyncMock,
+        ) as mock_verify:
+            with patch(
+                "app.api.v1.reports.get_user_accounts",
+                new_callable=AsyncMock,
+                return_value=[acc1, acc2],
+            ) as mock_get_accs:
+                with patch(
+                    "app.api.v1.reports.tax_loss_harvesting_service.get_opportunities",
+                    new_callable=AsyncMock,
+                    return_value=[],
+                ) as mock_get_opps:
+                    await get_tax_loss_harvesting(
+                        user_id=target_user_id,
+                        current_user=current_user,
+                        db=AsyncMock(),
+                    )
+
+        mock_verify.assert_awaited_once()
+        mock_get_accs.assert_awaited_once()
+        # Service should receive the account_ids set
+        call_kwargs = mock_get_opps.call_args.kwargs
+        assert call_kwargs["account_ids"] == {acc1.id, acc2.id}
+
+    @pytest.mark.asyncio
+    async def test_no_account_ids_when_no_user_id(self):
+        """Should pass account_ids=None when user_id is not provided."""
+        from app.api.v1.reports import get_tax_loss_harvesting
+
+        user = _make_user()
+
+        with patch(
+            "app.api.v1.reports.tax_loss_harvesting_service.get_opportunities",
+            new_callable=AsyncMock,
+            return_value=[],
+        ) as mock_get_opps:
+            await get_tax_loss_harvesting(
+                user_id=None,
+                current_user=user,
+                db=AsyncMock(),
+            )
+
+        call_kwargs = mock_get_opps.call_args.kwargs
+        assert call_kwargs["account_ids"] is None

@@ -766,7 +766,9 @@ class TestSocialSecurityEstimate:
                     claiming_age=67,
                     override_salary=None,
                     override_pia=None,
+                    user_id=None,
                     current_user=user,
+                    db=AsyncMock(),
                 )
 
         assert result.monthly_benefit == 2800
@@ -781,7 +783,9 @@ class TestSocialSecurityEstimate:
                 claiming_age=67,
                 override_salary=None,
                 override_pia=None,
+                user_id=None,
                 current_user=user,
+                db=AsyncMock(),
             )
 
         assert exc_info.value.status_code == 400
@@ -807,7 +811,9 @@ class TestSocialSecurityEstimate:
                     claiming_age=67,
                     override_salary=100000.0,
                     override_pia=None,
+                    user_id=None,
                     current_user=user,
+                    db=AsyncMock(),
                 )
 
         # Verify the salary override was passed
@@ -837,7 +843,9 @@ class TestHealthcareEstimate:
                     retirement_income=50000.0,
                     medical_inflation_rate=6.0,
                     include_ltc=True,
+                    user_id=None,
                     current_user=user,
+                    db=AsyncMock(),
                 )
 
         assert result.total_lifetime > 0
@@ -852,7 +860,9 @@ class TestHealthcareEstimate:
                 retirement_income=50000.0,
                 medical_inflation_rate=6.0,
                 include_ltc=True,
+                user_id=None,
                 current_user=user,
+                db=AsyncMock(),
             )
 
         assert exc_info.value.status_code == 400

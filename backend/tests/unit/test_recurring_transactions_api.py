@@ -131,6 +131,42 @@ class TestDetectRecurringPatterns:
                 account_ids=None,
             )
 
+    @pytest.mark.asyncio
+    async def test_user_id_filtering_calls_verify_and_passes_account_ids(self, mock_user, mock_db):
+        """Should call verify_household_member, get_user_accounts, pass account_ids."""
+        target_user_id = uuid4()
+        acc1 = Mock()
+        acc1.id = uuid4()
+        acc2 = Mock()
+        acc2.id = uuid4()
+
+        with patch(
+            "app.api.v1.recurring_transactions.verify_household_member",
+            new_callable=AsyncMock,
+        ) as mock_verify:
+            with patch(
+                "app.api.v1.recurring_transactions.get_user_accounts",
+                new_callable=AsyncMock,
+                return_value=[acc1, acc2],
+            ) as mock_get_accs:
+                with patch(
+                    "app.api.v1.recurring_transactions.recurring_detection_service"
+                ) as mock_svc:
+                    mock_svc.detect_recurring_patterns = AsyncMock(return_value=[])
+
+                    await detect_recurring_patterns(
+                        min_occurrences=3,
+                        lookback_days=180,
+                        user_id=target_user_id,
+                        current_user=mock_user,
+                        db=mock_db,
+                    )
+
+        mock_verify.assert_awaited_once_with(mock_db, target_user_id, mock_user.organization_id)
+        mock_get_accs.assert_awaited_once_with(mock_db, target_user_id, mock_user.organization_id)
+        call_kwargs = mock_svc.detect_recurring_patterns.call_args.kwargs
+        assert call_kwargs["account_ids"] == {acc1.id, acc2.id}
+
 
 @pytest.mark.unit
 class TestCreateRecurringTransaction:
@@ -253,6 +289,39 @@ class TestListRecurringTransactions:
             )
 
         assert result == []
+
+    @pytest.mark.asyncio
+    async def test_user_id_filtering_calls_verify_and_passes_account_ids(self, mock_user, mock_db):
+        """Should call verify_household_member, get_user_accounts, pass account_ids."""
+        target_user_id = uuid4()
+        acc1 = Mock()
+        acc1.id = uuid4()
+
+        with patch(
+            "app.api.v1.recurring_transactions.verify_household_member",
+            new_callable=AsyncMock,
+        ) as mock_verify:
+            with patch(
+                "app.api.v1.recurring_transactions.get_user_accounts",
+                new_callable=AsyncMock,
+                return_value=[acc1],
+            ) as mock_get_accs:
+                with patch(
+                    "app.api.v1.recurring_transactions.recurring_detection_service"
+                ) as mock_svc:
+                    mock_svc.get_recurring_transactions = AsyncMock(return_value=[])
+
+                    await list_recurring_transactions(
+                        is_active=None,
+                        user_id=target_user_id,
+                        current_user=mock_user,
+                        db=mock_db,
+                    )
+
+        mock_verify.assert_awaited_once_with(mock_db, target_user_id, mock_user.organization_id)
+        mock_get_accs.assert_awaited_once_with(mock_db, target_user_id, mock_user.organization_id)
+        call_kwargs = mock_svc.get_recurring_transactions.call_args.kwargs
+        assert call_kwargs["account_ids"] == {acc1.id}
 
 
 @pytest.mark.unit
@@ -590,6 +659,36 @@ class TestGetCalendar:
 
         result = await get_calendar(days=30, user_id=None, current_user=mock_user, db=mock_db)
         assert result == []
+
+    @pytest.mark.asyncio
+    async def test_user_id_filtering_calls_verify_and_get_user_accounts(self, mock_user, mock_db):
+        """Should call verify_household_member and get_user_accounts when user_id provided."""
+        target_user_id = uuid4()
+        acc1 = Mock()
+        acc1.id = uuid4()
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        with patch(
+            "app.api.v1.recurring_transactions.verify_household_member",
+            new_callable=AsyncMock,
+        ) as mock_verify:
+            with patch(
+                "app.api.v1.recurring_transactions.get_user_accounts",
+                new_callable=AsyncMock,
+                return_value=[acc1],
+            ) as mock_get_accs:
+                await get_calendar(
+                    days=90,
+                    user_id=target_user_id,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+        mock_verify.assert_awaited_once_with(mock_db, target_user_id, mock_user.organization_id)
+        mock_get_accs.assert_awaited_once_with(mock_db, target_user_id, mock_user.organization_id)
 
 
 # ---------------------------------------------------------------------------

@@ -643,6 +643,59 @@ class TestTaxLossHarvesting:
         assert result.total_estimated_tax_savings == 0
         assert result.opportunities == []
 
+    @pytest.mark.asyncio
+    async def test_tax_loss_harvesting_with_user_id_filtering(self):
+        """Should call verify_household_member, get_user_accounts, and pass account_ids."""
+        user = _make_user()
+        target_user_id = uuid4()
+        acc1 = Mock()
+        acc1.id = uuid4()
+        acc2 = Mock()
+        acc2.id = uuid4()
+        db = AsyncMock()
+
+        with patch(
+            "app.api.v1.reports.verify_household_member",
+            new_callable=AsyncMock,
+        ) as mock_verify:
+            with patch(
+                "app.api.v1.reports.get_user_accounts",
+                new_callable=AsyncMock,
+                return_value=[acc1, acc2],
+            ) as mock_get_accs:
+                with patch(
+                    "app.api.v1.reports.tax_loss_harvesting_service.get_opportunities",
+                    new_callable=AsyncMock,
+                    return_value=[],
+                ) as mock_get_opps:
+                    result = await get_tax_loss_harvesting(
+                        user_id=target_user_id,
+                        current_user=user,
+                        db=db,
+                    )
+
+        mock_verify.assert_awaited_once_with(db, target_user_id, user.organization_id)
+        mock_get_accs.assert_awaited_once_with(db, target_user_id, user.organization_id)
+        call_kwargs = mock_get_opps.call_args.kwargs
+        assert call_kwargs["account_ids"] == {acc1.id, acc2.id}
+        assert result.opportunities == []
+
+    @pytest.mark.asyncio
+    async def test_tax_loss_harvesting_no_user_id_passes_none(self):
+        """Should pass account_ids=None when no user_id provided."""
+        user = _make_user()
+        db = AsyncMock()
+
+        with patch(
+            "app.api.v1.reports.tax_loss_harvesting_service.get_opportunities",
+            new_callable=AsyncMock,
+            return_value=[],
+        ) as mock_get_opps:
+            await get_tax_loss_harvesting(user_id=None, current_user=user, db=db)
+
+        call_kwargs = mock_get_opps.call_args.kwargs
+        assert call_kwargs["account_ids"] is None
+
 
 # ---------------------------------------------------------------------------
 # Household Summary
