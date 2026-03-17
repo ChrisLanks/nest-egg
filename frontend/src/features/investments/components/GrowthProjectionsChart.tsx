@@ -74,6 +74,8 @@ import {
   ScenarioComparisonChart,
   type ScenarioData,
 } from "./ScenarioComparisonChart";
+import { HelpHint } from "../../../components/HelpHint";
+import { helpContent } from "../../../constants/helpContent";
 
 interface GrowthProjectionsChartProps {
   currentValue: number;
@@ -441,7 +443,10 @@ export const GrowthProjectionsChart = ({
         <Card>
           <CardBody>
             <Stat>
-              <StatLabel>Pessimistic (10th %ile)</StatLabel>
+              <StatLabel>
+                Pessimistic (10th %ile)
+                <HelpHint hint={helpContent.investments.percentiles} />
+              </StatLabel>
               <StatNumber color="finance.negative">
                 {formatCurrency(summaryStats.pessimistic)}
               </StatNumber>
@@ -466,7 +471,10 @@ export const GrowthProjectionsChart = ({
           <Card bg={getSuccessRateProps(summaryStats.successRate).bg}>
             <CardBody>
               <Stat>
-                <StatLabel>Probability of Success</StatLabel>
+                <StatLabel>
+                  Probability of Success
+                  <HelpHint hint={helpContent.investments.successRate} />
+                </StatLabel>
                 <StatNumber
                   color={getSuccessRateProps(summaryStats.successRate).color}
                 >
@@ -726,14 +734,27 @@ export const GrowthProjectionsChart = ({
       <Card>
         <CardBody>
           <VStack spacing={6} align="stretch">
-            <Text fontWeight="bold" fontSize="lg">
-              Simulation Parameters
-              {scenarios.length > 1 && (
-                <Badge ml={2} colorScheme="blue">
-                  {activeScenario.name}
-                </Badge>
-              )}
-            </Text>
+            <HStack justify="space-between" align="center" flexWrap="wrap">
+              <Text fontWeight="bold" fontSize="lg">
+                Simulation Parameters
+                {scenarios.length > 1 && (
+                  <Badge ml={2} colorScheme="blue">
+                    {activeScenario.name}
+                  </Badge>
+                )}
+              </Text>
+              <FormControl display="flex" alignItems="center" w="auto">
+                <FormLabel mb="0" mr={2}>
+                  Show Inflation-Adjusted
+                  <HelpHint hint={helpContent.investments.inflationAdjusted} />
+                </FormLabel>
+                <Switch
+                  isChecked={showInflationAdjusted}
+                  onChange={(e) => setShowInflationAdjusted(e.target.checked)}
+                  colorScheme="brand"
+                />
+              </FormControl>
+            </HStack>
 
             <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
               {/* Annual Return */}
@@ -942,7 +963,10 @@ export const GrowthProjectionsChart = ({
             {/* Stress Tests */}
             <Divider />
             <VStack spacing={3} align="stretch">
-              <Text fontWeight="bold">Stress Tests</Text>
+              <Text fontWeight="bold">
+                Stress Tests
+                <HelpHint hint={helpContent.investments.stressTests} />
+              </Text>
               <Wrap spacing={3}>
                 {Object.entries(STRESS_SCENARIOS).map(([key, preset]) => (
                   <WrapItem key={key}>
@@ -965,19 +989,7 @@ export const GrowthProjectionsChart = ({
 
             <Divider />
 
-            {/* Toggle Options */}
             <HStack spacing={6} pt={2}>
-              <FormControl display="flex" alignItems="center" w="auto">
-                <FormLabel mb="0" mr={2}>
-                  Show Inflation-Adjusted
-                </FormLabel>
-                <Switch
-                  isChecked={showInflationAdjusted}
-                  onChange={(e) => setShowInflationAdjusted(e.target.checked)}
-                  colorScheme="brand"
-                />
-              </FormControl>
-
               <Button onClick={handleReset} variant="outline" size="sm">
                 Reset to Defaults
               </Button>

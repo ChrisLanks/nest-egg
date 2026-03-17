@@ -38,6 +38,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import api from "../../../services/api";
+import { HelpHint } from "../../../components/HelpHint";
+import { helpContent } from "../../../constants/helpContent";
 
 interface DividendByTicker {
   ticker: string;
@@ -200,7 +202,10 @@ export const DividendIncomePanel: React.FC = () => {
                   <Th>Name</Th>
                   <Th isNumeric>Total Income</Th>
                   <Th isNumeric>Payments</Th>
-                  <Th isNumeric>Yield on Cost</Th>
+                  <Th isNumeric>
+                    Yield on Cost
+                    <HelpHint hint={helpContent.investments.yieldOnCost} />
+                  </Th>
                 </Tr>
               </Thead>
               <Tbody>

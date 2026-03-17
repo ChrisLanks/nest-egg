@@ -534,7 +534,10 @@ export default function DebtPayoffPage() {
             <Card>
               <CardBody>
                 <Stat>
-                  <StatLabel>Total Minimums</StatLabel>
+                  <StatLabel>
+                    Total Minimums
+                    <HelpHint hint={helpContent.debtPayoff.minimumPayment} />
+                  </StatLabel>
                   <StatNumber>
                     {formatCurrency(summary.total_minimum_payment)}
                   </StatNumber>
@@ -546,7 +549,10 @@ export default function DebtPayoffPage() {
             <Card>
               <CardBody>
                 <Stat>
-                  <StatLabel>Avg Interest Rate</StatLabel>
+                  <StatLabel>
+                    Avg Interest Rate
+                    <HelpHint hint={helpContent.debtPayoff.interestRate} />
+                  </StatLabel>
                   <StatNumber>
                     {summary.average_interest_rate.toFixed(2)}%
                   </StatNumber>
@@ -558,7 +564,10 @@ export default function DebtPayoffPage() {
             <Card>
               <CardBody>
                 <FormControl>
-                  <FormLabel fontSize="sm">Extra Payment/Month</FormLabel>
+                  <FormLabel fontSize="sm">
+                    Extra Payment/Month
+                    <HelpHint hint={helpContent.debtPayoff.extraPayment} />
+                  </FormLabel>
                   <Input
                     type="text"
                     value={extraPayment}
@@ -1225,7 +1234,10 @@ export default function DebtPayoffPage() {
             <ModalBody>
               <VStack spacing={4} align="stretch">
                 <FormControl>
-                  <FormLabel>Interest Rate (APR %)</FormLabel>
+                  <FormLabel>
+                    Interest Rate (APR %)
+                    <HelpHint hint={helpContent.debtPayoff.interestRate} />
+                  </FormLabel>
                   <Input
                     type="number"
                     step="0.01"
@@ -1244,7 +1256,10 @@ export default function DebtPayoffPage() {
                 </FormControl>
 
                 <FormControl>
-                  <FormLabel>Minimum Monthly Payment</FormLabel>
+                  <FormLabel>
+                    Minimum Monthly Payment
+                    <HelpHint hint={helpContent.debtPayoff.minimumPayment} />
+                  </FormLabel>
                   <Input
                     type="number"
                     step="0.01"

@@ -43,6 +43,8 @@ import { categoriesApi } from "../../../api/categories";
 import { labelsApi } from "../../../api/labels";
 import { useHouseholdMembers } from "../../../hooks/useHouseholdMembers";
 import { useAuthStore } from "../../auth/stores/authStore";
+import { HelpHint } from "../../../components/HelpHint";
+import { helpContent } from "../../../constants/helpContent";
 
 interface BudgetFormProps {
   isOpen: boolean;
@@ -320,7 +322,10 @@ export default function BudgetForm({
 
               {/* Period */}
               <FormControl isRequired>
-                <FormLabel>Period</FormLabel>
+                <FormLabel>
+                  Period
+                  <HelpHint hint={helpContent.budgets.period} />
+                </FormLabel>
                 <Select {...register("period", { required: true })}>
                   <option value={BudgetPeriod.MONTHLY}>Monthly</option>
                   <option value={BudgetPeriod.QUARTERLY}>Quarterly</option>
@@ -412,6 +417,7 @@ export default function BudgetForm({
               <FormControl>
                 <FormLabel>
                   Alert at {((alertThreshold ?? 0.8) * 100).toFixed(0)}% spent
+                  <HelpHint hint={helpContent.budgets.alertThreshold} />
                 </FormLabel>
                 <Controller
                   name="alert_threshold"
@@ -437,7 +443,10 @@ export default function BudgetForm({
               {/* Rollover */}
               <FormControl>
                 <HStack justify="space-between">
-                  <FormLabel mb={0}>Roll over unused budget</FormLabel>
+                  <FormLabel mb={0}>
+                    Roll over unused budget
+                    <HelpHint hint={helpContent.budgets.rollover} />
+                  </FormLabel>
                   <Controller
                     name="rollover_unused"
                     control={control}

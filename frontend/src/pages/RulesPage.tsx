@@ -42,6 +42,8 @@ import { RuleBuilderModal } from "../components/RuleBuilderModal";
 import type { Rule } from "../types/rule";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { HelpHint } from "../components/HelpHint";
+import { helpContent } from "../constants/helpContent";
 
 const FIELD_LABELS: Record<string, string> = {
   merchant_name: "Merchant",
@@ -366,6 +368,13 @@ export const RulesPage = () => {
                                 {rule.match_type === "all"
                                   ? "ALL conditions"
                                   : "ANY condition"}
+                                <HelpHint
+                                  hint={
+                                    rule.match_type === "all"
+                                      ? helpContent.rules.matchAll
+                                      : helpContent.rules.matchAny
+                                  }
+                                />
                               </Badge>
                               <Badge colorScheme="blue">
                                 {rule.apply_to === "new_only" && "New only"}
@@ -373,6 +382,7 @@ export const RulesPage = () => {
                                   "Existing only"}
                                 {rule.apply_to === "both" && "New & existing"}
                                 {rule.apply_to === "single" && "Single use"}
+                                <HelpHint hint={helpContent.rules.applyTo} />
                               </Badge>
                             </HStack>
                             {rule.description && (
@@ -442,6 +452,7 @@ export const RulesPage = () => {
                               mb={2}
                             >
                               Conditions ({rule.conditions?.length || 0}):
+                              <HelpHint hint={helpContent.rules.conditions} />
                             </Text>
                             <VStack align="stretch" spacing={1}>
                               {rule.conditions?.map((condition, idx) => (
@@ -489,6 +500,7 @@ export const RulesPage = () => {
                               mb={2}
                             >
                               Actions ({rule.actions?.length || 0}):
+                              <HelpHint hint={helpContent.rules.actions} />
                             </Text>
                             <VStack align="stretch" spacing={1}>
                               {rule.actions?.map((action, idx) => (

@@ -31,6 +31,8 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { format, subMonths, subYears } from "date-fns";
 import api from "../../../services/api";
+import { HelpHint } from "../../../components/HelpHint";
+import { helpContent } from "../../../constants/helpContent";
 
 interface Snapshot {
   id: string;
@@ -320,7 +322,10 @@ export default function PerformanceTrendsChart({
           borderRadius="md"
         >
           <Stat>
-            <StatLabel>CAGR</StatLabel>
+            <StatLabel>
+              CAGR
+              <HelpHint hint={helpContent.investments.cagr} />
+            </StatLabel>
             <StatNumber>{metrics.cagr.toFixed(2)}%</StatNumber>
             <StatHelpText>Compound Annual Growth Rate</StatHelpText>
           </Stat>

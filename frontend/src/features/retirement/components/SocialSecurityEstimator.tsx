@@ -23,9 +23,11 @@ import {
   Text,
   useColorModeValue,
   VStack,
-} from '@chakra-ui/react';
-import { useCallback, useState } from 'react';
-import { useSocialSecurityEstimate } from '../hooks/useRetirementScenarios';
+} from "@chakra-ui/react";
+import { useCallback, useState } from "react";
+import { useSocialSecurityEstimate } from "../hooks/useRetirementScenarios";
+import { HelpHint } from "../../../components/HelpHint";
+import { helpContent } from "../../../constants/helpContent";
 
 interface SocialSecurityEstimatorProps {
   currentIncome?: number | null;
@@ -44,15 +46,17 @@ export function SocialSecurityEstimator({
   onManualOverrideChange,
   readOnly,
 }: SocialSecurityEstimatorProps) {
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const labelColor = useColorModeValue('gray.500', 'gray.400');
+  const bgColor = useColorModeValue("white", "gray.800");
+  const labelColor = useColorModeValue("gray.500", "gray.400");
+  const estimateBg = useColorModeValue("blue.50", "blue.900");
+  const manualBg = useColorModeValue("purple.50", "purple.900");
   const [localClaimingAge, setLocalClaimingAge] = useState(claimingAge);
   const [useManual, setUseManual] = useState(!!manualOverride);
   const [manualAmount, setManualAmount] = useState(manualOverride ?? 2000);
 
   const { data: estimate, isLoading } = useSocialSecurityEstimate(
     localClaimingAge,
-    currentIncome ?? undefined
+    currentIncome ?? undefined,
   );
 
   const handleClaimingAgeEnd = useCallback(
@@ -60,7 +64,7 @@ export function SocialSecurityEstimator({
       setLocalClaimingAge(val);
       onClaimingAgeChange?.(val);
     },
-    [onClaimingAgeChange]
+    [onClaimingAgeChange],
   );
 
   const handleManualToggle = useCallback(
@@ -72,7 +76,7 @@ export function SocialSecurityEstimator({
         onManualOverrideChange?.(null);
       }
     },
-    [manualAmount, onManualOverrideChange]
+    [manualAmount, onManualOverrideChange],
   );
 
   const handleManualAmountChange = useCallback(
@@ -82,11 +86,15 @@ export function SocialSecurityEstimator({
         onManualOverrideChange?.(val);
       }
     },
-    [onManualOverrideChange]
+    [onManualOverrideChange],
   );
 
   const formatMoney = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    }).format(amount);
 
   return (
     <Box bg={bgColor} p={5} borderRadius="xl" shadow="sm">
@@ -103,6 +111,7 @@ export function SocialSecurityEstimator({
           <HStack justify="space-between">
             <FormLabel fontSize="sm" mb={0} color={labelColor}>
               Claiming Age
+              <HelpHint hint={helpContent.preferences.claimingAge} />
             </FormLabel>
             <Text fontSize="sm" fontWeight="bold">
               {localClaimingAge}
@@ -167,27 +176,29 @@ export function SocialSecurityEstimator({
                 <StatLabel fontSize="xs" color={labelColor}>
                   At 62
                 </StatLabel>
-                <StatNumber fontSize="sm">{formatMoney(estimate.monthly_at_62)}/mo</StatNumber>
+                <StatNumber fontSize="sm">
+                  {formatMoney(estimate.monthly_at_62)}/mo
+                </StatNumber>
               </Stat>
               <Stat size="sm">
                 <StatLabel fontSize="xs" color={labelColor}>
                   At FRA ({estimate.fra_age})
                 </StatLabel>
-                <StatNumber fontSize="sm">{formatMoney(estimate.monthly_at_fra)}/mo</StatNumber>
+                <StatNumber fontSize="sm">
+                  {formatMoney(estimate.monthly_at_fra)}/mo
+                </StatNumber>
               </Stat>
               <Stat size="sm">
                 <StatLabel fontSize="xs" color={labelColor}>
                   At 70
                 </StatLabel>
-                <StatNumber fontSize="sm">{formatMoney(estimate.monthly_at_70)}/mo</StatNumber>
+                <StatNumber fontSize="sm">
+                  {formatMoney(estimate.monthly_at_70)}/mo
+                </StatNumber>
               </Stat>
             </StatGroup>
 
-            <Box
-              bg={useColorModeValue('blue.50', 'blue.900')}
-              p={3}
-              borderRadius="md"
-            >
+            <Box bg={estimateBg} p={3} borderRadius="md">
               <HStack justify="space-between">
                 <Text fontSize="sm" color={labelColor}>
                   Your Benefit at {localClaimingAge}
@@ -202,18 +213,15 @@ export function SocialSecurityEstimator({
             </Box>
 
             <Text fontSize="xs" color={labelColor}>
-              PIA (Primary Insurance Amount): {formatMoney(estimate.estimated_pia)}/mo
+              PIA (Primary Insurance Amount):{" "}
+              {formatMoney(estimate.estimated_pia)}/mo
             </Text>
           </>
         )}
 
         {/* Manual mode summary */}
         {useManual && (
-          <Box
-            bg={useColorModeValue('purple.50', 'purple.900')}
-            p={3}
-            borderRadius="md"
-          >
+          <Box bg={manualBg} p={3} borderRadius="md">
             <HStack justify="space-between">
               <Text fontSize="sm" color={labelColor}>
                 Manual Benefit at {localClaimingAge}

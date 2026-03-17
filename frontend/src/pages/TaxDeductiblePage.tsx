@@ -29,13 +29,15 @@ import {
   Badge,
   Center,
   useToast,
-} from '@chakra-ui/react';
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FiDownload, FiTag } from 'react-icons/fi';
-import api from '../services/api';
-import { EmptyState } from '../components/EmptyState';
-import { useUserView } from '../contexts/UserViewContext';
+} from "@chakra-ui/react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { FiDownload, FiTag } from "react-icons/fi";
+import api from "../services/api";
+import { EmptyState } from "../components/EmptyState";
+import { useUserView } from "../contexts/UserViewContext";
+import HelpHint from "../components/HelpHint";
+import { helpContent } from "../constants/helpContent";
 
 interface TaxTransaction {
   id: string;
@@ -66,7 +68,7 @@ export default function TaxDeductiblePage() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const { selectedUserId, canWriteResource } = useUserView();
-  const canEdit = canWriteResource('category');
+  const canEdit = canWriteResource("category");
 
   // Default to current tax year (Jan 1 - Dec 31)
   const currentYear = new Date().getFullYear();
@@ -75,46 +77,46 @@ export default function TaxDeductiblePage() {
 
   // Check if tax labels exist
   const { data: allLabels = [] } = useQuery<TaxLabel[]>({
-    queryKey: ['labels'],
+    queryKey: ["labels"],
     queryFn: async () => {
-      const response = await api.get('/labels/');
+      const response = await api.get("/labels/");
       return response.data;
     },
   });
 
   const taxLabelNames = [
-    'Medical & Dental',
-    'Charitable Donations',
-    'Business Expenses',
-    'Education',
-    'Home Office',
+    "Medical & Dental",
+    "Charitable Donations",
+    "Business Expenses",
+    "Education",
+    "Home Office",
   ];
 
   const taxLabelsExist = taxLabelNames.every((name) =>
-    allLabels.some((label) => label.name === name)
+    allLabels.some((label) => label.name === name),
   );
 
   // Initialize tax labels
   const initializeMutation = useMutation({
     mutationFn: async () => {
-      const response = await api.post('/labels/tax-deductible/initialize');
+      const response = await api.post("/labels/tax-deductible/initialize");
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['labels'] });
-      queryClient.invalidateQueries({ queryKey: ['tax-deductible'] });
+      queryClient.invalidateQueries({ queryKey: ["labels"] });
+      queryClient.invalidateQueries({ queryKey: ["tax-deductible"] });
       toast({
-        title: 'Tax labels initialized',
-        description: '5 tax-deductible labels have been created',
-        status: 'success',
+        title: "Tax labels initialized",
+        description: "5 tax-deductible labels have been created",
+        status: "success",
         duration: 3000,
         isClosable: true,
       });
     },
     onError: () => {
       toast({
-        title: 'Failed to initialize labels',
-        status: 'error',
+        title: "Failed to initialize labels",
+        status: "error",
         duration: 5000,
         isClosable: true,
       });
@@ -123,13 +125,13 @@ export default function TaxDeductiblePage() {
 
   // Fetch tax-deductible summary
   const { data: summaries = [], isLoading } = useQuery<TaxSummary[]>({
-    queryKey: ['tax-deductible', startDate, endDate, selectedUserId],
+    queryKey: ["tax-deductible", startDate, endDate, selectedUserId],
     queryFn: async () => {
       const params = new URLSearchParams({
         start_date: startDate,
         end_date: endDate,
       });
-      if (selectedUserId) params.append('user_id', selectedUserId);
+      if (selectedUserId) params.append("user_id", selectedUserId);
 
       const response = await api.get(`/labels/tax-deductible?${params}`);
       return response.data;
@@ -144,36 +146,38 @@ export default function TaxDeductiblePage() {
         start_date: startDate,
         end_date: endDate,
       });
-      if (selectedUserId) params.append('user_id', selectedUserId);
+      if (selectedUserId) params.append("user_id", selectedUserId);
 
       const url = `/labels/tax-deductible/export?${params}`;
 
       // Use axios to make authenticated request
       const response = await api.get(url, {
-        responseType: 'blob', // Important for file download
+        responseType: "blob", // Important for file download
       });
 
       // Create blob and download
-      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+      const blob = new Blob([response.data], {
+        type: "text/csv;charset=utf-8;",
+      });
       const downloadUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = downloadUrl;
       link.download = `tax-deductible-${startDate}-to-${endDate}.csv`;
       link.click();
       URL.revokeObjectURL(downloadUrl);
 
       toast({
-        title: 'Export successful',
-        description: 'Your CSV file has been downloaded',
-        status: 'success',
+        title: "Export successful",
+        description: "Your CSV file has been downloaded",
+        status: "success",
         duration: 3000,
         isClosable: true,
       });
-    } catch (error) {
+    } catch {
       toast({
-        title: 'Export failed',
-        description: 'Failed to download CSV file',
-        status: 'error',
+        title: "Export failed",
+        description: "Failed to download CSV file",
+        status: "error",
         duration: 5000,
         isClosable: true,
       });
@@ -181,24 +185,27 @@ export default function TaxDeductiblePage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
   };
 
   const totalDeductible = summaries.reduce((sum, s) => sum + s.total_amount, 0);
-  const totalTransactions = summaries.reduce((sum, s) => sum + s.transaction_count, 0);
+  const totalTransactions = summaries.reduce(
+    (sum, s) => sum + s.transaction_count,
+    0,
+  );
 
   return (
     <Container maxW="container.xl" py={8}>
@@ -208,6 +215,7 @@ export default function TaxDeductiblePage() {
           <Heading>Tax-Deductible Transactions</Heading>
           <Text color="text.secondary" mt={2}>
             Track and export deductible expenses for tax preparation
+            <HelpHint hint={helpContent.tax.taxDeductible} />
           </Text>
         </Box>
 
@@ -221,8 +229,9 @@ export default function TaxDeductiblePage() {
                   <Text fontWeight="bold">Get Started with Tax Tracking</Text>
                 </HStack>
                 <Text fontSize="sm">
-                  Initialize tax-deductible labels to start tracking expenses by category
-                  (Medical & Dental, Charitable Donations, Business Expenses, Education, Home Office).
+                  Initialize tax-deductible labels to start tracking expenses by
+                  category (Medical & Dental, Charitable Donations, Business
+                  Expenses, Education, Home Office).
                 </Text>
                 <Button
                   colorScheme="blue"
@@ -252,9 +261,9 @@ export default function TaxDeductiblePage() {
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
                       style={{
-                        padding: '8px',
-                        border: '1px solid #E2E8F0',
-                        borderRadius: '6px',
+                        padding: "8px",
+                        border: "1px solid #E2E8F0",
+                        borderRadius: "6px",
                       }}
                     />
                   </Box>
@@ -267,9 +276,9 @@ export default function TaxDeductiblePage() {
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
                       style={{
-                        padding: '8px',
-                        border: '1px solid #E2E8F0',
-                        borderRadius: '6px',
+                        padding: "8px",
+                        border: "1px solid #E2E8F0",
+                        borderRadius: "6px",
                       }}
                     />
                   </Box>
@@ -352,12 +361,16 @@ export default function TaxDeductiblePage() {
                           <Heading size="md">{summary.label_name}</Heading>
                         </HStack>
                         <VStack align="end" spacing={0}>
-                          <Text fontSize="2xl" fontWeight="bold" color="finance.positive">
+                          <Text
+                            fontSize="2xl"
+                            fontWeight="bold"
+                            color="finance.positive"
+                          >
                             {formatCurrency(summary.total_amount)}
                           </Text>
                           <Text fontSize="sm" color="text.secondary">
                             {summary.transaction_count} transaction
-                            {summary.transaction_count !== 1 ? 's' : ''}
+                            {summary.transaction_count !== 1 ? "s" : ""}
                           </Text>
                         </VStack>
                       </HStack>
@@ -379,9 +392,15 @@ export default function TaxDeductiblePage() {
                             <Tr key={txn.id}>
                               <Td>{formatDate(txn.date)}</Td>
                               <Td>
-                                <Text fontWeight="medium">{txn.merchant_name}</Text>
+                                <Text fontWeight="medium">
+                                  {txn.merchant_name}
+                                </Text>
                                 {txn.description && (
-                                  <Text fontSize="xs" color="text.secondary" noOfLines={1}>
+                                  <Text
+                                    fontSize="xs"
+                                    color="text.secondary"
+                                    noOfLines={1}
+                                  >
                                     {txn.description}
                                   </Text>
                                 )}

@@ -33,6 +33,12 @@ describe("helpContent", () => {
     expect(pages).toContain("incomeExpenses");
     expect(pages).toContain("netWorth");
     expect(pages).toContain("savingsGoals");
+    expect(pages).toContain("rules");
+    expect(pages).toContain("accounts");
+    expect(pages).toContain("recurring");
+    expect(pages).toContain("categories");
+    expect(pages).toContain("tax");
+    expect(pages).toContain("preferences");
   });
 
   it("has FIRE metrics hints", () => {
@@ -58,6 +64,53 @@ describe("helpContent", () => {
     expect(helpContent.investments.rmd).toBeDefined();
     expect(helpContent.investments.feeAnalysis).toBeDefined();
     expect(helpContent.investments.assetAllocation).toBeDefined();
+  });
+
+  it("has debt payoff hints", () => {
+    expect(helpContent.debtPayoff.snowball).toBeDefined();
+    expect(helpContent.debtPayoff.avalanche).toBeDefined();
+    expect(helpContent.debtPayoff.interestRate).toBeDefined();
+    expect(helpContent.debtPayoff.minimumPayment).toBeDefined();
+    expect(helpContent.debtPayoff.totalInterest).toBeDefined();
+    expect(helpContent.debtPayoff.extraPayment).toBeDefined();
+  });
+
+  it("has rules hints", () => {
+    expect(helpContent.rules.matchAll).toBeDefined();
+    expect(helpContent.rules.matchAny).toBeDefined();
+    expect(helpContent.rules.applyTo).toBeDefined();
+    expect(helpContent.rules.conditions).toBeDefined();
+    expect(helpContent.rules.actions).toBeDefined();
+  });
+
+  it("has accounts hints", () => {
+    expect(helpContent.accounts.excludeFromCashFlow).toBeDefined();
+    expect(helpContent.accounts.interestRate).toBeDefined();
+    expect(helpContent.accounts.loanTerm).toBeDefined();
+    expect(helpContent.accounts.originationDate).toBeDefined();
+    expect(helpContent.accounts.minimumPayment).toBeDefined();
+    expect(helpContent.accounts.employerMatch).toBeDefined();
+    expect(helpContent.accounts.employerMatchLimit).toBeDefined();
+    expect(helpContent.accounts.trackHoldings).toBeDefined();
+  });
+
+  it("has recurring transaction hints", () => {
+    expect(helpContent.recurring.isBill).toBeDefined();
+    expect(helpContent.recurring.frequency).toBeDefined();
+    expect(helpContent.recurring.reminderDays).toBeDefined();
+  });
+
+  it("has categories hints", () => {
+    expect(helpContent.categories.providerCategories).toBeDefined();
+  });
+
+  it("has tax hints", () => {
+    expect(helpContent.tax.taxDeductible).toBeDefined();
+  });
+
+  it("has preferences hints", () => {
+    expect(helpContent.preferences.birthYear).toBeDefined();
+    expect(helpContent.preferences.claimingAge).toBeDefined();
   });
 
   it("every hint is a non-empty string", () => {

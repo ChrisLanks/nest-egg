@@ -16,7 +16,6 @@ import {
   Alert,
   AlertIcon,
   AlertDescription,
-  Tooltip,
 } from "@chakra-ui/react";
 import {
   BarChart,
@@ -31,6 +30,8 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { format, subMonths } from "date-fns";
 import api from "../../../services/api";
+import { HelpHint } from "../../../components/HelpHint";
+import { helpContent } from "../../../constants/helpContent";
 
 interface Snapshot {
   id: string;
@@ -269,6 +270,7 @@ export default function RiskAnalysisPanel({
         >
           <Text fontSize="sm" fontWeight="medium" mb={4}>
             Overall Risk Score
+            <HelpHint hint={helpContent.investments.riskScore} />
           </Text>
           <Flex justify="center" align="center" mb={4}>
             <Circle
@@ -314,11 +316,8 @@ export default function RiskAnalysisPanel({
         >
           <Stat>
             <StatLabel>
-              <Tooltip label="Annualized standard deviation of portfolio returns. Higher values indicate more price fluctuation.">
-                <Text as="span" cursor="help" borderBottom="1px dotted">
-                  Volatility
-                </Text>
-              </Tooltip>
+              Volatility
+              <HelpHint hint={helpContent.investments.volatility} />
             </StatLabel>
             <StatNumber>
               {hasVolatilityData ? `${metrics.volatility.toFixed(2)}%` : "N/A"}
@@ -360,11 +359,8 @@ export default function RiskAnalysisPanel({
         >
           <Stat>
             <StatLabel>
-              <Tooltip label="Measures how evenly distributed your investments are. Higher scores indicate better diversification.">
-                <Text as="span" cursor="help" borderBottom="1px dotted">
-                  Diversification Score
-                </Text>
-              </Tooltip>
+              Diversification Score
+              <HelpHint hint={helpContent.investments.diversificationScore} />
             </StatLabel>
             <StatNumber>
               {hasHoldingsData

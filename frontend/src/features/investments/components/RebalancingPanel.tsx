@@ -53,6 +53,8 @@ import {
   Legend,
 } from "recharts";
 import api from "../../../services/api";
+import { HelpHint } from "../../../components/HelpHint";
+import { helpContent } from "../../../constants/helpContent";
 
 interface AllocationSlice {
   asset_class: string;
@@ -562,6 +564,7 @@ export const RebalancingPanel = () => {
               <CardBody>
                 <Text fontSize="sm" color="text.secondary">
                   Max Drift
+                  <HelpHint hint={helpContent.investments.maxDrift} />
                 </Text>
                 <Text
                   fontSize="2xl"
@@ -683,6 +686,7 @@ export const RebalancingPanel = () => {
                 <FormControl display="flex" alignItems="center" w="auto">
                   <FormLabel mb="0" mr={2} whiteSpace="nowrap">
                     Drift Threshold (%)
+                    <HelpHint hint={helpContent.investments.driftThreshold} />
                   </FormLabel>
                   <NumberInput
                     defaultValue={Number(activeAllocation.drift_threshold)}

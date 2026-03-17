@@ -72,6 +72,8 @@ import {
   HOLDINGS_ACCOUNT_TYPES,
   TAX_TREATMENT_ACCOUNT_TYPES,
 } from "../constants/accountTypeGroups";
+import { HelpHint } from "../components/HelpHint";
+import { helpContent } from "../constants/helpContent";
 
 interface Account {
   id: string;
@@ -1051,6 +1053,7 @@ export const AccountDetailPage = () => {
                 <Box flex={1}>
                   <FormLabel fontSize="sm" mb={0}>
                     Exclude from cash flow
+                    <HelpHint hint={helpContent.accounts.excludeFromCashFlow} />
                   </FormLabel>
                   <Text fontSize="xs" color="text.muted" mt={0.5}>
                     Prevents double-counting (e.g., mortgage payments already
@@ -1775,7 +1778,10 @@ export const AccountDetailPage = () => {
                 ) : (
                   <>
                     <FormControl>
-                      <FormLabel fontSize="sm">Interest Rate (%)</FormLabel>
+                      <FormLabel fontSize="sm">
+                        Interest Rate (%)
+                        <HelpHint hint={helpContent.accounts.interestRate} />
+                      </FormLabel>
                       <NumberInput
                         value={loanInterestRate}
                         onChange={setLoanInterestRate}
@@ -1796,7 +1802,10 @@ export const AccountDetailPage = () => {
                     </FormControl>
 
                     <FormControl>
-                      <FormLabel fontSize="sm">Loan Term (years)</FormLabel>
+                      <FormLabel fontSize="sm">
+                        Loan Term (years)
+                        <HelpHint hint={helpContent.accounts.loanTerm} />
+                      </FormLabel>
                       <NumberInput
                         value={loanTermYears}
                         onChange={setLoanTermYears}
@@ -1819,7 +1828,10 @@ export const AccountDetailPage = () => {
                     </FormControl>
 
                     <FormControl>
-                      <FormLabel fontSize="sm">Loan Start Date</FormLabel>
+                      <FormLabel fontSize="sm">
+                        Loan Start Date
+                        <HelpHint hint={helpContent.accounts.originationDate} />
+                      </FormLabel>
                       <Input
                         type="date"
                         size="sm"
@@ -1945,7 +1957,10 @@ export const AccountDetailPage = () => {
                 <>
                   <HStack spacing={4} align="end" wrap="wrap">
                     <FormControl maxW="160px">
-                      <FormLabel fontSize="sm">Employer Match (%)</FormLabel>
+                      <FormLabel fontSize="sm">
+                        Employer Match (%)
+                        <HelpHint hint={helpContent.accounts.employerMatch} />
+                      </FormLabel>
                       <NumberInput
                         value={empMatchPct}
                         onChange={setEmpMatchPct}
@@ -1964,7 +1979,12 @@ export const AccountDetailPage = () => {
                       </NumberInput>
                     </FormControl>
                     <FormControl maxW="160px">
-                      <FormLabel fontSize="sm">Up to (% of salary)</FormLabel>
+                      <FormLabel fontSize="sm">
+                        Up to (% of salary)
+                        <HelpHint
+                          hint={helpContent.accounts.employerMatchLimit}
+                        />
+                      </FormLabel>
                       <NumberInput
                         value={empMatchLimitPct}
                         onChange={setEmpMatchLimitPct}

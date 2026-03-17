@@ -47,6 +47,8 @@ import { TableSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { FiTag } from "react-icons/fi";
 import { useUserView } from "../contexts/UserViewContext";
+import HelpHint from "../components/HelpHint";
+import { helpContent } from "../constants/helpContent";
 
 interface Category {
   id: string | null; // null for Plaid categories not yet in DB
@@ -491,6 +493,9 @@ export const CategoriesPage = () => {
                           color="text.heading"
                         >
                           Provider Categories (click "Make Custom" to edit)
+                          <HelpHint
+                            hint={helpContent.categories.providerCategories}
+                          />
                         </Text>
                       </Td>
                     </Tr>

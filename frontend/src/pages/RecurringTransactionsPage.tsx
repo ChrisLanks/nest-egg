@@ -48,69 +48,133 @@ import {
   NumberInputField,
   Switch,
   useDisclosure,
-} from '@chakra-ui/react';
-import { RepeatIcon, DeleteIcon, EditIcon, AddIcon } from '@chakra-ui/icons';
-import { FiLock, FiRepeat, FiPause, FiPlay } from 'react-icons/fi';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { recurringTransactionsApi } from '../api/recurring-transactions';
-import { RecurringFrequency, type RecurringTransaction, type RecurringTransactionCreate } from '../types/recurring-transaction';
-import { useUserView } from '../contexts/UserViewContext';
-import { EmptyState } from '../components/EmptyState';
-import { accountsApi } from '../api/accounts';
-import api from '../services/api';
+} from "@chakra-ui/react";
+import { RepeatIcon, DeleteIcon, EditIcon, AddIcon } from "@chakra-ui/icons";
+import { FiLock, FiRepeat, FiPause, FiPlay } from "react-icons/fi";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import React, { useState, useMemo, useRef, useEffect } from "react";
+import { recurringTransactionsApi } from "../api/recurring-transactions";
+import {
+  RecurringFrequency,
+  type RecurringTransaction,
+  type RecurringTransactionCreate,
+} from "../types/recurring-transaction";
+import { useUserView } from "../contexts/UserViewContext";
+import { EmptyState } from "../components/EmptyState";
+import { accountsApi } from "../api/accounts";
+import api from "../services/api";
+import { HelpHint } from "../components/HelpHint";
+import { helpContent } from "../constants/helpContent";
+
+/** Merchant autocomplete dropdown */
+function MerchantSuggestions({
+  suggestions,
+  suggestionsRef,
+  onSelect,
+}: {
+  suggestions: string[];
+  suggestionsRef: React.RefObject<HTMLDivElement>;
+  onSelect: (merchant: string) => void;
+}) {
+  if (suggestions.length === 0) return null;
+  return (
+    <Box
+      ref={suggestionsRef}
+      position="absolute"
+      top="100%"
+      left={0}
+      right={0}
+      zIndex={10}
+      bg="bg.surface"
+      border="1px solid"
+      borderColor="border.default"
+      borderRadius="md"
+      boxShadow="md"
+      maxH="200px"
+      overflowY="auto"
+    >
+      {suggestions.map((m) => (
+        <Box
+          key={m}
+          px={3}
+          py={2}
+          cursor="pointer"
+          _hover={{ bg: "bg.muted" }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            onSelect(m);
+          }}
+        >
+          {m}
+        </Box>
+      ))}
+    </Box>
+  );
+}
 
 export default function RecurringTransactionsPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { canWriteResource, isOtherUserView } = useUserView();
-  const canEdit = canWriteResource('recurring_transaction');
+  const canEdit = canWriteResource("recurring_transaction");
   const [tabIndex, setTabIndex] = useState(0);
 
   // Edit modal
-  const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
-  const [editingPattern, setEditingPattern] = useState<RecurringTransaction | null>(null);
+  const {
+    isOpen: isEditOpen,
+    onOpen: onEditOpen,
+    onClose: onEditClose,
+  } = useDisclosure();
+  const [editingPattern, setEditingPattern] =
+    useState<RecurringTransaction | null>(null);
   const [editForm, setEditForm] = useState({
-    merchant_name: '',
+    merchant_name: "",
     frequency: RecurringFrequency.MONTHLY,
-    average_amount: '',
+    average_amount: "",
     is_bill: false,
     reminder_days_before: 3,
   });
 
   // Add modal
-  const { isOpen: isAddOpen, onOpen: onAddOpen, onClose: onAddClose } = useDisclosure();
+  const {
+    isOpen: isAddOpen,
+    onOpen: onAddOpen,
+    onClose: onAddClose,
+  } = useDisclosure();
   const [addForm, setAddForm] = useState({
-    merchant_name: '',
-    account_id: '',
+    merchant_name: "",
+    account_id: "",
     frequency: RecurringFrequency.MONTHLY,
-    average_amount: '',
+    average_amount: "",
     is_bill: false,
     reminder_days_before: 3,
   });
 
   // Merchant autocomplete state — edit modal
-  const [editMerchantQuery, setEditMerchantQuery] = useState('');
+  const [editMerchantQuery, setEditMerchantQuery] = useState("");
   const [editShowSuggestions, setEditShowSuggestions] = useState(false);
   const editMerchantInputRef = useRef<HTMLInputElement>(null);
   const editSuggestionsRef = useRef<HTMLDivElement>(null);
 
   // Merchant autocomplete state — add modal
-  const [addMerchantQuery, setAddMerchantQuery] = useState('');
+  const [addMerchantQuery, setAddMerchantQuery] = useState("");
   const [addShowSuggestions, setAddShowSuggestions] = useState(false);
   const addMerchantInputRef = useRef<HTMLInputElement>(null);
   const addSuggestionsRef = useRef<HTMLDivElement>(null);
 
   // Fetch merchants for autocomplete
   const { data: allMerchants = [] } = useQuery({
-    queryKey: ['transaction-merchants'],
-    queryFn: () => api.get<{ merchants: string[] }>('/transactions/merchants').then((r) => r.data.merchants),
+    queryKey: ["transaction-merchants"],
+    queryFn: () =>
+      api
+        .get<{ merchants: string[] }>("/transactions/merchants")
+        .then((r) => r.data.merchants),
     staleTime: 5 * 60 * 1000,
   });
 
   // Fetch accounts for the create modal account selector
   const { data: accounts = [] } = useQuery({
-    queryKey: ['accounts'],
+    queryKey: ["accounts"],
     queryFn: () => accountsApi.getAccounts(),
   });
 
@@ -140,8 +204,8 @@ export default function RecurringTransactionsPage() {
         setEditShowSuggestions(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   // Close add modal suggestions on outside click
@@ -156,13 +220,13 @@ export default function RecurringTransactionsPage() {
         setAddShowSuggestions(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   // Get all recurring patterns
   const { data: patterns = [], isLoading } = useQuery({
-    queryKey: ['recurring-transactions'],
+    queryKey: ["recurring-transactions"],
     queryFn: () => recurringTransactionsApi.getAll(),
   });
 
@@ -174,7 +238,7 @@ export default function RecurringTransactionsPage() {
         pattern.is_active &&
         (pattern.frequency === RecurringFrequency.MONTHLY ||
           pattern.frequency === RecurringFrequency.YEARLY) &&
-        (pattern.confidence_score ?? 0) >= 0.7
+        (pattern.confidence_score ?? 0) >= 0.7,
     );
   }, [patterns]);
 
@@ -201,17 +265,17 @@ export default function RecurringTransactionsPage() {
   const detectMutation = useMutation({
     mutationFn: () => recurringTransactionsApi.detectPatterns(),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['recurring-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ["recurring-transactions"] });
       toast({
         title: `Detected ${data.detected_patterns} recurring patterns`,
-        status: 'success',
+        status: "success",
         duration: 3000,
       });
     },
     onError: () => {
       toast({
-        title: 'Failed to detect patterns',
-        status: 'error',
+        title: "Failed to detect patterns",
+        status: "error",
         duration: 3000,
       });
     },
@@ -221,10 +285,10 @@ export default function RecurringTransactionsPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => recurringTransactionsApi.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recurring-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ["recurring-transactions"] });
       toast({
-        title: 'Pattern deleted',
-        status: 'success',
+        title: "Pattern deleted",
+        status: "success",
         duration: 2000,
       });
     },
@@ -241,12 +305,16 @@ export default function RecurringTransactionsPage() {
         reminder_days_before: updates.reminder_days_before,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recurring-transactions'] });
-      toast({ title: 'Pattern updated', status: 'success', duration: 2000 });
+      queryClient.invalidateQueries({ queryKey: ["recurring-transactions"] });
+      toast({ title: "Pattern updated", status: "success", duration: 2000 });
       onEditClose();
     },
     onError: () => {
-      toast({ title: 'Failed to update pattern', status: 'error', duration: 3000 });
+      toast({
+        title: "Failed to update pattern",
+        status: "error",
+        duration: 3000,
+      });
     },
   });
 
@@ -255,42 +323,55 @@ export default function RecurringTransactionsPage() {
     mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
       recurringTransactionsApi.update(id, { is_active }),
     onSuccess: (_, { is_active }) => {
-      queryClient.invalidateQueries({ queryKey: ['recurring-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
-      queryClient.invalidateQueries({ queryKey: ['subscriptions-widget'] });
+      queryClient.invalidateQueries({ queryKey: ["recurring-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
+      queryClient.invalidateQueries({ queryKey: ["subscriptions-widget"] });
       toast({
-        title: is_active ? 'Pattern reactivated' : 'Pattern deactivated',
+        title: is_active ? "Pattern reactivated" : "Pattern deactivated",
         description: is_active
-          ? 'This pattern will be included in forecasts again.'
-          : 'This pattern is paused and excluded from forecasts.',
-        status: is_active ? 'success' : 'info',
+          ? "This pattern will be included in forecasts again."
+          : "This pattern is paused and excluded from forecasts.",
+        status: is_active ? "success" : "info",
         duration: 3000,
       });
     },
     onError: () => {
-      toast({ title: 'Failed to update pattern', status: 'error', duration: 3000 });
+      toast({
+        title: "Failed to update pattern",
+        status: "error",
+        duration: 3000,
+      });
     },
   });
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: (data: RecurringTransactionCreate) => recurringTransactionsApi.create(data),
+    mutationFn: (data: RecurringTransactionCreate) =>
+      recurringTransactionsApi.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recurring-transactions'] });
-      toast({ title: 'Recurring transaction added', status: 'success', duration: 2000 });
+      queryClient.invalidateQueries({ queryKey: ["recurring-transactions"] });
+      toast({
+        title: "Recurring transaction added",
+        status: "success",
+        duration: 2000,
+      });
       onAddClose();
       setAddForm({
-        merchant_name: '',
-        account_id: '',
+        merchant_name: "",
+        account_id: "",
         frequency: RecurringFrequency.MONTHLY,
-        average_amount: '',
+        average_amount: "",
         is_bill: false,
         reminder_days_before: 3,
       });
-      setAddMerchantQuery('');
+      setAddMerchantQuery("");
     },
     onError: () => {
-      toast({ title: 'Failed to add recurring transaction', status: 'error', duration: 3000 });
+      toast({
+        title: "Failed to add recurring transaction",
+        status: "error",
+        duration: 3000,
+      });
     },
   });
 
@@ -325,33 +406,33 @@ export default function RecurringTransactionsPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
     }).format(amount);
   };
 
   const formatFrequency = (frequency: RecurringFrequency) => {
     switch (frequency) {
       case RecurringFrequency.WEEKLY:
-        return 'Weekly';
+        return "Weekly";
       case RecurringFrequency.BIWEEKLY:
-        return 'Bi-weekly';
+        return "Bi-weekly";
       case RecurringFrequency.MONTHLY:
-        return 'Monthly';
+        return "Monthly";
       case RecurringFrequency.QUARTERLY:
-        return 'Quarterly';
+        return "Quarterly";
       case RecurringFrequency.YEARLY:
-        return 'Yearly';
+        return "Yearly";
       case RecurringFrequency.ON_DEMAND:
-        return 'On Demand';
+        return "On Demand";
     }
   };
 
   const actionButtons = (pattern: RecurringTransaction) => (
     <HStack spacing={1}>
       <Tooltip
-        label={!canEdit ? 'Read-only' : 'Edit pattern'}
+        label={!canEdit ? "Read-only" : "Edit pattern"}
         placement="top"
         isDisabled={canEdit}
       >
@@ -360,7 +441,7 @@ export default function RecurringTransactionsPage() {
           icon={!canEdit ? <FiLock /> : <EditIcon />}
           size="sm"
           variant="ghost"
-          colorScheme={!canEdit ? 'gray' : 'blue'}
+          colorScheme={!canEdit ? "gray" : "blue"}
           onClick={() => openEdit(pattern)}
           isDisabled={!canEdit}
         />
@@ -368,29 +449,38 @@ export default function RecurringTransactionsPage() {
       <Tooltip
         label={
           !canEdit
-            ? 'Read-only'
+            ? "Read-only"
             : pattern.is_active
-            ? 'Deactivate (excludes from forecasts; auto-reactivates if transactions resume)'
-            : 'Reactivate (include in forecasts again)'
+              ? "Deactivate (excludes from forecasts; auto-reactivates if transactions resume)"
+              : "Reactivate (include in forecasts again)"
         }
         placement="top"
         isDisabled={false}
       >
         <IconButton
-          aria-label={pattern.is_active ? 'Deactivate' : 'Reactivate'}
+          aria-label={pattern.is_active ? "Deactivate" : "Reactivate"}
           icon={pattern.is_active ? <FiPause /> : <FiPlay />}
           size="sm"
           variant="ghost"
-          colorScheme={!canEdit ? 'gray' : pattern.is_active ? 'orange' : 'green'}
+          colorScheme={
+            !canEdit ? "gray" : pattern.is_active ? "orange" : "green"
+          }
           onClick={() =>
-            toggleActiveMutation.mutate({ id: pattern.id, is_active: !pattern.is_active })
+            toggleActiveMutation.mutate({
+              id: pattern.id,
+              is_active: !pattern.is_active,
+            })
           }
           isLoading={toggleActiveMutation.isPending}
           isDisabled={!canEdit}
         />
       </Tooltip>
       <Tooltip
-        label={!canEdit ? 'Read-only: You can only delete your own patterns' : 'Delete pattern'}
+        label={
+          !canEdit
+            ? "Read-only: You can only delete your own patterns"
+            : "Delete pattern"
+        }
         placement="top"
         isDisabled={canEdit}
       >
@@ -399,7 +489,7 @@ export default function RecurringTransactionsPage() {
           icon={!canEdit ? <FiLock /> : <DeleteIcon />}
           size="sm"
           variant="ghost"
-          colorScheme={!canEdit ? 'gray' : 'red'}
+          colorScheme={!canEdit ? "gray" : "red"}
           onClick={() => deleteMutation.mutate(pattern.id)}
           isLoading={deleteMutation.isPending}
           isDisabled={!canEdit}
@@ -408,60 +498,23 @@ export default function RecurringTransactionsPage() {
     </HStack>
   );
 
-  // Shared merchant autocomplete dropdown renderer
-  const MerchantSuggestions = ({
-    suggestions,
-    suggestionsRef: ref,
-    onSelect,
-  }: {
-    suggestions: string[];
-    suggestionsRef: React.RefObject<HTMLDivElement>;
-    onSelect: (merchant: string) => void;
-  }) =>
-    suggestions.length > 0 ? (
-      <Box
-        ref={ref}
-        position="absolute"
-        top="100%"
-        left={0}
-        right={0}
-        zIndex={10}
-        bg="bg.surface"
-        border="1px solid"
-        borderColor="border.default"
-        borderRadius="md"
-        boxShadow="md"
-        maxH="200px"
-        overflowY="auto"
-      >
-        {suggestions.map((m) => (
-          <Box
-            key={m}
-            px={3}
-            py={2}
-            cursor="pointer"
-            _hover={{ bg: 'bg.muted' }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              onSelect(m);
-            }}
-          >
-            {m}
-          </Box>
-        ))}
-      </Box>
-    ) : null;
-
   return (
     <Box p={8}>
       <VStack align="stretch" spacing={6}>
         {/* Read-only banner */}
         {isOtherUserView && !canEdit && (
-          <Box p={4} bg="bg.warning" borderRadius="md" borderWidth={1} borderColor="orange.200">
+          <Box
+            p={4}
+            bg="bg.warning"
+            borderRadius="md"
+            borderWidth={1}
+            borderColor="orange.200"
+          >
             <HStack>
               <FiLock size={16} color="orange.600" />
               <Text fontSize="sm" color="orange.800" fontWeight="medium">
-                Read-only view: You can view patterns but cannot detect new ones or delete existing patterns for another household member.
+                Read-only view: You can view patterns but cannot detect new ones
+                or delete existing patterns for another household member.
               </Text>
             </HStack>
           </Box>
@@ -477,7 +530,11 @@ export default function RecurringTransactionsPage() {
           </VStack>
           <HStack spacing={2}>
             <Tooltip
-              label={!canEdit ? "Read-only: You can only add patterns for your own data" : ""}
+              label={
+                !canEdit
+                  ? "Read-only: You can only add patterns for your own data"
+                  : ""
+              }
               placement="top"
               isDisabled={canEdit}
             >
@@ -492,7 +549,11 @@ export default function RecurringTransactionsPage() {
               </Button>
             </Tooltip>
             <Tooltip
-              label={!canEdit ? "Read-only: You can only detect patterns for your own data" : ""}
+              label={
+                !canEdit
+                  ? "Read-only: You can only detect patterns for your own data"
+                  : ""
+              }
               placement="top"
               isDisabled={canEdit}
             >
@@ -521,16 +582,23 @@ export default function RecurringTransactionsPage() {
           <VStack spacing={4}>
             <EmptyState
               icon={FiRepeat}
-              title={isOtherUserView
-                ? "This user has no recurring patterns detected yet"
-                : "No recurring patterns detected yet"}
+              title={
+                isOtherUserView
+                  ? "This user has no recurring patterns detected yet"
+                  : "No recurring patterns detected yet"
+              }
               description="Automatically detect subscription payments, bills, and other recurring transactions in your history — or add one manually."
               actionLabel="Detect Patterns Now"
               onAction={() => detectMutation.mutate()}
               showAction={canEdit}
             />
             {canEdit && (
-              <Button variant="outline" colorScheme="brand" leftIcon={<AddIcon />} onClick={onAddOpen}>
+              <Button
+                variant="outline"
+                colorScheme="brand"
+                leftIcon={<AddIcon />}
+                onClick={onAddOpen}
+              >
                 Add Manually
               </Button>
             )}
@@ -570,43 +638,62 @@ export default function RecurringTransactionsPage() {
                               <Tr
                                 key={pattern.id}
                                 opacity={pattern.is_active ? 1 : 0.5}
-                                bg={pattern.is_active ? undefined : 'bg.subtle'}
+                                bg={pattern.is_active ? undefined : "bg.subtle"}
                               >
-                                <Td fontWeight="medium">{pattern.merchant_name}</Td>
+                                <Td fontWeight="medium">
+                                  {pattern.merchant_name}
+                                </Td>
                                 <Td>
                                   <Badge colorScheme="blue">
                                     {formatFrequency(pattern.frequency)}
                                   </Badge>
                                 </Td>
-                                <Td isNumeric>{formatCurrency(pattern.average_amount)}</Td>
+                                <Td isNumeric>
+                                  {formatCurrency(pattern.average_amount)}
+                                </Td>
                                 <Td>{pattern.occurrence_count}×</Td>
                                 <Td>
                                   {pattern.next_expected_date
-                                    ? new Date(pattern.next_expected_date).toLocaleDateString()
-                                    : '—'}
+                                    ? new Date(
+                                        pattern.next_expected_date,
+                                      ).toLocaleDateString()
+                                    : "—"}
                                 </Td>
                                 <Td>
                                   {pattern.confidence_score !== null && (
                                     <Badge
                                       colorScheme={
                                         pattern.confidence_score >= 0.8
-                                          ? 'green'
+                                          ? "green"
                                           : pattern.confidence_score >= 0.6
-                                          ? 'yellow'
-                                          : 'orange'
+                                            ? "yellow"
+                                            : "orange"
                                       }
                                     >
-                                      {(pattern.confidence_score * 100).toFixed(0)}%
+                                      {(pattern.confidence_score * 100).toFixed(
+                                        0,
+                                      )}
+                                      %
                                     </Badge>
                                   )}
                                 </Td>
                                 <Td>
                                   <HStack spacing={1}>
-                                    <Badge colorScheme={pattern.is_user_created ? 'purple' : 'gray'}>
-                                      {pattern.is_user_created ? 'Manual' : 'Auto'}
+                                    <Badge
+                                      colorScheme={
+                                        pattern.is_user_created
+                                          ? "purple"
+                                          : "gray"
+                                      }
+                                    >
+                                      {pattern.is_user_created
+                                        ? "Manual"
+                                        : "Auto"}
                                     </Badge>
                                     {!pattern.is_active && (
-                                      <Badge colorScheme="orange">Inactive</Badge>
+                                      <Badge colorScheme="orange">
+                                        Inactive
+                                      </Badge>
                                     )}
                                   </HStack>
                                 </Td>
@@ -621,11 +708,14 @@ export default function RecurringTransactionsPage() {
 
                   <Box p={4} bg="bg.info" borderRadius="md">
                     <Text fontSize="sm" color="text.heading">
-                      💡 <strong>Tip:</strong> Patterns are auto-detected from your transaction history.
-                      Use <strong>Add Recurring</strong> to add one manually. Click{' '}
-                      <strong>pause</strong> to deactivate a pattern — it will be excluded from cash flow
-                      forecasts and the Subscriptions tab. If transactions for a deactivated pattern are
-                      detected again, it will be <strong>automatically reactivated</strong>.
+                      💡 <strong>Tip:</strong> Patterns are auto-detected from
+                      your transaction history. Use{" "}
+                      <strong>Add Recurring</strong> to add one manually. Click{" "}
+                      <strong>pause</strong> to deactivate a pattern — it will
+                      be excluded from cash flow forecasts and the Subscriptions
+                      tab. If transactions for a deactivated pattern are
+                      detected again, it will be{" "}
+                      <strong>automatically reactivated</strong>.
                     </Text>
                   </Box>
                 </VStack>
@@ -690,23 +780,38 @@ export default function RecurringTransactionsPage() {
                             <Tbody>
                               {subscriptions.map((sub) => (
                                 <Tr key={sub.id}>
-                                  <Td fontWeight="medium">{sub.merchant_name}</Td>
+                                  <Td fontWeight="medium">
+                                    {sub.merchant_name}
+                                  </Td>
                                   <Td>
                                     <Badge colorScheme="purple">
                                       {formatFrequency(sub.frequency)}
                                     </Badge>
                                   </Td>
-                                  <Td isNumeric>{formatCurrency(Math.abs(sub.average_amount))}</Td>
+                                  <Td isNumeric>
+                                    {formatCurrency(
+                                      Math.abs(sub.average_amount),
+                                    )}
+                                  </Td>
                                   <Td>
                                     {sub.next_expected_date
-                                      ? new Date(sub.next_expected_date).toLocaleDateString()
-                                      : '—'}
+                                      ? new Date(
+                                          sub.next_expected_date,
+                                        ).toLocaleDateString()
+                                      : "—"}
                                   </Td>
                                   <Td>
                                     <Badge
-                                      colorScheme={(sub.confidence_score ?? 0) >= 0.85 ? 'green' : 'yellow'}
+                                      colorScheme={
+                                        (sub.confidence_score ?? 0) >= 0.85
+                                          ? "green"
+                                          : "yellow"
+                                      }
                                     >
-                                      {((sub.confidence_score ?? 0) * 100).toFixed(0)}%
+                                      {(
+                                        (sub.confidence_score ?? 0) * 100
+                                      ).toFixed(0)}
+                                      %
                                     </Badge>
                                   </Td>
                                   <Td>{actionButtons(sub)}</Td>
@@ -727,11 +832,13 @@ export default function RecurringTransactionsPage() {
 
                   <Box p={4} bg="purple.50" borderRadius="md">
                     <Text fontSize="sm" color="text.heading">
-                      💡 <strong>Subscriptions</strong> are recurring charges that happen monthly or yearly
-                      with high confidence (70%+). They are auto-detected from your transaction history.
-                      To manually track a subscription not yet imported, use{' '}
-                      <strong>Add Recurring</strong> (top-right) and set the frequency to Monthly or Yearly
-                      — it will appear here once detected with high confidence.
+                      💡 <strong>Subscriptions</strong> are recurring charges
+                      that happen monthly or yearly with high confidence (70%+).
+                      They are auto-detected from your transaction history. To
+                      manually track a subscription not yet imported, use{" "}
+                      <strong>Add Recurring</strong> (top-right) and set the
+                      frequency to Monthly or Yearly — it will appear here once
+                      detected with high confidence.
                     </Text>
                   </Box>
                 </VStack>
@@ -756,7 +863,10 @@ export default function RecurringTransactionsPage() {
                   value={editMerchantQuery}
                   onChange={(e) => {
                     setEditMerchantQuery(e.target.value);
-                    setEditForm((f) => ({ ...f, merchant_name: e.target.value }));
+                    setEditForm((f) => ({
+                      ...f,
+                      merchant_name: e.target.value,
+                    }));
                     setEditShowSuggestions(true);
                   }}
                   onFocus={() => setEditShowSuggestions(true)}
@@ -776,19 +886,29 @@ export default function RecurringTransactionsPage() {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Frequency</FormLabel>
+                <FormLabel>
+                  Frequency
+                  <HelpHint hint={helpContent.recurring.frequency} />
+                </FormLabel>
                 <Select
                   value={editForm.frequency}
                   onChange={(e) =>
-                    setEditForm((f) => ({ ...f, frequency: e.target.value as RecurringFrequency }))
+                    setEditForm((f) => ({
+                      ...f,
+                      frequency: e.target.value as RecurringFrequency,
+                    }))
                   }
                 >
                   <option value={RecurringFrequency.WEEKLY}>Weekly</option>
                   <option value={RecurringFrequency.BIWEEKLY}>Bi-weekly</option>
                   <option value={RecurringFrequency.MONTHLY}>Monthly</option>
-                  <option value={RecurringFrequency.QUARTERLY}>Quarterly</option>
+                  <option value={RecurringFrequency.QUARTERLY}>
+                    Quarterly
+                  </option>
                   <option value={RecurringFrequency.YEARLY}>Yearly</option>
-                  <option value={RecurringFrequency.ON_DEMAND}>On Demand</option>
+                  <option value={RecurringFrequency.ON_DEMAND}>
+                    On Demand
+                  </option>
                 </Select>
               </FormControl>
 
@@ -798,7 +918,9 @@ export default function RecurringTransactionsPage() {
                   min={0}
                   precision={2}
                   value={editForm.average_amount}
-                  onChange={(val) => setEditForm((f) => ({ ...f, average_amount: val }))}
+                  onChange={(val) =>
+                    setEditForm((f) => ({ ...f, average_amount: val }))
+                  }
                 >
                   <NumberInputField placeholder="e.g. 15.99" />
                 </NumberInput>
@@ -806,27 +928,39 @@ export default function RecurringTransactionsPage() {
 
               <FormControl>
                 <HStack justify="space-between">
-                  <FormLabel mb={0}>Mark as Bill</FormLabel>
+                  <FormLabel mb={0}>
+                    Mark as Bill
+                    <HelpHint hint={helpContent.recurring.isBill} />
+                  </FormLabel>
                   <Switch
                     isChecked={editForm.is_bill}
-                    onChange={(e) => setEditForm((f) => ({ ...f, is_bill: e.target.checked }))}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, is_bill: e.target.checked }))
+                    }
                     colorScheme="brand"
                   />
                 </HStack>
                 <Text fontSize="xs" color="text.muted" mt={1}>
-                  Bills appear in the upcoming bills calendar and trigger reminders.
+                  Bills appear in the upcoming bills calendar and trigger
+                  reminders.
                 </Text>
               </FormControl>
 
               {editForm.is_bill && (
                 <FormControl>
-                  <FormLabel>Reminder (days before due)</FormLabel>
+                  <FormLabel>
+                    Reminder (days before due)
+                    <HelpHint hint={helpContent.recurring.reminderDays} />
+                  </FormLabel>
                   <NumberInput
                     min={0}
                     max={30}
                     value={editForm.reminder_days_before}
                     onChange={(_, val) =>
-                      setEditForm((f) => ({ ...f, reminder_days_before: isNaN(val) ? 3 : val }))
+                      setEditForm((f) => ({
+                        ...f,
+                        reminder_days_before: isNaN(val) ? 3 : val,
+                      }))
                     }
                   >
                     <NumberInputField />
@@ -867,7 +1001,10 @@ export default function RecurringTransactionsPage() {
                   value={addMerchantQuery}
                   onChange={(e) => {
                     setAddMerchantQuery(e.target.value);
-                    setAddForm((f) => ({ ...f, merchant_name: e.target.value }));
+                    setAddForm((f) => ({
+                      ...f,
+                      merchant_name: e.target.value,
+                    }));
                     setAddShowSuggestions(true);
                   }}
                   onFocus={() => setAddShowSuggestions(true)}
@@ -890,7 +1027,9 @@ export default function RecurringTransactionsPage() {
                 <FormLabel>Account</FormLabel>
                 <Select
                   value={addForm.account_id}
-                  onChange={(e) => setAddForm((f) => ({ ...f, account_id: e.target.value }))}
+                  onChange={(e) =>
+                    setAddForm((f) => ({ ...f, account_id: e.target.value }))
+                  }
                   placeholder="Select account"
                 >
                   {accounts.map((acct) => (
@@ -902,19 +1041,29 @@ export default function RecurringTransactionsPage() {
               </FormControl>
 
               <FormControl isRequired>
-                <FormLabel>Frequency</FormLabel>
+                <FormLabel>
+                  Frequency
+                  <HelpHint hint={helpContent.recurring.frequency} />
+                </FormLabel>
                 <Select
                   value={addForm.frequency}
                   onChange={(e) =>
-                    setAddForm((f) => ({ ...f, frequency: e.target.value as RecurringFrequency }))
+                    setAddForm((f) => ({
+                      ...f,
+                      frequency: e.target.value as RecurringFrequency,
+                    }))
                   }
                 >
                   <option value={RecurringFrequency.WEEKLY}>Weekly</option>
                   <option value={RecurringFrequency.BIWEEKLY}>Bi-weekly</option>
                   <option value={RecurringFrequency.MONTHLY}>Monthly</option>
-                  <option value={RecurringFrequency.QUARTERLY}>Quarterly</option>
+                  <option value={RecurringFrequency.QUARTERLY}>
+                    Quarterly
+                  </option>
                   <option value={RecurringFrequency.YEARLY}>Yearly</option>
-                  <option value={RecurringFrequency.ON_DEMAND}>On Demand</option>
+                  <option value={RecurringFrequency.ON_DEMAND}>
+                    On Demand
+                  </option>
                 </Select>
               </FormControl>
 
@@ -924,7 +1073,9 @@ export default function RecurringTransactionsPage() {
                   min={0}
                   precision={2}
                   value={addForm.average_amount}
-                  onChange={(val) => setAddForm((f) => ({ ...f, average_amount: val }))}
+                  onChange={(val) =>
+                    setAddForm((f) => ({ ...f, average_amount: val }))
+                  }
                 >
                   <NumberInputField placeholder="e.g. 15.99" />
                 </NumberInput>
@@ -932,27 +1083,39 @@ export default function RecurringTransactionsPage() {
 
               <FormControl>
                 <HStack justify="space-between">
-                  <FormLabel mb={0}>Mark as Bill</FormLabel>
+                  <FormLabel mb={0}>
+                    Mark as Bill
+                    <HelpHint hint={helpContent.recurring.isBill} />
+                  </FormLabel>
                   <Switch
                     isChecked={addForm.is_bill}
-                    onChange={(e) => setAddForm((f) => ({ ...f, is_bill: e.target.checked }))}
+                    onChange={(e) =>
+                      setAddForm((f) => ({ ...f, is_bill: e.target.checked }))
+                    }
                     colorScheme="brand"
                   />
                 </HStack>
                 <Text fontSize="xs" color="text.muted" mt={1}>
-                  Bills appear in the upcoming bills calendar and trigger reminders.
+                  Bills appear in the upcoming bills calendar and trigger
+                  reminders.
                 </Text>
               </FormControl>
 
               {addForm.is_bill && (
                 <FormControl>
-                  <FormLabel>Reminder (days before due)</FormLabel>
+                  <FormLabel>
+                    Reminder (days before due)
+                    <HelpHint hint={helpContent.recurring.reminderDays} />
+                  </FormLabel>
                   <NumberInput
                     min={0}
                     max={30}
                     value={addForm.reminder_days_before}
                     onChange={(_, val) =>
-                      setAddForm((f) => ({ ...f, reminder_days_before: isNaN(val) ? 3 : val }))
+                      setAddForm((f) => ({
+                        ...f,
+                        reminder_days_before: isNaN(val) ? 3 : val,
+                      }))
                     }
                   >
                     <NumberInputField />

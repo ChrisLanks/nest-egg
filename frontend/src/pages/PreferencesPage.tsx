@@ -46,6 +46,8 @@ import { useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../services/api";
 import { useAuthStore } from "../features/auth/stores/authStore";
+import HelpHint from "../components/HelpHint";
+import { helpContent } from "../constants/helpContent";
 
 interface UpdateProfileData {
   display_name?: string;
@@ -682,8 +684,9 @@ export default function PreferencesPage() {
                 </NumberInput>
               </SimpleGrid>
               <FormHelperText>
-                Used for retirement planning (59½ rule, RMDs). Leave all blank
-                to hide.
+                Used for retirement planning (59½ rule, RMDs).
+                <HelpHint hint={helpContent.preferences.birthYear} /> Leave all
+                blank to hide.
               </FormHelperText>
             </FormControl>
 

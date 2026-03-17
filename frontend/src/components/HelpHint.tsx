@@ -17,7 +17,7 @@ interface HelpHintProps {
   placement?: PlacementWithLogical;
 }
 
-export default function HelpHint({
+export function HelpHint({
   hint,
   size = "sm",
   placement = "top",
@@ -38,3 +38,5 @@ export default function HelpHint({
     </Tooltip>
   );
 }
+
+export default HelpHint;

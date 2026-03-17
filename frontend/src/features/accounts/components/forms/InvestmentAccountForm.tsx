@@ -25,18 +25,20 @@ import {
   Divider,
   Switch,
   FormHelperText,
-} from '@chakra-ui/react';
-import { useState } from 'react';
-import { useForm, Controller, useFieldArray } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowBackIcon, AddIcon, DeleteIcon } from '@chakra-ui/icons';
+} from "@chakra-ui/react";
+import { useState } from "react";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowBackIcon, AddIcon, DeleteIcon } from "@chakra-ui/icons";
 import {
   investmentAccountSchema,
   type InvestmentAccountFormData,
   ACCOUNT_TYPES,
   type AccountType,
-} from '../../schemas/manualAccountSchemas';
-import { formatAccountType } from '../../../../utils/formatAccountType';
+} from "../../schemas/manualAccountSchemas";
+import { formatAccountType } from "../../../../utils/formatAccountType";
+import { HelpHint } from "../../../../components/HelpHint";
+import { helpContent } from "../../../../constants/helpContent";
 
 interface InvestmentAccountFormProps {
   defaultAccountType: AccountType;
@@ -65,34 +67,35 @@ export const InvestmentAccountForm = ({
     resolver: zodResolver(investmentAccountSchema),
     defaultValues: {
       account_type: defaultAccountType as any,
-      holdings: [{ ticker: '', shares: 0, price_per_share: 0 }],
+      holdings: [{ ticker: "", shares: 0, price_per_share: 0 }],
     },
   });
 
   const { fields, append, remove } = useFieldArray({
     control,
-    name: 'holdings',
+    name: "holdings",
   });
 
-  const holdings = watch('holdings');
+  const holdings = watch("holdings");
 
   // Calculate total value from holdings
-  const totalValue = holdings?.reduce((sum, holding) => {
-    const shares = Number(holding.shares) || 0;
-    const price = Number(holding.price_per_share) || 0;
-    return sum + shares * price;
-  }, 0) || 0;
+  const totalValue =
+    holdings?.reduce((sum, holding) => {
+      const shares = Number(holding.shares) || 0;
+      const price = Number(holding.price_per_share) || 0;
+      return sum + shares * price;
+    }, 0) || 0;
 
   // Toggle between holdings and balance mode
   const handleTrackHoldingsToggle = (checked: boolean) => {
     setTrackHoldings(checked);
     if (!checked) {
       // Clear holdings when switching to balance mode
-      setValue('holdings', []);
+      setValue("holdings", []);
     } else {
       // Initialize with one empty holding when switching to holdings mode
-      setValue('holdings', [{ ticker: '', shares: 0, price_per_share: 0 }]);
-      setValue('balance', undefined);
+      setValue("holdings", [{ ticker: "", shares: 0, price_per_share: 0 }]);
+      setValue("balance", undefined);
     }
   };
 
@@ -100,10 +103,12 @@ export const InvestmentAccountForm = ({
     // Clean up data based on mode
     if (trackHoldings) {
       // Remove balance field if tracking holdings
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { balance, ...holdingsData } = data;
       onSubmit(holdingsData);
     } else {
       // Remove holdings field if using balance mode
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { holdings, ...balanceData } = data;
       onSubmit(balanceData);
     }
@@ -129,25 +134,19 @@ export const InvestmentAccountForm = ({
 
         <FormControl isInvalid={!!errors.name}>
           <FormLabel>Account Name</FormLabel>
-          <Input
-            {...register('name')}
-            placeholder="e.g., Vanguard Brokerage"
-          />
+          <Input {...register("name")} placeholder="e.g., Vanguard Brokerage" />
           <FormErrorMessage>{errors.name?.message}</FormErrorMessage>
         </FormControl>
 
         <FormControl isInvalid={!!errors.institution}>
           <FormLabel>Institution (Optional)</FormLabel>
-          <Input
-            {...register('institution')}
-            placeholder="e.g., Vanguard"
-          />
+          <Input {...register("institution")} placeholder="e.g., Vanguard" />
           <FormErrorMessage>{errors.institution?.message}</FormErrorMessage>
         </FormControl>
 
         <FormControl isInvalid={!!errors.account_type}>
           <FormLabel>Account Type</FormLabel>
-          <Select {...register('account_type')}>
+          <Select {...register("account_type")}>
             <option value={ACCOUNT_TYPES.BROKERAGE}>Brokerage</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_401K}>401(k)</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_403B}>403(b)</option>
@@ -155,7 +154,9 @@ export const InvestmentAccountForm = ({
             <option value={ACCOUNT_TYPES.RETIREMENT_IRA}>IRA</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_ROTH}>Roth IRA</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_SEP_IRA}>SEP IRA</option>
-            <option value={ACCOUNT_TYPES.RETIREMENT_SIMPLE_IRA}>SIMPLE IRA</option>
+            <option value={ACCOUNT_TYPES.RETIREMENT_SIMPLE_IRA}>
+              SIMPLE IRA
+            </option>
             <option value={ACCOUNT_TYPES.RETIREMENT_529}>529 Plan</option>
             <option value={ACCOUNT_TYPES.HSA}>HSA</option>
           </Select>
@@ -168,6 +169,7 @@ export const InvestmentAccountForm = ({
         <FormControl display="flex" alignItems="center">
           <FormLabel htmlFor="track-holdings" mb="0">
             Track individual holdings
+            <HelpHint hint={helpContent.accounts.trackHoldings} />
           </FormLabel>
           <Switch
             id="track-holdings"
@@ -177,8 +179,8 @@ export const InvestmentAccountForm = ({
           />
           <FormHelperText ml={3} mb="0">
             {trackHoldings
-              ? 'You can add individual stocks, funds, etc.'
-              : 'Just track the total account balance'}
+              ? "You can add individual stocks, funds, etc."
+              : "Just track the total account balance"}
           </FormHelperText>
         </FormControl>
 
@@ -192,7 +194,9 @@ export const InvestmentAccountForm = ({
               <Button
                 size="sm"
                 leftIcon={<AddIcon />}
-                onClick={() => append({ ticker: '', shares: 0, price_per_share: 0 })}
+                onClick={() =>
+                  append({ ticker: "", shares: 0, price_per_share: 0 })
+                }
                 variant="outline"
                 colorScheme="brand"
               >
@@ -200,98 +204,148 @@ export const InvestmentAccountForm = ({
               </Button>
             </HStack>
 
-          <Box overflowX="auto">
-            <Table size="sm" variant="simple">
-              <Thead>
-                <Tr>
-                  <Th>{defaultAccountType === ACCOUNT_TYPES.CRYPTO ? 'Symbol' : 'Ticker'}</Th>
-                  <Th>{defaultAccountType === ACCOUNT_TYPES.CRYPTO ? 'Quantity' : 'Shares'}</Th>
-                  <Th>{defaultAccountType === ACCOUNT_TYPES.CRYPTO ? 'Price' : 'Price/Share'}</Th>
-                  <Th isNumeric>Total Value</Th>
-                  <Th></Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {fields.map((field, index) => {
-                  const shares = Number(holdings?.[index]?.shares) || 0;
-                  const price = Number(holdings?.[index]?.price_per_share) || 0;
-                  const value = shares * price;
+            <Box overflowX="auto">
+              <Table size="sm" variant="simple">
+                <Thead>
+                  <Tr>
+                    <Th>
+                      {defaultAccountType === ACCOUNT_TYPES.CRYPTO
+                        ? "Symbol"
+                        : "Ticker"}
+                    </Th>
+                    <Th>
+                      {defaultAccountType === ACCOUNT_TYPES.CRYPTO
+                        ? "Quantity"
+                        : "Shares"}
+                    </Th>
+                    <Th>
+                      {defaultAccountType === ACCOUNT_TYPES.CRYPTO
+                        ? "Price"
+                        : "Price/Share"}
+                    </Th>
+                    <Th isNumeric>Total Value</Th>
+                    <Th></Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {fields.map((field, index) => {
+                    const shares = Number(holdings?.[index]?.shares) || 0;
+                    const price =
+                      Number(holdings?.[index]?.price_per_share) || 0;
+                    const value = shares * price;
 
-                  return (
-                    <Tr key={field.id}>
-                      <Td>
-                        <FormControl isInvalid={!!errors.holdings?.[index]?.ticker} size="sm">
-                          <Input
-                            {...register(`holdings.${index}.ticker` as const)}
-                            placeholder={defaultAccountType === ACCOUNT_TYPES.CRYPTO ? "BTC" : "AAPL"}
+                    return (
+                      <Tr key={field.id}>
+                        <Td>
+                          <FormControl
+                            isInvalid={!!errors.holdings?.[index]?.ticker}
                             size="sm"
-                            textTransform="uppercase"
-                          />
-                        </FormControl>
-                      </Td>
-                      <Td>
-                        <FormControl isInvalid={!!errors.holdings?.[index]?.shares}>
-                          <Controller
-                            name={`holdings.${index}.shares` as const}
-                            control={control}
-                            render={({ field: { onChange, value, ...field } }) => (
-                              <NumberInput
-                                {...field}
-                                value={value as number}
-                                onChange={(valueString) => onChange(parseFloat(valueString) || 0)}
-                                precision={4}
-                                step={0.01}
-                                size="sm"
-                              >
-                                <NumberInputField placeholder={defaultAccountType === ACCOUNT_TYPES.CRYPTO ? "0.5" : "100"} />
-                              </NumberInput>
-                            )}
-                          />
-                        </FormControl>
-                      </Td>
-                      <Td>
-                        <FormControl isInvalid={!!errors.holdings?.[index]?.price_per_share}>
-                          <Controller
-                            name={`holdings.${index}.price_per_share` as const}
-                            control={control}
-                            render={({ field: { onChange, value, ...field } }) => (
-                              <NumberInput
-                                {...field}
-                                value={value as number}
-                                onChange={(valueString) => onChange(parseFloat(valueString) || 0)}
-                                precision={2}
-                                step={0.01}
-                                size="sm"
-                              >
-                                <NumberInputField placeholder={defaultAccountType === ACCOUNT_TYPES.CRYPTO ? "65000.00" : "185.50"} />
-                              </NumberInput>
-                            )}
-                          />
-                        </FormControl>
-                      </Td>
-                      <Td isNumeric>
-                        <Text fontSize="sm" fontWeight="medium">
-                          ${value.toFixed(2)}
-                        </Text>
-                      </Td>
-                      <Td>
-                        {fields.length > 1 && (
-                          <IconButton
-                            aria-label="Remove holding"
-                            icon={<DeleteIcon />}
-                            size="sm"
-                            variant="ghost"
-                            colorScheme="red"
-                            onClick={() => remove(index)}
-                          />
-                        )}
-                      </Td>
-                    </Tr>
-                  );
-                })}
-              </Tbody>
-            </Table>
-          </Box>
+                          >
+                            <Input
+                              {...register(`holdings.${index}.ticker` as const)}
+                              placeholder={
+                                defaultAccountType === ACCOUNT_TYPES.CRYPTO
+                                  ? "BTC"
+                                  : "AAPL"
+                              }
+                              size="sm"
+                              textTransform="uppercase"
+                            />
+                          </FormControl>
+                        </Td>
+                        <Td>
+                          <FormControl
+                            isInvalid={!!errors.holdings?.[index]?.shares}
+                          >
+                            <Controller
+                              name={`holdings.${index}.shares` as const}
+                              control={control}
+                              render={({
+                                field: { onChange, value, ...field },
+                              }) => (
+                                <NumberInput
+                                  {...field}
+                                  value={value as number}
+                                  onChange={(valueString) =>
+                                    onChange(parseFloat(valueString) || 0)
+                                  }
+                                  precision={4}
+                                  step={0.01}
+                                  size="sm"
+                                >
+                                  <NumberInputField
+                                    placeholder={
+                                      defaultAccountType ===
+                                      ACCOUNT_TYPES.CRYPTO
+                                        ? "0.5"
+                                        : "100"
+                                    }
+                                  />
+                                </NumberInput>
+                              )}
+                            />
+                          </FormControl>
+                        </Td>
+                        <Td>
+                          <FormControl
+                            isInvalid={
+                              !!errors.holdings?.[index]?.price_per_share
+                            }
+                          >
+                            <Controller
+                              name={
+                                `holdings.${index}.price_per_share` as const
+                              }
+                              control={control}
+                              render={({
+                                field: { onChange, value, ...field },
+                              }) => (
+                                <NumberInput
+                                  {...field}
+                                  value={value as number}
+                                  onChange={(valueString) =>
+                                    onChange(parseFloat(valueString) || 0)
+                                  }
+                                  precision={2}
+                                  step={0.01}
+                                  size="sm"
+                                >
+                                  <NumberInputField
+                                    placeholder={
+                                      defaultAccountType ===
+                                      ACCOUNT_TYPES.CRYPTO
+                                        ? "65000.00"
+                                        : "185.50"
+                                    }
+                                  />
+                                </NumberInput>
+                              )}
+                            />
+                          </FormControl>
+                        </Td>
+                        <Td isNumeric>
+                          <Text fontSize="sm" fontWeight="medium">
+                            ${value.toFixed(2)}
+                          </Text>
+                        </Td>
+                        <Td>
+                          {fields.length > 1 && (
+                            <IconButton
+                              aria-label="Remove holding"
+                              icon={<DeleteIcon />}
+                              size="sm"
+                              variant="ghost"
+                              colorScheme="red"
+                              onClick={() => remove(index)}
+                            />
+                          )}
+                        </Td>
+                      </Tr>
+                    );
+                  })}
+                </Tbody>
+              </Table>
+            </Box>
 
             {errors.holdings && (
               <Text color="red.500" fontSize="sm" mt={2}>
@@ -309,7 +363,8 @@ export const InvestmentAccountForm = ({
             </Box>
 
             <Text fontSize="xs" color="text.secondary" mt={2}>
-              💡 Tip: You can manually enter stock prices or look them up on Yahoo Finance or Google
+              💡 Tip: You can manually enter stock prices or look them up on
+              Yahoo Finance or Google
             </Text>
           </Box>
         ) : (
@@ -323,7 +378,9 @@ export const InvestmentAccountForm = ({
                 <NumberInput
                   {...field}
                   value={value as number}
-                  onChange={(valueString) => onChange(parseFloat(valueString) || 0)}
+                  onChange={(valueString) =>
+                    onChange(parseFloat(valueString) || 0)
+                  }
                   precision={2}
                   step={100}
                 >
@@ -341,22 +398,20 @@ export const InvestmentAccountForm = ({
         <FormControl isInvalid={!!errors.account_number_last4}>
           <FormLabel>Account Number Last 4 Digits (Optional)</FormLabel>
           <Input
-            {...register('account_number_last4')}
+            {...register("account_number_last4")}
             placeholder="1234"
             maxLength={4}
           />
-          <FormErrorMessage>{errors.account_number_last4?.message}</FormErrorMessage>
+          <FormErrorMessage>
+            {errors.account_number_last4?.message}
+          </FormErrorMessage>
         </FormControl>
 
         <HStack justify="flex-end" spacing={3} pt={4}>
           <Button variant="ghost" onClick={onBack}>
             Cancel
           </Button>
-          <Button
-            type="submit"
-            colorScheme="brand"
-            isLoading={isLoading}
-          >
+          <Button type="submit" colorScheme="brand" isLoading={isLoading}>
             Add Account
           </Button>
         </HStack>

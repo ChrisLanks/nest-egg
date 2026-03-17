@@ -38,11 +38,6 @@ import {
   Menu,
   MenuButton,
   MenuList,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
 } from "@chakra-ui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React, { useState, useEffect, useMemo, useRef, memo } from "react";
@@ -1200,112 +1195,271 @@ export const InvestmentsPage = () => {
         {/* Investment Analysis Tabs */}
         <Card>
           <CardBody>
-            <Tabs
-              variant="enclosed"
-              colorScheme="brand"
-              index={selectedTabIndex}
-              onChange={setSelectedTabIndex}
+            {/* Row 1: Category headers — tab-bar style */}
+            <SimpleGrid
+              columns={3}
+              borderBottom="2px solid"
+              borderColor="border.muted"
             >
-              <TabList>
-                <Tab>
-                  Asset Allocation
-                  <HelpHint hint={helpContent.investments.assetAllocation} />
-                </Tab>
-                <Tab>Sector Breakdown</Tab>
-                <Tab>Future Growth</Tab>
-                <Tab>Performance Trends</Tab>
-                <Tab>Risk Analysis</Tab>
-                <Tab>Holdings Detail</Tab>
-                <Tab>
-                  Fee Analyzer
-                  <HelpHint hint={helpContent.investments.feeAnalysis} />
-                </Tab>
-                <Tab>
-                  Roth Conversion
-                  <HelpHint hint={helpContent.investments.rothConversion} />
-                </Tab>
-                <Tab>
-                  Tax-Loss Harvesting
-                  <HelpHint hint={helpContent.investments.taxLossHarvesting} />
-                </Tab>
-                <Tab>Rebalancing</Tab>
-                <Tab>Dividend Income</Tab>
-              </TabList>
+              {(
+                [
+                  {
+                    key: "portfolio",
+                    label: "Portfolio",
+                    indexes: [0, 1, 5, 10],
+                  },
+                  {
+                    key: "projections",
+                    label: "Projections",
+                    indexes: [2, 3, 4],
+                  },
+                  {
+                    key: "optimization",
+                    label: "Optimization",
+                    indexes: [6, 7, 8, 9],
+                  },
+                ] as const
+              ).map((group) => {
+                const isActive = group.indexes.includes(selectedTabIndex);
+                return (
+                  <Button
+                    key={group.key}
+                    size="lg"
+                    variant="ghost"
+                    borderRadius={0}
+                    borderBottom="3px solid"
+                    borderColor={isActive ? "brand.500" : "transparent"}
+                    mb="-2px"
+                    color={isActive ? "brand.500" : "text.secondary"}
+                    bg={isActive ? "brand.50" : "transparent"}
+                    fontWeight={isActive ? "bold" : "medium"}
+                    fontSize="md"
+                    _dark={{
+                      bg: isActive ? "whiteAlpha.100" : "transparent",
+                    }}
+                    _hover={{
+                      bg: isActive ? "brand.50" : "bg.subtle",
+                      borderColor: isActive ? "brand.500" : "border.muted",
+                      _dark: {
+                        bg: isActive ? "whiteAlpha.100" : "bg.subtle",
+                      },
+                    }}
+                    onClick={() => {
+                      if (!isActive) {
+                        setSelectedTabIndex(group.indexes[0]);
+                      }
+                    }}
+                  >
+                    {group.label}
+                  </Button>
+                );
+              })}
+            </SimpleGrid>
 
-              <TabPanels>
-                {/* Tab 1: Asset Allocation */}
-                <TabPanel>
-                  {portfolio.treemap_data && (
-                    <>
-                      <AssetAllocationTreemap
-                        key={`treemap-${hiddenAccountIds.join("-")}`}
-                        data={portfolio.treemap_data}
-                        onDrillDown={handleTreemapDrillDown}
-                      />
-                    </>
-                  )}
-                </TabPanel>
+            {/* Row 2: Sub-navigation for active category */}
+            <HStack spacing={8} mt={4} mb={5} pl={1}>
+              {/* Portfolio sub-items */}
+              {[0, 1, 5, 10].includes(selectedTabIndex) && (
+                <>
+                  {(
+                    [
+                      {
+                        idx: 0,
+                        label: "Asset Allocation",
+                        hint: helpContent.investments.assetAllocation,
+                      },
+                      {
+                        idx: 1,
+                        label: "Sector Breakdown",
+                        hint: helpContent.investments.sectorBreakdown,
+                      },
+                      {
+                        idx: 5,
+                        label: "Holdings Detail",
+                        hint: helpContent.investments.holdingsDetail,
+                      },
+                      {
+                        idx: 10,
+                        label: "Dividend Income",
+                        hint: helpContent.investments.dividendIncome,
+                      },
+                    ] as const
+                  ).map((item) => (
+                    <Text
+                      key={item.idx}
+                      as="button"
+                      fontSize="md"
+                      fontWeight={
+                        selectedTabIndex === item.idx ? "semibold" : "normal"
+                      }
+                      color={
+                        selectedTabIndex === item.idx
+                          ? "brand.500"
+                          : "text.secondary"
+                      }
+                      borderBottom="2px solid"
+                      borderColor={
+                        selectedTabIndex === item.idx
+                          ? "brand.500"
+                          : "transparent"
+                      }
+                      pb={2}
+                      cursor="pointer"
+                      _hover={{ color: "brand.500" }}
+                      onClick={() => setSelectedTabIndex(item.idx)}
+                    >
+                      {item.label}
+                      {"hint" in item && <HelpHint hint={item.hint} />}
+                    </Text>
+                  ))}
+                </>
+              )}
 
-                {/* Tab 2: Sector Breakdown */}
-                <TabPanel>
-                  <SectorBreakdownChart
-                    holdings={portfolio.holdings_by_ticker}
-                  />
-                </TabPanel>
+              {/* Projections sub-items */}
+              {[2, 3, 4].includes(selectedTabIndex) && (
+                <>
+                  {(
+                    [
+                      {
+                        idx: 2,
+                        label: "Future Growth",
+                        hint: helpContent.investments.futureGrowth,
+                      },
+                      {
+                        idx: 3,
+                        label: "Performance Trends",
+                        hint: helpContent.investments.performanceTrends,
+                      },
+                      {
+                        idx: 4,
+                        label: "Risk Analysis",
+                        hint: helpContent.investments.riskAnalysis,
+                      },
+                    ] as const
+                  ).map((item) => (
+                    <Text
+                      key={item.idx}
+                      as="button"
+                      fontSize="md"
+                      fontWeight={
+                        selectedTabIndex === item.idx ? "semibold" : "normal"
+                      }
+                      color={
+                        selectedTabIndex === item.idx
+                          ? "brand.500"
+                          : "text.secondary"
+                      }
+                      borderBottom="2px solid"
+                      borderColor={
+                        selectedTabIndex === item.idx
+                          ? "brand.500"
+                          : "transparent"
+                      }
+                      pb={2}
+                      cursor="pointer"
+                      _hover={{ color: "brand.500" }}
+                      onClick={() => setSelectedTabIndex(item.idx)}
+                    >
+                      {item.label}
+                      {"hint" in item && <HelpHint hint={item.hint} />}
+                    </Text>
+                  ))}
+                </>
+              )}
 
-                {/* Tab 3: Future Growth Projections */}
-                <TabPanel>
-                  <GrowthProjectionsChart
-                    currentValue={portfolio.total_value}
-                    monthlyContribution={monthlyContribution}
-                  />
-                </TabPanel>
+              {/* Optimization sub-items */}
+              {[6, 7, 8, 9].includes(selectedTabIndex) && (
+                <>
+                  {(
+                    [
+                      {
+                        idx: 6,
+                        label: "Fee Analyzer",
+                        hint: helpContent.investments.feeAnalysis,
+                      },
+                      {
+                        idx: 7,
+                        label: "Roth Conversion",
+                        hint: helpContent.investments.rothConversion,
+                      },
+                      {
+                        idx: 8,
+                        label: "Tax-Loss Harvesting",
+                        hint: helpContent.investments.taxLossHarvesting,
+                      },
+                      {
+                        idx: 9,
+                        label: "Rebalancing",
+                        hint: helpContent.investments.rebalancing,
+                      },
+                    ] as const
+                  ).map((item) => (
+                    <Text
+                      key={item.idx}
+                      as="button"
+                      fontSize="md"
+                      fontWeight={
+                        selectedTabIndex === item.idx ? "semibold" : "normal"
+                      }
+                      color={
+                        selectedTabIndex === item.idx
+                          ? "brand.500"
+                          : "text.secondary"
+                      }
+                      borderBottom="2px solid"
+                      borderColor={
+                        selectedTabIndex === item.idx
+                          ? "brand.500"
+                          : "transparent"
+                      }
+                      pb={2}
+                      cursor="pointer"
+                      _hover={{ color: "brand.500" }}
+                      onClick={() => setSelectedTabIndex(item.idx)}
+                    >
+                      {item.label}
+                      {"hint" in item && <HelpHint hint={item.hint} />}
+                    </Text>
+                  ))}
+                </>
+              )}
+            </HStack>
 
-                {/* Tab 4: Performance Trends */}
-                <TabPanel>
-                  <PerformanceTrendsChart
-                    currentValue={portfolio.total_value}
-                  />
-                </TabPanel>
-
-                {/* Tab 5: Risk Analysis */}
-                <TabPanel>
-                  <RiskAnalysisPanel portfolio={portfolio} />
-                </TabPanel>
-
-                {/* Tab 6: Holdings Detail */}
-                <TabPanel>
-                  <HoldingsDetailTable
-                    holdings={portfolio.holdings_by_ticker}
-                  />
-                </TabPanel>
-
-                {/* Tab 7: Fee Analyzer (enhanced with projections + overlap) */}
-                <TabPanel>
-                  <FeeAnalysisPanel userId={activeUserId} />
-                </TabPanel>
-
-                {/* Tab 8: Roth Conversion Analyzer */}
-                <TabPanel>
-                  <RothConversionAnalyzer />
-                </TabPanel>
-
-                {/* Tab 9: Tax-Loss Harvesting */}
-                <TabPanel>
-                  <TaxLossHarvestingPanel />
-                </TabPanel>
-
-                {/* Tab 10: Rebalancing */}
-                <TabPanel>
-                  <RebalancingPanel />
-                </TabPanel>
-
-                {/* Tab 11: Dividend Income */}
-                <TabPanel>
-                  <DividendIncomePanel />
-                </TabPanel>
-              </TabPanels>
-            </Tabs>
+            {/* Active panel content */}
+            <Box>
+              {selectedTabIndex === 0 && portfolio.treemap_data && (
+                <AssetAllocationTreemap
+                  key={`treemap-${hiddenAccountIds.join("-")}`}
+                  data={portfolio.treemap_data}
+                  onDrillDown={handleTreemapDrillDown}
+                />
+              )}
+              {selectedTabIndex === 1 && (
+                <SectorBreakdownChart holdings={portfolio.holdings_by_ticker} />
+              )}
+              {selectedTabIndex === 2 && (
+                <GrowthProjectionsChart
+                  currentValue={portfolio.total_value}
+                  monthlyContribution={monthlyContribution}
+                />
+              )}
+              {selectedTabIndex === 3 && (
+                <PerformanceTrendsChart currentValue={portfolio.total_value} />
+              )}
+              {selectedTabIndex === 4 && (
+                <RiskAnalysisPanel portfolio={portfolio} />
+              )}
+              {selectedTabIndex === 5 && (
+                <HoldingsDetailTable holdings={portfolio.holdings_by_ticker} />
+              )}
+              {selectedTabIndex === 6 && (
+                <FeeAnalysisPanel userId={activeUserId} />
+              )}
+              {selectedTabIndex === 7 && <RothConversionAnalyzer />}
+              {selectedTabIndex === 8 && <TaxLossHarvestingPanel />}
+              {selectedTabIndex === 9 && <RebalancingPanel />}
+              {selectedTabIndex === 10 && <DividendIncomePanel />}
+            </Box>
           </CardBody>
         </Card>
 
