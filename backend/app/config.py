@@ -128,7 +128,7 @@ class Settings(BaseSettings):
 
     # Rate Limiting
     MAX_MANUAL_SYNCS_PER_HOUR: int = 1
-    USER_RATE_LIMIT_PER_MINUTE: int = 60  # Per-user rate limit for authenticated endpoints
+    USER_RATE_LIMIT_PER_MINUTE: int = 300  # Per-user rate limit for authenticated endpoints
 
     # Authentication & Account Security
     MAX_LOGIN_ATTEMPTS: int = 5

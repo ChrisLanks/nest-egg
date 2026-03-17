@@ -143,7 +143,7 @@ class TestRateLimitMiddleware:
 
             mock_user.is_allowed = AsyncMock(return_value=True)
             mock_user.get_remaining_calls = AsyncMock(return_value=50)
-            mock_user.calls_per_minute = 60
+            mock_user.calls_per_minute = 300
 
             await middleware.dispatch(mock_request, mock_call_next)
 
@@ -169,7 +169,7 @@ class TestRateLimitMiddleware:
             # User limit exceeded
             mock_user.is_allowed = AsyncMock(return_value=False)
             mock_user.get_remaining_calls = AsyncMock(return_value=0)
-            mock_user.calls_per_minute = 60
+            mock_user.calls_per_minute = 300
 
             response = await middleware.dispatch(mock_request, mock_call_next)
 
@@ -214,7 +214,7 @@ class TestRateLimitMiddleware:
 
             mock_user.is_allowed = AsyncMock(return_value=True)
             mock_user.get_remaining_calls = AsyncMock(return_value=50)
-            mock_user.calls_per_minute = 60
+            mock_user.calls_per_minute = 300
 
             response = await middleware.dispatch(mock_request, mock_call_next)
             assert response.status_code == 200
@@ -236,11 +236,11 @@ class TestRateLimitMiddleware:
 
             mock_user.is_allowed = AsyncMock(return_value=True)
             mock_user.get_remaining_calls = AsyncMock(return_value=42)
-            mock_user.calls_per_minute = 60
+            mock_user.calls_per_minute = 300
 
             response = await middleware.dispatch(mock_request, mock_call_next)
 
-            assert response.headers["X-RateLimit-Limit"] == "60"
+            assert response.headers["X-RateLimit-Limit"] == "300"
             assert response.headers["X-RateLimit-Remaining"] == "42"
             assert response.headers["X-RateLimit-Reset"] == "60"
 
@@ -305,7 +305,7 @@ class TestRateLimitMiddleware:
 
             mock_user.is_allowed = AsyncMock(return_value=False)
             mock_user.get_remaining_calls = AsyncMock(return_value=0)
-            mock_user.calls_per_minute = 60
+            mock_user.calls_per_minute = 300
 
             response = await middleware.dispatch(mock_request, mock_call_next)
 
@@ -349,7 +349,7 @@ class TestRateLimitMiddleware:
 
             mock_user.is_allowed = AsyncMock(return_value=True)
             mock_user.get_remaining_calls = AsyncMock(return_value=3)
-            mock_user.calls_per_minute = 60
+            mock_user.calls_per_minute = 300
 
             await middleware.dispatch(mock_request, mock_call_next)
             assert mock_logger.info.called
@@ -372,7 +372,7 @@ class TestRateLimitMiddleware:
 
             mock_user.is_allowed = AsyncMock(return_value=True)
             mock_user.get_remaining_calls = AsyncMock(return_value=50)
-            mock_user.calls_per_minute = 60
+            mock_user.calls_per_minute = 300
 
             await middleware.dispatch(mock_request, mock_call_next)
             assert not mock_logger.info.called
@@ -422,7 +422,7 @@ class TestRateLimitMiddleware:
 
             mock_user.is_allowed = AsyncMock(return_value=False)
             mock_user.get_remaining_calls = AsyncMock(return_value=0)
-            mock_user.calls_per_minute = 60
+            mock_user.calls_per_minute = 300
 
             response = await middleware.dispatch(mock_request, mock_call_next)
 
@@ -433,7 +433,7 @@ class TestRateLimitMiddleware:
             detail = body["detail"]
             assert detail["retry_after"] == 60
             assert detail["remaining_calls"] == 0
-            assert "60" in detail["message"]
+            assert "300" in detail["message"]
             assert "per user" in detail["message"]
 
     # ── Graceful degradation ──────────────────────────────────────────────
