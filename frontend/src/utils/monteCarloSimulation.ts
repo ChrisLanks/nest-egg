@@ -33,6 +33,8 @@ export interface ProjectionResult {
   percentile90: number; // Optimistic case (90th percentile)
   medianInflationAdjusted: number;
   percentile10InflationAdjusted: number;
+  percentile25InflationAdjusted: number;
+  percentile75InflationAdjusted: number;
   percentile90InflationAdjusted: number;
   depletionRate: number; // % of simulations depleted by this year (0-100)
 }
@@ -236,6 +238,8 @@ export function runMonteCarloSimulation(
       percentile90: yearValues[p90Index],
       medianInflationAdjusted: yearValues[p50Index] / inflationAdjustment,
       percentile10InflationAdjusted: yearValues[p10Index] / inflationAdjustment,
+      percentile25InflationAdjusted: yearValues[p25Index] / inflationAdjustment,
+      percentile75InflationAdjusted: yearValues[p75Index] / inflationAdjustment,
       percentile90InflationAdjusted: yearValues[p90Index] / inflationAdjustment,
       depletionRate,
     });

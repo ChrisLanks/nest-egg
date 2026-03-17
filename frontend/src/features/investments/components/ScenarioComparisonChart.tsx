@@ -67,6 +67,8 @@ export const ScenarioComparisonChart = ({
       if (showInflationAdjusted) {
         row[`${prefix}_median`] = p.medianInflationAdjusted;
         row[`${prefix}_p90`] = p.percentile90InflationAdjusted;
+        row[`${prefix}_p75`] = p.percentile75InflationAdjusted;
+        row[`${prefix}_p25`] = p.percentile25InflationAdjusted;
         row[`${prefix}_p10`] = p.percentile10InflationAdjusted;
       } else {
         row[`${prefix}_median`] = p.median;

@@ -597,7 +597,11 @@ export const GrowthProjectionsChart = ({
               {/* Percentile bands */}
               <Area
                 type="monotone"
-                dataKey="percentile90"
+                dataKey={
+                  showInflationAdjusted
+                    ? "percentile90InflationAdjusted"
+                    : "percentile90"
+                }
                 stroke="transparent"
                 fill="#48BB78"
                 fillOpacity={0.1}
@@ -606,7 +610,11 @@ export const GrowthProjectionsChart = ({
               />
               <Area
                 type="monotone"
-                dataKey="percentile75"
+                dataKey={
+                  showInflationAdjusted
+                    ? "percentile75InflationAdjusted"
+                    : "percentile75"
+                }
                 stroke="transparent"
                 fill="#4299E1"
                 fillOpacity={0.15}
@@ -615,7 +623,11 @@ export const GrowthProjectionsChart = ({
               />
               <Area
                 type="monotone"
-                dataKey="percentile25"
+                dataKey={
+                  showInflationAdjusted
+                    ? "percentile25InflationAdjusted"
+                    : "percentile25"
+                }
                 stroke="transparent"
                 fill="#ED8936"
                 fillOpacity={0.15}
@@ -624,7 +636,11 @@ export const GrowthProjectionsChart = ({
               />
               <Area
                 type="monotone"
-                dataKey="percentile10"
+                dataKey={
+                  showInflationAdjusted
+                    ? "percentile10InflationAdjusted"
+                    : "percentile10"
+                }
                 stroke="transparent"
                 fill="#F56565"
                 fillOpacity={0.1}
