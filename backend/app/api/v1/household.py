@@ -259,6 +259,20 @@ async def remove_member(
 
     # Soft delete by marking inactive
     user_to_remove.is_active = False
+
+    # Archive selective retirement scenarios that include this member
+    from app.services.retirement.retirement_planner_service import (
+        RetirementPlannerService,
+    )
+
+    member_name = user_to_remove.display_name or user_to_remove.email or "a member"
+    await RetirementPlannerService.archive_scenarios_for_departed_member(
+        db,
+        str(current_user.organization_id),
+        str(user_id),
+        departed_user_name=member_name,
+    )
+
     await db.commit()
 
     return None
@@ -346,6 +360,21 @@ async def update_member_status(
         )
 
     target_user.is_active = body.is_active
+
+    # Handle retirement scenario archival on member status change
+    if not body.is_active:
+        from app.services.retirement.retirement_planner_service import (
+            RetirementPlannerService,
+        )
+
+        member_name = target_user.display_name or target_user.email or "a member"
+        await RetirementPlannerService.archive_scenarios_for_departed_member(
+            db,
+            str(current_user.organization_id),
+            str(user_id),
+            departed_user_name=member_name,
+        )
+
     await db.commit()
     await db.refresh(target_user)
 

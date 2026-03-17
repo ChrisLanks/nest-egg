@@ -137,6 +137,7 @@ class RetirementScenarioCreate(BaseModel):
 
     # Household-wide
     include_all_members: bool = False
+    member_ids: Optional[List[str]] = None  # Explicit member selection
 
 
 class RetirementScenarioUpdate(BaseModel):
@@ -179,6 +180,7 @@ class RetirementScenarioUpdate(BaseModel):
 
     # Household-wide
     include_all_members: Optional[bool] = None
+    member_ids: Optional[List[str]] = None
 
 
 class RetirementScenarioResponse(BaseModel):
@@ -229,6 +231,11 @@ class RetirementScenarioResponse(BaseModel):
     is_stale: bool = False
     household_member_ids: Optional[List[str]] = None
 
+    # Archival
+    is_archived: bool = False
+    archived_at: Optional[datetime] = None
+    archived_reason: Optional[str] = None
+
     life_events: List[LifeEventResponse] = []
 
     created_at: datetime
@@ -247,6 +254,8 @@ class RetirementScenarioSummary(BaseModel):
     is_default: bool
     is_stale: bool = False
     include_all_members: bool = False
+    is_archived: bool = False
+    household_member_ids: Optional[List[str]] = None
     readiness_score: Optional[int] = None
     success_rate: Optional[float] = None
     updated_at: datetime

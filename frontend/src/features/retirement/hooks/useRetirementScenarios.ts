@@ -27,11 +27,17 @@ import type {
 
 const QUERY_KEY = "retirement-scenarios";
 
-export function useRetirementScenarios(userId?: string, enabled = true) {
+export function useRetirementScenarios(
+  userId?: string,
+  enabled = true,
+  includeArchived = false,
+) {
   return useQuery<RetirementScenarioSummary[]>({
-    queryKey: [QUERY_KEY, userId],
+    queryKey: [QUERY_KEY, userId, includeArchived],
     queryFn: async () => {
-      const params = userId ? { user_id: userId } : {};
+      const params: Record<string, string | boolean> = {};
+      if (userId) params.user_id = userId;
+      if (includeArchived) params.include_archived = true;
       const { data } = await api.get<RetirementScenarioSummary[]>(
         "/retirement/scenarios",
         { params },
@@ -333,18 +339,50 @@ export function useHealthcareEstimate(
 export function useRetirementAccountData(
   userId?: string,
   includeAllMembers?: boolean,
+  memberIds?: string[],
 ) {
   return useQuery<RetirementAccountData>({
-    queryKey: [QUERY_KEY, "account-data", userId, includeAllMembers],
+    queryKey: [QUERY_KEY, "account-data", userId, includeAllMembers, memberIds],
     queryFn: async () => {
       const params: Record<string, string | boolean> = {};
       if (userId) params.user_id = userId;
       if (includeAllMembers) params.include_all_members = true;
+      if (memberIds?.length) params.member_ids = memberIds.join(",");
       const { data } = await api.get<RetirementAccountData>(
         "/retirement/account-data",
         { params },
       );
       return data;
+    },
+  });
+}
+
+export function useArchiveScenario() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (scenarioId: string) => {
+      const { data } = await api.post(
+        `/retirement/scenarios/${scenarioId}/archive`,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+    },
+  });
+}
+
+export function useUnarchiveScenario() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (scenarioId: string) => {
+      const { data } = await api.post(
+        `/retirement/scenarios/${scenarioId}/unarchive`,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
     },
   });
 }

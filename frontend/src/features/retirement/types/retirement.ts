@@ -95,6 +95,10 @@ export interface RetirementScenario {
   is_stale: boolean;
   household_member_ids: string[] | null;
 
+  is_archived: boolean;
+  archived_at: string | null;
+  archived_reason: string | null;
+
   life_events: LifeEvent[];
 
   created_at: string;
@@ -108,6 +112,8 @@ export interface RetirementScenarioSummary {
   is_default: boolean;
   is_stale: boolean;
   include_all_members: boolean;
+  is_archived: boolean;
+  household_member_ids: string[] | null;
   readiness_score: number | null;
   success_rate: number | null;
   updated_at: string;
@@ -128,6 +134,7 @@ export interface RetirementScenarioCreate {
   withdrawal_strategy?: WithdrawalStrategy;
   withdrawal_rate?: number;
   include_all_members?: boolean;
+  member_ids?: string[];
 }
 
 // --- Simulation Results ---

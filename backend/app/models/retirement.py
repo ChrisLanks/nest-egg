@@ -135,6 +135,11 @@ class RetirementScenario(Base):
     household_member_hash = Column(String(64), nullable=True)
     household_member_ids = Column(Text, nullable=True)  # JSON array of member UUIDs
 
+    # Archival lifecycle
+    is_archived = Column(Boolean, default=False, nullable=False, server_default="false")
+    archived_at = Column(DateTime, nullable=True)
+    archived_reason = Column(String(200), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)

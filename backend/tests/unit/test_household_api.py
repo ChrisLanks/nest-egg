@@ -433,16 +433,22 @@ class TestRemoveMember:
         user_to_remove = Mock(spec=User)
         user_to_remove.id = user_id
         user_to_remove.is_primary_household_member = False
+        user_to_remove.display_name = "Test User"
+        user_to_remove.first_name = "Test"
 
         result = Mock()
         result.scalar_one_or_none.return_value = user_to_remove
         mock_db.execute.return_value = result
 
-        await remove_member(
-            user_id=user_id,
-            current_user=mock_user,
-            db=mock_db,
-        )
+        with patch(
+            "app.services.retirement.retirement_planner_service.RetirementPlannerService.archive_scenarios_for_departed_member",
+            new_callable=AsyncMock,
+        ):
+            await remove_member(
+                user_id=user_id,
+                current_user=mock_user,
+                db=mock_db,
+            )
 
         assert user_to_remove.is_active is False
         assert mock_db.commit.called

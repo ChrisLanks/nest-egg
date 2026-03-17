@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from datetime import timedelta
 from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
@@ -46,20 +47,33 @@ class RetirementPlannerService:
         return hash_str, member_ids
 
     @staticmethod
+    def compute_selective_member_hash(member_ids: list[str]) -> str:
+        """Compute hash for an explicit subset of members (no DB query)."""
+        sorted_ids = sorted(member_ids)
+        return hashlib.sha256(",".join(sorted_ids).encode()).hexdigest()
+
+    @staticmethod
     async def list_scenarios(
         db: AsyncSession,
         organization_id: str,
         user_id: Optional[str] = None,
+        include_archived: bool = False,
     ) -> List[RetirementScenario]:
-        """List all scenarios for an organization, optionally filtered by user."""
+        """List scenarios for an organization, optionally filtered by user."""
         conditions = [RetirementScenario.organization_id == organization_id]
         if user_id:
             conditions.append(RetirementScenario.user_id == user_id)
+        if not include_archived:
+            conditions.append(RetirementScenario.is_archived.is_(False))
 
         result = await db.execute(
             select(RetirementScenario)
             .where(and_(*conditions))
-            .order_by(RetirementScenario.is_default.desc(), RetirementScenario.updated_at.desc())
+            .order_by(
+                RetirementScenario.is_archived.asc(),
+                RetirementScenario.is_default.desc(),
+                RetirementScenario.updated_at.desc(),
+            )
         )
         return result.scalars().all()
 
@@ -87,9 +101,14 @@ class RetirementPlannerService:
         db: AsyncSession,
         organization_id: str,
         user_id: str,
+        member_ids: Optional[list[str]] = None,
         **kwargs,
     ) -> RetirementScenario:
-        """Create a new retirement scenario."""
+        """Create a new retirement scenario.
+
+        member_ids: explicit list of member UUIDs for selective multi-user.
+        If provided with 2+ entries, overrides include_all_members.
+        """
         scenario = RetirementScenario(
             organization_id=organization_id,
             user_id=user_id,
@@ -98,13 +117,22 @@ class RetirementPlannerService:
         db.add(scenario)
         await db.flush()
 
-        # If household-wide, compute and store member hash
-        if scenario.include_all_members:
-            hash_str, member_ids = await RetirementPlannerService.compute_household_member_hash(
+        if member_ids and len(member_ids) >= 2:
+            # Selective multi-user scenario
+            sorted_ids = sorted(member_ids)
+            scenario.household_member_ids = json.dumps(sorted_ids)
+            scenario.household_member_hash = RetirementPlannerService.compute_selective_member_hash(
+                sorted_ids
+            )
+            scenario.include_all_members = False
+            await db.flush()
+        elif scenario.include_all_members:
+            # Dynamic all-members scenario
+            hash_str, all_ids = await RetirementPlannerService.compute_household_member_hash(
                 db, organization_id
             )
             scenario.household_member_hash = hash_str
-            scenario.household_member_ids = json.dumps(member_ids)
+            scenario.household_member_ids = json.dumps(all_ids)
             await db.flush()
 
         # Eagerly load life_events for response serialization
@@ -248,6 +276,9 @@ class RetirementPlannerService:
             capital_gains_rate=scenario.capital_gains_rate,
             num_simulations=scenario.num_simulations,
             is_shared=scenario.is_shared,
+            include_all_members=scenario.include_all_members,
+            household_member_hash=scenario.household_member_hash,
+            household_member_ids=scenario.household_member_ids,
         )
         db.add(new_scenario)
         await db.flush()
@@ -338,3 +369,133 @@ class RetirementPlannerService:
                 }
             )
         return summaries
+
+    # --- Archival lifecycle ---
+
+    @staticmethod
+    async def archive_scenarios_for_departed_member(
+        db: AsyncSession,
+        organization_id: str,
+        departed_user_id: str,
+        departed_user_name: str = "a member",
+    ) -> int:
+        """Archive selective-member scenarios that include the departed user.
+
+        Does NOT archive include_all_members=True scenarios (those use
+        the staleness mechanism instead).
+        Returns the number of archived scenarios.
+        """
+        result = await db.execute(
+            select(RetirementScenario).where(
+                and_(
+                    RetirementScenario.organization_id == organization_id,
+                    RetirementScenario.is_archived.is_(False),
+                    RetirementScenario.include_all_members.is_(False),
+                    RetirementScenario.household_member_ids.isnot(None),
+                )
+            )
+        )
+        scenarios = result.scalars().all()
+        archived_count = 0
+
+        for scenario in scenarios:
+            stored_ids = json.loads(scenario.household_member_ids)
+            if departed_user_id in stored_ids:
+                scenario.is_archived = True
+                scenario.archived_at = utc_now()
+                scenario.archived_reason = f"Member {departed_user_name} left the household"
+                archived_count += 1
+
+        if archived_count:
+            await db.flush()
+        return archived_count
+
+    @staticmethod
+    async def unarchive_scenario(
+        db: AsyncSession,
+        scenario: RetirementScenario,
+    ) -> RetirementScenario:
+        """Reactivate an archived scenario.
+
+        Validates that at least one member is still active.
+        Recomputes the household member hash.
+        """
+        if not scenario.household_member_ids:
+            # Single-user scenario — just clear archive fields
+            scenario.is_archived = False
+            scenario.archived_at = None
+            scenario.archived_reason = None
+            await db.flush()
+            return scenario
+
+        stored_ids = json.loads(scenario.household_member_ids)
+
+        # Check how many stored members are still active
+        active_result = await db.execute(
+            select(func.count(User.id)).where(
+                and_(
+                    User.id.in_(stored_ids),
+                    User.is_active.is_(True),
+                )
+            )
+        )
+        active_count = active_result.scalar() or 0
+        if active_count == 0:
+            raise ValueError("Cannot unarchive: no members in this scenario are active")
+
+        # Recompute hash for the stored member list
+        scenario.household_member_hash = RetirementPlannerService.compute_selective_member_hash(
+            stored_ids
+        )
+        scenario.is_archived = False
+        scenario.archived_at = None
+        scenario.archived_reason = None
+        await db.flush()
+        return scenario
+
+    @staticmethod
+    async def cleanup_orphaned_archived_scenarios(
+        db: AsyncSession,
+    ) -> int:
+        """Delete archived scenarios with no active members after 30 days.
+
+        Returns the number of deleted scenarios.
+        """
+        cutoff = utc_now() - timedelta(days=30)
+
+        result = await db.execute(
+            select(RetirementScenario).where(
+                and_(
+                    RetirementScenario.is_archived.is_(True),
+                    RetirementScenario.archived_at.isnot(None),
+                    RetirementScenario.archived_at < cutoff,
+                )
+            )
+        )
+        candidates = result.scalars().all()
+        deleted_count = 0
+
+        for scenario in candidates:
+            if not scenario.household_member_ids:
+                # Single-user archived scenario past cutoff — delete
+                await db.delete(scenario)
+                deleted_count += 1
+                continue
+
+            stored_ids = json.loads(scenario.household_member_ids)
+            active_result = await db.execute(
+                select(func.count(User.id)).where(
+                    and_(
+                        User.id.in_(stored_ids),
+                        User.is_active.is_(True),
+                    )
+                )
+            )
+            active_count = active_result.scalar() or 0
+            if active_count == 0:
+                await db.delete(scenario)
+                deleted_count += 1
+
+        if deleted_count:
+            await db.flush()
+        return deleted_count

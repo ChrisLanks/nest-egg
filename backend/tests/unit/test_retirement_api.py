@@ -84,6 +84,9 @@ def _make_scenario(user, *, scenario_id=None):
     scenario.include_all_members = False
     scenario.household_member_hash = None
     scenario.household_member_ids = None
+    scenario.is_archived = False
+    scenario.archived_at = None
+    scenario.archived_reason = None
     scenario.life_events = []
     scenario.created_at = datetime(2024, 1, 1, 12, 0, 0)
     scenario.updated_at = datetime(2024, 1, 1, 12, 0, 0)
@@ -934,7 +937,7 @@ class TestGetAccountData:
             new_callable=AsyncMock,
             return_value=account_data,
         ):
-            result = await get_account_data(user_id=None, current_user=user, db=db)
+            result = await get_account_data(user_id=None, member_ids=None, current_user=user, db=db)
 
         assert result.total_portfolio == 500000.0
         assert result.annual_contributions == 25000.0
@@ -950,7 +953,7 @@ class TestGetAccountData:
         db.get = AsyncMock(return_value=target)
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_account_data(user_id=other_user_id, current_user=user, db=db)
+            await get_account_data(user_id=other_user_id, member_ids=None, current_user=user, db=db)
 
         assert exc_info.value.status_code == 403
 

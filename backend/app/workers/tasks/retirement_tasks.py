@@ -80,3 +80,25 @@ def run_retirement_simulation(scenario_id: str, user_id: str):
             )
 
     asyncio.run(_run())
+
+
+@celery_app.task(name="cleanup_archived_retirement_scenarios")
+def cleanup_archived_retirement_scenarios():
+    """Delete archived retirement scenarios with no active members after 30 days."""
+
+    async def _run():
+        from app.services.retirement.retirement_planner_service import (
+            RetirementPlannerService,
+        )
+        from app.workers.utils import get_celery_session
+
+        async with get_celery_session() as db:
+            count = await RetirementPlannerService.cleanup_orphaned_archived_scenarios(db)
+            await db.commit()
+            if count:
+                logger.info(
+                    "cleanup_archived_retirement_scenarios: deleted %d scenarios",
+                    count,
+                )
+
+    asyncio.run(_run())

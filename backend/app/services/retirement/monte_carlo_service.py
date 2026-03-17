@@ -255,7 +255,7 @@ class RetirementMonteCarloService:
             raise ValueError("User birthdate is required for retirement simulation")
         current_age = calculate_age(user.birthdate)
 
-        # Gather account data — household-wide when include_all_members is set
+        # Gather account data — multi-user when applicable
         household_user_ids = None
         if getattr(scenario, "include_all_members", False) is True:
             from app.services.retirement.retirement_planner_service import (
@@ -267,6 +267,15 @@ class RetirementMonteCarloService:
             )
             if len(member_ids) > 1:
                 household_user_ids = member_ids
+        elif getattr(scenario, "household_member_ids", None) and isinstance(
+            scenario.household_member_ids, str
+        ):
+            # Selective multi-user scenario
+            import json as _json
+
+            stored_ids = _json.loads(scenario.household_member_ids)
+            if len(stored_ids) > 1:
+                household_user_ids = stored_ids
 
         account_data = await RetirementMonteCarloService._gather_account_data(
             db,

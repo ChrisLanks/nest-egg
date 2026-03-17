@@ -256,9 +256,16 @@ Full retirement planning suite with Monte Carlo simulation, life event modeling,
   - Savings rate indicator with color-coded threshold
 - **Scenario Settings Panel**: Adjustable sliders for retirement age (15-95), plan-through age, spending, returns, volatility, inflation, and withdrawal rate
 - **Household-Wide Planning**: Aggregate all household members' accounts into a single retirement scenario
+  - **Selective Multi-User Scenarios**: Pick specific household members for a joint retirement plan (not just single-user or all-users)
+  - Member picker modal with "Just me", "All members", or checkbox selection for specific members
+  - Multi-member badge on scenario tabs showing member count
   - Automatic staleness detection when household membership changes (members join or leave)
   - "Recalculate" action refreshes scenario with current membership
-  - Per-member or combined-household scenarios supported
+  - Per-member, selective-member, or combined-household scenarios supported
+- **Scenario Archival Lifecycle**: Auto-archive selective scenarios when a participating member leaves
+  - Archived scenarios shown in collapsible section with "Restore" option
+  - Reactivation available when departed member returns to household
+  - 30-day auto-delete for archived scenarios with zero active members (Celery beat task)
 - **CSV Export**: Download projection data for external analysis
 
 ## FIRE Dashboard (Financial Independence, Retire Early)

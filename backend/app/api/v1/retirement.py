@@ -8,6 +8,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import func
+from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db, verify_household_member
@@ -69,10 +71,14 @@ async def create_scenario(
         sanitized["description"] = input_sanitization_service.sanitize_html(
             sanitized["description"]
         )
+    # Extract member_ids before passing to service
+    member_ids = sanitized.pop("member_ids", None)
+
     scenario = await RetirementPlannerService.create_scenario(
         db=db,
         organization_id=str(current_user.organization_id),
         user_id=str(current_user.id),
+        member_ids=member_ids,
         **sanitized,
     )
     await db.commit()
@@ -82,6 +88,7 @@ async def create_scenario(
 @router.get("/scenarios", response_model=List[RetirementScenarioSummary])
 async def list_scenarios(
     user_id: Optional[str] = None,
+    include_archived: bool = Query(False),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -93,11 +100,15 @@ async def list_scenarios(
 
         target = await db.get(UserModel, user_id)
         if not target or str(target.organization_id) != str(current_user.organization_id):
-            raise HTTPException(status_code=403, detail="Cannot access another organization's data")
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot access another organization's data",
+            )
     scenarios = await RetirementPlannerService.list_scenarios(
         db=db,
         organization_id=str(current_user.organization_id),
         user_id=target_user,
+        include_archived=include_archived,
     )
     summaries = await RetirementPlannerService.get_scenario_summary_with_scores(db, scenarios)
 
@@ -109,10 +120,37 @@ async def list_scenarios(
             db, str(current_user.organization_id)
         )
 
+    # Get active user IDs for selective staleness check
+    active_user_ids = None
+    has_selective = any(not s.include_all_members and s.household_member_ids for s in scenarios)
+    if has_selective:
+        active_result = await db.execute(
+            sa_select(User.id).where(
+                User.organization_id == current_user.organization_id,
+                User.is_active.is_(True),
+            )
+        )
+        active_user_ids = {str(r[0]) for r in active_result.all()}
+
     for summary, scenario in zip(summaries, scenarios):
         summary["include_all_members"] = scenario.include_all_members
-        if scenario.include_all_members and scenario.household_member_hash and current_hash:
+        summary["is_archived"] = scenario.is_archived
+        summary["household_member_ids"] = (
+            json.loads(scenario.household_member_ids) if scenario.household_member_ids else None
+        )
+
+        if scenario.is_archived:
+            summary["is_stale"] = False
+        elif scenario.include_all_members and scenario.household_member_hash and current_hash:
             summary["is_stale"] = current_hash != scenario.household_member_hash
+        elif (
+            not scenario.include_all_members
+            and scenario.household_member_ids
+            and active_user_ids is not None
+        ):
+            # Selective scenario: stale if any member is inactive
+            stored = set(json.loads(scenario.household_member_ids))
+            summary["is_stale"] = not stored.issubset(active_user_ids)
         else:
             summary["is_stale"] = False
 
@@ -150,19 +188,30 @@ async def get_scenario(
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
 
-    # Compute staleness for household-wide scenarios
+    # Compute staleness
     is_stale = False
-    if scenario.include_all_members and scenario.household_member_hash:
+    if scenario.is_archived:
+        is_stale = False
+    elif scenario.include_all_members and scenario.household_member_hash:
         current_hash, _ = await RetirementPlannerService.compute_household_member_hash(
             db, str(current_user.organization_id)
         )
         is_stale = current_hash != scenario.household_member_hash
+    elif not scenario.include_all_members and scenario.household_member_ids:
+        # Selective: stale if any stored member is now inactive
+        stored = json.loads(scenario.household_member_ids)
+        active_result = await db.execute(
+            sa_select(func.count(User.id)).where(
+                User.id.in_(stored),
+                User.is_active.is_(True),
+            )
+        )
+        active_count = active_result.scalar() or 0
+        is_stale = active_count < len(stored)
 
     # Parse household_member_ids from JSON
     household_member_ids = None
     if scenario.household_member_ids:
-        import json
-
         household_member_ids = json.loads(scenario.household_member_ids)
 
     response = RetirementScenarioResponse.model_validate(scenario)
@@ -193,6 +242,17 @@ async def update_scenario(
         updates["name"] = input_sanitization_service.sanitize_html(updates["name"])
     if updates.get("description"):
         updates["description"] = input_sanitization_service.sanitize_html(updates["description"])
+
+    # Handle member_ids update
+    new_member_ids = updates.pop("member_ids", None)
+    if new_member_ids and len(new_member_ids) >= 2:
+        sorted_ids = sorted(new_member_ids)
+        updates["household_member_ids"] = json.dumps(sorted_ids)
+        updates["household_member_hash"] = RetirementPlannerService.compute_selective_member_hash(
+            sorted_ids
+        )
+        updates["include_all_members"] = False
+
     updated = await RetirementPlannerService.update_scenario(
         db=db, scenario=scenario, updates=updates
     )
@@ -253,31 +313,118 @@ async def refresh_household(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Recompute the household member hash for a household-wide scenario."""
+    """Recompute the household member hash for a multi-user scenario."""
     scenario = await RetirementPlannerService.get_scenario(
-        db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
+        db=db,
+        scenario_id=scenario_id,
+        organization_id=str(current_user.organization_id),
     )
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
-    if not scenario.include_all_members:
-        raise HTTPException(status_code=400, detail="Scenario is not household-wide")
+    if not scenario.include_all_members and not scenario.household_member_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="Scenario is not a multi-user scenario",
+        )
 
-    hash_str, member_ids = await RetirementPlannerService.compute_household_member_hash(
-        db, str(current_user.organization_id)
-    )
-    scenario.household_member_hash = hash_str
-    scenario.household_member_ids = json.dumps(member_ids)
+    if scenario.include_all_members:
+        # Dynamic: recompute from all active members
+        hash_str, member_ids = await RetirementPlannerService.compute_household_member_hash(
+            db, str(current_user.organization_id)
+        )
+        scenario.household_member_hash = hash_str
+        scenario.household_member_ids = json.dumps(member_ids)
+    else:
+        # Selective: recompute hash for the stored member list
+        member_ids = json.loads(scenario.household_member_ids)
+        scenario.household_member_hash = RetirementPlannerService.compute_selective_member_hash(
+            member_ids
+        )
+
     await db.flush()
     await db.commit()
 
     # Re-fetch to get fresh life_events
     scenario = await RetirementPlannerService.get_scenario(
-        db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
+        db=db,
+        scenario_id=scenario_id,
+        organization_id=str(current_user.organization_id),
     )
 
     response = RetirementScenarioResponse.model_validate(scenario)
     response.is_stale = False
     response.household_member_ids = member_ids
+    return response
+
+
+# --- Archive / Unarchive ---
+
+
+@router.post(
+    "/scenarios/{scenario_id}/archive",
+    response_model=RetirementScenarioResponse,
+)
+async def archive_scenario(
+    scenario_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually archive a retirement scenario."""
+    scenario = await RetirementPlannerService.get_scenario(
+        db=db,
+        scenario_id=scenario_id,
+        organization_id=str(current_user.organization_id),
+    )
+    if not scenario:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    if scenario.is_archived:
+        raise HTTPException(status_code=400, detail="Scenario is already archived")
+
+    from app.utils.datetime_utils import utc_now
+
+    scenario.is_archived = True
+    scenario.archived_at = utc_now()
+    scenario.archived_reason = "Manually archived"
+    await db.flush()
+    await db.commit()
+
+    response = RetirementScenarioResponse.model_validate(scenario)
+    if scenario.household_member_ids:
+        response.household_member_ids = json.loads(scenario.household_member_ids)
+    return response
+
+
+@router.post(
+    "/scenarios/{scenario_id}/unarchive",
+    response_model=RetirementScenarioResponse,
+)
+async def unarchive_scenario(
+    scenario_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reactivate an archived retirement scenario."""
+    scenario = await RetirementPlannerService.get_scenario(
+        db=db,
+        scenario_id=scenario_id,
+        organization_id=str(current_user.organization_id),
+    )
+    if not scenario:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    if not scenario.is_archived:
+        raise HTTPException(status_code=400, detail="Scenario is not archived")
+
+    try:
+        scenario = await RetirementPlannerService.unarchive_scenario(db=db, scenario=scenario)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await db.commit()
+
+    response = RetirementScenarioResponse.model_validate(scenario)
+    response.is_stale = False
+    if scenario.household_member_ids:
+        response.household_member_ids = json.loads(scenario.household_member_ids)
     return response
 
 
@@ -524,6 +671,9 @@ async def get_healthcare_estimate(
 async def get_account_data(
     user_id: Optional[str] = None,
     include_all_members: bool = False,
+    member_ids: Optional[str] = Query(
+        None, description="Comma-separated member UUIDs for selective aggregation"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -531,15 +681,19 @@ async def get_account_data(
     target_user = user_id or str(current_user.id)
     # Verify target user belongs to the same organization
     if user_id and user_id != str(current_user.id):
-        from app.models.user import User as UserModel
-
-        target = await db.get(UserModel, user_id)
+        target = await db.get(User, user_id)
         if not target or str(target.organization_id) != str(current_user.organization_id):
-            raise HTTPException(status_code=403, detail="Cannot access another organization's data")
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot access another organization's data",
+            )
 
-    # Gather household-wide data when requested
+    # Determine which user IDs to aggregate
     household_user_ids = None
-    if include_all_members:
+    if member_ids:
+        # Selective multi-user
+        household_user_ids = [mid.strip() for mid in member_ids.split(",") if mid.strip()]
+    elif include_all_members:
         _, household_user_ids = await RetirementPlannerService.compute_household_member_hash(
             db, str(current_user.organization_id)
         )
