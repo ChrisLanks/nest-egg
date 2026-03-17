@@ -382,22 +382,26 @@ export default function SavingsGoalsPage() {
           </VStack>
           <Tooltip
             label={
-              isPartialSelection
+              isPartialSelection && !isSelfView
                 ? "Select 'All' members or your own view to create goals"
                 : !canEdit
                   ? "Read-only: You can only create goals for your own data"
                   : ""
             }
             placement="top"
-            isDisabled={canEdit && !isPartialSelection}
+            isDisabled={canEdit && (!isPartialSelection || isSelfView)}
           >
             <Button
               leftIcon={
-                canEdit && !isPartialSelection ? <AddIcon /> : <FiLock />
+                canEdit && (!isPartialSelection || isSelfView) ? (
+                  <AddIcon />
+                ) : (
+                  <FiLock />
+                )
               }
               colorScheme={accent}
               onClick={handleCreate}
-              isDisabled={!canEdit || isPartialSelection}
+              isDisabled={!canEdit || (isPartialSelection && !isSelfView)}
             >
               New Goal
             </Button>
@@ -489,7 +493,7 @@ export default function SavingsGoalsPage() {
           <EmptyState
             icon={FiTarget}
             title={
-              isPartialSelection
+              isPartialSelection && !isSelfView
                 ? "No savings goals match the selected members"
                 : isOtherUserView
                   ? "This user has no savings goals yet"
@@ -498,7 +502,7 @@ export default function SavingsGoalsPage() {
             description="Set savings goals to track progress toward vacations, emergency funds, down payments, and more."
             actionLabel="Create Your First Goal"
             onAction={handleCreate}
-            showAction={canEdit && !isPartialSelection}
+            showAction={canEdit && (!isPartialSelection || isSelfView)}
           />
         )}
 

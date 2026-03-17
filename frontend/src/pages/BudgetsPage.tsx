@@ -133,22 +133,26 @@ export default function BudgetsPage() {
           </VStack>
           <Tooltip
             label={
-              isPartialSelection
+              isPartialSelection && !isSelfView
                 ? "Select 'All' members or your own view to create budgets"
                 : !canEdit
                   ? "Read-only: You can only create budgets for your own data"
                   : ""
             }
             placement="top"
-            isDisabled={canEdit && !isPartialSelection}
+            isDisabled={canEdit && (!isPartialSelection || isSelfView)}
           >
             <Button
               leftIcon={
-                canEdit && !isPartialSelection ? <AddIcon /> : <FiLock />
+                canEdit && (!isPartialSelection || isSelfView) ? (
+                  <AddIcon />
+                ) : (
+                  <FiLock />
+                )
               }
               colorScheme="blue"
               onClick={handleCreate}
-              isDisabled={!canEdit || isPartialSelection}
+              isDisabled={!canEdit || (isPartialSelection && !isSelfView)}
             >
               New Budget
             </Button>
@@ -220,7 +224,7 @@ export default function BudgetsPage() {
           <EmptyState
             icon={FiDollarSign}
             title={
-              isPartialSelection
+              isPartialSelection && !isSelfView
                 ? "No budgets match the selected members"
                 : isOtherUserView
                   ? "This user has no budgets yet"
@@ -229,7 +233,7 @@ export default function BudgetsPage() {
             description="Create budgets to track spending by category and stay on top of your financial goals."
             actionLabel="Create Your First Budget"
             onAction={handleCreate}
-            showAction={canEdit && !isPartialSelection}
+            showAction={canEdit && (!isPartialSelection || isSelfView)}
           />
         )}
 
