@@ -39,6 +39,7 @@ export default function BudgetsPage() {
     canWriteResource,
     isOtherUserView,
     isSelfView,
+    selectedUserId,
     selectedMemberIds,
     matchesMemberFilter,
     isPartialMemberSelection,
@@ -52,8 +53,11 @@ export default function BudgetsPage() {
 
   // Get all budgets
   const { data: budgets = [], isLoading } = useQuery({
-    queryKey: ["budgets"],
-    queryFn: () => budgetsApi.getAll(),
+    queryKey: ["budgets", selectedUserId],
+    queryFn: () =>
+      budgetsApi.getAll(
+        selectedUserId ? { user_id: selectedUserId } : undefined,
+      ),
   });
 
   const handleEdit = (budget: Budget) => {

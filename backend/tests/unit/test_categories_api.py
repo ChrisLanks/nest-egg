@@ -51,7 +51,7 @@ class TestListCategories:
 
         mock_db.execute.side_effect = [custom_result, plaid_result]
 
-        result = await list_categories(current_user=mock_user, db=mock_db)
+        result = await list_categories(user_id=None, current_user=mock_user, db=mock_db)
 
         assert len(result) == 1
         assert result[0].name == "Groceries"
@@ -75,7 +75,7 @@ class TestListCategories:
 
         mock_db.execute.side_effect = [custom_result, plaid_result]
 
-        result = await list_categories(current_user=mock_user, db=mock_db)
+        result = await list_categories(user_id=None, current_user=mock_user, db=mock_db)
 
         assert len(result) == 2
         assert result[0].name == "Food and Drink"
@@ -110,7 +110,7 @@ class TestListCategories:
 
         mock_db.execute.side_effect = [custom_result, plaid_result]
 
-        result = await list_categories(current_user=mock_user, db=mock_db)
+        result = await list_categories(user_id=None, current_user=mock_user, db=mock_db)
 
         # Should have 2 categories: custom "Groceries" and Plaid "Shopping"
         assert len(result) == 2
@@ -138,12 +138,64 @@ class TestListCategories:
 
         mock_db.execute.side_effect = [custom_result, plaid_result]
 
-        result = await list_categories(current_user=mock_user, db=mock_db)
+        result = await list_categories(user_id=None, current_user=mock_user, db=mock_db)
 
         assert len(result) == 3
         assert result[0].name == "Apple"
         assert result[1].name == "Mango"
         assert result[2].name == "Zebra"
+
+    @pytest.mark.asyncio
+    async def test_filters_by_user_id(self, mock_db, mock_user):
+        """Should call verify_household_member and get_user_accounts when user_id is provided."""
+        target_user_id = uuid4()
+        mock_account = Mock()
+        mock_account.id = uuid4()
+
+        custom_result = Mock()
+        custom_result.all.return_value = []
+        plaid_result = Mock()
+        plaid_result.all.return_value = []
+        mock_db.execute.side_effect = [custom_result, plaid_result]
+
+        with (
+            patch(
+                "app.api.v1.categories.verify_household_member",
+                return_value=None,
+            ) as mock_verify,
+            patch(
+                "app.api.v1.categories.get_user_accounts",
+                return_value=[mock_account],
+            ) as mock_get_accounts,
+        ):
+            await list_categories(user_id=target_user_id, current_user=mock_user, db=mock_db)
+
+            mock_verify.assert_called_once_with(mock_db, target_user_id, mock_user.organization_id)
+            mock_get_accounts.assert_called_once_with(
+                mock_db, target_user_id, mock_user.organization_id
+            )
+
+    @pytest.mark.asyncio
+    async def test_no_user_filter_when_user_id_is_none(self, mock_db, mock_user):
+        """Should not call verify_household_member when user_id is None (combined view)."""
+        custom_result = Mock()
+        custom_result.all.return_value = []
+        plaid_result = Mock()
+        plaid_result.all.return_value = []
+        mock_db.execute.side_effect = [custom_result, plaid_result]
+
+        with (
+            patch(
+                "app.api.v1.categories.verify_household_member",
+            ) as mock_verify,
+            patch(
+                "app.api.v1.categories.get_user_accounts",
+            ) as mock_get_accounts,
+        ):
+            await list_categories(user_id=None, current_user=mock_user, db=mock_db)
+
+            mock_verify.assert_not_called()
+            mock_get_accounts.assert_not_called()
 
 
 @pytest.mark.unit

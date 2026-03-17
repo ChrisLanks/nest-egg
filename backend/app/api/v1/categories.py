@@ -1,14 +1,18 @@
 """Category API endpoints."""
 
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import (
+    get_current_user,
+    get_user_accounts,
+    verify_household_member,
+)
 from app.models.transaction import Category, Transaction
 from app.models.user import User
 from app.schemas.transaction import CategoryCreate, CategoryResponse, CategoryUpdate
@@ -20,6 +24,9 @@ router = APIRouter()
 
 @router.get("/", response_model=List[CategoryResponse])
 async def list_categories(
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -28,28 +35,42 @@ async def list_categories(
     Returns both custom categories (from categories table) and provider categories
     (from transactions.category_primary). Provider categories come from connected
     accounts (Plaid, Teller, MX, etc.) and have is_custom=False.
+
+    When user_id is provided, transaction counts reflect only that user's accounts.
     """
+    # Get account IDs for filtering (if user_id specified)
+    account_ids = None
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+        account_ids = [acc.id for acc in accounts]
+
     # Get custom categories from categories table
-    custom_result = await db.execute(
+    custom_query = (
         select(Category, func.count(Transaction.id).label("transaction_count"))
         .outerjoin(Transaction, Transaction.category_id == Category.id)
         .where(Category.organization_id == current_user.organization_id)
-        .group_by(Category.id)
-        .order_by(Category.name)
     )
+    if account_ids is not None:
+        custom_query = custom_query.where(
+            (Transaction.account_id.in_(account_ids)) | (Transaction.id.is_(None))
+        )
+    custom_result = await db.execute(custom_query.group_by(Category.id).order_by(Category.name))
     custom_categories = custom_result.all()
 
     # Get provider categories from transactions (agnostic of provider source)
     # These are categories assigned by account providers like Plaid, Teller, MX
+    provider_query = select(
+        Transaction.category_primary, func.count(Transaction.id).label("transaction_count")
+    ).where(
+        Transaction.organization_id == current_user.organization_id,
+        Transaction.category_primary.isnot(None),
+        Transaction.category_primary != "",
+    )
+    if account_ids is not None:
+        provider_query = provider_query.where(Transaction.account_id.in_(account_ids))
     provider_result = await db.execute(
-        select(Transaction.category_primary, func.count(Transaction.id).label("transaction_count"))
-        .where(
-            Transaction.organization_id == current_user.organization_id,
-            Transaction.category_primary.isnot(None),
-            Transaction.category_primary != "",
-        )
-        .group_by(Transaction.category_primary)
-        .order_by(Transaction.category_primary)
+        provider_query.group_by(Transaction.category_primary).order_by(Transaction.category_primary)
     )
     provider_categories = provider_result.all()
 

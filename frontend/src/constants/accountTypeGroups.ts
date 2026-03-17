@@ -9,7 +9,7 @@
  * groups stay in sync. The `as const` suffix preserves literal types.
  */
 
-import { AccountType } from '../types/account';
+import { AccountType } from "../types/account";
 
 // ---------------------------------------------------------------------------
 // Atomic building blocks (mirror the Python layer)
@@ -22,17 +22,16 @@ export const EMPLOYER_PLAN_TYPES = [
   AccountType.RETIREMENT_457B,
 ] as const;
 
-/** IRA family (Traditional, SEP, SIMPLE — all pre-tax by default) */
+/** IRA family (Traditional, SEP, SIMPLE, Trump — all pre-tax by default) */
 export const TRADITIONAL_IRA_TYPES = [
   AccountType.RETIREMENT_IRA,
   AccountType.RETIREMENT_SEP_IRA,
   AccountType.RETIREMENT_SIMPLE_IRA,
+  AccountType.TRUMP_ACCOUNT,
 ] as const;
 
 /** Roth family */
-export const ROTH_TYPES = [
-  AccountType.RETIREMENT_ROTH,
-] as const;
+export const ROTH_TYPES = [AccountType.RETIREMENT_ROTH] as const;
 
 /** Tax-free savings vehicles */
 export const TAX_FREE_SAVINGS_TYPES = [
@@ -109,38 +108,44 @@ export const EMPLOYER_MATCH_TYPES = EMPLOYER_PLAN_TYPES;
 // ---------------------------------------------------------------------------
 
 /** Maps every AccountType to a sidebar section label and sort order. */
-export const ACCOUNT_TYPE_SIDEBAR_CONFIG: Record<string, { label: string; order: number }> = {
-  [AccountType.CHECKING]:              { label: 'Cash', order: 1 },
-  [AccountType.SAVINGS]:               { label: 'Cash', order: 1 },
-  [AccountType.MONEY_MARKET]:          { label: 'Cash', order: 1 },
-  [AccountType.CD]:                    { label: 'Cash', order: 1 },
-  [AccountType.CREDIT_CARD]:           { label: 'Credit Cards', order: 2 },
-  [AccountType.BROKERAGE]:             { label: 'Investments', order: 3 },
-  [AccountType.PRIVATE_EQUITY]:        { label: 'Investments', order: 3 },
-  [AccountType.CRYPTO]:                { label: 'Investments', order: 3 },
-  [AccountType.RETIREMENT_401K]:       { label: 'Retirement', order: 4 },
-  [AccountType.RETIREMENT_403B]:       { label: 'Retirement', order: 4 },
-  [AccountType.RETIREMENT_457B]:       { label: 'Retirement', order: 4 },
-  [AccountType.RETIREMENT_IRA]:        { label: 'Retirement', order: 4 },
-  [AccountType.RETIREMENT_ROTH]:       { label: 'Retirement', order: 4 },
-  [AccountType.RETIREMENT_SEP_IRA]:    { label: 'Retirement', order: 4 },
-  [AccountType.RETIREMENT_SIMPLE_IRA]: { label: 'Retirement', order: 4 },
-  [AccountType.RETIREMENT_529]:        { label: 'Retirement', order: 4 },
-  [AccountType.HSA]:                   { label: 'Retirement', order: 4 },
-  [AccountType.PENSION]:               { label: 'Retirement', order: 4 },
-  [AccountType.LOAN]:                  { label: 'Loans', order: 5 },
-  [AccountType.STUDENT_LOAN]:          { label: 'Loans', order: 5 },
-  [AccountType.MORTGAGE]:              { label: 'Loans', order: 5 },
-  [AccountType.PROPERTY]:              { label: 'Property', order: 6 },
-  [AccountType.VEHICLE]:               { label: 'Property', order: 6 },
-  [AccountType.BOND]:                  { label: 'Bonds & Securities', order: 7 },
-  [AccountType.STOCK_OPTIONS]:         { label: 'Bonds & Securities', order: 7 },
-  [AccountType.PRIVATE_DEBT]:          { label: 'Alternative', order: 8 },
-  [AccountType.COLLECTIBLES]:          { label: 'Alternative', order: 8 },
-  [AccountType.PRECIOUS_METALS]:       { label: 'Alternative', order: 8 },
-  [AccountType.LIFE_INSURANCE_CASH_VALUE]: { label: 'Insurance', order: 9 },
-  [AccountType.ANNUITY]:               { label: 'Insurance', order: 9 },
-  [AccountType.BUSINESS_EQUITY]:       { label: 'Business', order: 10 },
-  [AccountType.MANUAL]:                { label: 'Other', order: 11 },
-  [AccountType.OTHER]:                 { label: 'Other', order: 11 },
+export const ACCOUNT_TYPE_SIDEBAR_CONFIG: Record<
+  string,
+  { label: string; order: number }
+> = {
+  [AccountType.CHECKING]: { label: "Cash", order: 1 },
+  [AccountType.SAVINGS]: { label: "Cash", order: 1 },
+  [AccountType.MONEY_MARKET]: { label: "Cash", order: 1 },
+  [AccountType.CD]: { label: "Cash", order: 1 },
+  [AccountType.CREDIT_CARD]: { label: "Credit Cards", order: 2 },
+  [AccountType.BROKERAGE]: { label: "Investments", order: 3 },
+  [AccountType.PRIVATE_EQUITY]: { label: "Investments", order: 3 },
+  [AccountType.CRYPTO]: { label: "Investments", order: 3 },
+  [AccountType.RETIREMENT_401K]: { label: "Retirement", order: 4 },
+  [AccountType.RETIREMENT_403B]: { label: "Retirement", order: 4 },
+  [AccountType.RETIREMENT_457B]: { label: "Retirement", order: 4 },
+  [AccountType.RETIREMENT_IRA]: { label: "Retirement", order: 4 },
+  [AccountType.RETIREMENT_ROTH]: { label: "Retirement", order: 4 },
+  [AccountType.RETIREMENT_SEP_IRA]: { label: "Retirement", order: 4 },
+  [AccountType.RETIREMENT_SIMPLE_IRA]: { label: "Retirement", order: 4 },
+  [AccountType.RETIREMENT_529]: { label: "Retirement", order: 4 },
+  [AccountType.HSA]: { label: "Retirement", order: 4 },
+  [AccountType.PENSION]: { label: "Retirement", order: 4 },
+  [AccountType.LOAN]: { label: "Loans", order: 5 },
+  [AccountType.STUDENT_LOAN]: { label: "Loans", order: 5 },
+  [AccountType.MORTGAGE]: { label: "Loans", order: 5 },
+  [AccountType.PROPERTY]: { label: "Property", order: 6 },
+  [AccountType.VEHICLE]: { label: "Property", order: 6 },
+  [AccountType.BOND]: { label: "Bonds & Securities", order: 7 },
+  [AccountType.STOCK_OPTIONS]: { label: "Bonds & Securities", order: 7 },
+  [AccountType.PRIVATE_DEBT]: { label: "Alternative", order: 8 },
+  [AccountType.COLLECTIBLES]: { label: "Alternative", order: 8 },
+  [AccountType.PRECIOUS_METALS]: { label: "Alternative", order: 8 },
+  [AccountType.LIFE_INSURANCE_CASH_VALUE]: { label: "Insurance", order: 9 },
+  [AccountType.ANNUITY]: { label: "Insurance", order: 9 },
+  [AccountType.BUSINESS_EQUITY]: { label: "Business", order: 10 },
+  [AccountType.TRUST]: { label: "Children's Savings", order: 11 },
+  [AccountType.CUSTODIAL_UGMA]: { label: "Children's Savings", order: 11 },
+  [AccountType.TRUMP_ACCOUNT]: { label: "Children's Savings", order: 11 },
+  [AccountType.MANUAL]: { label: "Other", order: 12 },
+  [AccountType.OTHER]: { label: "Other", order: 12 },
 };

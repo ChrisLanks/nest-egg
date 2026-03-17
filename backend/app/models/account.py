@@ -127,6 +127,7 @@ class AccountType(str, enum.Enum):
     # Trust & Estate
     TRUST = "trust"  # Revocable/irrevocable trust accounts
     CUSTODIAL_UGMA = "custodial_ugma"  # UGMA/UTMA minor accounts
+    TRUMP_ACCOUNT = "trump_account"  # Custodial traditional IRA for minors (OBBBA)
 
     # Other
     MANUAL = "manual"

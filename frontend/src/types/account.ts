@@ -3,69 +3,74 @@
  */
 
 export enum PropertyType {
-  PERSONAL_RESIDENCE = 'personal_residence',
-  INVESTMENT = 'investment',
-  VACATION_HOME = 'vacation_home',
+  PERSONAL_RESIDENCE = "personal_residence",
+  INVESTMENT = "investment",
+  VACATION_HOME = "vacation_home",
 }
 
 export enum AccountType {
   // Cash & Checking
-  CHECKING = 'checking',
-  SAVINGS = 'savings',
-  MONEY_MARKET = 'money_market',
-  CD = 'cd',
+  CHECKING = "checking",
+  SAVINGS = "savings",
+  MONEY_MARKET = "money_market",
+  CD = "cd",
 
   // Credit & Debt
-  CREDIT_CARD = 'credit_card',
-  LOAN = 'loan',
-  STUDENT_LOAN = 'student_loan',
-  MORTGAGE = 'mortgage',
+  CREDIT_CARD = "credit_card",
+  LOAN = "loan",
+  STUDENT_LOAN = "student_loan",
+  MORTGAGE = "mortgage",
 
   // Investment Accounts
-  BROKERAGE = 'brokerage',
-  RETIREMENT_401K = 'retirement_401k',
-  RETIREMENT_403B = 'retirement_403b',
-  RETIREMENT_457B = 'retirement_457b',
-  RETIREMENT_IRA = 'retirement_ira',
-  RETIREMENT_ROTH = 'retirement_roth',
-  RETIREMENT_SEP_IRA = 'retirement_sep_ira',
-  RETIREMENT_SIMPLE_IRA = 'retirement_simple_ira',
-  RETIREMENT_529 = 'retirement_529',
-  HSA = 'hsa',
-  PENSION = 'pension',
+  BROKERAGE = "brokerage",
+  RETIREMENT_401K = "retirement_401k",
+  RETIREMENT_403B = "retirement_403b",
+  RETIREMENT_457B = "retirement_457b",
+  RETIREMENT_IRA = "retirement_ira",
+  RETIREMENT_ROTH = "retirement_roth",
+  RETIREMENT_SEP_IRA = "retirement_sep_ira",
+  RETIREMENT_SIMPLE_IRA = "retirement_simple_ira",
+  RETIREMENT_529 = "retirement_529",
+  HSA = "hsa",
+  PENSION = "pension",
 
   // Alternative Investments
-  CRYPTO = 'crypto',
-  PRIVATE_EQUITY = 'private_equity',
-  PRIVATE_DEBT = 'private_debt',
-  COLLECTIBLES = 'collectibles',
-  PRECIOUS_METALS = 'precious_metals',
+  CRYPTO = "crypto",
+  PRIVATE_EQUITY = "private_equity",
+  PRIVATE_DEBT = "private_debt",
+  COLLECTIBLES = "collectibles",
+  PRECIOUS_METALS = "precious_metals",
 
   // Real Estate & Vehicles
-  PROPERTY = 'property',
-  VEHICLE = 'vehicle',
+  PROPERTY = "property",
+  VEHICLE = "vehicle",
 
   // Insurance & Annuities
-  LIFE_INSURANCE_CASH_VALUE = 'life_insurance_cash_value',
-  ANNUITY = 'annuity',
+  LIFE_INSURANCE_CASH_VALUE = "life_insurance_cash_value",
+  ANNUITY = "annuity",
 
   // Securities
-  BOND = 'bond',
-  STOCK_OPTIONS = 'stock_options',
+  BOND = "bond",
+  STOCK_OPTIONS = "stock_options",
 
   // Business
-  BUSINESS_EQUITY = 'business_equity',
+  BUSINESS_EQUITY = "business_equity",
+
+  // Trust & Custodial
+  TRUST = "trust",
+  CUSTODIAL_UGMA = "custodial_ugma",
+  TRUMP_ACCOUNT = "trump_account",
 
   // Other
-  MANUAL = 'manual',
-  OTHER = 'other',
+  MANUAL = "manual",
+  OTHER = "other",
 }
 
 export enum AccountSource {
-  PLAID = 'plaid',
-  TELLER = 'teller',
-  MX = 'mx',
-  MANUAL = 'manual',
+  PLAID = "plaid",
+  TELLER = "teller",
+  MX = "mx",
+  MANUAL = "manual",
 }
 
 export interface Account {

@@ -37,23 +37,23 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   AlertDialogCloseButton,
-} from '@chakra-ui/react';
-import { useState, useMemo, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DeleteIcon, EditIcon, ChevronRightIcon } from '@chakra-ui/icons';
-import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
-import { TableSkeleton } from '../components/LoadingSkeleton';
-import { EmptyState } from '../components/EmptyState';
-import { FiTag } from 'react-icons/fi';
-import { useUserView } from '../contexts/UserViewContext';
+} from "@chakra-ui/react";
+import { useState, useMemo, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DeleteIcon, EditIcon, ChevronRightIcon } from "@chakra-ui/icons";
+import { useNavigate } from "react-router-dom";
+import api from "../services/api";
+import { TableSkeleton } from "../components/LoadingSkeleton";
+import { EmptyState } from "../components/EmptyState";
+import { FiTag } from "react-icons/fi";
+import { useUserView } from "../contexts/UserViewContext";
 
 interface Category {
-  id: string | null;  // null for Plaid categories not yet in DB
+  id: string | null; // null for Plaid categories not yet in DB
   name: string;
   color?: string;
   parent_category_id?: string;
-  is_custom: boolean;  // false for Plaid categories
+  is_custom: boolean; // false for Plaid categories
   transaction_count: number;
   created_at?: string;
   updated_at?: string;
@@ -65,18 +65,20 @@ interface CategoryWithChildren extends Category {
 
 export const CategoriesPage = () => {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
+    null,
+  );
   const [formData, setFormData] = useState({
-    name: '',
-    color: '#3B82F6',
-    parent_category_id: '',
-    plaid_category_name: '',
+    name: "",
+    color: "#3B82F6",
+    parent_category_id: "",
+    plaid_category_name: "",
   });
   const toast = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { canWriteResource } = useUserView();
-  const canEdit = canWriteResource('category');
+  const { canWriteResource, selectedUserId } = useUserView();
+  const canEdit = canWriteResource("category");
   const cancelRef = useRef<HTMLButtonElement>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const {
@@ -91,9 +93,13 @@ export const CategoriesPage = () => {
   } = useDisclosure();
 
   const { data: categories, isLoading } = useQuery({
-    queryKey: ['categories'],
+    queryKey: ["categories", selectedUserId],
     queryFn: async () => {
-      const response = await api.get<Category[]>('/categories/');
+      const params: Record<string, string> = {};
+      if (selectedUserId) {
+        params.user_id = selectedUserId;
+      }
+      const response = await api.get<Category[]>("/categories/", { params });
       return response.data;
     },
   });
@@ -102,21 +108,21 @@ export const CategoriesPage = () => {
   const { customCategories, plaidCategories } = useMemo(() => {
     if (!categories) return { customCategories: [], plaidCategories: [] };
 
-    const custom = categories.filter(c => c.is_custom);
-    const plaid = categories.filter(c => !c.is_custom);
+    const custom = categories.filter((c) => c.is_custom);
+    const plaid = categories.filter((c) => !c.is_custom);
 
     const categoryMap = new Map<string, CategoryWithChildren>();
     const roots: CategoryWithChildren[] = [];
 
     // Create map of all custom categories
-    custom.forEach(category => {
+    custom.forEach((category) => {
       if (category.id) {
         categoryMap.set(category.id, { ...category, children: [] });
       }
     });
 
     // Build hierarchy for custom categories
-    custom.forEach(category => {
+    custom.forEach((category) => {
       if (!category.id) return;
 
       const categoryWithChildren = categoryMap.get(category.id)!;
@@ -138,7 +144,9 @@ export const CategoriesPage = () => {
 
   // Get only parent categories for dropdown (custom categories only)
   const parentCategories = useMemo(() => {
-    return categories?.filter(c => c.is_custom && !c.parent_category_id) || [];
+    return (
+      categories?.filter((c) => c.is_custom && !c.parent_category_id) || []
+    );
   }, [categories]);
 
   const createMutation = useMutation({
@@ -148,15 +156,15 @@ export const CategoriesPage = () => {
         color: data.color || null,
         parent_category_id: data.parent_category_id || null,
       };
-      const response = await api.post('/categories/', payload);
+      const response = await api.post("/categories/", payload);
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["infinite-transactions"] });
       toast({
-        title: 'Category created',
-        status: 'success',
+        title: "Category created",
+        status: "success",
         duration: 3000,
       });
       onCreateClose();
@@ -164,9 +172,9 @@ export const CategoriesPage = () => {
     },
     onError: (error: any) => {
       toast({
-        title: 'Failed to create category',
-        description: error.response?.data?.detail || 'An error occurred',
-        status: 'error',
+        title: "Failed to create category",
+        description: error.response?.data?.detail || "An error occurred",
+        status: "error",
         duration: 5000,
       });
     },
@@ -183,11 +191,11 @@ export const CategoriesPage = () => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["infinite-transactions"] });
       toast({
-        title: 'Category updated',
-        status: 'success',
+        title: "Category updated",
+        status: "success",
         duration: 3000,
       });
       onClose();
@@ -196,9 +204,9 @@ export const CategoriesPage = () => {
     },
     onError: (error: any) => {
       toast({
-        title: 'Failed to update category',
-        description: error.response?.data?.detail || 'An error occurred',
-        status: 'error',
+        title: "Failed to update category",
+        description: error.response?.data?.detail || "An error occurred",
+        status: "error",
         duration: 5000,
       });
     },
@@ -209,19 +217,21 @@ export const CategoriesPage = () => {
       await api.delete(`/categories/${categoryId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      queryClient.invalidateQueries({ queryKey: ['infinite-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["infinite-transactions"] });
       toast({
-        title: 'Category deleted',
-        status: 'success',
+        title: "Category deleted",
+        status: "success",
         duration: 3000,
       });
     },
     onError: (error: any) => {
       toast({
-        title: 'Failed to delete category',
-        description: error.response?.data?.detail || 'Cannot delete category with children or transactions',
-        status: 'error',
+        title: "Failed to delete category",
+        description:
+          error.response?.data?.detail ||
+          "Cannot delete category with children or transactions",
+        status: "error",
         duration: 5000,
       });
     },
@@ -229,10 +239,10 @@ export const CategoriesPage = () => {
 
   const resetForm = () => {
     setFormData({
-      name: '',
-      color: '#3B82F6',
-      parent_category_id: '',
-      plaid_category_name: '',
+      name: "",
+      color: "#3B82F6",
+      parent_category_id: "",
+      plaid_category_name: "",
     });
   };
 
@@ -247,8 +257,8 @@ export const CategoriesPage = () => {
       setEditingCategory(null); // No ID yet, will be created
       setFormData({
         name: category.name,
-        color: '#3B82F6',
-        parent_category_id: '',
+        color: "#3B82F6",
+        parent_category_id: "",
         plaid_category_name: category.name, // Link to original Plaid category
       });
       onCreateOpen(); // Use create modal
@@ -257,9 +267,9 @@ export const CategoriesPage = () => {
       setEditingCategory(category);
       setFormData({
         name: category.name,
-        color: category.color || '#3B82F6',
-        parent_category_id: category.parent_category_id || '',
-        plaid_category_name: '',
+        color: category.color || "#3B82F6",
+        parent_category_id: category.parent_category_id || "",
+        plaid_category_name: "",
       });
       onOpen();
     }
@@ -268,8 +278,8 @@ export const CategoriesPage = () => {
   const handleSubmitCreate = () => {
     if (!formData.name.trim()) {
       toast({
-        title: 'Name is required',
-        status: 'warning',
+        title: "Name is required",
+        status: "warning",
         duration: 3000,
       });
       return;
@@ -280,21 +290,21 @@ export const CategoriesPage = () => {
   const handleSubmitEdit = () => {
     if (!editingCategory || !formData.name.trim()) {
       toast({
-        title: 'Name is required',
-        status: 'warning',
+        title: "Name is required",
+        status: "warning",
         duration: 3000,
       });
       return;
     }
-    updateMutation.mutate({ id: editingCategory.id || '', data: formData });
+    updateMutation.mutate({ id: editingCategory.id || "", data: formData });
   };
 
   const handleDelete = (category: Category) => {
     if (!category.id) {
       toast({
-        title: 'Cannot delete Plaid category',
-        description: 'Convert it to a custom category first',
-        status: 'warning',
+        title: "Cannot delete Plaid category",
+        description: "Convert it to a custom category first",
+        status: "warning",
         duration: 3000,
       });
       return;
@@ -312,12 +322,15 @@ export const CategoriesPage = () => {
     setCategoryToDelete(null);
   };
 
-  const renderCategoryRow = (category: CategoryWithChildren, isChild: boolean = false): JSX.Element => {
+  const renderCategoryRow = (
+    category: CategoryWithChildren,
+    isChild: boolean = false,
+  ): JSX.Element => {
     const isPlaid = !category.is_custom;
 
     return (
       <>
-        <Tr key={category.id || category.name} _hover={{ bg: 'bg.subtle' }}>
+        <Tr key={category.id || category.name} _hover={{ bg: "bg.subtle" }}>
           <Td>
             <HStack spacing={2}>
               {isChild && <ChevronRightIcon ml={4} color="text.muted" />}
@@ -325,21 +338,22 @@ export const CategoriesPage = () => {
                 w={3}
                 h={3}
                 borderRadius="sm"
-                bg={category.color || (isPlaid ? 'gray.300' : 'gray.400')}
+                bg={category.color || (isPlaid ? "gray.300" : "gray.400")}
               />
-              <Text fontWeight={isChild ? 'normal' : 'semibold'}>
+              <Text fontWeight={isChild ? "normal" : "semibold"}>
                 {category.name}
               </Text>
               {isPlaid && (
                 <Text fontSize="xs" color="text.muted">
-                  (from Plaid)
+                  (from provider)
                 </Text>
               )}
             </HStack>
           </Td>
           <Td>
             <Text fontSize="sm" color="text.secondary">
-              {category.transaction_count} transaction{category.transaction_count !== 1 ? 's' : ''}
+              {category.transaction_count} transaction
+              {category.transaction_count !== 1 ? "s" : ""}
             </Text>
           </Td>
           <Td>
@@ -379,7 +393,9 @@ export const CategoriesPage = () => {
             </HStack>
           </Td>
         </Tr>
-        {category.children?.map((child: CategoryWithChildren) => renderCategoryRow(child, true))}
+        {category.children?.map((child: CategoryWithChildren) =>
+          renderCategoryRow(child, true),
+        )}
       </>
     );
   };
@@ -402,14 +418,19 @@ export const CategoriesPage = () => {
           <Box>
             <Heading size="lg">Categories</Heading>
             <Text color="text.secondary" mt={2}>
-              Manage custom categories with hierarchical organization (max 2 levels). Separate from labels.
+              Manage custom categories with hierarchical organization (max 2
+              levels). Separate from labels.
             </Text>
           </Box>
           <HStack spacing={2}>
-            <Button colorScheme="brand" isDisabled={!canEdit} onClick={handleCreate}>
+            <Button
+              colorScheme="brand"
+              isDisabled={!canEdit}
+              onClick={handleCreate}
+            >
               Create Category
             </Button>
-            <Button variant="ghost" onClick={() => navigate('/transactions')}>
+            <Button variant="ghost" onClick={() => navigate("/transactions")}>
               Back to Transactions
             </Button>
           </HStack>
@@ -424,7 +445,12 @@ export const CategoriesPage = () => {
             onAction={handleCreate}
           />
         ) : (
-          <Box bg="bg.surface" borderRadius="lg" boxShadow="sm" overflow="hidden">
+          <Box
+            bg="bg.surface"
+            borderRadius="lg"
+            boxShadow="sm"
+            overflow="hidden"
+          >
             <Table variant="simple" size="sm">
               <Thead bg="bg.subtle">
                 <Tr>
@@ -439,12 +465,18 @@ export const CategoriesPage = () => {
                   <>
                     <Tr bg="bg.muted">
                       <Td colSpan={3}>
-                        <Text fontWeight="bold" fontSize="sm" color="text.heading">
+                        <Text
+                          fontWeight="bold"
+                          fontSize="sm"
+                          color="text.heading"
+                        >
                           Custom Categories
                         </Text>
                       </Td>
                     </Tr>
-                    {customCategories.map(category => renderCategoryRow(category))}
+                    {customCategories.map((category) =>
+                      renderCategoryRow(category),
+                    )}
                   </>
                 )}
 
@@ -453,12 +485,18 @@ export const CategoriesPage = () => {
                   <>
                     <Tr bg="bg.muted">
                       <Td colSpan={3}>
-                        <Text fontWeight="bold" fontSize="sm" color="text.heading">
-                          Plaid Categories (click "Make Custom" to edit)
+                        <Text
+                          fontWeight="bold"
+                          fontSize="sm"
+                          color="text.heading"
+                        >
+                          Provider Categories (click "Make Custom" to edit)
                         </Text>
                       </Td>
                     </Tr>
-                    {plaidCategories.map(category => renderCategoryRow(category))}
+                    {plaidCategories.map((category) =>
+                      renderCategoryRow(category),
+                    )}
                   </>
                 )}
               </Tbody>
@@ -479,7 +517,9 @@ export const CategoriesPage = () => {
                 <FormLabel>Category Name</FormLabel>
                 <Input
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                   placeholder="Enter category name"
                   autoFocus
                 />
@@ -489,11 +529,16 @@ export const CategoriesPage = () => {
                 <FormLabel>Parent Category (Optional)</FormLabel>
                 <Select
                   value={formData.parent_category_id}
-                  onChange={(e) => setFormData({ ...formData, parent_category_id: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      parent_category_id: e.target.value,
+                    })
+                  }
                   placeholder="None (Root level)"
                 >
                   {parentCategories.map((category) => (
-                    <option key={category.id} value={category.id || ''}>
+                    <option key={category.id} value={category.id || ""}>
                       {category.name}
                     </option>
                   ))}
@@ -508,7 +553,9 @@ export const CategoriesPage = () => {
                 <Input
                   type="color"
                   value={formData.color}
-                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, color: e.target.value })
+                  }
                 />
               </FormControl>
             </VStack>
@@ -541,7 +588,9 @@ export const CategoriesPage = () => {
                 <FormLabel>Category Name</FormLabel>
                 <Input
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                   placeholder="Enter category name"
                   autoFocus
                 />
@@ -551,13 +600,18 @@ export const CategoriesPage = () => {
                 <FormLabel>Parent Category (Optional)</FormLabel>
                 <Select
                   value={formData.parent_category_id}
-                  onChange={(e) => setFormData({ ...formData, parent_category_id: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      parent_category_id: e.target.value,
+                    })
+                  }
                   placeholder="None (Root level)"
                 >
                   {parentCategories
-                    .filter(c => c.id !== editingCategory?.id)
+                    .filter((c) => c.id !== editingCategory?.id)
                     .map((category) => (
-                      <option key={category.id} value={category.id || ''}>
+                      <option key={category.id} value={category.id || ""}>
                         {category.name}
                       </option>
                     ))}
@@ -572,7 +626,9 @@ export const CategoriesPage = () => {
                 <Input
                   type="color"
                   value={formData.color}
-                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, color: e.target.value })
+                  }
                 />
               </FormControl>
             </VStack>
@@ -607,11 +663,12 @@ export const CategoriesPage = () => {
             <AlertDialogCloseButton />
 
             <AlertDialogBody>
-              Are you sure you want to delete <strong>"{categoryToDelete?.name}"</strong>?
+              Are you sure you want to delete{" "}
+              <strong>"{categoryToDelete?.name}"</strong>?
               {categoryToDelete && categoryToDelete.transaction_count > 0 && (
                 <Text mt={2} color="orange.600">
-                  This category is used by {categoryToDelete.transaction_count} transaction(s).
-                  It will be removed from all of them.
+                  This category is used by {categoryToDelete.transaction_count}{" "}
+                  transaction(s). It will be removed from all of them.
                 </Text>
               )}
             </AlertDialogBody>

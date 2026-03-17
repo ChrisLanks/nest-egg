@@ -22,7 +22,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "../features/auth/stores/authStore";
 import {
@@ -95,7 +95,9 @@ const saveStoredView = (userId: string | null): void => {
 
 /** Inner component that provides view + permissions context */
 const UserViewInner = ({ children }: { children: ReactNode }) => {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user, accessToken } = useAuthStore();
 
   const [selectedUserId, setSelectedUserIdState] = useState<string | null>(
@@ -119,22 +121,32 @@ const UserViewInner = ({ children }: { children: ReactNode }) => {
       setSelectedUserIdState(userId);
       saveStoredView(userId);
 
-      const newParams = new URLSearchParams(searchParams);
+      // Read current search params from the live URL to avoid stale closures
+      const newParams = new URLSearchParams(window.location.search);
       if (userId) {
         newParams.set("user", userId);
       } else {
         newParams.delete("user");
       }
-      setSearchParams(newParams, { replace: true });
+      const search = newParams.toString();
+      // Use navigate with explicit pathname to prevent redirects to other pages
+      navigate(
+        { pathname: location.pathname, search: search ? `?${search}` : "" },
+        { replace: true },
+      );
     },
-    [searchParams, setSearchParams],
+    [navigate, location.pathname],
   );
 
   useEffect(() => {
     if (selectedUserId && !searchParams.get("user")) {
-      const newParams = new URLSearchParams(searchParams);
+      const newParams = new URLSearchParams(window.location.search);
       newParams.set("user", selectedUserId);
-      setSearchParams(newParams, { replace: true });
+      const search = newParams.toString();
+      navigate(
+        { pathname: location.pathname, search: search ? `?${search}` : "" },
+        { replace: true },
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

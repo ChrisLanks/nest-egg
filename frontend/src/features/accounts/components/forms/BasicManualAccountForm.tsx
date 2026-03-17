@@ -19,18 +19,18 @@ import {
   Divider,
   InputGroup,
   InputRightAddon,
-} from '@chakra-ui/react';
-import { useState } from 'react';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowBackIcon } from '@chakra-ui/icons';
+} from "@chakra-ui/react";
+import { useState } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowBackIcon } from "@chakra-ui/icons";
 import {
   basicManualAccountSchema,
   type BasicManualAccountFormData,
   ACCOUNT_TYPES,
   type AccountType,
-} from '../../schemas/manualAccountSchemas';
-import { formatAccountType } from '../../../../utils/formatAccountType';
+} from "../../schemas/manualAccountSchemas";
+import { formatAccountType } from "../../../../utils/formatAccountType";
 
 interface BasicManualAccountFormProps {
   defaultAccountType: AccountType;
@@ -40,13 +40,25 @@ interface BasicManualAccountFormProps {
 }
 
 // Account types where include_in_networth defaults to false and the toggle is shown
-const NETWORTH_TOGGLE_TYPES: AccountType[] = [ACCOUNT_TYPES.COLLECTIBLES, ACCOUNT_TYPES.OTHER, ACCOUNT_TYPES.MANUAL, ACCOUNT_TYPES.PENSION];
+const NETWORTH_TOGGLE_TYPES: AccountType[] = [
+  ACCOUNT_TYPES.COLLECTIBLES,
+  ACCOUNT_TYPES.OTHER,
+  ACCOUNT_TYPES.MANUAL,
+  ACCOUNT_TYPES.PENSION,
+];
 
 // Account types that show loan detail fields
-const LOAN_TYPES: AccountType[] = [ACCOUNT_TYPES.MORTGAGE, ACCOUNT_TYPES.LOAN, ACCOUNT_TYPES.STUDENT_LOAN];
+const LOAN_TYPES: AccountType[] = [
+  ACCOUNT_TYPES.MORTGAGE,
+  ACCOUNT_TYPES.LOAN,
+  ACCOUNT_TYPES.STUDENT_LOAN,
+];
 
 // Account types that show pension/annuity income fields
-const INCOME_TYPES: AccountType[] = [ACCOUNT_TYPES.PENSION, ACCOUNT_TYPES.ANNUITY];
+const INCOME_TYPES: AccountType[] = [
+  ACCOUNT_TYPES.PENSION,
+  ACCOUNT_TYPES.ANNUITY,
+];
 
 export const BasicManualAccountForm = ({
   defaultAccountType,
@@ -55,7 +67,7 @@ export const BasicManualAccountForm = ({
   isLoading,
 }: BasicManualAccountFormProps) => {
   // Loan term is shown to the user in years but stored as months in the schema
-  const [loanTermYears, setLoanTermYears] = useState('');
+  const [loanTermYears, setLoanTermYears] = useState("");
 
   const {
     register,
@@ -67,12 +79,16 @@ export const BasicManualAccountForm = ({
     resolver: zodResolver(basicManualAccountSchema),
     defaultValues: {
       account_type: defaultAccountType as any,
-      include_in_networth: NETWORTH_TOGGLE_TYPES.includes(defaultAccountType) ? false : undefined,
+      include_in_networth: NETWORTH_TOGGLE_TYPES.includes(defaultAccountType)
+        ? false
+        : undefined,
     },
   });
 
-  const accountType = watch('account_type');
-  const showNetworthToggle = NETWORTH_TOGGLE_TYPES.includes(accountType as AccountType);
+  const accountType = watch("account_type");
+  const showNetworthToggle = NETWORTH_TOGGLE_TYPES.includes(
+    accountType as AccountType,
+  );
   const showLoanFields = LOAN_TYPES.includes(accountType as AccountType);
   const showIncomeFields = INCOME_TYPES.includes(accountType as AccountType);
   const showCreditCardFields = accountType === ACCOUNT_TYPES.CREDIT_CARD;
@@ -80,7 +96,9 @@ export const BasicManualAccountForm = ({
   const handleFormSubmit = (data: BasicManualAccountFormData) => {
     const submitData = {
       ...data,
-      loan_term_months: loanTermYears ? Math.round(parseFloat(loanTermYears) * 12) : undefined,
+      loan_term_months: loanTermYears
+        ? Math.round(parseFloat(loanTermYears) * 12)
+        : undefined,
     };
     onSubmit(submitData);
   };
@@ -105,25 +123,19 @@ export const BasicManualAccountForm = ({
 
         <FormControl isInvalid={!!errors.name}>
           <FormLabel>Account Name</FormLabel>
-          <Input
-            {...register('name')}
-            placeholder="e.g., Chase Checking"
-          />
+          <Input {...register("name")} placeholder="e.g., Chase Checking" />
           <FormErrorMessage>{errors.name?.message}</FormErrorMessage>
         </FormControl>
 
         <FormControl isInvalid={!!errors.institution}>
           <FormLabel>Institution (Optional)</FormLabel>
-          <Input
-            {...register('institution')}
-            placeholder="e.g., Chase Bank"
-          />
+          <Input {...register("institution")} placeholder="e.g., Chase Bank" />
           <FormErrorMessage>{errors.institution?.message}</FormErrorMessage>
         </FormControl>
 
         <FormControl isInvalid={!!errors.account_type}>
           <FormLabel>Account Type</FormLabel>
-          <Select {...register('account_type')}>
+          <Select {...register("account_type")}>
             <option value={ACCOUNT_TYPES.CHECKING}>Checking</option>
             <option value={ACCOUNT_TYPES.SAVINGS}>Savings</option>
             <option value={ACCOUNT_TYPES.MONEY_MARKET}>Money Market</option>
@@ -135,6 +147,9 @@ export const BasicManualAccountForm = ({
             <option value={ACCOUNT_TYPES.RETIREMENT_529}>529 Plan</option>
             <option value={ACCOUNT_TYPES.PENSION}>Pension</option>
             <option value={ACCOUNT_TYPES.ANNUITY}>Annuity</option>
+            <option value={ACCOUNT_TYPES.TRUMP_ACCOUNT}>Trump Account</option>
+            <option value={ACCOUNT_TYPES.CUSTODIAL_UGMA}>UGMA/UTMA</option>
+            <option value={ACCOUNT_TYPES.TRUST}>Trust</option>
             <option value={ACCOUNT_TYPES.COLLECTIBLES}>Collectibles</option>
             <option value={ACCOUNT_TYPES.MANUAL}>Other</option>
           </Select>
@@ -143,7 +158,9 @@ export const BasicManualAccountForm = ({
 
         <FormControl isInvalid={!!errors.balance}>
           <FormLabel>
-            {defaultAccountType === ACCOUNT_TYPES.CREDIT_CARD ? 'Current Balance (Amount Owed)' : 'Current Balance'}
+            {defaultAccountType === ACCOUNT_TYPES.CREDIT_CARD
+              ? "Current Balance (Amount Owed)"
+              : "Current Balance"}
           </FormLabel>
           <Controller
             name="balance"
@@ -152,7 +169,9 @@ export const BasicManualAccountForm = ({
               <NumberInput
                 {...field}
                 value={value as number}
-                onChange={(valueString) => onChange(parseFloat(valueString) || 0)}
+                onChange={(valueString) =>
+                  onChange(parseFloat(valueString) || 0)
+                }
                 precision={2}
                 step={0.01}
               >
@@ -166,11 +185,13 @@ export const BasicManualAccountForm = ({
         <FormControl isInvalid={!!errors.account_number_last4}>
           <FormLabel>Last 4 Digits (Optional)</FormLabel>
           <Input
-            {...register('account_number_last4')}
+            {...register("account_number_last4")}
             placeholder="1234"
             maxLength={4}
           />
-          <FormErrorMessage>{errors.account_number_last4?.message}</FormErrorMessage>
+          <FormErrorMessage>
+            {errors.account_number_last4?.message}
+          </FormErrorMessage>
         </FormControl>
 
         {showLoanFields && (
@@ -190,8 +211,12 @@ export const BasicManualAccountForm = ({
                   <InputGroup>
                     <NumberInput
                       {...field}
-                      value={value ?? ''}
-                      onChange={(valueString) => onChange(valueString ? parseFloat(valueString) : undefined)}
+                      value={value ?? ""}
+                      onChange={(valueString) =>
+                        onChange(
+                          valueString ? parseFloat(valueString) : undefined,
+                        )
+                      }
                       precision={3}
                       step={0.125}
                       min={0}
@@ -205,7 +230,9 @@ export const BasicManualAccountForm = ({
                 )}
               />
               <FormHelperText>Annual interest rate (APR)</FormHelperText>
-              <FormErrorMessage>{errors.interest_rate?.message}</FormErrorMessage>
+              <FormErrorMessage>
+                {errors.interest_rate?.message}
+              </FormErrorMessage>
             </FormControl>
 
             {/* Loan Term */}
@@ -225,15 +252,19 @@ export const BasicManualAccountForm = ({
                 </NumberInput>
                 <InputRightAddon>years</InputRightAddon>
               </InputGroup>
-              <FormHelperText>Common terms: 30, 20, 15, or 10 years</FormHelperText>
+              <FormHelperText>
+                Common terms: 30, 20, 15, or 10 years
+              </FormHelperText>
             </FormControl>
 
             {/* Origination Date */}
             <FormControl isInvalid={!!errors.origination_date}>
               <FormLabel>Loan Start Date (Optional)</FormLabel>
-              <Input type="date" {...register('origination_date')} />
+              <Input type="date" {...register("origination_date")} />
               <FormHelperText>When you took out the loan</FormHelperText>
-              <FormErrorMessage>{errors.origination_date?.message}</FormErrorMessage>
+              <FormErrorMessage>
+                {errors.origination_date?.message}
+              </FormErrorMessage>
             </FormControl>
           </>
         )}
@@ -254,8 +285,12 @@ export const BasicManualAccountForm = ({
                 render={({ field: { onChange, value, ...field } }) => (
                   <NumberInput
                     {...field}
-                    value={value ?? ''}
-                    onChange={(valueString) => onChange(valueString ? parseFloat(valueString) : undefined)}
+                    value={value ?? ""}
+                    onChange={(valueString) =>
+                      onChange(
+                        valueString ? parseFloat(valueString) : undefined,
+                      )
+                    }
                     precision={2}
                     min={0}
                   >
@@ -264,7 +299,9 @@ export const BasicManualAccountForm = ({
                 )}
               />
               <FormHelperText>Your card's total credit limit</FormHelperText>
-              <FormErrorMessage>{errors.credit_limit?.message}</FormErrorMessage>
+              <FormErrorMessage>
+                {errors.credit_limit?.message}
+              </FormErrorMessage>
             </FormControl>
 
             <FormControl isInvalid={!!errors.minimum_payment}>
@@ -275,8 +312,12 @@ export const BasicManualAccountForm = ({
                 render={({ field: { onChange, value, ...field } }) => (
                   <NumberInput
                     {...field}
-                    value={value ?? ''}
-                    onChange={(valueString) => onChange(valueString ? parseFloat(valueString) : undefined)}
+                    value={value ?? ""}
+                    onChange={(valueString) =>
+                      onChange(
+                        valueString ? parseFloat(valueString) : undefined,
+                      )
+                    }
                     precision={2}
                     min={0}
                   >
@@ -285,7 +326,9 @@ export const BasicManualAccountForm = ({
                 )}
               />
               <FormHelperText>Minimum monthly payment amount</FormHelperText>
-              <FormErrorMessage>{errors.minimum_payment?.message}</FormErrorMessage>
+              <FormErrorMessage>
+                {errors.minimum_payment?.message}
+              </FormErrorMessage>
             </FormControl>
           </>
         )}
@@ -295,7 +338,9 @@ export const BasicManualAccountForm = ({
           <>
             <Divider />
             <Text fontWeight="semibold" fontSize="sm" color="text.secondary">
-              {accountType === ACCOUNT_TYPES.PENSION ? 'Pension Income Details (Optional)' : 'Annuity Income Details (Optional)'}
+              {accountType === ACCOUNT_TYPES.PENSION
+                ? "Pension Income Details (Optional)"
+                : "Annuity Income Details (Optional)"}
             </Text>
 
             <FormControl isInvalid={!!errors.monthly_benefit}>
@@ -306,8 +351,12 @@ export const BasicManualAccountForm = ({
                 render={({ field: { onChange, value, ...field } }) => (
                   <NumberInput
                     {...field}
-                    value={value ?? ''}
-                    onChange={(valueString) => onChange(valueString ? parseFloat(valueString) : undefined)}
+                    value={value ?? ""}
+                    onChange={(valueString) =>
+                      onChange(
+                        valueString ? parseFloat(valueString) : undefined,
+                      )
+                    }
                     precision={2}
                     min={0}
                   >
@@ -317,21 +366,25 @@ export const BasicManualAccountForm = ({
               />
               <FormHelperText>
                 {accountType === ACCOUNT_TYPES.PENSION
-                  ? 'Monthly pension payment you receive (or expect to receive)'
-                  : 'Monthly annuity income payment'}
+                  ? "Monthly pension payment you receive (or expect to receive)"
+                  : "Monthly annuity income payment"}
               </FormHelperText>
-              <FormErrorMessage>{errors.monthly_benefit?.message}</FormErrorMessage>
+              <FormErrorMessage>
+                {errors.monthly_benefit?.message}
+              </FormErrorMessage>
             </FormControl>
 
             <FormControl isInvalid={!!errors.benefit_start_date}>
               <FormLabel>Benefit Start Date (Optional)</FormLabel>
-              <Input type="date" {...register('benefit_start_date')} />
+              <Input type="date" {...register("benefit_start_date")} />
               <FormHelperText>
                 {accountType === ACCOUNT_TYPES.PENSION
-                  ? 'When pension payments begin (leave blank if already receiving)'
-                  : 'When annuity payments begin'}
+                  ? "When pension payments begin (leave blank if already receiving)"
+                  : "When annuity payments begin"}
               </FormHelperText>
-              <FormErrorMessage>{errors.benefit_start_date?.message}</FormErrorMessage>
+              <FormErrorMessage>
+                {errors.benefit_start_date?.message}
+              </FormErrorMessage>
             </FormControl>
           </>
         )}
@@ -359,10 +412,10 @@ export const BasicManualAccountForm = ({
               </HStack>
               <FormHelperText>
                 {accountType === ACCOUNT_TYPES.COLLECTIBLES
-                  ? 'Collectibles are excluded from net worth by default since their value can be uncertain. Enable this to include them.'
+                  ? "Collectibles are excluded from net worth by default since their value can be uncertain. Enable this to include them."
                   : accountType === ACCOUNT_TYPES.PENSION
-                  ? 'Pensions are excluded from net worth by default since they represent future income, not a liquid asset. Enable this if your plan provides a lump-sum equivalent value.'
-                  : 'This account is excluded from net worth by default. Enable this to include it in your net worth calculations.'}
+                    ? "Pensions are excluded from net worth by default since they represent future income, not a liquid asset. Enable this if your plan provides a lump-sum equivalent value."
+                    : "This account is excluded from net worth by default. Enable this to include it in your net worth calculations."}
               </FormHelperText>
             </FormControl>
           </>
@@ -372,11 +425,7 @@ export const BasicManualAccountForm = ({
           <Button variant="ghost" onClick={onBack}>
             Cancel
           </Button>
-          <Button
-            type="submit"
-            colorScheme="brand"
-            isLoading={isLoading}
-          >
+          <Button type="submit" colorScheme="brand" isLoading={isLoading}>
             Add Account
           </Button>
         </HStack>
