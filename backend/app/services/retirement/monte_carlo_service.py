@@ -255,9 +255,24 @@ class RetirementMonteCarloService:
             raise ValueError("User birthdate is required for retirement simulation")
         current_age = calculate_age(user.birthdate)
 
-        # Gather account data
+        # Gather account data — household-wide when include_all_members is set
+        household_user_ids = None
+        if getattr(scenario, "include_all_members", False) is True:
+            from app.services.retirement.retirement_planner_service import (
+                RetirementPlannerService,
+            )
+
+            _, member_ids = await RetirementPlannerService.compute_household_member_hash(
+                db, str(scenario.organization_id)
+            )
+            if len(member_ids) > 1:
+                household_user_ids = member_ids
+
         account_data = await RetirementMonteCarloService._gather_account_data(
-            db, str(scenario.organization_id), str(scenario.user_id)
+            db,
+            str(scenario.organization_id),
+            str(scenario.user_id),
+            user_ids=household_user_ids,
         )
 
         # Simulation parameters
@@ -734,18 +749,34 @@ class RetirementMonteCarloService:
         db: AsyncSession,
         organization_id: str,
         user_id: str,
+        user_ids: list[str] | None = None,
     ) -> dict:
-        """Gather current account balances and contributions for simulation."""
+        """Gather current account balances and contributions for simulation.
+
+        When user_ids is provided with multiple entries, accounts for all listed
+        users are aggregated (household-wide retirement planning).
+        """
         # Fetch active accounts
-        result = await db.execute(
-            select(Account).where(
-                and_(
-                    Account.organization_id == organization_id,
-                    Account.user_id == user_id,
-                    Account.is_active.is_(True),
+        if user_ids and len(user_ids) > 1:
+            result = await db.execute(
+                select(Account).where(
+                    and_(
+                        Account.organization_id == organization_id,
+                        Account.user_id.in_(user_ids),
+                        Account.is_active.is_(True),
+                    )
                 )
             )
-        )
+        else:
+            result = await db.execute(
+                select(Account).where(
+                    and_(
+                        Account.organization_id == organization_id,
+                        Account.user_id == user_id,
+                        Account.is_active.is_(True),
+                    )
+                )
+            )
         accounts = result.scalars().all()
 
         total_portfolio = Decimal(0)

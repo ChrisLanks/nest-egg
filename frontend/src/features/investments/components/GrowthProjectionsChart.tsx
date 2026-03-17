@@ -163,7 +163,7 @@ function computeDefaultYears(birthYear: number | null | undefined): number {
   if (!birthYear) return 10;
   const currentYear = new Date().getFullYear();
   const age = currentYear - birthYear;
-  const yearsUntilRetirement = Math.round(59.5 - age);
+  const yearsUntilRetirement = Math.round(65 - age);
   return Math.max(1, yearsUntilRetirement);
 }
 

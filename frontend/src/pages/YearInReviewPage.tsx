@@ -32,7 +32,7 @@ import {
   AlertIcon,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   BarChart,
   Bar,
@@ -126,15 +126,42 @@ export function YearInReviewPage() {
     currentDate.getMonth() === 0
       ? currentDate.getFullYear() - 1
       : currentDate.getFullYear();
-  const [selectedYear, setSelectedYear] = useState(defaultYear);
+  const [selectedYear, setSelectedYear] = useState(() => {
+    try {
+      const saved = localStorage.getItem("nest-egg-year-in-review-year");
+      if (saved) return parseInt(saved, 10);
+    } catch {
+      /* ignore */
+    }
+    return defaultYear;
+  });
+
+  // Persist year selection
+  useEffect(() => {
+    localStorage.setItem("nest-egg-year-in-review-year", String(selectedYear));
+  }, [selectedYear]);
+
+  // Fetch available years from transaction data
+  const { data: apiYears } = useQuery<number[]>({
+    queryKey: ["available-years", activeUserId, selectedIdsKey],
+    queryFn: async () => {
+      const params: Record<string, unknown> = {};
+      if (activeUserId) params.user_id = activeUserId;
+      const response = await api.get("/income-expenses/available-years", {
+        params,
+      });
+      return response.data;
+    },
+  });
 
   const availableYears = useMemo(() => {
+    if (apiYears && apiYears.length > 0) return apiYears;
     const years = [];
     for (let i = 0; i < 6; i++) {
       years.push(currentDate.getFullYear() - i);
     }
     return years;
-  }, [currentDate]);
+  }, [apiYears, currentDate]);
 
   const {
     data: reviewData,

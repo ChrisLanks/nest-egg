@@ -41,7 +41,11 @@ const formatCurrency = (amount: number) =>
     maximumFractionDigits: 0,
   }).format(amount);
 
-const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
+const formatPercent = (value: number) => {
+  const pct = value * 100;
+  // Drop unnecessary trailing ".0" (e.g. 100.0% → 100%)
+  return `${pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(1)}%`;
+};
 
 const scoreColor = (ratio: number): string => {
   if (ratio >= 1) return "green.400";
@@ -95,16 +99,6 @@ export const FireMetricsPage = () => {
       }),
   });
 
-  if (isLoading) {
-    return (
-      <Container maxW="container.lg" py={8}>
-        <Center py={20}>
-          <Spinner size="xl" color="brand.500" />
-        </Center>
-      </Container>
-    );
-  }
-
   return (
     <Container maxW="container.lg" py={8}>
       <VStack spacing={8} align="stretch">
@@ -132,7 +126,7 @@ export const FireMetricsPage = () => {
           </HStack>
         </Box>
 
-        {/* Parameter Controls */}
+        {/* Parameter Controls — always visible */}
         <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
           <Text fontWeight="semibold" mb={4}>
             Assumptions
@@ -148,7 +142,8 @@ export const FireMetricsPage = () => {
                 onChange={(_, v) => !isNaN(v) && setWithdrawalRate(v)}
                 min={1}
                 max={10}
-                step={0.5}
+                step={0.01}
+                precision={2}
                 size="sm"
               >
                 <NumberInputField />
@@ -161,7 +156,8 @@ export const FireMetricsPage = () => {
                 onChange={(_, v) => !isNaN(v) && setExpectedReturn(v)}
                 min={0}
                 max={20}
-                step={0.5}
+                step={0.01}
+                precision={2}
                 size="sm"
               >
                 <NumberInputField />
@@ -182,7 +178,11 @@ export const FireMetricsPage = () => {
           </SimpleGrid>
         </Box>
 
-        {isError || !data ? (
+        {isLoading ? (
+          <Center py={20}>
+            <Spinner size="xl" color="brand.500" />
+          </Center>
+        ) : isError || !data ? (
           <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
             <Text color="text.muted" textAlign="center">
               Unable to calculate FIRE metrics. Make sure you have accounts and

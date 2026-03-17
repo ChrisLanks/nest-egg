@@ -157,6 +157,7 @@ export const InvestmentAccountForm = ({
             <option value={ACCOUNT_TYPES.RETIREMENT_SIMPLE_IRA}>
               SIMPLE IRA
             </option>
+            <option value={ACCOUNT_TYPES.TRUMP_ACCOUNT}>Trump Account</option>
             <option value={ACCOUNT_TYPES.RETIREMENT_529}>529 Plan</option>
             <option value={ACCOUNT_TYPES.HSA}>HSA</option>
           </Select>

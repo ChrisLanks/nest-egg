@@ -100,6 +100,22 @@ async def list_scenarios(
         user_id=target_user,
     )
     summaries = await RetirementPlannerService.get_scenario_summary_with_scores(db, scenarios)
+
+    # Compute staleness for household-wide scenarios
+    has_household = any(s.include_all_members for s in scenarios)
+    current_hash = None
+    if has_household:
+        current_hash, _ = await RetirementPlannerService.compute_household_member_hash(
+            db, str(current_user.organization_id)
+        )
+
+    for summary, scenario in zip(summaries, scenarios):
+        summary["include_all_members"] = scenario.include_all_members
+        if scenario.include_all_members and scenario.household_member_hash and current_hash:
+            summary["is_stale"] = current_hash != scenario.household_member_hash
+        else:
+            summary["is_stale"] = False
+
     return summaries
 
 
@@ -133,7 +149,26 @@ async def get_scenario(
     )
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
-    return scenario
+
+    # Compute staleness for household-wide scenarios
+    is_stale = False
+    if scenario.include_all_members and scenario.household_member_hash:
+        current_hash, _ = await RetirementPlannerService.compute_household_member_hash(
+            db, str(current_user.organization_id)
+        )
+        is_stale = current_hash != scenario.household_member_hash
+
+    # Parse household_member_ids from JSON
+    household_member_ids = None
+    if scenario.household_member_ids:
+        import json
+
+        household_member_ids = json.loads(scenario.household_member_ids)
+
+    response = RetirementScenarioResponse.model_validate(scenario)
+    response.is_stale = is_stale
+    response.household_member_ids = household_member_ids
+    return response
 
 
 @router.patch("/scenarios/{scenario_id}", response_model=RetirementScenarioResponse)
@@ -207,6 +242,43 @@ async def duplicate_scenario(
     )
     await db.commit()
     return dup
+
+
+@router.post(
+    "/scenarios/{scenario_id}/refresh-household",
+    response_model=RetirementScenarioResponse,
+)
+async def refresh_household(
+    scenario_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Recompute the household member hash for a household-wide scenario."""
+    scenario = await RetirementPlannerService.get_scenario(
+        db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
+    )
+    if not scenario:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    if not scenario.include_all_members:
+        raise HTTPException(status_code=400, detail="Scenario is not household-wide")
+
+    hash_str, member_ids = await RetirementPlannerService.compute_household_member_hash(
+        db, str(current_user.organization_id)
+    )
+    scenario.household_member_hash = hash_str
+    scenario.household_member_ids = json.dumps(member_ids)
+    await db.flush()
+    await db.commit()
+
+    # Re-fetch to get fresh life_events
+    scenario = await RetirementPlannerService.get_scenario(
+        db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
+    )
+
+    response = RetirementScenarioResponse.model_validate(scenario)
+    response.is_stale = False
+    response.household_member_ids = member_ids
+    return response
 
 
 # --- Life Events ---
@@ -451,6 +523,7 @@ async def get_healthcare_estimate(
 @router.get("/account-data", response_model=RetirementAccountDataResponse)
 async def get_account_data(
     user_id: Optional[str] = None,
+    include_all_members: bool = False,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -463,8 +536,19 @@ async def get_account_data(
         target = await db.get(UserModel, user_id)
         if not target or str(target.organization_id) != str(current_user.organization_id):
             raise HTTPException(status_code=403, detail="Cannot access another organization's data")
+
+    # Gather household-wide data when requested
+    household_user_ids = None
+    if include_all_members:
+        _, household_user_ids = await RetirementPlannerService.compute_household_member_hash(
+            db, str(current_user.organization_id)
+        )
+
     data = await RetirementMonteCarloService._gather_account_data(
-        db, str(current_user.organization_id), target_user
+        db,
+        str(current_user.organization_id),
+        target_user,
+        user_ids=household_user_ids,
     )
     return RetirementAccountDataResponse(
         total_portfolio=float(data["total_portfolio"]),

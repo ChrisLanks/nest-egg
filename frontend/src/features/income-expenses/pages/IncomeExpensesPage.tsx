@@ -475,7 +475,13 @@ export const IncomeExpensesPage = () => {
   });
   const [hiddenItems, setHiddenItems] = useState<Set<string>>(new Set());
   const [selectedTab, setSelectedTab] = useState(0); // 0 = Combined, 1 = Income, 2 = Expenses
-  const [showMoneyFlow, setShowMoneyFlow] = useState(false);
+  const [showMoneyFlow, setShowMoneyFlow] = useState(() => {
+    const saved = localStorage.getItem("nest-egg-money-flow-visible");
+    return saved !== null ? saved === "true" : true; // default open
+  });
+  useEffect(() => {
+    localStorage.setItem("nest-egg-money-flow-visible", String(showMoneyFlow));
+  }, [showMoneyFlow]);
   const [incomeLegendExpanded, setIncomeLegendExpanded] = useState(false);
   const [expenseLegendExpanded, setExpenseLegendExpanded] = useState(false);
 

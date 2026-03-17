@@ -3,19 +3,19 @@
  */
 
 export type LifeEventCategory =
-  | 'child'
-  | 'pet'
-  | 'home_purchase'
-  | 'home_downsize'
-  | 'career_change'
-  | 'bonus'
-  | 'healthcare'
-  | 'travel'
-  | 'vehicle'
-  | 'elder_care'
-  | 'custom';
+  | "child"
+  | "pet"
+  | "home_purchase"
+  | "home_downsize"
+  | "career_change"
+  | "bonus"
+  | "healthcare"
+  | "travel"
+  | "vehicle"
+  | "elder_care"
+  | "custom";
 
-export type WithdrawalStrategy = 'tax_optimized' | 'simple_rate' | 'pro_rata';
+export type WithdrawalStrategy = "tax_optimized" | "simple_rate" | "pro_rata";
 
 // --- Life Events ---
 
@@ -91,6 +91,9 @@ export interface RetirementScenario {
 
   num_simulations: number;
   is_shared: boolean;
+  include_all_members: boolean;
+  is_stale: boolean;
+  household_member_ids: string[] | null;
 
   life_events: LifeEvent[];
 
@@ -103,6 +106,8 @@ export interface RetirementScenarioSummary {
   name: string;
   retirement_age: number;
   is_default: boolean;
+  is_stale: boolean;
+  include_all_members: boolean;
   readiness_score: number | null;
   success_rate: number | null;
   updated_at: string;
@@ -122,6 +127,7 @@ export interface RetirementScenarioCreate {
   social_security_start_age?: number;
   withdrawal_strategy?: WithdrawalStrategy;
   withdrawal_rate?: number;
+  include_all_members?: boolean;
 }
 
 // --- Simulation Results ---
@@ -233,7 +239,7 @@ export interface HealthcareCostEstimate {
 export interface RetirementAccountItem {
   name: string;
   balance: number;
-  bucket: 'pre_tax' | 'roth' | 'taxable' | 'hsa' | 'cash';
+  bucket: "pre_tax" | "roth" | "taxable" | "hsa" | "cash";
   account_type: string;
 }
 

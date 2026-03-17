@@ -32,7 +32,7 @@ import {
   useColorModeValue,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -98,22 +98,64 @@ export default function TrendsPage() {
 
   // Default to current year and 2 previous years
   const currentYear = new Date().getFullYear();
-  const [selectedYears, setSelectedYears] = useState<number[]>([
-    currentYear,
-    currentYear - 1,
-    currentYear - 2,
-  ]);
 
-  const [primaryYear, setPrimaryYear] = useState(currentYear);
+  // Restore persisted selections from localStorage
+  const [selectedYears, setSelectedYears] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem("nest-egg-trends-selected-years");
+      if (saved) {
+        const parsed = JSON.parse(saved) as number[];
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      /* ignore */
+    }
+    return [currentYear, currentYear - 1, currentYear - 2];
+  });
 
-  // Available years (last 5 years)
+  const [primaryYear, setPrimaryYear] = useState(() => {
+    try {
+      const saved = localStorage.getItem("nest-egg-trends-primary-year");
+      if (saved) return parseInt(saved, 10);
+    } catch {
+      /* ignore */
+    }
+    return currentYear;
+  });
+
+  // Persist selections to localStorage
+  useEffect(() => {
+    localStorage.setItem(
+      "nest-egg-trends-selected-years",
+      JSON.stringify(selectedYears),
+    );
+  }, [selectedYears]);
+  useEffect(() => {
+    localStorage.setItem("nest-egg-trends-primary-year", String(primaryYear));
+  }, [primaryYear]);
+
+  // Fetch available years from transaction data (lightweight query)
+  const { data: apiYears } = useQuery<number[]>({
+    queryKey: ["available-years", activeUserId, selectedIdsKey],
+    queryFn: async () => {
+      const params: Record<string, unknown> = {};
+      if (activeUserId) params.user_id = activeUserId;
+      const response = await api.get("/income-expenses/available-years", {
+        params,
+      });
+      return response.data;
+    },
+  });
+
+  // Use API years if available, fallback to last 5 years
   const availableYears = useMemo(() => {
+    if (apiYears && apiYears.length > 0) return apiYears;
     const years = [];
     for (let i = 0; i < 5; i++) {
       years.push(currentYear - i);
     }
     return years;
-  }, [currentYear]);
+  }, [apiYears, currentYear]);
 
   // Fetch year-over-year comparison
   const { data: yoyData, isLoading: yoyLoading } = useQuery<YearOverYearData[]>(

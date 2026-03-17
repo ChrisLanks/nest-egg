@@ -750,7 +750,13 @@ export const InvestmentsPage = () => {
         {/* Header with Date Filter and Category Toggles */}
         <HStack justify="space-between" align="flex-start">
           <VStack align="flex-start" spacing={0}>
-            <Heading size="lg">Investments</Heading>
+            <HStack spacing={1}>
+              <Heading size="lg">Investments</Heading>
+              <HelpHint
+                hint={helpContent.investments.accountExclusions}
+                size="md"
+              />
+            </HStack>
             {priceAgeLabel && (
               <Text fontSize="xs" color="text.muted">
                 {priceAgeLabel}

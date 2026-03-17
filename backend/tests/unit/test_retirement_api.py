@@ -48,12 +48,45 @@ def _make_user(*, birthdate=None):
 
 
 def _make_scenario(user, *, scenario_id=None):
-    scenario = Mock()
+    scenario = Mock(spec=[])  # spec=[] prevents auto-attribute generation
     scenario.id = scenario_id or uuid4()
     scenario.user_id = user.id
     scenario.organization_id = user.organization_id
     scenario.name = "Test Scenario"
+    scenario.description = None
+    scenario.is_default = False
     scenario.retirement_age = 65
+    scenario.life_expectancy = 90
+    scenario.current_annual_income = Decimal("100000")
+    scenario.annual_spending_retirement = Decimal("50000")
+    scenario.pre_retirement_return = Decimal("0.07")
+    scenario.post_retirement_return = Decimal("0.05")
+    scenario.volatility = Decimal("0.15")
+    scenario.inflation_rate = Decimal("0.03")
+    scenario.medical_inflation_rate = Decimal("0.05")
+    scenario.social_security_monthly = Decimal("2000")
+    scenario.social_security_start_age = 67
+    scenario.use_estimated_pia = False
+    scenario.spouse_social_security_monthly = None
+    scenario.spouse_social_security_start_age = None
+    scenario.withdrawal_strategy = "simple_rate"
+    scenario.withdrawal_rate = Decimal("0.04")
+    scenario.federal_tax_rate = Decimal("0.22")
+    scenario.state_tax_rate = Decimal("0.05")
+    scenario.capital_gains_rate = Decimal("0.15")
+    scenario.healthcare_pre65_override = None
+    scenario.healthcare_medicare_override = None
+    scenario.healthcare_ltc_override = None
+    scenario.num_simulations = 1000
+    scenario.inflation_adjusted = True
+    scenario.distribution_type = "normal"
+    scenario.is_shared = False
+    scenario.include_all_members = False
+    scenario.household_member_hash = None
+    scenario.household_member_ids = None
+    scenario.life_events = []
+    scenario.created_at = datetime(2024, 1, 1, 12, 0, 0)
+    scenario.updated_at = datetime(2024, 1, 1, 12, 0, 0)
     return scenario
 
 
@@ -125,7 +158,7 @@ class TestListScenarios:
         user = _make_user()
         db = AsyncMock()
         scenarios = [_make_scenario(user)]
-        summaries = [Mock()]
+        summaries = [{"name": "Test Scenario", "id": str(scenarios[0].id)}]
 
         with patch(
             "app.api.v1.retirement.RetirementPlannerService.list_scenarios",

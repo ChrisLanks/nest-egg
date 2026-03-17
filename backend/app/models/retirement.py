@@ -130,6 +130,11 @@ class RetirementScenario(Base):
     # Sharing within household
     is_shared = Column(Boolean, default=True, nullable=False)
 
+    # Household-wide retirement planning
+    include_all_members = Column(Boolean, default=False, nullable=False, server_default="false")
+    household_member_hash = Column(String(64), nullable=True)
+    household_member_ids = Column(Text, nullable=True)  # JSON array of member UUIDs
+
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)

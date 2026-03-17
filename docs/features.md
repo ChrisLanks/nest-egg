@@ -39,7 +39,7 @@ Detailed feature documentation for Nest Egg. For a quick overview, see the [READ
 
 ## Investment Analysis Dashboard
 
-Comprehensive 10-tab portfolio analysis with **multi-provider** market data:
+Comprehensive 11-tab portfolio analysis with **multi-provider** market data:
 
 - **Real-Time Market Data**: Yahoo Finance (free, unlimited), Finnhub (60/min free), or Alpha Vantage (25/day free)
 - **Asset Allocation**: Interactive treemap visualization with drill-down
@@ -47,6 +47,8 @@ Comprehensive 10-tab portfolio analysis with **multi-provider** market data:
 - **Future Growth**: Monte Carlo simulation with best/worst/median projections
   - Adjustable return rate, volatility, inflation, and time horizon
   - Inflation-adjusted and nominal value views
+  - Default years calculated as `65 - birth_year` when available, else 10 years
+  - Settings (years, return rate, volatility) persist across page refreshes via localStorage
 - **Performance Trends**: Historical tracking with CAGR and YoY growth
   - Time range selector (1M, 3M, 6M, 1Y, ALL)
   - Cost basis comparison
@@ -58,6 +60,8 @@ Comprehensive 10-tab portfolio analysis with **multi-provider** market data:
 - **Roth Conversion Analyzer**: Model tax-efficient Roth conversion strategies
 - **Tax-Loss Harvesting**: Identify unrealized losses, estimate tax savings (27% combined rate), wash-sale rule warnings, and same-sector replacement suggestions
 - **Dividend Income**: Track dividend and investment income with summary stats, monthly chart, and top payers table (see Dividend & Investment Income section below)
+- **Account Exclusion Tooltip**: Explains why primary residence and vehicles are excluded by default (needed to live in/use; investment properties count)
+- **Trump Account Support**: Available as a manual investment account type
 
 ## Cash Flow Analytics (Income vs Expenses)
 
@@ -70,6 +74,7 @@ Comprehensive 10-tab portfolio analysis with **multi-provider** market data:
   - Trend line chart showing income vs expenses over time
   - Detailed transaction drilldowns
 - **Label-Based Analysis**: Filter by custom labels for specialized tracking
+- **Money Flow Sankey Diagram**: Defaults to visible; collapsed/expanded state persists via localStorage
 
 ## Budget Management
 
@@ -250,7 +255,10 @@ Full retirement planning suite with Monte Carlo simulation, life event modeling,
   - Editable tax rate assumptions (federal, state, capital gains)
   - Savings rate indicator with color-coded threshold
 - **Scenario Settings Panel**: Adjustable sliders for retirement age (15-95), plan-through age, spending, returns, volatility, inflation, and withdrawal rate
-- **Household View**: Per-member retirement plans with member filter in combined view
+- **Household-Wide Planning**: Aggregate all household members' accounts into a single retirement scenario
+  - Automatic staleness detection when household membership changes (members join or leave)
+  - "Recalculate" action refreshes scenario with current membership
+  - Per-member or combined-household scenarios supported
 - **CSV Export**: Download projection data for external analysis
 
 ## FIRE Dashboard (Financial Independence, Retire Early)
@@ -261,7 +269,8 @@ Track your progress toward financial independence with real-time metrics:
 - **Savings Rate**: Percentage of income you're saving, calculated from categorized transactions
 - **Years to FI**: Estimated time until your investments can sustain your lifestyle, factoring in growth and savings
 - **Coast FI**: Whether your current investments would grow to your FI number by retirement age — even without further contributions
-- **Configurable Assumptions**: Adjust withdrawal rate (1-10%), expected return (0-20%), and retirement age (30-100)
+- **Configurable Assumptions**: Adjust withdrawal rate and expected return with 2-decimal precision (e.g. 3.75%), retirement age (30-100)
+  - Assumptions panel always visible during recalculation
 - **Household Support**: View metrics for the combined household or filter by individual member
 - **Empty Data Handling**: Graceful messaging when accounts/transactions haven't been set up yet — no misleading "FI Achieved" on zero data
 - **Dashboard Widget**: Compact FIRE progress card available as a dashboard widget
@@ -426,6 +435,7 @@ Annual financial summary with year-over-year comparison:
 - **YoY Comparison**: Side-by-side comparison with the previous year (absolute and percentage change)
 - **Category Breakdown**: Top spending and income categories for the year
 - **Exportable**: Download summary data for records or tax prep
+- **Dynamic Year Selection**: Shows all years with transaction data (fetched via API), persists selection via localStorage
 
 ## Unified Financial Calendar
 
@@ -487,6 +497,8 @@ Proactive tax insights that adapt to the user's age and financial situation:
 - **API Endpoint**: `GET /api/v1/tax-advisor/insights`
 
 ## Enhanced Financial Trends
+
+**Multi-Year Trends** page dynamically fetches available years from the API (`GET /income-expenses/available-years`) instead of hardcoding. Up to 3 years can be compared simultaneously. Selected years and primary year persist via localStorage across page refreshes.
 
 Additional trend analysis endpoints for deeper financial insight:
 

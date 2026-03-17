@@ -64,6 +64,7 @@ describe("helpContent", () => {
     expect(helpContent.investments.rmd).toBeDefined();
     expect(helpContent.investments.feeAnalysis).toBeDefined();
     expect(helpContent.investments.assetAllocation).toBeDefined();
+    expect(helpContent.investments.accountExclusions).toBeDefined();
   });
 
   it("has debt payoff hints", () => {

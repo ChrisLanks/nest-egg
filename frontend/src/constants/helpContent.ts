@@ -50,6 +50,8 @@ export const helpContent = {
       "Even small differences in expense ratios compound dramatically over decades. A 0.5% fee difference on $500K costs roughly $90K over 30 years.",
     assetAllocation:
       "How your portfolio is split across stocks, bonds, cash, and other assets. A common rule of thumb: subtract your age from 110 to get your stock percentage, though your risk tolerance matters too.",
+    accountExclusions:
+      "Your primary home, vacation home, and personal vehicles are hidden by default — you need those to live, so they aren't liquid investments. Investment properties are included. Use the Filter button to change what's shown.",
     // Sub-tab descriptions
     sectorBreakdown:
       "Shows how your investments are spread across industries like tech, healthcare, and energy. If one sector crashes, heavy concentration there can drag your whole portfolio down. Aim for no single sector above 25-30%.",

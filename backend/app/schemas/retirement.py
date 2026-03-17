@@ -135,6 +135,9 @@ class RetirementScenarioCreate(BaseModel):
     distribution_type: DistributionType = DistributionType.NORMAL
     is_shared: bool = True
 
+    # Household-wide
+    include_all_members: bool = False
+
 
 class RetirementScenarioUpdate(BaseModel):
     """Schema for updating a retirement scenario. All fields optional."""
@@ -173,6 +176,9 @@ class RetirementScenarioUpdate(BaseModel):
     inflation_adjusted: Optional[bool] = None
     distribution_type: Optional[DistributionType] = None
     is_shared: Optional[bool] = None
+
+    # Household-wide
+    include_all_members: Optional[bool] = None
 
 
 class RetirementScenarioResponse(BaseModel):
@@ -218,6 +224,11 @@ class RetirementScenarioResponse(BaseModel):
     distribution_type: DistributionType
     is_shared: bool
 
+    # Household-wide
+    include_all_members: bool = False
+    is_stale: bool = False
+    household_member_ids: Optional[List[str]] = None
+
     life_events: List[LifeEventResponse] = []
 
     created_at: datetime
@@ -234,6 +245,8 @@ class RetirementScenarioSummary(BaseModel):
     name: str
     retirement_age: int
     is_default: bool
+    is_stale: bool = False
+    include_all_members: bool = False
     readiness_score: Optional[int] = None
     success_rate: Optional[float] = None
     updated_at: datetime

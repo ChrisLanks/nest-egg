@@ -11,6 +11,7 @@
 
 import {
   Alert,
+  AlertDescription,
   AlertDialog,
   AlertDialogBody,
   AlertDialogContent,
@@ -18,6 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogOverlay,
   AlertIcon,
+  AlertTitle,
   Box,
   Button,
   Container,
@@ -60,6 +62,7 @@ import {
   useDeleteLifeEvent,
   useDeleteScenario,
   useDuplicateScenario,
+  useRefreshHouseholdHash,
   useRetirementScenario,
   useRetirementScenarios,
   useRunSimulation,
@@ -140,6 +143,7 @@ export function RetirementPage() {
   const updateLifeEventMutation = useUpdateLifeEvent();
   const deleteLifeEventMutation = useDeleteLifeEvent();
   const comparisonMutation = useScenarioComparison();
+  const refreshHouseholdMutation = useRefreshHouseholdHash();
 
   // Modal state
   const presetPicker = useDisclosure();
@@ -292,6 +296,28 @@ export function RetirementPage() {
       });
     }
   }, [selectedScenarioId, simulateMutation, toast]);
+
+  // Handle refreshing household hash and re-running simulation
+  const handleRefreshHousehold = useCallback(async () => {
+    if (!selectedScenarioId) return;
+    try {
+      await refreshHouseholdMutation.mutateAsync(selectedScenarioId);
+      await simulateMutation.mutateAsync(selectedScenarioId);
+      setSettingsDirty(false);
+      toast({
+        title: "Household updated and simulation complete",
+        status: "success",
+        duration: 2000,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Failed to refresh household",
+        description: err?.response?.data?.detail || "An error occurred.",
+        status: "error",
+        duration: 4000,
+      });
+    }
+  }, [selectedScenarioId, refreshHouseholdMutation, simulateMutation, toast]);
 
   // Auto-run simulation (used after life event changes to update chart immediately)
   const autoSimulate = useCallback(() => {
@@ -515,8 +541,10 @@ export function RetirementPage() {
   const withdrawalComparison: WithdrawalComparison | null =
     results?.withdrawal_comparison as WithdrawalComparison | null;
 
-  // Combined view with multiple members selected: retirement plans are per-person, prompt to select one
-  if (isCombinedView && !filterUserId) {
+  // Combined view with multiple members selected: retirement plans are per-person,
+  // unless the selected scenario is household-wide (include_all_members).
+  // Prompt to select one member if no household-wide scenario is active.
+  if (isCombinedView && !filterUserId && !scenario?.include_all_members) {
     return (
       <Container maxW="container.xl" py={8}>
         <VStack spacing={6} align="stretch">
@@ -647,6 +675,27 @@ export function RetirementPage() {
           successRate={results?.success_rate ?? null}
           isLoading={simulateMutation.isPending || resultsLoading}
         />
+
+        {/* Stale household warning */}
+        {scenario?.is_stale && (
+          <Alert status="warning" borderRadius="md">
+            <AlertIcon />
+            <Box flex="1">
+              <AlertTitle>Household membership has changed</AlertTitle>
+              <AlertDescription>
+                This scenario was created with a different set of household
+                members. Results may be inaccurate.
+              </AlertDescription>
+            </Box>
+            <Button
+              size="sm"
+              onClick={handleRefreshHousehold}
+              isLoading={refreshHouseholdMutation.isPending}
+            >
+              Recalculate
+            </Button>
+          </Alert>
+        )}
 
         {/* Scenario Comparison */}
         {showComparison && comparisonData && (

@@ -10,7 +10,7 @@ import {
   Icon,
   Button,
   HStack,
-} from '@chakra-ui/react';
+} from "@chakra-ui/react";
 import {
   FiDollarSign,
   FiCreditCard,
@@ -22,266 +22,296 @@ import {
   FiShield,
   FiAward,
   FiPackage,
-} from 'react-icons/fi';
-import { ArrowBackIcon } from '@chakra-ui/icons';
-import { type AccountType, ACCOUNT_TYPES } from '../schemas/manualAccountSchemas';
+} from "react-icons/fi";
+import { ArrowBackIcon } from "@chakra-ui/icons";
+import {
+  type AccountType,
+  ACCOUNT_TYPES,
+} from "../schemas/manualAccountSchemas";
 
 interface AccountTypeOption {
   type: AccountType;
   label: string;
   description: string;
   icon: any;
-  category: 'basic' | 'investment' | 'alternative' | 'insurance' | 'securities' | 'business' | 'property';
+  category:
+    | "basic"
+    | "investment"
+    | "alternative"
+    | "insurance"
+    | "securities"
+    | "business"
+    | "property";
 }
 
 const accountTypeOptions: AccountTypeOption[] = [
   // Basic accounts - Cash & Checking
   {
     type: ACCOUNT_TYPES.CHECKING,
-    label: 'Checking',
-    description: 'Day-to-day spending account',
+    label: "Checking",
+    description: "Day-to-day spending account",
     icon: FiDollarSign,
-    category: 'basic',
+    category: "basic",
   },
   {
     type: ACCOUNT_TYPES.SAVINGS,
-    label: 'Savings',
-    description: 'Savings and emergency funds',
+    label: "Savings",
+    description: "Savings and emergency funds",
     icon: FiDollarSign,
-    category: 'basic',
+    category: "basic",
   },
   {
     type: ACCOUNT_TYPES.MONEY_MARKET,
-    label: 'Money Market',
-    description: 'Higher-yield savings account',
+    label: "Money Market",
+    description: "Higher-yield savings account",
     icon: FiDollarSign,
-    category: 'basic',
+    category: "basic",
   },
   {
     type: ACCOUNT_TYPES.CD,
-    label: 'CD',
-    description: 'Certificate of deposit',
+    label: "CD",
+    description: "Certificate of deposit",
     icon: FiDollarSign,
-    category: 'basic',
+    category: "basic",
   },
   {
     type: ACCOUNT_TYPES.CREDIT_CARD,
-    label: 'Credit Card',
-    description: 'Credit card balance',
+    label: "Credit Card",
+    description: "Credit card balance",
     icon: FiCreditCard,
-    category: 'basic',
+    category: "basic",
   },
   {
     type: ACCOUNT_TYPES.LOAN,
-    label: 'Loan',
-    description: 'Personal loan',
+    label: "Loan",
+    description: "Personal loan",
     icon: FiFileText,
-    category: 'basic',
+    category: "basic",
   },
   {
     type: ACCOUNT_TYPES.STUDENT_LOAN,
-    label: 'Student Loan',
-    description: 'Student loan debt',
+    label: "Student Loan",
+    description: "Student loan debt",
     icon: FiFileText,
-    category: 'basic',
+    category: "basic",
   },
   {
     type: ACCOUNT_TYPES.MORTGAGE,
-    label: 'Mortgage',
-    description: 'Home mortgage loan',
+    label: "Mortgage",
+    description: "Home mortgage loan",
     icon: FiHome,
-    category: 'basic',
+    category: "basic",
   },
 
   // Investment accounts
   {
     type: ACCOUNT_TYPES.BROKERAGE,
-    label: 'Brokerage',
-    description: 'Investment brokerage account',
+    label: "Brokerage",
+    description: "Investment brokerage account",
     icon: FiTrendingUp,
-    category: 'investment',
+    category: "investment",
   },
   {
     type: ACCOUNT_TYPES.RETIREMENT_401K,
-    label: '401(k)',
-    description: 'Employer 401(k) retirement account',
+    label: "401(k)",
+    description: "Employer 401(k) retirement account",
     icon: FiTrendingUp,
-    category: 'investment',
+    category: "investment",
   },
   {
     type: ACCOUNT_TYPES.RETIREMENT_403B,
-    label: '403(b)',
-    description: 'Non-profit / education retirement account',
+    label: "403(b)",
+    description: "Non-profit / education retirement account",
     icon: FiTrendingUp,
-    category: 'investment',
+    category: "investment",
   },
   {
     type: ACCOUNT_TYPES.RETIREMENT_457B,
-    label: '457(b)',
-    description: 'Government employee retirement account',
+    label: "457(b)",
+    description: "Government employee retirement account",
     icon: FiTrendingUp,
-    category: 'investment',
+    category: "investment",
   },
   {
     type: ACCOUNT_TYPES.RETIREMENT_IRA,
-    label: 'IRA',
-    description: 'Traditional IRA retirement account',
+    label: "IRA",
+    description: "Traditional IRA retirement account",
     icon: FiTrendingUp,
-    category: 'investment',
+    category: "investment",
   },
   {
     type: ACCOUNT_TYPES.RETIREMENT_ROTH,
-    label: 'Roth IRA',
-    description: 'Roth IRA retirement account',
+    label: "Roth IRA",
+    description: "Roth IRA retirement account",
     icon: FiTrendingUp,
-    category: 'investment',
+    category: "investment",
   },
   {
     type: ACCOUNT_TYPES.RETIREMENT_SEP_IRA,
-    label: 'SEP IRA',
-    description: 'Self-employed retirement account',
+    label: "SEP IRA",
+    description: "Self-employed retirement account",
     icon: FiTrendingUp,
-    category: 'investment',
+    category: "investment",
   },
   {
     type: ACCOUNT_TYPES.RETIREMENT_SIMPLE_IRA,
-    label: 'SIMPLE IRA',
-    description: 'Small business employee retirement account',
+    label: "SIMPLE IRA",
+    description: "Small business employee retirement account",
     icon: FiTrendingUp,
-    category: 'investment',
+    category: "investment",
+  },
+  {
+    type: ACCOUNT_TYPES.TRUMP_ACCOUNT,
+    label: "Trump Account",
+    description: "Custodial traditional IRA for minors",
+    icon: FiTrendingUp,
+    category: "investment",
   },
   {
     type: ACCOUNT_TYPES.RETIREMENT_529,
-    label: '529 Plan',
-    description: 'College savings plan',
+    label: "529 Plan",
+    description: "College savings plan",
     icon: FiTrendingUp,
-    category: 'investment',
+    category: "investment",
   },
   {
     type: ACCOUNT_TYPES.HSA,
-    label: 'HSA',
-    description: 'Health savings account',
+    label: "HSA",
+    description: "Health savings account",
     icon: FiTrendingUp,
-    category: 'investment',
+    category: "investment",
   },
   {
     type: ACCOUNT_TYPES.PENSION,
-    label: 'Pension',
-    description: 'Employer pension plan',
+    label: "Pension",
+    description: "Employer pension plan",
     icon: FiTrendingUp,
-    category: 'investment',
+    category: "investment",
   },
 
   // Alternative Investments
   {
     type: ACCOUNT_TYPES.CRYPTO,
-    label: 'Cryptocurrency',
-    description: 'Digital currency holdings',
+    label: "Cryptocurrency",
+    description: "Digital currency holdings",
     icon: FiTrendingUp,
-    category: 'alternative',
+    category: "alternative",
   },
   {
     type: ACCOUNT_TYPES.PRIVATE_EQUITY,
-    label: 'Private Equity',
-    description: 'Company equity, RSUs, and stock options',
+    label: "Private Equity",
+    description: "Company equity, RSUs, and stock options",
     icon: FiBriefcase,
-    category: 'alternative',
+    category: "alternative",
   },
   {
     type: ACCOUNT_TYPES.PRIVATE_DEBT,
-    label: 'Private Debt',
-    description: 'Private credit funds and loans made',
+    label: "Private Debt",
+    description: "Private credit funds and loans made",
     icon: FiFileText,
-    category: 'alternative',
+    category: "alternative",
   },
   {
     type: ACCOUNT_TYPES.COLLECTIBLES,
-    label: 'Collectibles',
-    description: 'Art, antiques, and collectibles',
+    label: "Collectibles",
+    description: "Art, antiques, and collectibles",
     icon: FiAward,
-    category: 'alternative',
+    category: "alternative",
   },
   {
     type: ACCOUNT_TYPES.PRECIOUS_METALS,
-    label: 'Precious Metals',
-    description: 'Gold, silver, and other metals',
+    label: "Precious Metals",
+    description: "Gold, silver, and other metals",
     icon: FiPackage,
-    category: 'alternative',
+    category: "alternative",
   },
 
   // Securities
   {
     type: ACCOUNT_TYPES.BOND,
-    label: 'Bonds',
-    description: 'Corporate or government bonds',
+    label: "Bonds",
+    description: "Corporate or government bonds",
     icon: FiFileText,
-    category: 'securities',
+    category: "securities",
   },
   {
     type: ACCOUNT_TYPES.STOCK_OPTIONS,
-    label: 'Stock Options',
-    description: 'Employee stock options',
+    label: "Stock Options",
+    description: "Employee stock options",
     icon: FiTrendingUp,
-    category: 'securities',
+    category: "securities",
   },
 
   // Insurance & Annuities
   {
     type: ACCOUNT_TYPES.LIFE_INSURANCE_CASH_VALUE,
-    label: 'Life Insurance',
-    description: 'Cash value life insurance',
+    label: "Life Insurance",
+    description: "Cash value life insurance",
     icon: FiShield,
-    category: 'insurance',
+    category: "insurance",
   },
   {
     type: ACCOUNT_TYPES.ANNUITY,
-    label: 'Annuity',
-    description: 'Annuity contracts',
+    label: "Annuity",
+    description: "Annuity contracts",
     icon: FiShield,
-    category: 'insurance',
+    category: "insurance",
   },
 
   // Business
   {
     type: ACCOUNT_TYPES.BUSINESS_EQUITY,
-    label: 'Business Equity',
-    description: 'Ownership in a business',
+    label: "Business Equity",
+    description: "Ownership in a business",
     icon: FiBriefcase,
-    category: 'business',
+    category: "business",
   },
 
   // Property
   {
     type: ACCOUNT_TYPES.PROPERTY,
-    label: 'Property',
-    description: 'Home or real estate',
+    label: "Property",
+    description: "Home or real estate",
     icon: FiHome,
-    category: 'property',
+    category: "property",
   },
   {
     type: ACCOUNT_TYPES.VEHICLE,
-    label: 'Vehicle',
-    description: 'Car, truck, or other vehicle',
+    label: "Vehicle",
+    description: "Car, truck, or other vehicle",
     icon: FiTruck,
-    category: 'property',
+    category: "property",
   },
 
   // Other
   {
     type: ACCOUNT_TYPES.MANUAL,
-    label: 'Other',
-    description: 'Any other account type',
+    label: "Other",
+    description: "Any other account type",
     icon: FiFileText,
-    category: 'basic',
+    category: "basic",
   },
 ];
 
 interface ManualAccountTypeStepProps {
-  onSelectType: (type: AccountType, category: 'basic' | 'investment' | 'alternative' | 'insurance' | 'securities' | 'business' | 'property') => void;
+  onSelectType: (
+    type: AccountType,
+    category:
+      | "basic"
+      | "investment"
+      | "alternative"
+      | "insurance"
+      | "securities"
+      | "business"
+      | "property",
+  ) => void;
   onBack: () => void;
 }
 
-export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTypeStepProps) => {
+export const ManualAccountTypeStep = ({
+  onSelectType,
+  onBack,
+}: ManualAccountTypeStepProps) => {
   return (
     <VStack spacing={6} align="stretch">
       <HStack>
@@ -306,7 +336,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
         </Text>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
           {accountTypeOptions
-            .filter((option) => option.category === 'basic')
+            .filter((option) => option.category === "basic")
             .map((option) => (
               <Box
                 key={option.type}
@@ -317,10 +347,10 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                 borderRadius="md"
                 borderColor="border.default"
                 _hover={{
-                  borderColor: 'brand.500',
-                  bg: 'brand.subtle',
-                  transform: 'translateY(-2px)',
-                  shadow: 'md',
+                  borderColor: "brand.500",
+                  bg: "brand.subtle",
+                  transform: "translateY(-2px)",
+                  shadow: "md",
                 }}
                 transition="all 0.2s"
                 cursor="pointer"
@@ -349,7 +379,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
         </Text>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
           {accountTypeOptions
-            .filter((option) => option.category === 'investment')
+            .filter((option) => option.category === "investment")
             .map((option) => (
               <Box
                 key={option.type}
@@ -360,10 +390,10 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                 borderRadius="md"
                 borderColor="border.default"
                 _hover={{
-                  borderColor: 'brand.500',
-                  bg: 'brand.subtle',
-                  transform: 'translateY(-2px)',
-                  shadow: 'md',
+                  borderColor: "brand.500",
+                  bg: "brand.subtle",
+                  transform: "translateY(-2px)",
+                  shadow: "md",
                 }}
                 transition="all 0.2s"
                 cursor="pointer"
@@ -392,7 +422,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
         </Text>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
           {accountTypeOptions
-            .filter((option) => option.category === 'alternative')
+            .filter((option) => option.category === "alternative")
             .map((option) => (
               <Box
                 key={option.type}
@@ -403,10 +433,10 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                 borderRadius="md"
                 borderColor="border.default"
                 _hover={{
-                  borderColor: 'brand.500',
-                  bg: 'brand.subtle',
-                  transform: 'translateY(-2px)',
-                  shadow: 'md',
+                  borderColor: "brand.500",
+                  bg: "brand.subtle",
+                  transform: "translateY(-2px)",
+                  shadow: "md",
                 }}
                 transition="all 0.2s"
                 cursor="pointer"
@@ -435,7 +465,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
         </Text>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
           {accountTypeOptions
-            .filter((option) => option.category === 'securities')
+            .filter((option) => option.category === "securities")
             .map((option) => (
               <Box
                 key={option.type}
@@ -446,10 +476,10 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                 borderRadius="md"
                 borderColor="border.default"
                 _hover={{
-                  borderColor: 'brand.500',
-                  bg: 'brand.subtle',
-                  transform: 'translateY(-2px)',
-                  shadow: 'md',
+                  borderColor: "brand.500",
+                  bg: "brand.subtle",
+                  transform: "translateY(-2px)",
+                  shadow: "md",
                 }}
                 transition="all 0.2s"
                 cursor="pointer"
@@ -478,7 +508,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
         </Text>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
           {accountTypeOptions
-            .filter((option) => option.category === 'insurance')
+            .filter((option) => option.category === "insurance")
             .map((option) => (
               <Box
                 key={option.type}
@@ -489,10 +519,10 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                 borderRadius="md"
                 borderColor="border.default"
                 _hover={{
-                  borderColor: 'brand.500',
-                  bg: 'brand.subtle',
-                  transform: 'translateY(-2px)',
-                  shadow: 'md',
+                  borderColor: "brand.500",
+                  bg: "brand.subtle",
+                  transform: "translateY(-2px)",
+                  shadow: "md",
                 }}
                 transition="all 0.2s"
                 cursor="pointer"
@@ -521,7 +551,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
         </Text>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
           {accountTypeOptions
-            .filter((option) => option.category === 'business')
+            .filter((option) => option.category === "business")
             .map((option) => (
               <Box
                 key={option.type}
@@ -532,10 +562,10 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                 borderRadius="md"
                 borderColor="border.default"
                 _hover={{
-                  borderColor: 'brand.500',
-                  bg: 'brand.subtle',
-                  transform: 'translateY(-2px)',
-                  shadow: 'md',
+                  borderColor: "brand.500",
+                  bg: "brand.subtle",
+                  transform: "translateY(-2px)",
+                  shadow: "md",
                 }}
                 transition="all 0.2s"
                 cursor="pointer"
@@ -564,7 +594,7 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
         </Text>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
           {accountTypeOptions
-            .filter((option) => option.category === 'property')
+            .filter((option) => option.category === "property")
             .map((option) => (
               <Box
                 key={option.type}
@@ -575,10 +605,10 @@ export const ManualAccountTypeStep = ({ onSelectType, onBack }: ManualAccountTyp
                 borderRadius="md"
                 borderColor="border.default"
                 _hover={{
-                  borderColor: 'brand.500',
-                  bg: 'brand.subtle',
-                  transform: 'translateY(-2px)',
-                  shadow: 'md',
+                  borderColor: "brand.500",
+                  bg: "brand.subtle",
+                  transform: "translateY(-2px)",
+                  shadow: "md",
                 }}
                 transition="all 0.2s"
                 cursor="pointer"

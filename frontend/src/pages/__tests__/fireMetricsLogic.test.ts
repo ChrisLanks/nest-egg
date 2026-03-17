@@ -14,7 +14,11 @@ const scoreColor = (ratio: number): string => {
   return "red.400";
 };
 
-const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
+const formatPercent = (value: number) => {
+  const pct = value * 100;
+  // Drop unnecessary trailing ".0" (e.g. 100.0% -> 100%)
+  return `${pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(1)}%`;
+};
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-US", {
@@ -182,17 +186,23 @@ describe("scoreColor", () => {
 });
 
 describe("formatPercent", () => {
-  it("formats whole percentages", () => {
-    expect(formatPercent(0.5)).toBe("50.0%");
-    expect(formatPercent(1.0)).toBe("100.0%");
+  it("formats whole percentages without trailing .0", () => {
+    expect(formatPercent(0.5)).toBe("50%");
+    expect(formatPercent(1.0)).toBe("100%");
   });
 
-  it("formats fractional percentages", () => {
+  it("formats fractional percentages with one decimal", () => {
     expect(formatPercent(0.456)).toBe("45.6%");
+    expect(formatPercent(0.753)).toBe("75.3%");
   });
 
-  it("formats zero", () => {
-    expect(formatPercent(0)).toBe("0.0%");
+  it("formats zero without trailing .0", () => {
+    expect(formatPercent(0)).toBe("0%");
+  });
+
+  it("handles exact integer percentages", () => {
+    expect(formatPercent(0.25)).toBe("25%");
+    expect(formatPercent(0.1)).toBe("10%");
   });
 });
 

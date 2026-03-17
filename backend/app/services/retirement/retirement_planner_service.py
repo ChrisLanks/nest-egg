@@ -1,11 +1,12 @@
 """Retirement planner orchestration service."""
 
-import copy
+import hashlib
+import json
 from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -20,11 +21,29 @@ from app.services.retirement.monte_carlo_service import (
     _compute_scenario_hash,
 )
 from app.utils.datetime_utils import utc_now
-from app.utils.rmd_calculator import calculate_age
 
 
 class RetirementPlannerService:
     """Core orchestration service for retirement planning."""
+
+    @staticmethod
+    async def compute_household_member_hash(
+        db: AsyncSession, organization_id: str
+    ) -> tuple[str, list[str]]:
+        """Return (hash, sorted_member_id_list) for active org members."""
+        from app.models.user import User
+
+        result = await db.execute(
+            select(User.id)
+            .where(
+                User.organization_id == organization_id,
+                User.is_active == True,  # noqa: E712
+            )
+            .order_by(User.id)
+        )
+        member_ids = [str(row[0]) for row in result.all()]
+        hash_str = hashlib.sha256(",".join(member_ids).encode()).hexdigest()
+        return hash_str, member_ids
 
     @staticmethod
     async def list_scenarios(
@@ -79,6 +98,15 @@ class RetirementPlannerService:
         db.add(scenario)
         await db.flush()
 
+        # If household-wide, compute and store member hash
+        if scenario.include_all_members:
+            hash_str, member_ids = await RetirementPlannerService.compute_household_member_hash(
+                db, organization_id
+            )
+            scenario.household_member_hash = hash_str
+            scenario.household_member_ids = json.dumps(member_ids)
+            await db.flush()
+
         # Eagerly load life_events for response serialization
         await db.refresh(scenario, ["life_events"])
         return scenario
@@ -94,8 +122,6 @@ class RetirementPlannerService:
         for healthcare (ACA couple rates, married IRMAA thresholds) and higher
         default spending. Single users get single-person defaults.
         """
-        current_age = calculate_age(user.birthdate) if user.birthdate else 35
-
         # Gather portfolio data for smart defaults
         account_data = await RetirementMonteCarloService._gather_account_data(
             db, str(user.organization_id), str(user.id)
@@ -138,14 +164,25 @@ class RetirementPlannerService:
             is_shared=is_household,
         )
 
-        # If household, also set spouse SS defaults
+        # If household, also set spouse SS defaults and include all members
         if is_household:
             scenario_kwargs["spouse_social_security_monthly"] = None  # Will be estimated
             scenario_kwargs["spouse_social_security_start_age"] = 67
+            scenario_kwargs["include_all_members"] = True
 
         scenario = RetirementScenario(**scenario_kwargs)
         db.add(scenario)
         await db.flush()
+
+        # If household-wide, compute and store member hash
+        if is_household:
+            hash_str, member_ids = await RetirementPlannerService.compute_household_member_hash(
+                db, str(user.organization_id)
+            )
+            scenario.household_member_hash = hash_str
+            scenario.household_member_ids = json.dumps(member_ids)
+            await db.flush()
+
         await db.refresh(scenario, ["life_events"])
         return scenario
 
@@ -161,7 +198,7 @@ class RetirementPlannerService:
                 continue
             # Allow explicit null for nullable fields (e.g. healthcare overrides);
             # skip null for non-nullable fields to avoid DB integrity errors.
-            if value is None and not key.endswith('_override'):
+            if value is None and not key.endswith("_override"):
                 continue
             setattr(scenario, key, value)
         scenario.updated_at = utc_now()
@@ -289,13 +326,15 @@ class RetirementPlannerService:
         summaries = []
         for scenario in scenarios:
             latest = await RetirementPlannerService.get_latest_result(db, scenario.id)
-            summaries.append({
-                "id": scenario.id,
-                "name": scenario.name,
-                "retirement_age": scenario.retirement_age,
-                "is_default": scenario.is_default,
-                "readiness_score": latest.readiness_score if latest else None,
-                "success_rate": float(latest.success_rate) if latest else None,
-                "updated_at": scenario.updated_at,
-            })
+            summaries.append(
+                {
+                    "id": scenario.id,
+                    "name": scenario.name,
+                    "retirement_age": scenario.retirement_age,
+                    "is_default": scenario.is_default,
+                    "readiness_score": latest.readiness_score if latest else None,
+                    "success_rate": float(latest.success_rate) if latest else None,
+                    "updated_at": scenario.updated_at,
+                }
+            )
         return summaries

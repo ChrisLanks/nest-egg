@@ -286,3 +286,118 @@ describe("Available years generation", () => {
     expect(years).toEqual([2026, 2025, 2024, 2023, 2022]);
   });
 });
+
+// ── Available years from API with fallback ──────────────────────────────────
+
+describe("Available years from API", () => {
+  function getAvailableYears(apiYears: number[] | undefined): number[] {
+    if (apiYears && apiYears.length > 0) return apiYears;
+    const currentYear = 2026;
+    const years = [];
+    for (let i = 0; i < 5; i++) {
+      years.push(currentYear - i);
+    }
+    return years;
+  }
+
+  it("uses API years when available", () => {
+    const result = getAvailableYears([
+      2026, 2025, 2024, 2023, 2022, 2021, 2020,
+    ]);
+    expect(result).toEqual([2026, 2025, 2024, 2023, 2022, 2021, 2020]);
+  });
+
+  it("falls back to last 5 years when API returns empty", () => {
+    const result = getAvailableYears([]);
+    expect(result).toEqual([2026, 2025, 2024, 2023, 2022]);
+  });
+
+  it("falls back to last 5 years when API returns undefined", () => {
+    const result = getAvailableYears(undefined);
+    expect(result).toEqual([2026, 2025, 2024, 2023, 2022]);
+  });
+
+  it("returns single year from API when only one exists", () => {
+    const result = getAvailableYears([2024]);
+    expect(result).toEqual([2024]);
+  });
+});
+
+// ── localStorage persistence for selected years ────────────────────────────
+
+describe("localStorage persistence for selected years", () => {
+  const LS_KEY_YEARS = "nest-egg-trends-selected-years";
+  const LS_KEY_PRIMARY = "nest-egg-trends-primary-year";
+
+  function saveSelectedYears(years: number[]): string {
+    return JSON.stringify(years);
+  }
+
+  function restoreSelectedYears(
+    saved: string | null,
+    fallbackYears: number[],
+  ): number[] {
+    try {
+      if (saved) {
+        const parsed = JSON.parse(saved) as number[];
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      /* ignore */
+    }
+    return fallbackYears;
+  }
+
+  function savePrimaryYear(year: number): string {
+    return String(year);
+  }
+
+  function restorePrimaryYear(saved: string | null, fallback: number): number {
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    return fallback;
+  }
+
+  it("serializes selected years to JSON", () => {
+    expect(saveSelectedYears([2026, 2025])).toBe("[2026,2025]");
+  });
+
+  it("restores selected years from valid JSON", () => {
+    const result = restoreSelectedYears("[2025,2024]", [2026, 2025, 2024]);
+    expect(result).toEqual([2025, 2024]);
+  });
+
+  it("falls back when saved JSON is empty array", () => {
+    const result = restoreSelectedYears("[]", [2026, 2025, 2024]);
+    expect(result).toEqual([2026, 2025, 2024]);
+  });
+
+  it("falls back when saved value is null", () => {
+    const result = restoreSelectedYears(null, [2026, 2025, 2024]);
+    expect(result).toEqual([2026, 2025, 2024]);
+  });
+
+  it("falls back when saved JSON is invalid", () => {
+    const result = restoreSelectedYears("not-json", [2026, 2025, 2024]);
+    expect(result).toEqual([2026, 2025, 2024]);
+  });
+
+  it("serializes primary year as string", () => {
+    expect(savePrimaryYear(2025)).toBe("2025");
+  });
+
+  it("restores primary year from valid string", () => {
+    expect(restorePrimaryYear("2025", 2026)).toBe(2025);
+  });
+
+  it("falls back when primary year string is null", () => {
+    expect(restorePrimaryYear(null, 2026)).toBe(2026);
+  });
+
+  it("uses correct localStorage keys", () => {
+    expect(LS_KEY_YEARS).toBe("nest-egg-trends-selected-years");
+    expect(LS_KEY_PRIMARY).toBe("nest-egg-trends-primary-year");
+  });
+});
