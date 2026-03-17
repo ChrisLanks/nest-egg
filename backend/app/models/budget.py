@@ -1,23 +1,25 @@
 """Budget models."""
 
+import enum
 import uuid
 from decimal import Decimal
 
 from sqlalchemy import (
-    Column,
-    String,
-    Boolean,
-    DateTime,
-    Date,
-    ForeignKey,
     JSON,
-    Numeric,
-    Enum as SQLEnum,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
     Index,
+    Numeric,
+    String,
+)
+from sqlalchemy import (
+    Enum as SQLEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-import enum
 
 from app.core.database import Base
 from app.utils.datetime_utils import utc_now_lambda
@@ -28,6 +30,7 @@ class BudgetPeriod(str, enum.Enum):
 
     MONTHLY = "monthly"
     QUARTERLY = "quarterly"
+    SEMI_ANNUAL = "semi_annual"
     YEARLY = "yearly"
 
 

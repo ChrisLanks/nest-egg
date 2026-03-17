@@ -32,17 +32,17 @@ import {
   Radio,
   Stack,
   Box,
-} from '@chakra-ui/react';
-import React, { useEffect, useState } from 'react';
-import { useForm, Controller } from 'react-hook-form';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Budget, BudgetCreate } from '../../../types/budget';
-import { BudgetPeriod } from '../../../types/budget';
-import { budgetsApi } from '../../../api/budgets';
-import { categoriesApi } from '../../../api/categories';
-import { labelsApi } from '../../../api/labels';
-import { useHouseholdMembers } from '../../../hooks/useHouseholdMembers';
-import { useAuthStore } from '../../auth/stores/authStore';
+} from "@chakra-ui/react";
+import React, { useEffect, useState } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Budget, BudgetCreate } from "../../../types/budget";
+import { BudgetPeriod } from "../../../types/budget";
+import { budgetsApi } from "../../../api/budgets";
+import { categoriesApi } from "../../../api/categories";
+import { labelsApi } from "../../../api/labels";
+import { useHouseholdMembers } from "../../../hooks/useHouseholdMembers";
+import { useAuthStore } from "../../auth/stores/authStore";
 
 interface BudgetFormProps {
   isOpen: boolean;
@@ -50,71 +50,93 @@ interface BudgetFormProps {
   budget?: Budget | null;
 }
 
-type FilterBy = 'all' | 'category' | 'label';
+type FilterBy = "all" | "category" | "label";
 
 function getInitialFilterBy(budget: Budget | null | undefined): FilterBy {
-  if (!budget) return 'all';
-  if (budget.label_id) return 'label';
-  if (budget.category_id) return 'category';
-  return 'all';
+  if (!budget) return "all";
+  if (budget.label_id) return "label";
+  if (budget.category_id) return "category";
+  return "all";
 }
 
-export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps) {
+export default function BudgetForm({
+  isOpen,
+  onClose,
+  budget,
+}: BudgetFormProps) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const isEditing = !!budget;
 
-  const { register, handleSubmit, control, watch, setValue, reset, formState: { errors, isSubmitting } } = useForm<BudgetCreate>({
-    defaultValues: budget ? {
-      name: budget.name,
-      amount: budget.amount,
-      period: budget.period,
-      start_date: budget.start_date,
-      end_date: budget.end_date ?? undefined,
-      category_id: budget.category_id ?? undefined,
-      label_id: budget.label_id ?? undefined,
-      rollover_unused: budget.rollover_unused,
-      alert_threshold: budget.alert_threshold,
-      is_shared: budget.is_shared,
-      shared_user_ids: budget.shared_user_ids ?? null,
-    } : {
-      period: BudgetPeriod.MONTHLY,
-      rollover_unused: false,
-      alert_threshold: 0.8,
-      start_date: new Date().toISOString().split('T')[0],
-      is_shared: false,
-      shared_user_ids: null,
-    },
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<BudgetCreate>({
+    defaultValues: budget
+      ? {
+          name: budget.name,
+          amount: budget.amount,
+          period: budget.period,
+          start_date: budget.start_date,
+          end_date: budget.end_date ?? undefined,
+          category_id: budget.category_id ?? undefined,
+          label_id: budget.label_id ?? undefined,
+          rollover_unused: budget.rollover_unused,
+          alert_threshold: budget.alert_threshold,
+          is_shared: budget.is_shared,
+          shared_user_ids: budget.shared_user_ids ?? null,
+        }
+      : {
+          period: BudgetPeriod.MONTHLY,
+          rollover_unused: false,
+          alert_threshold: 0.8,
+          start_date: new Date().toISOString().split("T")[0],
+          is_shared: false,
+          shared_user_ids: null,
+        },
   });
 
   // Tracks when a provider category (no UUID) is selected so we can auto-create it on save
-  const [providerCategoryName, setProviderCategoryName] = useState<string | null>(null);
+  const [providerCategoryName, setProviderCategoryName] = useState<
+    string | null
+  >(null);
   // Whether the budget filters by "all", "category", or "label"
-  const [filterBy, setFilterBy] = useState<FilterBy>(getInitialFilterBy(budget));
+  const [filterBy, setFilterBy] = useState<FilterBy>(
+    getInitialFilterBy(budget),
+  );
 
   // Reset form when the modal opens or the budget changes (defaultValues only applies on initial mount)
   useEffect(() => {
     if (isOpen) {
-      reset(budget ? {
-        name: budget.name,
-        amount: budget.amount,
-        period: budget.period,
-        start_date: budget.start_date,
-        end_date: budget.end_date ?? undefined,
-        category_id: budget.category_id ?? undefined,
-        label_id: budget.label_id ?? undefined,
-        rollover_unused: budget.rollover_unused,
-        alert_threshold: budget.alert_threshold,
-        is_shared: budget.is_shared,
-        shared_user_ids: budget.shared_user_ids ?? null,
-      } : {
-        period: BudgetPeriod.MONTHLY,
-        rollover_unused: false,
-        alert_threshold: 0.8,
-        start_date: new Date().toISOString().split('T')[0],
-        is_shared: false,
-        shared_user_ids: null,
-      });
+      reset(
+        budget
+          ? {
+              name: budget.name,
+              amount: budget.amount,
+              period: budget.period,
+              start_date: budget.start_date,
+              end_date: budget.end_date ?? undefined,
+              category_id: budget.category_id ?? undefined,
+              label_id: budget.label_id ?? undefined,
+              rollover_unused: budget.rollover_unused,
+              alert_threshold: budget.alert_threshold,
+              is_shared: budget.is_shared,
+              shared_user_ids: budget.shared_user_ids ?? null,
+            }
+          : {
+              period: BudgetPeriod.MONTHLY,
+              rollover_unused: false,
+              alert_threshold: 0.8,
+              start_date: new Date().toISOString().split("T")[0],
+              is_shared: false,
+              shared_user_ids: null,
+            },
+      );
       setProviderCategoryName(null);
       setFilterBy(getInitialFilterBy(budget));
     }
@@ -123,23 +145,23 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
   // When filterBy changes, clear the other field
   const handleFilterByChange = (value: FilterBy) => {
     setFilterBy(value);
-    if (value !== 'category') {
-      setValue('category_id', undefined);
+    if (value !== "category") {
+      setValue("category_id", undefined);
       setProviderCategoryName(null);
     }
-    if (value !== 'label') {
-      setValue('label_id', undefined);
+    if (value !== "label") {
+      setValue("label_id", undefined);
     }
   };
 
   // All categories — both custom (with UUID) and provider (without UUID, from Plaid/Teller)
   const { data: allCategories = [] } = useQuery({
-    queryKey: ['categories'],
+    queryKey: ["categories"],
     queryFn: categoriesApi.getCategories,
   });
 
   const { data: allLabels = [] } = useQuery({
-    queryKey: ['labels'],
+    queryKey: ["labels"],
     queryFn: () => labelsApi.getAll(),
   });
 
@@ -150,26 +172,27 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
   const showSharedSection = otherMembers.length > 0;
 
   // Watch shared fields
-  const isShared = watch('is_shared');
-  const sharedUserIds = watch('shared_user_ids');
-  const allMembersSelected = sharedUserIds === null || sharedUserIds === undefined;
+  const isShared = watch("is_shared");
+  const sharedUserIds = watch("shared_user_ids");
+  const allMembersSelected =
+    sharedUserIds === null || sharedUserIds === undefined;
 
   // The current select value: UUID for custom categories, "provider::Name" for provider categories
-  const watchedCategoryId = watch('category_id');
+  const watchedCategoryId = watch("category_id");
   const categorySelectValue = providerCategoryName
     ? `provider::${providerCategoryName}`
-    : (watchedCategoryId ?? '');
+    : (watchedCategoryId ?? "");
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     if (!val) {
-      setValue('category_id', undefined);
+      setValue("category_id", undefined);
       setProviderCategoryName(null);
-    } else if (val.startsWith('provider::')) {
-      setValue('category_id', undefined);
+    } else if (val.startsWith("provider::")) {
+      setValue("category_id", undefined);
       setProviderCategoryName(val.slice(10));
     } else {
-      setValue('category_id', val);
+      setValue("category_id", val);
       setProviderCategoryName(null);
     }
   };
@@ -185,39 +208,52 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
     onSuccess: (savedBudget) => {
       if (isEditing) {
         // Immediately update the cache so the next Edit click has fresh data
-        queryClient.setQueryData<Budget[]>(['budgets'], (old) =>
-          old?.map(b => b.id === savedBudget.id ? savedBudget : b) ?? []
+        queryClient.setQueryData<Budget[]>(
+          ["budgets"],
+          (old) =>
+            old?.map((b) => (b.id === savedBudget.id ? savedBudget : b)) ?? [],
         );
       }
-      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      queryClient.invalidateQueries({ queryKey: ["budgets"] });
       toast({
-        title: isEditing ? 'Budget updated' : 'Budget created',
-        status: 'success',
+        title: isEditing ? "Budget updated" : "Budget created",
+        status: "success",
         duration: 3000,
       });
       onClose();
     },
     onError: () => {
       toast({
-        title: `Failed to ${isEditing ? 'update' : 'create'} budget`,
-        status: 'error',
+        title: `Failed to ${isEditing ? "update" : "create"} budget`,
+        status: "error",
         duration: 3000,
       });
     },
   });
 
   const onSubmit = async (data: BudgetCreate) => {
-    let resolvedCategoryId = filterBy === 'category' ? data.category_id : undefined;
-    const resolvedLabelId = filterBy === 'label' ? data.label_id : undefined;
+    let resolvedCategoryId =
+      filterBy === "category" ? data.category_id : undefined;
+    const resolvedLabelId = filterBy === "label" ? data.label_id : undefined;
 
     // If a provider category (no UUID) was selected, create a custom category for it first
-    if (filterBy === 'category' && !resolvedCategoryId && providerCategoryName) {
+    if (
+      filterBy === "category" &&
+      !resolvedCategoryId &&
+      providerCategoryName
+    ) {
       try {
-        const newCat = await categoriesApi.create({ name: providerCategoryName });
+        const newCat = await categoriesApi.create({
+          name: providerCategoryName,
+        });
         resolvedCategoryId = newCat.id ?? undefined;
-        queryClient.invalidateQueries({ queryKey: ['categories'] });
+        queryClient.invalidateQueries({ queryKey: ["categories"] });
       } catch {
-        toast({ title: 'Failed to create category', status: 'error', duration: 3000 });
+        toast({
+          title: "Failed to create category",
+          status: "error",
+          duration: 3000,
+        });
         return;
       }
     }
@@ -232,13 +268,13 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
     });
   };
 
-  const alertThreshold = watch('alert_threshold');
+  const alertThreshold = watch("alert_threshold");
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg">
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>{isEditing ? 'Edit Budget' : 'Create Budget'}</ModalHeader>
+        <ModalHeader>{isEditing ? "Edit Budget" : "Create Budget"}</ModalHeader>
         <ModalCloseButton />
 
         <form onSubmit={handleSubmit(onSubmit)}>
@@ -248,7 +284,7 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
               <FormControl isRequired isInvalid={!!errors.name}>
                 <FormLabel>Budget Name</FormLabel>
                 <Input
-                  {...register('name', { required: 'Name is required' })}
+                  {...register("name", { required: "Name is required" })}
                   placeholder="e.g., Groceries, Entertainment"
                 />
               </FormControl>
@@ -259,7 +295,10 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
                 <Controller
                   name="amount"
                   control={control}
-                  rules={{ required: 'Amount is required', min: { value: 0.01, message: 'Must be greater than 0' } }}
+                  rules={{
+                    required: "Amount is required",
+                    min: { value: 0.01, message: "Must be greater than 0" },
+                  }}
                   render={({ field }) => (
                     <NumberInput {...field} min={0} step={0.01}>
                       <NumberInputField placeholder="0.00" />
@@ -271,9 +310,12 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
               {/* Period */}
               <FormControl isRequired>
                 <FormLabel>Period</FormLabel>
-                <Select {...register('period', { required: true })}>
+                <Select {...register("period", { required: true })}>
                   <option value={BudgetPeriod.MONTHLY}>Monthly</option>
                   <option value={BudgetPeriod.QUARTERLY}>Quarterly</option>
+                  <option value={BudgetPeriod.SEMI_ANNUAL}>
+                    Every 6 Months
+                  </option>
                   <option value={BudgetPeriod.YEARLY}>Yearly</option>
                 </Select>
               </FormControl>
@@ -281,7 +323,10 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
               {/* Filter by */}
               <FormControl>
                 <FormLabel>Track spending for</FormLabel>
-                <RadioGroup value={filterBy} onChange={(v) => handleFilterByChange(v as FilterBy)}>
+                <RadioGroup
+                  value={filterBy}
+                  onChange={(v) => handleFilterByChange(v as FilterBy)}
+                >
                   <Stack direction="row" spacing={4}>
                     <Radio value="all">All spending</Radio>
                     <Radio value="category">Category</Radio>
@@ -291,10 +336,13 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
               </FormControl>
 
               {/* Category dropdown — only shown when filterBy === 'category' */}
-              {filterBy === 'category' && (
+              {filterBy === "category" && (
                 <FormControl>
                   <FormLabel>Category</FormLabel>
-                  <Select value={categorySelectValue} onChange={handleCategoryChange}>
+                  <Select
+                    value={categorySelectValue}
+                    onChange={handleCategoryChange}
+                  >
                     <option value="">Select a category...</option>
                     {allCategories.map((cat) => (
                       <option
@@ -309,7 +357,7 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
               )}
 
               {/* Label dropdown — only shown when filterBy === 'label' */}
-              {filterBy === 'label' && (
+              {filterBy === "label" && (
                 <FormControl>
                   <FormLabel>Label</FormLabel>
                   <Controller
@@ -317,8 +365,10 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
                     control={control}
                     render={({ field }) => (
                       <Select
-                        value={field.value ?? ''}
-                        onChange={(e) => field.onChange(e.target.value || undefined)}
+                        value={field.value ?? ""}
+                        onChange={(e) =>
+                          field.onChange(e.target.value || undefined)
+                        }
                       >
                         <option value="">Select a label...</option>
                         {allLabels.map((label) => (
@@ -337,14 +387,14 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
                 <FormLabel>Start Date</FormLabel>
                 <Input
                   type="date"
-                  {...register('start_date', { required: true })}
+                  {...register("start_date", { required: true })}
                 />
               </FormControl>
 
               {/* End Date */}
               <FormControl>
                 <FormLabel>End Date (Optional)</FormLabel>
-                <Input type="date" {...register('end_date')} />
+                <Input type="date" {...register("end_date")} />
               </FormControl>
 
               {/* Alert Threshold */}
@@ -407,7 +457,7 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
                           onChange={(e) => {
                             field.onChange(e.target.checked);
                             if (!e.target.checked) {
-                              setValue('shared_user_ids', null);
+                              setValue("shared_user_ids", null);
                             }
                           }}
                           colorScheme="teal"
@@ -426,9 +476,9 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
                           isChecked={allMembersSelected}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setValue('shared_user_ids', null);
+                              setValue("shared_user_ids", null);
                             } else {
-                              setValue('shared_user_ids', []);
+                              setValue("shared_user_ids", []);
                             }
                           }}
                           colorScheme="teal"
@@ -436,23 +486,34 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
                           All household members
                         </Checkbox>
 
-                        {!allMembersSelected && otherMembers.map((member) => (
-                          <Checkbox
-                            key={member.id}
-                            isChecked={sharedUserIds?.includes(member.id) ?? false}
-                            onChange={(e) => {
-                              const current = sharedUserIds ?? [];
-                              if (e.target.checked) {
-                                setValue('shared_user_ids', [...current, member.id]);
-                              } else {
-                                setValue('shared_user_ids', current.filter((id) => id !== member.id));
+                        {!allMembersSelected &&
+                          otherMembers.map((member) => (
+                            <Checkbox
+                              key={member.id}
+                              isChecked={
+                                sharedUserIds?.includes(member.id) ?? false
                               }
-                            }}
-                            colorScheme="teal"
-                          >
-                            {member.display_name || member.first_name || member.email}
-                          </Checkbox>
-                        ))}
+                              onChange={(e) => {
+                                const current = sharedUserIds ?? [];
+                                if (e.target.checked) {
+                                  setValue("shared_user_ids", [
+                                    ...current,
+                                    member.id,
+                                  ]);
+                                } else {
+                                  setValue(
+                                    "shared_user_ids",
+                                    current.filter((id) => id !== member.id),
+                                  );
+                                }
+                              }}
+                              colorScheme="teal"
+                            >
+                              {member.display_name ||
+                                member.first_name ||
+                                member.email}
+                            </Checkbox>
+                          ))}
                       </VStack>
                     </Box>
                   )}
@@ -470,7 +531,7 @@ export default function BudgetForm({ isOpen, onClose, budget }: BudgetFormProps)
               type="submit"
               isLoading={isSubmitting || mutation.isPending}
             >
-              {isEditing ? 'Update' : 'Create'}
+              {isEditing ? "Update" : "Create"}
             </Button>
           </ModalFooter>
         </form>

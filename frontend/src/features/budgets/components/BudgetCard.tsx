@@ -20,14 +20,14 @@ import {
   useToast,
   Box,
   Tooltip,
-} from '@chakra-ui/react';
-import { EditIcon, DeleteIcon, SettingsIcon } from '@chakra-ui/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Budget } from '../../../types/budget';
-import { BudgetPeriod } from '../../../types/budget';
-import { budgetsApi } from '../../../api/budgets';
-import { labelsApi } from '../../../api/labels';
-import { useHouseholdMembers } from '../../../hooks/useHouseholdMembers';
+} from "@chakra-ui/react";
+import { EditIcon, DeleteIcon, SettingsIcon } from "@chakra-ui/icons";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { Budget } from "../../../types/budget";
+import { BudgetPeriod } from "../../../types/budget";
+import { budgetsApi } from "../../../api/budgets";
+import { labelsApi } from "../../../api/labels";
+import { useHouseholdMembers } from "../../../hooks/useHouseholdMembers";
 
 interface BudgetCardProps {
   budget: Budget;
@@ -35,53 +35,57 @@ interface BudgetCardProps {
   canEdit?: boolean;
 }
 
-export default function BudgetCard({ budget, onEdit, canEdit = true }: BudgetCardProps) {
+export default function BudgetCard({
+  budget,
+  onEdit,
+  canEdit = true,
+}: BudgetCardProps) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { data: householdMembers = [] } = useHouseholdMembers();
 
   // Build shared tooltip label
   const sharedLabel = (() => {
-    if (!budget.is_shared) return '';
-    if (!budget.shared_user_ids) return 'Shared with all members';
+    if (!budget.is_shared) return "";
+    if (!budget.shared_user_ids) return "Shared with all members";
     const names = budget.shared_user_ids
-      .map(id => householdMembers.find(m => m.id === id))
+      .map((id) => householdMembers.find((m) => m.id === id))
       .filter(Boolean)
-      .map(m => m!.display_name || m!.first_name || m!.email);
-    return `Shared with ${names.join(', ')}`;
+      .map((m) => m!.display_name || m!.first_name || m!.email);
+    return `Shared with ${names.join(", ")}`;
   })();
 
   // Get spending data
   const { data: spending } = useQuery({
-    queryKey: ['budgets', budget.id, 'spending'],
+    queryKey: ["budgets", budget.id, "spending"],
     queryFn: () => budgetsApi.getSpending(budget.id),
   });
 
   // Fetch labels to resolve label name (uses shared cache, no extra network call)
   const { data: allLabels = [] } = useQuery({
-    queryKey: ['labels'],
+    queryKey: ["labels"],
     queryFn: () => labelsApi.getAll(),
     enabled: !!budget.label_id,
   });
   const labelName = budget.label_id
-    ? allLabels.find((l) => l.id === budget.label_id)?.name ?? null
+    ? (allLabels.find((l) => l.id === budget.label_id)?.name ?? null)
     : null;
 
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: () => budgetsApi.delete(budget.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      queryClient.invalidateQueries({ queryKey: ["budgets"] });
       toast({
-        title: 'Budget deleted',
-        status: 'success',
+        title: "Budget deleted",
+        status: "success",
         duration: 3000,
       });
     },
     onError: () => {
       toast({
-        title: 'Failed to delete budget',
-        status: 'error',
+        title: "Failed to delete budget",
+        status: "error",
         duration: 3000,
       });
     },
@@ -89,26 +93,28 @@ export default function BudgetCard({ budget, onEdit, canEdit = true }: BudgetCar
 
   const percentage = Number(spending?.percentage ?? 0);
   const getProgressColor = () => {
-    if (percentage >= 100) return 'red';
-    if (percentage >= budget.alert_threshold * 100) return 'orange';
-    return 'green';
+    if (percentage >= 100) return "red";
+    if (percentage >= budget.alert_threshold * 100) return "orange";
+    return "green";
   };
 
   const formatPeriod = (period: BudgetPeriod) => {
     switch (period) {
       case BudgetPeriod.MONTHLY:
-        return 'Monthly';
+        return "Monthly";
       case BudgetPeriod.QUARTERLY:
-        return 'Quarterly';
+        return "Quarterly";
+      case BudgetPeriod.SEMI_ANNUAL:
+        return "Every 6 Months";
       case BudgetPeriod.YEARLY:
-        return 'Yearly';
+        return "Yearly";
     }
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
     }).format(amount);
   };
 
@@ -150,7 +156,11 @@ export default function BudgetCard({ budget, onEdit, canEdit = true }: BudgetCar
               size="sm"
             />
             <MenuList>
-              <MenuItem icon={<EditIcon />} isDisabled={!canEdit} onClick={() => onEdit(budget)}>
+              <MenuItem
+                icon={<EditIcon />}
+                isDisabled={!canEdit}
+                onClick={() => onEdit(budget)}
+              >
                 Edit
               </MenuItem>
               <MenuItem
@@ -172,7 +182,8 @@ export default function BudgetCard({ budget, onEdit, canEdit = true }: BudgetCar
           <Box>
             <HStack justify="space-between" mb={2}>
               <Text fontSize="sm" fontWeight="medium">
-                {formatCurrency(spending?.spent ?? 0)} of {formatCurrency(budget.amount)}
+                {formatCurrency(spending?.spent ?? 0)} of{" "}
+                {formatCurrency(budget.amount)}
               </Text>
               <Text fontSize="sm" color={getProgressColor()}>
                 {percentage.toFixed(1)}%
@@ -194,7 +205,11 @@ export default function BudgetCard({ budget, onEdit, canEdit = true }: BudgetCar
             <Text
               fontSize="sm"
               fontWeight="medium"
-              color={spending?.remaining && spending.remaining < 0 ? 'finance.negative' : 'finance.positive'}
+              color={
+                spending?.remaining && spending.remaining < 0
+                  ? "finance.negative"
+                  : "finance.positive"
+              }
             >
               {formatCurrency(spending?.remaining ?? budget.amount)}
             </Text>
@@ -203,7 +218,7 @@ export default function BudgetCard({ budget, onEdit, canEdit = true }: BudgetCar
           {/* Period dates */}
           {spending && (
             <Text fontSize="xs" color="text.muted">
-              {new Date(spending.period_start).toLocaleDateString()} -{' '}
+              {new Date(spending.period_start).toLocaleDateString()} -{" "}
               {new Date(spending.period_end).toLocaleDateString()}
             </Text>
           )}

@@ -96,6 +96,78 @@ class TestBudgetService:
         assert start == date(2024, 1, 1)
         assert end == date(2024, 12, 31)
 
+    def test_get_period_dates_semi_annual_h1(self):
+        """Should calculate H1 semi-annual period dates."""
+        service = BudgetService()
+
+        # H1 (Jan-Jun)
+        ref_date = date(2024, 3, 15)
+        start, end = service._get_period_dates(BudgetPeriod.SEMI_ANNUAL, ref_date)
+
+        assert start == date(2024, 1, 1)
+        assert end == date(2024, 6, 30)
+
+    def test_get_period_dates_semi_annual_h2(self):
+        """Should calculate H2 semi-annual period dates."""
+        service = BudgetService()
+
+        # H2 (Jul-Dec)
+        ref_date = date(2024, 9, 15)
+        start, end = service._get_period_dates(BudgetPeriod.SEMI_ANNUAL, ref_date)
+
+        assert start == date(2024, 7, 1)
+        assert end == date(2024, 12, 31)
+
+    def test_get_period_dates_semi_annual_boundary_july_1(self):
+        """July 1st should be in H2."""
+        service = BudgetService()
+
+        ref_date = date(2024, 7, 1)
+        start, end = service._get_period_dates(BudgetPeriod.SEMI_ANNUAL, ref_date)
+
+        assert start == date(2024, 7, 1)
+        assert end == date(2024, 12, 31)
+
+    def test_get_period_dates_semi_annual_boundary_june_30(self):
+        """June 30th should be in H1."""
+        service = BudgetService()
+
+        ref_date = date(2024, 6, 30)
+        start, end = service._get_period_dates(BudgetPeriod.SEMI_ANNUAL, ref_date)
+
+        assert start == date(2024, 1, 1)
+        assert end == date(2024, 6, 30)
+
+    def test_get_period_dates_semi_annual_offset(self):
+        """Semi-annual with start_day=15: H1 runs Jan 15 – Jul 14."""
+        service = BudgetService()
+        ref_date = date(2026, 3, 20)
+        start, end = service._get_period_dates(
+            BudgetPeriod.SEMI_ANNUAL, ref_date, monthly_start_day=15
+        )
+        assert start == date(2026, 1, 15)
+        assert end == date(2026, 7, 14)
+
+    def test_get_period_dates_semi_annual_offset_h2(self):
+        """Semi-annual with start_day=15: H2 runs Jul 15 – Jan 14 next year."""
+        service = BudgetService()
+        ref_date = date(2026, 10, 1)
+        start, end = service._get_period_dates(
+            BudgetPeriod.SEMI_ANNUAL, ref_date, monthly_start_day=15
+        )
+        assert start == date(2026, 7, 15)
+        assert end == date(2027, 1, 14)
+
+    def test_get_period_dates_semi_annual_offset_before_h1_start(self):
+        """Semi-annual with start_day=15: date before Jan 15 belongs to prior year's H2."""
+        service = BudgetService()
+        ref_date = date(2026, 1, 10)
+        start, end = service._get_period_dates(
+            BudgetPeriod.SEMI_ANNUAL, ref_date, monthly_start_day=15
+        )
+        assert start == date(2025, 7, 15)
+        assert end == date(2026, 1, 14)
+
     # --- monthly_start_day offset tests ---
 
     def test_get_period_dates_monthly_offset_after_start_day(self):

@@ -3,9 +3,10 @@
  */
 
 export enum BudgetPeriod {
-  MONTHLY = 'monthly',
-  QUARTERLY = 'quarterly',
-  YEARLY = 'yearly',
+  MONTHLY = "monthly",
+  QUARTERLY = "quarterly",
+  SEMI_ANNUAL = "semi_annual",
+  YEARLY = "yearly",
 }
 
 export interface Budget {

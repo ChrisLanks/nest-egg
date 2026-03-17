@@ -275,6 +275,41 @@ describe("New Budget button — disabled state", () => {
   });
 });
 
+// ── Period display labels ────────────────────────────────────────────────────
+
+function formatPeriod(
+  period: "monthly" | "quarterly" | "semi_annual" | "yearly",
+): string {
+  switch (period) {
+    case "monthly":
+      return "Monthly";
+    case "quarterly":
+      return "Quarterly";
+    case "semi_annual":
+      return "Every 6 Months";
+    case "yearly":
+      return "Yearly";
+  }
+}
+
+describe("Budget period display labels", () => {
+  it("formats monthly", () => {
+    expect(formatPeriod("monthly")).toBe("Monthly");
+  });
+
+  it("formats quarterly", () => {
+    expect(formatPeriod("quarterly")).toBe("Quarterly");
+  });
+
+  it("formats semi_annual as 'Every 6 Months'", () => {
+    expect(formatPeriod("semi_annual")).toBe("Every 6 Months");
+  });
+
+  it("formats yearly", () => {
+    expect(formatPeriod("yearly")).toBe("Yearly");
+  });
+});
+
 describe("Empty state detection", () => {
   it("detects when filtered results are empty", () => {
     const active = filterByTab(

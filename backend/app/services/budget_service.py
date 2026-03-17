@@ -96,6 +96,46 @@ class BudgetService:
 
             start, end = current_period
 
+        elif period == BudgetPeriod.SEMI_ANNUAL:
+            # Half-year boundaries: start_day of months 1 and 7
+            half_start_months = [1, 7]
+            current_period = None
+
+            for i, month in enumerate(half_start_months):
+                try:
+                    h_start = date(reference_date.year, month, start_day)
+                except ValueError:
+                    h_start = date(reference_date.year, month, 28)
+
+                if i < 1:
+                    next_month = half_start_months[i + 1]
+                    try:
+                        next_h_start = date(reference_date.year, next_month, start_day)
+                    except ValueError:
+                        next_h_start = date(reference_date.year, next_month, 28)
+                else:
+                    try:
+                        next_h_start = date(reference_date.year + 1, 1, start_day)
+                    except ValueError:
+                        next_h_start = date(reference_date.year + 1, 1, 28)
+
+                if h_start <= reference_date < next_h_start:
+                    current_period = (h_start, next_h_start - timedelta(days=1))
+                    break
+
+            if current_period is None:
+                # reference_date falls before H1 start (e.g. Jan 1-14 when start_day=15)
+                # → belongs to H2 of the previous year
+                try:
+                    h_start = date(reference_date.year - 1, 7, start_day)
+                    next_h_start = date(reference_date.year, 1, start_day)
+                except ValueError:
+                    h_start = date(reference_date.year - 1, 7, 28)
+                    next_h_start = date(reference_date.year, 1, 28)
+                current_period = (h_start, next_h_start - timedelta(days=1))
+
+            start, end = current_period
+
         elif period == BudgetPeriod.YEARLY:
             # Year runs from start_day of January to one day before the following year's start
             try:
@@ -355,9 +395,16 @@ class BudgetService:
                 )
 
                 title = f"Budget Alert: {budget.name}"
+                period_labels = {
+                    "monthly": "monthly",
+                    "quarterly": "quarterly",
+                    "semi_annual": "6-month",
+                    "yearly": "yearly",
+                }
+                period_label = period_labels.get(budget.period.value, budget.period.value)
                 message = (
                     f"You've spent ${spending['spent']:.2f} of ${budget.amount:.2f} "
-                    f"({percentage:.1f}%) in the current {budget.period.value} period."
+                    f"({percentage:.1f}%) in the current {period_label} period."
                 )
 
                 await NotificationService.create_notification(
