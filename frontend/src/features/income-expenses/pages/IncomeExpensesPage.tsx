@@ -51,7 +51,7 @@ import {
   ChevronUpIcon,
   ChevronDownIcon,
 } from "@chakra-ui/icons";
-import { IoBarChart, IoPieChart } from "react-icons/io5";
+import { IoBarChart, IoPieChart, IoGitNetwork } from "react-icons/io5";
 import { FiInbox } from "react-icons/fi";
 import api from "../../../services/api";
 import { useUserView } from "../../../contexts/UserViewContext";
@@ -69,6 +69,9 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  Sankey,
+  Layer,
+  Rectangle,
 } from "recharts";
 import type { Transaction } from "../../../types/transaction";
 import { TransactionDetailModal } from "../../../components/TransactionDetailModal";
@@ -129,6 +132,236 @@ const COLORS = [
   "#F59E0B",
   "#10B981",
 ];
+
+/* ── Money Flow Sankey sub-component ─────────────────────────────── */
+
+const SANKEY_INCOME_COLORS = [
+  "#48BB78",
+  "#68D391",
+  "#9AE6B4",
+  "#2F855A",
+  "#276749",
+  "#22543D",
+  "#38A169",
+  "#C6F6D5",
+];
+const SANKEY_EXPENSE_COLORS = [
+  "#F56565",
+  "#FC8181",
+  "#FEB2B2",
+  "#E53E3E",
+  "#C53030",
+  "#9B2C2C",
+  "#DD6B20",
+  "#ED8936",
+  "#F6AD55",
+  "#FEEBC8",
+];
+
+function buildSankeyData(summary: IncomeExpenseSummary) {
+  const incomeCategories = summary.income_categories
+    .filter((c) => c.amount > 0 && c.percentage >= 0.5)
+    .slice(0, 8);
+  const expenseCategories = summary.expense_categories
+    .filter((c) => c.amount > 0 && c.percentage >= 0.5)
+    .slice(0, 10);
+
+  if (incomeCategories.length === 0 && expenseCategories.length === 0)
+    return null;
+
+  const nodes: { name: string }[] = [];
+  const links: { source: number; target: number; value: number }[] = [];
+
+  // Income nodes
+  incomeCategories.forEach((c) => nodes.push({ name: c.category }));
+  const shownIncomeTotal = incomeCategories.reduce((s, c) => s + c.amount, 0);
+  const otherIncome = summary.total_income - shownIncomeTotal;
+  if (otherIncome > 0) nodes.push({ name: "Other Income" });
+
+  // Hub node
+  const hubIndex = nodes.length;
+  nodes.push({ name: "Total Income" });
+
+  // Expense nodes
+  const expenseStartIndex = nodes.length;
+  expenseCategories.forEach((c) => nodes.push({ name: c.category }));
+  const shownExpenseTotal = expenseCategories.reduce((s, c) => s + c.amount, 0);
+  const otherExpenses = summary.total_expenses - shownExpenseTotal;
+  if (otherExpenses > 0) nodes.push({ name: "Other Expenses" });
+
+  // Surplus/deficit node
+  const net = summary.total_income - summary.total_expenses;
+  let surplusIdx = -1;
+  if (net > 0) {
+    surplusIdx = nodes.length;
+    nodes.push({ name: "Savings" });
+  } else if (net < 0) {
+    surplusIdx = nodes.length;
+    nodes.push({ name: "Deficit" });
+  }
+
+  // Income → hub links
+  incomeCategories.forEach((c, i) =>
+    links.push({ source: i, target: hubIndex, value: c.amount }),
+  );
+  if (otherIncome > 0)
+    links.push({ source: hubIndex - 1, target: hubIndex, value: otherIncome });
+
+  // Hub → expense links
+  expenseCategories.forEach((c, i) =>
+    links.push({
+      source: hubIndex,
+      target: expenseStartIndex + i,
+      value: c.amount,
+    }),
+  );
+  if (otherExpenses > 0) {
+    const otherExpIdx = expenseStartIndex + expenseCategories.length;
+    links.push({ source: hubIndex, target: otherExpIdx, value: otherExpenses });
+  }
+
+  // Hub → surplus/deficit
+  if (surplusIdx >= 0 && net !== 0)
+    links.push({ source: hubIndex, target: surplusIdx, value: Math.abs(net) });
+
+  return { nodes, links, hubIndex };
+}
+
+function SankeyNodeInline({
+  x,
+  y,
+  width,
+  height,
+  index,
+  payload,
+  hubIndex,
+}: any) {
+  const name = payload?.name ?? "";
+  let color = "#A0AEC0";
+  if (name === "Total Income") color = "#4299E1";
+  else if (name === "Savings") color = "#38B2AC";
+  else if (name === "Deficit") color = "#E53E3E";
+  else if (index < hubIndex)
+    color = SANKEY_INCOME_COLORS[index % SANKEY_INCOME_COLORS.length];
+  else
+    color =
+      SANKEY_EXPENSE_COLORS[
+        (index - hubIndex - 1) % SANKEY_EXPENSE_COLORS.length
+      ];
+
+  return (
+    <Layer key={`sankey-node-${index}`}>
+      <Rectangle
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill={color}
+        fillOpacity={0.85}
+      />
+      {height > 14 && (
+        <text
+          x={x + width + 6}
+          y={y + height / 2}
+          textAnchor="start"
+          dominantBaseline="central"
+          fontSize={11}
+          fill="#718096"
+        >
+          {name}
+        </text>
+      )}
+    </Layer>
+  );
+}
+
+function SankeyLinkInline({
+  sourceX,
+  targetX,
+  sourceY,
+  targetY,
+  sourceControlX,
+  targetControlX,
+  linkWidth,
+  payload,
+  hubIndex,
+  nodes,
+}: any) {
+  const targetName = nodes?.[payload?.target]?.name ?? "";
+  let color = "rgba(245, 101, 101, 0.3)";
+  if (payload?.target === hubIndex) color = "rgba(72, 187, 120, 0.3)";
+  else if (targetName === "Savings") color = "rgba(56, 178, 172, 0.4)";
+  else if (targetName === "Deficit") color = "rgba(229, 62, 62, 0.4)";
+
+  return (
+    <Layer key={`sankey-link-${payload?.source}-${payload?.target}`}>
+      <path
+        d={`M${sourceX},${sourceY + linkWidth / 2} C${sourceControlX},${sourceY + linkWidth / 2} ${targetControlX},${targetY + linkWidth / 2} ${targetX},${targetY + linkWidth / 2} L${targetX},${targetY - linkWidth / 2} C${targetControlX},${targetY - linkWidth / 2} ${sourceControlX},${sourceY - linkWidth / 2} ${sourceX},${sourceY - linkWidth / 2} Z`}
+        fill={color}
+        strokeWidth={0}
+      />
+    </Layer>
+  );
+}
+
+const MoneyFlowSankey = ({
+  summary,
+  tooltipBg,
+}: {
+  summary: IncomeExpenseSummary;
+  tooltipBg: string;
+}) => {
+  const sankeyData = buildSankeyData(summary);
+  if (!sankeyData)
+    return (
+      <Text color="gray.500">Not enough data for money flow diagram.</Text>
+    );
+
+  const fmtCurrency = (amount: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+
+  return (
+    <Box
+      role="img"
+      aria-label="Sankey diagram showing money flow from income sources to expense categories"
+    >
+      <ResponsiveContainer width="100%" height={450}>
+        <Sankey
+          data={{ nodes: sankeyData.nodes, links: sankeyData.links }}
+          nodePadding={24}
+          nodeWidth={10}
+          linkCurvature={0.5}
+          margin={{ top: 10, right: 180, bottom: 10, left: 10 }}
+          node={(props: any) => (
+            <SankeyNodeInline {...props} hubIndex={sankeyData.hubIndex} />
+          )}
+          link={(props: any) => (
+            <SankeyLinkInline
+              {...props}
+              hubIndex={sankeyData.hubIndex}
+              nodes={sankeyData.nodes}
+            />
+          )}
+        >
+          <Tooltip
+            formatter={(value: number) => fmtCurrency(value)}
+            contentStyle={{
+              backgroundColor: tooltipBg,
+              border: "1px solid #E2E8F0",
+              borderRadius: "6px",
+              fontSize: "12px",
+            }}
+          />
+        </Sankey>
+      </ResponsiveContainer>
+    </Box>
+  );
+};
 
 export const IncomeExpensesPage = () => {
   // Use global user view context + multi-member filter
@@ -240,6 +473,7 @@ export const IncomeExpensesPage = () => {
   });
   const [hiddenItems, setHiddenItems] = useState<Set<string>>(new Set());
   const [selectedTab, setSelectedTab] = useState(0); // 0 = Combined, 1 = Income, 2 = Expenses
+  const [showMoneyFlow, setShowMoneyFlow] = useState(false);
   const [incomeLegendExpanded, setIncomeLegendExpanded] = useState(false);
   const [expenseLegendExpanded, setExpenseLegendExpanded] = useState(false);
 
@@ -1930,6 +2164,30 @@ export const IncomeExpensesPage = () => {
                             </BarChart>
                           </ResponsiveContainer>
                         </Box>
+                      </Box>
+                    )}
+
+                    {/* Money Flow Sankey Diagram */}
+                    {summary && filteredSummary && (
+                      <Box w="full">
+                        <HStack justify="space-between" mb={4}>
+                          <Heading size="md">Money Flow</Heading>
+                          <Button
+                            size="sm"
+                            variant={showMoneyFlow ? "solid" : "outline"}
+                            colorScheme="blue"
+                            leftIcon={<IoGitNetwork />}
+                            onClick={() => setShowMoneyFlow(!showMoneyFlow)}
+                          >
+                            {showMoneyFlow ? "Hide Flow" : "Show Flow"}
+                          </Button>
+                        </HStack>
+                        {showMoneyFlow && (
+                          <MoneyFlowSankey
+                            summary={filteredSummary}
+                            tooltipBg={tooltipBg}
+                          />
+                        )}
                       </Box>
                     )}
 

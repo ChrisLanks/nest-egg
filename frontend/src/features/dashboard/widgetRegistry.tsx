@@ -35,6 +35,7 @@ import { RothConversionWidget } from "./widgets/RothConversionWidget";
 import { QuarterlyPerformanceWidget } from "./widgets/QuarterlyPerformanceWidget";
 import { LabelInsightsWidget } from "./widgets/LabelInsightsWidget";
 import { HealthcareCostWidget } from "./widgets/HealthcareCostWidget";
+import { MoneyFlowWidget } from "./widgets/MoneyFlowWidget";
 import type { LayoutItem, WidgetDefinition } from "./types";
 
 export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
@@ -287,6 +288,14 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
       "Projected lifetime healthcare costs including Medicare, long-term care, and pre-65 insurance.",
     defaultSpan: 1,
     component: HealthcareCostWidget,
+  },
+  "money-flow": {
+    id: "money-flow",
+    title: "Money Flow",
+    description:
+      "Sankey diagram showing how income flows through your household into expense categories and savings.",
+    defaultSpan: 2,
+    component: MoneyFlowWidget,
   },
 };
 
