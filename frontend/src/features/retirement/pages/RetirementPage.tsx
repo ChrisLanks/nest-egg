@@ -51,6 +51,8 @@ import { ScenarioComparisonView } from "../components/ScenarioComparisonView";
 import { ScenarioPanel } from "../components/ScenarioPanel";
 import { SocialSecurityEstimator } from "../components/SocialSecurityEstimator";
 import { WithdrawalStrategyComparison } from "../components/WithdrawalStrategyComparison";
+import HelpHint from "../../../components/HelpHint";
+import { helpContent } from "../../../constants/helpContent";
 import {
   useAddLifeEvent,
   useAddLifeEventFromPreset,
@@ -604,6 +606,7 @@ export function RetirementPage() {
         <HStack justify="space-between" align="center" wrap="wrap" gap={2}>
           <Text fontSize="2xl" fontWeight="bold">
             Retirement Planner
+            <HelpHint hint={helpContent.retirement.monteCarlo} />
           </Text>
           <HStack spacing={2}>
             {!readOnly && (
@@ -765,6 +768,7 @@ export function RetirementPage() {
               onClick={presetPicker.onOpen}
             >
               + Add Life Event
+              <HelpHint hint={helpContent.retirement.lifeEvents} />
             </Button>
             <Button
               size="sm"
@@ -874,6 +878,7 @@ export function RetirementPage() {
               <Box bg={cardBg} p={5} borderRadius="xl" shadow="sm">
                 <Text fontSize="lg" fontWeight="semibold" mb={3}>
                   Simulation Summary
+                  <HelpHint hint={helpContent.retirement.readinessScore} />
                 </Text>
                 <VStack spacing={2} align="stretch" fontSize="sm">
                   <HStack justify="space-between">

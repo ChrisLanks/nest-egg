@@ -53,6 +53,8 @@ import GoalForm from "../features/goals/components/GoalForm";
 import { useUserView } from "../contexts/UserViewContext";
 import { EmptyState } from "../components/EmptyState";
 import { useAuthStore } from "../features/auth/stores/authStore";
+import HelpHint from "../components/HelpHint";
+import { helpContent } from "../constants/helpContent";
 
 // ---------------------------------------------------------------------------
 // SortableGoalCard — wraps GoalCard with dnd-kit drag-and-drop support
@@ -375,7 +377,10 @@ export default function SavingsGoalsPage() {
         {/* Header */}
         <HStack justify="space-between">
           <VStack align="start" spacing={1}>
-            <Heading size="lg">Savings Goals</Heading>
+            <Heading size="lg">
+              Savings Goals
+              <HelpHint hint={helpContent.savingsGoals.emergencyFund} />
+            </Heading>
             <Text color="text.secondary">
               Track progress toward your financial goals
             </Text>

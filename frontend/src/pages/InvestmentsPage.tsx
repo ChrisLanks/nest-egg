@@ -68,6 +68,8 @@ import { RebalancingPanel } from "../features/investments/components/Rebalancing
 import { FeeAnalysisPanel } from "../features/investments/components/FeeAnalysisPanel";
 import { DividendIncomePanel } from "../features/investments/components/DividendIncomePanel";
 import { useRetirementAccountData } from "../features/retirement/hooks/useRetirementScenarios";
+import HelpHint from "../components/HelpHint";
+import { helpContent } from "../constants/helpContent";
 
 interface Holding {
   id: string;
@@ -1205,15 +1207,27 @@ export const InvestmentsPage = () => {
               onChange={setSelectedTabIndex}
             >
               <TabList>
-                <Tab>Asset Allocation</Tab>
+                <Tab>
+                  Asset Allocation
+                  <HelpHint hint={helpContent.investments.assetAllocation} />
+                </Tab>
                 <Tab>Sector Breakdown</Tab>
                 <Tab>Future Growth</Tab>
                 <Tab>Performance Trends</Tab>
                 <Tab>Risk Analysis</Tab>
                 <Tab>Holdings Detail</Tab>
-                <Tab>Fee Analyzer</Tab>
-                <Tab>Roth Conversion</Tab>
-                <Tab>Tax-Loss Harvesting</Tab>
+                <Tab>
+                  Fee Analyzer
+                  <HelpHint hint={helpContent.investments.feeAnalysis} />
+                </Tab>
+                <Tab>
+                  Roth Conversion
+                  <HelpHint hint={helpContent.investments.rothConversion} />
+                </Tab>
+                <Tab>
+                  Tax-Loss Harvesting
+                  <HelpHint hint={helpContent.investments.taxLossHarvesting} />
+                </Tab>
                 <Tab>Rebalancing</Tab>
                 <Tab>Dividend Income</Tab>
               </TabList>

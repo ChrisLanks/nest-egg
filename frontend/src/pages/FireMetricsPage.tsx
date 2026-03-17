@@ -30,6 +30,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { fireApi, type FireMetricsResponse } from "../api/fire";
 import { useUserView } from "../contexts/UserViewContext";
+import HelpHint from "../components/HelpHint";
+import { helpContent } from "../constants/helpContent";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-US", {
@@ -137,7 +139,10 @@ export const FireMetricsPage = () => {
           </Text>
           <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
             <FormControl>
-              <FormLabel fontSize="sm">Withdrawal Rate (%)</FormLabel>
+              <FormLabel fontSize="sm">
+                Withdrawal Rate (%)
+                <HelpHint hint={helpContent.fire.withdrawalRate} />
+              </FormLabel>
               <NumberInput
                 value={withdrawalRate}
                 onChange={(_, v) => !isNaN(v) && setWithdrawalRate(v)}
@@ -217,7 +222,10 @@ export const FireMetricsPage = () => {
             <Card>
               <CardBody>
                 <VStack spacing={4}>
-                  <Heading size="md">FI Ratio</Heading>
+                  <Heading size="md">
+                    FI Ratio
+                    <HelpHint hint={helpContent.fire.fiRatio} />
+                  </Heading>
                   <Text fontSize="xs" color="text.muted" textAlign="center">
                     How close your investments are to covering your annual
                     expenses forever
@@ -269,7 +277,10 @@ export const FireMetricsPage = () => {
             <Card>
               <CardBody>
                 <VStack spacing={4}>
-                  <Heading size="md">Savings Rate</Heading>
+                  <Heading size="md">
+                    Savings Rate
+                    <HelpHint hint={helpContent.fire.savingsRate} />
+                  </Heading>
                   <Text fontSize="xs" color="text.muted" textAlign="center">
                     What percentage of your income you're keeping
                   </Text>
@@ -333,7 +344,10 @@ export const FireMetricsPage = () => {
             <Card>
               <CardBody>
                 <VStack spacing={4}>
-                  <Heading size="md">Years to FI</Heading>
+                  <Heading size="md">
+                    Years to FI
+                    <HelpHint hint={helpContent.fire.yearsToFi} />
+                  </Heading>
                   <Text fontSize="xs" color="text.muted" textAlign="center">
                     Estimated time until your investments can sustain your
                     lifestyle
@@ -390,7 +404,10 @@ export const FireMetricsPage = () => {
             <Card>
               <CardBody>
                 <VStack spacing={4}>
-                  <Heading size="md">Coast FI</Heading>
+                  <Heading size="md">
+                    Coast FI
+                    <HelpHint hint={helpContent.fire.coastFi} />
+                  </Heading>
                   <Text fontSize="xs" color="text.muted" textAlign="center">
                     Whether you could stop saving today and still retire on time
                     through investment growth alone

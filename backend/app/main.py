@@ -31,6 +31,7 @@ from app.api.v1 import (
     education,
     enhanced_trends,
     enrichment,
+    financial_templates,
     fire,
     guest_access,
     holdings,
@@ -418,6 +419,11 @@ if settings.ENVIRONMENT == "development":
 
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])
 app.include_router(budgets.router, prefix="/api/v1/budgets", tags=["Budgets"])
+app.include_router(
+    financial_templates.router,
+    prefix="/api/v1/financial-templates",
+    tags=["Financial Templates"],
+)
 app.include_router(savings_goals.router, prefix="/api/v1/savings-goals", tags=["Savings Goals"])
 app.include_router(
     recurring_transactions.router,

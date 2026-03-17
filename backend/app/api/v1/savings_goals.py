@@ -28,6 +28,9 @@ from app.utils.datetime_utils import utc_now
 
 class GoalTemplate(str, Enum):
     emergency_fund = "emergency_fund"
+    vacation_fund = "vacation_fund"
+    home_down_payment = "home_down_payment"
+    debt_payoff_reserve = "debt_payoff_reserve"
 
 
 class GoalFromTemplateRequest(BaseModel):
@@ -97,11 +100,18 @@ async def create_goal_from_template(
     - **emergency_fund**: calculates target from avg monthly expenses × 6,
       auto-links to the highest-balance checking/savings account.
     """
-    if body.template == GoalTemplate.emergency_fund:
-        goal = await savings_goal_service.create_emergency_fund_goal(db=db, user=current_user)
-        return goal
+    template_methods = {
+        GoalTemplate.emergency_fund: savings_goal_service.create_emergency_fund_goal,
+        GoalTemplate.vacation_fund: savings_goal_service.create_vacation_fund_goal,
+        GoalTemplate.home_down_payment: savings_goal_service.create_home_down_payment_goal,
+        GoalTemplate.debt_payoff_reserve: savings_goal_service.create_debt_payoff_reserve_goal,
+    }
+    method = template_methods.get(body.template)
+    if not method:
+        raise HTTPException(status_code=400, detail=f"Unknown template: {body.template}")
 
-    raise HTTPException(status_code=400, detail=f"Unknown template: {body.template}")
+    goal = await method(db=db, user=current_user)
+    return goal
 
 
 @router.post("/auto-sync", response_model=List[SavingsGoalResponse])

@@ -53,6 +53,7 @@ const AccountsPage = lazy(() =>
 );
 const BudgetsPage = lazy(() => import("./pages/BudgetsPage"));
 const SavingsGoalsPage = lazy(() => import("./pages/SavingsGoalsPage"));
+const QuickSetupPage = lazy(() => import("./pages/QuickSetupPage"));
 const RecurringTransactionsPage = lazy(
   () => import("./pages/RecurringTransactionsPage"),
 );
@@ -190,6 +191,7 @@ function App() {
                       />
                       <Route path="/budgets" element={<BudgetsPage />} />
                       <Route path="/goals" element={<SavingsGoalsPage />} />
+                      <Route path="/quick-setup" element={<QuickSetupPage />} />
                       <Route
                         path="/recurring"
                         element={<RecurringTransactionsPage />}

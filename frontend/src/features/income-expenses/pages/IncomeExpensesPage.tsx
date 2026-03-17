@@ -77,6 +77,8 @@ import type { Transaction } from "../../../types/transaction";
 import { TransactionDetailModal } from "../../../components/TransactionDetailModal";
 import { RuleBuilderModal } from "../../../components/RuleBuilderModal";
 import { IncomeExpensesSkeleton } from "../../../components/LoadingSkeleton";
+import HelpHint from "../../../components/HelpHint";
+import { helpContent } from "../../../constants/helpContent";
 
 interface CategoryBreakdown {
   category: string;
@@ -1928,6 +1930,7 @@ export const IncomeExpensesPage = () => {
           <Box>
             <Heading size="lg" mb={2}>
               Cash Flow
+              <HelpHint hint={helpContent.incomeExpenses.cashFlow} />
             </Heading>
             <Text color="text.secondary">
               Analyze your income sources and spending patterns
@@ -2180,7 +2183,12 @@ export const IncomeExpensesPage = () => {
                     {summary && filteredSummary && (
                       <Box w="full">
                         <HStack justify="space-between" mb={4}>
-                          <Heading size="md">Money Flow</Heading>
+                          <Heading size="md">
+                            Money Flow
+                            <HelpHint
+                              hint={helpContent.incomeExpenses.sankey}
+                            />
+                          </Heading>
                           <Button
                             size="sm"
                             variant={showMoneyFlow ? "solid" : "outline"}

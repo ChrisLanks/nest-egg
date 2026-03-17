@@ -1,5 +1,6 @@
 """Rule API endpoints."""
 
+from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
@@ -28,6 +29,7 @@ from app.services.dividend_detection_service import DividendDetectionService
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.rate_limit_service import get_rate_limit_service
 from app.services.rule_engine import RuleEngine
+from app.services.rule_template_service import rule_template_service
 
 router = APIRouter()
 rate_limit_service = get_rate_limit_service()
@@ -37,6 +39,16 @@ class ApplyRuleRequest(BaseModel):
     """Request to apply a rule to transactions."""
 
     transaction_ids: Optional[List[str]] = None  # If None, applies to all transactions
+
+
+class RuleTemplate(str, Enum):
+    coffee_shops = "coffee_shops"
+    subscriptions = "subscriptions"
+    large_purchase_alert = "large_purchase_alert"
+
+
+class RuleFromTemplateRequest(BaseModel):
+    template: RuleTemplate
 
 
 @router.get("/", response_model=List[RuleResponse])
@@ -133,6 +145,40 @@ async def create_rule(
     )
     rule = result.unique().scalar_one()
     return rule
+
+
+@router.post("/from-template", response_model=RuleResponse, status_code=201)
+async def create_rule_from_template(
+    body: RuleFromTemplateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a rule from a built-in template.
+
+    Templates:
+    - **coffee_shops**: Label coffee shop purchases
+    - **subscriptions**: Label streaming and subscription services
+    - **large_purchase_alert**: Flag transactions over $500
+    """
+    template_methods = {
+        RuleTemplate.coffee_shops: rule_template_service.create_coffee_shops_rule,
+        RuleTemplate.subscriptions: rule_template_service.create_subscriptions_rule,
+        RuleTemplate.large_purchase_alert: rule_template_service.create_large_purchase_alert_rule,
+    }
+    method = template_methods.get(body.template)
+    if not method:
+        raise HTTPException(status_code=400, detail=f"Unknown template: {body.template}")
+
+    rule = await method(db=db, user=current_user)
+    await db.commit()
+
+    # Reload with relationships
+    result = await db.execute(
+        select(Rule)
+        .options(joinedload(Rule.conditions), joinedload(Rule.actions))
+        .where(Rule.id == rule.id)
+    )
+    return result.unique().scalar_one()
 
 
 @router.get("/{rule_id}", response_model=RuleResponse)

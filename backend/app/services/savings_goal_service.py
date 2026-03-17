@@ -482,5 +482,82 @@ class SavingsGoalService:
             ),
         )
 
+    @staticmethod
+    async def create_vacation_fund_goal(
+        db: AsyncSession,
+        user: User,
+    ) -> SavingsGoal:
+        """Create a vacation fund goal with sensible defaults ($4,000 target, 12-month horizon)."""
+        target_date = date.today() + timedelta(days=365)
+
+        return await SavingsGoalService.create_goal(
+            db=db,
+            user=user,
+            name="Vacation Fund",
+            description="Annual vacation savings — adjust the target to match your travel plans.",
+            target_amount=Decimal("4000"),
+            start_date=date.today(),
+            target_date=target_date,
+        )
+
+    @staticmethod
+    async def create_home_down_payment_goal(
+        db: AsyncSession,
+        user: User,
+    ) -> SavingsGoal:
+        """Create a home down payment goal (20% of $300K median = $60K, 5-year horizon)."""
+        target_date = date.today() + timedelta(days=365 * 5)
+
+        return await SavingsGoalService.create_goal(
+            db=db,
+            user=user,
+            name="Home Down Payment",
+            description=(
+                "20% down payment on a $300K home. " "Adjust the target to your local market."
+            ),
+            target_amount=Decimal("60000"),
+            start_date=date.today(),
+            target_date=target_date,
+        )
+
+    @staticmethod
+    async def create_debt_payoff_reserve_goal(
+        db: AsyncSession,
+        user: User,
+    ) -> SavingsGoal:
+        """Create a debt payoff reserve goal — 10% of total debt (min $1,000)."""
+        debt_result = await db.execute(
+            select(func.coalesce(func.sum(func.abs(Account.current_balance)), 0)).where(
+                and_(
+                    Account.organization_id == user.organization_id,
+                    Account.account_type.in_(
+                        [
+                            AccountType.CREDIT_CARD,
+                            AccountType.LOAN,
+                            AccountType.STUDENT_LOAN,
+                            AccountType.MORTGAGE,
+                        ]
+                    ),
+                    Account.is_active == True,  # noqa: E712
+                )
+            )
+        )
+        total_debt = Decimal(str(debt_result.scalar() or 0))
+        target = max(total_debt * Decimal("0.10"), Decimal("1000")).quantize(Decimal("1"))
+
+        description = (
+            f"10% debt payoff reserve (~${total_debt:,.0f} total debt). "
+            "Use this to make extra payments on your highest-interest debt."
+        )
+
+        return await SavingsGoalService.create_goal(
+            db=db,
+            user=user,
+            name="Debt Payoff Reserve",
+            description=description,
+            target_amount=target,
+            start_date=date.today(),
+        )
+
 
 savings_goal_service = SavingsGoalService()

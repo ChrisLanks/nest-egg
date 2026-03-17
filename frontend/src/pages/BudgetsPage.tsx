@@ -31,6 +31,8 @@ import BudgetSuggestions from "../features/budgets/components/BudgetSuggestions"
 import { useUserView } from "../contexts/UserViewContext";
 import { EmptyState } from "../components/EmptyState";
 import { useAuthStore } from "../features/auth/stores/authStore";
+import HelpHint from "../components/HelpHint";
+import { helpContent } from "../constants/helpContent";
 
 type FilterTab = "all" | "category" | "label";
 
@@ -145,7 +147,10 @@ export default function BudgetsPage() {
         {/* Header */}
         <HStack justify="space-between">
           <VStack align="start" spacing={1}>
-            <Heading size="lg">Budgets</Heading>
+            <Heading size="lg">
+              Budgets
+              <HelpHint hint={helpContent.budgets.period} />
+            </Heading>
             <Text color="text.secondary">
               Track spending and stay within your budget goals
             </Text>
