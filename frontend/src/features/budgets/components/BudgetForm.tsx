@@ -48,6 +48,8 @@ interface BudgetFormProps {
   isOpen: boolean;
   onClose: () => void;
   budget?: Budget | null;
+  /** Pre-fill values for a new budget (e.g., from suggestions). Not edit mode. */
+  initialValues?: Partial<BudgetCreate> | null;
 }
 
 type FilterBy = "all" | "category" | "label";
@@ -63,6 +65,7 @@ export default function BudgetForm({
   isOpen,
   onClose,
   budget,
+  initialValues,
 }: BudgetFormProps) {
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -98,6 +101,7 @@ export default function BudgetForm({
           start_date: new Date().toISOString().split("T")[0],
           is_shared: false,
           shared_user_ids: null,
+          ...initialValues,
         },
   });
 
@@ -135,12 +139,19 @@ export default function BudgetForm({
               start_date: new Date().toISOString().split("T")[0],
               is_shared: false,
               shared_user_ids: null,
+              ...initialValues,
             },
       );
       setProviderCategoryName(null);
-      setFilterBy(getInitialFilterBy(budget));
+      setFilterBy(
+        budget
+          ? getInitialFilterBy(budget)
+          : initialValues?.category_id
+            ? "category"
+            : "all",
+      );
     }
-  }, [isOpen, budget]);
+  }, [isOpen, budget, initialValues]);
 
   // When filterBy changes, clear the other field
   const handleFilterByChange = (value: FilterBy) => {

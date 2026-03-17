@@ -15,6 +15,7 @@ from app.schemas.budget import (
     BudgetUpdate,
 )
 from app.services.budget_service import budget_service
+from app.services.budget_suggestion_service import budget_suggestion_service
 from app.services.input_sanitization_service import input_sanitization_service
 
 router = APIRouter()
@@ -133,6 +134,24 @@ async def export_budgets_csv(
         iter([output.getvalue()]),
         media_type="text/csv",
         headers={"Content-Disposition": 'attachment; filename="budgets.csv"'},
+    )
+
+
+@router.get("/suggestions")
+async def get_budget_suggestions(
+    months: int = Query(6, ge=1, le=24, description="Months of history to analyze"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get smart budget suggestions based on spending history.
+
+    Analyzes transaction history to find top spending categories
+    and suggests appropriate budget amounts and periods.
+    """
+    return await budget_suggestion_service.get_suggestions(
+        db=db,
+        user=current_user,
+        months=months,
     )
 
 

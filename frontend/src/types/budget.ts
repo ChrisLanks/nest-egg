@@ -58,6 +58,17 @@ export interface BudgetUpdate {
   shared_user_ids?: string[] | null;
 }
 
+export interface BudgetSuggestion {
+  category_name: string;
+  category_id: string | null;
+  suggested_amount: number;
+  suggested_period: BudgetPeriod;
+  avg_monthly_spend: number;
+  total_spend: number;
+  month_count: number;
+  transaction_count: number;
+}
+
 export interface BudgetSpending {
   budget_amount: number;
   spent: number;

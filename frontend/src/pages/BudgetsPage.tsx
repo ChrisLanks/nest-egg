@@ -22,9 +22,12 @@ import { FiLock, FiDollarSign } from "react-icons/fi";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { budgetsApi } from "../api/budgets";
-import type { Budget } from "../types/budget";
+import type { Budget, BudgetSuggestion } from "../types/budget";
+import { BudgetPeriod } from "../types/budget";
+import type { BudgetCreate } from "../types/budget";
 import BudgetCard from "../features/budgets/components/BudgetCard";
 import BudgetForm from "../features/budgets/components/BudgetForm";
+import BudgetSuggestions from "../features/budgets/components/BudgetSuggestions";
 import { useUserView } from "../contexts/UserViewContext";
 import { EmptyState } from "../components/EmptyState";
 import { useAuthStore } from "../features/auth/stores/authStore";
@@ -34,6 +37,8 @@ type FilterTab = "all" | "category" | "label";
 export default function BudgetsPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
+  const [prefillValues, setPrefillValues] =
+    useState<Partial<BudgetCreate> | null>(null);
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const {
     canWriteResource,
@@ -67,11 +72,25 @@ export default function BudgetsPage() {
 
   const handleCreate = () => {
     setSelectedBudget(null);
+    setPrefillValues(null);
+    onOpen();
+  };
+
+  const handleAcceptSuggestion = (suggestion: BudgetSuggestion) => {
+    setSelectedBudget(null);
+    setPrefillValues({
+      name: suggestion.category_name,
+      amount: suggestion.suggested_amount,
+      period: suggestion.suggested_period as BudgetPeriod,
+      category_id: suggestion.category_id ?? undefined,
+      start_date: new Date().toISOString().split("T")[0],
+    });
     onOpen();
   };
 
   const handleClose = () => {
     setSelectedBudget(null);
+    setPrefillValues(null);
     onClose();
   };
 
@@ -221,20 +240,25 @@ export default function BudgetsPage() {
 
         {/* Empty state — no budgets at all */}
         {!isLoading && budgets.length === 0 && (
-          <EmptyState
-            icon={FiDollarSign}
-            title={
-              isPartialSelection && !isSelfView
-                ? "No budgets match the selected members"
-                : isOtherUserView
-                  ? "This user has no budgets yet"
-                  : "No budgets yet"
-            }
-            description="Create budgets to track spending by category and stay on top of your financial goals."
-            actionLabel="Create Your First Budget"
-            onAction={handleCreate}
-            showAction={canEdit && (!isPartialSelection || isSelfView)}
-          />
+          <>
+            <EmptyState
+              icon={FiDollarSign}
+              title={
+                isPartialSelection && !isSelfView
+                  ? "No budgets match the selected members"
+                  : isOtherUserView
+                    ? "This user has no budgets yet"
+                    : "No budgets yet"
+              }
+              description="Create budgets to track spending by category and stay on top of your financial goals."
+              actionLabel="Create Your First Budget"
+              onAction={handleCreate}
+              showAction={canEdit && (!isPartialSelection || isSelfView)}
+            />
+            {canEdit && !isOtherUserView && (
+              <BudgetSuggestions onAccept={handleAcceptSuggestion} />
+            )}
+          </>
         )}
 
         {/* Empty state — filter returns nothing */}
@@ -268,6 +292,15 @@ export default function BudgetsPage() {
           </VStack>
         )}
 
+        {/* Suggestions when user has some but few budgets */}
+        {!isLoading &&
+          budgets.length > 0 &&
+          budgets.length <= 3 &&
+          canEdit &&
+          !isOtherUserView && (
+            <BudgetSuggestions onAccept={handleAcceptSuggestion} />
+          )}
+
         {/* Inactive budgets */}
         {!isLoading && inactiveBudgets.length > 0 && (
           <VStack align="stretch" spacing={4}>
@@ -293,10 +326,11 @@ export default function BudgetsPage() {
 
       {/* Budget form modal — key forces remount so defaultValues reset on each open */}
       <BudgetForm
-        key={selectedBudget?.id ?? "new"}
+        key={selectedBudget?.id ?? prefillValues?.name ?? "new"}
         isOpen={isOpen}
         onClose={handleClose}
         budget={selectedBudget}
+        initialValues={prefillValues}
       />
     </Box>
   );

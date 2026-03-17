@@ -8,6 +8,7 @@ import type {
   BudgetCreate,
   BudgetUpdate,
   BudgetSpending,
+  BudgetSuggestion,
 } from "../types/budget";
 
 export const budgetsApi = {
@@ -60,6 +61,16 @@ export const budgetsApi = {
     const { data } = await api.get<BudgetSpending>(
       `/budgets/${budgetId}/spending`,
     );
+    return data;
+  },
+
+  /**
+   * Get smart budget suggestions based on spending history
+   */
+  getSuggestions: async (months?: number): Promise<BudgetSuggestion[]> => {
+    const { data } = await api.get<BudgetSuggestion[]>("/budgets/suggestions", {
+      params: months ? { months } : undefined,
+    });
     return data;
   },
 
