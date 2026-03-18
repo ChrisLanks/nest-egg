@@ -4,8 +4,8 @@
  * deduplicates the request wherever the hook is called.
  */
 
-import { useQuery } from '@tanstack/react-query';
-import api from '../services/api';
+import { useQuery } from "@tanstack/react-query";
+import api from "../services/api";
 
 export interface HouseholdMember {
   id: string;
@@ -15,15 +15,16 @@ export interface HouseholdMember {
   last_name?: string;
   is_org_admin: boolean;
   is_primary_household_member: boolean;
+  birth_year?: number | null;
 }
 
-export const HOUSEHOLD_MEMBERS_QUERY_KEY = ['household-members'] as const;
+export const HOUSEHOLD_MEMBERS_QUERY_KEY = ["household-members"] as const;
 
 export const useHouseholdMembers = () =>
   useQuery<HouseholdMember[]>({
     queryKey: HOUSEHOLD_MEMBERS_QUERY_KEY,
     queryFn: async () => {
-      const response = await api.get('/household/members');
+      const response = await api.get("/household/members");
       return response.data as HouseholdMember[];
     },
   });

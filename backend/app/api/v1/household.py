@@ -52,6 +52,7 @@ class HouseholdMember(BaseModel):
     last_name: Optional[str]
     is_org_admin: bool
     is_primary_household_member: bool
+    birth_year: Optional[int] = None
     created_at: datetime
 
     class Config:
@@ -84,7 +85,20 @@ async def list_household_members(
         .order_by(User.created_at)
     )
     members = result.scalars().all()
-    return members
+    return [
+        HouseholdMember(
+            id=m.id,
+            email=m.email,
+            display_name=m.display_name,
+            first_name=m.first_name,
+            last_name=m.last_name,
+            is_org_admin=m.is_org_admin,
+            is_primary_household_member=m.is_primary_household_member,
+            birth_year=m.birthdate.year if m.birthdate else None,
+            created_at=m.created_at,
+        )
+        for m in members
+    ]
 
 
 @router.post("/invite", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)

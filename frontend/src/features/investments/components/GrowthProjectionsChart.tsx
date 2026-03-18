@@ -50,8 +50,7 @@ import {
 import { CloseIcon, AddIcon } from "@chakra-ui/icons";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import api from "../../../services/api";
+import { useHouseholdMembers } from "../../../hooks/useHouseholdMembers";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -159,11 +158,17 @@ function savePersistedState(state: PersistedState): void {
   }
 }
 
-function computeDefaultYears(birthYear: number | null | undefined): number {
-  if (!birthYear) return 10;
+function computeDefaultYears(
+  birthYears: (number | null | undefined)[],
+): number {
+  const valid = birthYears.filter((y): y is number => typeof y === "number");
+  if (valid.length === 0) return 10;
+  const avgBirthYear = Math.round(
+    valid.reduce((sum, y) => sum + y, 0) / valid.length,
+  );
   const currentYear = new Date().getFullYear();
-  const age = currentYear - birthYear;
-  const yearsUntilRetirement = Math.round(65 - age);
+  const avgAge = currentYear - avgBirthYear;
+  const yearsUntilRetirement = Math.round(65 - avgAge);
   return Math.max(1, yearsUntilRetirement);
 }
 
@@ -171,16 +176,8 @@ export const GrowthProjectionsChart = ({
   currentValue,
   monthlyContribution = 0,
 }: GrowthProjectionsChartProps) => {
-  // Fetch user birth year for smart default
-  const { data: profile } = useQuery<{ birth_year?: number | null }>({
-    queryKey: ["userProfile"],
-    queryFn: async () => {
-      const response = await api.get("/settings/profile");
-      return response.data;
-    },
-    retry: false,
-    staleTime: Infinity,
-  });
+  // Fetch household members' birth years for smart default
+  const { data: householdMembers } = useHouseholdMembers();
 
   // Initialize state from localStorage or defaults
   const initialized = useRef(false);
@@ -206,17 +203,18 @@ export const GrowthProjectionsChart = ({
     return 10;
   });
 
-  // Once profile loads, apply smart default years if no persisted state
+  // Once household members load, apply smart default years if no persisted state
   useEffect(() => {
-    if (initialized.current || !profile) return;
+    if (initialized.current || !householdMembers) return;
     initialized.current = true;
     const persisted = loadPersistedState();
-    if (!persisted && profile.birth_year) {
-      const years = computeDefaultYears(profile.birth_year);
+    if (!persisted) {
+      const birthYears = householdMembers.map((m) => m.birth_year);
+      const years = computeDefaultYears(birthYears);
       setScenarios((prev) => prev.map((s) => ({ ...s, years }))); // eslint-disable-line react-hooks/set-state-in-effect
       setSliderYears(years);
     }
-  }, [profile]);
+  }, [householdMembers]);
 
   // Persist state changes to localStorage
   useEffect(() => {
