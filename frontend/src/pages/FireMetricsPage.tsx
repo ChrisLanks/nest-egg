@@ -72,31 +72,36 @@ export const FireMetricsPage = () => {
   } = useUserView();
   const multiEffectiveUserId = memberEffectiveUserId;
   const selectedIdsKey = selectedMemberIdsKey;
-  const [withdrawalRate, setWithdrawalRate] = useState(4);
-  const [expectedReturn, setExpectedReturn] = useState(7);
-  const [retirementAge, setRetirementAge] = useState(65);
+  const [withdrawalRate, setWithdrawalRate] = useState("4");
+  const [expectedReturn, setExpectedReturn] = useState("7");
+  const [retirementAge, setRetirementAge] = useState("65");
 
   // In combined view, use multi-member filter; otherwise use the global selected user
   const effectiveUserId = isCombinedView
     ? multiEffectiveUserId
     : selectedUserId;
 
+  const withdrawalNum = parseFloat(withdrawalRate) || 0;
+  const returnNum = parseFloat(expectedReturn) || 0;
+  const retirementNum = parseInt(retirementAge, 10) || 65;
+
   const { data, isLoading, isError } = useQuery<FireMetricsResponse>({
     queryKey: [
       "fire-metrics",
       effectiveUserId,
       selectedIdsKey,
-      withdrawalRate,
-      expectedReturn,
-      retirementAge,
+      withdrawalNum,
+      returnNum,
+      retirementNum,
     ],
     queryFn: () =>
       fireApi.getMetrics({
         user_id: effectiveUserId || undefined,
-        withdrawal_rate: withdrawalRate / 100,
-        expected_return: expectedReturn / 100,
-        retirement_age: retirementAge,
+        withdrawal_rate: withdrawalNum / 100,
+        expected_return: returnNum / 100,
+        retirement_age: retirementNum,
       }),
+    placeholderData: (prev) => prev,
   });
 
   return (
@@ -139,11 +144,10 @@ export const FireMetricsPage = () => {
               </FormLabel>
               <NumberInput
                 value={withdrawalRate}
-                onChange={(_, v) => !isNaN(v) && setWithdrawalRate(v)}
+                onChange={(s) => setWithdrawalRate(s)}
                 min={1}
                 max={10}
                 step={0.01}
-                precision={2}
                 size="sm"
               >
                 <NumberInputField />
@@ -153,11 +157,10 @@ export const FireMetricsPage = () => {
               <FormLabel fontSize="sm">Expected Return (%)</FormLabel>
               <NumberInput
                 value={expectedReturn}
-                onChange={(_, v) => !isNaN(v) && setExpectedReturn(v)}
+                onChange={(s) => setExpectedReturn(s)}
                 min={0}
                 max={20}
                 step={0.01}
-                precision={2}
                 size="sm"
               >
                 <NumberInputField />
@@ -167,7 +170,7 @@ export const FireMetricsPage = () => {
               <FormLabel fontSize="sm">Retirement Age</FormLabel>
               <NumberInput
                 value={retirementAge}
-                onChange={(_, v) => !isNaN(v) && setRetirementAge(v)}
+                onChange={(s) => setRetirementAge(s)}
                 min={30}
                 max={100}
                 size="sm"

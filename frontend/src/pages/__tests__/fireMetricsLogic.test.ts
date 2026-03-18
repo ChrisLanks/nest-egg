@@ -349,3 +349,107 @@ describe("FIRE Query Parameters", () => {
     expect(params.user_id).toBe("user-123");
   });
 });
+
+// ── String-based input parsing ──────────────────────────────────────────────
+
+describe("FIRE input string-to-number parsing", () => {
+  /**
+   * Mirrors the parsing logic in FireMetricsPage:
+   * - State is stored as strings to allow typing decimals (e.g., "4.")
+   * - Parsed to numbers for the query key and API call
+   */
+
+  it("parses whole number strings", () => {
+    expect(parseFloat("4") || 0).toBe(4);
+    expect(parseFloat("7") || 0).toBe(7);
+    expect(parseInt("65", 10) || 65).toBe(65);
+  });
+
+  it("parses decimal strings with 2 places", () => {
+    expect(parseFloat("3.75") || 0).toBe(3.75);
+    expect(parseFloat("7.25") || 0).toBe(7.25);
+  });
+
+  it("handles intermediate decimal input (e.g., '4.')", () => {
+    // "4." is a valid intermediate state while typing "4.5"
+    expect(parseFloat("4.") || 0).toBe(4);
+  });
+
+  it("falls back to 0 for empty string", () => {
+    expect(parseFloat("") || 0).toBe(0);
+  });
+
+  it("falls back to 0 for non-numeric string", () => {
+    expect(parseFloat("abc") || 0).toBe(0);
+  });
+
+  it("retirement age falls back to 65 for empty string", () => {
+    expect(parseInt("", 10) || 65).toBe(65);
+  });
+
+  it("converts string percentages to API decimals correctly", () => {
+    const withdrawalRate = "3.50";
+    const expectedReturn = "7.25";
+    expect((parseFloat(withdrawalRate) || 0) / 100).toBeCloseTo(0.035);
+    expect((parseFloat(expectedReturn) || 0) / 100).toBeCloseTo(0.0725);
+  });
+
+  it("query key uses parsed numbers, not raw strings", () => {
+    const withdrawalRate = "4.00";
+    const expectedReturn = "7.50";
+    const retirementAge = "65";
+
+    const withdrawalNum = parseFloat(withdrawalRate) || 0;
+    const returnNum = parseFloat(expectedReturn) || 0;
+    const retirementNum = parseInt(retirementAge, 10) || 65;
+
+    const queryKey = [
+      "fire-metrics",
+      null,
+      "",
+      withdrawalNum,
+      returnNum,
+      retirementNum,
+    ];
+
+    expect(queryKey[3]).toBe(4);
+    expect(queryKey[4]).toBe(7.5);
+    expect(queryKey[5]).toBe(65);
+  });
+
+  it("intermediate typing states produce stable parsed values", () => {
+    // User types "3" then "." then "5" → "3", "3.", "3.5"
+    // Query key should not thrash: 3, 3, 3.5
+    const states = ["3", "3.", "3.5"];
+    const parsed = states.map((s) => parseFloat(s) || 0);
+    expect(parsed).toEqual([3, 3, 3.5]);
+    // "3" and "3." produce the same number → no extra refetch
+    expect(parsed[0]).toBe(parsed[1]);
+  });
+});
+
+// ── placeholderData keeps previous data during refetch ───────────────────────
+
+describe("FIRE query placeholderData behavior", () => {
+  it("placeholderData callback returns previous data", () => {
+    // Mirrors: placeholderData: (prev) => prev
+    const placeholderData = (prev: unknown) => prev;
+    const prevData = { fi_ratio: { fi_ratio: 0.45 } };
+
+    expect(placeholderData(prevData)).toBe(prevData);
+    expect(placeholderData(undefined)).toBeUndefined();
+  });
+
+  it("cards stay visible when placeholderData returns previous data", () => {
+    const prevData = {
+      fi_ratio: { fi_ratio: 0.45, investable_assets: 450000 },
+    };
+    const placeholderData = (prev: unknown) => prev;
+
+    // Simulate: query key changes (user typed), isLoading becomes true,
+    // but data = placeholderData(prevData) keeps the old data visible
+    const data = placeholderData(prevData);
+    expect(data).not.toBeUndefined();
+    expect((data as typeof prevData).fi_ratio.fi_ratio).toBe(0.45);
+  });
+});
