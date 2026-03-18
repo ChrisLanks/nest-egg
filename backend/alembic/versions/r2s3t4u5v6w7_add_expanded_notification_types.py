@@ -4,8 +4,8 @@ Revision ID: r2s3t4u5v6w7
 Revises: q1r2s3t4u5v6
 Create Date: 2026-03-18
 
-Add HOUSEHOLD_MEMBER_JOINED, HOUSEHOLD_MEMBER_LEFT, FIRE_COAST_FI,
-FIRE_INDEPENDENT, and RETIREMENT_SCENARIO_STALE notification types.
+Add ACCOUNT_CONNECTED, HOUSEHOLD_MEMBER_JOINED, HOUSEHOLD_MEMBER_LEFT,
+FIRE_COAST_FI, FIRE_INDEPENDENT, and RETIREMENT_SCENARIO_STALE notification types.
 """
 
 from typing import Sequence, Union
@@ -20,6 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'ACCOUNT_CONNECTED'")
     op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'HOUSEHOLD_MEMBER_JOINED'")
     op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'HOUSEHOLD_MEMBER_LEFT'")
     op.execute("ALTER TYPE notificationtype ADD VALUE IF NOT EXISTS 'FIRE_COAST_FI'")

@@ -139,7 +139,10 @@ def capture_org_portfolio_snapshot(organization_id: str):
             from app.api.v1.holdings import get_portfolio_summary
 
             # 1. Capture household-level snapshot (user_id=None)
-            portfolio = await get_portfolio_summary(user_id=None, current_user=user, db=db)
+            # Use detail_level="summary" — snapshots only need totals, not breakdowns
+            portfolio = await get_portfolio_summary(
+                user_id=None, detail_level="summary", current_user=user, db=db
+            )
             await snapshot_service.capture_snapshot(
                 db=db, organization_id=organization_id, portfolio=portfolio
             )
@@ -153,7 +156,10 @@ def capture_org_portfolio_snapshot(organization_id: str):
             for member in users:
                 try:
                     user_portfolio = await get_portfolio_summary(
-                        user_id=member.id, current_user=member, db=db
+                        user_id=member.id,
+                        detail_level="summary",
+                        current_user=member,
+                        db=db,
                     )
                     await snapshot_service.capture_snapshot(
                         db=db,

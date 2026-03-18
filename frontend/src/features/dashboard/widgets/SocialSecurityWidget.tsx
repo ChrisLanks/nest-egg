@@ -2,6 +2,7 @@
  * Social Security estimate widget.
  */
 
+import { memo } from "react";
 import {
   Card,
   CardBody,
@@ -38,7 +39,7 @@ const fmt = (n: number): string =>
     maximumFractionDigits: 0,
   }).format(n);
 
-export const SocialSecurityWidget: React.FC = () => {
+const SocialSecurityWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<SocialSecurityData>({
@@ -119,3 +120,5 @@ export const SocialSecurityWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const SocialSecurityWidget = memo(SocialSecurityWidgetBase);

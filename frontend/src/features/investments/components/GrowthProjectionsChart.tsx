@@ -12,6 +12,7 @@
 
 import {
   Box,
+  Spinner,
   VStack,
   HStack,
   Text,
@@ -64,12 +65,11 @@ import {
   ReferenceLine,
 } from "recharts";
 import {
-  runMonteCarloSimulation,
   STRESS_SCENARIOS,
   type SimulationParams,
-  type SimulationSummary,
   type StressScenario,
 } from "../../../utils/monteCarloSimulation";
+import { useMonteCarloWorker } from "../../../hooks/useMonteCarloWorker";
 import {
   ScenarioComparisonChart,
   type ScenarioData,
@@ -245,8 +245,8 @@ export const GrowthProjectionsChart = ({
   const scenarioCardBg = useColorModeValue("gray.50", "gray.700");
   const stressBtnVariant = useColorModeValue("outline", "solid");
 
-  // Run all simulations
-  const simulationResults: SimulationSummary[] = useMemo(() => {
+  // Build simulation params (memoized to avoid re-creating on every render)
+  const simulationParams: SimulationParams[] = useMemo(() => {
     return scenarios.map((sc) => {
       const params: SimulationParams = {
         currentValue,
@@ -267,16 +267,20 @@ export const GrowthProjectionsChart = ({
           params.withdrawalRate = sc.withdrawalRate || 4;
         }
       }
-      return runMonteCarloSimulation(params);
+      return params;
     });
   }, [scenarios, currentValue, monthlyContribution]);
 
+  // Run simulations off the main thread via Web Worker
+  const { results: simulationResults } = useMonteCarloWorker(simulationParams);
+
   const activeSummary =
     simulationResults[activeScenarioIndex] || simulationResults[0];
-  const activeProjections = activeSummary.projections;
+  const activeProjections = activeSummary?.projections;
 
   // Summary stats for active scenario
   const summaryStats = useMemo(() => {
+    if (!activeProjections?.length) return null;
     const finalYear = activeProjections[activeProjections.length - 1];
     const median = showInflationAdjusted
       ? finalYear.medianInflationAdjusted
@@ -293,8 +297,8 @@ export const GrowthProjectionsChart = ({
       medianGainPercent: ((median - currentValue) / currentValue) * 100,
       pessimistic,
       optimistic,
-      successRate: activeSummary.successRate,
-      medianDepletionYear: activeSummary.medianDepletionYear,
+      successRate: activeSummary?.successRate,
+      medianDepletionYear: activeSummary?.medianDepletionYear,
     };
   }, [activeProjections, currentValue, activeSummary, showInflationAdjusted]);
 
@@ -416,6 +420,15 @@ export const GrowthProjectionsChart = ({
     color: sc.color,
     summary: simulationResults[i],
   }));
+
+  // Worker hasn't returned results yet — show spinner until ready
+  if (!activeSummary || !summaryStats) {
+    return (
+      <Box p={4}>
+        <Spinner size="lg" />
+      </Box>
+    );
+  }
 
   return (
     <VStack spacing={6} align="stretch">

@@ -2,6 +2,7 @@
  * Spending velocity widget — shows MoM spending trend with direction indicator.
  */
 
+import { memo } from "react";
 import {
   Badge,
   Card,
@@ -58,7 +59,7 @@ const trendLabel = (dir: string): string => {
   return "Stable";
 };
 
-export const SpendingVelocityWidget: React.FC = () => {
+const SpendingVelocityWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<SpendingVelocityData>({
@@ -66,7 +67,7 @@ export const SpendingVelocityWidget: React.FC = () => {
     queryFn: async () => {
       const params: Record<string, string> = { months: "6" };
       if (selectedUserId) params.user_id = selectedUserId;
-      const res = await api.get("/api/v1/enhanced-trends/spending-velocity", {
+      const res = await api.get("/trends/spending-velocity", {
         params,
       });
       return res.data;
@@ -176,3 +177,5 @@ export const SpendingVelocityWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const SpendingVelocityWidget = memo(SpendingVelocityWidgetBase);

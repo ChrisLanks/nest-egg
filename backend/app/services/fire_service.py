@@ -11,7 +11,8 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.financial import FIRE
+from app.constants.financial import FIRE, RETIREMENT
+from app.core import cache
 from app.models.account import Account, AccountType
 from app.models.notification import Notification, NotificationPriority, NotificationType
 from app.services.dashboard_service import DashboardService
@@ -141,7 +142,7 @@ class FireService:
         self,
         organization_id: UUID,
         user_id: Optional[UUID] = None,
-        withdrawal_rate: float = 0.04,
+        withdrawal_rate: float = FIRE.DEFAULT_WITHDRAWAL_RATE,
     ) -> Dict:
         """
         Calculate Financial Independence ratio.
@@ -221,8 +222,8 @@ class FireService:
         self,
         organization_id: UUID,
         user_id: Optional[UUID] = None,
-        withdrawal_rate: float = 0.04,
-        expected_return: float = 0.07,
+        withdrawal_rate: float = FIRE.DEFAULT_WITHDRAWAL_RATE,
+        expected_return: float = FIRE.DEFAULT_EXPECTED_RETURN,
     ) -> Dict:
         """
         Calculate estimated years to financial independence.
@@ -323,9 +324,9 @@ class FireService:
         self,
         organization_id: UUID,
         user_id: Optional[UUID] = None,
-        retirement_age: int = 65,
-        expected_return: float = 0.07,
-        withdrawal_rate: float = 0.04,
+        retirement_age: int = RETIREMENT.DEFAULT_RETIREMENT_AGE,
+        expected_return: float = FIRE.DEFAULT_EXPECTED_RETURN,
+        withdrawal_rate: float = FIRE.DEFAULT_WITHDRAWAL_RATE,
     ) -> Dict:
         """
         Calculate Coast FI number.
@@ -376,9 +377,9 @@ class FireService:
         self,
         organization_id: UUID,
         user_id: Optional[UUID] = None,
-        withdrawal_rate: float = 0.04,
-        expected_return: float = 0.07,
-        retirement_age: int = 65,
+        withdrawal_rate: float = FIRE.DEFAULT_WITHDRAWAL_RATE,
+        expected_return: float = FIRE.DEFAULT_EXPECTED_RETURN,
+        retirement_age: int = RETIREMENT.DEFAULT_RETIREMENT_AGE,
     ) -> Dict:
         """
         Aggregate all FIRE metrics into a single dashboard response.
@@ -393,6 +394,15 @@ class FireService:
         Returns:
             Dict with all FIRE metrics
         """
+        # Check cache (1 hour TTL — invalidated on account updates)
+        cache_key = (
+            f"fire:dashboard:{organization_id}:{user_id or 'household'}"
+            f":{withdrawal_rate}:{expected_return}:{retirement_age}"
+        )
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         fi_ratio = await self.calculate_fi_ratio(organization_id, user_id, withdrawal_rate)
         savings_rate = await self.calculate_savings_rate(organization_id, user_id)
         years_to_fi = await self.calculate_years_to_fi(
@@ -402,12 +412,15 @@ class FireService:
             organization_id, user_id, retirement_age, expected_return, withdrawal_rate
         )
 
-        return {
+        result = {
             "fi_ratio": fi_ratio,
             "savings_rate": savings_rate,
             "years_to_fi": years_to_fi,
             "coast_fi": coast_fi,
         }
+
+        await cache.setex(cache_key, 3600, result)  # 1 hour TTL
+        return result
 
     async def check_fire_milestones(
         self,

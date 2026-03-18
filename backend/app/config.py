@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
     DB_ECHO: bool = False
-    DB_POOL_SIZE: int = 20
-    DB_MAX_OVERFLOW: int = 10
+    DB_POOL_SIZE: int = 50
+    DB_MAX_OVERFLOW: int = 30
     DB_STATEMENT_TIMEOUT_MS: int = 45000  # 45 second query timeout
 
     # Redis
@@ -167,6 +167,7 @@ class Settings(BaseSettings):
     METRICS_ADMIN_PORT: int = 9090  # Separate port for /metrics endpoint
     METRICS_USERNAME: str = "admin"  # Basic auth username — override in prod
     METRICS_PASSWORD: str = "metrics_admin"  # Basic auth password — CHANGE IN PROD
+    METRICS_ALLOWED_HOSTS: list[str] = []  # IP/DNS allowlist (empty = allow all authenticated)
 
     # Compliance
     TERMS_VERSION: str = "2026-02"  # Bump when Terms of Service or Privacy Policy changes

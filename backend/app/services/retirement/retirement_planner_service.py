@@ -11,6 +11,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from app.constants.financial import RETIREMENT
 from app.models.retirement import (
     LifeEvent,
     RetirementScenario,
@@ -174,10 +175,18 @@ class RetirementPlannerService:
 
         # Default retirement spending: couples spend more
         if annual_income:
-            spend_ratio = Decimal("0.85") if is_household else Decimal("0.80")
+            spend_ratio = (
+                Decimal(str(RETIREMENT.SPENDING_RATIO_HOUSEHOLD))
+                if is_household
+                else Decimal(str(RETIREMENT.SPENDING_RATIO_SINGLE))
+            )
             default_spending = Decimal(str(annual_income)) * spend_ratio
         else:
-            default_spending = Decimal("80000") if is_household else Decimal("60000")
+            default_spending = (
+                Decimal(str(RETIREMENT.FALLBACK_SPENDING_HOUSEHOLD))
+                if is_household
+                else Decimal(str(RETIREMENT.FALLBACK_SPENDING_SINGLE))
+            )
 
         # Household/couple defaults
         scenario_kwargs = dict(
@@ -185,8 +194,8 @@ class RetirementPlannerService:
             user_id=user.id,
             name="Our Retirement Plan" if is_household else "My Retirement Plan",
             is_default=True,
-            retirement_age=67,
-            life_expectancy=95,
+            retirement_age=RETIREMENT.DEFAULT_RETIREMENT_AGE,
+            life_expectancy=RETIREMENT.DEFAULT_LIFE_EXPECTANCY,
             current_annual_income=annual_income,
             annual_spending_retirement=default_spending,
             is_shared=is_household,
@@ -195,7 +204,7 @@ class RetirementPlannerService:
         # If household, also set spouse SS defaults and include all members
         if is_household:
             scenario_kwargs["spouse_social_security_monthly"] = None  # Will be estimated
-            scenario_kwargs["spouse_social_security_start_age"] = 67
+            scenario_kwargs["spouse_social_security_start_age"] = RETIREMENT.DEFAULT_RETIREMENT_AGE
             scenario_kwargs["include_all_members"] = True
 
         scenario = RetirementScenario(**scenario_kwargs)

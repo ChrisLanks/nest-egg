@@ -128,6 +128,15 @@ async def get_dashboard_summary(
     db: AsyncSession = Depends(get_db),
 ):
     """Get dashboard summary metrics."""
+    # Check cache (5 min TTL)
+    cache_key = (
+        f"dashboard:summary:{current_user.organization_id}"
+        f":{user_id or 'household'}:{start_date}:{end_date}"
+    )
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return DashboardSummary(**cached)
+
     if start_date and end_date:
         validate_date_range(start_date, end_date)
 
@@ -153,7 +162,7 @@ async def get_dashboard_summary(
         current_user.organization_id, start_date, end_date, account_ids
     )
 
-    return DashboardSummary(
+    summary = DashboardSummary(
         net_worth=float(net_worth),
         total_assets=float(total_assets),
         total_debts=float(total_debts),
@@ -161,6 +170,8 @@ async def get_dashboard_summary(
         monthly_income=float(monthly_income),
         monthly_net=float(monthly_income - monthly_spending),
     )
+    await cache_setex(cache_key, 300, summary.model_dump())  # 5 min TTL
+    return summary
 
 
 @router.get("/", response_model=DashboardData)
@@ -221,7 +232,7 @@ async def get_dashboard_data(
     )
 
     cash_flow_trend = await service.get_cash_flow_trend(
-        current_user.organization_id, months=6, account_ids=account_ids
+        current_user.organization_id, months=12, account_ids=account_ids
     )
 
     # Convert transactions to TransactionDetail format

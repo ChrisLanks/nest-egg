@@ -17,6 +17,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
+import { memo } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { holdingsApi } from "../../../api/holdings";
 import { useUserView } from "../../../contexts/UserViewContext";
@@ -32,7 +33,7 @@ const formatCurrency = (amount: number) =>
 const formatPct = (pct: number) =>
   `${pct >= 0 ? "+" : ""}${Number(pct).toFixed(2)}%`;
 
-export const InvestmentPerformanceWidget: React.FC = () => {
+const InvestmentPerformanceWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const { data: portfolio, isLoading } = useQuery({
@@ -201,3 +202,7 @@ export const InvestmentPerformanceWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const InvestmentPerformanceWidget = memo(
+  InvestmentPerformanceWidgetBase,
+);

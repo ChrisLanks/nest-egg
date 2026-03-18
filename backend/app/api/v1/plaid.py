@@ -181,23 +181,6 @@ async def exchange_public_token(
 
         await db.commit()
 
-        # Notify household that new accounts were connected
-        user_name = current_user.display_name or current_user.first_name or current_user.email
-        inst_name = request.institution_name or "Unknown Institution"
-        from app.services.notification_service import NotificationService
-
-        await NotificationService.create_notification(
-            db=db,
-            organization_id=current_user.organization_id,
-            type=NotificationType.ACCOUNT_CONNECTED,
-            title=f"New account connected: {inst_name}",
-            message=f"{user_name} connected {len(created_accounts)} account(s) from {inst_name}.",
-            priority=NotificationPriority.LOW,
-            action_url="/accounts",
-            action_label="View Accounts",
-            expires_in_days=14,
-        )
-
         return PublicTokenExchangeResponse(
             item_id=plaid_item.item_id,
             accounts=created_accounts,

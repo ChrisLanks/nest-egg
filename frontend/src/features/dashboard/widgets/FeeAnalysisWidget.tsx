@@ -20,6 +20,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
+import { memo } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { useUserView } from "../../../contexts/UserViewContext";
 import api from "../../../services/api";
@@ -56,7 +57,7 @@ const fmt = (n: number): string =>
 
 const fmtPct = (n: number): string => `${(n * 100).toFixed(2)}%`;
 
-export const FeeAnalysisWidget: React.FC = () => {
+const FeeAnalysisWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<FeeAnalysisData>({
@@ -158,3 +159,5 @@ export const FeeAnalysisWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const FeeAnalysisWidget = memo(FeeAnalysisWidgetBase);

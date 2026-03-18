@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   Card,
   CardBody,
@@ -7,27 +8,27 @@ import {
   StatHelpText,
   SimpleGrid,
   Text,
-} from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
-import { useUserView } from '../../../contexts/UserViewContext';
-import api from '../../../services/api';
+} from "@chakra-ui/react";
+import { useQuery } from "@tanstack/react-query";
+import { useUserView } from "../../../contexts/UserViewContext";
+import api from "../../../services/api";
 
 const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
 
-export const SummaryStatsWidget: React.FC = () => {
+const SummaryStatsWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const { data } = useQuery({
-    queryKey: ['dashboard', selectedUserId],
+    queryKey: ["dashboard", selectedUserId],
     queryFn: async () => {
       const params = selectedUserId ? { user_id: selectedUserId } : {};
-      const response = await api.get('/dashboard/', { params });
+      const response = await api.get("/dashboard/", { params });
       return response.data;
     },
   });
@@ -43,7 +44,9 @@ export const SummaryStatsWidget: React.FC = () => {
           <CardBody>
             <Stat>
               <StatLabel>Net Worth</StatLabel>
-              <StatNumber color={netWorth >= 0 ? 'finance.positive' : 'finance.negative'}>
+              <StatNumber
+                color={netWorth >= 0 ? "finance.positive" : "finance.negative"}
+              >
                 {formatCurrency(netWorth)}
               </StatNumber>
               <StatHelpText>Assets - Debts</StatHelpText>
@@ -55,7 +58,9 @@ export const SummaryStatsWidget: React.FC = () => {
           <CardBody>
             <Stat>
               <StatLabel>Total Assets</StatLabel>
-              <StatNumber>{formatCurrency(summary?.total_assets ?? 0)}</StatNumber>
+              <StatNumber>
+                {formatCurrency(summary?.total_assets ?? 0)}
+              </StatNumber>
               <StatHelpText>Checking, Savings, Investments</StatHelpText>
             </Stat>
           </CardBody>
@@ -95,8 +100,14 @@ export const SummaryStatsWidget: React.FC = () => {
                 {formatCurrency(summary?.monthly_spending ?? 0)}
               </StatNumber>
               <StatHelpText>
-                Net:{' '}
-                <Text as="span" color={monthlyNet >= 0 ? 'finance.positive' : 'finance.negative'} fontWeight="bold">
+                Net:{" "}
+                <Text
+                  as="span"
+                  color={
+                    monthlyNet >= 0 ? "finance.positive" : "finance.negative"
+                  }
+                  fontWeight="bold"
+                >
                   {formatCurrency(monthlyNet)}
                 </Text>
               </StatHelpText>
@@ -107,3 +118,5 @@ export const SummaryStatsWidget: React.FC = () => {
     </>
   );
 };
+
+export const SummaryStatsWidget = memo(SummaryStatsWidgetBase);

@@ -2,6 +2,7 @@
  * Roth conversion analysis widget.
  */
 
+import { memo } from "react";
 import {
   Box,
   Card,
@@ -46,7 +47,7 @@ const fmt = (n: number): string =>
     maximumFractionDigits: 0,
   }).format(n);
 
-export const RothConversionWidget: React.FC = () => {
+const RothConversionWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<RothAnalysisData>({
@@ -171,3 +172,5 @@ export const RothConversionWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const RothConversionWidget = memo(RothConversionWidgetBase);

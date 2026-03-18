@@ -2,6 +2,7 @@
  * Required Minimum Distributions planner widget.
  */
 
+import { memo } from "react";
 import {
   Badge,
   Box,
@@ -53,7 +54,7 @@ const fmt = (n: number): string =>
     maximumFractionDigits: 0,
   }).format(n);
 
-export const RmdPlannerWidget: React.FC = () => {
+const RmdPlannerWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<RMDData>({
@@ -198,3 +199,5 @@ export const RmdPlannerWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const RmdPlannerWidget = memo(RmdPlannerWidgetBase);

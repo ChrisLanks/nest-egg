@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   Box,
   Card,
@@ -23,7 +24,7 @@ const formatCurrency = (amount: number) =>
     maximumFractionDigits: 0,
   }).format(amount);
 
-export const SavingsGoalsWidget: React.FC = () => {
+const SavingsGoalsWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const { data: goals, isLoading } = useQuery({
@@ -103,3 +104,5 @@ export const SavingsGoalsWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const SavingsGoalsWidget = memo(SavingsGoalsWidgetBase);

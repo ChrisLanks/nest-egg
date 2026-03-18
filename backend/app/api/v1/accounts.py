@@ -295,8 +295,12 @@ async def export_accounts_csv(
 @router.get("/{account_id}", response_model=AccountSchema)
 async def get_account(
     account: Account = Depends(get_verified_account),
+    current_user: User = Depends(get_current_user),
 ):
     """Get a specific account."""
+    # Strip sensitive financial fields for guest users
+    if getattr(current_user, "_is_guest", False):
+        account.annual_salary = None
     return account
 
 

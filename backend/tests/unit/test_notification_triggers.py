@@ -420,7 +420,7 @@ class TestAccountConnectedNotification:
             organization_id=test_user.organization_id,
             type=NotificationType.ACCOUNT_CONNECTED,
             title="New account connected: Chase",
-            message="Alice connected 3 account(s) from Chase.",
+            message="Alice connected 3 account(s) from Chase via Plaid.",
             priority=NotificationPriority.LOW,
             action_url="/accounts",
             action_label="View Accounts",
@@ -429,6 +429,7 @@ class TestAccountConnectedNotification:
 
         assert notification.type == NotificationType.ACCOUNT_CONNECTED
         assert "Chase" in notification.title
+        assert "via Plaid" in notification.message
         assert notification.action_url == "/accounts"
 
     @pytest.mark.asyncio
@@ -441,7 +442,7 @@ class TestAccountConnectedNotification:
             organization_id=test_user.organization_id,
             type=NotificationType.ACCOUNT_CONNECTED,
             title="New account connected: Wells Fargo",
-            message="Bob connected 2 account(s) from Wells Fargo.",
+            message=("Bob connected 2 account(s) from Wells Fargo" " via Teller."),
             priority=NotificationPriority.LOW,
             action_url="/accounts",
             action_label="View Accounts",
@@ -450,6 +451,7 @@ class TestAccountConnectedNotification:
 
         assert notification.type == NotificationType.ACCOUNT_CONNECTED
         assert "Wells Fargo" in notification.title
+        assert "via Teller" in notification.message
         assert notification.expires_at is not None
 
     @pytest.mark.asyncio
@@ -462,7 +464,7 @@ class TestAccountConnectedNotification:
             organization_id=test_user.organization_id,
             type=NotificationType.ACCOUNT_CONNECTED,
             title="New account connected: Bank of America",
-            message=("Carol connected 1 account(s) from Bank of America."),
+            message=("Carol connected 1 account(s) from Bank of America" " via Mx."),
             priority=NotificationPriority.LOW,
             action_url="/accounts",
             action_label="View Accounts",
@@ -471,11 +473,12 @@ class TestAccountConnectedNotification:
 
         assert notification.type == NotificationType.ACCOUNT_CONNECTED
         assert "Bank of America" in notification.title
+        assert "via Mx" in notification.message
         assert notification.action_label == "View Accounts"
 
     @pytest.mark.asyncio
-    async def test_account_connected_is_org_wide(self, db, test_user):
-        """Account connected notifications should be visible to all members."""
+    async def test_account_connected_includes_provider(self, db, test_user):
+        """Notification message should include provider name for clarity."""
         from app.services.notification_service import NotificationService
 
         notification = await NotificationService.create_notification(
@@ -483,7 +486,7 @@ class TestAccountConnectedNotification:
             organization_id=test_user.organization_id,
             type=NotificationType.ACCOUNT_CONNECTED,
             title="New account connected: Fidelity",
-            message="Alice connected 1 account(s) from Fidelity.",
+            message=("Alice connected 1 account(s) from Fidelity" " via Plaid."),
             priority=NotificationPriority.LOW,
             action_url="/accounts",
             action_label="View Accounts",
@@ -492,6 +495,8 @@ class TestAccountConnectedNotification:
 
         # user_id=None means org-wide (visible to all household members)
         assert notification.user_id is None
+        # Provider detail is included in message
+        assert "via Plaid" in notification.message
 
 
 class TestFireMilestoneRenotification:

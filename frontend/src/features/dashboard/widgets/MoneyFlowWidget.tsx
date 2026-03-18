@@ -16,7 +16,7 @@ import {
   Select,
   useColorModeValue,
 } from "@chakra-ui/react";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Sankey,
@@ -451,7 +451,7 @@ function SankeyLink({
   );
 }
 
-export const MoneyFlowWidget: React.FC = () => {
+const MoneyFlowWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
   const cardBg = useColorModeValue("white", "gray.800");
   const [rangeIndex, setRangeIndex] = useState(0);
@@ -596,3 +596,5 @@ export const MoneyFlowWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const MoneyFlowWidget = memo(MoneyFlowWidgetBase);

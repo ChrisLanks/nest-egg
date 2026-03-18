@@ -338,3 +338,307 @@ describe("RouteErrorBoundary", () => {
     expect(typeof mod.RouteErrorBoundary).toBe("function");
   });
 });
+
+// ---------------------------------------------------------------------------
+// useInfiniteTransactions reducer logic
+// ---------------------------------------------------------------------------
+
+describe("useInfiniteTransactions reducer", () => {
+  // Replicate the reducer logic from useInfiniteTransactions
+  const MAX_RENDERED_ROWS = 500;
+
+  interface State {
+    allTransactions: { id: string }[];
+    currentCursor: string | null;
+    nextCursor: string | null;
+    hasMore: boolean;
+    isLoadingMore: boolean;
+    total: number;
+  }
+
+  type Action =
+    | { type: "RESET" }
+    | { type: "LOAD_MORE"; cursor: string }
+    | {
+        type: "DATA_RECEIVED";
+        transactions: { id: string }[];
+        nextCursor: string | null;
+        hasMore: boolean;
+        total: number;
+        isAppend: boolean;
+      };
+
+  const initialState: State = {
+    allTransactions: [],
+    currentCursor: null,
+    nextCursor: null,
+    hasMore: false,
+    isLoadingMore: false,
+    total: 0,
+  };
+
+  function reducer(state: State, action: Action): State {
+    switch (action.type) {
+      case "RESET":
+        return initialState;
+      case "LOAD_MORE":
+        return { ...state, isLoadingMore: true, currentCursor: action.cursor };
+      case "DATA_RECEIVED": {
+        let allTransactions: { id: string }[];
+        if (action.isAppend) {
+          const combined = [...state.allTransactions, ...action.transactions];
+          allTransactions =
+            combined.length > MAX_RENDERED_ROWS
+              ? combined.slice(combined.length - MAX_RENDERED_ROWS)
+              : combined;
+        } else {
+          allTransactions = action.transactions;
+        }
+        return {
+          ...state,
+          allTransactions,
+          nextCursor: action.nextCursor,
+          hasMore: action.hasMore,
+          total: action.total > 0 ? action.total : state.total,
+          isLoadingMore: false,
+        };
+      }
+      default:
+        return state;
+    }
+  }
+
+  it("RESET returns initial state", () => {
+    const state: State = {
+      ...initialState,
+      allTransactions: [{ id: "1" }],
+      total: 100,
+    };
+    const result = reducer(state, { type: "RESET" });
+    expect(result).toEqual(initialState);
+  });
+
+  it("LOAD_MORE sets cursor and loading flag", () => {
+    const result = reducer(initialState, {
+      type: "LOAD_MORE",
+      cursor: "abc123",
+    });
+    expect(result.isLoadingMore).toBe(true);
+    expect(result.currentCursor).toBe("abc123");
+  });
+
+  it("DATA_RECEIVED replaces data on first page (isAppend=false)", () => {
+    const txns = [{ id: "tx-1" }, { id: "tx-2" }];
+    const result = reducer(initialState, {
+      type: "DATA_RECEIVED",
+      transactions: txns,
+      nextCursor: "cursor2",
+      hasMore: true,
+      total: 50,
+      isAppend: false,
+    });
+    expect(result.allTransactions).toEqual(txns);
+    expect(result.nextCursor).toBe("cursor2");
+    expect(result.hasMore).toBe(true);
+    expect(result.total).toBe(50);
+    expect(result.isLoadingMore).toBe(false);
+  });
+
+  it("DATA_RECEIVED appends data when isAppend=true", () => {
+    const state: State = {
+      ...initialState,
+      allTransactions: [{ id: "tx-1" }],
+    };
+    const result = reducer(state, {
+      type: "DATA_RECEIVED",
+      transactions: [{ id: "tx-2" }],
+      nextCursor: null,
+      hasMore: false,
+      total: 2,
+      isAppend: true,
+    });
+    expect(result.allTransactions).toEqual([{ id: "tx-1" }, { id: "tx-2" }]);
+  });
+
+  it("DATA_RECEIVED caps at MAX_RENDERED_ROWS on append", () => {
+    const state: State = {
+      ...initialState,
+      allTransactions: Array.from({ length: 490 }, (_, i) => ({
+        id: `old-${i}`,
+      })),
+    };
+    const result = reducer(state, {
+      type: "DATA_RECEIVED",
+      transactions: Array.from({ length: 20 }, (_, i) => ({
+        id: `new-${i}`,
+      })),
+      nextCursor: null,
+      hasMore: false,
+      total: 510,
+      isAppend: true,
+    });
+    expect(result.allTransactions.length).toBe(MAX_RENDERED_ROWS);
+    // Should keep newest items
+    expect(result.allTransactions[result.allTransactions.length - 1].id).toBe(
+      "new-19",
+    );
+  });
+
+  it("DATA_RECEIVED preserves total when new total is 0", () => {
+    const state: State = { ...initialState, total: 100 };
+    const result = reducer(state, {
+      type: "DATA_RECEIVED",
+      transactions: [],
+      nextCursor: null,
+      hasMore: false,
+      total: 0,
+      isAppend: false,
+    });
+    expect(result.total).toBe(100);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Dashboard widget API path correctness
+// ---------------------------------------------------------------------------
+
+describe("dashboard widget API paths", () => {
+  it("TaxInsightsWidget uses relative path (no /api/v1 prefix)", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const widgetPath = path.resolve(
+      __dirname,
+      "../features/dashboard/widgets/TaxInsightsWidget.tsx",
+    );
+    const source = fs.readFileSync(widgetPath, "utf-8");
+    // Should NOT contain double prefix
+    expect(source).not.toContain('"/api/v1/');
+    // Should use the relative path
+    expect(source).toContain('"/tax-advisor/insights"');
+  });
+
+  it("DividendIncomeWidget uses relative path (no /api/v1 prefix)", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const widgetPath = path.resolve(
+      __dirname,
+      "../features/dashboard/widgets/DividendIncomeWidget.tsx",
+    );
+    const source = fs.readFileSync(widgetPath, "utf-8");
+    expect(source).not.toContain('"/api/v1/');
+    expect(source).toContain('"/dividend-income/summary"');
+  });
+
+  it("SpendingVelocityWidget uses correct route prefix", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const widgetPath = path.resolve(
+      __dirname,
+      "../features/dashboard/widgets/SpendingVelocityWidget.tsx",
+    );
+    const source = fs.readFileSync(widgetPath, "utf-8");
+    expect(source).not.toContain('"/api/v1/');
+    expect(source).not.toContain("enhanced-trends");
+    expect(source).toContain('"/trends/spending-velocity"');
+  });
+
+  it("YearOverYearWidget uses URLSearchParams for years array", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const widgetPath = path.resolve(
+      __dirname,
+      "../features/dashboard/widgets/YearOverYearWidget.tsx",
+    );
+    const source = fs.readFileSync(widgetPath, "utf-8");
+    // Should NOT use comma-joined years
+    expect(source).not.toContain("years.join");
+    // Should use URLSearchParams
+    expect(source).toContain("URLSearchParams");
+  });
+
+  it("QuarterlyPerformanceWidget uses URLSearchParams for years array", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const widgetPath = path.resolve(
+      __dirname,
+      "../features/dashboard/widgets/QuarterlyPerformanceWidget.tsx",
+    );
+    const source = fs.readFileSync(widgetPath, "utf-8");
+    expect(source).not.toContain("years.join");
+    expect(source).toContain("URLSearchParams");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// NotificationType frontend enum completeness
+// ---------------------------------------------------------------------------
+
+describe("NotificationType enum", () => {
+  it("includes all 15 notification types", async () => {
+    const { NotificationType } = await import("../types/notification");
+    const values = Object.values(NotificationType);
+    expect(values.length).toBe(15);
+  });
+
+  it("includes ACCOUNT_CONNECTED", async () => {
+    const { NotificationType } = await import("../types/notification");
+    expect(NotificationType.ACCOUNT_CONNECTED).toBe("account_connected");
+  });
+
+  it("includes new household notification types", async () => {
+    const { NotificationType } = await import("../types/notification");
+    expect(NotificationType.HOUSEHOLD_MEMBER_JOINED).toBe(
+      "household_member_joined",
+    );
+    expect(NotificationType.HOUSEHOLD_MEMBER_LEFT).toBe(
+      "household_member_left",
+    );
+  });
+
+  it("includes FIRE milestone types", async () => {
+    const { NotificationType } = await import("../types/notification");
+    expect(NotificationType.FIRE_COAST_FI).toBe("fire_coast_fi");
+    expect(NotificationType.FIRE_INDEPENDENT).toBe("fire_independent");
+  });
+
+  it("includes RETIREMENT_SCENARIO_STALE", async () => {
+    const { NotificationType } = await import("../types/notification");
+    expect(NotificationType.RETIREMENT_SCENARIO_STALE).toBe(
+      "retirement_scenario_stale",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// React.memo wrapping verification
+// ---------------------------------------------------------------------------
+
+describe("dashboard widgets are wrapped in React.memo", () => {
+  const widgetFiles = [
+    "AccountBalancesWidget",
+    "AssetAllocationWidget",
+    "BudgetsWidget",
+    "CashFlowTrendWidget",
+    "NetWorthChartWidget",
+    "SummaryStatsWidget",
+    "TopExpensesWidget",
+    "RecentTransactionsWidget",
+  ];
+
+  widgetFiles.forEach((name) => {
+    it(`${name} exports a memo-wrapped component`, async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      const filePath = path.resolve(
+        __dirname,
+        `../features/dashboard/widgets/${name}.tsx`,
+      );
+      const source = fs.readFileSync(filePath, "utf-8");
+      // Should have memo import and memo() call
+      expect(source).toContain("memo");
+      expect(source).toMatch(
+        new RegExp(`export const ${name}\\s*=\\s*memo\\(`),
+      );
+    });
+  });
+});

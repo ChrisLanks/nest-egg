@@ -23,7 +23,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { memo, useState } from "react";
 import {
   AreaChart,
   Area,
@@ -47,7 +47,7 @@ const formatCurrency = (amount: number) =>
 
 type TimeRange = "1M" | "3M" | "6M" | "1Y" | "ALL" | "CUSTOM";
 
-export const NetWorthChartWidget: React.FC = () => {
+const NetWorthChartWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
   const overlayBg = useColorModeValue("whiteAlpha.800", "blackAlpha.800");
   const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
@@ -326,3 +326,5 @@ export const NetWorthChartWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const NetWorthChartWidget = memo(NetWorthChartWidgetBase);

@@ -56,7 +56,7 @@ def estimate_annual_healthcare_cost(
     ltc_start_age: int = 85,
     ltc_duration_years: int = 3,
     current_age: int = 35,
-    medical_inflation_rate: float = 6.0,
+    medical_inflation_rate: float = HEALTHCARE.DEFAULT_MEDICAL_INFLATION,
 ) -> dict:
     """Estimate annual healthcare costs at a given age.
 
@@ -84,7 +84,7 @@ def estimate_annual_healthcare_cost(
         "total": 0.0,
     }
 
-    if age < 65:
+    if age < MEDICARE.ELIGIBILITY_AGE:
         # Pre-Medicare: ACA marketplace
         monthly = ACA_MONTHLY_COUPLE if is_married else ACA_MONTHLY_SINGLE
         costs["aca_insurance"] = monthly * 12
@@ -133,7 +133,7 @@ def estimate_lifetime_healthcare_costs(
     include_ltc: bool = True,
     ltc_start_age: int = 85,
     ltc_duration_years: int = 3,
-    medical_inflation_rate: float = 6.0,
+    medical_inflation_rate: float = HEALTHCARE.DEFAULT_MEDICAL_INFLATION,
 ) -> dict:
     """Estimate total lifetime healthcare costs from current age to life expectancy.
 
@@ -158,7 +158,7 @@ def estimate_lifetime_healthcare_costs(
 
         yearly_costs.append({"age": age, **costs})
 
-        if age < 65:
+        if age < MEDICARE.ELIGIBILITY_AGE:
             pre_65_total += costs["total"]
         elif age < ltc_start_age or not include_ltc:
             medicare_total += costs["total"]

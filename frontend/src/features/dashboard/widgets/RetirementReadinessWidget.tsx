@@ -13,7 +13,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import api from "../../../services/api";
 import { useUserView } from "../../../contexts/UserViewContext";
@@ -34,7 +34,7 @@ const scoreColor = (score: number): string => {
   return "red.400";
 };
 
-export const RetirementReadinessWidget: React.FC = () => {
+const RetirementReadinessWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -161,3 +161,5 @@ export const RetirementReadinessWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const RetirementReadinessWidget = memo(RetirementReadinessWidgetBase);

@@ -262,6 +262,22 @@ async def update_scenario(
     # Handle member_ids update
     new_member_ids = updates.pop("member_ids", None)
     if new_member_ids is not None:
+        # Validate all member_ids belong to the same household
+        if new_member_ids:
+            valid_result = await db.execute(
+                sa_select(func.count(User.id)).where(
+                    User.id.in_(new_member_ids),
+                    User.organization_id == current_user.organization_id,
+                    User.is_active.is_(True),
+                )
+            )
+            valid_count = valid_result.scalar() or 0
+            if valid_count != len(new_member_ids):
+                raise HTTPException(
+                    status_code=400,
+                    detail="One or more member_ids do not belong to this household",
+                )
+
         if len(new_member_ids) >= 2:
             sorted_ids = sorted(new_member_ids)
             updates["household_member_ids"] = json.dumps(sorted_ids)

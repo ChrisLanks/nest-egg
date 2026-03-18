@@ -15,6 +15,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
+import { memo } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { fireApi, type FireMetricsResponse } from "../../../api/fire";
 import { useUserView } from "../../../contexts/UserViewContext";
@@ -25,7 +26,7 @@ const scoreColor = (ratio: number): string => {
   return "red.400";
 };
 
-export const FireMetricsWidget: React.FC = () => {
+const FireMetricsWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<FireMetricsResponse>({
@@ -134,3 +135,5 @@ export const FireMetricsWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const FireMetricsWidget = memo(FireMetricsWidgetBase);

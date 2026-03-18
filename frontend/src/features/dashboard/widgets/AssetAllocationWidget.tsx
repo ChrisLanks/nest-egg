@@ -9,6 +9,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
+import { memo } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { holdingsApi } from "../../../api/holdings";
 import { useUserView } from "../../../contexts/UserViewContext";
@@ -30,7 +31,7 @@ const SLICES = [
   { key: "other_value", label: "Other", color: "#CBD5E0" },
 ] as const;
 
-export const AssetAllocationWidget: React.FC = () => {
+const AssetAllocationWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const { data: portfolio, isLoading } = useQuery({
@@ -139,3 +140,5 @@ export const AssetAllocationWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const AssetAllocationWidget = memo(AssetAllocationWidgetBase);

@@ -81,6 +81,12 @@ async def get_portfolio_summary(
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
+    detail_level: str = Query(
+        "full",
+        description="'summary' returns totals + holdings_by_ticker only (faster). "
+        "'full' includes breakdowns, treemap, and per-account detail.",
+        pattern="^(summary|full)$",
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -94,7 +100,10 @@ async def get_portfolio_summary(
     logger.info(f"Portfolio request from user {current_user.id}, filter user_id={user_id}")
 
     # Check cache
-    cache_key = f"portfolio:summary:{current_user.organization_id}:{user_id or 'household'}"
+    cache_key = (
+        f"portfolio:summary:{current_user.organization_id}"
+        f":{user_id or 'household'}:{detail_level}"
+    )
     cached = await cache_get(cache_key)
     if cached is not None:
         return cached
@@ -249,6 +258,30 @@ async def get_portfolio_summary(
         if (total_gain_loss and total_cost_basis and total_cost_basis != 0)
         else None
     )
+
+    # Fast path: summary mode skips heavy breakdowns (treemap, sector, geographic, per-account)
+    if detail_level == "summary":
+        summary = PortfolioSummary(
+            total_value=total_value,
+            total_cost_basis=total_cost_basis if total_cost_basis else None,
+            total_gain_loss=total_gain_loss,
+            total_gain_loss_percent=total_gain_loss_percent,
+            holdings_by_ticker=holdings_summaries,
+            holdings_by_account=[],
+            stocks_value=stocks_value,
+            bonds_value=bonds_value,
+            etf_value=etf_value,
+            mutual_funds_value=mutual_funds_value,
+            cash_value=cash_value,
+            other_value=other_value,
+            category_breakdown=None,
+            geographic_breakdown=None,
+            treemap_data=None,
+            sector_breakdown=None,
+            total_annual_fees=total_annual_fees if total_annual_fees > 0 else None,
+        )
+        await cache_setex(cache_key, 300, summary.model_dump(mode="json"))
+        return summary
 
     # Aggregate sector breakdown from holdings
     sector_dict: dict[str, dict] = {}

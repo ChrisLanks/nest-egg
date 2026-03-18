@@ -2,6 +2,7 @@
  * Top merchants widget — shows highest spending by merchant this month.
  */
 
+import { memo } from "react";
 import {
   Box,
   Card,
@@ -39,7 +40,7 @@ const fmt = (n: number): string =>
     maximumFractionDigits: 0,
   }).format(Math.abs(n));
 
-export const TopMerchantsWidget: React.FC = () => {
+const TopMerchantsWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const now = new Date();
@@ -135,3 +136,5 @@ export const TopMerchantsWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const TopMerchantsWidget = memo(TopMerchantsWidgetBase);

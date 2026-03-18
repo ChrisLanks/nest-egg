@@ -10,6 +10,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
+import { memo } from "react";
 import { useUserView } from "../../../contexts/UserViewContext";
 import api from "../../../services/api";
 
@@ -61,7 +62,7 @@ const gaugeColor = (score: number): string => {
   return "red.400";
 };
 
-export const FinancialHealthWidget: React.FC = () => {
+const FinancialHealthWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<FinancialHealthData>({
@@ -195,3 +196,5 @@ export const FinancialHealthWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const FinancialHealthWidget = memo(FinancialHealthWidgetBase);

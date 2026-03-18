@@ -3,9 +3,11 @@
  *
  * Caps accumulated transactions at MAX_RENDERED_ROWS to prevent
  * unbounded DOM growth as users scroll through large datasets.
+ *
+ * Uses useReducer to batch state updates and avoid cascading re-renders.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useReducer, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { transactionApi } from "../services/transactionApi";
 import type { Transaction } from "../types/transaction";
@@ -34,6 +36,67 @@ interface UseInfiniteTransactionsReturn {
   refetch: () => void;
 }
 
+interface State {
+  allTransactions: Transaction[];
+  currentCursor: string | null;
+  nextCursor: string | null;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  total: number;
+}
+
+type Action =
+  | { type: "RESET" }
+  | { type: "LOAD_MORE"; cursor: string }
+  | {
+      type: "DATA_RECEIVED";
+      transactions: Transaction[];
+      nextCursor: string | null;
+      hasMore: boolean;
+      total: number;
+      isAppend: boolean;
+    };
+
+const initialState: State = {
+  allTransactions: [],
+  currentCursor: null,
+  nextCursor: null,
+  hasMore: false,
+  isLoadingMore: false,
+  total: 0,
+};
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case "RESET":
+      return initialState;
+    case "LOAD_MORE":
+      return { ...state, isLoadingMore: true, currentCursor: action.cursor };
+    case "DATA_RECEIVED": {
+      let allTransactions: Transaction[];
+      if (action.isAppend) {
+        const combined = [...state.allTransactions, ...action.transactions];
+        allTransactions =
+          combined.length > MAX_RENDERED_ROWS
+            ? combined.slice(combined.length - MAX_RENDERED_ROWS)
+            : combined;
+      } else {
+        allTransactions = action.transactions;
+      }
+      return {
+        ...state,
+        allTransactions,
+        nextCursor: action.nextCursor,
+        hasMore: action.hasMore,
+        total: action.total > 0 ? action.total : state.total,
+        isLoadingMore: false,
+      };
+    }
+    default:
+      return state;
+  }
+}
+
 export const useInfiniteTransactions = ({
   accountId,
   userId,
@@ -44,21 +107,11 @@ export const useInfiniteTransactions = ({
   pageSize = 100,
   enabled = true,
 }: UseInfiniteTransactionsParams): UseInfiniteTransactionsReturn => {
-  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
-  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [total, setTotal] = useState(0);
+  const [state, dispatch] = useReducer(reducer, initialState);
 
   // Reset state when filters change
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setAllTransactions([]);
-    setCurrentCursor(null);
-    setNextCursor(null);
-    setHasMore(false);
-    setTotal(0);
+    dispatch({ type: "RESET" });
   }, [accountId, userId, startDate, endDate, search, flagged]);
 
   const {
@@ -74,7 +127,7 @@ export const useInfiniteTransactions = ({
       endDate,
       search,
       flagged,
-      currentCursor,
+      state.currentCursor,
     ],
     queryFn: async () => {
       return await transactionApi.listTransactions({
@@ -85,63 +138,44 @@ export const useInfiniteTransactions = ({
         end_date: endDate,
         search,
         flagged,
-        cursor: currentCursor || undefined,
+        cursor: state.currentCursor || undefined,
       });
     },
     enabled,
-    refetchOnMount: true, // Refetch only when stale (respects staleTime)
+    refetchOnMount: true,
   });
 
-  // Single effect to sync query data → local state (eliminates duplicate sync)
+  // Single effect to sync query data → local state (single dispatch, no cascading renders)
   useEffect(() => {
     if (!data) return;
 
-    if (currentCursor) {
-      // Append new page, cap total to MAX_RENDERED_ROWS
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAllTransactions((prev) => {
-        const combined = [...prev, ...data.transactions];
-        if (combined.length > MAX_RENDERED_ROWS) {
-          return combined.slice(combined.length - MAX_RENDERED_ROWS);
-        }
-        return combined;
-      });
-    } else {
-      // First page / reset
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAllTransactions(data.transactions);
-    }
-
-    setNextCursor(data.next_cursor || null);
-    setHasMore(data.has_more);
-    if (data.total > 0) {
-      setTotal(data.total);
-    }
-    setIsLoadingMore(false);
-  }, [data, currentCursor]);
+    dispatch({
+      type: "DATA_RECEIVED",
+      transactions: data.transactions,
+      nextCursor: data.next_cursor || null,
+      hasMore: data.has_more,
+      total: data.total,
+      isAppend: !!state.currentCursor,
+    });
+  }, [data, state.currentCursor]);
 
   const loadMore = useCallback(() => {
-    if (nextCursor && !isLoadingMore && !isLoading) {
-      setIsLoadingMore(true);
-      setCurrentCursor(nextCursor);
+    if (state.nextCursor && !state.isLoadingMore && !isLoading) {
+      dispatch({ type: "LOAD_MORE", cursor: state.nextCursor });
     }
-  }, [nextCursor, isLoadingMore, isLoading]);
+  }, [state.nextCursor, state.isLoadingMore, isLoading]);
 
   const refetch = useCallback(() => {
-    setAllTransactions([]);
-    setCurrentCursor(null);
-    setNextCursor(null);
-    setHasMore(false);
-    setTotal(0);
+    dispatch({ type: "RESET" });
     queryRefetch();
   }, [queryRefetch]);
 
   return {
-    transactions: allTransactions,
+    transactions: state.allTransactions,
     isLoading,
-    isLoadingMore,
-    hasMore,
-    total,
+    isLoadingMore: state.isLoadingMore,
+    hasMore: state.hasMore,
+    total: state.total,
     loadMore,
     refetch,
   };

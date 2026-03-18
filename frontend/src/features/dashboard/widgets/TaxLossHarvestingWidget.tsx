@@ -2,6 +2,7 @@
  * Tax loss harvesting opportunities widget.
  */
 
+import { memo } from "react";
 import {
   Badge,
   Box,
@@ -48,7 +49,7 @@ const fmt = (n: number): string =>
     maximumFractionDigits: 0,
   }).format(n);
 
-export const TaxLossHarvestingWidget: React.FC = () => {
+const TaxLossHarvestingWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const { data, isLoading, isError } = useQuery<TaxLossHarvestingData>({
@@ -157,3 +158,5 @@ export const TaxLossHarvestingWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const TaxLossHarvestingWidget = memo(TaxLossHarvestingWidgetBase);

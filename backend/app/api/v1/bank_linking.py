@@ -195,7 +195,7 @@ async def exchange_token(
                 db=db,
             )
 
-            return ExchangeTokenResponse(
+            response = ExchangeTokenResponse(
                 provider="plaid",
                 item_id=plaid_response.item_id,
                 accounts=[
@@ -230,22 +230,7 @@ async def exchange_token(
             # Sync accounts from Teller
             accounts = await teller_service.sync_accounts(db, enrollment)
 
-            # Notify household about new accounts
-            user_name = current_user.display_name or current_user.first_name or current_user.email
-            inst_name = request.institution_name or "Unknown Institution"
-            await NotificationService.create_notification(
-                db=db,
-                organization_id=current_user.organization_id,
-                type=NotificationType.ACCOUNT_CONNECTED,
-                title=f"New account connected: {inst_name}",
-                message=f"{user_name} connected {len(accounts)} account(s) from {inst_name}.",
-                priority=NotificationPriority.LOW,
-                action_url="/accounts",
-                action_label="View Accounts",
-                expires_in_days=14,
-            )
-
-            return ExchangeTokenResponse(
+            response = ExchangeTokenResponse(
                 provider="teller",
                 item_id=enrollment.enrollment_id,
                 accounts=[
@@ -288,22 +273,7 @@ async def exchange_token(
             # Sync accounts from MX
             accounts = await mx_service.sync_accounts(db, member)
 
-            # Notify household about new accounts
-            user_name = current_user.display_name or current_user.first_name or current_user.email
-            inst_name = request.institution_name or "Unknown Institution"
-            await NotificationService.create_notification(
-                db=db,
-                organization_id=current_user.organization_id,
-                type=NotificationType.ACCOUNT_CONNECTED,
-                title=f"New account connected: {inst_name}",
-                message=f"{user_name} connected {len(accounts)} account(s) from {inst_name}.",
-                priority=NotificationPriority.LOW,
-                action_url="/accounts",
-                action_label="View Accounts",
-                expires_in_days=14,
-            )
-
-            return ExchangeTokenResponse(
+            response = ExchangeTokenResponse(
                 provider="mx",
                 item_id=member.member_guid,
                 accounts=[
@@ -320,7 +290,31 @@ async def exchange_token(
             )
 
         else:
-            raise HTTPException(status_code=400, detail=f"Unsupported provider: {request.provider}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported provider: {request.provider}",
+            )
+
+        # Centralized notification for all providers
+        provider_label = response.provider.capitalize()
+        user_name = current_user.display_name or current_user.first_name or current_user.email
+        inst_name = request.institution_name or "Unknown Institution"
+        await NotificationService.create_notification(
+            db=db,
+            organization_id=current_user.organization_id,
+            type=NotificationType.ACCOUNT_CONNECTED,
+            title=f"New account connected: {inst_name}",
+            message=(
+                f"{user_name} connected {len(response.accounts)}"
+                f" account(s) from {inst_name} via {provider_label}."
+            ),
+            priority=NotificationPriority.LOW,
+            action_url="/accounts",
+            action_label="View Accounts",
+            expires_in_days=14,
+        )
+
+        return response
 
     except HTTPException:
         raise
@@ -530,6 +524,12 @@ async def disconnect_account(
 
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
+
+    # Only the user who linked the account can disconnect it
+    if account.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403, detail="Only the account owner can disconnect this account"
+        )
 
     try:
         if account.account_source == AccountSource.PLAID:

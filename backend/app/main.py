@@ -181,9 +181,12 @@ async def lifespan(app: FastAPI):
         import uvicorn
 
         metrics_asgi = create_metrics_app()
+        # Bind to 0.0.0.0 only when an allowlist is configured (so remote
+        # Prometheus scrapers can reach it); otherwise bind to localhost.
+        metrics_host = "0.0.0.0" if settings.METRICS_ALLOWED_HOSTS else "127.0.0.1"  # nosec B104
         metrics_config = uvicorn.Config(
             metrics_asgi,
-            host="0.0.0.0",  # nosec B104 — metrics port is internal-only, protected by basic auth
+            host=metrics_host,
             port=settings.METRICS_ADMIN_PORT,
             log_level="warning",
         )

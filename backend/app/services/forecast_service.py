@@ -4,22 +4,24 @@ import calendar
 import json
 from collections import defaultdict
 from datetime import date, datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from decimal import Decimal as D
-from typing import List, Dict, Optional
-from dateutil.relativedelta import relativedelta
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from typing import Dict, List, Optional
 from uuid import UUID
 
-from app.models.user import User
-from app.utils.datetime_utils import utc_now
+from dateutil.relativedelta import relativedelta
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core import cache
 from app.models.account import Account, AccountType
-from app.utils.account_type_groups import AMORTIZING_LOAN_TYPES, NET_WORTH_EXCLUDED_BY_DEFAULT
-from app.models.recurring_transaction import RecurringTransaction, RecurringFrequency
-from app.services.recurring_detection_service import RecurringDetectionService
+from app.models.notification import NotificationPriority, NotificationType
+from app.models.recurring_transaction import RecurringFrequency, RecurringTransaction
+from app.models.user import User
 from app.services.notification_service import NotificationService
-from app.models.notification import NotificationType, NotificationPriority
+from app.services.recurring_detection_service import RecurringDetectionService
+from app.utils.account_type_groups import AMORTIZING_LOAN_TYPES, NET_WORTH_EXCLUDED_BY_DEFAULT
+from app.utils.datetime_utils import utc_now
 
 
 class ForecastService:
@@ -46,6 +48,12 @@ class ForecastService:
         Returns:
             List of daily forecast data points
         """
+        # Check cache (1 hour TTL)
+        cache_key = f"forecast:{organization_id}:{user_id or 'household'}:{days_ahead}"
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         # Fetch all active accounts once to avoid repeated DB queries in helpers
         account_conditions = [
             Account.organization_id == organization_id,
@@ -54,9 +62,7 @@ class ForecastService:
         if user_id:
             account_conditions.append(Account.user_id == user_id)
 
-        all_accounts_result = await db.execute(
-            select(Account).where(and_(*account_conditions))
-        )
+        all_accounts_result = await db.execute(select(Account).where(and_(*account_conditions)))
         all_accounts = list(all_accounts_result.scalars().all())
 
         # Get current account balances (exclude cash flow exclusions)
@@ -80,9 +86,7 @@ class ForecastService:
             future_transactions.extend(occurrences)
 
         # Add future vesting events for private equity accounts
-        vesting_events = ForecastService._get_future_vesting_events(
-            all_accounts, days_ahead
-        )
+        vesting_events = ForecastService._get_future_vesting_events(all_accounts, days_ahead)
         future_transactions.extend(vesting_events)
 
         # Add future private debt events (interest income and principal repayment)
@@ -98,21 +102,15 @@ class ForecastService:
         future_transactions.extend(cd_maturity_events)
 
         # Add future mortgage/loan payment events
-        mortgage_events = ForecastService._get_mortgage_payment_events(
-            all_accounts, days_ahead
-        )
+        mortgage_events = ForecastService._get_mortgage_payment_events(all_accounts, days_ahead)
         future_transactions.extend(mortgage_events)
 
         # Add future bond coupon payments
-        bond_events = ForecastService._get_bond_coupon_events(
-            all_accounts, days_ahead
-        )
+        bond_events = ForecastService._get_bond_coupon_events(all_accounts, days_ahead)
         future_transactions.extend(bond_events)
 
         # Add future pension/annuity income payments
-        income_events = ForecastService._get_pension_annuity_income_events(
-            all_accounts, days_ahead
-        )
+        income_events = ForecastService._get_pension_annuity_income_events(all_accounts, days_ahead)
         future_transactions.extend(income_events)
 
         # Pre-group transactions by date: O(n) instead of O(n*days)
@@ -141,6 +139,7 @@ class ForecastService:
                 }
             )
 
+        await cache.setex(cache_key, 3600, forecast)  # 1 hour TTL
         return forecast
 
     @staticmethod
@@ -284,9 +283,7 @@ class ForecastService:
         return occurrences
 
     @staticmethod
-    def _get_future_vesting_events(
-        all_accounts: List[Account], days_ahead: int
-    ) -> List[Dict]:
+    def _get_future_vesting_events(all_accounts: List[Account], days_ahead: int) -> List[Dict]:
         """
         Extract future vesting events from Private Equity accounts.
 
@@ -302,7 +299,8 @@ class ForecastService:
         """
         # Filter to Private Equity accounts with vesting schedules
         accounts = [
-            a for a in all_accounts
+            a
+            for a in all_accounts
             if a.account_type == AccountType.PRIVATE_EQUITY and a.vesting_schedule
         ]
 
@@ -361,9 +359,7 @@ class ForecastService:
         return vesting_events
 
     @staticmethod
-    def _get_future_private_debt_events(
-        all_accounts: List[Account], days_ahead: int
-    ) -> List[Dict]:
+    def _get_future_private_debt_events(all_accounts: List[Account], days_ahead: int) -> List[Dict]:
         """
         Extract future cash flow events from Private Debt accounts.
 
@@ -437,9 +433,7 @@ class ForecastService:
         return debt_events
 
     @staticmethod
-    def _get_future_cd_maturity_events(
-        all_accounts: List[Account], days_ahead: int
-    ) -> List[Dict]:
+    def _get_future_cd_maturity_events(all_accounts: List[Account], days_ahead: int) -> List[Dict]:
         """
         Extract future CD maturity events.
 
@@ -455,7 +449,8 @@ class ForecastService:
         """
         # Filter to CD accounts with maturity dates
         accounts = [
-            a for a in all_accounts
+            a
+            for a in all_accounts
             if a.account_type == AccountType.CD and a.maturity_date is not None
         ]
 
@@ -528,9 +523,7 @@ class ForecastService:
         return cd_events
 
     @staticmethod
-    def _get_mortgage_payment_events(
-        all_accounts: List[Account], days_ahead: int
-    ) -> List[Dict]:
+    def _get_mortgage_payment_events(all_accounts: List[Account], days_ahead: int) -> List[Dict]:
         """
         Calculate monthly mortgage/loan payments and project as cash outflows.
 
@@ -543,7 +536,8 @@ class ForecastService:
 
         # Filter to loan accounts with interest rates, not excluded from cash flow
         accounts = [
-            a for a in all_accounts
+            a
+            for a in all_accounts
             if a.account_type in loan_types
             and a.interest_rate is not None
             and a.interest_rate > 0
@@ -655,9 +649,7 @@ class ForecastService:
         return None
 
     @staticmethod
-    def _get_bond_coupon_events(
-        all_accounts: List[Account], days_ahead: int
-    ) -> List[Dict]:
+    def _get_bond_coupon_events(all_accounts: List[Account], days_ahead: int) -> List[Dict]:
         """
         Project future bond coupon payments.
 
@@ -667,7 +659,8 @@ class ForecastService:
         """
         # Filter to bond accounts with interest rates, not excluded from cash flow
         accounts = [
-            a for a in all_accounts
+            a
+            for a in all_accounts
             if a.account_type == AccountType.BOND
             and a.interest_rate is not None
             and not a.exclude_from_cash_flow
@@ -751,7 +744,8 @@ class ForecastService:
 
         # Filter to pension/annuity accounts with monthly benefits, not excluded from cash flow
         accounts = [
-            a for a in all_accounts
+            a
+            for a in all_accounts
             if a.account_type in pension_types
             and a.monthly_benefit is not None
             and a.monthly_benefit > 0

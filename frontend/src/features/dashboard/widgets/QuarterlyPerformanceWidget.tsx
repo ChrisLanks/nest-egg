@@ -2,6 +2,7 @@
  * Quarterly income/expense performance widget.
  */
 
+import { memo } from "react";
 import {
   Card,
   CardBody,
@@ -41,7 +42,7 @@ const fmt = (n: number): string =>
     maximumFractionDigits: 0,
   }).format(n);
 
-export const QuarterlyPerformanceWidget: React.FC = () => {
+const QuarterlyPerformanceWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
   const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
   const tooltipBorder = useColorModeValue("#E2E8F0", "#4A5568");
@@ -52,10 +53,9 @@ export const QuarterlyPerformanceWidget: React.FC = () => {
   const { data, isLoading, isError } = useQuery<QuarterData[]>({
     queryKey: ["quarterly-widget", selectedUserId, years],
     queryFn: async () => {
-      const params: Record<string, string> = {
-        years: years.join(","),
-      };
-      if (selectedUserId) params.user_id = selectedUserId;
+      const params = new URLSearchParams();
+      years.forEach((y) => params.append("years", String(y)));
+      if (selectedUserId) params.set("user_id", selectedUserId);
       const res = await api.get("/income-expenses/quarterly-summary", {
         params,
       });
@@ -147,3 +147,5 @@ export const QuarterlyPerformanceWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const QuarterlyPerformanceWidget = memo(QuarterlyPerformanceWidgetBase);

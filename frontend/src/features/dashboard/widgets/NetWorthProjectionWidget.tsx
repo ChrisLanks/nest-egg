@@ -18,22 +18,22 @@ import {
   Spinner,
   Center,
   Text,
-} from '@chakra-ui/react';
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useUserView } from '../../../contexts/UserViewContext';
-import { GrowthProjectionsChart } from '../../investments/components/GrowthProjectionsChart';
-import api from '../../../services/api';
+} from "@chakra-ui/react";
+import { memo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useUserView } from "../../../contexts/UserViewContext";
+import { GrowthProjectionsChart } from "../../investments/components/GrowthProjectionsChart";
+import api from "../../../services/api";
 
-export const NetWorthProjectionWidget: React.FC = () => {
+const NetWorthProjectionWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
-  const [monthlySavings, setMonthlySavings] = useState('0');
+  const [monthlySavings, setMonthlySavings] = useState("0");
 
   const { data: dashboardData, isLoading } = useQuery({
-    queryKey: ['dashboard', selectedUserId],
+    queryKey: ["dashboard", selectedUserId],
     queryFn: async () => {
       const params = selectedUserId ? { user_id: selectedUserId } : {};
-      const response = await api.get('/dashboard/', { params });
+      const response = await api.get("/dashboard/", { params });
       return response.data;
     },
   });
@@ -58,7 +58,9 @@ export const NetWorthProjectionWidget: React.FC = () => {
       <HStack justify="space-between" mb={4} wrap="wrap" spacing={4}>
         <Heading size="md">Net Worth Projection</Heading>
         <FormControl maxW="200px">
-          <FormLabel fontSize="sm" mb={1}>Monthly Savings ($)</FormLabel>
+          <FormLabel fontSize="sm" mb={1}>
+            Monthly Savings ($)
+          </FormLabel>
           <NumberInput
             value={monthlySavings}
             onChange={setMonthlySavings}
@@ -84,3 +86,5 @@ export const NetWorthProjectionWidget: React.FC = () => {
     </Box>
   );
 };
+
+export const NetWorthProjectionWidget = memo(NetWorthProjectionWidgetBase);

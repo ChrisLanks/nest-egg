@@ -311,8 +311,15 @@ class FIRE:
 
     # Return / inflation assumptions
     DEFAULT_EXPECTED_RETURN = 0.07  # 7% nominal
+    DEFAULT_EXPECTED_RETURN_PCT = Decimal("7.00")  # Same as above, in percent form
+    DEFAULT_POST_RETIREMENT_RETURN = 0.05  # 5% nominal (conservative)
+    DEFAULT_POST_RETIREMENT_RETURN_PCT = Decimal("5.00")
     DEFAULT_INFLATION = 0.03  # 3% general inflation
+    DEFAULT_INFLATION_PCT = Decimal("3.00")
     DEFAULT_REAL_RETURN = DEFAULT_EXPECTED_RETURN - DEFAULT_INFLATION  # 4%
+    DEFAULT_WITHDRAWAL_RATE_PCT = Decimal("4.00")  # Same as DEFAULT_WITHDRAWAL_RATE
+    DEFAULT_CAPITAL_GAINS_RATE = Decimal("0.15")  # 15% — middle LTCG bracket  # ANNUAL
+    DEFAULT_CAPITAL_GAINS_RATE_PCT = Decimal("15.00")
 
     # Monte Carlo defaults
     MC_PRE_RETIREMENT_RETURN = 7.0  # Percent

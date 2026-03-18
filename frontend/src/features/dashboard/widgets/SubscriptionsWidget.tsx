@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   Box,
   Card,
@@ -38,7 +39,7 @@ const frequencyLabel = (freq: string) => {
   return map[freq] ?? freq;
 };
 
-export const SubscriptionsWidget: React.FC = () => {
+const SubscriptionsWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const { data, isLoading } = useQuery({
@@ -115,3 +116,5 @@ export const SubscriptionsWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const SubscriptionsWidget = memo(SubscriptionsWidgetBase);

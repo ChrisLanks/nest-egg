@@ -2,6 +2,7 @@
  * Year-over-year income/expense comparison widget.
  */
 
+import { memo } from "react";
 import {
   Card,
   CardBody,
@@ -46,7 +47,7 @@ const COLORS: Record<string, string[]> = {
   income: ["#48BB78", "#68D391", "#9AE6B4"],
 };
 
-export const YearOverYearWidget: React.FC = () => {
+const YearOverYearWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
   const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
   const tooltipBorder = useColorModeValue("#E2E8F0", "#4A5568");
@@ -57,10 +58,9 @@ export const YearOverYearWidget: React.FC = () => {
   const { data, isLoading, isError } = useQuery<YoYMonth[]>({
     queryKey: ["yoy-widget", selectedUserId, years],
     queryFn: async () => {
-      const params: Record<string, string> = {
-        years: years.join(","),
-      };
-      if (selectedUserId) params.user_id = selectedUserId;
+      const params = new URLSearchParams();
+      years.forEach((y) => params.append("years", String(y)));
+      if (selectedUserId) params.set("user_id", selectedUserId);
       const res = await api.get("/income-expenses/year-over-year", { params });
       return res.data;
     },
@@ -148,3 +148,5 @@ export const YearOverYearWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const YearOverYearWidget = memo(YearOverYearWidgetBase);

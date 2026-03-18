@@ -59,6 +59,7 @@ export function useRetirementScenario(scenarioId: string | null) {
     },
     enabled: !!scenarioId,
     placeholderData: keepPreviousData,
+    staleTime: 1000 * 60 * 5, // 5 min — scenario detail rarely changes externally
   });
 }
 
@@ -183,6 +184,7 @@ export function useSimulationResults(scenarioId: string | null) {
     enabled: !!scenarioId,
     retry: false, // Don't retry 404s (no results yet)
     placeholderData: keepPreviousData,
+    staleTime: 1000 * 60 * 5, // 5 min — results only change after explicit simulate
   });
 }
 

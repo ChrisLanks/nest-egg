@@ -16,6 +16,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { memo } from "react";
 import { useUserView } from "../../../contexts/UserViewContext";
 import api from "../../../services/api";
 
@@ -27,7 +28,7 @@ const formatCurrency = (amount: number) =>
     maximumFractionDigits: 2,
   }).format(amount);
 
-export const CashFlowTrendWidget: React.FC = () => {
+const CashFlowTrendWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
   const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
   const tooltipBorder = useColorModeValue("#E2E8F0", "#4A5568");
@@ -76,3 +77,5 @@ export const CashFlowTrendWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const CashFlowTrendWidget = memo(CashFlowTrendWidgetBase);

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   Badge,
   Box,
@@ -26,7 +27,7 @@ const formatCurrency = (amount: number) =>
     maximumFractionDigits: 0,
   }).format(amount);
 
-export const UpcomingBillsWidget: React.FC = () => {
+const UpcomingBillsWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
   const isDark = useColorModeValue(false, true);
 
@@ -157,3 +158,5 @@ export const UpcomingBillsWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const UpcomingBillsWidget = memo(UpcomingBillsWidgetBase);

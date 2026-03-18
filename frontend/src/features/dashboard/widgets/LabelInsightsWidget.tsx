@@ -16,6 +16,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
+import { memo } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { useUserView } from "../../../contexts/UserViewContext";
 import api from "../../../services/api";
@@ -43,7 +44,7 @@ const fmt = (n: number): string =>
     maximumFractionDigits: 0,
   }).format(Math.abs(n));
 
-export const LabelInsightsWidget: React.FC = () => {
+const LabelInsightsWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const now = new Date();
@@ -175,3 +176,5 @@ export const LabelInsightsWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const LabelInsightsWidget = memo(LabelInsightsWidgetBase);

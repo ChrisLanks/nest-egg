@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.constants.financial import FIRE, HEALTHCARE, RETIREMENT, SS, TAX
 from app.models.retirement import DistributionType, LifeEventCategory, WithdrawalStrategy
 
 # --- Spending Phases ---
@@ -146,32 +147,40 @@ class RetirementScenarioCreate(BaseModel):
     name: str = Field(max_length=200)
     description: Optional[str] = None
     retirement_age: int = Field(ge=15, le=95)
-    life_expectancy: int = Field(default=95, ge=15, le=120)
+    life_expectancy: int = Field(default=RETIREMENT.DEFAULT_LIFE_EXPECTANCY, ge=15, le=120)
     current_annual_income: Optional[Decimal] = None
     annual_spending_retirement: Decimal = Field(gt=0)
 
-    # Return assumptions
-    pre_retirement_return: Decimal = Field(default=Decimal("7.00"), ge=0, le=30)
-    post_retirement_return: Decimal = Field(default=Decimal("5.00"), ge=0, le=30)
-    volatility: Decimal = Field(default=Decimal("15.00"), ge=0, le=50)
-    inflation_rate: Decimal = Field(default=Decimal("3.00"), ge=0, le=20)
-    medical_inflation_rate: Decimal = Field(default=Decimal("6.00"), ge=0, le=20)
+    # Return assumptions (values in percent, e.g. 7.00 = 7%)
+    pre_retirement_return: Decimal = Field(default=FIRE.DEFAULT_EXPECTED_RETURN_PCT, ge=0, le=30)
+    post_retirement_return: Decimal = Field(
+        default=FIRE.DEFAULT_POST_RETIREMENT_RETURN_PCT, ge=0, le=30
+    )
+    volatility: Decimal = Field(default=Decimal(str(FIRE.MC_VOLATILITY)), ge=0, le=50)
+    inflation_rate: Decimal = Field(default=FIRE.DEFAULT_INFLATION_PCT, ge=0, le=20)
+    medical_inflation_rate: Decimal = Field(
+        default=Decimal(str(HEALTHCARE.DEFAULT_MEDICAL_INFLATION)), ge=0, le=20
+    )
 
     # Social Security
     social_security_monthly: Optional[Decimal] = None
-    social_security_start_age: Optional[int] = Field(default=67, ge=62, le=70)
+    social_security_start_age: Optional[int] = Field(
+        default=RETIREMENT.DEFAULT_RETIREMENT_AGE, ge=SS.MIN_CLAIMING_AGE, le=SS.MAX_CLAIMING_AGE
+    )
     use_estimated_pia: bool = True
     spouse_social_security_monthly: Optional[Decimal] = None
-    spouse_social_security_start_age: Optional[int] = Field(None, ge=62, le=70)
+    spouse_social_security_start_age: Optional[int] = Field(
+        None, ge=SS.MIN_CLAIMING_AGE, le=SS.MAX_CLAIMING_AGE
+    )
 
     # Withdrawal
     withdrawal_strategy: WithdrawalStrategy = WithdrawalStrategy.TAX_OPTIMIZED
-    withdrawal_rate: Decimal = Field(default=Decimal("4.00"), ge=0, le=20)
+    withdrawal_rate: Decimal = Field(default=FIRE.DEFAULT_WITHDRAWAL_RATE_PCT, ge=0, le=20)
 
-    # Tax
-    federal_tax_rate: Decimal = Field(default=Decimal("22.00"), ge=0, le=50)
-    state_tax_rate: Decimal = Field(default=Decimal("5.00"), ge=0, le=20)
-    capital_gains_rate: Decimal = Field(default=Decimal("15.00"), ge=0, le=30)
+    # Tax (values in percent, e.g. 22.00 = 22%)
+    federal_tax_rate: Decimal = Field(default=TAX.FEDERAL_MARGINAL_RATE * 100, ge=0, le=50)
+    state_tax_rate: Decimal = Field(default=TAX.STATE_AVERAGE_RATE * 100, ge=0, le=20)
+    capital_gains_rate: Decimal = Field(default=FIRE.DEFAULT_CAPITAL_GAINS_RATE_PCT, ge=0, le=30)
 
     # Healthcare cost overrides (annual, None = use estimate)
     healthcare_pre65_override: Optional[Decimal] = Field(None, ge=0)
@@ -179,7 +188,7 @@ class RetirementScenarioCreate(BaseModel):
     healthcare_ltc_override: Optional[Decimal] = Field(None, ge=0)
 
     # Config
-    num_simulations: int = Field(default=2500, ge=100, le=10000)
+    num_simulations: int = Field(default=FIRE.MC_DEFAULT_SIMS, ge=100, le=10000)
     inflation_adjusted: bool = True
     distribution_type: DistributionType = DistributionType.NORMAL
     is_shared: bool = True
@@ -215,10 +224,14 @@ class RetirementScenarioUpdate(BaseModel):
     medical_inflation_rate: Optional[Decimal] = Field(None, ge=0, le=20)
 
     social_security_monthly: Optional[Decimal] = None
-    social_security_start_age: Optional[int] = Field(None, ge=62, le=70)
+    social_security_start_age: Optional[int] = Field(
+        None, ge=SS.MIN_CLAIMING_AGE, le=SS.MAX_CLAIMING_AGE
+    )
     use_estimated_pia: Optional[bool] = None
     spouse_social_security_monthly: Optional[Decimal] = None
-    spouse_social_security_start_age: Optional[int] = Field(None, ge=62, le=70)
+    spouse_social_security_start_age: Optional[int] = Field(
+        None, ge=SS.MIN_CLAIMING_AGE, le=SS.MAX_CLAIMING_AGE
+    )
 
     withdrawal_strategy: Optional[WithdrawalStrategy] = None
     withdrawal_rate: Optional[Decimal] = Field(None, ge=0, le=20)
@@ -420,15 +433,19 @@ class QuickSimulationRequest(BaseModel):
     annual_contributions: Decimal = Field(default=Decimal("0"), ge=0)
     retirement_age: int = Field(ge=15, le=95)
     current_age: int = Field(ge=18, le=100)
-    life_expectancy: int = Field(default=95, ge=15, le=120)
+    life_expectancy: int = Field(default=RETIREMENT.DEFAULT_LIFE_EXPECTANCY, ge=15, le=120)
     annual_spending: Decimal = Field(gt=0)
-    pre_retirement_return: float = Field(default=7.0, ge=0, le=30)
-    post_retirement_return: float = Field(default=5.0, ge=0, le=30)
-    volatility: float = Field(default=15.0, ge=0, le=50)
-    inflation_rate: float = Field(default=3.0, ge=0, le=20)
-    withdrawal_rate: float = Field(default=4.0, ge=0, le=20)
+    pre_retirement_return: float = Field(default=FIRE.MC_PRE_RETIREMENT_RETURN, ge=0, le=30)
+    post_retirement_return: float = Field(default=FIRE.MC_POST_RETIREMENT_RETURN, ge=0, le=30)
+    volatility: float = Field(default=FIRE.MC_VOLATILITY, ge=0, le=50)
+    inflation_rate: float = Field(default=FIRE.MC_INFLATION, ge=0, le=20)
+    withdrawal_rate: float = Field(default=float(FIRE.DEFAULT_WITHDRAWAL_RATE_PCT), ge=0, le=20)
     social_security_monthly: Optional[float] = None
-    social_security_start_age: int = Field(default=67, ge=62, le=70)
+    social_security_start_age: int = Field(
+        default=RETIREMENT.DEFAULT_RETIREMENT_AGE,
+        ge=SS.MIN_CLAIMING_AGE,
+        le=SS.MAX_CLAIMING_AGE,
+    )
 
 
 class QuickSimulationResponse(BaseModel):

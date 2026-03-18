@@ -19,6 +19,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
+import { memo } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import api from "../../../services/api";
 
@@ -41,11 +42,11 @@ const fmt = (n: number | null | undefined): string => {
   }).format(n);
 };
 
-export const DividendIncomeWidget: React.FC = () => {
+const DividendIncomeWidgetBase: React.FC = () => {
   const { data, isLoading, isError } = useQuery<DividendSummaryData>({
     queryKey: ["dividend-summary-widget"],
     queryFn: async () => {
-      const res = await api.get("/api/v1/dividend-income/summary");
+      const res = await api.get("/dividend-income/summary");
       return res.data;
     },
     retry: false,
@@ -145,3 +146,5 @@ export const DividendIncomeWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const DividendIncomeWidget = memo(DividendIncomeWidgetBase);

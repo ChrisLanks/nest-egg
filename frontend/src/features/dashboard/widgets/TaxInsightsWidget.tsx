@@ -2,6 +2,7 @@
  * Compact tax insights widget — shows age-based tax action items.
  */
 
+import { memo } from "react";
 import {
   Badge,
   Box,
@@ -35,11 +36,11 @@ interface TaxInsightsData {
 const priorityColor = (priority: string): string =>
   priority === "action" ? "orange" : "blue";
 
-export const TaxInsightsWidget: React.FC = () => {
+const TaxInsightsWidgetBase: React.FC = () => {
   const { data, isLoading, isError } = useQuery<TaxInsightsData>({
     queryKey: ["tax-insights-widget"],
     queryFn: async () => {
-      const res = await api.get("/api/v1/tax-advisor/insights");
+      const res = await api.get("/tax-advisor/insights");
       return res.data;
     },
     retry: false,
@@ -146,3 +147,5 @@ export const TaxInsightsWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const TaxInsightsWidget = memo(TaxInsightsWidgetBase);

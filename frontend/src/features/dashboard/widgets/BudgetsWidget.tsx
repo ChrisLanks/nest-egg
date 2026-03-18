@@ -11,6 +11,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { useQueries, useQuery } from "@tanstack/react-query";
+import { memo } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { budgetsApi } from "../../../api/budgets";
 import { useUserView } from "../../../contexts/UserViewContext";
@@ -23,7 +24,7 @@ const formatCurrency = (amount: number) =>
     maximumFractionDigits: 0,
   }).format(amount);
 
-export const BudgetsWidget: React.FC = () => {
+const BudgetsWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
   const { data: budgets, isLoading } = useQuery({
@@ -111,3 +112,5 @@ export const BudgetsWidget: React.FC = () => {
     </Card>
   );
 };
+
+export const BudgetsWidget = memo(BudgetsWidgetBase);

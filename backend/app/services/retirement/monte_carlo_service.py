@@ -17,6 +17,7 @@ from decimal import Decimal
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import FIRE, MEDICARE, RETIREMENT
 from app.models.account import Account, AccountType
 from app.models.contribution import AccountContribution
 from app.models.retirement import (
@@ -386,9 +387,9 @@ class RetirementMonteCarloService:
                 )
                 total = hc["total"]
                 # Apply overrides by phase
-                if age < 65 and pre65_override is not None:
+                if age < MEDICARE.ELIGIBILITY_AGE and pre65_override is not None:
                     total = pre65_override
-                elif 65 <= age < 85 and medicare_override is not None:
+                elif MEDICARE.ELIGIBILITY_AGE <= age < 85 and medicare_override is not None:
                     total = medicare_override
                 elif age >= 85:
                     # Age 85+: medicare + LTC components
@@ -656,13 +657,13 @@ class RetirementMonteCarloService:
         retirement_age: int,
         life_expectancy: int,
         annual_spending: float,
-        pre_retirement_return: float = 7.0,
-        post_retirement_return: float = 5.0,
-        volatility: float = 15.0,
-        inflation_rate: float = 3.0,
+        pre_retirement_return: float = FIRE.MC_PRE_RETIREMENT_RETURN,
+        post_retirement_return: float = FIRE.MC_POST_RETIREMENT_RETURN,
+        volatility: float = FIRE.MC_VOLATILITY,
+        inflation_rate: float = FIRE.MC_INFLATION,
         social_security_monthly: float = 0.0,
-        social_security_start_age: int = 67,
-        num_sims: int = 500,
+        social_security_start_age: int = RETIREMENT.DEFAULT_RETIREMENT_AGE,
+        num_sims: int = FIRE.MC_QUICK_SIMS,
     ) -> dict:
         """Lightweight simulation for real-time slider exploration. No DB access."""
         total_years = life_expectancy - current_age

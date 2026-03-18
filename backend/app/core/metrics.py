@@ -17,6 +17,9 @@ Prod: override METRICS_USERNAME and METRICS_PASSWORD in environment.
 
 import base64
 import hmac
+import ipaddress
+import logging
+import socket
 
 from fastapi import FastAPI
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
@@ -28,6 +31,8 @@ from starlette.routing import Route
 from starlette.types import ASGIApp
 
 from app.config import settings
+
+_logger = logging.getLogger(__name__)
 
 
 # Custom Prometheus metrics
@@ -192,7 +197,30 @@ def create_metrics_app() -> ASGIApp:
 
     Prod: override METRICS_USERNAME / METRICS_PASSWORD in environment.
     """
+    # Resolve DNS names in allowlist to IPs at startup (cached for server lifetime)
+    _resolved_ips: set[str] = set()
+    for entry in settings.METRICS_ALLOWED_HOSTS:
+        entry = entry.strip()
+        if not entry:
+            continue
+        try:
+            ipaddress.ip_address(entry)
+            _resolved_ips.add(entry)
+        except ValueError:
+            # Treat as DNS name — resolve to IP(s)
+            try:
+                for info in socket.getaddrinfo(entry, None):
+                    _resolved_ips.add(info[4][0])
+            except socket.gaierror:
+                _logger.warning("Metrics allowlist: failed to resolve DNS name '%s'", entry)
+
     async def metrics_endpoint(request: Request) -> Response:
+        # IP/DNS allowlist check (if configured)
+        if _resolved_ips:
+            client_ip = request.client.host if request.client else None
+            if client_ip not in _resolved_ips:
+                return Response(content="Forbidden", status_code=403)
+
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Basic "):
             return Response(
@@ -211,7 +239,9 @@ def create_metrics_app() -> ASGIApp:
                 headers={"WWW-Authenticate": 'Basic realm="metrics"'},
             )
 
-        if not (hmac.compare_digest(username, settings.METRICS_USERNAME) and hmac.compare_digest(password, settings.METRICS_PASSWORD)):
+        valid_user = hmac.compare_digest(username, settings.METRICS_USERNAME)
+        valid_pass = hmac.compare_digest(password, settings.METRICS_PASSWORD)
+        if not (valid_user and valid_pass):
             return Response(
                 content="Unauthorized",
                 status_code=401,
