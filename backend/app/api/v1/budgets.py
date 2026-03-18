@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_db, verify_household_member
 from app.models.user import User
 from app.schemas.budget import (
     BudgetCreate,
@@ -48,6 +48,8 @@ async def list_budgets(
     db: AsyncSession = Depends(get_db),
 ):
     """Get all budgets for current user's organization."""
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
     budgets = await budget_service.get_budgets(
         db=db,
         user=current_user,

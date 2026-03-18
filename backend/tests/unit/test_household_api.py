@@ -991,7 +991,7 @@ class TestAcceptInvitation:
 
             # Verify old org deleted
             mock_db.delete.assert_called_with(old_org)
-            assert mock_db.commit.call_count == 2  # Once for migration, once for org delete
+            assert mock_db.commit.call_count == 3  # Migration, org delete, notification
 
     @pytest.mark.asyncio
     async def test_migrates_user_without_accounts(self, mock_db, mock_request):
@@ -1428,7 +1428,7 @@ class TestLeaveHousehold:
         result = await leave_household(current_user=user, db=mock_db)
 
         assert "message" in result
-        mock_db.commit.assert_called_once()
+        assert mock_db.commit.call_count == 2  # Main commit + notification service commit
 
     @pytest.mark.asyncio
     async def test_leave_moves_accounts_to_new_org(self):
@@ -1554,8 +1554,8 @@ class TestLeaveHousehold:
 
         # The UPDATE call should have been made (execute called at least 2 times now)
         assert mock_db.execute.call_count >= 2
-        # Commit should still happen
-        mock_db.commit.assert_called_once()
+        # Commit should happen twice: main commit + notification service commit
+        assert mock_db.commit.call_count == 2
 
     @pytest.mark.asyncio
     async def test_leave_copies_shared_budgets(self):

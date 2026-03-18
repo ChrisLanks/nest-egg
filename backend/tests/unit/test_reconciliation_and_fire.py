@@ -254,3 +254,57 @@ class TestFireServiceCalculations:
         # savings = 5000 - 3000 = 2000, rate = 2000/5000 = 0.4
         assert result["savings_rate"] == 0.4
         assert result["savings"] == 2000.0
+
+    # -- calculate_coast_fi (age from birth dates) --
+
+    @pytest.mark.asyncio
+    async def test_coast_fi_uses_actual_birth_year(self):
+        """years_until_retirement should reflect the member's actual age, not hardcoded 30."""
+        from datetime import date
+        from unittest.mock import MagicMock
+
+        from app.utils.datetime_utils import utc_now
+
+        service = self._make_service()
+        org_id = uuid4()
+
+        service._get_investable_assets = AsyncMock(return_value=Decimal("200000"))
+        service._get_trailing_annual_spending = AsyncMock(return_value=Decimal("50000"))
+
+        # Simulate a 40-year-old member: retirement_age=65 => 25 years
+        current_year = utc_now().year
+        birth_year = current_year - 40
+        mock_birthdate = date(birth_year, 6, 15)
+
+        # DB returns one row with (birthdate,)
+        member_row = MagicMock()
+        member_row.__getitem__ = lambda self, i: mock_birthdate  # row[0]
+        mock_result = MagicMock()
+        mock_result.all.return_value = [(mock_birthdate,)]
+        service.db.execute = AsyncMock(return_value=mock_result)
+
+        result = await service.calculate_coast_fi(org_id, retirement_age=65)
+
+        assert result["years_until_retirement"] == 25
+        assert result["retirement_age"] == 65
+
+    @pytest.mark.asyncio
+    async def test_coast_fi_defaults_age_when_no_birth_dates(self):
+        """Falls back to age-35 default when no members have birth dates."""
+        from unittest.mock import MagicMock
+
+        service = self._make_service()
+        org_id = uuid4()
+
+        service._get_investable_assets = AsyncMock(return_value=Decimal("100000"))
+        service._get_trailing_annual_spending = AsyncMock(return_value=Decimal("40000"))
+
+        mock_result = MagicMock()
+        mock_result.all.return_value = []  # No birth dates
+        service.db.execute = AsyncMock(return_value=mock_result)
+
+        result = await service.calculate_coast_fi(org_id, retirement_age=65)
+
+        # Default age = 35, so years = 65 - 35 = 30
+        assert result["years_until_retirement"] == 30
+        assert result["retirement_age"] == 65

@@ -351,9 +351,28 @@ class FireService:
 
         fi_number = float(annual_expenses) / withdrawal_rate
 
-        # Estimate years until retirement (assume user is ~30 if we can't determine age)
-        # In a production system, this would come from the user's profile/birth date
-        years_until_retirement = max(retirement_age - 30, 1)
+        # Compute average current age from member birth dates
+        from app.models.user import User as UserModel
+
+        member_conditions = [
+            UserModel.organization_id == organization_id,
+            UserModel.is_active.is_(True),
+            UserModel.birthdate.isnot(None),
+        ]
+        if user_id is not None:
+            member_conditions.append(UserModel.id == user_id)
+        members_result = await self.db.execute(
+            select(UserModel.birthdate).where(and_(*member_conditions))
+        )
+        birth_years = [row[0].year for row in members_result.all()]
+
+        if birth_years:
+            avg_birth_year = round(sum(birth_years) / len(birth_years))
+            current_age = utc_now().year - avg_birth_year
+        else:
+            current_age = 35  # Reasonable default when no birth dates are set
+
+        years_until_retirement = max(retirement_age - current_age, 1)
 
         real_return = expected_return - FIRE.DEFAULT_INFLATION  # Assume 3% inflation
 
