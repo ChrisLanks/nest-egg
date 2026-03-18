@@ -15,10 +15,12 @@ from app.core.database import get_db
 from app.dependencies import get_current_admin_user, get_current_user
 from app.models.account import Account
 from app.models.budget import Budget
+from app.models.notification import NotificationPriority, NotificationType
 from app.models.savings_goal import SavingsGoal
 from app.models.transaction import Transaction
 from app.models.user import HouseholdInvitation, InvitationStatus, Organization, User
 from app.services.email_service import email_service
+from app.services.notification_service import NotificationService
 from app.services.rate_limit_service import get_rate_limit_service
 from app.utils.datetime_utils import utc_now
 
@@ -274,6 +276,22 @@ async def remove_member(
     )
 
     await db.commit()
+
+    # Notify remaining household members
+    await NotificationService.create_notification(
+        db=db,
+        organization_id=current_user.organization_id,
+        type=NotificationType.HOUSEHOLD_MEMBER_LEFT,
+        title=f"{member_name} was removed from the household",
+        message=(
+            f"{member_name} has been removed. "
+            "Their accounts are no longer part of your shared finances."
+        ),
+        priority=NotificationPriority.MEDIUM,
+        action_url="/settings",
+        action_label="View Household",
+        expires_in_days=14,
+    )
 
     return None
 
@@ -540,6 +558,20 @@ async def leave_household(
         )
         db.add(new_goal)
 
+    # Notify old household before moving the user
+    leaver_name = current_user.display_name or current_user.first_name or current_user.email
+    await NotificationService.create_notification(
+        db=db,
+        organization_id=current_user.organization_id,
+        type=NotificationType.HOUSEHOLD_MEMBER_LEFT,
+        title=f"{leaver_name} left the household",
+        message=f"{leaver_name} has left your household. Their accounts have been moved.",
+        priority=NotificationPriority.MEDIUM,
+        action_url="/settings",
+        action_label="View Household",
+        expires_in_days=14,
+    )
+
     # Re-home the user
     current_user.organization_id = new_org.id
     current_user.is_primary_household_member = True
@@ -709,6 +741,20 @@ async def accept_invitation(
             await db.delete(old_org)
             await db.commit()
 
+        # Notify household that a new member joined
+        joiner_name = existing_user.display_name or existing_user.first_name or existing_user.email
+        await NotificationService.create_notification(
+            db=db,
+            organization_id=invitation.organization_id,
+            type=NotificationType.HOUSEHOLD_MEMBER_JOINED,
+            title=f"{joiner_name} joined your household!",
+            message=f"{joiner_name} has accepted the invitation and joined your household.",
+            priority=NotificationPriority.MEDIUM,
+            action_url="/settings",
+            action_label="View Household",
+            expires_in_days=14,
+        )
+
         return {
             "message": "Invitation accepted successfully",
             "organization_id": str(invitation.organization_id),
@@ -724,6 +770,20 @@ async def accept_invitation(
         invitation.accepted_at = utc_now()
 
         await db.commit()
+
+        # Notify household that a new member joined
+        joiner_name = existing_user.display_name or existing_user.first_name or existing_user.email
+        await NotificationService.create_notification(
+            db=db,
+            organization_id=invitation.organization_id,
+            type=NotificationType.HOUSEHOLD_MEMBER_JOINED,
+            title=f"{joiner_name} joined your household!",
+            message=f"{joiner_name} has accepted the invitation and joined your household.",
+            priority=NotificationPriority.MEDIUM,
+            action_url="/settings",
+            action_label="View Household",
+            expires_in_days=14,
+        )
 
         return {
             "message": "Invitation accepted successfully",

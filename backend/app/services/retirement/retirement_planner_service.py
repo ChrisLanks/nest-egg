@@ -460,6 +460,25 @@ class RetirementPlannerService:
 
         if archived_count:
             await db.flush()
+
+            # Notify household about stale retirement scenarios
+            from app.models.notification import NotificationPriority, NotificationType
+            from app.services.notification_service import NotificationService
+
+            await NotificationService.create_notification(
+                db=db,
+                organization_id=organization_id,
+                type=NotificationType.RETIREMENT_SCENARIO_STALE,
+                title="Retirement scenario needs attention",
+                message=(
+                    f"{archived_count} retirement scenario(s) were archived because "
+                    f"{departed_user_name} is no longer in the household."
+                ),
+                priority=NotificationPriority.LOW,
+                action_url="/retirement",
+                action_label="View Scenarios",
+                expires_in_days=30,
+            )
         return archived_count
 
     @staticmethod

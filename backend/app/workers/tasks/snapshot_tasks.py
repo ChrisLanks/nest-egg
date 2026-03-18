@@ -203,6 +203,21 @@ def capture_org_portfolio_snapshot(organization_id: str):
                     e,
                 )
 
+            # Check FIRE milestones (Coast FI, Financial Independence)
+            try:
+                from app.services.fire_service import FireService
+
+                fire_service = FireService(db)
+                await fire_service.check_fire_milestones(
+                    organization_id=organization_id,
+                )
+            except Exception as e:
+                logger.error(
+                    "capture_org_portfolio_snapshot: FIRE milestone check failed for org=%s: %s",
+                    organization_id,
+                    e,
+                )
+
     asyncio.run(_run())
 
 

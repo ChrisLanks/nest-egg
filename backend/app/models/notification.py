@@ -25,6 +25,11 @@ class NotificationType(str, enum.Enum):
     LARGE_TRANSACTION = "large_transaction"
     MILESTONE = "milestone"
     ALL_TIME_HIGH = "all_time_high"
+    HOUSEHOLD_MEMBER_JOINED = "household_member_joined"
+    HOUSEHOLD_MEMBER_LEFT = "household_member_left"
+    FIRE_COAST_FI = "fire_coast_fi"
+    FIRE_INDEPENDENT = "fire_independent"
+    RETIREMENT_SCENARIO_STALE = "retirement_scenario_stale"
 
 
 class NotificationPriority(str, enum.Enum):

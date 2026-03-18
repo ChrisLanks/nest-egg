@@ -8,12 +8,14 @@ from typing import Dict, Optional
 from uuid import UUID
 
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import FIRE
 from app.models.account import Account, AccountType
+from app.models.notification import Notification, NotificationPriority, NotificationType
 from app.services.dashboard_service import DashboardService
+from app.services.notification_service import NotificationService
 from app.utils.account_type_groups import ALL_RETIREMENT_TYPES
 from app.utils.datetime_utils import utc_now
 
@@ -406,3 +408,80 @@ class FireService:
             "years_to_fi": years_to_fi,
             "coast_fi": coast_fi,
         }
+
+    async def check_fire_milestones(
+        self,
+        organization_id: UUID,
+    ) -> None:
+        """
+        Check if household crossed Coast FI or full FI and create notifications.
+
+        Uses existence of prior non-dismissed notification as "already notified" flag
+        to avoid duplicate notifications.
+        """
+        try:
+            metrics = await self.get_fire_dashboard(organization_id)
+        except Exception:
+            logger.debug("Skipping FIRE milestone check for org=%s (no data)", organization_id)
+            return
+
+        fi_ratio = metrics["fi_ratio"]["fi_ratio"]
+        is_coast_fi = metrics["coast_fi"]["is_coast_fi"]
+
+        # Check FI reached (fi_ratio >= 1.0)
+        if fi_ratio >= 1.0:
+            existing = await self.db.execute(
+                select(func.count())
+                .select_from(Notification)
+                .where(
+                    Notification.organization_id == organization_id,
+                    Notification.type == NotificationType.FIRE_INDEPENDENT,
+                    Notification.is_dismissed.is_(False),
+                )
+            )
+            if existing.scalar_one() == 0:
+                await NotificationService.create_notification(
+                    db=self.db,
+                    organization_id=organization_id,
+                    type=NotificationType.FIRE_INDEPENDENT,
+                    title="Financial Independence reached!",
+                    message=(
+                        "Congratulations! Your investable assets now cover your "
+                        "annual expenses at your chosen withdrawal rate. "
+                        "You are financially independent!"
+                    ),
+                    priority=NotificationPriority.LOW,
+                    action_url="/fire",
+                    action_label="View FIRE Dashboard",
+                    expires_in_days=30,
+                )
+                logger.info("FIRE Independent milestone reached for org=%s", organization_id)
+
+        # Check Coast FI reached
+        if is_coast_fi:
+            existing = await self.db.execute(
+                select(func.count())
+                .select_from(Notification)
+                .where(
+                    Notification.organization_id == organization_id,
+                    Notification.type == NotificationType.FIRE_COAST_FI,
+                    Notification.is_dismissed.is_(False),
+                )
+            )
+            if existing.scalar_one() == 0:
+                await NotificationService.create_notification(
+                    db=self.db,
+                    organization_id=organization_id,
+                    type=NotificationType.FIRE_COAST_FI,
+                    title="Coast FI reached!",
+                    message=(
+                        "Your household has reached Coast FI! Even without "
+                        "additional savings, your current investments are projected "
+                        "to grow to your FI number by retirement age."
+                    ),
+                    priority=NotificationPriority.LOW,
+                    action_url="/fire",
+                    action_label="View FIRE Dashboard",
+                    expires_in_days=30,
+                )
+                logger.info("Coast FI milestone reached for org=%s", organization_id)
