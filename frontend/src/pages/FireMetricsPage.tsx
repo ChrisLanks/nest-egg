@@ -545,7 +545,7 @@ export const FireMetricsPage = () => {
                           </StatNumber>
                         </Stat>
                         <Stat size="sm">
-                          <Tooltip label="How many years until you reach your target retirement age">
+                          <Tooltip label="Years until your target retirement age, calculated from your household's average birth year (set in profile)">
                             <StatLabel cursor="help">
                               Years to Retirement
                             </StatLabel>
