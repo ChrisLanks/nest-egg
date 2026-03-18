@@ -23,15 +23,32 @@ import {
   StatNumber,
   StatHelpText,
   Text,
+  Tooltip,
   VStack,
   Badge,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { fireApi, type FireMetricsResponse } from "../api/fire";
 import { useUserView } from "../contexts/UserViewContext";
 import HelpHint from "../components/HelpHint";
 import { helpContent } from "../constants/helpContent";
+
+const STORAGE_KEY = "fire-assumptions";
+
+function loadAssumptions(): {
+  withdrawalRate: string;
+  expectedReturn: string;
+  retirementAge: string;
+} {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    /* ignore */
+  }
+  return { withdrawalRate: "4", expectedReturn: "7", retirementAge: "65" };
+}
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-US", {
@@ -72,9 +89,49 @@ export const FireMetricsPage = () => {
   } = useUserView();
   const multiEffectiveUserId = memberEffectiveUserId;
   const selectedIdsKey = selectedMemberIdsKey;
-  const [withdrawalRate, setWithdrawalRate] = useState("4");
-  const [expectedReturn, setExpectedReturn] = useState("7");
-  const [retirementAge, setRetirementAge] = useState("65");
+  const saved = loadAssumptions();
+  const [withdrawalRate, setWithdrawalRate] = useState(saved.withdrawalRate);
+  const [expectedReturn, setExpectedReturn] = useState(saved.expectedReturn);
+  const [retirementAge, setRetirementAge] = useState(saved.retirementAge);
+
+  const persist = useCallback((wr: string, er: string, ra: string) => {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          withdrawalRate: wr,
+          expectedReturn: er,
+          retirementAge: ra,
+        }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleWithdrawalRate = useCallback(
+    (s: string) => {
+      setWithdrawalRate(s);
+      persist(s, expectedReturn, retirementAge);
+    },
+    [expectedReturn, retirementAge, persist],
+  );
+
+  const handleExpectedReturn = useCallback(
+    (s: string) => {
+      setExpectedReturn(s);
+      persist(withdrawalRate, s, retirementAge);
+    },
+    [withdrawalRate, retirementAge, persist],
+  );
+
+  const handleRetirementAge = useCallback(
+    (s: string) => {
+      setRetirementAge(s);
+      persist(withdrawalRate, expectedReturn, s);
+    },
+    [withdrawalRate, expectedReturn, persist],
+  );
 
   // In combined view, use multi-member filter; otherwise use the global selected user
   const effectiveUserId = isCombinedView
@@ -138,13 +195,15 @@ export const FireMetricsPage = () => {
           </Text>
           <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
             <FormControl>
-              <FormLabel fontSize="sm">
-                Withdrawal Rate (%)
-                <HelpHint hint={helpContent.fire.withdrawalRate} />
-              </FormLabel>
+              <Tooltip label="The percentage of your portfolio you plan to withdraw each year in retirement — 4% is a common starting point">
+                <FormLabel fontSize="sm" cursor="help">
+                  Withdrawal Rate (%)
+                  <HelpHint hint={helpContent.fire.withdrawalRate} />
+                </FormLabel>
+              </Tooltip>
               <NumberInput
                 value={withdrawalRate}
-                onChange={(s) => setWithdrawalRate(s)}
+                onChange={handleWithdrawalRate}
                 min={1}
                 max={10}
                 step={0.01}
@@ -154,10 +213,14 @@ export const FireMetricsPage = () => {
               </NumberInput>
             </FormControl>
             <FormControl>
-              <FormLabel fontSize="sm">Expected Return (%)</FormLabel>
+              <Tooltip label="The average annual growth you expect from your investments — historically stocks average ~7% after inflation">
+                <FormLabel fontSize="sm" cursor="help">
+                  Expected Return (%)
+                </FormLabel>
+              </Tooltip>
               <NumberInput
                 value={expectedReturn}
-                onChange={(s) => setExpectedReturn(s)}
+                onChange={handleExpectedReturn}
                 min={0}
                 max={20}
                 step={0.01}
@@ -167,10 +230,14 @@ export const FireMetricsPage = () => {
               </NumberInput>
             </FormControl>
             <FormControl>
-              <FormLabel fontSize="sm">Retirement Age</FormLabel>
+              <Tooltip label="The age you plan to stop working — used to calculate Coast FI and years remaining">
+                <FormLabel fontSize="sm" cursor="help">
+                  Retirement Age
+                </FormLabel>
+              </Tooltip>
               <NumberInput
                 value={retirementAge}
-                onChange={(s) => setRetirementAge(s)}
+                onChange={handleRetirementAge}
                 min={30}
                 max={100}
                 size="sm"
@@ -252,19 +319,27 @@ export const FireMetricsPage = () => {
                       </CircularProgress>
                       <SimpleGrid columns={2} spacing={4} w="full">
                         <Stat size="sm">
-                          <StatLabel>Investable Assets</StatLabel>
+                          <Tooltip label="Total value of your investment and retirement accounts">
+                            <StatLabel cursor="help">
+                              Investable Assets
+                            </StatLabel>
+                          </Tooltip>
                           <StatNumber fontSize="md">
                             {formatCurrency(data.fi_ratio.investable_assets)}
                           </StatNumber>
                         </Stat>
                         <Stat size="sm">
-                          <StatLabel>FI Number</StatLabel>
+                          <Tooltip label="The portfolio size needed to live off investments — your annual expenses divided by your withdrawal rate">
+                            <StatLabel cursor="help">FI Number</StatLabel>
+                          </Tooltip>
                           <StatNumber fontSize="md">
                             {formatCurrency(data.fi_ratio.fi_number)}
                           </StatNumber>
                         </Stat>
                         <Stat size="sm">
-                          <StatLabel>Annual Expenses</StatLabel>
+                          <Tooltip label="Your total spending over the last 12 months">
+                            <StatLabel cursor="help">Annual Expenses</StatLabel>
+                          </Tooltip>
                           <StatNumber fontSize="md">
                             {formatCurrency(data.fi_ratio.annual_expenses)}
                           </StatNumber>
@@ -316,7 +391,9 @@ export const FireMetricsPage = () => {
                       </CircularProgress>
                       <SimpleGrid columns={2} spacing={4} w="full">
                         <Stat size="sm">
-                          <StatLabel>Income</StatLabel>
+                          <Tooltip label="Total income from all sources over the period">
+                            <StatLabel cursor="help">Income</StatLabel>
+                          </Tooltip>
                           <StatNumber fontSize="md">
                             {formatCurrency(data.savings_rate.income)}
                           </StatNumber>
@@ -325,13 +402,17 @@ export const FireMetricsPage = () => {
                           </StatHelpText>
                         </Stat>
                         <Stat size="sm">
-                          <StatLabel>Spending</StatLabel>
+                          <Tooltip label="Total expenses across all categories over the period">
+                            <StatLabel cursor="help">Spending</StatLabel>
+                          </Tooltip>
                           <StatNumber fontSize="md">
                             {formatCurrency(data.savings_rate.spending)}
                           </StatNumber>
                         </Stat>
                         <Stat size="sm">
-                          <StatLabel>Savings</StatLabel>
+                          <Tooltip label="Income minus spending — the amount available to invest or save">
+                            <StatLabel cursor="help">Savings</StatLabel>
+                          </Tooltip>
                           <StatNumber fontSize="md">
                             {formatCurrency(data.savings_rate.savings)}
                           </StatNumber>
@@ -386,13 +467,17 @@ export const FireMetricsPage = () => {
                     data.years_to_fi.investable_assets > 0) && (
                     <SimpleGrid columns={2} spacing={4} w="full">
                       <Stat size="sm">
-                        <StatLabel>Annual Savings</StatLabel>
+                        <Tooltip label="How much you save per year — higher savings means reaching FI faster">
+                          <StatLabel cursor="help">Annual Savings</StatLabel>
+                        </Tooltip>
                         <StatNumber fontSize="md">
                           {formatCurrency(data.years_to_fi.annual_savings)}
                         </StatNumber>
                       </Stat>
                       <Stat size="sm">
-                        <StatLabel>FI Number</StatLabel>
+                        <Tooltip label="The total portfolio value you need to be financially independent">
+                          <StatLabel cursor="help">FI Number</StatLabel>
+                        </Tooltip>
                         <StatNumber fontSize="md">
                           {formatCurrency(data.years_to_fi.fi_number)}
                         </StatNumber>
@@ -441,26 +526,38 @@ export const FireMetricsPage = () => {
                       </Badge>
                       <SimpleGrid columns={2} spacing={4} w="full">
                         <Stat size="sm">
-                          <StatLabel>Coast FI Number</StatLabel>
+                          <Tooltip label="The minimum portfolio value needed today so that investment growth alone reaches your FI number by retirement">
+                            <StatLabel cursor="help">Coast FI Number</StatLabel>
+                          </Tooltip>
                           <StatNumber fontSize="md">
                             {formatCurrency(data.coast_fi.coast_fi_number)}
                           </StatNumber>
                           <StatHelpText>Amount needed today</StatHelpText>
                         </Stat>
                         <Stat size="sm">
-                          <StatLabel>Investable Assets</StatLabel>
+                          <Tooltip label="Your current investment and retirement account balances">
+                            <StatLabel cursor="help">
+                              Investable Assets
+                            </StatLabel>
+                          </Tooltip>
                           <StatNumber fontSize="md">
                             {formatCurrency(data.coast_fi.investable_assets)}
                           </StatNumber>
                         </Stat>
                         <Stat size="sm">
-                          <StatLabel>Years to Retirement</StatLabel>
+                          <Tooltip label="How many years until you reach your target retirement age">
+                            <StatLabel cursor="help">
+                              Years to Retirement
+                            </StatLabel>
+                          </Tooltip>
                           <StatNumber fontSize="md">
                             {data.coast_fi.years_until_retirement}
                           </StatNumber>
                         </Stat>
                         <Stat size="sm">
-                          <StatLabel>Retirement Age</StatLabel>
+                          <Tooltip label="The age you set in the Assumptions section above">
+                            <StatLabel cursor="help">Retirement Age</StatLabel>
+                          </Tooltip>
                           <StatNumber fontSize="md">
                             {data.coast_fi.retirement_age}
                           </StatNumber>

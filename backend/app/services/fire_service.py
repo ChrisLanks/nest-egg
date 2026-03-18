@@ -139,16 +139,18 @@ class FireService:
         self,
         organization_id: UUID,
         user_id: Optional[UUID] = None,
+        withdrawal_rate: float = 0.04,
     ) -> Dict:
         """
         Calculate Financial Independence ratio.
 
-        FI Ratio = investable_assets / (annual_expenses * 25)
-        A ratio of 1.0 means you are financially independent (4% rule).
+        FI Ratio = investable_assets / (annual_expenses / withdrawal_rate)
+        A ratio of 1.0 means you are financially independent.
 
         Args:
             organization_id: Organization ID
             user_id: User ID (None = combined household)
+            withdrawal_rate: Safe withdrawal rate (default 4%)
 
         Returns:
             Dict with fi_ratio, investable_assets, annual_expenses, fi_number
@@ -156,8 +158,8 @@ class FireService:
         investable = await self._get_investable_assets(organization_id, user_id)
         annual_expenses = await self._get_trailing_annual_spending(organization_id, user_id)
 
-        fi_number = annual_expenses * FIRE.FI_MULTIPLIER  # 4% rule target
-        fi_ratio = float(investable / fi_number) if fi_number > 0 else 0.0
+        fi_number = float(annual_expenses) / withdrawal_rate
+        fi_ratio = float(investable) / fi_number if fi_number > 0 else 0.0
 
         return {
             "fi_ratio": round(fi_ratio, 4),
@@ -321,6 +323,7 @@ class FireService:
         user_id: Optional[UUID] = None,
         retirement_age: int = 65,
         expected_return: float = 0.07,
+        withdrawal_rate: float = 0.04,
     ) -> Dict:
         """
         Calculate Coast FI number.
@@ -335,6 +338,7 @@ class FireService:
             user_id: User ID (None = combined household)
             retirement_age: Target retirement age (default 65)
             expected_return: Expected annual return (default 7%)
+            withdrawal_rate: Safe withdrawal rate (default 4%)
 
         Returns:
             Dict with coast_fi_number and supporting metrics
@@ -342,7 +346,7 @@ class FireService:
         investable = await self._get_investable_assets(organization_id, user_id)
         annual_expenses = await self._get_trailing_annual_spending(organization_id, user_id)
 
-        fi_number = float(annual_expenses) * FIRE.FI_MULTIPLIER  # 4% rule
+        fi_number = float(annual_expenses) / withdrawal_rate
 
         # Estimate years until retirement (assume user is ~30 if we can't determine age)
         # In a production system, this would come from the user's profile/birth date
@@ -387,13 +391,13 @@ class FireService:
         Returns:
             Dict with all FIRE metrics
         """
-        fi_ratio = await self.calculate_fi_ratio(organization_id, user_id)
+        fi_ratio = await self.calculate_fi_ratio(organization_id, user_id, withdrawal_rate)
         savings_rate = await self.calculate_savings_rate(organization_id, user_id)
         years_to_fi = await self.calculate_years_to_fi(
             organization_id, user_id, withdrawal_rate, expected_return
         )
         coast_fi = await self.calculate_coast_fi(
-            organization_id, user_id, retirement_age, expected_return
+            organization_id, user_id, retirement_age, expected_return, withdrawal_rate
         )
 
         return {

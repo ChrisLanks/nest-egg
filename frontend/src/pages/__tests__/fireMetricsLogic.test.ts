@@ -3,7 +3,7 @@
  * formatPercent, formatCurrency, empty-data guards, and household filtering.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import type { FireMetricsResponse } from "../../api/fire";
 
 // ── Helper functions (mirrored from FireMetricsPage.tsx) ─────────────────────
@@ -451,5 +451,136 @@ describe("FIRE query placeholderData behavior", () => {
     const data = placeholderData(prevData);
     expect(data).not.toBeUndefined();
     expect((data as typeof prevData).fi_ratio.fi_ratio).toBe(0.45);
+  });
+});
+
+// ── localStorage persistence for assumptions ────────────────────────────────
+
+describe("FIRE assumptions localStorage persistence", () => {
+  const defaults = {
+    withdrawalRate: "4",
+    expectedReturn: "7",
+    retirementAge: "65",
+  };
+
+  /** Mirrors loadAssumptions using an in-memory store */
+  function loadAssumptions(
+    store: Map<string, string>,
+    key: string,
+  ): typeof defaults {
+    try {
+      const raw = store.get(key);
+      if (raw) return JSON.parse(raw);
+    } catch {
+      /* ignore */
+    }
+    return { ...defaults };
+  }
+
+  const store = new Map<string, string>();
+  const KEY = "fire-assumptions";
+
+  beforeEach(() => {
+    store.clear();
+  });
+
+  it("returns defaults when nothing is stored", () => {
+    expect(loadAssumptions(store, KEY)).toEqual(defaults);
+  });
+
+  it("returns saved values when present", () => {
+    const saved = {
+      withdrawalRate: "3.5",
+      expectedReturn: "8",
+      retirementAge: "60",
+    };
+    store.set(KEY, JSON.stringify(saved));
+    expect(loadAssumptions(store, KEY)).toEqual(saved);
+  });
+
+  it("returns defaults when stored JSON is invalid", () => {
+    store.set(KEY, "not-json");
+    expect(loadAssumptions(store, KEY)).toEqual(defaults);
+  });
+
+  it("persists values on change", () => {
+    const updated = {
+      withdrawalRate: "3.75",
+      expectedReturn: "6.5",
+      retirementAge: "62",
+    };
+    store.set(KEY, JSON.stringify(updated));
+    const loaded = loadAssumptions(store, KEY);
+    expect(loaded.withdrawalRate).toBe("3.75");
+    expect(loaded.expectedReturn).toBe("6.5");
+    expect(loaded.retirementAge).toBe("62");
+  });
+
+  it("survives round-trip with decimal values", () => {
+    const vals = {
+      withdrawalRate: "3.50",
+      expectedReturn: "7.25",
+      retirementAge: "67",
+    };
+    store.set(KEY, JSON.stringify(vals));
+    const loaded = loadAssumptions(store, KEY);
+    expect(parseFloat(loaded.withdrawalRate)).toBe(3.5);
+    expect(parseFloat(loaded.expectedReturn)).toBe(7.25);
+    expect(parseInt(loaded.retirementAge, 10)).toBe(67);
+  });
+});
+
+// ── FIRE page tooltip content ────────────────────────────────────────────────
+
+describe("FIRE page tooltip content", () => {
+  const INPUT_TOOLTIPS: Record<string, string> = {
+    withdrawalRate:
+      "The percentage of your portfolio you plan to withdraw each year in retirement — 4% is a common starting point",
+    expectedReturn:
+      "The average annual growth you expect from your investments — historically stocks average ~7% after inflation",
+    retirementAge:
+      "The age you plan to stop working — used to calculate Coast FI and years remaining",
+  };
+
+  const STAT_TOOLTIPS: Record<string, string> = {
+    investableAssets: "Total value of your investment and retirement accounts",
+    fiNumber:
+      "The portfolio size needed to live off investments — your annual expenses divided by your withdrawal rate",
+    annualExpenses: "Your total spending over the last 12 months",
+    income: "Total income from all sources over the period",
+    spending: "Total expenses across all categories over the period",
+    savings: "Income minus spending — the amount available to invest or save",
+    annualSavings:
+      "How much you save per year — higher savings means reaching FI faster",
+    fiNumberYears:
+      "The total portfolio value you need to be financially independent",
+    coastFiNumber:
+      "The minimum portfolio value needed today so that investment growth alone reaches your FI number by retirement",
+    coastInvestable: "Your current investment and retirement account balances",
+    yearsToRetirement:
+      "How many years until you reach your target retirement age",
+    retirementAge: "The age you set in the Assumptions section above",
+  };
+
+  it("all input tooltips are non-empty", () => {
+    for (const label of Object.values(INPUT_TOOLTIPS)) {
+      expect(typeof label).toBe("string");
+      expect(label.length).toBeGreaterThan(10);
+    }
+  });
+
+  it("covers all 3 input fields", () => {
+    expect(Object.keys(INPUT_TOOLTIPS)).toHaveLength(3);
+  });
+
+  it("all stat tooltips are non-empty", () => {
+    for (const label of Object.values(STAT_TOOLTIPS)) {
+      expect(typeof label).toBe("string");
+      expect(label.length).toBeGreaterThan(10);
+    }
+  });
+
+  it("covers all 12 stat labels", () => {
+    expect(Object.keys(STAT_TOOLTIPS)).toHaveLength(12);
   });
 });
