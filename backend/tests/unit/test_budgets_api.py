@@ -1,6 +1,6 @@
 """Unit tests for budgets API endpoints."""
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
@@ -20,6 +20,7 @@ from app.api.v1.budgets import (
 from app.models.budget import Budget, BudgetPeriod
 from app.models.user import User
 from app.schemas.budget import BudgetCreate, BudgetUpdate
+from app.services.budget_service import BudgetService
 
 
 @pytest.mark.unit
@@ -641,3 +642,77 @@ class TestSharedBudgetFields:
 
             call_kwargs = mock_update.call_args.kwargs
             assert call_kwargs["is_shared"] is True
+
+
+@pytest.mark.unit
+class TestBudgetUniqueName:
+    """Test unique budget name per owner."""
+
+    @pytest.mark.asyncio
+    async def test_duplicate_name_rejected_on_create(self, db_session, test_user):
+        """Creating two budgets with the same name (case-insensitive) should fail."""
+        await BudgetService.create_budget(
+            db=db_session,
+            user=test_user,
+            name="Groceries",
+            amount=Decimal("500"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date.today(),
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await BudgetService.create_budget(
+                db=db_session,
+                user=test_user,
+                name="groceries",  # same name, different case
+                amount=Decimal("300"),
+                period=BudgetPeriod.MONTHLY,
+                start_date=date.today(),
+            )
+
+        assert exc_info.value.status_code == 409
+        assert "already have a budget named" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_different_users_can_have_same_name(self, db_session, test_user, second_user):
+        """Two different users should be able to create budgets with the same name."""
+        await BudgetService.create_budget(
+            db=db_session,
+            user=test_user,
+            name="Groceries",
+            amount=Decimal("500"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date.today(),
+        )
+
+        # Should NOT raise
+        budget2 = await BudgetService.create_budget(
+            db=db_session,
+            user=second_user,
+            name="Groceries",
+            amount=Decimal("400"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date.today(),
+        )
+        assert budget2.name == "Groceries"
+
+    @pytest.mark.asyncio
+    async def test_different_names_allowed_for_same_user(self, db_session, test_user):
+        """Same user should be able to create budgets with different names."""
+        b1 = await BudgetService.create_budget(
+            db=db_session,
+            user=test_user,
+            name="Groceries",
+            amount=Decimal("500"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date.today(),
+        )
+        b2 = await BudgetService.create_budget(
+            db=db_session,
+            user=test_user,
+            name="Dining Out",
+            amount=Decimal("200"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date.today(),
+        )
+        assert b1.id != b2.id

@@ -260,7 +260,7 @@ export default function BudgetsPage() {
               onAction={handleCreate}
               showAction={canEdit && (!isPartialSelection || isSelfView)}
             />
-            {canEdit && !isOtherUserView && (
+            {(isSelfView || (isOtherUserView && canEdit)) && (
               <BudgetSuggestions onAccept={handleAcceptSuggestion} />
             )}
           </>
@@ -301,8 +301,7 @@ export default function BudgetsPage() {
         {!isLoading &&
           budgets.length > 0 &&
           budgets.length <= 3 &&
-          canEdit &&
-          !isOtherUserView && (
+          (isSelfView || (isOtherUserView && canEdit)) && (
             <BudgetSuggestions onAccept={handleAcceptSuggestion} />
           )}
 

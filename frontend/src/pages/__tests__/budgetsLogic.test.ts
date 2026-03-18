@@ -327,3 +327,70 @@ describe("Empty state detection", () => {
     expect(filteredEmpty).toBe(false);
   });
 });
+
+// ── Suggestion visibility rules ─────────────────────────────────────────────
+
+/**
+ * Suggestions should only be visible when:
+ * - Self view (viewing own data)
+ * - Other user view AND canEdit (write permission granted)
+ * NOT in combined view (ambiguous who the budget is for)
+ */
+function shouldShowSuggestions(
+  isSelfView: boolean,
+  isOtherUserView: boolean,
+  canEdit: boolean,
+): boolean {
+  return isSelfView || (isOtherUserView && canEdit);
+}
+
+describe("Budget suggestions visibility", () => {
+  it("visible in self view", () => {
+    expect(shouldShowSuggestions(true, false, true)).toBe(true);
+  });
+
+  it("visible when viewing other user with write permission", () => {
+    expect(shouldShowSuggestions(false, true, true)).toBe(true);
+  });
+
+  it("hidden in combined view", () => {
+    // isSelfView=false, isOtherUserView=false → combined view
+    expect(shouldShowSuggestions(false, false, true)).toBe(false);
+  });
+
+  it("hidden when viewing other user without write permission", () => {
+    expect(shouldShowSuggestions(false, true, false)).toBe(false);
+  });
+});
+
+// ── Source-level verification ───────────────────────────────────────────────
+
+describe("BudgetsPage suggestion gating", () => {
+  it("uses isSelfView and isOtherUserView for suggestion visibility", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("src/pages/BudgetsPage.tsx", "utf-8");
+    // Suggestions should be gated on isSelfView or (isOtherUserView && canEdit)
+    expect(source).toContain("isSelfView");
+    expect(source).toContain("isOtherUserView && canEdit");
+  });
+});
+
+// ── Unique budget name per owner (backend contract) ─────────────────────────
+
+describe("Budget unique name constraint", () => {
+  it("budget model has unique index on user_id + name", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("../backend/app/models/budget.py", "utf-8");
+    expect(source).toContain("uq_budgets_user_name");
+  });
+
+  it("budget service checks for duplicate names on create", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "../backend/app/services/budget_service.py",
+      "utf-8",
+    );
+    expect(source).toContain("409_CONFLICT");
+    expect(source).toMatch(/already have a budget named/);
+  });
+});

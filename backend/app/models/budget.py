@@ -106,4 +106,5 @@ class Budget(Base):
     __table_args__ = (
         Index("ix_budgets_org_active", "organization_id", "is_active"),
         Index("ix_budgets_org_dates", "organization_id", "start_date", "end_date"),
+        Index("uq_budgets_user_name", "user_id", "name", unique=True),
     )

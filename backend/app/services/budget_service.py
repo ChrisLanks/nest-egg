@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional
 from uuid import UUID
 
+from fastapi import HTTPException, status
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -172,6 +173,19 @@ class BudgetService:
         shared_user_ids: Optional[list] = None,
     ) -> Budget:
         """Create a new budget."""
+        # Enforce unique name per owner
+        existing = await db.execute(
+            select(Budget.id).where(
+                Budget.user_id == user.id,
+                func.lower(Budget.name) == name.strip().lower(),
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"You already have a budget named '{name.strip()}'",
+            )
+
         budget = Budget(
             organization_id=user.organization_id,
             user_id=user.id,
@@ -243,6 +257,22 @@ class BudgetService:
         budget = await BudgetService.get_budget(db, budget_id, user)
         if not budget:
             return None
+
+        # If name is being changed, enforce uniqueness per owner
+        new_name = kwargs.get("name")
+        if new_name and new_name.strip().lower() != (budget.name or "").strip().lower():
+            existing = await db.execute(
+                select(Budget.id).where(
+                    Budget.user_id == budget.user_id,
+                    func.lower(Budget.name) == new_name.strip().lower(),
+                    Budget.id != budget_id,
+                )
+            )
+            if existing.scalar_one_or_none() is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"You already have a budget named '{new_name.strip()}'",
+                )
 
         for key, value in kwargs.items():
             if hasattr(budget, key):
