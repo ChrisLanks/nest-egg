@@ -227,6 +227,7 @@ class TellerService:
                             mask=account_data.get("last_four"),
                             institution_name=account_data.get("institution", {}).get("name"),
                             current_balance=Decimal(str(balance_value)),
+                            balance_as_of=utc_now(),
                         )
                         db.add(account)
                     else:
@@ -240,6 +241,7 @@ class TellerService:
                             or balance.get("available", 0)
                         )
                         account.current_balance = Decimal(str(balance_value))
+                        account.balance_as_of = utc_now()
                         account.updated_at = utc_now()
 
                     synced_accounts.append(account)
@@ -441,10 +443,15 @@ class TellerService:
         return AccountType.OTHER, None
 
     def _generate_dedup_hash(self, account_id: UUID, txn_data: Dict) -> str:
-        """Generate deduplication hash for transaction."""
-        # Use same approach as Plaid for consistency
+        """Generate deduplication hash for transaction.
+
+        Teller's transaction ID is stable across syncs, so we include it to
+        prevent false duplicates when two transactions share the same date,
+        amount, and description (e.g., two identical coffee purchases).
+        """
         components = [
             str(account_id),
+            txn_data.get("id", ""),  # Teller stable transaction ID
             txn_data["date"],
             str(txn_data["amount"]),
             txn_data.get("description", ""),

@@ -312,6 +312,60 @@ class Settings(BaseSettings):
 
         return os.getenv("ENVIRONMENT", "development") != "development"
 
+    @field_validator("PLAID_CLIENT_ID", "PLAID_SECRET")
+    @classmethod
+    def validate_plaid_credentials(cls, v: str, info) -> str:
+        """Require Plaid credentials when PLAID_ENABLED=true in non-dev environments."""
+        import os
+
+        if os.getenv("ENVIRONMENT", "development") != "development":
+            plaid_enabled = os.getenv("PLAID_ENABLED", "true").lower() not in ("false", "0")
+            if plaid_enabled and not v:
+                raise ValueError(
+                    f"{info.field_name} is required when PLAID_ENABLED=true. "
+                    "Set it in your environment or disable Plaid with PLAID_ENABLED=false."
+                )
+        return v
+
+    @field_validator("TELLER_CERT_PATH")
+    @classmethod
+    def validate_teller_cert(cls, v: str) -> str:
+        """Require and verify the mTLS certificate when TELLER_ENABLED=true."""
+        import os
+
+        # Treat comment-style placeholders (e.g. "# path/to/cert.pem") as empty
+        if v.strip().startswith("#"):
+            return ""
+
+        if os.getenv("ENVIRONMENT", "development") != "development":
+            teller_enabled = os.getenv("TELLER_ENABLED", "true").lower() not in ("false", "0")
+            if teller_enabled and not v:
+                raise ValueError(
+                    "TELLER_CERT_PATH is required when TELLER_ENABLED=true. "
+                    "Provide the path to your Teller-issued mTLS certificate (.pem)."
+                )
+        if v and not os.path.exists(v):
+            raise ValueError(
+                f"Teller certificate file not found: {v}. "
+                "Verify the path is correct and the file is readable."
+            )
+        return v
+
+    @field_validator("MX_CLIENT_ID", "MX_API_KEY")
+    @classmethod
+    def validate_mx_credentials(cls, v: str, info) -> str:
+        """Require MX credentials when MX_ENABLED=true in non-dev environments."""
+        import os
+
+        if os.getenv("ENVIRONMENT", "development") != "development":
+            mx_enabled = os.getenv("MX_ENABLED", "false").lower() in ("true", "1")
+            if mx_enabled and not v:
+                raise ValueError(
+                    f"{info.field_name} is required when MX_ENABLED=true. "
+                    "Contact MX for API credentials or disable with MX_ENABLED=false."
+                )
+        return v
+
     @field_validator("APP_BASE_URL")
     @classmethod
     def validate_app_base_url(cls, v: str) -> str:

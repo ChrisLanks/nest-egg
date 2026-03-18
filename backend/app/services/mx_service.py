@@ -460,9 +460,15 @@ class MxService:
         return type_map.get((mx_type or "").upper(), (AccountType.OTHER, None))
 
     def _generate_dedup_hash(self, account_id: UUID, txn: Dict) -> str:
-        """Generate deduplication hash for transaction."""
+        """Generate deduplication hash for transaction.
+
+        MX's transaction GUID is stable across syncs, so we include it to
+        prevent false duplicates when two transactions share the same date,
+        amount, and description.
+        """
         components = [
             str(account_id),
+            txn.get("guid", ""),  # MX stable transaction GUID
             txn.get("transacted_at") or txn.get("date", ""),
             str(txn.get("amount", "")),
             txn.get("description", ""),

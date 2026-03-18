@@ -138,7 +138,10 @@ async def create_link_token(
             if not settings.MX_ENABLED:
                 raise HTTPException(status_code=400, detail="MX integration is not enabled")
 
-            mx_service = get_mx_service()
+            try:
+                mx_service = get_mx_service()
+            except ValueError as e:
+                raise HTTPException(status_code=503, detail=str(e)) from e
             mx_user_guid = await mx_service.get_or_create_user(db, current_user.id)
             widget_url, expiration = await mx_service.get_connect_widget_url(mx_user_guid)
 
@@ -247,7 +250,10 @@ async def exchange_token(
             )
 
         elif request.provider == "mx":
-            mx_service = get_mx_service()
+            try:
+                mx_service = get_mx_service()
+            except ValueError as e:
+                raise HTTPException(status_code=503, detail=str(e)) from e
 
             # MX Connect widget callback provides member_guid via public_token
             # and mx_user_guid via access_token field.
@@ -392,7 +398,10 @@ async def sync_transactions(
             }
 
         elif account.account_source == AccountSource.MX:
-            mx_service = get_mx_service()
+            try:
+                mx_service = get_mx_service()
+            except ValueError as e:
+                raise HTTPException(status_code=503, detail=str(e)) from e
 
             if not account.mx_member:
                 raise HTTPException(status_code=400, detail="Account is not linked to an MX member")
