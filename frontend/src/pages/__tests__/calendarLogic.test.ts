@@ -1,9 +1,11 @@
 /**
  * Tests for CalendarPage logic: calendar cell generation, event filtering,
  * event grouping by date, balance mapping, and date key formatting.
+ *
+ * @vitest-environment jsdom
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 
 // ── Types (mirrored from CalendarPage.tsx) ───────────────────────────────────
 
@@ -275,5 +277,168 @@ describe("formatCurrencyShort", () => {
 
   it("formats negative amounts", () => {
     expect(formatCurrencyShort(-1500)).toBe("-$1,500");
+  });
+});
+
+// ── Persisted toggle preferences ────────────────────────────────────────────
+
+const CALENDAR_PREFS_KEY = "nest-egg-calendar-prefs";
+
+interface CalendarPrefs {
+  showBills: boolean;
+  showSubscriptions: boolean;
+  showIncome: boolean;
+  showProjectedBalance: boolean;
+}
+
+const DEFAULT_PREFS: CalendarPrefs = {
+  showBills: true,
+  showSubscriptions: true,
+  showIncome: true,
+  showProjectedBalance: false,
+};
+
+function loadCalendarPrefs(): CalendarPrefs {
+  try {
+    const raw = localStorage.getItem(CALENDAR_PREFS_KEY);
+    if (raw) return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_PREFS;
+}
+
+function saveCalendarPrefs(prefs: CalendarPrefs): void {
+  try {
+    localStorage.setItem(CALENDAR_PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    /* ignore */
+  }
+}
+
+describe("Calendar toggle persistence", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("returns default prefs when nothing is stored", () => {
+    const prefs = loadCalendarPrefs();
+    expect(prefs).toEqual(DEFAULT_PREFS);
+  });
+
+  it("persists and restores toggle changes", () => {
+    const updated: CalendarPrefs = {
+      showBills: false,
+      showSubscriptions: true,
+      showIncome: false,
+      showProjectedBalance: true,
+    };
+    saveCalendarPrefs(updated);
+    expect(loadCalendarPrefs()).toEqual(updated);
+  });
+
+  it("merges partial stored prefs with defaults", () => {
+    localStorage.setItem(
+      CALENDAR_PREFS_KEY,
+      JSON.stringify({ showBills: false }),
+    );
+    const prefs = loadCalendarPrefs();
+    expect(prefs.showBills).toBe(false);
+    expect(prefs.showSubscriptions).toBe(true);
+    expect(prefs.showIncome).toBe(true);
+    expect(prefs.showProjectedBalance).toBe(false);
+  });
+
+  it("returns defaults for corrupt localStorage data", () => {
+    localStorage.setItem(CALENDAR_PREFS_KEY, "not-json");
+    const prefs = loadCalendarPrefs();
+    expect(prefs).toEqual(DEFAULT_PREFS);
+  });
+});
+
+// ── User view filtering (source-level verification) ─────────────────────────
+
+describe("Calendar user view filtering", () => {
+  it("CalendarPage imports useUserView", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("src/pages/CalendarPage.tsx", "utf-8");
+    expect(source).toContain("useUserView");
+    expect(source).toContain("selectedUserId");
+  });
+
+  it("query key includes selectedUserId for cache separation", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("src/pages/CalendarPage.tsx", "utf-8");
+    // The query key should include selectedUserId so switching users refetches
+    expect(source).toMatch(
+      /queryKey:.*\[.*"financial-calendar".*selectedUserId.*\]/,
+    );
+  });
+
+  it("API client passes userId to financial-calendar endpoint", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "src/api/recurring-transactions.ts",
+      "utf-8",
+    );
+    expect(source).toContain("user_id");
+    expect(source).toMatch(/getMonth[\s\S]*userId/);
+  });
+});
+
+// ── computeDefaultYears (household averaging) ───────────────────────────────
+
+function computeDefaultYears(
+  birthYears: (number | null | undefined)[],
+): number {
+  const valid = birthYears.filter((y): y is number => typeof y === "number");
+  if (valid.length === 0) return 10;
+  const avgBirthYear = Math.round(
+    valid.reduce((sum, y) => sum + y, 0) / valid.length,
+  );
+  const currentYear = new Date().getFullYear();
+  const avgAge = currentYear - avgBirthYear;
+  const yearsUntilRetirement = Math.round(65 - avgAge);
+  return Math.max(1, yearsUntilRetirement);
+}
+
+describe("computeDefaultYears", () => {
+  const currentYear = new Date().getFullYear();
+
+  it("returns 10 when no birth years available", () => {
+    expect(computeDefaultYears([])).toBe(10);
+    expect(computeDefaultYears([null, undefined])).toBe(10);
+  });
+
+  it("computes years for a single person", () => {
+    const birthYear = currentYear - 30; // age 30 → 65-30 = 35
+    expect(computeDefaultYears([birthYear])).toBe(35);
+  });
+
+  it("averages multiple birth years", () => {
+    const person1 = currentYear - 30; // age 30
+    const person2 = currentYear - 40; // age 40
+    // avg age = 35 → 65-35 = 30
+    expect(computeDefaultYears([person1, person2])).toBe(30);
+  });
+
+  it("ignores null/undefined in a mixed array", () => {
+    const birthYear = currentYear - 50; // age 50 → 65-50 = 15
+    expect(computeDefaultYears([null, birthYear, undefined])).toBe(15);
+  });
+
+  it("returns minimum of 1 for someone past 65", () => {
+    const birthYear = currentYear - 70; // age 70 → 65-70 = -5 → clamped to 1
+    expect(computeDefaultYears([birthYear])).toBe(1);
+  });
+});
+
+// ── HouseholdMember birth_year field ────────────────────────────────────────
+
+describe("HouseholdMember type includes birth_year", () => {
+  it("useHouseholdMembers interface includes birth_year", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("src/hooks/useHouseholdMembers.ts", "utf-8");
+    expect(source).toContain("birth_year");
   });
 });

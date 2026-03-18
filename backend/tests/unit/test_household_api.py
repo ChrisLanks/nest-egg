@@ -39,16 +39,25 @@ class TestListHouseholdMembers:
         user.organization_id = uuid4()
         return user
 
+    def _make_member(self, **overrides):
+        """Create a mock User with all attributes needed by HouseholdMember."""
+        m = Mock(spec=User)
+        m.id = overrides.get("id", uuid4())
+        m.email = overrides.get("email", "user@example.com")
+        m.display_name = overrides.get("display_name", None)
+        m.first_name = overrides.get("first_name", "Test")
+        m.last_name = overrides.get("last_name", "User")
+        m.is_org_admin = overrides.get("is_org_admin", False)
+        m.is_primary_household_member = overrides.get("is_primary_household_member", False)
+        m.birthdate = overrides.get("birthdate", None)
+        m.created_at = overrides.get("created_at", datetime.now(timezone.utc))
+        return m
+
     @pytest.mark.asyncio
     async def test_lists_active_household_members(self, mock_db, mock_user):
         """Should list all active members in household."""
-        member1 = Mock(spec=User)
-        member1.id = uuid4()
-        member1.email = "member1@example.com"
-
-        member2 = Mock(spec=User)
-        member2.id = uuid4()
-        member2.email = "member2@example.com"
+        member1 = self._make_member(email="member1@example.com")
+        member2 = self._make_member(email="member2@example.com")
 
         result = Mock()
         result.scalars.return_value.all.return_value = [member1, member2]
@@ -62,6 +71,41 @@ class TestListHouseholdMembers:
         assert len(members) == 2
         assert members[0].email == "member1@example.com"
         assert members[1].email == "member2@example.com"
+
+    @pytest.mark.asyncio
+    async def test_birth_year_extracted_from_birthdate(self, mock_db, mock_user):
+        """Should extract birth_year from encrypted birthdate field."""
+        member = self._make_member(
+            email="born@example.com",
+            birthdate=date(1990, 6, 15),
+        )
+
+        result = Mock()
+        result.scalars.return_value.all.return_value = [member]
+        mock_db.execute.return_value = result
+
+        members = await list_household_members(
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        assert members[0].birth_year == 1990
+
+    @pytest.mark.asyncio
+    async def test_birth_year_null_when_no_birthdate(self, mock_db, mock_user):
+        """Should return null birth_year when user has no birthdate set."""
+        member = self._make_member(email="nobirthday@example.com", birthdate=None)
+
+        result = Mock()
+        result.scalars.return_value.all.return_value = [member]
+        mock_db.execute.return_value = result
+
+        members = await list_household_members(
+            current_user=mock_user,
+            db=mock_db,
+        )
+
+        assert members[0].birth_year is None
 
 
 @pytest.mark.unit

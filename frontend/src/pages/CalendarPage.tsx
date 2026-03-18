@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
+import { useUserView } from "../contexts/UserViewContext";
 import {
   Badge,
   Box,
@@ -58,9 +59,47 @@ const eventTypeLabel = (type: string) => {
   return "Bill";
 };
 
+// ─── Persisted toggle preferences ────────────────────────────────────────────
+
+const CALENDAR_PREFS_KEY = "nest-egg-calendar-prefs";
+
+interface CalendarPrefs {
+  showBills: boolean;
+  showSubscriptions: boolean;
+  showIncome: boolean;
+  showProjectedBalance: boolean;
+}
+
+const DEFAULT_PREFS: CalendarPrefs = {
+  showBills: true,
+  showSubscriptions: true,
+  showIncome: true,
+  showProjectedBalance: false,
+};
+
+function loadCalendarPrefs(): CalendarPrefs {
+  try {
+    const raw = localStorage.getItem(CALENDAR_PREFS_KEY);
+    if (raw) return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
+  } catch {
+    /* ignore corrupt data */
+  }
+  return DEFAULT_PREFS;
+}
+
+function saveCalendarPrefs(prefs: CalendarPrefs): void {
+  try {
+    localStorage.setItem(CALENDAR_PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    /* ignore */
+  }
+}
+
 // ─── CalendarPage ─────────────────────────────────────────────────────────────
 
 export const CalendarPage: React.FC = () => {
+  const { selectedUserId } = useUserView();
+
   // Hoisted color mode value (cannot call hooks inside callbacks)
   const todayTextColor = useColorModeValue("blue.600", "blue.300");
 
@@ -69,19 +108,33 @@ export const CalendarPage: React.FC = () => {
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
 
-  // Financial calendar toggle filters
-  const [showBills, setShowBills] = useState(true);
-  const [showSubscriptions, setShowSubscriptions] = useState(true);
-  const [showIncome, setShowIncome] = useState(true);
-  const [showProjectedBalance, setShowProjectedBalance] = useState(false);
+  // Financial calendar toggle filters (persisted to localStorage)
+  const [showBills, setShowBills] = useState(
+    () => loadCalendarPrefs().showBills,
+  );
+  const [showSubscriptions, setShowSubscriptions] = useState(
+    () => loadCalendarPrefs().showSubscriptions,
+  );
+  const [showIncome, setShowIncome] = useState(
+    () => loadCalendarPrefs().showIncome,
+  );
+  const [showProjectedBalance, setShowProjectedBalance] = useState(
+    () => loadCalendarPrefs().showProjectedBalance,
+  );
+
+  const updatePref = useCallback((key: keyof CalendarPrefs, value: boolean) => {
+    const prefs = loadCalendarPrefs();
+    prefs[key] = value;
+    saveCalendarPrefs(prefs);
+  }, []);
 
   // ── Query ───────────────────────────────────────────────────────────────────
 
   const calMonthStr = `${calYear}-${String(calMonth + 1).padStart(2, "0")}`;
   const { data: financialCalendar, isLoading: financialCalendarLoading } =
     useQuery<FinancialCalendarResponse>({
-      queryKey: ["financial-calendar", calMonthStr],
-      queryFn: () => financialCalendarApi.getMonth(calMonthStr),
+      queryKey: ["financial-calendar", calMonthStr, selectedUserId],
+      queryFn: () => financialCalendarApi.getMonth(calMonthStr, selectedUserId),
       staleTime: 2 * 60 * 1000,
     });
 
@@ -168,7 +221,10 @@ export const CalendarPage: React.FC = () => {
                       id="show-bills"
                       colorScheme="red"
                       isChecked={showBills}
-                      onChange={(e) => setShowBills(e.target.checked)}
+                      onChange={(e) => {
+                        setShowBills(e.target.checked);
+                        updatePref("showBills", e.target.checked);
+                      }}
                       size="sm"
                     />
                     <FormLabel
@@ -188,7 +244,10 @@ export const CalendarPage: React.FC = () => {
                       id="show-subscriptions"
                       colorScheme="orange"
                       isChecked={showSubscriptions}
-                      onChange={(e) => setShowSubscriptions(e.target.checked)}
+                      onChange={(e) => {
+                        setShowSubscriptions(e.target.checked);
+                        updatePref("showSubscriptions", e.target.checked);
+                      }}
                       size="sm"
                     />
                     <FormLabel
@@ -208,7 +267,10 @@ export const CalendarPage: React.FC = () => {
                       id="show-income"
                       colorScheme="green"
                       isChecked={showIncome}
-                      onChange={(e) => setShowIncome(e.target.checked)}
+                      onChange={(e) => {
+                        setShowIncome(e.target.checked);
+                        updatePref("showIncome", e.target.checked);
+                      }}
                       size="sm"
                     />
                     <FormLabel
@@ -228,9 +290,10 @@ export const CalendarPage: React.FC = () => {
                       id="show-balance"
                       colorScheme="blue"
                       isChecked={showProjectedBalance}
-                      onChange={(e) =>
-                        setShowProjectedBalance(e.target.checked)
-                      }
+                      onChange={(e) => {
+                        setShowProjectedBalance(e.target.checked);
+                        updatePref("showProjectedBalance", e.target.checked);
+                      }}
                       size="sm"
                     />
                     <FormLabel

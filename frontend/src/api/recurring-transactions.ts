@@ -173,10 +173,15 @@ export const financialCalendarApi = {
   /**
    * Get all financial events for a calendar month
    */
-  getMonth: async (month: string): Promise<FinancialCalendarResponse> => {
+  getMonth: async (
+    month: string,
+    userId?: string | null,
+  ): Promise<FinancialCalendarResponse> => {
+    const params: Record<string, string> = { month };
+    if (userId) params.user_id = userId;
     const { data } = await api.get<FinancialCalendarResponse>(
       "/dashboard/financial-calendar",
-      { params: { month } },
+      { params },
     );
     return data;
   },
