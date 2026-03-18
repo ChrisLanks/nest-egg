@@ -851,3 +851,202 @@ describe("scenario owner identification", () => {
     expect(getOwnerLabel(s, nameMap)).toBeNull();
   });
 });
+
+// ── Simulation cache invalidation strategy ──────────────────────────────────
+
+describe("simulation cache invalidation strategy", () => {
+  /**
+   * Mirrors the useRunSimulation onSuccess behavior:
+   * - setQueryData writes fresh result into cache
+   * - Only non-results queries are invalidated (prevents stale GET /results
+   *   from overwriting the fresh setQueryData value)
+   */
+
+  it("setQueryData should overwrite existing cache entry", () => {
+    // Simulates React Query cache behavior
+    const cache: Record<string, unknown> = {};
+    const setQueryData = (key: string[], data: unknown) => {
+      cache[key.join("|")] = data;
+    };
+
+    // Old stale data in cache
+    const staleResult = { success_rate: 0, projections: [] };
+    setQueryData(["retirement-scenarios", "results", "s1"], staleResult);
+
+    // Simulate returns fresh data
+    const freshResult = {
+      success_rate: 85.5,
+      projections: [{ age: 34, p50: 259000 }],
+    };
+    setQueryData(["retirement-scenarios", "results", "s1"], freshResult);
+
+    expect(cache["retirement-scenarios|results|s1"]).toBe(freshResult);
+    expect(
+      (cache["retirement-scenarios|results|s1"] as { success_rate: number })
+        .success_rate,
+    ).toBe(85.5);
+  });
+
+  it("invalidation predicate excludes results queries", () => {
+    const QUERY_KEY = "retirement-scenarios";
+    const predicate = (queryKey: string[]) =>
+      queryKey[0] === QUERY_KEY && !queryKey.includes("results");
+
+    // Scenario list query — should be invalidated
+    expect(predicate(["retirement-scenarios"])).toBe(true);
+    expect(predicate(["retirement-scenarios", "list"])).toBe(true);
+
+    // Results query — should NOT be invalidated
+    expect(predicate(["retirement-scenarios", "results", "s1"])).toBe(false);
+    expect(predicate(["retirement-scenarios", "results", "s2"])).toBe(false);
+
+    // Unrelated query — should NOT be invalidated
+    expect(predicate(["accounts"])).toBe(false);
+  });
+
+  it("member edit handler should not invalidate results queries", () => {
+    // Mirrors handleSaveMemberEdit: only invalidate scenario list,
+    // auto-simulate handles results via setQueryData
+    const QUERY_KEY = "retirement-scenarios";
+    const invalidatedKeys: string[][] = [];
+    const invalidateQueries = (opts: {
+      predicate: (query: { queryKey: string[] }) => boolean;
+    }) => {
+      const allQueries = [
+        { queryKey: [QUERY_KEY] },
+        { queryKey: [QUERY_KEY, "results", "s1"] },
+        { queryKey: [QUERY_KEY, "results", "s2"] },
+        { queryKey: [QUERY_KEY, "scenario", "s1"] },
+      ];
+      for (const q of allQueries) {
+        if (opts.predicate(q)) invalidatedKeys.push(q.queryKey);
+      }
+    };
+
+    invalidateQueries({
+      predicate: (query) =>
+        query.queryKey[0] === QUERY_KEY && !query.queryKey.includes("results"),
+    });
+
+    // Scenario list and detail queries are invalidated
+    expect(invalidatedKeys).toContainEqual([QUERY_KEY]);
+    expect(invalidatedKeys).toContainEqual([QUERY_KEY, "scenario", "s1"]);
+    // Results queries are NOT invalidated
+    expect(invalidatedKeys).not.toContainEqual([QUERY_KEY, "results", "s1"]);
+    expect(invalidatedKeys).not.toContainEqual([QUERY_KEY, "results", "s2"]);
+  });
+});
+
+// ── View filter: ownership-based, not include_all_members bypass ────────────
+
+describe("view filter does not bypass on include_all_members", () => {
+  /**
+   * Mirrors the filterForView logic in RetirementPage:
+   * - isAllSelected → show everything
+   * - Otherwise filter by owner (user_id), even for include_all_members plans
+   */
+  const makeSummary = (
+    overrides: Partial<RetirementScenarioSummary>,
+  ): RetirementScenarioSummary => ({
+    id: "default-id",
+    user_id: "chris",
+    name: "Default",
+    retirement_age: 65,
+    is_default: false,
+    is_stale: false,
+    include_all_members: false,
+    is_archived: false,
+    household_member_ids: null,
+    readiness_score: null,
+    success_rate: null,
+    updated_at: "2026-01-01",
+    ...overrides,
+  });
+
+  type FilterForView = (s: RetirementScenarioSummary) => boolean;
+
+  /** Build the filter matching RetirementPage logic */
+  function buildFilter(opts: {
+    isCombinedView: boolean;
+    isAllSelected: boolean;
+    selectedMemberIds: Set<string>;
+  }): FilterForView {
+    const { isCombinedView, isAllSelected, selectedMemberIds } = opts;
+    return (s: RetirementScenarioSummary): boolean => {
+      if (!isCombinedView) return true;
+      if (isAllSelected) return true;
+      return selectedMemberIds.has(s.user_id);
+    };
+  }
+
+  it("shows all plans when isAllSelected is true", () => {
+    const filter = buildFilter({
+      isCombinedView: true,
+      isAllSelected: true,
+      selectedMemberIds: new Set(["chris", "test1", "test2"]),
+    });
+    const chrisPlan = makeSummary({
+      user_id: "chris",
+      include_all_members: true,
+    });
+    const test1Plan = makeSummary({ user_id: "test1" });
+    expect(filter(chrisPlan)).toBe(true);
+    expect(filter(test1Plan)).toBe(true);
+  });
+
+  it("hides include_all_members plan when owner is not selected", () => {
+    const filter = buildFilter({
+      isCombinedView: true,
+      isAllSelected: false,
+      selectedMemberIds: new Set(["test1", "test2"]),
+    });
+    const chrisPlan = makeSummary({
+      user_id: "chris",
+      include_all_members: true,
+    });
+    expect(filter(chrisPlan)).toBe(false);
+  });
+
+  it("shows include_all_members plan when owner IS selected", () => {
+    const filter = buildFilter({
+      isCombinedView: true,
+      isAllSelected: false,
+      selectedMemberIds: new Set(["chris", "test1"]),
+    });
+    const chrisPlan = makeSummary({
+      user_id: "chris",
+      include_all_members: true,
+    });
+    expect(filter(chrisPlan)).toBe(true);
+  });
+
+  it("non-combined view always returns true", () => {
+    const filter = buildFilter({
+      isCombinedView: false,
+      isAllSelected: false,
+      selectedMemberIds: new Set(),
+    });
+    const plan = makeSummary({ user_id: "chris", include_all_members: true });
+    expect(filter(plan)).toBe(true);
+  });
+
+  it("personal plan hidden when owner not selected", () => {
+    const filter = buildFilter({
+      isCombinedView: true,
+      isAllSelected: false,
+      selectedMemberIds: new Set(["test1"]),
+    });
+    const chrisPersonal = makeSummary({ user_id: "chris" });
+    expect(filter(chrisPersonal)).toBe(false);
+  });
+
+  it("personal plan visible when owner selected", () => {
+    const filter = buildFilter({
+      isCombinedView: true,
+      isAllSelected: false,
+      selectedMemberIds: new Set(["chris"]),
+    });
+    const chrisPersonal = makeSummary({ user_id: "chris" });
+    expect(filter(chrisPersonal)).toBe(true);
+  });
+});

@@ -154,10 +154,19 @@ export function useRunSimulation() {
       const { data } = await api.post<SimulationResult>(
         `/retirement/scenarios/${scenarioId}/simulate`,
       );
-      return data;
+      return { scenarioId, data };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+    onSuccess: ({ scenarioId, data }) => {
+      // Write the fresh result directly into the results cache.
+      queryClient.setQueryData([QUERY_KEY, "results", scenarioId], data);
+      // Invalidate scenario list (updates readiness scores in tabs) but
+      // NOT the results query — setQueryData already has the correct data
+      // and a refetch would race with stale DB rows.
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          query.queryKey[0] === QUERY_KEY &&
+          !query.queryKey.includes("results"),
+      });
     },
   });
 }

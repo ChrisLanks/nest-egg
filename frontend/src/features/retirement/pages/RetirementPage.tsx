@@ -668,7 +668,14 @@ export function RetirementPage() {
         id: editingMembersScenarioId,
         updates,
       });
-      queryClient.invalidateQueries({ queryKey: ["retirement-scenarios"] });
+      // Invalidate only the scenario list (for updated readiness scores etc.),
+      // NOT results. The auto-simulate below will populate fresh results via
+      // setQueryData — refetching results would race and overwrite with stale data.
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          query.queryKey[0] === "retirement-scenarios" &&
+          !query.queryKey.includes("results"),
+      });
       memberEditor.onClose();
       toast({
         title: "Plan members updated",

@@ -614,6 +614,15 @@ class RetirementMonteCarloService:
 
         compute_time_ms = int((time.monotonic() - start_time) * 1000)
 
+        # Delete old results for this scenario to prevent stale data
+        old_results = await db.execute(
+            select(RetirementSimulationResult).where(
+                RetirementSimulationResult.scenario_id == scenario.id
+            )
+        )
+        for old in old_results.scalars().all():
+            await db.delete(old)
+
         # Create and save result
         result = RetirementSimulationResult(
             scenario_id=scenario.id,
