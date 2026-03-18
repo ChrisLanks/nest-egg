@@ -367,8 +367,12 @@ class FireService:
         birth_years = [row[0].year for row in members_result.all()]
 
         if birth_years:
-            avg_birth_year = round(sum(birth_years) / len(birth_years))
-            current_age = utc_now().year - avg_birth_year
+            # Use the oldest member's birth year (smallest value = oldest person).
+            # This is the most conservative approach: fewer years to retirement
+            # means a higher Coast FI target, ensuring the household doesn't
+            # under-save when planning around the older partner's timeline.
+            oldest_birth_year = min(birth_years)
+            current_age = utc_now().year - oldest_birth_year
         else:
             current_age = 35  # Reasonable default when no birth dates are set
 

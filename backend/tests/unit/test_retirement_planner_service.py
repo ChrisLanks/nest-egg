@@ -255,6 +255,21 @@ class TestRunOrGetCachedSimulation:
 
         new_result = MagicMock()
         mock_mc.run_simulation = AsyncMock(return_value=new_result)
+        mock_mc._gather_account_data = AsyncMock(
+            return_value={
+                "total_portfolio": Decimal("0"),
+                "taxable_balance": Decimal("0"),
+                "pre_tax_balance": Decimal("0"),
+                "roth_balance": Decimal("0"),
+                "hsa_balance": Decimal("0"),
+                "cash_balance": Decimal("0"),
+                "pension_monthly": Decimal("0"),
+                "annual_contributions": Decimal("0"),
+                "employer_match_annual": Decimal("0"),
+                "annual_income": Decimal("0"),
+                "accounts": [],
+            }
+        )
 
         scenario = _make_scenario()
         result = await RetirementPlannerService.run_or_get_cached_simulation(

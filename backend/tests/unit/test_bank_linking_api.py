@@ -655,6 +655,7 @@ class TestDisconnectAccount:
         mock_account.account_source = AccountSource.PLAID
         mock_account.plaid_item_id = uuid4()
         mock_account.is_active = True
+        mock_account.user_id = mock_user.id
 
         # First call returns the account, second returns the plaid item
         mock_result1 = MagicMock()
@@ -686,6 +687,7 @@ class TestDisconnectAccount:
         mock_account.account_source = AccountSource.TELLER
         mock_account.teller_enrollment_id = uuid4()
         mock_account.is_active = True
+        mock_account.user_id = mock_user.id
 
         mock_result1 = MagicMock()
         mock_result1.scalar_one_or_none.return_value = mock_account
@@ -718,6 +720,7 @@ class TestDisconnectAccount:
         mock_account.account_source = AccountSource.MX
         mock_account.mx_member_id = uuid4()
         mock_account.is_active = True
+        mock_account.user_id = mock_user.id
 
         mock_result1 = MagicMock()
         mock_result1.scalar_one_or_none.return_value = mock_account
@@ -744,6 +747,7 @@ class TestDisconnectAccount:
         mock_account = MagicMock()
         mock_account.account_source = AccountSource.PLAID
         mock_account.plaid_item_id = uuid4()
+        mock_account.user_id = mock_user.id
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = mock_account
         mock_db.execute = AsyncMock(side_effect=[mock_result, RuntimeError("DB error")])

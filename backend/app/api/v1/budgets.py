@@ -91,6 +91,8 @@ async def export_budgets_csv(
         identifier=str(current_user.id),
     )
 
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
     # Reuse the service which already handles user_id filtering
     budgets = await budget_service.get_budgets(db=db, user=current_user, user_id=user_id)
 

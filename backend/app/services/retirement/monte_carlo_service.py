@@ -14,7 +14,7 @@ import random
 import time
 from decimal import Decimal
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import FIRE, MEDICARE, RETIREMENT
@@ -616,13 +616,11 @@ class RetirementMonteCarloService:
         compute_time_ms = int((time.monotonic() - start_time) * 1000)
 
         # Delete old results for this scenario to prevent stale data
-        old_results = await db.execute(
-            select(RetirementSimulationResult).where(
+        await db.execute(
+            delete(RetirementSimulationResult).where(
                 RetirementSimulationResult.scenario_id == scenario.id
             )
         )
-        for old in old_results.scalars().all():
-            await db.delete(old)
 
         # Create and save result
         result = RetirementSimulationResult(

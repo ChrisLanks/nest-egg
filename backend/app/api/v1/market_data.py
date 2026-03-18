@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.rate_limiter import check_rate_limit, market_data_limiter
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, verify_household_member
 from app.models.account import Account
 from app.models.holding import Holding
 from app.models.user import User
@@ -345,6 +345,9 @@ async def refresh_all_holdings(
     """
     # Rate limit check
     await check_rate_limit(str(current_user.id), market_data_limiter, "market_data")
+
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
 
     # Get all holdings
     query = select(Holding).where(Holding.organization_id == current_user.organization_id)

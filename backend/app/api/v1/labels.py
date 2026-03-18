@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, verify_household_member
 from app.models.transaction import Label
 from app.models.user import User
 from app.schemas.transaction import LabelCreate, LabelResponse, LabelUpdate
@@ -101,6 +101,8 @@ async def get_tax_deductible_transactions(
 
     Useful for tax preparation and reporting.
     """
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
     summaries = await TaxService.get_tax_deductible_summary(
         db,
         current_user.organization_id,
@@ -141,6 +143,8 @@ async def export_tax_deductible_csv(
 
     Returns CSV file with name: tax_deductible_transactions_{start_date}_{end_date}.csv
     """
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
     csv_data = await TaxService.generate_tax_export_csv(
         db,
         current_user.organization_id,

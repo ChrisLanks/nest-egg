@@ -1340,10 +1340,15 @@ class TestPlaidDisconnectRemovesItem:
         mock_plaid_item.is_active = True
         mock_plaid_item.access_token = "encrypted_token"
 
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.organization_id = uuid4()
+
         mock_account = MagicMock()
         mock_account.account_source = AccountSource.PLAID
         mock_account.plaid_item_id = uuid4()
         mock_account.is_active = True
+        mock_account.user_id = mock_user.id
 
         mock_db = AsyncMock()
         mock_result1 = MagicMock()
@@ -1352,10 +1357,6 @@ class TestPlaidDisconnectRemovesItem:
         mock_result2.scalar_one_or_none.return_value = mock_plaid_item
         mock_db.execute = AsyncMock(side_effect=[mock_result1, mock_result2])
         mock_db.commit = AsyncMock()
-
-        mock_user = Mock(spec=User)
-        mock_user.id = uuid4()
-        mock_user.organization_id = uuid4()
 
         mock_request = MagicMock()
         mock_request.client = MagicMock()

@@ -530,6 +530,7 @@ class TestRunSimulation:
         scenario.healthcare_medicare_override = None
         scenario.healthcare_ltc_override = None
         scenario.life_events = []
+        scenario.spending_phases = None
         scenario.spouse_social_security_monthly = None
         scenario.spouse_social_security_start_age = None
 
@@ -607,6 +608,8 @@ class TestRunSimulation:
         scenario.social_security_start_age = 67
         scenario.use_estimated_pia = False
         scenario.num_simulations = 10
+        scenario.life_events = []
+        scenario.spending_phases = None
 
         user = Mock()
         user.birthdate = date(1980, 6, 15)  # ~45 years old
@@ -672,6 +675,7 @@ class TestRunSimulation:
         scenario.healthcare_medicare_override = None
         scenario.healthcare_ltc_override = None
         scenario.life_events = []
+        scenario.spending_phases = None
         scenario.spouse_social_security_monthly = None
         scenario.spouse_social_security_start_age = None
 
@@ -741,6 +745,7 @@ class TestRunSimulation:
         scenario.healthcare_medicare_override = None
         scenario.healthcare_ltc_override = None
         scenario.life_events = []
+        scenario.spending_phases = None
         scenario.spouse_social_security_monthly = Decimal("1000")
         scenario.spouse_social_security_start_age = 66
 
@@ -807,6 +812,7 @@ class TestRunSimulation:
         scenario.healthcare_medicare_override = None
         scenario.healthcare_ltc_override = None
         scenario.life_events = []
+        scenario.spending_phases = None
         scenario.spouse_social_security_monthly = None
         scenario.spouse_social_security_start_age = None
 
@@ -874,6 +880,7 @@ class TestRunSimulation:
         scenario.healthcare_medicare_override = Decimal("8000")
         scenario.healthcare_ltc_override = Decimal("5000")
         scenario.life_events = []
+        scenario.spending_phases = None
         scenario.spouse_social_security_monthly = None
         scenario.spouse_social_security_start_age = None
 
@@ -1309,6 +1316,7 @@ class TestRunSimulationLifeEvents:
         scenario.healthcare_medicare_override = None
         scenario.healthcare_ltc_override = None
         scenario.life_events = [event]
+        scenario.spending_phases = None
         scenario.spouse_social_security_monthly = None
         scenario.spouse_social_security_start_age = None
 
@@ -1389,6 +1397,7 @@ class TestRunSimulationLifeEvents:
         scenario.healthcare_medicare_override = None
         scenario.healthcare_ltc_override = None
         scenario.life_events = [event]
+        scenario.spending_phases = None
         scenario.spouse_social_security_monthly = None
         scenario.spouse_social_security_start_age = None
 
@@ -1458,6 +1467,7 @@ class TestRunSimulationLifeEvents:
         scenario.healthcare_medicare_override = None
         scenario.healthcare_ltc_override = None
         scenario.life_events = []
+        scenario.spending_phases = None
         scenario.spouse_social_security_monthly = None
         scenario.spouse_social_security_start_age = None
 

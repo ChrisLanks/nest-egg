@@ -175,6 +175,7 @@ export default function SavingsGoalsPage() {
     canWriteResource,
     isOtherUserView,
     isSelfView,
+    selectedUserId,
     selectedMemberIds,
     matchesMemberFilter,
     isPartialMemberSelection,
@@ -206,10 +207,13 @@ export default function SavingsGoalsPage() {
     localStorage.setItem("savingsGoalAllocMethod", m);
   };
 
-  // Get all goals
+  // Get all goals — scoped to selected household member when one is chosen
   const { data: goals = [], isLoading: goalsLoading } = useQuery({
-    queryKey: ["goals"],
-    queryFn: () => savingsGoalsApi.getAll(),
+    queryKey: ["goals", selectedUserId],
+    queryFn: () =>
+      savingsGoalsApi.getAll(
+        selectedUserId ? { user_id: selectedUserId } : undefined,
+      ),
   });
 
   // Get accounts for name lookup (shared cache — no extra network calls if already fetched)
