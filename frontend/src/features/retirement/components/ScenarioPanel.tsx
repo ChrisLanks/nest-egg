@@ -17,6 +17,7 @@ import {
   SliderTrack,
   Switch,
   Text,
+  Tooltip,
   VStack,
   useColorModeValue,
 } from "@chakra-ui/react";
@@ -219,9 +220,11 @@ export function ScenarioPanel({
         {/* Retirement Age */}
         <FormControl>
           <HStack justify="space-between">
-            <FormLabel fontSize="sm" mb={0} color={labelColor}>
-              Retirement Age
-            </FormLabel>
+            <Tooltip label="The age you plan to stop working and begin withdrawing from your portfolio">
+              <FormLabel fontSize="sm" mb={0} color={labelColor} cursor="help">
+                Retirement Age
+              </FormLabel>
+            </Tooltip>
             <Text fontSize="sm" fontWeight="bold">
               {retirementAge}
             </Text>
@@ -245,9 +248,11 @@ export function ScenarioPanel({
         {/* Life Expectancy */}
         <FormControl>
           <HStack justify="space-between">
-            <FormLabel fontSize="sm" mb={0} color={labelColor}>
-              Plan Through Age
-            </FormLabel>
+            <Tooltip label="How long to model your finances — plan conservatively to avoid outliving your money">
+              <FormLabel fontSize="sm" mb={0} color={labelColor} cursor="help">
+                Plan Through Age
+              </FormLabel>
+            </Tooltip>
             <Text fontSize="sm" fontWeight="bold">
               {lifeExpectancy}
             </Text>
@@ -271,13 +276,17 @@ export function ScenarioPanel({
         {/* Annual Spending */}
         <FormControl>
           <HStack justify="space-between">
-            <FormLabel fontSize="sm" color={labelColor} mb={0}>
-              Annual Spending in Retirement
-            </FormLabel>
+            <Tooltip label="How much you expect to spend per year after retiring, before taxes">
+              <FormLabel fontSize="sm" color={labelColor} mb={0} cursor="help">
+                Annual Spending in Retirement
+              </FormLabel>
+            </Tooltip>
             <HStack spacing={2}>
-              <Text fontSize="xs" color={labelColor}>
-                Use phases
-              </Text>
+              <Tooltip label="Model different spending levels at different ages (e.g., travel more early, spend less later)">
+                <Text fontSize="xs" color={labelColor} cursor="help">
+                  Use phases
+                </Text>
+              </Tooltip>
               <Switch
                 size="sm"
                 isChecked={usePhasedSpending}
@@ -407,9 +416,11 @@ export function ScenarioPanel({
 
         <FormControl>
           <HStack justify="space-between">
-            <FormLabel fontSize="sm" mb={0} color={labelColor}>
-              Pre-Retirement Return
-            </FormLabel>
+            <Tooltip label="Expected average annual return on investments before you retire (S&P 500 averages ~10%)">
+              <FormLabel fontSize="sm" mb={0} color={labelColor} cursor="help">
+                Pre-Retirement Return
+              </FormLabel>
+            </Tooltip>
             <Text fontSize="sm" fontWeight="bold">
               {preReturn}%
             </Text>
@@ -432,9 +443,11 @@ export function ScenarioPanel({
 
         <FormControl>
           <HStack justify="space-between">
-            <FormLabel fontSize="sm" mb={0} color={labelColor}>
-              Post-Retirement Return
-            </FormLabel>
+            <Tooltip label="Expected average annual return after retiring — typically lower due to more conservative investments">
+              <FormLabel fontSize="sm" mb={0} color={labelColor} cursor="help">
+                Post-Retirement Return
+              </FormLabel>
+            </Tooltip>
             <Text fontSize="sm" fontWeight="bold">
               {postReturn}%
             </Text>
@@ -457,9 +470,11 @@ export function ScenarioPanel({
 
         <FormControl>
           <HStack justify="space-between">
-            <FormLabel fontSize="sm" mb={0} color={labelColor}>
-              Volatility
-            </FormLabel>
+            <Tooltip label="How much returns swing year to year — higher means more uncertainty in outcomes">
+              <FormLabel fontSize="sm" mb={0} color={labelColor} cursor="help">
+                Volatility
+              </FormLabel>
+            </Tooltip>
             <Text fontSize="sm" fontWeight="bold">
               {volatility}%
             </Text>
@@ -482,9 +497,11 @@ export function ScenarioPanel({
 
         <FormControl>
           <HStack justify="space-between">
-            <FormLabel fontSize="sm" mb={0} color={labelColor}>
-              Inflation Rate
-            </FormLabel>
+            <Tooltip label="How fast prices rise each year — your spending needs grow by this rate over time">
+              <FormLabel fontSize="sm" mb={0} color={labelColor} cursor="help">
+                Inflation Rate
+              </FormLabel>
+            </Tooltip>
             <Text fontSize="sm" fontWeight="bold">
               {inflationRate}%
             </Text>

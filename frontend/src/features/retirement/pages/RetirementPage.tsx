@@ -1179,44 +1179,52 @@ export function RetirementPage() {
           </Text>
           <HStack spacing={2}>
             {!readOnly && householdMembers.length >= 2 && (
-              <Button
-                size="sm"
-                variant="outline"
-                colorScheme="purple"
-                leftIcon={<FiUsers />}
-                onClick={handleOpenMemberPicker}
-              >
-                New Plan
-              </Button>
+              <Tooltip label="Create a new retirement plan with selected household members">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  colorScheme="purple"
+                  leftIcon={<FiUsers />}
+                  onClick={handleOpenMemberPicker}
+                >
+                  New Plan
+                </Button>
+              </Tooltip>
             )}
             {!readOnly && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleDuplicate}
-                isLoading={duplicateMutation.isPending}
-                isDisabled={!selectedScenarioId}
-              >
-                Duplicate
-              </Button>
+              <Tooltip label="Copy the current scenario as a starting point for a new one">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDuplicate}
+                  isLoading={duplicateMutation.isPending}
+                  isDisabled={!selectedScenarioId}
+                >
+                  Duplicate
+                </Button>
+              </Tooltip>
             )}
             {results && (
-              <Button size="sm" variant="outline" onClick={handleExportCsv}>
-                Export CSV
-              </Button>
+              <Tooltip label="Download projection data as a spreadsheet">
+                <Button size="sm" variant="outline" onClick={handleExportCsv}>
+                  Export CSV
+                </Button>
+              </Tooltip>
             )}
             {scenarios && scenarios.length >= 2 && (
-              <Button
-                size="sm"
-                variant={showComparison ? "solid" : "outline"}
-                colorScheme="purple"
-                onClick={() =>
-                  showComparison ? setShowComparison(false) : handleCompare()
-                }
-                isLoading={comparisonMutation.isPending}
-              >
-                {showComparison ? "Hide Comparison" : "Compare Scenarios"}
-              </Button>
+              <Tooltip label="View all scenarios side by side">
+                <Button
+                  size="sm"
+                  variant={showComparison ? "solid" : "outline"}
+                  colorScheme="purple"
+                  onClick={() =>
+                    showComparison ? setShowComparison(false) : handleCompare()
+                  }
+                  isLoading={comparisonMutation.isPending}
+                >
+                  {showComparison ? "Hide Comparison" : "Compare Scenarios"}
+                </Button>
+              </Tooltip>
             )}
           </HStack>
         </HStack>
@@ -1239,13 +1247,15 @@ export function RetirementPage() {
                 members. Results may be inaccurate.
               </AlertDescription>
             </Box>
-            <Button
-              size="sm"
-              onClick={handleRefreshHousehold}
-              isLoading={refreshHouseholdMutation.isPending}
-            >
-              Recalculate
-            </Button>
+            <Tooltip label="Update this plan to include the current household members and re-run the simulation">
+              <Button
+                size="sm"
+                onClick={handleRefreshHousehold}
+                isLoading={refreshHouseholdMutation.isPending}
+              >
+                Recalculate
+              </Button>
+            </Tooltip>
           </Alert>
         )}
 
@@ -1379,25 +1389,27 @@ export function RetirementPage() {
                       </Text>
                       {!readOnly && (
                         <>
-                          <IconButton
-                            as="span"
-                            role="button"
-                            tabIndex={0}
-                            aria-label="Rename scenario"
-                            icon={<FiEdit2 />}
-                            size="xs"
-                            variant="ghost"
-                            minW="auto"
-                            h="auto"
-                            p={0.5}
-                            fontSize="10px"
-                            opacity={0.5}
-                            _hover={{ opacity: 1 }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleTabDoubleClick(s.id, s.name);
-                            }}
-                          />
+                          <Tooltip label="Rename">
+                            <IconButton
+                              as="span"
+                              role="button"
+                              tabIndex={0}
+                              aria-label="Rename scenario"
+                              icon={<FiEdit2 />}
+                              size="xs"
+                              variant="ghost"
+                              minW="auto"
+                              h="auto"
+                              p={0.5}
+                              fontSize="10px"
+                              opacity={0.5}
+                              _hover={{ opacity: 1 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTabDoubleClick(s.id, s.name);
+                              }}
+                            />
+                          </Tooltip>
                           {householdMembers.length >= 2 && (
                             <Tooltip label="Manage members">
                               <IconButton
@@ -1424,12 +1436,35 @@ export function RetirementPage() {
                           {(s.include_all_members ||
                             (s.household_member_ids &&
                               s.household_member_ids.length > 1)) && (
+                            <Tooltip label="Archive">
+                              <IconButton
+                                as="span"
+                                role="button"
+                                tabIndex={0}
+                                aria-label="Archive scenario"
+                                icon={<FiArchive />}
+                                size="xs"
+                                variant="ghost"
+                                minW="auto"
+                                h="auto"
+                                p={0.5}
+                                fontSize="10px"
+                                opacity={0.5}
+                                _hover={{ opacity: 1, color: "orange.400" }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleArchive(s.id);
+                                }}
+                              />
+                            </Tooltip>
+                          )}
+                          <Tooltip label="Delete">
                             <IconButton
                               as="span"
                               role="button"
                               tabIndex={0}
-                              aria-label="Archive scenario"
-                              icon={<FiArchive />}
+                              aria-label="Delete scenario"
+                              icon={<FiX />}
                               size="xs"
                               variant="ghost"
                               minW="auto"
@@ -1437,32 +1472,13 @@ export function RetirementPage() {
                               p={0.5}
                               fontSize="10px"
                               opacity={0.5}
-                              _hover={{ opacity: 1, color: "orange.400" }}
+                              _hover={{ opacity: 1, color: "red.400" }}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleArchive(s.id);
+                                handleRequestDelete(s.id);
                               }}
                             />
-                          )}
-                          <IconButton
-                            as="span"
-                            role="button"
-                            tabIndex={0}
-                            aria-label="Delete scenario"
-                            icon={<FiX />}
-                            size="xs"
-                            variant="ghost"
-                            minW="auto"
-                            h="auto"
-                            p={0.5}
-                            fontSize="10px"
-                            opacity={0.5}
-                            _hover={{ opacity: 1, color: "red.400" }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRequestDelete(s.id);
-                            }}
-                          />
+                          </Tooltip>
                         </>
                       )}
                     </HStack>
@@ -1499,42 +1515,48 @@ export function RetirementPage() {
         {/* Add Life Event Buttons */}
         {scenario && !readOnly && (
           <HStack spacing={2}>
-            <Button
-              size="sm"
-              variant="outline"
-              colorScheme="blue"
-              onClick={presetPicker.onOpen}
-            >
-              + Add Life Event
-              <HelpHint hint={helpContent.retirement.lifeEvents} />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setEditingEvent(null);
-                eventEditor.onOpen();
-              }}
-            >
-              Custom Event
-            </Button>
+            <Tooltip label="Add a major expense or income change like buying a home, having kids, or an inheritance">
+              <Button
+                size="sm"
+                variant="outline"
+                colorScheme="blue"
+                onClick={presetPicker.onOpen}
+              >
+                + Add Life Event
+                <HelpHint hint={helpContent.retirement.lifeEvents} />
+              </Button>
+            </Tooltip>
+            <Tooltip label="Create a life event with fully custom parameters">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setEditingEvent(null);
+                  eventEditor.onOpen();
+                }}
+              >
+                Custom Event
+              </Button>
+            </Tooltip>
           </HStack>
         )}
 
         {/* Run Simulation */}
         {scenario && (
           <VStack spacing={2} align="stretch">
-            <Button
-              colorScheme={settingsDirty ? "orange" : "blue"}
-              size="lg"
-              onClick={handleSimulate}
-              isLoading={simulateMutation.isPending}
-              loadingText="Running Simulation..."
-              isDisabled={!selectedScenarioId || readOnly}
-              w="100%"
-            >
-              {settingsDirty ? "Re-run Simulation" : "Run Simulation"}
-            </Button>
+            <Tooltip label="Run thousands of random market scenarios to estimate how your plan holds up">
+              <Button
+                colorScheme={settingsDirty ? "orange" : "blue"}
+                size="lg"
+                onClick={handleSimulate}
+                isLoading={simulateMutation.isPending}
+                loadingText="Running Simulation..."
+                isDisabled={!selectedScenarioId || readOnly}
+                w="100%"
+              >
+                {settingsDirty ? "Re-run Simulation" : "Run Simulation"}
+              </Button>
+            </Tooltip>
             {settingsDirty && !readOnly && (
               <Text fontSize="xs" color="orange.400" textAlign="center">
                 Settings have changed since your last simulation. Click above to
@@ -1620,14 +1642,32 @@ export function RetirementPage() {
                 </Text>
                 <VStack spacing={2} align="stretch" fontSize="sm">
                   <HStack justify="space-between">
-                    <Text color="gray.500">Success Rate</Text>
+                    <Tooltip label="Percentage of simulations where your money lasted through retirement">
+                      <Text
+                        color="gray.500"
+                        cursor="help"
+                        borderBottom="1px dashed"
+                        borderColor="gray.400"
+                      >
+                        Success Rate
+                      </Text>
+                    </Tooltip>
                     <Text fontWeight="bold">
                       {results.success_rate.toFixed(1)}%
                     </Text>
                   </HStack>
                   {results.median_portfolio_at_retirement && (
                     <HStack justify="space-between">
-                      <Text color="gray.500">Portfolio at Retirement</Text>
+                      <Tooltip label="Median projected portfolio value when you stop working">
+                        <Text
+                          color="gray.500"
+                          cursor="help"
+                          borderBottom="1px dashed"
+                          borderColor="gray.400"
+                        >
+                          Portfolio at Retirement
+                        </Text>
+                      </Tooltip>
                       <Text fontWeight="bold">
                         $
                         {(
@@ -1639,7 +1679,16 @@ export function RetirementPage() {
                   )}
                   {results.median_portfolio_at_end !== null && (
                     <HStack justify="space-between">
-                      <Text color="gray.500">Portfolio at End</Text>
+                      <Tooltip label="Median projected portfolio value at your life expectancy age">
+                        <Text
+                          color="gray.500"
+                          cursor="help"
+                          borderBottom="1px dashed"
+                          borderColor="gray.400"
+                        >
+                          Portfolio at End
+                        </Text>
+                      </Tooltip>
                       <Text fontWeight="bold">
                         $
                         {(results.median_portfolio_at_end / 1000000).toFixed(2)}
@@ -1649,7 +1698,16 @@ export function RetirementPage() {
                   )}
                   {results.median_depletion_age && (
                     <HStack justify="space-between">
-                      <Text color="red.400">Median Depletion Age</Text>
+                      <Tooltip label="In the worst-case scenarios, this is the age at which your portfolio runs out">
+                        <Text
+                          color="red.400"
+                          cursor="help"
+                          borderBottom="1px dashed"
+                          borderColor="red.300"
+                        >
+                          Median Depletion Age
+                        </Text>
+                      </Tooltip>
                       <Text fontWeight="bold" color="red.400">
                         {results.median_depletion_age}
                       </Text>
@@ -1657,14 +1715,32 @@ export function RetirementPage() {
                   )}
                   {results.estimated_pia && (
                     <HStack justify="space-between">
-                      <Text color="gray.500">Estimated SS (PIA)</Text>
+                      <Tooltip label="Estimated Social Security Primary Insurance Amount based on your income">
+                        <Text
+                          color="gray.500"
+                          cursor="help"
+                          borderBottom="1px dashed"
+                          borderColor="gray.400"
+                        >
+                          Estimated SS (PIA)
+                        </Text>
+                      </Tooltip>
                       <Text fontWeight="bold">
                         ${results.estimated_pia.toFixed(0)}/mo
                       </Text>
                     </HStack>
                   )}
                   <HStack justify="space-between">
-                    <Text color="gray.500">Simulations Run</Text>
+                    <Tooltip label="Number of random market scenarios tested to estimate your outcomes">
+                      <Text
+                        color="gray.500"
+                        cursor="help"
+                        borderBottom="1px dashed"
+                        borderColor="gray.400"
+                      >
+                        Simulations Run
+                      </Text>
+                    </Tooltip>
                     <Text>{results.num_simulations.toLocaleString()}</Text>
                   </HStack>
                   {results.compute_time_ms && (
@@ -1747,6 +1823,10 @@ export function RetirementPage() {
         isOpen={presetPicker.isOpen}
         onClose={presetPicker.onClose}
         onSelectPreset={handleAddPreset}
+        onCustomEvent={() => {
+          setEditingEvent(null);
+          eventEditor.onOpen();
+        }}
         isLoading={addPresetMutation.isPending}
       />
 

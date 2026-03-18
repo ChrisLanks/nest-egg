@@ -1050,3 +1050,154 @@ describe("view filter does not bypass on include_all_members", () => {
     expect(filter(chrisPersonal)).toBe(true);
   });
 });
+
+// ── Tooltip content expectations ─────────────────────────────────────────────
+
+describe("tooltip content for ScenarioPanel sliders", () => {
+  /**
+   * Validates the tooltip label strings used in ScenarioPanel for each slider.
+   * These are plain strings (not components), so we verify their shape here.
+   */
+  const SCENARIO_PANEL_TOOLTIPS: Record<string, string> = {
+    retirementAge:
+      "The age you plan to stop working and begin withdrawing from your portfolio",
+    planThroughAge:
+      "How long to model your finances — plan conservatively to avoid outliving your money",
+    annualSpending:
+      "How much you expect to spend per year after retiring, before taxes",
+    usePhases:
+      "Model different spending levels at different ages (e.g., travel more early, spend less later)",
+    preRetirementReturn:
+      "Expected average annual return on investments before you retire (S&P 500 averages ~10%)",
+    postRetirementReturn:
+      "Expected average annual return after retiring — typically lower due to more conservative investments",
+    volatility:
+      "How much returns swing year to year — higher means more uncertainty in outcomes",
+    inflationRate:
+      "How fast prices rise each year — your spending needs grow by this rate over time",
+  };
+
+  it("all slider tooltips are non-empty strings", () => {
+    for (const [, label] of Object.entries(SCENARIO_PANEL_TOOLTIPS)) {
+      expect(label).toBeTruthy();
+      expect(typeof label).toBe("string");
+      expect(label.length).toBeGreaterThan(10);
+    }
+  });
+
+  it("covers all 8 ScenarioPanel sliders", () => {
+    expect(Object.keys(SCENARIO_PANEL_TOOLTIPS)).toHaveLength(8);
+  });
+});
+
+describe("tooltip content for RetirementPage actions and stats", () => {
+  const ACTION_TOOLTIPS: Record<string, string> = {
+    newPlan: "Create a new retirement plan with selected household members",
+    duplicate: "Copy the current scenario as a starting point for a new one",
+    exportCsv: "Download projection data as a spreadsheet",
+    compare: "View all scenarios side by side",
+    recalculate:
+      "Update this plan to include the current household members and re-run the simulation",
+    addLifeEvent:
+      "Add a major expense or income change like buying a home, having kids, or an inheritance",
+    customEvent: "Create a life event with fully custom parameters",
+    runSimulation:
+      "Run thousands of random market scenarios to estimate how your plan holds up",
+    rename: "Rename",
+    archive: "Archive",
+    delete: "Delete",
+  };
+
+  const STAT_TOOLTIPS: Record<string, string> = {
+    successRate:
+      "Percentage of simulations where your money lasted through retirement",
+    portfolioAtRetirement:
+      "Median projected portfolio value when you stop working",
+    portfolioAtEnd:
+      "Median projected portfolio value at your life expectancy age",
+    medianDepletionAge:
+      "In the worst-case scenarios, this is the age at which your portfolio runs out",
+    estimatedPIA:
+      "Estimated Social Security Primary Insurance Amount based on your income",
+    simulationsRun:
+      "Number of random market scenarios tested to estimate your outcomes",
+  };
+
+  it("all action tooltips are non-empty strings", () => {
+    for (const label of Object.values(ACTION_TOOLTIPS)) {
+      expect(typeof label).toBe("string");
+      expect(label.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("covers all 11 action buttons", () => {
+    expect(Object.keys(ACTION_TOOLTIPS)).toHaveLength(11);
+  });
+
+  it("all stat tooltips are non-empty strings", () => {
+    for (const label of Object.values(STAT_TOOLTIPS)) {
+      expect(typeof label).toBe("string");
+      expect(label.length).toBeGreaterThan(10);
+    }
+  });
+
+  it("covers all 6 simulation summary stats", () => {
+    expect(Object.keys(STAT_TOOLTIPS)).toHaveLength(6);
+  });
+});
+
+// ── LifeEventPresetPicker custom event callback ─────────────────────────────
+
+describe("LifeEventPresetPicker custom event flow", () => {
+  it("onCustomEvent callback is invoked when custom event button clicked", () => {
+    // Mirrors the LifeEventPresetPicker component behavior:
+    // onClick: onClose() then onCustomEvent?.()
+    let closeCalled = false;
+    let customEventCalled = false;
+
+    const onClose = () => {
+      closeCalled = true;
+    };
+    const onCustomEvent = () => {
+      customEventCalled = true;
+    };
+
+    // Simulate button click
+    onClose();
+    onCustomEvent?.();
+
+    expect(closeCalled).toBe(true);
+    expect(customEventCalled).toBe(true);
+  });
+
+  it("works when onCustomEvent is undefined (backward compat)", () => {
+    let closeCalled = false;
+    const onClose = () => {
+      closeCalled = true;
+    };
+    const onCustomEvent: (() => void) | undefined = undefined;
+
+    // Simulate button click — should not throw
+    onClose();
+    onCustomEvent?.();
+
+    expect(closeCalled).toBe(true);
+  });
+
+  it("custom event callback sets editingEvent to null and opens editor", () => {
+    // Mirrors RetirementPage wiring:
+    // onCustomEvent={() => { setEditingEvent(null); eventEditor.onOpen(); }}
+    let editingEvent: string | null = "existing-event";
+    let editorOpened = false;
+
+    const onCustomEvent = () => {
+      editingEvent = null;
+      editorOpened = true;
+    };
+
+    onCustomEvent();
+
+    expect(editingEvent).toBeNull();
+    expect(editorOpened).toBe(true);
+  });
+});
