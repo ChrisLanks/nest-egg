@@ -21,10 +21,12 @@ from app.config import settings
 from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account, AccountSource, MxMember, PlaidItem, TellerEnrollment
+from app.models.notification import NotificationPriority, NotificationType
 from app.models.user import User
 from app.schemas.plaid import PublicTokenExchangeRequest
 from app.services.encryption_service import get_encryption_service
 from app.services.mx_service import get_mx_service
+from app.services.notification_service import NotificationService
 from app.services.plaid_service import PlaidService
 from app.services.rate_limit_service import rate_limit_service
 from app.services.teller_service import get_teller_service
@@ -228,6 +230,21 @@ async def exchange_token(
             # Sync accounts from Teller
             accounts = await teller_service.sync_accounts(db, enrollment)
 
+            # Notify household about new accounts
+            user_name = current_user.display_name or current_user.first_name or current_user.email
+            inst_name = request.institution_name or "Unknown Institution"
+            await NotificationService.create_notification(
+                db=db,
+                organization_id=current_user.organization_id,
+                type=NotificationType.ACCOUNT_CONNECTED,
+                title=f"New account connected: {inst_name}",
+                message=f"{user_name} connected {len(accounts)} account(s) from {inst_name}.",
+                priority=NotificationPriority.LOW,
+                action_url="/accounts",
+                action_label="View Accounts",
+                expires_in_days=14,
+            )
+
             return ExchangeTokenResponse(
                 provider="teller",
                 item_id=enrollment.enrollment_id,
@@ -270,6 +287,21 @@ async def exchange_token(
 
             # Sync accounts from MX
             accounts = await mx_service.sync_accounts(db, member)
+
+            # Notify household about new accounts
+            user_name = current_user.display_name or current_user.first_name or current_user.email
+            inst_name = request.institution_name or "Unknown Institution"
+            await NotificationService.create_notification(
+                db=db,
+                organization_id=current_user.organization_id,
+                type=NotificationType.ACCOUNT_CONNECTED,
+                title=f"New account connected: {inst_name}",
+                message=f"{user_name} connected {len(accounts)} account(s) from {inst_name}.",
+                priority=NotificationPriority.LOW,
+                action_url="/accounts",
+                action_label="View Accounts",
+                expires_in_days=14,
+            )
 
             return ExchangeTokenResponse(
                 provider="mx",

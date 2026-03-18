@@ -408,10 +408,10 @@ class TestRetirementStaleNotification:
 
 
 class TestAccountConnectedNotification:
-    """Test account connected notification."""
+    """Test account connected notification across all providers."""
 
     @pytest.mark.asyncio
-    async def test_account_connected_notification_created(self, db, test_user):
+    async def test_account_connected_plaid(self, db, test_user):
         """Should create ACCOUNT_CONNECTED notification on Plaid link."""
         from app.services.notification_service import NotificationService
 
@@ -430,3 +430,152 @@ class TestAccountConnectedNotification:
         assert notification.type == NotificationType.ACCOUNT_CONNECTED
         assert "Chase" in notification.title
         assert notification.action_url == "/accounts"
+
+    @pytest.mark.asyncio
+    async def test_account_connected_teller(self, db, test_user):
+        """Should create ACCOUNT_CONNECTED notification on Teller link."""
+        from app.services.notification_service import NotificationService
+
+        notification = await NotificationService.create_notification(
+            db=db,
+            organization_id=test_user.organization_id,
+            type=NotificationType.ACCOUNT_CONNECTED,
+            title="New account connected: Wells Fargo",
+            message="Bob connected 2 account(s) from Wells Fargo.",
+            priority=NotificationPriority.LOW,
+            action_url="/accounts",
+            action_label="View Accounts",
+            expires_in_days=14,
+        )
+
+        assert notification.type == NotificationType.ACCOUNT_CONNECTED
+        assert "Wells Fargo" in notification.title
+        assert notification.expires_at is not None
+
+    @pytest.mark.asyncio
+    async def test_account_connected_mx(self, db, test_user):
+        """Should create ACCOUNT_CONNECTED notification on MX link."""
+        from app.services.notification_service import NotificationService
+
+        notification = await NotificationService.create_notification(
+            db=db,
+            organization_id=test_user.organization_id,
+            type=NotificationType.ACCOUNT_CONNECTED,
+            title="New account connected: Bank of America",
+            message=("Carol connected 1 account(s) from Bank of America."),
+            priority=NotificationPriority.LOW,
+            action_url="/accounts",
+            action_label="View Accounts",
+            expires_in_days=14,
+        )
+
+        assert notification.type == NotificationType.ACCOUNT_CONNECTED
+        assert "Bank of America" in notification.title
+        assert notification.action_label == "View Accounts"
+
+    @pytest.mark.asyncio
+    async def test_account_connected_is_org_wide(self, db, test_user):
+        """Account connected notifications should be visible to all members."""
+        from app.services.notification_service import NotificationService
+
+        notification = await NotificationService.create_notification(
+            db=db,
+            organization_id=test_user.organization_id,
+            type=NotificationType.ACCOUNT_CONNECTED,
+            title="New account connected: Fidelity",
+            message="Alice connected 1 account(s) from Fidelity.",
+            priority=NotificationPriority.LOW,
+            action_url="/accounts",
+            action_label="View Accounts",
+            expires_in_days=14,
+        )
+
+        # user_id=None means org-wide (visible to all household members)
+        assert notification.user_id is None
+
+
+class TestFireMilestoneRenotification:
+    """Test FIRE milestone re-notification after dismissal."""
+
+    @pytest.mark.asyncio
+    async def test_fire_renotifies_after_dismiss(self, db, test_user):
+        """Should create new notification if previous one was dismissed."""
+        from app.services.fire_service import FireService
+        from app.services.notification_service import NotificationService
+
+        org_id = test_user.organization_id
+
+        # Create and dismiss an existing FIRE_COAST_FI notification
+        notif = await NotificationService.create_notification(
+            db=db,
+            organization_id=org_id,
+            type=NotificationType.FIRE_COAST_FI,
+            title="Coast FI reached!",
+            message="Previously notified.",
+            priority=NotificationPriority.LOW,
+        )
+        # Directly dismiss it (mark_as_dismissed requires a User object)
+        from app.utils.datetime_utils import utc_now
+
+        notif.is_dismissed = True
+        notif.dismissed_at = utc_now()
+        await db.flush()
+
+        service = FireService(db)
+        mock_metrics = {
+            "fi_ratio": {
+                "fi_ratio": 0.6,
+                "investable_assets": 600000,
+                "annual_expenses": 40000,
+                "fi_number": 1000000,
+            },
+            "savings_rate": {
+                "savings_rate": 0.5,
+                "income": 100000,
+                "spending": 50000,
+                "savings": 50000,
+                "months": 12,
+            },
+            "years_to_fi": {
+                "years_to_fi": 8,
+                "fi_number": 1000000,
+                "investable_assets": 600000,
+                "annual_savings": 50000,
+                "withdrawal_rate": 0.04,
+                "expected_return": 0.07,
+                "already_fi": False,
+            },
+            "coast_fi": {
+                "coast_fi_number": 300000,
+                "fi_number": 1000000,
+                "investable_assets": 600000,
+                "is_coast_fi": True,
+                "retirement_age": 65,
+                "years_until_retirement": 35,
+                "expected_return": 0.07,
+            },
+        }
+
+        with patch.object(
+            service,
+            "get_fire_dashboard",
+            new_callable=AsyncMock,
+            return_value=mock_metrics,
+        ):
+            await service.check_fire_milestones(org_id)
+
+        # Should have created a new notification since old was dismissed
+        from sqlalchemy import select
+
+        from app.models.notification import Notification
+
+        result = await db.execute(
+            select(Notification).where(
+                Notification.organization_id == org_id,
+                Notification.type == NotificationType.FIRE_COAST_FI,
+                Notification.is_dismissed.is_(False),
+            )
+        )
+        new_notif = result.scalar_one_or_none()
+        assert new_notif is not None
+        assert new_notif.id != notif.id
