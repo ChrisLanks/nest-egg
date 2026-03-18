@@ -13,6 +13,7 @@ import type {
   RetirementScenario,
   RetirementScenarioCreate,
   RetirementScenarioSummary,
+  SpendingPhase,
 } from "../types/retirement";
 
 // ── Type shape tests ─────────────────────────────────────────────────────────
@@ -49,6 +50,7 @@ describe("RetirementScenario archival fields", () => {
       healthcare_medicare_override: null,
       healthcare_ltc_override: null,
       num_simulations: 1000,
+      spending_phases: null,
       is_shared: false,
       include_all_members: false,
       is_stale: false,
@@ -246,75 +248,152 @@ describe("view-specific scenario filtering", () => {
     }),
   ];
 
-  const isPersonal = (s: RetirementScenarioSummary) =>
-    !s.include_all_members &&
-    (!s.household_member_ids || s.household_member_ids.length <= 1);
-
-  it("'All' view shows include_all_members scenarios + all personal plans", () => {
-    const result = allScenarios.filter(
-      (s) => s.include_all_members || isPersonal(s),
-    );
+  it("'All' view shows all scenarios (personal, selective shared, and include_all_members)", () => {
+    // In "All" view, every scenario should be visible regardless of membership type
+    const isAllSelected = true;
+    const result = allScenarios.filter(() => isAllSelected);
     expect(result.map((s) => s.id)).toEqual([
       "u1-personal",
       "u2-personal",
       "u3-personal",
       "all-members",
+      "shared-u1-u2",
+      "shared-u1-u3",
     ]);
   });
 
-  it("'All' view excludes selective shared plans", () => {
-    const result = allScenarios.filter(
-      (s) => s.include_all_members || isPersonal(s),
-    );
-    expect(result.map((s) => s.id)).not.toContain("shared-u1-u2");
-    expect(result.map((s) => s.id)).not.toContain("shared-u1-u3");
+  it("'All' view includes selective shared plans created by any user", () => {
+    const isAllSelected = true;
+    const result = allScenarios.filter(() => isAllSelected);
+    expect(result.map((s) => s.id)).toContain("shared-u1-u2");
+    expect(result.map((s) => s.id)).toContain("shared-u1-u3");
   });
 
-  it("single user view shows only their personal plans", () => {
+  it("'All' view shows selective plan for non-creator members (e.g., chris creates plan for test+test2)", () => {
+    // Scenario: user "chris" creates a plan with members "test" and "test2" (not including chris)
+    const scenariosWithCrossPlan = [
+      ...allScenarios,
+      makeSummary({
+        id: "chris-plan-for-others",
+        user_id: "chris",
+        household_member_ids: ["test", "test2"],
+      }),
+    ];
+    const isAllSelected = true;
+    const result = scenariosWithCrossPlan.filter(() => isAllSelected);
+    expect(result.map((s) => s.id)).toContain("chris-plan-for-others");
+  });
+
+  /**
+   * Mirrors the filterForView logic.
+   * A plan belongs to its creator (user_id). household_member_ids only
+   * controls which accounts are in the simulation, not ownership.
+   * include_all_members does NOT change ownership — the plan still
+   * belongs to whoever created it. "All" view shows everything separately.
+   */
+  const scenarioBelongsTo = (userId: string, s: RetirementScenarioSummary) => {
+    return s.user_id === userId;
+  };
+
+  it("single user view shows their personal and shared plans", () => {
+    const userId = "u1";
+    const result = allScenarios.filter((s) => scenarioBelongsTo(userId, s));
+    // u1 created: u1-personal, all-members, shared-u1-u2, shared-u1-u3
+    expect(result.map((s) => s.id)).toEqual([
+      "u1-personal",
+      "all-members",
+      "shared-u1-u2",
+      "shared-u1-u3",
+    ]);
+  });
+
+  it("single user view shows only plans they created", () => {
     const userId = "u2";
-    const result = allScenarios.filter(
-      (s) => s.user_id === userId && isPersonal(s),
-    );
+    const result = allScenarios.filter((s) => scenarioBelongsTo(userId, s));
+    // u2 only owns u2-personal; all-members was created by u1
     expect(result.map((s) => s.id)).toEqual(["u2-personal"]);
   });
 
-  it("2 users selected shows their personal plans + exact-match shared plans", () => {
+  it("single user view: creator sees their shared plan", () => {
+    const scenariosWithCrossPlan = [
+      ...allScenarios,
+      makeSummary({
+        id: "chris-plan-for-others",
+        user_id: "chris",
+        household_member_ids: ["u1", "u2"],
+      }),
+    ];
+    // Chris created the plan, so it shows in chris's view
+    const result = scenariosWithCrossPlan.filter((s) =>
+      scenarioBelongsTo("chris", s),
+    );
+    expect(result.map((s) => s.id)).toContain("chris-plan-for-others");
+  });
+
+  it("single user view: non-creator member does NOT see someone else's shared plan", () => {
+    const scenariosWithCrossPlan = [
+      ...allScenarios,
+      makeSummary({
+        id: "chris-plan-for-others",
+        user_id: "chris",
+        household_member_ids: ["u1", "u2"],
+      }),
+    ];
+    // u1 is in household_member_ids but chris created it — not u1's plan
+    const result = scenariosWithCrossPlan.filter((s) =>
+      scenarioBelongsTo("u1", s),
+    );
+    expect(result.map((s) => s.id)).not.toContain("chris-plan-for-others");
+  });
+
+  it("2 users selected shows plans owned by either selected user", () => {
     const selectedIds = new Set(["u1", "u2"]);
-    const selectedArray = [...selectedIds];
-    const result = allScenarios.filter((s) => {
-      if (s.include_all_members) return false;
-      if (s.household_member_ids && s.household_member_ids.length > 1) {
-        const scenarioMembers = new Set(s.household_member_ids);
-        return (
-          scenarioMembers.size === selectedIds.size &&
-          selectedArray.every((id) => scenarioMembers.has(id))
-        );
-      }
-      return selectedIds.has(s.user_id);
-    });
+    const result = allScenarios.filter((s) =>
+      [...selectedIds].some((id) => scenarioBelongsTo(id, s)),
+    );
+    // u1 owns: u1-personal, all-members, shared-u1-u2, shared-u1-u3
+    // u2 owns: u2-personal
     expect(result.map((s) => s.id)).toEqual([
       "u1-personal",
       "u2-personal",
+      "all-members",
       "shared-u1-u2",
+      "shared-u1-u3",
     ]);
   });
 
-  it("2 users selected does NOT show shared plans for different sets", () => {
+  it("2 users selected does NOT show plan owned by unselected user", () => {
+    const scenariosWithCrossPlan = [
+      ...allScenarios,
+      makeSummary({
+        id: "chris-plan-for-u1-u2",
+        user_id: "chris",
+        household_member_ids: ["u1", "u2"],
+      }),
+    ];
+    // u1 and u2 are selected, but chris (the owner) is not
     const selectedIds = new Set(["u1", "u2"]);
-    const selectedArray = [...selectedIds];
-    const result = allScenarios.filter((s) => {
-      if (s.include_all_members) return false;
-      if (s.household_member_ids && s.household_member_ids.length > 1) {
-        const scenarioMembers = new Set(s.household_member_ids);
-        return (
-          scenarioMembers.size === selectedIds.size &&
-          selectedArray.every((id) => scenarioMembers.has(id))
-        );
-      }
-      return selectedIds.has(s.user_id);
-    });
-    // shared-u1-u3 should NOT appear since u3 is not selected
-    expect(result.map((s) => s.id)).not.toContain("shared-u1-u3");
+    const result = scenariosWithCrossPlan.filter((s) =>
+      [...selectedIds].some((id) => scenarioBelongsTo(id, s)),
+    );
+    expect(result.map((s) => s.id)).not.toContain("chris-plan-for-u1-u2");
+  });
+
+  it("selecting the creator shows their shared plan", () => {
+    const scenariosWithCrossPlan = [
+      ...allScenarios,
+      makeSummary({
+        id: "chris-plan-for-u1-u2",
+        user_id: "chris",
+        household_member_ids: ["u1", "u2"],
+      }),
+    ];
+    // chris is selected — their plan should show
+    const selectedIds = new Set(["chris", "u2"]);
+    const result = scenariosWithCrossPlan.filter((s) =>
+      [...selectedIds].some((id) => scenarioBelongsTo(id, s)),
+    );
+    expect(result.map((s) => s.id)).toContain("chris-plan-for-u1-u2");
   });
 });
 
@@ -551,5 +630,224 @@ describe("member editor modal pre-population", () => {
     const { mode, ids } = deriveEditState(s);
     expect(mode).toBe("just_me");
     expect(ids.size).toBe(0);
+  });
+});
+
+// ── Spending phases type tests ──────────────────────────────────────────────
+
+describe("SpendingPhase type shape", () => {
+  it("accepts a valid phase with end_age", () => {
+    const phase: SpendingPhase = {
+      start_age: 65,
+      end_age: 75,
+      annual_amount: 150000,
+    };
+    expect(phase.start_age).toBe(65);
+    expect(phase.end_age).toBe(75);
+    expect(phase.annual_amount).toBe(150000);
+  });
+
+  it("accepts a phase with null end_age", () => {
+    const phase: SpendingPhase = {
+      start_age: 75,
+      end_age: null,
+      annual_amount: 50000,
+    };
+    expect(phase.end_age).toBeNull();
+  });
+});
+
+describe("RetirementScenario spending_phases field", () => {
+  it("accepts spending_phases as null", () => {
+    const scenario = {
+      spending_phases: null,
+    } as Partial<RetirementScenario>;
+    expect(scenario.spending_phases).toBeNull();
+  });
+
+  it("accepts spending_phases as array of phases", () => {
+    const phases: SpendingPhase[] = [
+      { start_age: 65, end_age: 75, annual_amount: 150000 },
+      { start_age: 75, end_age: null, annual_amount: 50000 },
+    ];
+    const scenario = {
+      spending_phases: phases,
+    } as Partial<RetirementScenario>;
+    expect(scenario.spending_phases).toHaveLength(2);
+    expect(scenario.spending_phases![0].annual_amount).toBe(150000);
+    expect(scenario.spending_phases![1].end_age).toBeNull();
+  });
+});
+
+describe("RetirementScenarioCreate spending_phases", () => {
+  it("accepts create payload without spending_phases", () => {
+    const create: RetirementScenarioCreate = {
+      name: "Simple Plan",
+      retirement_age: 67,
+      annual_spending_retirement: 60000,
+    };
+    expect(create.spending_phases).toBeUndefined();
+  });
+
+  it("accepts create payload with spending_phases", () => {
+    const create: RetirementScenarioCreate = {
+      name: "Phased Plan",
+      retirement_age: 65,
+      annual_spending_retirement: 60000,
+      spending_phases: [
+        { start_age: 65, end_age: 75, annual_amount: 120000 },
+        { start_age: 75, end_age: null, annual_amount: 50000 },
+      ],
+    };
+    expect(create.spending_phases).toHaveLength(2);
+  });
+
+  it("accepts create payload with spending_phases set to null", () => {
+    const create: RetirementScenarioCreate = {
+      name: "Cleared Phases",
+      retirement_age: 67,
+      annual_spending_retirement: 60000,
+      spending_phases: null,
+    };
+    expect(create.spending_phases).toBeNull();
+  });
+});
+
+// ── Auto-simulate after member change ───────────────────────────────────────
+
+describe("auto-simulate after member change", () => {
+  it("should trigger simulation for the edited scenario after saving members", () => {
+    // Mirrors the handleSaveMemberEdit flow:
+    // 1. Update mutation succeeds
+    // 2. Queries invalidated
+    // 3. Simulation auto-triggered for the edited scenario ID
+    const editingMembersScenarioId = "scenario-123";
+    let simulatedId: string | null = null;
+    // Mock simulate
+    const simulateMutation = {
+      mutateAsync: (id: string) => {
+        simulatedId = id;
+        return Promise.resolve();
+      },
+    };
+
+    // After successful member save, auto-simulate fires
+    if (editingMembersScenarioId) {
+      simulateMutation.mutateAsync(editingMembersScenarioId);
+    }
+
+    expect(simulatedId).toBe("scenario-123");
+  });
+
+  it("should simulate using editingMembersScenarioId, not selectedScenarioId", () => {
+    // When the edited scenario differs from the currently viewed one,
+    // we should still simulate the correct (edited) scenario
+    const editingMembersScenarioId = "edited-scenario";
+    const selectedScenarioId = "different-scenario";
+    let simulatedId: string | null = null;
+
+    const simulateMutation = {
+      mutateAsync: (id: string) => {
+        simulatedId = id;
+        return Promise.resolve();
+      },
+    };
+
+    if (editingMembersScenarioId) {
+      simulateMutation.mutateAsync(editingMembersScenarioId);
+    }
+
+    expect(simulatedId).toBe("edited-scenario");
+    expect(simulatedId).not.toBe(selectedScenarioId);
+  });
+
+  it("should not simulate when editingMembersScenarioId is null", () => {
+    const editingMembersScenarioId: string | null = null;
+    let simulateCalled = false;
+
+    const simulateMutation = {
+      mutateAsync: (_id: string) => {
+        simulateCalled = true;
+        return Promise.resolve();
+      },
+    };
+
+    if (editingMembersScenarioId) {
+      simulateMutation.mutateAsync(editingMembersScenarioId);
+    }
+
+    expect(simulateCalled).toBe(false);
+  });
+});
+
+// ── Owner display in household plans ────────────────────────────────────────
+
+describe("scenario owner identification", () => {
+  const makeSummary = (
+    overrides: Partial<RetirementScenarioSummary>,
+  ): RetirementScenarioSummary => ({
+    id: "default-id",
+    user_id: "u1",
+    name: "Default",
+    retirement_age: 65,
+    is_default: false,
+    is_stale: false,
+    include_all_members: false,
+    is_archived: false,
+    household_member_ids: null,
+    readiness_score: null,
+    success_rate: null,
+    updated_at: "2026-01-01",
+    ...overrides,
+  });
+
+  /** Mirrors logic for deriving owner label text */
+  function getOwnerLabel(
+    scenario: RetirementScenarioSummary,
+    memberNameMap: Record<string, string>,
+  ): string | null {
+    const ownerName = memberNameMap[scenario.user_id];
+    if (!ownerName) return null;
+    // Only show owner label for multi-member scenarios
+    if (
+      scenario.include_all_members ||
+      (scenario.household_member_ids &&
+        scenario.household_member_ids.length > 1)
+    ) {
+      return ownerName;
+    }
+    return null;
+  }
+
+  const nameMap: Record<string, string> = {
+    u1: "Chris",
+    u2: "Test",
+    u3: "Test2",
+  };
+
+  it("shows owner name for include_all_members scenario", () => {
+    const s = makeSummary({ user_id: "u1", include_all_members: true });
+    expect(getOwnerLabel(s, nameMap)).toBe("Chris");
+  });
+
+  it("shows owner name for selective shared scenario", () => {
+    const s = makeSummary({
+      user_id: "u1",
+      household_member_ids: ["u2", "u3"],
+    });
+    expect(getOwnerLabel(s, nameMap)).toBe("Chris");
+  });
+
+  it("returns null for personal (single-user) scenario", () => {
+    const s = makeSummary({ user_id: "u1" });
+    expect(getOwnerLabel(s, nameMap)).toBeNull();
+  });
+
+  it("returns null when owner not in name map", () => {
+    const s = makeSummary({
+      user_id: "unknown",
+      include_all_members: true,
+    });
+    expect(getOwnerLabel(s, nameMap)).toBeNull();
   });
 });

@@ -51,6 +51,14 @@ export interface LifeEventCreate {
   sort_order?: number;
 }
 
+// --- Spending Phases ---
+
+export interface SpendingPhase {
+  start_age: number;
+  end_age: number | null;
+  annual_amount: number;
+}
+
 // --- Scenarios ---
 
 export interface RetirementScenario {
@@ -90,6 +98,7 @@ export interface RetirementScenario {
   healthcare_ltc_override: number | null;
 
   num_simulations: number;
+  spending_phases: SpendingPhase[] | null;
   is_shared: boolean;
   include_all_members: boolean;
   is_stale: boolean;
@@ -134,6 +143,7 @@ export interface RetirementScenarioCreate {
   social_security_start_age?: number;
   withdrawal_strategy?: WithdrawalStrategy;
   withdrawal_rate?: number;
+  spending_phases?: SpendingPhase[] | null;
   include_all_members?: boolean;
   member_ids?: string[];
 }

@@ -135,6 +135,11 @@ class RetirementScenario(Base):
     household_member_hash = Column(String(64), nullable=True)
     household_member_ids = Column(Text, nullable=True)  # JSON array of member UUIDs
 
+    # Spending phases (variable spending across retirement)
+    spending_phases = Column(
+        Text, nullable=True
+    )  # JSON: [{"start_age", "end_age", "annual_amount"}]
+
     # Archival lifecycle
     is_archived = Column(Boolean, default=False, nullable=False, server_default="false")
     archived_at = Column(DateTime, nullable=True)

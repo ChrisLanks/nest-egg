@@ -221,6 +221,10 @@ def _compute_scenario_hash(scenario: RetirementScenario) -> str:
         str(scenario.healthcare_pre65_override),
         str(scenario.healthcare_medicare_override),
         str(scenario.healthcare_ltc_override),
+        str(scenario.spending_phases),
+        str(scenario.include_all_members),
+        str(scenario.household_member_ids),
+        str(scenario.household_member_hash),
     ]
     # Include life events in hash
     for event in sorted(scenario.life_events, key=lambda e: (e.start_age, e.name)):
@@ -246,8 +250,16 @@ class RetirementMonteCarloService:
         db: AsyncSession,
         scenario: RetirementScenario,
         user: User,
+        account_data: dict | None = None,
+        household_user_ids: list[str] | None = None,
+        scenario_hash: str | None = None,
     ) -> RetirementSimulationResult:
-        """Run full Monte Carlo simulation for a retirement scenario."""
+        """Run full Monte Carlo simulation for a retirement scenario.
+
+        When called from run_or_get_cached_simulation, account_data,
+        household_user_ids, and scenario_hash are pre-computed to avoid
+        redundant DB queries.
+        """
         start_time = time.monotonic()
 
         # Get current age from birthdate
@@ -256,33 +268,35 @@ class RetirementMonteCarloService:
         current_age = calculate_age(user.birthdate)
 
         # Gather account data — multi-user when applicable
-        household_user_ids = None
-        if getattr(scenario, "include_all_members", False) is True:
-            from app.services.retirement.retirement_planner_service import (
-                RetirementPlannerService,
+        if account_data is None:
+            if getattr(scenario, "include_all_members", False) is True:
+                from app.services.retirement.retirement_planner_service import (
+                    RetirementPlannerService,
+                )
+
+                _, member_ids = await RetirementPlannerService.compute_household_member_hash(
+                    db, str(scenario.organization_id)
+                )
+                if len(member_ids) > 1:
+                    household_user_ids = member_ids
+            elif getattr(scenario, "household_member_ids", None) and isinstance(
+                scenario.household_member_ids, str
+            ):
+                import json as _json
+
+                stored_ids = _json.loads(scenario.household_member_ids)
+                if len(stored_ids) > 1:
+                    household_user_ids = stored_ids
+
+            account_data = await RetirementMonteCarloService._gather_account_data(
+                db,
+                str(scenario.organization_id),
+                str(scenario.user_id),
+                user_ids=household_user_ids,
             )
 
-            _, member_ids = await RetirementPlannerService.compute_household_member_hash(
-                db, str(scenario.organization_id)
-            )
-            if len(member_ids) > 1:
-                household_user_ids = member_ids
-        elif getattr(scenario, "household_member_ids", None) and isinstance(
-            scenario.household_member_ids, str
-        ):
-            # Selective multi-user scenario
-            import json as _json
-
-            stored_ids = _json.loads(scenario.household_member_ids)
-            if len(stored_ids) > 1:
-                household_user_ids = stored_ids
-
-        account_data = await RetirementMonteCarloService._gather_account_data(
-            db,
-            str(scenario.organization_id),
-            str(scenario.user_id),
-            user_ids=household_user_ids,
-        )
+        if scenario_hash is None:
+            scenario_hash = _compute_scenario_hash(scenario)
 
         # Simulation parameters
         num_sims = scenario.num_simulations or 2500
@@ -300,6 +314,19 @@ class RetirementMonteCarloService:
         med_inflation = float(scenario.medical_inflation_rate) / 100
 
         annual_spending = float(scenario.annual_spending_retirement)
+
+        # Build spending schedule from phases (if set)
+        spending_schedule: dict[int, float] | None = None
+        if scenario.spending_phases:
+            raw_phases = scenario.spending_phases
+            phases = json.loads(raw_phases) if isinstance(raw_phases, str) else raw_phases
+            spending_schedule = {}
+            for phase in phases:
+                end = phase.get("end_age") or life_expectancy
+                amount = float(phase["annual_amount"])
+                for a in range(phase["start_age"], end + 1):
+                    spending_schedule[a] = amount
+
         annual_contributions = float(account_data["annual_contributions"])
         employer_match = float(account_data["employer_match_annual"])
         total_annual_additions = annual_contributions + employer_match
@@ -413,7 +440,12 @@ class RetirementMonteCarloService:
                 if is_retired:
                     # Withdrawal phase
                     years_from_now = year
-                    adjusted_spending = annual_spending * ((1 + inflation) ** years_from_now)
+                    base_spending = (
+                        spending_schedule.get(age, annual_spending)
+                        if spending_schedule
+                        else annual_spending
+                    )
+                    adjusted_spending = base_spending * ((1 + inflation) ** years_from_now)
 
                     # Healthcare costs (already in today's dollars, inflate)
                     hc_cost = healthcare_costs.get(age, 0.0)
@@ -534,10 +566,20 @@ class RetirementMonteCarloService:
         median_at_end = round(end_values[int(num_sims * 0.5)], 2)
 
         # Readiness score (0-100)
+        # Use weighted average spending if phases are set
+        readiness_spending = annual_spending
+        if spending_schedule:
+            phase_values = [
+                spending_schedule.get(a, annual_spending)
+                for a in range(retirement_age, life_expectancy + 1)
+            ]
+            if phase_values:
+                readiness_spending = sum(phase_values) / len(phase_values)
+
         readiness_score = RetirementMonteCarloService._calculate_readiness_score(
             success_rate=success_rate,
             current_portfolio=current_portfolio,
-            annual_spending=annual_spending,
+            annual_spending=readiness_spending,
             years_in_retirement=life_expectancy - retirement_age,
             annual_savings=total_annual_additions,
             annual_income=float(scenario.current_annual_income or 0),
@@ -571,7 +613,6 @@ class RetirementMonteCarloService:
             pass  # Non-critical; don't fail simulation if comparison errors
 
         compute_time_ms = int((time.monotonic() - start_time) * 1000)
-        scenario_hash = _compute_scenario_hash(scenario)
 
         # Create and save result
         result = RetirementSimulationResult(

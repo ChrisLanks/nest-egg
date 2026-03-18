@@ -227,7 +227,11 @@ class RetirementPlannerService:
             # Allow explicit null for nullable fields (e.g. healthcare overrides,
             # household member fields when reverting to personal plan);
             # skip null for non-nullable fields to avoid DB integrity errors.
-            NULLABLE_FIELDS = {"household_member_ids", "household_member_hash"}
+            NULLABLE_FIELDS = {
+                "household_member_ids",
+                "household_member_hash",
+                "spending_phases",
+            }
             if value is None and not key.endswith("_override") and key not in NULLABLE_FIELDS:
                 continue
             setattr(scenario, key, value)
@@ -281,6 +285,7 @@ class RetirementPlannerService:
             include_all_members=scenario.include_all_members,
             household_member_hash=scenario.household_member_hash,
             household_member_ids=scenario.household_member_ids,
+            spending_phases=scenario.spending_phases,
         )
         db.add(new_scenario)
         await db.flush()
@@ -314,8 +319,45 @@ class RetirementPlannerService:
         scenario: RetirementScenario,
         user: User,
     ) -> RetirementSimulationResult:
-        """Run simulation if inputs changed, else return cached result."""
-        current_hash = _compute_scenario_hash(scenario)
+        """Run simulation if inputs changed, else return cached result.
+
+        The hash includes scenario parameters AND account data so that
+        balance/contribution changes also invalidate the cache.
+        """
+        import hashlib as _hashlib
+
+        # Resolve household user IDs (same logic as run_simulation)
+        household_user_ids = None
+        if getattr(scenario, "include_all_members", False) is True:
+            _, member_ids = await RetirementPlannerService.compute_household_member_hash(
+                db, str(scenario.organization_id)
+            )
+            if len(member_ids) > 1:
+                household_user_ids = member_ids
+        elif getattr(scenario, "household_member_ids", None) and isinstance(
+            scenario.household_member_ids, str
+        ):
+            import json as _json
+
+            stored_ids = _json.loads(scenario.household_member_ids)
+            if len(stored_ids) > 1:
+                household_user_ids = stored_ids
+
+        # Gather account data for hash (lightweight — same query as simulation)
+        account_data = await RetirementMonteCarloService._gather_account_data(
+            db,
+            str(scenario.organization_id),
+            str(scenario.user_id),
+            user_ids=household_user_ids,
+        )
+        account_hash = _hashlib.sha256(
+            "|".join(
+                str(account_data[k]) for k in sorted(account_data.keys()) if k != "accounts"
+            ).encode()
+        ).hexdigest()
+
+        scenario_hash = _compute_scenario_hash(scenario)
+        current_hash = _hashlib.sha256(f"{scenario_hash}|{account_hash}".encode()).hexdigest()
 
         # Check for cached result
         result = await db.execute(
@@ -333,8 +375,15 @@ class RetirementPlannerService:
         if cached:
             return cached
 
-        # Run new simulation
-        return await RetirementMonteCarloService.run_simulation(db, scenario, user)
+        # Run new simulation (pass pre-fetched data to avoid re-querying)
+        return await RetirementMonteCarloService.run_simulation(
+            db,
+            scenario,
+            user,
+            account_data=account_data,
+            household_user_ids=household_user_ids,
+            scenario_hash=current_hash,
+        )
 
     @staticmethod
     async def get_latest_result(

@@ -107,6 +107,8 @@ export function RetirementPage() {
     selectedMemberIds,
     selectedMemberIdsKey,
     householdMembers,
+    isAllSelected: contextAllSelected,
+    matchesMemberFilter,
   } = useUserView();
   const queryClient = useQueryClient();
   const readOnly = !canWriteResource("retirement_scenario");
@@ -116,9 +118,7 @@ export function RetirementPage() {
   // Retirement is per-person: only show scenarios when exactly one member is selected
   const singleSelectedId = selectedIds.size === 1 ? [...selectedIds][0] : null;
   const filterUserId = isCombinedView ? singleSelectedId : null;
-  const isAllSelected =
-    isCombinedView &&
-    (selectedIds.size === 0 || selectedIds.size === householdMembers.length);
+  const isAllSelected = isCombinedView && contextAllSelected;
   const tabsRef = useRef<HTMLDivElement>(null);
 
   // Track whether settings changed since last simulation
@@ -167,42 +167,16 @@ export function RetirementPage() {
   const unarchiveMutation = useUnarchiveScenario();
   const createScenarioMutation = useCreateScenario();
 
-  // Helpers for scenario classification
-  const isPersonalScenario = (s: RetirementScenarioSummary) =>
-    !s.include_all_members &&
-    (!s.household_member_ids || s.household_member_ids.length <= 1);
-
-  // Filter scenarios based on which members are selected in combined view
+  // Filter scenarios based on which members are selected in the View picker.
+  // A plan belongs to its creator (user_id). When all members are selected, show everything.
+  // Otherwise filter by owner — even include_all_members plans belong to whoever created them.
   const filterForView = useCallback(
     (s: RetirementScenarioSummary): boolean => {
-      if (!isCombinedView) return true; // non-combined: all scenarios pass (already user-scoped)
-
-      if (isAllSelected) {
-        // "All" view: include_all_members scenarios + everyone's personal plans
-        return s.include_all_members || isPersonalScenario(s);
-      }
-
-      if (filterUserId) {
-        // Single member selected: only their personal (non-multi-member) plans
-        return s.user_id === filterUserId && isPersonalScenario(s);
-      }
-
-      // 2+ members selected (but not all): show personal plans of each
-      // selected member + shared plans that match exactly the selected set
-      const selectedArray = [...selectedIds];
-      if (s.include_all_members) return false;
-      if (s.household_member_ids && s.household_member_ids.length > 1) {
-        // Selective shared plan: exact match of selected members
-        const scenarioMembers = new Set(s.household_member_ids);
-        return (
-          scenarioMembers.size === selectedIds.size &&
-          selectedArray.every((id) => scenarioMembers.has(id))
-        );
-      }
-      // Personal plan: show if owner is one of the selected members
-      return selectedIds.has(s.user_id);
+      if (!isCombinedView) return true; // non-combined: already user-scoped by API
+      if (isAllSelected) return true; // all members selected — show everything
+      return matchesMemberFilter(s.user_id);
     },
-    [isCombinedView, isAllSelected, filterUserId, selectedIds],
+    [isCombinedView, isAllSelected, matchesMemberFilter],
   );
 
   const scenarios = useMemo(
@@ -701,6 +675,17 @@ export function RetirementPage() {
         status: "success",
         duration: 2000,
       });
+      // Auto-run simulation after member changes
+      if (editingMembersScenarioId) {
+        simulateMutation
+          .mutateAsync(editingMembersScenarioId)
+          .then(() => {
+            if (editingMembersScenarioId === selectedScenarioId) {
+              setSettingsDirty(false);
+            }
+          })
+          .catch(() => {});
+      }
     } catch (err: any) {
       toast({
         title: "Failed to update members",
@@ -718,6 +703,9 @@ export function RetirementPage() {
     queryClient,
     memberEditor,
     toast,
+    simulateMutation,
+    selectedScenarioId,
+    setSettingsDirty,
   ]);
 
   // Handle archive/unarchive
@@ -855,6 +843,27 @@ export function RetirementPage() {
                           >
                             <Text fontSize="sm" color="gray.500">
                               {s.name}
+                              {isCombinedView &&
+                                (s.include_all_members ||
+                                  (s.household_member_ids &&
+                                    s.household_member_ids.length > 1)) &&
+                                (() => {
+                                  const owner = householdMembers.find(
+                                    (m) => m.id === s.user_id,
+                                  );
+                                  const ownerName =
+                                    owner?.display_name ?? owner?.first_name;
+                                  return ownerName ? (
+                                    <Text
+                                      as="span"
+                                      ml={1}
+                                      fontSize="xs"
+                                      color="gray.400"
+                                    >
+                                      by {ownerName}
+                                    </Text>
+                                  ) : null;
+                                })()}
                             </Text>
                             {!readOnly && (
                               <Button
@@ -1333,6 +1342,28 @@ export function RetirementPage() {
                       })()}
                       <Text as="span">
                         {s.name}
+                        {isCombinedView &&
+                          (s.include_all_members ||
+                            (s.household_member_ids &&
+                              s.household_member_ids.length > 1)) &&
+                          (() => {
+                            const owner = householdMembers.find(
+                              (m) => m.id === s.user_id,
+                            );
+                            const ownerName =
+                              owner?.display_name ?? owner?.first_name;
+                            return ownerName ? (
+                              <Text
+                                as="span"
+                                ml={1}
+                                fontSize="xs"
+                                color="gray.400"
+                                fontWeight="normal"
+                              >
+                                by {ownerName}
+                              </Text>
+                            ) : null;
+                          })()}
                         {s.readiness_score !== null && (
                           <Text as="span" ml={1} fontSize="xs" color="gray.500">
                             ({s.readiness_score})
@@ -1342,6 +1373,9 @@ export function RetirementPage() {
                       {!readOnly && (
                         <>
                           <IconButton
+                            as="span"
+                            role="button"
+                            tabIndex={0}
                             aria-label="Rename scenario"
                             icon={<FiEdit2 />}
                             size="xs"
@@ -1360,6 +1394,9 @@ export function RetirementPage() {
                           {householdMembers.length >= 2 && (
                             <Tooltip label="Manage members">
                               <IconButton
+                                as="span"
+                                role="button"
+                                tabIndex={0}
                                 aria-label="Manage members"
                                 icon={<FiUsers size={10} />}
                                 size="xs"
@@ -1381,6 +1418,9 @@ export function RetirementPage() {
                             (s.household_member_ids &&
                               s.household_member_ids.length > 1)) && (
                             <IconButton
+                              as="span"
+                              role="button"
+                              tabIndex={0}
                               aria-label="Archive scenario"
                               icon={<FiArchive />}
                               size="xs"
@@ -1398,6 +1438,9 @@ export function RetirementPage() {
                             />
                           )}
                           <IconButton
+                            as="span"
+                            role="button"
+                            tabIndex={0}
                             aria-label="Delete scenario"
                             icon={<FiX />}
                             size="xs"

@@ -71,6 +71,13 @@ async def create_scenario(
         sanitized["description"] = input_sanitization_service.sanitize_html(
             sanitized["description"]
         )
+    # Serialize spending_phases to JSON for DB storage
+    if sanitized.get("spending_phases") is not None:
+        sanitized["spending_phases"] = json.dumps(
+            [p if isinstance(p, dict) else p.dict() for p in sanitized["spending_phases"]],
+            default=str,
+        )
+
     # Extract member_ids before passing to service
     member_ids = sanitized.pop("member_ids", None)
 
@@ -242,6 +249,15 @@ async def update_scenario(
         updates["name"] = input_sanitization_service.sanitize_html(updates["name"])
     if updates.get("description"):
         updates["description"] = input_sanitization_service.sanitize_html(updates["description"])
+
+    # Serialize spending_phases to JSON for DB storage
+    if "spending_phases" in updates:
+        sp = updates["spending_phases"]
+        if sp is not None:
+            updates["spending_phases"] = json.dumps(
+                [p if isinstance(p, dict) else p.dict() for p in sp],
+                default=str,
+            )
 
     # Handle member_ids update
     new_member_ids = updates.pop("member_ids", None)

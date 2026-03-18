@@ -5,9 +5,58 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.retirement import DistributionType, LifeEventCategory, WithdrawalStrategy
+
+# --- Spending Phases ---
+
+
+class SpendingPhase(BaseModel):
+    """A spending phase for variable retirement spending."""
+
+    start_age: int = Field(ge=15, le=120)
+    end_age: Optional[int] = Field(None, ge=15, le=120)
+    annual_amount: Decimal = Field(gt=0)
+
+
+def _validate_spending_phases(
+    phases: Optional[List["SpendingPhase"]],
+) -> Optional[List["SpendingPhase"]]:
+    """Validate spending phases: contiguous, no overlaps, sorted."""
+    if phases is None or len(phases) == 0:
+        return phases
+
+    # Sort by start_age
+    phases = sorted(phases, key=lambda p: p.start_age)
+
+    for i, phase in enumerate(phases):
+        is_last = i == len(phases) - 1
+        # Only last phase may have end_age=None
+        if phase.end_age is None and not is_last:
+            raise ValueError("Only the last spending phase may have end_age=null")
+        # end_age must be > start_age when set
+        if phase.end_age is not None and phase.end_age <= phase.start_age:
+            raise ValueError(
+                f"Phase end_age ({phase.end_age}) must be greater"
+                f" than start_age ({phase.start_age})"
+            )
+
+    # Check contiguous (no gaps, no overlaps)
+    for i in range(len(phases) - 1):
+        current_end = phases[i].end_age
+        next_start = phases[i + 1].start_age
+        if current_end is None:
+            raise ValueError("Only the last spending phase may have end_age=null")
+        if current_end != next_start:
+            raise ValueError(
+                f"Spending phases must be contiguous: phase ending"
+                f" at {current_end} followed by phase starting"
+                f" at {next_start}"
+            )
+
+    return phases
+
 
 # --- Life Events ---
 
@@ -135,9 +184,18 @@ class RetirementScenarioCreate(BaseModel):
     distribution_type: DistributionType = DistributionType.NORMAL
     is_shared: bool = True
 
+    # Spending phases (variable spending across retirement)
+    spending_phases: Optional[List[SpendingPhase]] = None
+
     # Household-wide
     include_all_members: bool = False
     member_ids: Optional[List[str]] = None  # Explicit member selection
+
+    @model_validator(mode="after")
+    def validate_spending_phases(self) -> "RetirementScenarioCreate":
+        if self.spending_phases is not None:
+            self.spending_phases = _validate_spending_phases(self.spending_phases)
+        return self
 
 
 class RetirementScenarioUpdate(BaseModel):
@@ -178,9 +236,18 @@ class RetirementScenarioUpdate(BaseModel):
     distribution_type: Optional[DistributionType] = None
     is_shared: Optional[bool] = None
 
+    # Spending phases (variable spending across retirement)
+    spending_phases: Optional[List[SpendingPhase]] = None
+
     # Household-wide
     include_all_members: Optional[bool] = None
     member_ids: Optional[List[str]] = None
+
+    @model_validator(mode="after")
+    def validate_spending_phases(self) -> "RetirementScenarioUpdate":
+        if self.spending_phases is not None:
+            self.spending_phases = _validate_spending_phases(self.spending_phases)
+        return self
 
 
 class RetirementScenarioResponse(BaseModel):
@@ -226,6 +293,9 @@ class RetirementScenarioResponse(BaseModel):
     distribution_type: DistributionType
     is_shared: bool
 
+    # Spending phases
+    spending_phases: Optional[List[SpendingPhase]] = None
+
     # Household-wide
     include_all_members: bool = False
     is_stale: bool = False
@@ -245,6 +315,18 @@ class RetirementScenarioResponse(BaseModel):
     @classmethod
     def parse_household_member_ids(cls, v: Any) -> Optional[List[str]]:
         """Accept a JSON string or list for household_member_ids."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            import json
+
+            return json.loads(v)
+        return v
+
+    @field_validator("spending_phases", mode="before")
+    @classmethod
+    def parse_spending_phases(cls, v: Any) -> Optional[List[SpendingPhase]]:
+        """Accept a JSON string or list for spending_phases."""
         if v is None:
             return None
         if isinstance(v, str):

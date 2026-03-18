@@ -15,24 +15,33 @@ import {
   Text,
   useColorModeValue,
   VStack,
-} from '@chakra-ui/react';
-import { useCallback, useMemo, useState } from 'react';
-import { FiCheck, FiEdit2 } from 'react-icons/fi';
-import { useRetirementAccountData } from '../hooks/useRetirementScenarios';
-import type { RetirementScenario } from '../types/retirement';
+} from "@chakra-ui/react";
+import { useCallback, useMemo, useState } from "react";
+import { FiCheck, FiEdit2 } from "react-icons/fi";
+import { useRetirementAccountData } from "../hooks/useRetirementScenarios";
+import type { RetirementScenario } from "../types/retirement";
 
 interface AccountDataSummaryProps {
   scenario?: RetirementScenario | null;
   userId?: string;
-  onTaxRateChange?: (updates: { federal_tax_rate?: number; state_tax_rate?: number; capital_gains_rate?: number }) => void;
+  onTaxRateChange?: (updates: {
+    federal_tax_rate?: number;
+    state_tax_rate?: number;
+    capital_gains_rate?: number;
+  }) => void;
   readOnly?: boolean;
 }
 
-export function AccountDataSummary({ scenario, userId, onTaxRateChange, readOnly }: AccountDataSummaryProps) {
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const labelColor = useColorModeValue('gray.500', 'gray.400');
-  const borderColor = useColorModeValue('gray.100', 'gray.700');
-  const editBg = useColorModeValue('gray.50', 'gray.700');
+export function AccountDataSummary({
+  scenario,
+  userId,
+  onTaxRateChange,
+  readOnly,
+}: AccountDataSummaryProps) {
+  const bgColor = useColorModeValue("white", "gray.800");
+  const labelColor = useColorModeValue("gray.500", "gray.400");
+  const borderColor = useColorModeValue("gray.100", "gray.700");
+  const editBg = useColorModeValue("gray.50", "gray.700");
 
   const [isEditingTax, setIsEditingTax] = useState(false);
   const [localFederal, setLocalFederal] = useState(0);
@@ -42,10 +51,17 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange, readOnly
   const handleToggleTaxEdit = useCallback(() => {
     if (isEditingTax) {
       // Save changes
-      const changes: { federal_tax_rate?: number; state_tax_rate?: number; capital_gains_rate?: number } = {};
-      if (scenario && localFederal !== Number(scenario.federal_tax_rate)) changes.federal_tax_rate = localFederal;
-      if (scenario && localState !== Number(scenario.state_tax_rate)) changes.state_tax_rate = localState;
-      if (scenario && localCapGains !== Number(scenario.capital_gains_rate)) changes.capital_gains_rate = localCapGains;
+      const changes: {
+        federal_tax_rate?: number;
+        state_tax_rate?: number;
+        capital_gains_rate?: number;
+      } = {};
+      if (scenario && localFederal !== Number(scenario.federal_tax_rate))
+        changes.federal_tax_rate = localFederal;
+      if (scenario && localState !== Number(scenario.state_tax_rate))
+        changes.state_tax_rate = localState;
+      if (scenario && localCapGains !== Number(scenario.capital_gains_rate))
+        changes.capital_gains_rate = localCapGains;
       if (Object.keys(changes).length > 0) onTaxRateChange?.(changes);
     } else {
       // Enter edit mode — sync local state
@@ -54,43 +70,68 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange, readOnly
       setLocalCapGains(Number(scenario?.capital_gains_rate ?? 15));
     }
     setIsEditingTax(!isEditingTax);
-  }, [isEditingTax, localFederal, localState, localCapGains, scenario, onTaxRateChange]);
+  }, [
+    isEditingTax,
+    localFederal,
+    localState,
+    localCapGains,
+    scenario,
+    onTaxRateChange,
+  ]);
 
-  const { data, isLoading } = useRetirementAccountData(userId);
+  const { data, isLoading } = useRetirementAccountData(
+    userId,
+    scenario?.include_all_members,
+    scenario?.household_member_ids ?? undefined,
+  );
 
   const formatMoney = (amount: number) =>
-    new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
       maximumFractionDigits: 0,
     }).format(amount);
-
-  const bucketKeyMap: Record<string, string> = {
-    pre_tax: 'Pre-Tax (401k, IRA)',
-    roth: 'Roth',
-    taxable: 'Taxable (Brokerage)',
-    hsa: 'HSA',
-    cash: 'Cash (Checking/Savings)',
-  };
-
-  const bucketColorMap: Record<string, string> = {
-    pre_tax: 'blue',
-    roth: 'green',
-    taxable: 'orange',
-    hsa: 'teal',
-    cash: 'purple',
-  };
 
   const buckets = useMemo(() => {
     if (!data) return [];
     const total = data.total_portfolio || 1;
     const brokerageBalance = data.taxable_balance - (data.cash_balance || 0);
     const items = [
-      { key: 'pre_tax', label: 'Pre-Tax (401k, IRA)', value: data.pre_tax_balance, pct: (data.pre_tax_balance / total) * 100, color: 'blue' },
-      { key: 'roth', label: 'Roth', value: data.roth_balance, pct: (data.roth_balance / total) * 100, color: 'green' },
-      { key: 'taxable', label: 'Taxable (Brokerage)', value: brokerageBalance, pct: (brokerageBalance / total) * 100, color: 'orange' },
-      { key: 'hsa', label: 'HSA', value: data.hsa_balance, pct: (data.hsa_balance / total) * 100, color: 'teal' },
-      { key: 'cash', label: 'Cash (Checking/Savings)', value: data.cash_balance || 0, pct: ((data.cash_balance || 0) / total) * 100, color: 'purple' },
+      {
+        key: "pre_tax",
+        label: "Pre-Tax (401k, IRA)",
+        value: data.pre_tax_balance,
+        pct: (data.pre_tax_balance / total) * 100,
+        color: "blue",
+      },
+      {
+        key: "roth",
+        label: "Roth",
+        value: data.roth_balance,
+        pct: (data.roth_balance / total) * 100,
+        color: "green",
+      },
+      {
+        key: "taxable",
+        label: "Taxable (Brokerage)",
+        value: brokerageBalance,
+        pct: (brokerageBalance / total) * 100,
+        color: "orange",
+      },
+      {
+        key: "hsa",
+        label: "HSA",
+        value: data.hsa_balance,
+        pct: (data.hsa_balance / total) * 100,
+        color: "teal",
+      },
+      {
+        key: "cash",
+        label: "Cash (Checking/Savings)",
+        value: data.cash_balance || 0,
+        pct: ((data.cash_balance || 0) / total) * 100,
+        color: "purple",
+      },
     ];
     return items.filter((b) => b.value > 0);
   }, [data]);
@@ -114,7 +155,8 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange, readOnly
             {/* Bucket breakdown with individual accounts */}
             <VStack spacing={3} align="stretch">
               {buckets.map((bucket) => {
-                const bucketAccounts = data.accounts?.filter((a) => a.bucket === bucket.key) ?? [];
+                const bucketAccounts =
+                  data.accounts?.filter((a) => a.bucket === bucket.key) ?? [];
                 return (
                   <Box key={bucket.key}>
                     <HStack justify="space-between" fontSize="xs" mb={1}>
@@ -132,9 +174,17 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange, readOnly
                     {bucketAccounts.length > 0 && (
                       <VStack spacing={0} align="stretch" pl={3} mt={1}>
                         {bucketAccounts.map((acct, idx) => (
-                          <HStack key={`${acct.name}-${idx}`} justify="space-between" fontSize="2xs">
-                            <Text color={labelColor} noOfLines={1}>{acct.name}</Text>
-                            <Text color={labelColor} flexShrink={0}>{formatMoney(acct.balance)}</Text>
+                          <HStack
+                            key={`${acct.name}-${idx}`}
+                            justify="space-between"
+                            fontSize="2xs"
+                          >
+                            <Text color={labelColor} noOfLines={1}>
+                              {acct.name}
+                            </Text>
+                            <Text color={labelColor} flexShrink={0}>
+                              {formatMoney(acct.balance)}
+                            </Text>
                           </HStack>
                         ))}
                       </VStack>
@@ -145,29 +195,43 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange, readOnly
             </VStack>
 
             {/* Income & Contributions */}
-            <VStack spacing={1} align="stretch" pt={2} borderTop="1px" borderColor={borderColor}>
+            <VStack
+              spacing={1}
+              align="stretch"
+              pt={2}
+              borderTop="1px"
+              borderColor={borderColor}
+            >
               {data.annual_income > 0 && (
                 <HStack justify="space-between" fontSize="xs">
                   <Text color={labelColor}>Annual Income</Text>
-                  <Text fontWeight="medium">{formatMoney(data.annual_income)}</Text>
+                  <Text fontWeight="medium">
+                    {formatMoney(data.annual_income)}
+                  </Text>
                 </HStack>
               )}
               {data.annual_contributions > 0 && (
                 <HStack justify="space-between" fontSize="xs">
                   <Text color={labelColor}>Annual Contributions</Text>
-                  <Text fontWeight="medium">{formatMoney(data.annual_contributions)}</Text>
+                  <Text fontWeight="medium">
+                    {formatMoney(data.annual_contributions)}
+                  </Text>
                 </HStack>
               )}
               {data.employer_match_annual > 0 && (
                 <HStack justify="space-between" fontSize="xs">
                   <Text color={labelColor}>Employer Match</Text>
-                  <Text fontWeight="medium">{formatMoney(data.employer_match_annual)}</Text>
+                  <Text fontWeight="medium">
+                    {formatMoney(data.employer_match_annual)}
+                  </Text>
                 </HStack>
               )}
               {data.pension_monthly > 0 && (
                 <HStack justify="space-between" fontSize="xs">
                   <Text color={labelColor}>Pension</Text>
-                  <Text fontWeight="medium">{formatMoney(data.pension_monthly)}/mo</Text>
+                  <Text fontWeight="medium">
+                    {formatMoney(data.pension_monthly)}/mo
+                  </Text>
                 </HStack>
               )}
               {data.annual_income > 0 && data.annual_contributions > 0 && (
@@ -176,12 +240,20 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange, readOnly
                   <Text
                     fontWeight="medium"
                     color={
-                      ((data.annual_contributions + data.employer_match_annual) / data.annual_income) >= 0.15
-                        ? 'green.400'
-                        : 'yellow.400'
+                      (data.annual_contributions + data.employer_match_annual) /
+                        data.annual_income >=
+                      0.15
+                        ? "green.400"
+                        : "yellow.400"
                     }
                   >
-                    {(((data.annual_contributions + data.employer_match_annual) / data.annual_income) * 100).toFixed(0)}%
+                    {(
+                      ((data.annual_contributions +
+                        data.employer_match_annual) /
+                        data.annual_income) *
+                      100
+                    ).toFixed(0)}
+                    %
                   </Text>
                 </HStack>
               )}
@@ -189,14 +261,22 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange, readOnly
 
             {/* Tax Rates from Scenario */}
             {scenario && (
-              <VStack spacing={1} align="stretch" pt={2} borderTop="1px" borderColor={borderColor}>
+              <VStack
+                spacing={1}
+                align="stretch"
+                pt={2}
+                borderTop="1px"
+                borderColor={borderColor}
+              >
                 <HStack justify="space-between">
                   <Text fontSize="xs" fontWeight="semibold" color={labelColor}>
                     Tax Assumptions
                   </Text>
                   {!readOnly && (
                     <IconButton
-                      aria-label={isEditingTax ? 'Save tax rates' : 'Edit tax rates'}
+                      aria-label={
+                        isEditingTax ? "Save tax rates" : "Edit tax rates"
+                      }
                       icon={isEditingTax ? <FiCheck /> : <FiEdit2 />}
                       size="xs"
                       variant="ghost"
@@ -205,7 +285,13 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange, readOnly
                   )}
                 </HStack>
                 {isEditingTax ? (
-                  <VStack spacing={2} align="stretch" p={2} bg={editBg} borderRadius="md">
+                  <VStack
+                    spacing={2}
+                    align="stretch"
+                    p={2}
+                    bg={editBg}
+                    borderRadius="md"
+                  >
                     <HStack justify="space-between" fontSize="xs">
                       <Text color={labelColor}>Federal Tax Rate</Text>
                       <NumberInput
@@ -215,7 +301,9 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange, readOnly
                         step={0.5}
                         size="xs"
                         w="80px"
-                        onChange={(_, val) => { if (!isNaN(val)) setLocalFederal(val); }}
+                        onChange={(_, val) => {
+                          if (!isNaN(val)) setLocalFederal(val);
+                        }}
                       >
                         <NumberInputField textAlign="right" pr={1} />
                       </NumberInput>
@@ -229,7 +317,9 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange, readOnly
                         step={0.5}
                         size="xs"
                         w="80px"
-                        onChange={(_, val) => { if (!isNaN(val)) setLocalState(val); }}
+                        onChange={(_, val) => {
+                          if (!isNaN(val)) setLocalState(val);
+                        }}
                       >
                         <NumberInputField textAlign="right" pr={1} />
                       </NumberInput>
@@ -243,7 +333,9 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange, readOnly
                         step={0.5}
                         size="xs"
                         w="80px"
-                        onChange={(_, val) => { if (!isNaN(val)) setLocalCapGains(val); }}
+                        onChange={(_, val) => {
+                          if (!isNaN(val)) setLocalCapGains(val);
+                        }}
                       >
                         <NumberInputField textAlign="right" pr={1} />
                       </NumberInput>
@@ -253,15 +345,21 @@ export function AccountDataSummary({ scenario, userId, onTaxRateChange, readOnly
                   <>
                     <HStack justify="space-between" fontSize="xs">
                       <Text color={labelColor}>Federal Tax Rate</Text>
-                      <Text fontWeight="medium">{scenario.federal_tax_rate}%</Text>
+                      <Text fontWeight="medium">
+                        {scenario.federal_tax_rate}%
+                      </Text>
                     </HStack>
                     <HStack justify="space-between" fontSize="xs">
                       <Text color={labelColor}>State Tax Rate</Text>
-                      <Text fontWeight="medium">{scenario.state_tax_rate}%</Text>
+                      <Text fontWeight="medium">
+                        {scenario.state_tax_rate}%
+                      </Text>
                     </HStack>
                     <HStack justify="space-between" fontSize="xs">
                       <Text color={labelColor}>Capital Gains Rate</Text>
-                      <Text fontWeight="medium">{scenario.capital_gains_rate}%</Text>
+                      <Text fontWeight="medium">
+                        {scenario.capital_gains_rate}%
+                      </Text>
                     </HStack>
                   </>
                 )}
