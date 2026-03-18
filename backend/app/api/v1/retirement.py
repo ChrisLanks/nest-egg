@@ -92,8 +92,8 @@ async def list_scenarios(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List retirement scenarios for a specific user in the organization."""
-    target_user = user_id or str(current_user.id)
+    """List retirement scenarios for a specific user or all org members."""
+    target_user = user_id  # None means all org scenarios
     # Verify target user belongs to the same organization
     if user_id and user_id != str(current_user.id):
         from app.models.user import User as UserModel
@@ -245,13 +245,24 @@ async def update_scenario(
 
     # Handle member_ids update
     new_member_ids = updates.pop("member_ids", None)
-    if new_member_ids and len(new_member_ids) >= 2:
-        sorted_ids = sorted(new_member_ids)
-        updates["household_member_ids"] = json.dumps(sorted_ids)
-        updates["household_member_hash"] = RetirementPlannerService.compute_selective_member_hash(
-            sorted_ids
-        )
-        updates["include_all_members"] = False
+    if new_member_ids is not None:
+        if len(new_member_ids) >= 2:
+            sorted_ids = sorted(new_member_ids)
+            updates["household_member_ids"] = json.dumps(sorted_ids)
+            updates["household_member_hash"] = (
+                RetirementPlannerService.compute_selective_member_hash(sorted_ids)
+            )
+            updates["include_all_members"] = False
+        else:
+            # Single or no member: revert to personal plan
+            updates["household_member_ids"] = None
+            updates["household_member_hash"] = None
+            updates["include_all_members"] = False
+
+    # Handle include_all_members toggle (when not setting member_ids)
+    if new_member_ids is None and updates.get("include_all_members") is True:
+        updates["household_member_ids"] = None
+        updates["household_member_hash"] = None
 
     updated = await RetirementPlannerService.update_scenario(
         db=db, scenario=scenario, updates=updates

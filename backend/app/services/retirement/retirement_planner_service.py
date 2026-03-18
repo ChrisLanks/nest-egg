@@ -224,9 +224,11 @@ class RetirementPlannerService:
         for key, value in updates.items():
             if not hasattr(scenario, key):
                 continue
-            # Allow explicit null for nullable fields (e.g. healthcare overrides);
+            # Allow explicit null for nullable fields (e.g. healthcare overrides,
+            # household member fields when reverting to personal plan);
             # skip null for non-nullable fields to avoid DB integrity errors.
-            if value is None and not key.endswith("_override"):
+            NULLABLE_FIELDS = {"household_member_ids", "household_member_hash"}
+            if value is None and not key.endswith("_override") and key not in NULLABLE_FIELDS:
                 continue
             setattr(scenario, key, value)
         scenario.updated_at = utc_now()
@@ -360,6 +362,7 @@ class RetirementPlannerService:
             summaries.append(
                 {
                     "id": scenario.id,
+                    "user_id": scenario.user_id,
                     "name": scenario.name,
                     "retirement_age": scenario.retirement_age,
                     "is_default": scenario.is_default,

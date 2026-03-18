@@ -1,7 +1,7 @@
 """add_household_retirement_fields
 
 Revision ID: j9k0l1m2n3o4
-Revises: h8i9j0k1l2m3
+Revises: i9j0k1l2m3n4
 Create Date: 2026-03-17
 
 Adds household-wide retirement planning columns to retirement_scenarios:
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "j9k0l1m2n3o4"  # pragma: allowlist secret
-down_revision: Union[str, None] = "h8i9j0k1l2m3"  # pragma: allowlist secret
+down_revision: Union[str, None] = "i9j0k1l2m3n4"  # pragma: allowlist secret
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -107,6 +107,7 @@ export interface RetirementScenario {
 
 export interface RetirementScenarioSummary {
   id: string;
+  user_id: string;
   name: string;
   retirement_age: number;
   is_default: boolean;

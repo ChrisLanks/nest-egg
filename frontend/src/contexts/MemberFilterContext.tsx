@@ -53,6 +53,27 @@ const MemberFilterContext = createContext<MemberFilterContextType | undefined>(
   undefined,
 );
 
+const MEMBER_SELECTION_KEY = "nest-egg-member-selection";
+
+const readStoredMemberSelection = (): string[] | null => {
+  try {
+    const stored = localStorage.getItem(MEMBER_SELECTION_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveStoredMemberSelection = (ids: Set<string>): void => {
+  try {
+    localStorage.setItem(MEMBER_SELECTION_KEY, JSON.stringify([...ids]));
+  } catch {
+    /* ignore */
+  }
+};
+
 export const MemberFilterProvider = ({
   isCombinedView,
   onSelectionChange,
@@ -68,9 +89,15 @@ export const MemberFilterProvider = ({
   const [householdMembers, setHouseholdMembers] = useState<HouseholdMember[]>(
     [],
   );
-  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(
+  const [selectedMemberIds, setSelectedMemberIdsRaw] = useState<Set<string>>(
     new Set(),
   );
+
+  // Wrap setter to also persist to localStorage
+  const setSelectedMemberIds = useCallback((ids: Set<string>) => {
+    setSelectedMemberIdsRaw(ids);
+    saveStoredMemberSelection(ids);
+  }, []);
 
   const _registerHouseholdMembers = useCallback(
     (members: HouseholdMember[]) => {
@@ -79,11 +106,23 @@ export const MemberFilterProvider = ({
     [],
   );
 
-  // Reset selection to "all" whenever the members list changes
+  // Restore selection from localStorage or default to "all" when members list changes
   useEffect(() => {
     if (householdMembers.length > 0) {
+      const memberIdSet = new Set(householdMembers.map((m) => m.id));
+      const stored = readStoredMemberSelection();
+      if (stored && stored.length > 0) {
+        // Only keep IDs that are still valid members
+        const validIds = stored.filter((id) => memberIdSet.has(id));
+        if (validIds.length > 0) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setSelectedMemberIdsRaw(new Set(validIds));
+          return;
+        }
+      }
+      // Default to all members
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSelectedMemberIds(new Set(householdMembers.map((m) => m.id)));
+      setSelectedMemberIdsRaw(new Set(memberIdSet));
     }
   }, [householdMembers]);
 
@@ -110,7 +149,7 @@ export const MemberFilterProvider = ({
   ]);
 
   const toggleMember = useCallback((memberId: string) => {
-    setSelectedMemberIds((prev) => {
+    setSelectedMemberIdsRaw((prev) => {
       const next = new Set(prev);
       if (next.has(memberId)) {
         if (next.size <= 1) return prev;
@@ -118,6 +157,7 @@ export const MemberFilterProvider = ({
       } else {
         next.add(memberId);
       }
+      saveStoredMemberSelection(next);
       return next;
     });
   }, []);

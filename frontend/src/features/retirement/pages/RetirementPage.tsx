@@ -105,6 +105,7 @@ export function RetirementPage() {
     selectedUserId,
     canWriteResource,
     selectedMemberIds,
+    selectedMemberIdsKey,
     householdMembers,
   } = useUserView();
   const queryClient = useQueryClient();
@@ -115,6 +116,9 @@ export function RetirementPage() {
   // Retirement is per-person: only show scenarios when exactly one member is selected
   const singleSelectedId = selectedIds.size === 1 ? [...selectedIds][0] : null;
   const filterUserId = isCombinedView ? singleSelectedId : null;
+  const isAllSelected =
+    isCombinedView &&
+    (selectedIds.size === 0 || selectedIds.size === householdMembers.length);
   const tabsRef = useRef<HTMLDivElement>(null);
 
   // Track whether settings changed since last simulation
@@ -122,12 +126,10 @@ export function RetirementPage() {
 
   // Derive effective userId for fetching scenarios:
   // - Non-combined view (Self / Other user): use the global selectedUserId
-  // - Combined view with member filter: use that member's ID
-  // - Combined view without filter ("All"): no fetch — retirement plans are per-person
+  // - Combined view: fetch all org scenarios (no user filter) and filter client-side
   const scenarioUserId = !isCombinedView
     ? (selectedUserId ?? undefined)
-    : (filterUserId ?? undefined);
-  // In combined view with "All" selected, still fetch (for multi-member scenarios)
+    : undefined;
   const shouldFetchScenarios = true;
   const { data: allScenarios, isLoading: scenariosLoading } =
     useRetirementScenarios(scenarioUserId, shouldFetchScenarios, true);
@@ -165,14 +167,51 @@ export function RetirementPage() {
   const unarchiveMutation = useUnarchiveScenario();
   const createScenarioMutation = useCreateScenario();
 
-  // Split active vs archived scenarios
+  // Helpers for scenario classification
+  const isPersonalScenario = (s: RetirementScenarioSummary) =>
+    !s.include_all_members &&
+    (!s.household_member_ids || s.household_member_ids.length <= 1);
+
+  // Filter scenarios based on which members are selected in combined view
+  const filterForView = useCallback(
+    (s: RetirementScenarioSummary): boolean => {
+      if (!isCombinedView) return true; // non-combined: all scenarios pass (already user-scoped)
+
+      if (isAllSelected) {
+        // "All" view: include_all_members scenarios + everyone's personal plans
+        return s.include_all_members || isPersonalScenario(s);
+      }
+
+      if (filterUserId) {
+        // Single member selected: only their personal (non-multi-member) plans
+        return s.user_id === filterUserId && isPersonalScenario(s);
+      }
+
+      // 2+ members selected (but not all): show personal plans of each
+      // selected member + shared plans that match exactly the selected set
+      const selectedArray = [...selectedIds];
+      if (s.include_all_members) return false;
+      if (s.household_member_ids && s.household_member_ids.length > 1) {
+        // Selective shared plan: exact match of selected members
+        const scenarioMembers = new Set(s.household_member_ids);
+        return (
+          scenarioMembers.size === selectedIds.size &&
+          selectedArray.every((id) => scenarioMembers.has(id))
+        );
+      }
+      // Personal plan: show if owner is one of the selected members
+      return selectedIds.has(s.user_id);
+    },
+    [isCombinedView, isAllSelected, filterUserId, selectedIds],
+  );
+
   const scenarios = useMemo(
-    () => allScenarios?.filter((s) => !s.is_archived),
-    [allScenarios],
+    () => allScenarios?.filter((s) => !s.is_archived && filterForView(s)),
+    [allScenarios, filterForView],
   );
   const archivedScenarios = useMemo(
-    () => allScenarios?.filter((s) => s.is_archived) ?? [],
-    [allScenarios],
+    () => allScenarios?.filter((s) => s.is_archived && filterForView(s)) ?? [],
+    [allScenarios, filterForView],
   );
   const [showArchived, setShowArchived] = useState(false);
 
@@ -194,6 +233,16 @@ export function RetirementPage() {
     Set<string>
   >(new Set());
   const [newScenarioName, setNewScenarioName] = useState("My Retirement Plan");
+
+  // Edit members modal for existing scenarios
+  const memberEditor = useDisclosure();
+  const [editingMembersScenarioId, setEditingMembersScenarioId] = useState<
+    string | null
+  >(null);
+  const [editMemberMode, setEditMemberMode] = useState<
+    "just_me" | "select" | "all"
+  >("select");
+  const [editMemberIds, setEditMemberIds] = useState<Set<string>>(new Set());
 
   // Tab rename state
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
@@ -234,7 +283,7 @@ export function RetirementPage() {
   useEffect(() => {
     setSelectedScenarioId(null);
     setSettingsDirty(false);
-  }, [scenarioUserId]);
+  }, [scenarioUserId, selectedMemberIdsKey]);
 
   // Auto-select first scenario or default, and reset stale IDs
   useEffect(() => {
@@ -550,9 +599,9 @@ export function RetirementPage() {
 
   // Handle creating a scenario with member selection
   const handleOpenMemberPicker = useCallback(() => {
-    setMemberPickerMode("just_me");
+    setMemberPickerMode("all");
     setSelectedMemberIdsForCreate(new Set());
-    setNewScenarioName("My Retirement Plan");
+    setNewScenarioName("Our Retirement Plan");
     memberPicker.onOpen();
   }, [memberPicker]);
 
@@ -593,6 +642,81 @@ export function RetirementPage() {
     selectedMemberIdsForCreate,
     createScenarioMutation,
     memberPicker,
+    toast,
+  ]);
+
+  // Handle opening member editor for an existing scenario
+  const handleOpenMemberEditor = useCallback(
+    (scenarioId: string) => {
+      const s = scenarios?.find((sc) => sc.id === scenarioId);
+      if (!s) return;
+      setEditingMembersScenarioId(scenarioId);
+      if (s.include_all_members) {
+        setEditMemberMode("all");
+        setEditMemberIds(new Set());
+      } else if (s.household_member_ids && s.household_member_ids.length > 1) {
+        setEditMemberMode("select");
+        setEditMemberIds(new Set(s.household_member_ids));
+      } else {
+        setEditMemberMode("just_me");
+        setEditMemberIds(new Set());
+      }
+      memberEditor.onOpen();
+    },
+    [scenarios, memberEditor],
+  );
+
+  const handleSaveMemberEdit = useCallback(async () => {
+    if (!editingMembersScenarioId) return;
+    const updates: Record<string, unknown> = {};
+
+    // If all household members are selected, treat as "all"
+    const allSelected =
+      editMemberMode === "select" &&
+      householdMembers.length > 0 &&
+      editMemberIds.size >= householdMembers.length &&
+      householdMembers.every((m) => editMemberIds.has(m.id));
+
+    if (editMemberMode === "all" || allSelected) {
+      updates.include_all_members = true;
+      updates.member_ids = null;
+    } else if (editMemberMode === "select" && editMemberIds.size >= 2) {
+      updates.include_all_members = false;
+      updates.member_ids = [...editMemberIds];
+    } else {
+      // "just_me" or <2 selected: revert to personal
+      updates.include_all_members = false;
+      updates.member_ids = [];
+    }
+
+    try {
+      await updateMutation.mutateAsync({
+        id: editingMembersScenarioId,
+        updates,
+      });
+      queryClient.invalidateQueries({ queryKey: ["retirement-scenarios"] });
+      memberEditor.onClose();
+      toast({
+        title: "Plan members updated",
+        status: "success",
+        duration: 2000,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Failed to update members",
+        description: err?.response?.data?.detail || "An error occurred.",
+        status: "error",
+        duration: 3000,
+      });
+    }
+  }, [
+    editingMembersScenarioId,
+    editMemberMode,
+    editMemberIds,
+    householdMembers,
+    updateMutation,
+    queryClient,
+    memberEditor,
     toast,
   ]);
 
@@ -676,92 +800,172 @@ export function RetirementPage() {
   const withdrawalComparison: WithdrawalComparison | null =
     results?.withdrawal_comparison as WithdrawalComparison | null;
 
-  // In combined view with "All" selected, show household-wide and multi-member scenarios
+  // In combined view with "All" selected, show household-wide scenarios
   // or prompt to create one
-  if (isCombinedView && !filterUserId) {
-    // Filter to only show multi-member scenarios (include_all_members or household_member_ids)
-    const multiMemberScenarios = allScenarios?.filter(
-      (s) =>
-        !s.is_archived &&
-        (s.include_all_members ||
-          (s.household_member_ids && s.household_member_ids.length > 1)),
-    );
-    const archivedMultiMember = allScenarios?.filter(
-      (s) =>
-        s.is_archived &&
-        (s.include_all_members ||
-          (s.household_member_ids && s.household_member_ids.length > 1)),
-    );
-
-    if (
-      !scenariosLoading &&
-      (!multiMemberScenarios || multiMemberScenarios.length === 0)
-    ) {
+  if (isCombinedView && isAllSelected) {
+    if (!scenariosLoading && (!scenarios || scenarios.length === 0)) {
       return (
-        <Container maxW="container.xl" py={8}>
-          <VStack spacing={6} align="stretch">
-            <VStack spacing={6} textAlign="center" py={16}>
-              <Text fontSize="2xl" fontWeight="bold">
-                Retirement Planner
-              </Text>
-              <Text color="gray.500" maxW="md">
-                Create a household retirement plan that combines accounts from
-                multiple members, or select a single member above to view their
-                individual scenarios.
-              </Text>
-              {!readOnly && householdMembers.length >= 2 && (
+        <>
+          <Container maxW="container.xl" py={8}>
+            <VStack spacing={6} align="stretch">
+              <VStack spacing={6} textAlign="center" py={16}>
+                <Text fontSize="2xl" fontWeight="bold">
+                  Retirement Planner
+                </Text>
+                <Text color="gray.500" maxW="md">
+                  Plan your retirement by modeling different scenarios with
+                  Monte Carlo simulation. See how different retirement ages,
+                  spending levels, and life events affect your financial future.
+                </Text>
+                <Text color="gray.500" maxW="md">
+                  Create a household retirement plan that combines accounts from
+                  multiple members, or select a single member above to view
+                  their individual scenarios.
+                </Text>
+                {!readOnly && householdMembers.length >= 2 && (
+                  <Button
+                    colorScheme="blue"
+                    size="lg"
+                    onClick={handleOpenMemberPicker}
+                  >
+                    Create Household Plan
+                  </Button>
+                )}
+                {archivedScenarios && archivedScenarios.length > 0 && (
+                  <Box w="full" maxW="md">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      leftIcon={<FiArchive />}
+                      onClick={() => setShowArchived(!showArchived)}
+                      mb={2}
+                    >
+                      {archivedScenarios.length} archived scenario
+                      {archivedScenarios.length > 1 ? "s" : ""}
+                    </Button>
+                    <Collapse in={showArchived}>
+                      <VStack spacing={2} align="stretch">
+                        {archivedScenarios.map((s) => (
+                          <HStack
+                            key={s.id}
+                            p={3}
+                            bg={cardBg}
+                            borderRadius="md"
+                            justify="space-between"
+                          >
+                            <Text fontSize="sm" color="gray.500">
+                              {s.name}
+                            </Text>
+                            {!readOnly && (
+                              <Button
+                                size="xs"
+                                leftIcon={<FiRotateCcw />}
+                                onClick={() => handleUnarchive(s.id)}
+                                isLoading={unarchiveMutation.isPending}
+                              >
+                                Restore
+                              </Button>
+                            )}
+                          </HStack>
+                        ))}
+                      </VStack>
+                    </Collapse>
+                  </Box>
+                )}
+              </VStack>
+            </VStack>
+          </Container>
+
+          {/* Member Picker Modal */}
+          <Modal isOpen={memberPicker.isOpen} onClose={memberPicker.onClose}>
+            <ModalOverlay />
+            <ModalContent>
+              <ModalHeader>Create Retirement Plan</ModalHeader>
+              <ModalCloseButton />
+              <ModalBody>
+                <VStack spacing={4} align="stretch">
+                  <Box>
+                    <Text fontSize="sm" fontWeight="medium" mb={2}>
+                      Plan Name
+                    </Text>
+                    <Input
+                      value={newScenarioName}
+                      onChange={(e) => setNewScenarioName(e.target.value)}
+                      placeholder="My Retirement Plan"
+                    />
+                  </Box>
+
+                  <Box>
+                    <Text fontSize="sm" fontWeight="medium" mb={2}>
+                      Who is this plan for?
+                    </Text>
+                    <RadioGroup
+                      value={memberPickerMode}
+                      onChange={(val) => {
+                        const mode = val as "just_me" | "select" | "all";
+                        setMemberPickerMode(mode);
+                        setNewScenarioName(
+                          mode === "just_me"
+                            ? "My Retirement Plan"
+                            : "Our Retirement Plan",
+                        );
+                      }}
+                    >
+                      <VStack align="start" spacing={2}>
+                        <Radio value="just_me">Just me</Radio>
+                        <Radio value="all">All household members</Radio>
+                        <Radio value="select">Select specific members</Radio>
+                      </VStack>
+                    </RadioGroup>
+                  </Box>
+
+                  {memberPickerMode === "select" && (
+                    <VStack align="stretch" spacing={2} pl={6}>
+                      {householdMembers.map((m) => (
+                        <Checkbox
+                          key={m.id}
+                          isChecked={selectedMemberIdsForCreate.has(m.id)}
+                          onChange={(e) => {
+                            const next = new Set(selectedMemberIdsForCreate);
+                            if (e.target.checked) {
+                              next.add(m.id);
+                            } else {
+                              next.delete(m.id);
+                            }
+                            setSelectedMemberIdsForCreate(next);
+                          }}
+                        >
+                          {m.display_name || m.first_name || m.email}
+                        </Checkbox>
+                      ))}
+                      {selectedMemberIdsForCreate.size < 2 && (
+                        <Text fontSize="xs" color="orange.400">
+                          Select at least 2 members for a multi-person plan.
+                        </Text>
+                      )}
+                    </VStack>
+                  )}
+                </VStack>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="ghost" mr={3} onClick={memberPicker.onClose}>
+                  Cancel
+                </Button>
                 <Button
                   colorScheme="blue"
-                  size="lg"
-                  onClick={handleOpenMemberPicker}
+                  onClick={handleCreateWithMembers}
+                  isLoading={createScenarioMutation.isPending}
+                  isDisabled={
+                    memberPickerMode === "select" &&
+                    selectedMemberIdsForCreate.size < 2
+                  }
                 >
-                  Create Household Plan
+                  Create Plan
                 </Button>
-              )}
-              {archivedMultiMember && archivedMultiMember.length > 0 && (
-                <Box w="full" maxW="md">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    leftIcon={<FiArchive />}
-                    onClick={() => setShowArchived(!showArchived)}
-                    mb={2}
-                  >
-                    {archivedMultiMember.length} archived scenario
-                    {archivedMultiMember.length > 1 ? "s" : ""}
-                  </Button>
-                  <Collapse in={showArchived}>
-                    <VStack spacing={2} align="stretch">
-                      {archivedMultiMember.map((s) => (
-                        <HStack
-                          key={s.id}
-                          p={3}
-                          bg={cardBg}
-                          borderRadius="md"
-                          justify="space-between"
-                        >
-                          <Text fontSize="sm" color="gray.500">
-                            {s.name}
-                          </Text>
-                          {!readOnly && (
-                            <Button
-                              size="xs"
-                              leftIcon={<FiRotateCcw />}
-                              onClick={() => handleUnarchive(s.id)}
-                              isLoading={unarchiveMutation.isPending}
-                            >
-                              Restore
-                            </Button>
-                          )}
-                        </HStack>
-                      ))}
-                    </VStack>
-                  </Collapse>
-                </Box>
-              )}
-            </VStack>
-          </VStack>
-        </Container>
+              </ModalFooter>
+            </ModalContent>
+          </Modal>
+        </>
       );
     }
     // If there are multi-member scenarios, fall through to the normal rendering
@@ -771,70 +975,172 @@ export function RetirementPage() {
   // Empty state: no scenarios for the current view
   if (!scenariosLoading && (!scenarios || scenarios.length === 0)) {
     return (
-      <Container maxW="container.xl" py={8}>
-        <VStack spacing={6} align="stretch">
-          <VStack spacing={6} textAlign="center" py={16}>
-            <Text fontSize="2xl" fontWeight="bold">
-              Retirement Planner
-            </Text>
-            {filterUserId || isOtherUserView ? (
-              <Text color="gray.500" maxW="md">
-                {(() => {
-                  if (isOtherUserView && selectedUserId) {
+      <>
+        <Container maxW="container.xl" py={8}>
+          <VStack spacing={6} align="stretch">
+            <VStack spacing={6} textAlign="center" py={16}>
+              <Text fontSize="2xl" fontWeight="bold">
+                Retirement Planner
+              </Text>
+              {filterUserId || isOtherUserView ? (
+                <Text color="gray.500" maxW="md">
+                  {(() => {
+                    if (isOtherUserView && selectedUserId) {
+                      const member = householdMembers.find(
+                        (m) => m.id === selectedUserId,
+                      );
+                      const name =
+                        member?.display_name ||
+                        member?.first_name ||
+                        "This user";
+                      return `${name} doesn't have any retirement scenarios yet.`;
+                    }
                     const member = householdMembers.find(
-                      (m) => m.id === selectedUserId,
+                      (m) => m.id === filterUserId,
                     );
                     const name =
-                      member?.display_name || member?.first_name || "This user";
+                      member?.display_name ||
+                      member?.first_name ||
+                      "This member";
                     return `${name} doesn't have any retirement scenarios yet.`;
-                  }
-                  const member = householdMembers.find(
-                    (m) => m.id === filterUserId,
-                  );
-                  const name =
-                    member?.display_name || member?.first_name || "This member";
-                  return `${name} doesn't have any retirement scenarios yet.`;
-                })()}
-              </Text>
-            ) : (
-              <>
-                <Text color="gray.500" maxW="md">
-                  Plan your retirement by modeling different scenarios with
-                  Monte Carlo simulation. See how different retirement ages,
-                  spending levels, and life events affect your financial future.
+                  })()}
                 </Text>
-                <HStack spacing={3}>
-                  <Button
-                    colorScheme="blue"
-                    size="lg"
-                    onClick={handleCreateDefault}
-                    isLoading={createDefaultMutation.isPending}
-                    loadingText="Setting up..."
-                  >
-                    Create Your First Scenario
-                  </Button>
-                  {householdMembers.length >= 2 && (
+              ) : isCombinedView && selectedIds.size > 1 ? (
+                <Text color="gray.500" maxW="md">
+                  No shared retirement plans for the selected members yet.
+                  Create one to combine their accounts.
+                </Text>
+              ) : (
+                <>
+                  <Text color="gray.500" maxW="md">
+                    Plan your retirement by modeling different scenarios with
+                    Monte Carlo simulation. See how different retirement ages,
+                    spending levels, and life events affect your financial
+                    future.
+                  </Text>
+                  <HStack spacing={3}>
                     <Button
-                      size="lg"
-                      variant="outline"
                       colorScheme="blue"
-                      leftIcon={<FiUsers />}
-                      onClick={handleOpenMemberPicker}
+                      size="lg"
+                      onClick={handleCreateDefault}
+                      isLoading={createDefaultMutation.isPending}
+                      loadingText="Setting up..."
                     >
-                      Household Plan
+                      Create Your First Scenario
                     </Button>
-                  )}
-                </HStack>
-                <Alert status="info" borderRadius="md" maxW="md">
-                  <AlertIcon />
-                  Make sure your birthdate is set in Preferences for accurate
-                  projections.
-                </Alert>
-              </>
-            )}
+                    {householdMembers.length >= 2 && (
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        colorScheme="blue"
+                        leftIcon={<FiUsers />}
+                        onClick={handleOpenMemberPicker}
+                      >
+                        Household Plan
+                      </Button>
+                    )}
+                  </HStack>
+                  <Alert status="info" borderRadius="md" maxW="md">
+                    <AlertIcon />
+                    Make sure your birthdate is set in Preferences for accurate
+                    projections.
+                  </Alert>
+                </>
+              )}
+            </VStack>
           </VStack>
-        </VStack>
-      </Container>
+        </Container>
+
+        {/* Member Picker Modal — must be in DOM for the Household Plan button */}
+        <Modal isOpen={memberPicker.isOpen} onClose={memberPicker.onClose}>
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>Create Retirement Plan</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <VStack spacing={4} align="stretch">
+                <Box>
+                  <Text fontSize="sm" fontWeight="medium" mb={2}>
+                    Plan Name
+                  </Text>
+                  <Input
+                    value={newScenarioName}
+                    onChange={(e) => setNewScenarioName(e.target.value)}
+                    placeholder="My Retirement Plan"
+                  />
+                </Box>
+
+                <Box>
+                  <Text fontSize="sm" fontWeight="medium" mb={2}>
+                    Who is this plan for?
+                  </Text>
+                  <RadioGroup
+                    value={memberPickerMode}
+                    onChange={(val) => {
+                      const mode = val as "just_me" | "select" | "all";
+                      setMemberPickerMode(mode);
+                      setNewScenarioName(
+                        mode === "just_me"
+                          ? "My Retirement Plan"
+                          : "Our Retirement Plan",
+                      );
+                    }}
+                  >
+                    <VStack align="start" spacing={2}>
+                      <Radio value="just_me">Just me</Radio>
+                      <Radio value="all">All household members</Radio>
+                      <Radio value="select">Select specific members</Radio>
+                    </VStack>
+                  </RadioGroup>
+                </Box>
+
+                {memberPickerMode === "select" && (
+                  <VStack align="stretch" spacing={2} pl={6}>
+                    {householdMembers.map((m) => (
+                      <Checkbox
+                        key={m.id}
+                        isChecked={selectedMemberIdsForCreate.has(m.id)}
+                        onChange={(e) => {
+                          const next = new Set(selectedMemberIdsForCreate);
+                          if (e.target.checked) {
+                            next.add(m.id);
+                          } else {
+                            next.delete(m.id);
+                          }
+                          setSelectedMemberIdsForCreate(next);
+                        }}
+                      >
+                        {m.display_name || m.first_name || m.email}
+                      </Checkbox>
+                    ))}
+                    {selectedMemberIdsForCreate.size < 2 && (
+                      <Text fontSize="xs" color="orange.400">
+                        Select at least 2 members for a multi-person plan.
+                      </Text>
+                    )}
+                  </VStack>
+                )}
+              </VStack>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={memberPicker.onClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="blue"
+                onClick={handleCreateWithMembers}
+                isLoading={createScenarioMutation.isPending}
+                isDisabled={
+                  memberPickerMode === "select" &&
+                  selectedMemberIdsForCreate.size < 2
+                }
+              >
+                Create Plan
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      </>
     );
   }
 
@@ -962,34 +1268,69 @@ export function RetirementPage() {
                     />
                   ) : (
                     <HStack spacing={1}>
-                      {/* Multi-member badge */}
-                      {(s.include_all_members ||
-                        (s.household_member_ids &&
-                          s.household_member_ids.length > 1)) && (
-                        <Tooltip
-                          label={
-                            s.include_all_members
-                              ? "All household members"
-                              : `${s.household_member_ids?.length} members`
-                          }
-                        >
-                          <Badge
-                            colorScheme="purple"
-                            variant="subtle"
-                            fontSize="9px"
-                            px={1}
-                          >
-                            <HStack spacing={0.5}>
-                              <FiUsers size={9} />
-                              <Text>
-                                {s.include_all_members
-                                  ? "All"
-                                  : s.household_member_ids?.length}
-                              </Text>
-                            </HStack>
-                          </Badge>
-                        </Tooltip>
-                      )}
+                      {/* Scenario type badge */}
+                      {(() => {
+                        const isEffectivelyAll =
+                          s.include_all_members ||
+                          (s.household_member_ids &&
+                            householdMembers.length > 0 &&
+                            s.household_member_ids.length >=
+                              householdMembers.length &&
+                            householdMembers.every((m) =>
+                              s.household_member_ids!.includes(m.id),
+                            ));
+                        if (isEffectivelyAll) {
+                          return (
+                            <Tooltip label="All household members">
+                              <Badge
+                                colorScheme="purple"
+                                variant="subtle"
+                                fontSize="9px"
+                                px={1}
+                              >
+                                <HStack spacing={0.5}>
+                                  <FiUsers size={9} />
+                                  <Text>All</Text>
+                                </HStack>
+                              </Badge>
+                            </Tooltip>
+                          );
+                        }
+                        if (
+                          s.household_member_ids &&
+                          s.household_member_ids.length > 1
+                        ) {
+                          return (
+                            <Tooltip
+                              label={`Shared: ${s.household_member_ids
+                                .map((id) => {
+                                  const m = householdMembers.find(
+                                    (hm) => hm.id === id,
+                                  );
+                                  return (
+                                    m?.display_name ??
+                                    m?.first_name ??
+                                    "Unknown"
+                                  );
+                                })
+                                .join(", ")}`}
+                            >
+                              <Badge
+                                colorScheme="blue"
+                                variant="subtle"
+                                fontSize="9px"
+                                px={1}
+                              >
+                                <HStack spacing={0.5}>
+                                  <FiUsers size={9} />
+                                  <Text>Shared</Text>
+                                </HStack>
+                              </Badge>
+                            </Tooltip>
+                          );
+                        }
+                        return null;
+                      })()}
                       <Text as="span">
                         {s.name}
                         {s.readiness_score !== null && (
@@ -1016,6 +1357,26 @@ export function RetirementPage() {
                               handleTabDoubleClick(s.id, s.name);
                             }}
                           />
+                          {householdMembers.length >= 2 && (
+                            <Tooltip label="Manage members">
+                              <IconButton
+                                aria-label="Manage members"
+                                icon={<FiUsers size={10} />}
+                                size="xs"
+                                variant="ghost"
+                                minW="auto"
+                                h="auto"
+                                p={0.5}
+                                fontSize="10px"
+                                opacity={0.5}
+                                _hover={{ opacity: 1, color: "blue.400" }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenMemberEditor(s.id);
+                                }}
+                              />
+                            </Tooltip>
+                          )}
                           {(s.include_all_members ||
                             (s.household_member_ids &&
                               s.household_member_ids.length > 1)) && (
@@ -1412,9 +1773,15 @@ export function RetirementPage() {
                 </Text>
                 <RadioGroup
                   value={memberPickerMode}
-                  onChange={(val) =>
-                    setMemberPickerMode(val as "just_me" | "select" | "all")
-                  }
+                  onChange={(val) => {
+                    const mode = val as "just_me" | "select" | "all";
+                    setMemberPickerMode(mode);
+                    setNewScenarioName(
+                      mode === "just_me"
+                        ? "My Retirement Plan"
+                        : "Our Retirement Plan",
+                    );
+                  }}
                 >
                   <VStack align="start" spacing={2}>
                     <Radio value="just_me">Just me</Radio>
@@ -1466,6 +1833,76 @@ export function RetirementPage() {
               }
             >
               Create Plan
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Edit Members Modal */}
+      <Modal isOpen={memberEditor.isOpen} onClose={memberEditor.onClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Manage Plan Members</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <Box>
+                <Text fontSize="sm" fontWeight="medium" mb={2}>
+                  Who is this plan for?
+                </Text>
+                <RadioGroup
+                  value={editMemberMode}
+                  onChange={(val) =>
+                    setEditMemberMode(val as "just_me" | "select" | "all")
+                  }
+                >
+                  <VStack align="start" spacing={2}>
+                    <Radio value="just_me">Just me</Radio>
+                    <Radio value="all">All household members</Radio>
+                    <Radio value="select">Select specific members</Radio>
+                  </VStack>
+                </RadioGroup>
+              </Box>
+
+              {editMemberMode === "select" && (
+                <VStack align="stretch" spacing={2} pl={6}>
+                  {householdMembers.map((m) => (
+                    <Checkbox
+                      key={m.id}
+                      isChecked={editMemberIds.has(m.id)}
+                      onChange={(e) => {
+                        const next = new Set(editMemberIds);
+                        if (e.target.checked) {
+                          next.add(m.id);
+                        } else {
+                          next.delete(m.id);
+                        }
+                        setEditMemberIds(next);
+                      }}
+                    >
+                      {m.display_name || m.first_name || m.email}
+                    </Checkbox>
+                  ))}
+                  {editMemberIds.size < 2 && (
+                    <Text fontSize="xs" color="orange.400">
+                      Select at least 2 members for a multi-person plan.
+                    </Text>
+                  )}
+                </VStack>
+              )}
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={memberEditor.onClose}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="blue"
+              onClick={handleSaveMemberEdit}
+              isLoading={updateMutation.isPending}
+              isDisabled={editMemberMode === "select" && editMemberIds.size < 2}
+            >
+              Save
             </Button>
           </ModalFooter>
         </ModalContent>

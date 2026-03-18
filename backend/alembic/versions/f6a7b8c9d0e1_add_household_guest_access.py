@@ -12,6 +12,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID
 
 # revision identifiers, used by Alembic.
@@ -22,13 +23,25 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create guest_role enum
-    guest_role = sa.Enum("viewer", "advisor", name="guest_role")
-    guest_role.create(op.get_bind(), checkfirst=True)
+    # Create enums with IF NOT EXISTS to handle pre-existing types
+    op.execute(
+        "DO $$ BEGIN "
+        "IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'guest_role') THEN "
+        "CREATE TYPE guest_role AS ENUM ('viewer', 'advisor'); "
+        "END IF; END $$;"
+    )
+    op.execute(
+        "DO $$ BEGIN "
+        "IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'guest_invitation_status') THEN "
+        "CREATE TYPE guest_invitation_status AS ENUM ('pending', 'accepted', 'declined', 'expired'); "
+        "END IF; END $$;"
+    )
 
-    # Create guest_invitation_status enum
-    guest_inv_status = sa.Enum("pending", "accepted", "declined", "expired", name="guest_invitation_status")
-    guest_inv_status.create(op.get_bind(), checkfirst=True)
+    # Use postgresql.ENUM with create_type=False to prevent duplicate creation
+    guest_role = postgresql.ENUM("viewer", "advisor", name="guest_role", create_type=False)
+    guest_inv_status = postgresql.ENUM(
+        "pending", "accepted", "declined", "expired", name="guest_invitation_status", create_type=False
+    )
 
     # household_guests table
     op.create_table(

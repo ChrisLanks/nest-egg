@@ -2,10 +2,10 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.retirement import DistributionType, LifeEventCategory, WithdrawalStrategy
 
@@ -241,6 +241,18 @@ class RetirementScenarioResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @field_validator("household_member_ids", mode="before")
+    @classmethod
+    def parse_household_member_ids(cls, v: Any) -> Optional[List[str]]:
+        """Accept a JSON string or list for household_member_ids."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            import json
+
+            return json.loads(v)
+        return v
+
     class Config:
         from_attributes = True
 
@@ -249,6 +261,7 @@ class RetirementScenarioSummary(BaseModel):
     """Lightweight summary for list view."""
 
     id: UUID
+    user_id: UUID
     name: str
     retirement_age: int
     is_default: bool
@@ -259,6 +272,18 @@ class RetirementScenarioSummary(BaseModel):
     readiness_score: Optional[int] = None
     success_rate: Optional[float] = None
     updated_at: datetime
+
+    @field_validator("household_member_ids", mode="before")
+    @classmethod
+    def parse_summary_household_member_ids(cls, v: Any) -> Optional[List[str]]:
+        """Accept a JSON string or list for household_member_ids."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            import json
+
+            return json.loads(v)
+        return v
 
     class Config:
         from_attributes = True
