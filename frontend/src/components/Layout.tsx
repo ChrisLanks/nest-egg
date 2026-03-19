@@ -614,7 +614,6 @@ export const Layout = () => {
     },
     staleTime: 1000 * 60 * 5,
   });
-  const hasRetirementAccounts = smartInsightsFlags?.hasRetirement ?? false;
   const hasInvestmentHoldings = smartInsightsFlags?.hasInvestments ?? false;
 
   // All nav items with default visibility
@@ -634,9 +633,11 @@ export const Layout = () => {
     { label: "Year in Review", path: "/year-in-review" },
     { label: "Tax Deductible", path: "/tax-deductible" },
     { label: "Rental Properties", path: "/rental-properties" },
+    { label: "Investment Health", path: "/investment-health" },
   ];
 
   const allPlanningItems = [
+    { label: "Smart Insights", path: "/smart-insights" },
     { label: "Goals", path: "/goals" },
     { label: "Retirement", path: "/retirement" },
     { label: "Education", path: "/education" },
@@ -647,19 +648,12 @@ export const Layout = () => {
     { label: "Tax Projection", path: "/tax-projection" },
   ];
 
-  const allInsightsItems = [
-    { label: "Smart Insights", path: "/smart-insights" },
-    { label: "Roth Conversion", path: "/roth-conversion" },
-    { label: "Investment Health", path: "/investment-health" },
-  ];
-
   // Default visibility for conditional items
   const conditionalDefaults: Record<string, boolean> = {
     "/rental-properties": hasRental,
     "/education": has529,
     "/debt-payoff": hasDebt,
     "/mortgage": hasMortgage,
-    "/roth-conversion": hasRetirementAccounts,
     "/investment-health": hasInvestmentHoldings,
   };
 
@@ -673,7 +667,6 @@ export const Layout = () => {
   const spendingMenuItems = filterVisible(allSpendingItems);
   const analyticsMenuItems = filterVisible(allAnalyticsItems);
   const planningMenuItems = filterVisible(allPlanningItems);
-  const insightsMenuItems = filterVisible(allInsightsItems);
 
   // Fetch dashboard summary for net worth (filtered by user)
   const { data: dashboardSummary } = useQuery({
@@ -947,16 +940,6 @@ export const Layout = () => {
                 currentPath={location.pathname}
                 onNavigate={navigateWithParams}
               />
-
-              {/* Insights Dropdown (shown when user has relevant accounts) */}
-              {insightsMenuItems.length > 0 && (
-                <NavDropdown
-                  label="Insights"
-                  items={insightsMenuItems}
-                  currentPath={location.pathname}
-                  onNavigate={navigateWithParams}
-                />
-              )}
 
               {/* Investments */}
               <TopNavItem

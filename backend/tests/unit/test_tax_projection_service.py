@@ -269,3 +269,71 @@ class TestTaxProjectionService:
             today=date(2025, 7, 1),
         )
         assert result.total_tax_before_credits == pytest.approx(0, abs=1.0)
+
+    # ── Household view / user_id scoping ─────────────────────────────────
+
+    async def test_user_id_forwarded_to_ytd_income(self):
+        """When a specific user_id is passed, it must be forwarded to the
+        income query so only that member's transactions are included."""
+        from uuid import UUID
+
+        user_uuid = UUID("aaaaaaaa-0000-0000-0000-000000000001")
+        db = AsyncMock()
+        svc = TaxProjectionService(db)
+        svc._ytd_income = AsyncMock(return_value=50_000)
+
+        await svc.project(
+            organization_id="org-123",
+            user_id=user_uuid,
+            filing_status="single",
+            today=date(2025, 7, 1),
+        )
+
+        svc._ytd_income.assert_called_once_with("org-123", user_uuid, 2025)
+
+    async def test_none_user_id_queries_all_members(self):
+        """user_id=None means combined household view — query all members."""
+        db = AsyncMock()
+        svc = TaxProjectionService(db)
+        svc._ytd_income = AsyncMock(return_value=100_000)
+
+        await svc.project(
+            organization_id="org-456",
+            user_id=None,
+            filing_status="married",
+            today=date(2025, 7, 1),
+        )
+
+        svc._ytd_income.assert_called_once_with("org-456", None, 2025)
+
+    async def test_different_user_ids_produce_independent_projections(self):
+        """Two different user_ids called separately should produce independent
+        projections based on their own income data."""
+        from uuid import UUID
+
+        user_a = UUID("aaaaaaaa-0000-0000-0000-000000000001")
+        user_b = UUID("bbbbbbbb-0000-0000-0000-000000000002")
+
+        db = AsyncMock()
+
+        svc_a = TaxProjectionService(db)
+        svc_a._ytd_income = AsyncMock(return_value=60_000)
+
+        svc_b = TaxProjectionService(db)
+        svc_b._ytd_income = AsyncMock(return_value=120_000)
+
+        result_a = await svc_a.project(
+            organization_id="org-123",
+            user_id=user_a,
+            filing_status="single",
+            today=date(2025, 7, 1),
+        )
+        result_b = await svc_b.project(
+            organization_id="org-123",
+            user_id=user_b,
+            filing_status="single",
+            today=date(2025, 7, 1),
+        )
+
+        assert result_b.ordinary_income > result_a.ordinary_income
+        assert result_b.total_tax_before_credits > result_a.total_tax_before_credits

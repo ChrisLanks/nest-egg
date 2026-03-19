@@ -549,6 +549,59 @@ All tax rates, contribution limits, RMD tables, and financial thresholds in a si
   - Life event dollar amounts for retirement planning presets
 - **Backward Compatible**: Services that previously defined their own constants now import from `financial.py` with no API changes
 
+## Financial Planning Tools
+
+Three purpose-built planning tools under `GET /api/v1/financial-planning/`.
+All endpoints accept an optional `user_id` query parameter so they respect
+the active household view (individual member vs combined). Pages live under
+**Planning** in the nav.
+
+### Mortgage Analyzer (`/mortgage`)
+
+- **Automatic Data Sourcing**: Balance, rate, and remaining term pulled directly from the linked mortgage account — no manual entry
+- **Full Amortization Schedule**: Month-by-month principal/interest/balance breakdown
+- **Refinance Comparison**: Side-by-side current vs new rate scenarios — monthly savings, lifetime interest savings, break-even month
+- **Extra Payment Impact**: Shows months saved and interest avoided by adding a fixed extra principal payment each month
+- **Equity Milestones**: Month and date when equity crosses 20%, 50%, 80%, and 100%
+- **Household Scoping**: Filtered to the selected member when a specific user view is active
+
+### Social Security Optimizer (`/ss-claiming`)
+
+- **Age 62–70 Comparison**: Monthly benefit, annual benefit, and lifetime total for every integer claiming age
+- **Three Longevity Scenarios**: Pessimistic (die at 78), base (die at 85), optimistic (die at 92) — optimal age identified for each
+- **Break-Even Analysis**: Months after your 62nd birthday when waiting pays off vs claiming early
+- **PIA Estimation**: Automatic AIME → PIA calculation from salary + career length, or manual override from SSA statement
+- **Spousal Benefit Estimate**: 50% of higher earner's PIA at FRA; shows benefit at 62, FRA, and 70
+- **Per-User**: Runs on the selected member's salary/birth year — each household member can check their own optimal age
+
+### Tax Projection (`/tax-projection`)
+
+- **Auto-Sourced Income**: YTD transactions annualised to a full-year estimate based on days elapsed
+- **Multi-Component Tax**: Ordinary income brackets, self-employment tax (15.3%), LTCG stacked on top
+- **SE Deduction**: 50% of SE tax automatically deducted before computing ordinary tax
+- **Additional Deductions**: User-provided itemised deductions (mortgage interest, charitable) layered on top of standard deduction
+- **Quarterly 1040-ES Schedule**: Four payments with IRS due dates (Apr 15, Jun 15, Sep 15, Jan 15)
+- **Safe Harbour Check**: Compares projected tax against 100% of prior-year tax; flags if underpayment penalty risk exists
+- **Bracket Breakdown**: Per-bracket income and tax owed shown in a table
+- **Household Scoping**: `user_id=None` aggregates all members' transactions; a specific `user_id` shows only that member's income
+
+## Smart Insights
+
+Proactive, no-input-required financial recommendations derived entirely from
+live account data. Accessible at `GET /api/v1/smart-insights` and under
+**Planning** in the nav.
+
+- **Emergency Fund Gap**: Checks liquid savings vs 3–6 months of expenses
+- **Roth Conversion Window**: Identifies low-income years where traditional → Roth conversion is tax-efficient
+- **IRMAA Cliff Warning**: Flags income approaching Medicare IRMAA surcharge thresholds
+- **Cash Drag**: Alerts when excess cash in investment accounts is earning sub-optimal returns
+- **HSA Opportunity**: Identifies eligible users not maximising HSA contributions
+- **Fund Fee Analysis**: Scans investment holdings for high-expense-ratio funds and projects 10/20-year drag vs benchmarks
+- **Stock Concentration**: Warns when a single equity position exceeds a healthy portfolio percentage
+- **LTCG Harvesting**: Suggests realising long-term gains in the 0% LTCG bracket when income allows
+- **Priority Scoring**: Each insight has high/medium/low priority; cards are grouped by category (cash, tax, retirement, investing)
+- **Household Scoping**: All checks respect the active user view
+
 ## Scalability Safeguards
 
 - **Date Range Validation**: Shared utility caps queries to ~50 years

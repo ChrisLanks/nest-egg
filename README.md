@@ -95,6 +95,10 @@ Note: there is dark mode and light mode
 - **Tax Advisor** — age-aware tax insights: LTCG 0% bracket, Social Security taxation, IRMAA planning, NII surtax, RMD planning, Roth conversion windows
 - **Enhanced Trends** — net worth history, investment performance (winners/losers), spending velocity, cash flow history, investment income trend
 - **Centralized Financial Constants** — single-source tax rates, contribution limits, RMD tables, and thresholds (`backend/app/constants/financial.py`) for easy annual updates
+- **Mortgage Analyzer** — full amortization schedule, refinance break-even comparison, extra payment impact, equity milestone projections; auto-sourced from linked mortgage account
+- **Social Security Optimizer** — claiming age 62–70 comparison with three longevity scenarios (pessimistic/base/optimistic), break-even vs early claiming, spousal benefit estimate
+- **Tax Projection** — annualised YTD income estimate, ordinary/SE/LTCG federal tax breakdown, quarterly 1040-ES payment schedule, safe harbour check; all household-view aware
+- **Smart Insights** — proactive, no-input-required financial recommendations derived from live account data: emergency fund gaps, Roth windows, IRMAA cliffs, cash drag, HSA opportunities, fund fee alerts
 - **Security** — rate limiting, CSRF, encryption at rest, MFA, GDPR compliance, webhook verification
 
 > **Full details**: [docs/features.md](docs/features.md)

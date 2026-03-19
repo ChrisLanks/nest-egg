@@ -285,11 +285,17 @@ const NAV_SECTIONS = [
         path: "/rental-properties",
         conditional: true,
       },
+      {
+        label: "Investment Health",
+        path: "/investment-health",
+        conditional: true,
+      },
     ],
   },
   {
     group: "Planning",
     items: [
+      { label: "Smart Insights", path: "/smart-insights" },
       { label: "Goals", path: "/goals" },
       { label: "Retirement", path: "/retirement" },
       { label: "Education", path: "/education", conditional: true },
@@ -298,18 +304,6 @@ const NAV_SECTIONS = [
       { label: "Mortgage", path: "/mortgage", conditional: true },
       { label: "SS Optimizer", path: "/ss-claiming" },
       { label: "Tax Projection", path: "/tax-projection" },
-    ],
-  },
-  {
-    group: "Insights",
-    items: [
-      { label: "Smart Insights", path: "/smart-insights" },
-      { label: "Roth Conversion", path: "/roth-conversion", conditional: true },
-      {
-        label: "Investment Health",
-        path: "/investment-health",
-        conditional: true,
-      },
     ],
   },
 ];
