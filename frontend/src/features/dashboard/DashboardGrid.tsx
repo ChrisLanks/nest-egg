@@ -3,9 +3,12 @@
  *
  * Layout is a flat ordered list rendered into a 2-column CSS grid.
  * Items with span=2 fill the full row; span=1 items share a row.
- * Drag-and-drop (dnd-kit) reorders the flat list; the grid reflowss naturally.
+ * Drag-and-drop (dnd-kit) reorders the flat list; the grid reflows naturally.
+ * Each widget is wrapped in its own Suspense boundary so it shows a skeleton
+ * while loading independently — no full-page spinner.
  */
 
+import React, { Suspense } from "react";
 import {
   Box,
   Button,
@@ -15,7 +18,8 @@ import {
   Text,
   Tooltip,
   useColorModeValue,
-} from '@chakra-ui/react';
+} from "@chakra-ui/react";
+import { WidgetSkeleton } from "../../components/LoadingSkeleton";
 import {
   DndContext,
   closestCenter,
@@ -24,19 +28,19 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-} from '@dnd-kit/core';
+} from "@dnd-kit/core";
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { MdDragIndicator, MdViewColumn, MdViewStream } from 'react-icons/md';
-import { CloseIcon, AddIcon } from '@chakra-ui/icons';
-import type { LayoutItem } from './types';
-import { WIDGET_REGISTRY } from './widgetRegistry';
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { MdDragIndicator, MdViewColumn, MdViewStream } from "react-icons/md";
+import { CloseIcon, AddIcon } from "@chakra-ui/icons";
+import type { LayoutItem } from "./types";
+import { WIDGET_REGISTRY } from "./widgetRegistry";
 
 // ── SortableWidget ──────────────────────────────────────────────────────────
 
@@ -54,18 +58,25 @@ const SortableWidget: React.FC<SortableWidgetProps> = ({
   onSpanToggle,
 }) => {
   const def = WIDGET_REGISTRY[item.id];
-  const editBarBg = useColorModeValue('whiteAlpha.900', 'blackAlpha.800');
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const editBarBg = useColorModeValue("whiteAlpha.900", "blackAlpha.800");
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
     id: item.id,
     disabled: !isEditing,
   });
 
   const style: React.CSSProperties = {
-    gridColumn: item.span === 2 ? 'span 2' : 'span 1',
+    gridColumn: item.span === 2 ? "span 2" : "span 1",
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    position: 'relative',
+    position: "relative",
   };
 
   if (!def) return null;
@@ -96,7 +107,7 @@ const SortableWidget: React.FC<SortableWidgetProps> = ({
                 display="flex"
                 alignItems="center"
                 color="text.muted"
-                _hover={{ color: 'text.secondary' }}
+                _hover={{ color: "text.secondary" }}
               >
                 <Icon as={MdDragIndicator} boxSize={5} />
               </Box>
@@ -105,10 +116,18 @@ const SortableWidget: React.FC<SortableWidgetProps> = ({
               </Text>
             </HStack>
             <HStack spacing={1}>
-              <Tooltip label={item.span === 2 ? 'Switch to half width' : 'Switch to full width'}>
+              <Tooltip
+                label={
+                  item.span === 2
+                    ? "Switch to half width"
+                    : "Switch to full width"
+                }
+              >
                 <IconButton
                   aria-label="Toggle width"
-                  icon={<Icon as={item.span === 2 ? MdViewColumn : MdViewStream} />}
+                  icon={
+                    <Icon as={item.span === 2 ? MdViewColumn : MdViewStream} />
+                  }
                   size="xs"
                   variant="ghost"
                   onClick={() => onSpanToggle(item.id)}
@@ -128,8 +147,10 @@ const SortableWidget: React.FC<SortableWidgetProps> = ({
           </HStack>
         </Box>
       )}
-      <Box pt={isEditing ? '48px' : 0}>
-        <WidgetComponent />
+      <Box pt={isEditing ? "48px" : 0}>
+        <Suspense fallback={<WidgetSkeleton />}>
+          <WidgetComponent />
+        </Suspense>
       </Box>
     </div>
   );
@@ -152,7 +173,9 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
 }) => {
   const sensors = useSensors(
     useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -171,19 +194,26 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
   const handleSpanToggle = (id: string) => {
     onLayoutChange(
       layout.map((item) =>
-        item.id === id ? { ...item, span: item.span === 2 ? 1 : 2 } : item
-      )
+        item.id === id ? { ...item, span: item.span === 2 ? 1 : 2 } : item,
+      ),
     );
   };
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={layout.map((item) => item.id)} strategy={verticalListSortingStrategy}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext
+        items={layout.map((item) => item.id)}
+        strategy={verticalListSortingStrategy}
+      >
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '24px',
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "24px",
           }}
         >
           {layout.map((item) => (

@@ -96,6 +96,8 @@ class Transaction(Base):
         ),
         Index("ix_transactions_org_transfer_date", "organization_id", "is_transfer", "date"),
         Index("ix_transactions_org_flagged_date", "organization_id", "flagged_for_review", "date"),
+        # Composite for filtered range queries: org + account + date
+        Index("ix_transactions_org_acct_date", "organization_id", "account_id", "date"),
     )
 
 

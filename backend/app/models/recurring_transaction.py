@@ -117,4 +117,11 @@ class RecurringTransaction(Base):
     __table_args__ = (
         Index("ix_recurring_org_merchant", "organization_id", "merchant_name"),
         Index("ix_recurring_org_active", "organization_id", "is_active"),
+        # Composite: org + active + next_expected_date for scheduled-item queries
+        Index(
+            "ix_recurring_org_active_next_date",
+            "organization_id",
+            "is_active",
+            "next_expected_date",
+        ),
     )

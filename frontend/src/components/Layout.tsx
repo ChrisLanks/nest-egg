@@ -49,6 +49,7 @@ import { useShallow } from "zustand/react/shallow";
 import { UserViewToggle } from "./UserViewToggle";
 import { useUserView } from "../contexts/UserViewContext";
 import { EmailVerificationBanner } from "./EmailVerificationBanner";
+import { OfflineIndicator } from "./OfflineIndicator";
 import { RouteErrorBoundary } from "./RouteErrorBoundary";
 import {
   RESOURCE_TYPE_LABELS,
@@ -1061,6 +1062,9 @@ export const Layout = () => {
 
   return (
     <Flex h="100vh" flexDirection="column" overflow="hidden">
+      {/* Offline indicator — shown when network connectivity is lost */}
+      <OfflineIndicator />
+
       {/* Email verification banner — shown when user's email is not yet verified */}
       <EmailVerificationBanner />
 

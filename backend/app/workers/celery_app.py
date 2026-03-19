@@ -26,6 +26,13 @@ celery_app.conf.update(
     task_acks_late=True,
     task_reject_on_worker_lost=True,
     task_default_retry_delay=60,  # 60 seconds base delay before first retry
+    # Distributed beat scheduler: prevents multiple beat workers from firing the
+    # same task when scaled horizontally. RedBeat uses Redis as a distributed lock
+    # so only one beat process runs each task at its scheduled time.
+    beat_scheduler="redbeat.RedBeatScheduler",
+    redbeat_redis_url=settings.CELERY_BROKER_URL,
+    # Lock TTL: 5× the shortest schedule interval (1-minute check-budget runs at most hourly)
+    redbeat_lock_timeout=300,
 )
 
 

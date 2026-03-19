@@ -22,6 +22,7 @@ cryptography>=44.0.0
 
 # Background Jobs
 celery>=5.5.0  # 5.5+ required for Python 3.13 support
+celery-redbeat>=2.2.0  # Distributed beat scheduler — prevents duplicate task firing on multi-worker deploys
 redis>=5.2.0
 flower>=2.0.1
 

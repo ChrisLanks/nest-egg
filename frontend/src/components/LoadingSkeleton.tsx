@@ -10,9 +10,45 @@ import {
   HStack,
   SimpleGrid,
   Skeleton,
+  SkeletonText,
   Stack,
   VStack,
-} from '@chakra-ui/react';
+} from "@chakra-ui/react";
+
+/**
+ * Generic dashboard widget skeleton — used as the per-widget loading state
+ * while React Query is fetching data. Keeps the grid stable so it doesn't
+ * jump when data arrives.
+ */
+export const WidgetSkeleton = ({ rows = 4 }: { rows?: number }) => (
+  <Card h="100%">
+    <CardBody>
+      <VStack align="stretch" spacing={4}>
+        <HStack justify="space-between">
+          <Skeleton height="18px" width="150px" />
+          <Skeleton height="22px" width="60px" borderRadius="md" />
+        </HStack>
+        <SkeletonText noOfLines={rows} spacing={3} skeletonHeight="14px" />
+        <Skeleton height="120px" borderRadius="md" />
+      </VStack>
+    </CardBody>
+  </Card>
+);
+
+/**
+ * Slim stat-card skeleton (single number + label).
+ */
+export const StatCardSkeleton = () => (
+  <Card>
+    <CardBody>
+      <VStack align="start" spacing={2}>
+        <Skeleton height="14px" width="100px" />
+        <Skeleton height="28px" width="140px" />
+        <Skeleton height="12px" width="80px" />
+      </VStack>
+    </CardBody>
+  </Card>
+);
 
 /**
  * Dashboard page loading skeleton with stat cards and charts
@@ -141,7 +177,12 @@ export const TableSkeleton = () => {
       <CardBody>
         <Stack spacing={3}>
           {/* Table Header */}
-          <HStack spacing={4} pb={2} borderBottom="1px solid" borderColor="border.default">
+          <HStack
+            spacing={4}
+            pb={2}
+            borderBottom="1px solid"
+            borderColor="border.default"
+          >
             <Skeleton height="16px" width="20px" />
             <Skeleton height="16px" flex={1} />
             <Skeleton height="16px" width="120px" />
@@ -309,7 +350,7 @@ export const AccountsSkeleton = () => {
         </Card>
 
         {/* Account Groups */}
-        {['Cash', 'Investment', 'Credit Card', 'Loan'].map((type) => (
+        {["Cash", "Investment", "Credit Card", "Loan"].map((type) => (
           <Box key={type}>
             <Skeleton height="20px" width="120px" mb={3} />
             <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>

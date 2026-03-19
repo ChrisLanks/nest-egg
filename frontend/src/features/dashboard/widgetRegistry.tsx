@@ -18,6 +18,7 @@ import { SubscriptionsWidget } from "./widgets/SubscriptionsWidget";
 import { InvestmentPerformanceWidget } from "./widgets/InvestmentPerformanceWidget";
 import { AssetAllocationWidget } from "./widgets/AssetAllocationWidget";
 import { NetWorthProjectionWidget } from "./widgets/NetWorthProjectionWidget";
+import { NetWorthBenchmarkWidget } from "./widgets/NetWorthBenchmarkWidget";
 import { RetirementReadinessWidget } from "./widgets/RetirementReadinessWidget";
 import { FireMetricsWidget } from "./widgets/FireMetricsWidget";
 import { FinancialHealthWidget } from "./widgets/FinancialHealthWidget";
@@ -158,6 +159,14 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
       "Monte Carlo projection of total net worth over 5–20 years, including monthly savings contributions.",
     defaultSpan: 2,
     component: NetWorthProjectionWidget,
+  },
+  "net-worth-benchmark": {
+    id: "net-worth-benchmark",
+    title: "Net Worth vs. Peers",
+    description:
+      "See how your net worth ranks against peers in your age group using Federal Reserve survey data.",
+    defaultSpan: 1,
+    component: NetWorthBenchmarkWidget,
   },
   "retirement-readiness": {
     id: "retirement-readiness",

@@ -37,6 +37,7 @@ import {
   Textarea,
   Select,
   IconButton,
+  useBreakpointValue,
 } from "@chakra-ui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -87,6 +88,7 @@ export default function ReportsPage() {
   // In combined view, use multi-member filter; otherwise use global selectedUserId
   const queryUserId = isCombinedView ? memberEffectiveUserId : selectedUserId;
   const canEdit = canWriteResource("report");
+  const isMobile = useBreakpointValue({ base: true, md: false });
   const queryClient = useQueryClient();
   const toast = useToast();
   const {
@@ -491,41 +493,74 @@ export default function ReportsPage() {
                   </ResponsiveContainer>
                 )}
 
-                {/* Data Table */}
-                <Box overflowX="auto">
-                  <Table variant="simple" size="sm">
-                    <Thead>
-                      <Tr>
-                        <Th>Name</Th>
-                        <Th isNumeric>Amount</Th>
-                        {reportResult.data[0]?.count !== undefined && (
-                          <Th isNumeric>Count</Th>
-                        )}
-                        {reportResult.data[0]?.percentage !== undefined && (
-                          <Th isNumeric>%</Th>
-                        )}
-                      </Tr>
-                    </Thead>
-                    <Tbody>
-                      {reportResult.data.map((row, index) => (
-                        <Tr key={index}>
-                          <Td>{row.name}</Td>
-                          <Td isNumeric fontWeight="medium">
-                            {row.amount !== undefined
-                              ? formatCurrency(row.amount)
-                              : "-"}
-                          </Td>
-                          {row.count !== undefined && (
-                            <Td isNumeric>{row.count}</Td>
+                {/* Data Table — card layout on mobile, table on desktop */}
+                {isMobile ? (
+                  <VStack spacing={2} align="stretch">
+                    {reportResult.data.map((row, index) => (
+                      <Card key={index} variant="outline" size="sm">
+                        <CardBody py={2} px={3}>
+                          <HStack justify="space-between">
+                            <Text fontSize="sm" fontWeight="medium">
+                              {row.name}
+                            </Text>
+                            <VStack align="end" spacing={0}>
+                              <Text fontSize="sm" fontWeight="bold">
+                                {row.amount !== undefined
+                                  ? formatCurrency(row.amount)
+                                  : "-"}
+                              </Text>
+                              {row.count !== undefined && (
+                                <Text fontSize="xs" color="text.muted">
+                                  {row.count} txns
+                                </Text>
+                              )}
+                              {row.percentage !== undefined && (
+                                <Text fontSize="xs" color="text.muted">
+                                  {row.percentage.toFixed(1)}%
+                                </Text>
+                              )}
+                            </VStack>
+                          </HStack>
+                        </CardBody>
+                      </Card>
+                    ))}
+                  </VStack>
+                ) : (
+                  <Box overflowX="auto">
+                    <Table variant="simple" size="sm">
+                      <Thead>
+                        <Tr>
+                          <Th>Name</Th>
+                          <Th isNumeric>Amount</Th>
+                          {reportResult.data[0]?.count !== undefined && (
+                            <Th isNumeric>Count</Th>
                           )}
-                          {row.percentage !== undefined && (
-                            <Td isNumeric>{row.percentage.toFixed(1)}%</Td>
+                          {reportResult.data[0]?.percentage !== undefined && (
+                            <Th isNumeric>%</Th>
                           )}
                         </Tr>
-                      ))}
-                    </Tbody>
-                  </Table>
-                </Box>
+                      </Thead>
+                      <Tbody>
+                        {reportResult.data.map((row, index) => (
+                          <Tr key={index}>
+                            <Td>{row.name}</Td>
+                            <Td isNumeric fontWeight="medium">
+                              {row.amount !== undefined
+                                ? formatCurrency(row.amount)
+                                : "-"}
+                            </Td>
+                            {row.count !== undefined && (
+                              <Td isNumeric>{row.count}</Td>
+                            )}
+                            {row.percentage !== undefined && (
+                              <Td isNumeric>{row.percentage.toFixed(1)}%</Td>
+                            )}
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </Box>
+                )}
               </VStack>
             </CardBody>
           </Card>

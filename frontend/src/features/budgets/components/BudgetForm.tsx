@@ -210,7 +210,7 @@ export default function BudgetForm({
     }
   };
 
-  // Create/update mutation
+  // Create/update mutation with optimistic updates
   const mutation = useMutation({
     mutationFn: (data: BudgetCreate) => {
       if (isEditing && budget) {
@@ -218,15 +218,47 @@ export default function BudgetForm({
       }
       return budgetsApi.create(data);
     },
-    onSuccess: (savedBudget) => {
-      if (isEditing) {
-        // Immediately update the cache so the next Edit click has fresh data
+    onMutate: async (data: BudgetCreate) => {
+      // Cancel any outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["budgets"] });
+      const previousBudgets = queryClient.getQueryData<Budget[]>(["budgets"]);
+
+      if (isEditing && budget) {
+        // Optimistically update the edited budget in cache immediately
         queryClient.setQueryData<Budget[]>(
           ["budgets"],
           (old) =>
-            old?.map((b) => (b.id === savedBudget.id ? savedBudget : b)) ?? [],
+            old?.map((b) => (b.id === budget.id ? { ...b, ...data } : b)) ?? [],
         );
+      } else {
+        // Optimistically prepend a temporary placeholder for the new budget
+        const tempBudget: Budget = {
+          id: "__optimistic__",
+          ...data,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          spent_amount: 0,
+          spent_percentage: 0,
+          is_over_budget: false,
+          is_shared: data.is_shared ?? false,
+          shared_user_ids: data.shared_user_ids ?? null,
+        } as Budget;
+        queryClient.setQueryData<Budget[]>(["budgets"], (old) => [
+          tempBudget,
+          ...(old ?? []),
+        ]);
       }
+      return { previousBudgets };
+    },
+    onSuccess: (savedBudget) => {
+      // Replace optimistic entry with the real server response
+      queryClient.setQueryData<Budget[]>(["budgets"], (old) => {
+        if (!old) return [savedBudget];
+        if (isEditing) {
+          return old.map((b) => (b.id === savedBudget.id ? savedBudget : b));
+        }
+        return old.map((b) => (b.id === "__optimistic__" ? savedBudget : b));
+      });
       queryClient.invalidateQueries({ queryKey: ["budgets"] });
       toast({
         title: isEditing ? "Budget updated" : "Budget created",
@@ -235,12 +267,20 @@ export default function BudgetForm({
       });
       onClose();
     },
-    onError: () => {
+    onError: (_err, _data, context) => {
+      // Roll back optimistic update on failure
+      if (context?.previousBudgets !== undefined) {
+        queryClient.setQueryData(["budgets"], context.previousBudgets);
+      }
       toast({
         title: `Failed to ${isEditing ? "update" : "create"} budget`,
         status: "error",
         duration: 3000,
       });
+    },
+    onSettled: () => {
+      // Always resync with server after mutation settles
+      queryClient.invalidateQueries({ queryKey: ["budgets"] });
     },
   });
 

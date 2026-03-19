@@ -35,6 +35,7 @@ from app.services.financial_health_service import FinancialHealthService
 from app.services.forecast_service import ForecastService
 from app.services.insights_service import InsightsService
 from app.services.milestone_service import get_milestone_summary
+from app.services.net_worth_benchmark_service import compute_benchmark, get_all_age_group_medians
 from app.services.trend_analysis_service import TrendAnalysisService
 from app.utils.date_validation import validate_date_range
 
@@ -1147,3 +1148,91 @@ async def get_net_worth_history(
         )
         for s in snapshots
     ]
+
+
+# ---------------------------------------------------------------------------
+# Net Worth Benchmarks
+# ---------------------------------------------------------------------------
+
+
+class NetWorthBenchmarkResponse(BaseModel):
+    age_group: str
+    age_group_label: str
+    user_net_worth: float
+    median_net_worth: int
+    mean_net_worth: int
+    percentile: int
+    p25: int
+    p50: int
+    p75: int
+    p90: int
+    next_milestone_label: Optional[str]
+    next_milestone_value: Optional[int]
+    gap_to_next_milestone: Optional[float]
+    all_age_groups: list[dict]
+
+
+@router.get("/net-worth-benchmark", response_model=NetWorthBenchmarkResponse)
+async def get_net_worth_benchmark(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Compare the current user's net worth against SCF 2022 peers in their age group.
+
+    Requires the user to have a birthdate set in their profile. Returns percentile
+    rank, median/mean for their cohort, and the next milestone to reach.
+    """
+    # Resolve current net worth from latest snapshot or live accounts
+    snapshot_query = (
+        select(NetWorthSnapshot.total_net_worth)
+        .where(
+            NetWorthSnapshot.organization_id == current_user.organization_id,
+            NetWorthSnapshot.user_id.is_(None),
+        )
+        .order_by(NetWorthSnapshot.snapshot_date.desc())
+        .limit(1)
+    )
+    snapshot_result = await db.execute(snapshot_query)
+    snapshot_row = snapshot_result.first()
+
+    if snapshot_row:
+        net_worth = float(snapshot_row[0])
+    else:
+        # Fall back to live account balances
+        accounts_result = await db.execute(
+            select(Account).where(
+                Account.organization_id == current_user.organization_id,
+                Account.is_active.is_(True),
+            )
+        )
+        accounts = accounts_result.scalars().all()
+        service = DashboardService()
+        net_worth = float(service.compute_net_worth(accounts))
+
+    # Determine age from birthdate
+    if current_user.birthdate:
+        age = date.today().year - current_user.birthdate.year
+    else:
+        # Default to 40 if no birthdate — still shows useful benchmarks
+        age = 40
+
+    benchmark = compute_benchmark(net_worth, age)
+    all_groups = get_all_age_group_medians()
+
+    return NetWorthBenchmarkResponse(
+        age_group=benchmark.age_group,
+        age_group_label=benchmark.age_group_label,
+        user_net_worth=benchmark.user_net_worth,
+        median_net_worth=benchmark.median_net_worth,
+        mean_net_worth=benchmark.mean_net_worth,
+        percentile=benchmark.percentile,
+        p25=benchmark.p25,
+        p50=benchmark.p50,
+        p75=benchmark.p75,
+        p90=benchmark.p90,
+        next_milestone_label=benchmark.next_milestone_label,
+        next_milestone_value=benchmark.next_milestone_value,
+        gap_to_next_milestone=benchmark.gap_to_next_milestone,
+        all_age_groups=all_groups,
+    )

@@ -13,20 +13,34 @@ import {
   Heading,
   HStack,
   Text,
+  Tooltip,
   useDisclosure,
-} from '@chakra-ui/react';
-import { AddIcon, EditIcon } from '@chakra-ui/icons';
-import { useAuthStore } from '../features/auth/stores/authStore';
-import { DashboardGrid } from '../features/dashboard/DashboardGrid';
-import { AddWidgetDrawer } from '../features/dashboard/AddWidgetDrawer';
-import { useWidgetLayout } from '../features/dashboard/useWidgetLayout';
-import { WIDGET_REGISTRY } from '../features/dashboard/widgetRegistry';
-import type { LayoutItem } from '../features/dashboard/types';
+  useToast,
+} from "@chakra-ui/react";
+import { AddIcon, EditIcon, RepeatIcon } from "@chakra-ui/icons";
+import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useAuthStore } from "../features/auth/stores/authStore";
+import { DashboardGrid } from "../features/dashboard/DashboardGrid";
+import { AddWidgetDrawer } from "../features/dashboard/AddWidgetDrawer";
+import { useWidgetLayout } from "../features/dashboard/useWidgetLayout";
+import { WIDGET_REGISTRY } from "../features/dashboard/widgetRegistry";
+import type { LayoutItem } from "../features/dashboard/types";
 
 export const DashboardPage = () => {
   const { user } = useAuthStore();
-  const { layout, isEditing, isSaving, startEditing, saveLayout, cancelEditing, setPendingLayout } =
-    useWidgetLayout();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const {
+    layout,
+    isEditing,
+    isSaving,
+    startEditing,
+    saveLayout,
+    cancelEditing,
+    setPendingLayout,
+  } = useWidgetLayout();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   const handleAddWidget = (widgetId: string) => {
@@ -36,26 +50,66 @@ export const DashboardPage = () => {
     setPendingLayout([...layout, newItem]);
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      // Invalidate all dashboard-related queries to force a fresh fetch on every widget
+      await queryClient.invalidateQueries({ predicate: () => true });
+      toast({
+        title: "Dashboard refreshed",
+        status: "success",
+        duration: 2000,
+        isClosable: true,
+        position: "bottom-right",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <Container maxW="container.xl" py={8}>
       <HStack justify="space-between" mb={8} align="start">
         <Box>
-          <Heading size="lg">Welcome back, {user?.display_name || user?.first_name || user?.email?.split('@')[0] || 'User'}!</Heading>
+          <Heading size="lg">
+            Welcome back,{" "}
+            {user?.display_name ||
+              user?.first_name ||
+              user?.email?.split("@")[0] ||
+              "User"}
+            !
+          </Heading>
           <Text color="text.secondary" mt={1}>
             Here's your financial overview
           </Text>
         </Box>
 
         {!isEditing ? (
-          <Button
-            leftIcon={<EditIcon />}
-            variant="ghost"
-            size="sm"
-            onClick={startEditing}
-            flexShrink={0}
-          >
-            Customize
-          </Button>
+          <HStack flexShrink={0} spacing={2}>
+            <Tooltip
+              label="Force-refresh all widget data, bypassing the cache"
+              hasArrow
+            >
+              <Button
+                leftIcon={<RepeatIcon />}
+                variant="ghost"
+                size="sm"
+                onClick={handleRefresh}
+                isLoading={isRefreshing}
+                loadingText="Refreshing…"
+              >
+                Refresh
+              </Button>
+            </Tooltip>
+            <Button
+              leftIcon={<EditIcon />}
+              variant="ghost"
+              size="sm"
+              onClick={startEditing}
+            >
+              Customize
+            </Button>
+          </HStack>
         ) : (
           <HStack flexShrink={0}>
             <Button
@@ -76,7 +130,12 @@ export const DashboardPage = () => {
             >
               Done
             </Button>
-            <Button variant="ghost" size="sm" onClick={cancelEditing} isDisabled={isSaving}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={cancelEditing}
+              isDisabled={isSaving}
+            >
               Cancel
             </Button>
           </HStack>
