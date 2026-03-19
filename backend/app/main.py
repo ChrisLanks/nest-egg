@@ -51,6 +51,7 @@ from app.api.v1 import (
     retirement,
     rules,
     savings_goals,
+    smart_insights,
     subscriptions,
     tax_advisor,
     tax_lots,
@@ -463,3 +464,4 @@ app.include_router(
 )
 app.include_router(tax_advisor.router, prefix="/api/v1/tax-advisor", tags=["Tax Advisor"])
 app.include_router(enhanced_trends.router, prefix="/api/v1/trends", tags=["Enhanced Trends"])
+app.include_router(smart_insights.router, prefix="/api/v1/smart-insights", tags=["Smart Insights"])
