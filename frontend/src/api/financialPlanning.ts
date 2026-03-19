@@ -7,7 +7,7 @@
  *   GET /api/v1/financial-planning/tax-projection
  */
 
-import api from "./api";
+import api from "../services/api";
 
 // ── Mortgage ──────────────────────────────────────────────────────────────
 
