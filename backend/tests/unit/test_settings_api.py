@@ -287,7 +287,16 @@ def _make_user_with_birthdate(birthdate=None, *, is_org_admin: bool = False) -> 
     user.birthdate = birthdate
     user.is_org_admin = is_org_admin
     user.dashboard_layout = None
+    user.organization_id = uuid4()
+    user.email_notifications_enabled = True
+    user.notification_preferences = None
     return user
+
+
+def _make_mock_org(default_currency: str = "USD") -> Mock:
+    org = Mock()
+    org.default_currency = default_currency
+    return org
 
 
 @pytest.mark.unit
@@ -297,7 +306,8 @@ class TestGetUserProfile:
     @pytest.mark.asyncio
     async def test_returns_birthday_fields_when_birthdate_set(self):
         user = _make_user_with_birthdate(date(1990, 6, 15))
-        response = await get_user_profile(current_user=user)
+        db = _make_patch_db(user)
+        response = await get_user_profile(current_user=user, db=db)
         assert response.birth_day == 15
         assert response.birth_month == 6
         assert response.birth_year == 1990
@@ -305,7 +315,8 @@ class TestGetUserProfile:
     @pytest.mark.asyncio
     async def test_returns_none_birthday_fields_when_birthdate_not_set(self):
         user = _make_user_with_birthdate(None)
-        response = await get_user_profile(current_user=user)
+        db = _make_patch_db(user)
+        response = await get_user_profile(current_user=user, db=db)
         assert response.birth_day is None
         assert response.birth_month is None
         assert response.birth_year is None
@@ -313,7 +324,8 @@ class TestGetUserProfile:
     @pytest.mark.asyncio
     async def test_returns_basic_profile_fields(self):
         user = _make_user_with_birthdate(None)
-        response = await get_user_profile(current_user=user)
+        db = _make_patch_db(user)
+        response = await get_user_profile(current_user=user, db=db)
         assert response.email == "test@example.com"
         assert response.display_name == "Jane Doe"
 
@@ -323,10 +335,14 @@ class TestGetUserProfile:
 # ---------------------------------------------------------------------------
 
 
-def _make_patch_db(user: Mock):
-    """AsyncMock DB that returns the given user on refresh."""
+def _make_patch_db(user: Mock, org: Mock | None = None) -> AsyncMock:
+    """AsyncMock DB that returns the given user on refresh and a mock org on execute."""
     db = AsyncMock()
     db.refresh = AsyncMock(return_value=None)
+    mock_org = org if org is not None else _make_mock_org()
+    result = Mock()
+    result.scalar_one_or_none.return_value = mock_org
+    db.execute.return_value = result
     return db
 
 
@@ -473,6 +489,9 @@ class TestEmailChangeVerification:
         user.birthdate = None
         user.dashboard_layout = None
         user.is_org_admin = False
+        user.organization_id = uuid4()
+        user.email_notifications_enabled = True
+        user.notification_preferences = None
         return user
 
     @pytest.mark.asyncio
@@ -571,7 +590,9 @@ class TestEmailChangeVerification:
         db = AsyncMock()
         db.commit = AsyncMock()
         db.refresh = AsyncMock()
-        db.execute = AsyncMock(return_value=Mock())
+        no_result = Mock()
+        no_result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=no_result)
 
         with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch(
@@ -944,10 +965,10 @@ class TestUpdateUserProfileExtendedBranches:
 
     @pytest.mark.asyncio
     async def test_update_default_currency(self):
-        """Should update default_currency and uppercase it."""
+        """Should update default_currency on the organization and uppercase it."""
         user = _make_user_with_birthdate(None)
-        user.default_currency = None
-        db = _make_patch_db(user)
+        org = _make_mock_org(default_currency="USD")
+        db = _make_patch_db(user, org=org)
         mock_request = Mock()
 
         update = UserUpdate(default_currency="eur")
@@ -959,7 +980,7 @@ class TestUpdateUserProfileExtendedBranches:
                 db=db,
             )
 
-        assert user.default_currency == "EUR"
+        assert org.default_currency == "EUR"
 
     @pytest.mark.asyncio
     async def test_invalid_birthday_date_returns_400(self):
