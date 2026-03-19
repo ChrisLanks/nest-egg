@@ -1631,7 +1631,11 @@ export const TransactionsPage = () => {
         <HStack justify="space-between" align="start">
           <Box flex={1}>
             <Heading size="lg">Transactions</Heading>
-            <Text color="text.secondary" mt={2}>
+            <Text color="text.secondary" mt={1}>
+              Every purchase, payment, and deposit — searchable, filterable, and
+              categorized.
+            </Text>
+            <Text color="text.muted" fontSize="sm" mt={1}>
               Showing {processedTransactions.length} transactions
               {total > 0 && ` (${total} total)`}
               {selectedTransactions.size > 0 &&

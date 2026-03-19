@@ -17,6 +17,7 @@ import {
   Collapse,
   Tooltip,
   useColorModeValue,
+  useToast,
 } from "@chakra-ui/react";
 
 import {
@@ -89,7 +90,7 @@ interface NavItemProps {
 
 interface NavDropdownProps {
   label: string;
-  items: { label: string; path: string }[];
+  items: { label: string; path: string; tooltip?: string }[];
   currentPath: string;
   onNavigate: (path: string) => void;
 }
@@ -142,24 +143,31 @@ const NavDropdown = ({
           py={1}
         >
           {items.map((item) => (
-            <Box
+            <Tooltip
               key={item.path}
-              px={3}
-              py={2}
-              cursor="pointer"
-              fontWeight={currentPath === item.path ? "semibold" : "normal"}
-              bg={currentPath === item.path ? "brand.subtle" : "transparent"}
-              _hover={{
-                bg: currentPath === item.path ? "brand.subtle" : "bg.subtle",
-              }}
-              fontSize="sm"
-              onClick={() => {
-                onNavigate(item.path);
-                setIsOpen(false);
-              }}
+              label={item.tooltip}
+              isDisabled={!item.tooltip}
+              placement="right"
+              hasArrow
             >
-              {item.label}
-            </Box>
+              <Box
+                px={3}
+                py={2}
+                cursor="pointer"
+                fontWeight={currentPath === item.path ? "semibold" : "normal"}
+                bg={currentPath === item.path ? "brand.subtle" : "transparent"}
+                _hover={{
+                  bg: currentPath === item.path ? "brand.subtle" : "bg.subtle",
+                }}
+                fontSize="sm"
+                onClick={() => {
+                  onNavigate(item.path);
+                  setIsOpen(false);
+                }}
+              >
+                {item.label}
+              </Box>
+            </Tooltip>
           ))}
         </Box>
       )}
@@ -616,6 +624,56 @@ export const Layout = () => {
   });
   const hasInvestmentHoldings = smartInsightsFlags?.hasInvestments ?? false;
 
+  // Feature discovery: toast once when conditional nav items first unlock
+  const toast = useToast();
+  useEffect(() => {
+    if (accountsLoading) return;
+    const DISCOVERY_KEY = "nest-egg-feature-discovery-shown";
+    let shown: Record<string, boolean> = {};
+    try {
+      shown = JSON.parse(localStorage.getItem(DISCOVERY_KEY) || "{}");
+    } catch {
+      /* ignore */
+    }
+
+    const announce = (key: string, title: string, description: string) => {
+      if (!shown[key]) {
+        shown[key] = true;
+        localStorage.setItem(DISCOVERY_KEY, JSON.stringify(shown));
+        toast({
+          title,
+          description,
+          status: "info",
+          duration: 6000,
+          isClosable: true,
+          position: "bottom-right",
+        });
+      }
+    };
+
+    if (hasInvestmentHoldings) {
+      announce(
+        "investment-health",
+        "Investment Health unlocked",
+        "You now have investment holdings — check Investment Health under Analytics for portfolio insights.",
+      );
+    }
+    if (has529) {
+      announce(
+        "education",
+        "Education Planning unlocked",
+        "You added a 529 account — visit Education Planning under Planning to project college costs.",
+      );
+    }
+    if (hasRental) {
+      announce(
+        "rental-properties",
+        "Rental Properties unlocked",
+        "You have a rental property account — visit Rental Properties under Analytics for income tracking.",
+      );
+    }
+  }, [hasInvestmentHoldings, has529, hasRental, accountsLoading, toast]);
+
   // Fetch user profile for age-based nav gating (birth_year)
   const { data: userProfile } = useQuery({
     queryKey: ["user-profile-nav"],
@@ -658,10 +716,20 @@ export const Layout = () => {
     { label: "Goals", path: "/goals" },
     { label: "Retirement", path: "/retirement" },
     { label: "Education", path: "/education" },
-    { label: "FIRE", path: "/fire" },
+    {
+      label: "FIRE",
+      path: "/fire",
+      tooltip:
+        "Financial Independence, Retire Early — track how close you are to never needing to work again",
+    },
     { label: "Debt Payoff", path: "/debt-payoff" },
     { label: "Mortgage", path: "/mortgage" },
-    { label: "SS Optimizer", path: "/ss-claiming" },
+    {
+      label: "SS Optimizer",
+      path: "/ss-claiming",
+      tooltip:
+        "Social Security Optimizer — find the best age to start collecting Social Security benefits",
+    },
     { label: "Tax Projection", path: "/tax-projection" },
   ];
 

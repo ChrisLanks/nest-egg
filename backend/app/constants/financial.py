@@ -851,6 +851,11 @@ class LIFE_EVENTS:
     ELDER_CARE_ANNUAL = Decimal("25000")
     ELDER_CARE_YEARS = 5
 
+    # Major life events
+    WEDDING_COST = Decimal("30000")
+    DIVORCE_COST = Decimal("15000")
+    NEWBORN_FIRST_YEAR = Decimal("20000")  # First-year costs (nursery, supplies, etc.)
+
 
 # =========================================================================
 # DEBT PAYOFF DEFAULTS

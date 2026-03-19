@@ -13,6 +13,9 @@ export type LifeEventCategory =
   | "travel"
   | "vehicle"
   | "elder_care"
+  | "wedding"
+  | "divorce"
+  | "new_baby"
   | "custom";
 
 export type WithdrawalStrategy = "tax_optimized" | "simple_rate" | "pro_rata";

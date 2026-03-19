@@ -38,6 +38,9 @@ class LifeEventCategory(str, enum.Enum):
     TRAVEL = "travel"
     VEHICLE = "vehicle"
     ELDER_CARE = "elder_care"
+    WEDDING = "wedding"
+    DIVORCE = "divorce"
+    NEW_BABY = "new_baby"
     CUSTOM = "custom"
 
 

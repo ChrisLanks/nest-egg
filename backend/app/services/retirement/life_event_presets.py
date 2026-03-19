@@ -189,6 +189,31 @@ LIFE_EVENT_PRESETS: dict[str, dict] = {
         "use_medical_inflation": True,
         "icon": "elderly",
     },
+    # --- Major Life Events ---
+    "wedding": {
+        "name": "Wedding",
+        "category": LifeEventCategory.WEDDING,
+        "description": "Average US wedding cost including venue, catering, and vendors",
+        "one_time_cost": LE.WEDDING_COST,
+        "use_medical_inflation": False,
+        "icon": "rings",
+    },
+    "divorce": {
+        "name": "Divorce",
+        "category": LifeEventCategory.DIVORCE,
+        "description": "Legal fees and financial restructuring costs",
+        "one_time_cost": LE.DIVORCE_COST,
+        "use_medical_inflation": False,
+        "icon": "split",
+    },
+    "new_baby": {
+        "name": "New Baby",
+        "category": LifeEventCategory.NEW_BABY,
+        "description": "First-year costs: nursery setup, supplies, and parental leave impact",
+        "one_time_cost": LE.NEWBORN_FIRST_YEAR,
+        "use_medical_inflation": False,
+        "icon": "baby",
+    },
 }
 
 

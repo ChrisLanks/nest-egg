@@ -13,6 +13,7 @@ import {
   FormLabel,
   Heading,
   HStack,
+  Input,
   NumberInput,
   NumberInputField,
   Select,
@@ -72,7 +73,14 @@ interface AccountProjectionProps {
 }
 
 function AccountProjection({ plan }: AccountProjectionProps) {
-  const [yearsUntilCollege, setYearsUntilCollege] = useState(18);
+  const currentYear = new Date().getFullYear();
+  const [childName, setChildName] = useState("");
+  const [birthYear, setBirthYear] = useState<number | "">("");
+  // Auto-compute years until college from birth year (college at age 18), or let user set manually
+  const autoYears =
+    birthYear !== "" ? Math.max(1, 18 - (currentYear - birthYear)) : null;
+  const [manualYears, setManualYears] = useState(18);
+  const yearsUntilCollege = autoYears ?? manualYears;
   const [monthlyContribution, setMonthlyContribution] = useState(
     plan.monthly_contribution || 200,
   );
@@ -115,9 +123,14 @@ function AccountProjection({ plan }: AccountProjectionProps) {
       <CardHeader pb={2}>
         <HStack justify="space-between" flexWrap="wrap">
           <VStack align="start" spacing={0}>
-            <Heading size="sm">{plan.account_name}</Heading>
+            <Heading size="sm">
+              {childName ? `${childName} — ` : ""}
+              {plan.account_name}
+            </Heading>
             <Text fontSize="sm" color="text.secondary">
               Balance: {formatCurrency(plan.current_balance)}
+              {birthYear !== "" &&
+                ` · Born ${birthYear} · ${yearsUntilCollege} yrs to college`}
             </Text>
           </VStack>
           {projection && (
@@ -135,7 +148,34 @@ function AccountProjection({ plan }: AccountProjectionProps) {
       </CardHeader>
       <CardBody pt={2}>
         <VStack align="stretch" spacing={5}>
-          {/* Controls */}
+          {/* Child profile */}
+          <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3}>
+            <FormControl size="sm">
+              <FormLabel fontSize="xs">Child's Name (optional)</FormLabel>
+              <Input
+                size="sm"
+                placeholder="e.g. Emma"
+                value={childName}
+                onChange={(e) => setChildName(e.target.value)}
+              />
+            </FormControl>
+            <FormControl size="sm">
+              <FormLabel fontSize="xs">
+                Birth Year (auto-calculates timeline)
+              </FormLabel>
+              <NumberInput
+                size="sm"
+                min={currentYear - 25}
+                max={currentYear}
+                value={birthYear === "" ? "" : birthYear}
+                onChange={(_, val) => setBirthYear(isNaN(val) ? "" : val)}
+              >
+                <NumberInputField placeholder={`e.g. ${currentYear - 5}`} />
+              </NumberInput>
+            </FormControl>
+          </SimpleGrid>
+
+          {/* Projection controls */}
           <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} spacing={3}>
             <FormControl size="sm">
               <FormLabel fontSize="xs">College Type</FormLabel>
@@ -152,17 +192,26 @@ function AccountProjection({ plan }: AccountProjectionProps) {
               </Select>
             </FormControl>
             <FormControl size="sm">
-              <FormLabel fontSize="xs">Years Until College</FormLabel>
+              <FormLabel fontSize="xs">
+                Years Until College
+                {autoYears !== null && (
+                  <Text as="span" color="text.muted" fontWeight="normal">
+                    {" "}
+                    (auto)
+                  </Text>
+                )}
+              </FormLabel>
               <NumberInput
                 size="sm"
                 min={1}
                 max={30}
                 value={yearsUntilCollege}
-                onChange={(_, val) =>
-                  setYearsUntilCollege(isNaN(val) ? 18 : val)
-                }
+                onChange={(_, val) => setManualYears(isNaN(val) ? 18 : val)}
+                isReadOnly={autoYears !== null}
               >
-                <NumberInputField />
+                <NumberInputField
+                  bg={autoYears !== null ? "bg.subtle" : undefined}
+                />
               </NumberInput>
             </FormControl>
             <FormControl size="sm">
