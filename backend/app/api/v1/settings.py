@@ -105,8 +105,13 @@ class OrganizationPreferencesResponse(BaseModel):
 @router.get("/profile", response_model=UserProfileResponse)
 async def get_user_profile(
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get current user's profile."""
+    org_result = await db.execute(
+        select(Organization).where(Organization.id == current_user.organization_id)
+    )
+    org = org_result.scalar_one_or_none()
     return UserProfileResponse(
         id=current_user.id,
         email=current_user.email,
@@ -119,7 +124,7 @@ async def get_user_profile(
         is_org_admin=current_user.is_org_admin,
         email_notifications_enabled=current_user.email_notifications_enabled,
         notification_preferences=current_user.notification_preferences,
-        default_currency=current_user.default_currency,
+        default_currency=org.default_currency if org else None,
         dashboard_layout=current_user.dashboard_layout,
     )
 
@@ -153,7 +158,12 @@ async def update_user_profile(
         )
 
     if update_data.default_currency is not None and isinstance(update_data.default_currency, str):
-        current_user.default_currency = update_data.default_currency.upper()[:3]
+        org_result = await db.execute(
+            select(Organization).where(Organization.id == current_user.organization_id)
+        )
+        org = org_result.scalar_one_or_none()
+        if org:
+            org.default_currency = update_data.default_currency.upper()[:3]
 
     # Update birthday (requires day, month, and year together)
     birthday_fields = (update_data.birth_day, update_data.birth_month, update_data.birth_year)
@@ -208,6 +218,10 @@ async def update_user_profile(
         except Exception:
             pass  # Never fail a profile update because of email sending
 
+    org_result = await db.execute(
+        select(Organization).where(Organization.id == current_user.organization_id)
+    )
+    org = org_result.scalar_one_or_none()
     return UserProfileResponse(
         id=current_user.id,
         email=current_user.email,
@@ -220,7 +234,7 @@ async def update_user_profile(
         is_org_admin=current_user.is_org_admin,
         email_notifications_enabled=current_user.email_notifications_enabled,
         notification_preferences=current_user.notification_preferences,
-        default_currency=current_user.default_currency,
+        default_currency=org.default_currency if org else None,
         dashboard_layout=current_user.dashboard_layout,
     )
 
