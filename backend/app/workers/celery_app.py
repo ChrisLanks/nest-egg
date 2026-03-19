@@ -56,6 +56,7 @@ from app.workers.tasks import (
     forecast_tasks,  # noqa: F401
     holdings_tasks,  # noqa: F401
     interest_accrual_tasks,  # noqa: F401
+    recap_tasks,  # noqa: F401
     recurring_tasks,  # noqa: F401
     retention_tasks,  # noqa: F401
     retirement_tasks,  # noqa: F401
@@ -115,5 +116,10 @@ celery_app.conf.beat_schedule = {
     "cleanup-archived-retirement-scenarios": {
         "task": "cleanup_archived_retirement_scenarios",
         "schedule": crontab(hour=4, minute=30),  # 4:30am daily
+    },
+    # Weekly financial recap — every Monday 8am UTC
+    "send-weekly-recaps": {
+        "task": "send_weekly_recaps",
+        "schedule": crontab(hour=8, minute=0, day_of_week=1),
     },
 }

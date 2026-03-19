@@ -30,6 +30,9 @@ class NotificationType(str, enum.Enum):
     FIRE_COAST_FI = "fire_coast_fi"
     FIRE_INDEPENDENT = "fire_independent"
     RETIREMENT_SCENARIO_STALE = "retirement_scenario_stale"
+    WEEKLY_RECAP = "weekly_recap"
+    EQUITY_VESTING = "equity_vesting"
+    CRYPTO_PRICE_ALERT = "crypto_price_alert"
 
 
 class NotificationPriority(str, enum.Enum):

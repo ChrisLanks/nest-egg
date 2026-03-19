@@ -5,12 +5,14 @@ import csv
 import json
 import re
 from datetime import date, datetime
+from decimal import Decimal
 from io import StringIO
 from typing import Optional
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy import and_, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -36,6 +38,7 @@ from app.schemas.transaction import (
     TransactionUpdate,
 )
 from app.services.input_sanitization_service import input_sanitization_service
+from app.services.nlp_search_service import parse_natural_query
 from app.utils.datetime_utils import utc_now
 
 router = APIRouter()
@@ -308,6 +311,11 @@ async def list_transactions(
     end_date: Optional[str] = None,
     search: Optional[str] = None,
     flagged: Optional[bool] = Query(None, description="Filter by flagged_for_review status"),
+    min_amount: Optional[float] = Query(None, description="Minimum absolute transaction amount"),
+    max_amount: Optional[float] = Query(None, description="Maximum absolute transaction amount"),
+    is_income: Optional[bool] = Query(
+        None, description="True = income only, False = expenses only"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -382,6 +390,19 @@ async def list_transactions(
 
     if flagged is not None:
         query = query.where(Transaction.flagged_for_review.is_(flagged))
+
+    if min_amount is not None:
+        query = query.where(func.abs(Transaction.amount) >= Decimal(str(min_amount)))
+
+    if max_amount is not None:
+        query = query.where(func.abs(Transaction.amount) <= Decimal(str(max_amount)))
+
+    if is_income is True:
+        # Income = positive amount (deposits)
+        query = query.where(Transaction.amount > 0)
+    elif is_income is False:
+        # Expenses = negative amount
+        query = query.where(Transaction.amount < 0)
 
     # Apply cursor pagination
     if cursor:
@@ -945,4 +966,60 @@ async def export_transactions_csv(
         generate_csv(),
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ── Natural-Language Search ───────────────────────────────────────────────────
+
+
+class NLPSearchResponse(BaseModel):
+    """Response from the natural-language search parse endpoint."""
+
+    search: Optional[str]
+    start_date: Optional[str]
+    end_date: Optional[str]
+    min_amount: Optional[float]
+    max_amount: Optional[float]
+    is_income: Optional[bool]
+    raw_query: str
+
+
+class _NLPRequest(BaseModel):
+    query: str
+
+
+@router.post("/search/natural", response_model=NLPSearchResponse)
+async def natural_language_search(
+    body: _NLPRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Parse a free-text query into structured transaction filters.
+
+    The client sends a natural-language query and receives back structured
+    filter params it can use to call GET /transactions/ directly.
+
+    Examples:
+    - "coffee last month"          → search=coffee, last-month date range
+    - "amazon over $50 in 2024"    → search=amazon, min_amount=50, year 2024
+    - "income this year"           → is_income=true, this-year date range
+    - "rent over $1000"            → search=rent, min_amount=1000
+    """
+    # Sanitize input
+    raw = input_sanitization_service.sanitize_html(body.query or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Query must not be empty")
+    if len(raw) > 500:
+        raise HTTPException(status_code=400, detail="Query too long (max 500 chars)")
+
+    parsed = parse_natural_query(raw)
+
+    return NLPSearchResponse(
+        search=parsed.search,
+        start_date=parsed.start_date.isoformat() if parsed.start_date else None,
+        end_date=parsed.end_date.isoformat() if parsed.end_date else None,
+        min_amount=parsed.min_amount,
+        max_amount=parsed.max_amount,
+        is_income=parsed.is_income,
+        raw_query=parsed.raw_query,
     )

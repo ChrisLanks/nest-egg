@@ -43,6 +43,15 @@ NOTIFICATION_CATEGORY_TYPES: dict[str, list[str]] = {
         NotificationType.HOUSEHOLD_MEMBER_LEFT,
         NotificationType.RETIREMENT_SCENARIO_STALE,
     ],
+    "weekly_recap": [
+        NotificationType.WEEKLY_RECAP,
+    ],
+    "equity_alerts": [
+        NotificationType.EQUITY_VESTING,
+    ],
+    "crypto_alerts": [
+        NotificationType.CRYPTO_PRICE_ALERT,
+    ],
 }
 
 

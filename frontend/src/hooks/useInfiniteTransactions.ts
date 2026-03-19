@@ -22,6 +22,9 @@ interface UseInfiniteTransactionsParams {
   endDate?: string;
   search?: string;
   flagged?: boolean;
+  minAmount?: number;
+  maxAmount?: number;
+  isIncome?: boolean;
   pageSize?: number;
   enabled?: boolean;
 }
@@ -104,6 +107,9 @@ export const useInfiniteTransactions = ({
   endDate,
   search,
   flagged,
+  minAmount,
+  maxAmount,
+  isIncome,
   pageSize = 100,
   enabled = true,
 }: UseInfiniteTransactionsParams): UseInfiniteTransactionsReturn => {
@@ -112,7 +118,17 @@ export const useInfiniteTransactions = ({
   // Reset state when filters change
   useEffect(() => {
     dispatch({ type: "RESET" });
-  }, [accountId, userId, startDate, endDate, search, flagged]);
+  }, [
+    accountId,
+    userId,
+    startDate,
+    endDate,
+    search,
+    flagged,
+    minAmount,
+    maxAmount,
+    isIncome,
+  ]);
 
   const {
     data,
@@ -127,6 +143,9 @@ export const useInfiniteTransactions = ({
       endDate,
       search,
       flagged,
+      minAmount,
+      maxAmount,
+      isIncome,
       state.currentCursor,
     ],
     queryFn: async () => {
@@ -138,6 +157,9 @@ export const useInfiniteTransactions = ({
         end_date: endDate,
         search,
         flagged,
+        min_amount: minAmount,
+        max_amount: maxAmount,
+        is_income: isIncome,
         cursor: state.currentCursor || undefined,
       });
     },

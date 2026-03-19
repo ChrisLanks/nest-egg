@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List, Optional
@@ -47,6 +48,7 @@ from app.services.account_migration_service import (
 )
 from app.services.deduplication_service import DeduplicationService
 from app.services.input_sanitization_service import input_sanitization_service
+from app.services.market_data import get_market_data_provider
 from app.services.permission_service import permission_service
 from app.services.rate_limit_service import rate_limit_service
 from app.services.reconciliation_service import reconciliation_service
@@ -934,3 +936,106 @@ async def get_account_reconciliation(
     """
     result = await reconciliation_service.reconcile_account(db=db, account=account)
     return result.to_dict()
+
+
+# ── Equity / RSU price refresh ────────────────────────────────────────────────
+
+
+class EquityPriceRefreshResponse(BaseModel):
+    """Response after refreshing equity share price."""
+
+    account_id: str
+    ticker: Optional[str]
+    share_price: Optional[float]
+    quantity: Optional[float]
+    current_balance: Optional[float]
+    provider: str
+    refreshed_at: str
+
+
+@router.post("/{account_id}/equity-refresh", response_model=EquityPriceRefreshResponse)
+async def refresh_equity_price(
+    account_id: UUID,
+    account: Account = Depends(get_verified_account),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Refresh the share price for a STOCK_OPTIONS / PRIVATE_EQUITY account whose
+    company_status is PUBLIC.
+
+    Uses the configured market data provider (Yahoo Finance by default) to fetch
+    the latest price for the account's ticker symbol, then updates share_price
+    and current_balance (share_price × quantity).
+
+    Returns 400 if the account is not a supported equity type, has no ticker,
+    or is a private company (private valuations must be set manually).
+    """
+    from app.models.account import AccountType, CompanyStatus
+    from app.utils.datetime_utils import utc_now
+
+    # Validate account type supports equity price refresh
+    equity_types = {AccountType.STOCK_OPTIONS, AccountType.PRIVATE_EQUITY}
+    if account.account_type not in equity_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Account type '{account.account_type}' does not support equity price refresh. "
+            "Only stock_options and private_equity accounts are supported.",
+        )
+
+    # Require a ticker symbol — used as the lookup key
+    ticker = account.name.strip() if not account.institution_name else None
+    # Prefer institution_name as ticker if it looks like a stock symbol
+    # Fall back to checking name for short uppercase strings
+    if account.institution_name and re.match(r"^[A-Z]{1,5}$", account.institution_name.strip()):
+        ticker = account.institution_name.strip()
+    elif account.name and re.match(r"^[A-Z]{1,5}$", account.name.strip()):
+        ticker = account.name.strip()
+    else:
+        # Use name as a search query — caller should set institution_name to the ticker
+        ticker = account.institution_name or account.name
+
+    if not ticker:
+        raise HTTPException(status_code=400, detail="Account has no ticker symbol set.")
+
+    # Private companies cannot be refreshed via market data
+    if account.company_status == CompanyStatus.PRIVATE:
+        raise HTTPException(
+            status_code=400,
+            detail="Private company valuations must be set manually.",
+        )
+
+    # Fetch quote
+    provider = get_market_data_provider()
+    try:
+        quote = await provider.get_quote(ticker)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    # Update account
+    new_price = quote.price
+    new_balance = new_price * Decimal(str(account.quantity or 0))
+    now = utc_now()
+
+    await db.execute(
+        update(Account)
+        .where(Account.id == account_id)
+        .values(
+            share_price=new_price,
+            current_balance=new_balance,
+            balance_as_of=now,
+            updated_at=now,
+        )
+    )
+    await db.commit()
+    await cache_delete_pattern(f"accounts:{current_user.organization_id}:*")
+
+    return EquityPriceRefreshResponse(
+        account_id=str(account_id),
+        ticker=ticker,
+        share_price=float(new_price),
+        quantity=float(account.quantity or 0),
+        current_balance=float(new_balance),
+        provider=provider.get_provider_name(),
+        refreshed_at=now.isoformat(),
+    )

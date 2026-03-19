@@ -89,13 +89,14 @@ import { RuleBuilderModal } from "../components/RuleBuilderModal";
 import { DateRangePicker, type DateRange } from "../components/DateRangePicker";
 import { InfiniteScrollSentinel } from "../components/InfiniteScrollSentinel";
 import { useInfiniteTransactions } from "../hooks/useInfiniteTransactions";
+import { transactionApi } from "../services/transactionApi";
 import { useUserView } from "../contexts/UserViewContext";
 import type { Transaction } from "../types/transaction";
 import api from "../services/api";
 import { TransactionsSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { CSVImportModal } from "../components/CSVImportModal";
-import { FiFlag, FiInbox, FiUpload } from "react-icons/fi";
+import { FiFlag, FiInbox, FiUpload, FiZap, FiX } from "react-icons/fi";
 
 const STORAGE_KEY = "transactions-date-range";
 
@@ -528,6 +529,65 @@ export const TransactionsPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
+  // NLP search state
+  const [nlpQuery, setNlpQuery] = useState("");
+  const [nlpKeyword, setNlpKeyword] = useState<string | undefined>(undefined);
+  const [nlpDateRange, setNlpDateRange] = useState<{
+    start: string;
+    end: string;
+  } | null>(null);
+  const [nlpMinAmount, setNlpMinAmount] = useState<number | undefined>(
+    undefined,
+  );
+  const [nlpMaxAmount, setNlpMaxAmount] = useState<number | undefined>(
+    undefined,
+  );
+  const [nlpIsIncome, setNlpIsIncome] = useState<boolean | undefined>(
+    undefined,
+  );
+  const [nlpActive, setNlpActive] = useState(false);
+  const [nlpLoading, setNlpLoading] = useState(false);
+
+  const handleNlpSearch = async () => {
+    if (!nlpQuery.trim()) return;
+    setNlpLoading(true);
+    try {
+      const result = await transactionApi.naturalLanguageSearch(
+        nlpQuery.trim(),
+      );
+      setNlpKeyword(result.search ?? undefined);
+      setNlpDateRange(
+        result.start_date
+          ? {
+              start: result.start_date,
+              end: result.end_date ?? new Date().toISOString().split("T")[0],
+            }
+          : null,
+      );
+      setNlpMinAmount(result.min_amount ?? undefined);
+      setNlpMaxAmount(result.max_amount ?? undefined);
+      setNlpIsIncome(result.is_income ?? undefined);
+      setNlpActive(true);
+    } catch {
+      toast({
+        title: "Natural language search failed",
+        status: "error",
+        duration: 3000,
+      });
+    } finally {
+      setNlpLoading(false);
+    }
+  };
+
+  const clearNlpSearch = () => {
+    setNlpQuery("");
+    setNlpKeyword(undefined);
+    setNlpDateRange(null);
+    setNlpMinAmount(undefined);
+    setNlpMaxAmount(undefined);
+    setNlpIsIncome(undefined);
+    setNlpActive(false);
+  };
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [showStatusColumn, setShowStatusColumn] = useState(false);
@@ -677,9 +737,17 @@ export const TransactionsPage = () => {
     refetch,
   } = useInfiniteTransactions({
     userId: queryUserId ?? undefined,
-    startDate: dateRange.start,
-    endDate: dateRange.end,
+    startDate: nlpActive
+      ? (nlpDateRange?.start ?? dateRange.start)
+      : dateRange.start,
+    endDate: nlpActive ? (nlpDateRange?.end ?? dateRange.end) : dateRange.end,
+    search: nlpActive
+      ? nlpKeyword || undefined
+      : debouncedSearchQuery || undefined,
     flagged: showFlaggedOnly ? true : undefined,
+    minAmount: nlpActive ? nlpMinAmount : undefined,
+    maxAmount: nlpActive ? nlpMaxAmount : undefined,
+    isIncome: nlpActive ? nlpIsIncome : undefined,
     pageSize: 100,
   });
 
@@ -1608,6 +1676,95 @@ export const TransactionsPage = () => {
           </HStack>
         </HStack>
 
+        {/* NLP Search Bar */}
+        <HStack spacing={2} mb={1}>
+          <InputGroup flex={1} maxW="600px">
+            <InputLeftElement pointerEvents="none">
+              <FiZap color="var(--chakra-colors-brand-500)" />
+            </InputLeftElement>
+            <Input
+              placeholder='Ask in plain English: "coffee last month", "amazon over $50 in 2024"'
+              value={nlpQuery}
+              onChange={(e) => setNlpQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleNlpSearch();
+              }}
+              fontSize="sm"
+              pr={nlpQuery ? "10" : undefined}
+            />
+            {nlpQuery && (
+              <InputRightElement>
+                <IconButton
+                  aria-label="Clear smart search"
+                  icon={<CloseIcon />}
+                  size="xs"
+                  variant="ghost"
+                  onClick={clearNlpSearch}
+                />
+              </InputRightElement>
+            )}
+          </InputGroup>
+          <Button
+            size="sm"
+            colorScheme="brand"
+            leftIcon={<FiZap />}
+            isLoading={nlpLoading}
+            onClick={handleNlpSearch}
+            isDisabled={!nlpQuery.trim()}
+          >
+            Smart Search
+          </Button>
+          {nlpActive && (
+            <Button
+              size="sm"
+              variant="outline"
+              leftIcon={<FiX />}
+              onClick={clearNlpSearch}
+            >
+              Clear
+            </Button>
+          )}
+        </HStack>
+
+        {/* Active NLP filter chips */}
+        {nlpActive && (
+          <HStack spacing={2} flexWrap="wrap" mb={1}>
+            <Text fontSize="xs" color="text.secondary">
+              Smart filters:
+            </Text>
+            {nlpKeyword && (
+              <Badge colorScheme="purple" fontSize="xs">
+                keyword: {nlpKeyword}
+              </Badge>
+            )}
+            {nlpDateRange && (
+              <Badge colorScheme="blue" fontSize="xs">
+                {nlpDateRange.start} → {nlpDateRange.end}
+              </Badge>
+            )}
+            {nlpMinAmount != null && (
+              <Badge colorScheme="green" fontSize="xs">
+                ≥ ${nlpMinAmount}
+              </Badge>
+            )}
+            {nlpMaxAmount != null && (
+              <Badge colorScheme="green" fontSize="xs">
+                ≤ ${nlpMaxAmount}
+              </Badge>
+            )}
+            {nlpIsIncome === true && (
+              <Badge colorScheme="teal" fontSize="xs">
+                income only
+              </Badge>
+            )}
+            {nlpIsIncome === false && (
+              <Badge colorScheme="orange" fontSize="xs">
+                expenses only
+              </Badge>
+            )}
+          </HStack>
+        )}
+
         {/* Search Bar and Controls */}
         <HStack spacing={3} justify="space-between">
           <HStack spacing={2} flex={1}>
@@ -1620,8 +1777,9 @@ export const TransactionsPage = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 pr="10"
+                isDisabled={nlpActive}
               />
-              {searchQuery && (
+              {searchQuery && !nlpActive && (
                 <InputRightElement>
                   <IconButton
                     aria-label="Clear search"

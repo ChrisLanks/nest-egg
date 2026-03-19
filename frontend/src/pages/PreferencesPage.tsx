@@ -68,6 +68,9 @@ type NotificationPrefs = {
   budget_alerts?: boolean;
   milestones?: boolean;
   household?: boolean;
+  weekly_recap?: boolean;
+  equity_alerts?: boolean;
+  crypto_alerts?: boolean;
 };
 
 const NOTIFICATION_CATEGORIES: {
@@ -102,6 +105,23 @@ const NOTIFICATION_CATEGORIES: {
     key: "household",
     label: "Household",
     description: "Members joining or leaving, and retirement scenario updates.",
+  },
+  {
+    key: "weekly_recap",
+    label: "Weekly Recap",
+    description:
+      "Monday morning digest of your spending, income, and net worth for the past week.",
+  },
+  {
+    key: "equity_alerts",
+    label: "Equity & RSU Alerts",
+    description:
+      "Notifications when equity holdings vest or price refreshes exceed thresholds.",
+  },
+  {
+    key: "crypto_alerts",
+    label: "Crypto Price Alerts",
+    description: "Price movement alerts for tracked cryptocurrency holdings.",
   },
 ];
 
@@ -276,6 +296,7 @@ const NAV_SECTIONS = [
     group: "Analytics",
     items: [
       { label: "Cash Flow", path: "/income-expenses" },
+      { label: "Net Worth Timeline", path: "/net-worth-timeline" },
       { label: "Trends", path: "/trends" },
       { label: "Reports", path: "/reports" },
       { label: "Year in Review", path: "/year-in-review" },

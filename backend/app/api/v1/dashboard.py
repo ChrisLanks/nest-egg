@@ -11,7 +11,7 @@ from uuid import UUID
 from dateutil.relativedelta import relativedelta
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import and_, extract, func, select
+from sqlalchemy import and_, asc, extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import get as cache_get
@@ -1051,3 +1051,99 @@ async def get_year_in_review(
         logger.debug("Failed to cache year-in-review for key %s", cache_key)
 
     return response
+
+
+# ── Net Worth History ─────────────────────────────────────────────────────────
+
+
+class NetWorthHistoryPoint(BaseModel):
+    """One data point in the net worth history timeline."""
+
+    snapshot_date: str
+    total_net_worth: float
+    total_assets: float
+    total_liabilities: float
+    # Asset breakdown
+    cash_and_checking: float
+    savings: float
+    investments: float
+    retirement: float
+    property: float
+    vehicles: float
+    other_assets: float
+    # Liability breakdown
+    credit_cards: float
+    loans: float
+    mortgages: float
+    student_loans: float
+    other_debts: float
+
+
+@router.get("/net-worth-history", response_model=list[NetWorthHistoryPoint])
+async def get_net_worth_history(
+    start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return daily net worth snapshots with full asset/liability breakdown.
+
+    Uses NetWorthSnapshot records (captured nightly by the snapshot task).
+    When user_id is omitted, returns household-level snapshots (user_id IS NULL).
+    """
+    if start_date is None:
+        start_date = date.today() - timedelta(days=365)
+
+    if start_date and end_date:
+        validate_date_range(start_date, end_date)
+
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+
+    # Build query
+    query = select(NetWorthSnapshot).where(
+        NetWorthSnapshot.organization_id == current_user.organization_id,
+        NetWorthSnapshot.snapshot_date >= start_date,
+    )
+
+    if end_date:
+        query = query.where(NetWorthSnapshot.snapshot_date <= end_date)
+
+    if user_id:
+        query = query.where(NetWorthSnapshot.user_id == user_id)
+    else:
+        query = query.where(NetWorthSnapshot.user_id.is_(None))
+
+    query = query.order_by(asc(NetWorthSnapshot.snapshot_date))
+
+    result = await db.execute(query)
+    snapshots = result.scalars().all()
+
+    def _float(v) -> float:
+        return float(v) if v is not None else 0.0
+
+    return [
+        NetWorthHistoryPoint(
+            snapshot_date=s.snapshot_date.isoformat(),
+            total_net_worth=_float(s.total_net_worth),
+            total_assets=_float(s.total_assets),
+            total_liabilities=_float(s.total_liabilities),
+            cash_and_checking=_float(s.cash_and_checking),
+            savings=_float(s.savings),
+            investments=_float(s.investments),
+            retirement=_float(s.retirement),
+            property=_float(s.property),
+            vehicles=_float(s.vehicles),
+            other_assets=_float(s.other_assets),
+            credit_cards=_float(s.credit_cards),
+            loans=_float(s.loans),
+            mortgages=_float(s.mortgages),
+            student_loans=_float(s.student_loans),
+            other_debts=_float(s.other_debts),
+        )
+        for s in snapshots
+    ]

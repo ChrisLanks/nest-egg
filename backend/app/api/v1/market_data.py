@@ -393,3 +393,78 @@ async def refresh_all_holdings(
         "total": len(holdings),
         "provider": market_data.get_provider_name(),
     }
+
+
+# ── Crypto price batch endpoint ───────────────────────────────────────────────
+
+
+class CryptoPriceItem(BaseModel):
+    """Price data for a single crypto asset."""
+
+    symbol: str
+    price: Decimal
+    change_percent: Optional[Decimal] = None
+    market_cap: Optional[Decimal] = None
+    volume: Optional[int] = None
+    provider: str
+
+
+@router.get("/crypto/prices", response_model=list[CryptoPriceItem])
+async def get_crypto_prices(
+    symbols: str = Query(
+        ...,
+        description="Comma-separated list of crypto symbols, e.g. BTC-USD,ETH-USD,SOL-USD",
+    ),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get current prices for one or more crypto symbols.
+
+    Always uses the CoinGecko provider (free, no API key required) regardless
+    of the configured MARKET_DATA_PROVIDER setting.
+
+    Symbols should use the Yahoo-style format: BTC-USD, ETH-USD, etc.
+    Bare tickers like BTC and ETH are also accepted.
+    """
+    await check_rate_limit(str(current_user.id), market_data_limiter, "crypto_prices")
+
+    raw_symbols = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    if not raw_symbols:
+        raise HTTPException(status_code=400, detail="No symbols provided")
+    if len(raw_symbols) > 50:
+        raise HTTPException(status_code=400, detail="Maximum 50 symbols per request")
+
+    # Validate each symbol
+    validated = []
+    for sym in raw_symbols:
+        try:
+            validated.append(_validate_symbol(sym))
+        except HTTPException:
+            pass  # Skip invalid symbols gracefully
+
+    if not validated:
+        raise HTTPException(status_code=400, detail="No valid symbols provided")
+
+    # Always use CoinGecko for crypto
+    from app.config import settings as _settings
+    from app.services.market_data.coingecko_provider import CoinGeckoProvider
+
+    provider = CoinGeckoProvider(api_key=_settings.COINGECKO_API_KEY)
+    quotes = await provider.get_quotes_batch(validated)
+
+    results = []
+    for sym in validated:
+        quote = quotes.get(sym)
+        if quote:
+            results.append(
+                CryptoPriceItem(
+                    symbol=sym,
+                    price=quote.price,
+                    change_percent=quote.change_percent,
+                    market_cap=quote.market_cap,
+                    volume=quote.volume,
+                    provider=provider.get_provider_name(),
+                )
+            )
+
+    return results

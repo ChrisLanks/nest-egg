@@ -480,6 +480,43 @@ export const AccountDetailPage = () => {
     },
   });
 
+  // Equity price refresh mutation (stock_options + private_equity accounts)
+  const equityRefreshMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post(`/accounts/${accountId}/equity-refresh`);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["account", accountId] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      const fmt = (v: number) =>
+        new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+          maximumFractionDigits: 2,
+        }).format(v);
+      toast({
+        title: "Price refreshed",
+        description: `${data.symbol}: ${fmt(data.current_price)} × ${data.shares} shares = ${fmt(data.current_value)} via ${data.provider}`,
+        status: "success",
+        duration: 5000,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Price refresh failed",
+        description:
+          error.response?.data?.detail ||
+          "Could not fetch live price. Check that the ticker symbol is set in the account name.",
+        status: "error",
+        duration: 7000,
+        isClosable: true,
+      });
+    },
+  });
+
   // Sync transactions mutation
   const syncTransactionsMutation = useMutation({
     mutationFn: async (plaidItemId: string) => {
@@ -2273,6 +2310,34 @@ export const AccountDetailPage = () => {
             </CardBody>
           </Card>
         )}
+
+        {/* Equity Price Refresh - For stock_options and private_equity manual accounts */}
+        {isManual &&
+          (account.account_type === "stock_options" ||
+            account.account_type === "private_equity") && (
+            <Card>
+              <CardBody>
+                <Heading size="md" mb={1}>
+                  Live Price Refresh
+                </Heading>
+                <Text fontSize="sm" color="text.muted" mb={4}>
+                  Fetch the current market price for this equity and update the
+                  account value. The ticker symbol is read from the account name
+                  or institution (e.g. "AAPL" or "MSFT").
+                </Text>
+                <Button
+                  leftIcon={<FiRefreshCw />}
+                  colorScheme="brand"
+                  size="sm"
+                  onClick={() => equityRefreshMutation.mutate()}
+                  isLoading={equityRefreshMutation.isPending}
+                  isDisabled={!canEditAccount}
+                >
+                  Refresh Price
+                </Button>
+              </CardBody>
+            </Card>
+          )}
 
         {/* Recurring Contributions Section - Only for investment/savings manual accounts */}
         {showContributions && (

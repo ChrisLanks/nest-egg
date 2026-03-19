@@ -644,6 +644,7 @@ export const Layout = () => {
 
   const allAnalyticsItems = [
     { label: "Cash Flow", path: "/income-expenses" },
+    { label: "Net Worth Timeline", path: "/net-worth-timeline" },
     { label: "Trends", path: "/trends" },
     { label: "Reports", path: "/reports" },
     { label: "Year in Review", path: "/year-in-review" },

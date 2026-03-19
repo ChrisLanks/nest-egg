@@ -111,6 +111,7 @@ const FundFeesPage = lazy(() => import("./pages/FundFeesPage"));
 const MortgagePage = lazy(() => import("./pages/MortgagePage"));
 const SSClaimingPage = lazy(() => import("./pages/SSClaimingPage"));
 const TaxProjectionPage = lazy(() => import("./pages/TaxProjectionPage"));
+const NetWorthTimelinePage = lazy(() => import("./pages/NetWorthTimelinePage"));
 const WelcomePage = lazy(() => import("./pages/WelcomePage"));
 const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage"));
 const ForgotPasswordPage = lazy(() =>
@@ -186,6 +187,10 @@ function App() {
                       />
                       <Route path="/trends" element={<TrendsPage />} />
                       <Route path="/reports" element={<ReportsPage />} />
+                      <Route
+                        path="/net-worth-timeline"
+                        element={<NetWorthTimelinePage />}
+                      />
                       <Route
                         path="/year-in-review"
                         element={<YearInReviewPage />}

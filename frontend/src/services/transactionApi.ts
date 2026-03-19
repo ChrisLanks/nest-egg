@@ -21,10 +21,28 @@ export const transactionApi = {
     end_date?: string;
     search?: string;
     flagged?: boolean;
+    min_amount?: number;
+    max_amount?: number;
+    is_income?: boolean;
   }): Promise<TransactionListResponse> => {
     const response = await api.get<TransactionListResponse>("/transactions/", {
       params,
     });
+    return response.data;
+  },
+
+  naturalLanguageSearch: async (
+    query: string,
+  ): Promise<{
+    search: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    min_amount: number | null;
+    max_amount: number | null;
+    is_income: boolean | null;
+    raw_query: string;
+  }> => {
+    const response = await api.post("/transactions/search/natural", { query });
     return response.data;
   },
 
