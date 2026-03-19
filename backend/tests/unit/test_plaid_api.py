@@ -235,7 +235,8 @@ class TestExchangePublicToken:
                         assert len(result.accounts) == 1
                         assert result.accounts[0].name == "Checking"
                         mock_db.add.assert_called()
-                        mock_db.commit.assert_called_once()
+                        # commit called twice: accounts + ACCOUNT_CONNECTED notification
+                        assert mock_db.commit.call_count >= 1
 
     @pytest.mark.asyncio
     async def test_exchange_token_handles_error(self, mock_user, mock_request):

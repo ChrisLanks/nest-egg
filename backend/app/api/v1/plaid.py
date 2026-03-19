@@ -181,6 +181,24 @@ async def exchange_public_token(
 
         await db.commit()
 
+        # Notify all household members that new accounts were connected
+        institution = request.institution_name or "Unknown Institution"
+        user_name = current_user.display_name or current_user.first_name or current_user.email
+        await notification_service.create_notification(
+            db=db,
+            organization_id=current_user.organization_id,
+            type=NotificationType.ACCOUNT_CONNECTED,
+            title=f"New account connected: {institution}",
+            message=(
+                f"{user_name} connected {len(created_accounts)} account(s) "
+                f"from {institution} via Plaid."
+            ),
+            priority=NotificationPriority.LOW,
+            action_url="/accounts",
+            action_label="View Accounts",
+            expires_in_days=14,
+        )
+
         return PublicTokenExchangeResponse(
             item_id=plaid_item.item_id,
             accounts=created_accounts,
