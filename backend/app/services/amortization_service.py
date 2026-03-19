@@ -4,7 +4,9 @@ import calendar
 import math
 from datetime import date
 from decimal import Decimal
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
+from app.constants.financial import DEBT
 
 
 class AmortizationService:
@@ -53,8 +55,8 @@ class AmortizationService:
     @staticmethod
     def calculate_credit_card_minimum(
         balance: Decimal,
-        minimum_percentage: Decimal = Decimal("2.0"),
-        minimum_floor: Decimal = Decimal("25.00"),
+        minimum_rate: Decimal = DEBT.MIN_PAYMENT_RATE,
+        minimum_floor: Decimal = DEBT.MIN_PAYMENT_FLOOR,
     ) -> Decimal:
         """
         Calculate credit card minimum payment.
@@ -63,8 +65,8 @@ class AmortizationService:
 
         Args:
             balance: Current balance
-            minimum_percentage: Minimum percentage (default 2%)
-            minimum_floor: Minimum floor amount (default $25)
+            minimum_rate: Minimum rate as a decimal (default DEBT.MIN_PAYMENT_RATE = 0.02)
+            minimum_floor: Minimum floor amount (default DEBT.MIN_PAYMENT_FLOOR = $25)
 
         Returns:
             Minimum payment amount
@@ -72,8 +74,8 @@ class AmortizationService:
         if balance <= 0:
             return Decimal(0)
 
-        percentage_payment = balance * minimum_percentage / Decimal(100)
-        return max(percentage_payment, minimum_floor).quantize(Decimal("0.01"))
+        rate_payment = balance * minimum_rate
+        return max(rate_payment, minimum_floor).quantize(Decimal("0.01"))
 
     @staticmethod
     def calculate_payoff_months(
@@ -122,7 +124,7 @@ class AmortizationService:
         annual_rate: Decimal,
         monthly_payment: Decimal,
         start_date: Optional[date] = None,
-        max_months: int = 360,
+        max_months: int = DEBT.MAX_PAYOFF_MONTHS,
     ) -> List[Dict]:
         """
         Generate month-by-month amortization schedule.
@@ -132,7 +134,7 @@ class AmortizationService:
             annual_rate: Annual interest rate as percentage
             monthly_payment: Monthly payment amount
             start_date: Starting date (defaults to today)
-            max_months: Maximum months to calculate (cap at 360 = 30 years)
+            max_months: Maximum months to calculate (default DEBT.MAX_PAYOFF_MONTHS = 360)
 
         Returns:
             List of monthly payment breakdowns with principal/interest split

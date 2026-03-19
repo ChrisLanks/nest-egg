@@ -50,10 +50,10 @@ _RETIREMENT_BENCHMARKS = [(age, Decimal(mult)) for age, mult in HEALTH.RETIREMEN
 
 def _retirement_target_multiple(age: int) -> Decimal:
     """Return the Fidelity benchmark multiple for a given age via linear interpolation."""
-    if age <= 30:
-        return Decimal(1)
-    if age >= 60:
-        return Decimal(8)
+    if age <= HEALTH.RETIREMENT_BENCHMARK_MIN_AGE:
+        return Decimal(HEALTH.RETIREMENT_BENCHMARK_MIN_MULT)
+    if age >= HEALTH.RETIREMENT_BENCHMARK_MAX_AGE:
+        return Decimal(HEALTH.RETIREMENT_BENCHMARK_MAX_MULT)
     for i in range(len(_RETIREMENT_BENCHMARKS) - 1):
         lo_age, lo_mult = _RETIREMENT_BENCHMARKS[i]
         hi_age, hi_mult = _RETIREMENT_BENCHMARKS[i + 1]
@@ -141,8 +141,8 @@ def _debt_to_income_score(
         score = 100.0
     elif ratio <= HEALTH.DTI_FAIR:
         score = 50 + (HEALTH.DTI_FAIR - ratio) / (HEALTH.DTI_FAIR - HEALTH.DTI_EXCELLENT) * 50
-    elif ratio <= 50:
-        score = (50 - ratio) / (50 - HEALTH.DTI_FAIR) * 50
+    elif ratio <= HEALTH.DTI_UPPER_BOUND:
+        score = (HEALTH.DTI_UPPER_BOUND - ratio) / (HEALTH.DTI_UPPER_BOUND - HEALTH.DTI_FAIR) * 50
     else:
         score = 0.0
 
@@ -177,12 +177,12 @@ def _retirement_progress_score(
 
     if progress >= 100:
         score = 100.0
-    elif progress >= 75:
-        score = 75.0
+    elif progress >= HEALTH.RETIREMENT_SCORE_BAND_HIGH:
+        score = HEALTH.RETIREMENT_SCORE_BAND_HIGH
     elif progress >= 50:
         score = 50.0
-    elif progress >= 25:
-        score = 25.0
+    elif progress >= HEALTH.RETIREMENT_SCORE_BAND_LOW:
+        score = HEALTH.RETIREMENT_SCORE_BAND_LOW
     else:
         score = 0.0
 

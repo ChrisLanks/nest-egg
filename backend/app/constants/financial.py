@@ -109,6 +109,10 @@ class RETIREMENT:
     FALLBACK_SPENDING_HOUSEHOLD = 80_000  # If no income data available
     FALLBACK_SPENDING_SINGLE = 60_000
 
+    # Catch-up contribution eligibility ages (IRS rules)         # ANNUAL (watch SECURE 3.0)
+    CATCH_UP_AGE_401K = 50  # Age 50+: 401k / 403b / IRA catch-up eligible
+    CATCH_UP_AGE_HSA = 55  # Age 55+: HSA catch-up eligible
+
 
 # =========================================================================
 # SOCIAL SECURITY
@@ -157,6 +161,9 @@ class SS:
     MAX_CLAIMING_AGE = 70
     MIN_CLAIMING_AGE = 62
 
+    # Age to start surfacing SS planning advice (2 years before earliest claiming)
+    PLANNING_START_AGE = 60
+
 
 # =========================================================================
 # MEDICARE & IRMAA
@@ -185,6 +192,9 @@ class MEDICARE:
     # Medicare eligibility age
     ELIGIBILITY_AGE = 65
 
+    # IRMAA uses income from 2 years prior — start planning 2 years before eligibility
+    IRMAA_PLANNING_AGE = 63  # ANNUAL (tied to ELIGIBILITY_AGE)
+
 
 # =========================================================================
 # HEALTHCARE COSTS
@@ -209,6 +219,12 @@ class HEALTHCARE:
 
     # Medical inflation assumption
     DEFAULT_MEDICAL_INFLATION = 6.0  # Percent per year
+
+    # Long-term care modeling defaults (used when caller supplies no overrides)
+    LTC_DEFAULT_START_AGE = 85  # Age at which LTC costs begin
+    LTC_DEFAULT_DURATION_YEARS = 3  # Years of LTC to model
+    LTC_DEFAULT_RETIREMENT_INCOME = 50_000  # Assumed income for IRMAA estimation
+    LTC_DEFAULT_CURRENT_AGE = 35  # Fallback current age when birthdate unknown
 
 
 # =========================================================================
@@ -359,6 +375,7 @@ class HEALTH:
     # Debt-to-income thresholds
     DTI_EXCELLENT = 15  # Percent → score 100
     DTI_FAIR = 35  # Percent → score 50
+    DTI_UPPER_BOUND = 50  # Percent → score 0 (above this = worst tier)
 
     # Fidelity retirement benchmarks (age → multiples of salary)
     RETIREMENT_BENCHMARKS: List[Tuple[int, int]] = [
@@ -367,6 +384,16 @@ class HEALTH:
         (50, 6),
         (60, 8),
     ]
+
+    # Interpolation boundary ages for retirement benchmark
+    RETIREMENT_BENCHMARK_MIN_AGE = 30
+    RETIREMENT_BENCHMARK_MAX_AGE = 60
+    RETIREMENT_BENCHMARK_MIN_MULT = 1
+    RETIREMENT_BENCHMARK_MAX_MULT = 8
+
+    # Retirement progress scoring bands (score = highest band where progress >= band)
+    RETIREMENT_SCORE_BAND_HIGH = 75.0  # Progress >= 75% → score 75
+    RETIREMENT_SCORE_BAND_LOW = 25.0  # Progress >= 25% → score 25
 
 
 # =========================================================================
@@ -488,3 +515,58 @@ class LIFE_EVENTS:
     # Elder care
     ELDER_CARE_ANNUAL = Decimal("25000")
     ELDER_CARE_YEARS = 5
+
+
+# =========================================================================
+# DEBT PAYOFF DEFAULTS
+# =========================================================================
+
+
+class DEBT:
+    """Default assumptions for debt payoff calculations."""
+
+    # Credit card minimum payment
+    MIN_PAYMENT_RATE = Decimal("0.02")  # 2% of balance
+    MIN_PAYMENT_FLOOR = Decimal("25.00")  # $25 minimum floor
+
+    # Fallback interest rate when the account has no rate set
+    DEFAULT_INTEREST_RATE = Decimal("18.0")  # 18% — typical credit card APR  # ANNUAL
+
+    # Payoff horizon defaults
+    DEFAULT_PAYOFF_MONTHS = 60  # 5-year assumed payoff for unknown loan terms
+    MAX_PAYOFF_MONTHS = 360  # 30-year hard cap on all simulations
+
+
+# =========================================================================
+# CAREER / EARNINGS ASSUMPTIONS
+# =========================================================================
+
+
+class CAREER:
+    """Career and earnings assumptions used in Social Security projections."""
+
+    DEFAULT_START_AGE = 22  # Assumed career start when not provided
+    SS_TOP_EARNINGS_YEARS = 35  # IRS uses highest 35 years for AIME calculation
+    DEFAULT_CURRENT_AGE = 35  # Fallback current age when birthdate is unavailable
+
+
+# =========================================================================
+# SAVINGS GOAL TEMPLATE DEFAULTS
+# =========================================================================
+
+
+class SAVINGS_GOALS:
+    """Default amounts for pre-built savings goal templates (2024 dollars)."""
+
+    # Emergency fund: fallback monthly expense assumption when no tx history
+    DEFAULT_MONTHLY_EXPENSES = Decimal("3000")  # ANNUAL (median US household)
+
+    # Vacation fund template target
+    VACATION_TARGET = Decimal("4000")  # ANNUAL
+
+    # Home down payment template (20% of ~$300K median US home price)
+    HOME_DOWN_PAYMENT = Decimal("60000")  # ANNUAL
+
+    # Debt payoff reserve: fraction of total debt to set aside
+    DEBT_PAYOFF_RESERVE_RATE = Decimal("0.10")  # 10% of total debt
+    DEBT_PAYOFF_RESERVE_MIN = Decimal("1000")  # Minimum reserve regardless of debt size

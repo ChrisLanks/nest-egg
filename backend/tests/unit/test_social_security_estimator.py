@@ -10,6 +10,7 @@ Covers:
 
 import pytest
 
+from app.constants.financial import CAREER
 from app.services.retirement.social_security_estimator import (
     BEND_POINT_1,
     BEND_POINT_2,
@@ -81,7 +82,7 @@ class TestEstimatePIA:
 
     def test_known_pia_approximation(self):
         """A $75K salary earner should get roughly $1,800-2,500/mo PIA."""
-        aime = estimate_aime_from_salary(75000, 45, 22)
+        aime = estimate_aime_from_salary(75000, 45, CAREER.DEFAULT_START_AGE)
         pia = estimate_pia(aime)
         assert 1000 < pia < 3000
 
@@ -91,14 +92,17 @@ class TestEstimatePIA:
 
 class TestEstimateAIME:
     def test_zero_salary(self):
-        assert estimate_aime_from_salary(0, 45, 22) == 0.0
+        assert estimate_aime_from_salary(0, 45, CAREER.DEFAULT_START_AGE) == 0.0
 
     def test_age_at_career_start(self):
         """No years worked should yield zero."""
-        assert estimate_aime_from_salary(75000, 22, 22) == 0.0
+        assert (
+            estimate_aime_from_salary(75000, CAREER.DEFAULT_START_AGE, CAREER.DEFAULT_START_AGE)
+            == 0.0
+        )
 
     def test_positive_salary(self):
-        aime = estimate_aime_from_salary(75000, 45, 22)
+        aime = estimate_aime_from_salary(75000, 45, CAREER.DEFAULT_START_AGE)
         assert aime > 0
         # 23 years worked, $75K salary → monthly ~$4K-5K range
         assert 2000 < aime < 8000
@@ -111,16 +115,16 @@ class TestEstimateAIME:
         AIME with $300K salary should still be higher than $168.6K salary
         (because past years of the $300K earner were higher too).
         """
-        aime_high = estimate_aime_from_salary(300000, 45, 22)
-        aime_max = estimate_aime_from_salary(168600, 45, 22)
+        aime_high = estimate_aime_from_salary(300000, 45, CAREER.DEFAULT_START_AGE)
+        aime_max = estimate_aime_from_salary(168600, 45, CAREER.DEFAULT_START_AGE)
         # Higher salary → higher AIME (past years were proportionally higher)
         assert aime_high > aime_max
         # But not 2x because of the cap on recent years
         assert aime_high < aime_max * 2.0
 
     def test_longer_career_higher_aime(self):
-        aime_short = estimate_aime_from_salary(75000, 30, 22)
-        aime_long = estimate_aime_from_salary(75000, 55, 22)
+        aime_short = estimate_aime_from_salary(75000, 30, CAREER.DEFAULT_START_AGE)
+        aime_long = estimate_aime_from_salary(75000, 55, CAREER.DEFAULT_START_AGE)
         assert aime_long > aime_short
 
 

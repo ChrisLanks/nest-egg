@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.constants.financial import (
     MEDICARE,
     RETIREMENT,
+    SS,
     TAX,
 )
 from app.constants.financial import (
@@ -132,7 +133,7 @@ class TaxAdvisorService:
         _add_contribution_limits(age, contribution_limits)
 
         # --- Age-based standard deduction ---
-        if age >= 65:
+        if age >= MEDICARE.ELIGIBILITY_AGE:
             extra_s = TAX.STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE
             extra_m = TAX.STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED
             total_s = TAX.STANDARD_DEDUCTION_SINGLE + extra_s
@@ -167,13 +168,13 @@ class TaxAdvisorService:
                         f"${float(taxable_total):,.0f} in "
                         f"taxable accounts."
                     ),
-                    "priority": "action" if age >= 60 else "info",
-                    "age_relevant": age >= 55,
+                    "priority": "action" if age >= SS.PLANNING_START_AGE else "info",
+                    "age_relevant": age >= RETIREMENT.CATCH_UP_AGE_HSA,
                 }
             )
 
         # --- Social Security taxation ---
-        if age >= 60:
+        if age >= SS.PLANNING_START_AGE:
             ss_thresh = TAX.SS_TAXATION_THRESHOLDS_SINGLE[0][0]
             insights.append(
                 {
@@ -189,13 +190,13 @@ class TaxAdvisorService:
                         "= AGI + nontaxable interest + 50% of "
                         "SS benefits."
                     ),
-                    "priority": "action" if age >= 62 else "info",
+                    "priority": "action" if age >= SS.MIN_CLAIMING_AGE else "info",
                     "age_relevant": True,
                 }
             )
 
         # --- Medicare IRMAA ---
-        if age >= 63:
+        if age >= MEDICARE.IRMAA_PLANNING_AGE:
             irmaa_thresh = MEDICARE.IRMAA_BRACKETS_SINGLE[0][0]
             tier1_b = MEDICARE.IRMAA_BRACKETS_SINGLE[1][1]
             tier1_d = MEDICARE.IRMAA_BRACKETS_SINGLE[1][2]
@@ -211,13 +212,13 @@ class TaxAdvisorService:
                         f"+ ${tier1_d:.2f}/mo Part D. Plan "
                         f"income carefully before enrollment."
                     ),
-                    "priority": "action" if age >= 63 else "info",
+                    "priority": "action" if age >= MEDICARE.IRMAA_PLANNING_AGE else "info",
                     "age_relevant": True,
                 }
             )
 
         # --- RMD planning ---
-        if age >= 65:
+        if age >= MEDICARE.ELIGIBILITY_AGE:
             rmd_age = RMD_CONSTANTS.TRIGGER_AGE
             years_to_rmd = max(rmd_age - age, 0)
             pre_tax_f = float(pre_tax_total)
@@ -245,7 +246,7 @@ class TaxAdvisorService:
             )
 
         # --- Roth conversion opportunity ---
-        if pre_tax_total > 50000 and age >= 55:
+        if pre_tax_total > 50000 and age >= RETIREMENT.CATCH_UP_AGE_HSA:
             pre_tax_f = float(pre_tax_total)
             insights.append(
                 {

@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.constants.financial import HEALTH
 from app.models.account import Account, AccountType
 from app.services.financial_health_service import (
     FinancialHealthService,
@@ -198,9 +199,10 @@ class TestDebtToIncomeScore:
         result = _debt_to_income_score(Decimal("1750"), Decimal("5000"))
         assert result["score"] == 50.0
 
-    def test_fifty_percent(self):
-        # 50% => (50-50)/15*50 = 0
-        result = _debt_to_income_score(Decimal("2500"), Decimal("5000"))
+    def test_at_upper_bound(self):
+        # DTI_UPPER_BOUND% => score 0
+        amount = Decimal("5000") * Decimal(HEALTH.DTI_UPPER_BOUND) / Decimal(100)
+        result = _debt_to_income_score(amount, Decimal("5000"))
         assert result["score"] == 0.0
 
     def test_over_fifty_percent(self):
@@ -241,9 +243,9 @@ class TestRetirementProgressScore:
         assert result["score"] == 100.0
 
     def test_seventy_five_percent_progress(self):
-        # Age 40, target = 3x60k = 180k, balance = 140k => ~77.8% => score 75
+        # Age 40, target = 3x60k = 180k, balance = 140k => ~77.8% => score BAND_HIGH
         result = _retirement_progress_score(Decimal("140000"), Decimal("60000"), 40)
-        assert result["score"] == 75.0
+        assert result["score"] == HEALTH.RETIREMENT_SCORE_BAND_HIGH
 
     def test_fifty_percent_progress(self):
         # target 180k, balance 100k => 55.6% => score 50
@@ -251,9 +253,9 @@ class TestRetirementProgressScore:
         assert result["score"] == 50.0
 
     def test_twenty_five_percent_progress(self):
-        # target 180k, balance 50k => 27.8% => score 25
+        # target 180k, balance 50k => 27.8% => score BAND_LOW
         result = _retirement_progress_score(Decimal("50000"), Decimal("60000"), 40)
-        assert result["score"] == 25.0
+        assert result["score"] == HEALTH.RETIREMENT_SCORE_BAND_LOW
 
     def test_below_twenty_five_percent(self):
         # target 180k, balance 10k => 5.6% => score 0

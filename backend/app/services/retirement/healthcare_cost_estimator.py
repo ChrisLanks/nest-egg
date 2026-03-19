@@ -53,9 +53,9 @@ def estimate_annual_healthcare_cost(
     retirement_income: float = 0,
     is_married: bool = False,
     include_ltc: bool = True,
-    ltc_start_age: int = 85,
-    ltc_duration_years: int = 3,
-    current_age: int = 35,
+    ltc_start_age: int = HEALTHCARE.LTC_DEFAULT_START_AGE,
+    ltc_duration_years: int = HEALTHCARE.LTC_DEFAULT_DURATION_YEARS,
+    current_age: int = HEALTHCARE.LTC_DEFAULT_CURRENT_AGE,
     medical_inflation_rate: float = HEALTHCARE.DEFAULT_MEDICAL_INFLATION,
 ) -> dict:
     """Estimate annual healthcare costs at a given age.
@@ -128,11 +128,11 @@ def estimate_lifetime_healthcare_costs(
     current_age: int,
     retirement_age: int,
     life_expectancy: int,
-    retirement_income: float = 50000,
+    retirement_income: float = HEALTHCARE.LTC_DEFAULT_RETIREMENT_INCOME,
     is_married: bool = False,
     include_ltc: bool = True,
-    ltc_start_age: int = 85,
-    ltc_duration_years: int = 3,
+    ltc_start_age: int = HEALTHCARE.LTC_DEFAULT_START_AGE,
+    ltc_duration_years: int = HEALTHCARE.LTC_DEFAULT_DURATION_YEARS,
     medical_inflation_rate: float = HEALTHCARE.DEFAULT_MEDICAL_INFLATION,
 ) -> dict:
     """Estimate total lifetime healthcare costs from current age to life expectancy.

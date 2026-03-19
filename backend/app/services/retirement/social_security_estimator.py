@@ -6,7 +6,7 @@ early/delayed claiming adjustments, and FRA (Full Retirement Age) lookup.
 
 from typing import Optional
 
-from app.constants.financial import SS
+from app.constants.financial import CAREER, SS
 
 # Re-export from centralized constants for backward compatibility
 BEND_POINT_1 = SS.BEND_POINT_1
@@ -68,7 +68,7 @@ def estimate_pia(aime: float) -> float:
 def estimate_aime_from_salary(
     current_salary: float,
     current_age: int,
-    career_start_age: int = 22,
+    career_start_age: int = CAREER.DEFAULT_START_AGE,
 ) -> float:
     """Rough AIME estimate from current annual salary.
 
@@ -98,16 +98,16 @@ def estimate_aime_from_salary(
         # Cap at Social Security taxable maximum (approximate: $168,600 for 2024)
         earnings.append(min(past_salary, SS.TAXABLE_MAX))
 
-    # Use top 35 years (or all if less)
+    # Use top N years (or all if less)
     earnings.sort(reverse=True)
-    top_35 = earnings[:35]
+    top_earnings = earnings[: CAREER.SS_TOP_EARNINGS_YEARS]
 
-    if not top_35:
+    if not top_earnings:
         return 0.0
 
-    # AIME = total earnings / (35 years * 12 months)
-    total_earnings = sum(top_35)
-    aime = total_earnings / (35 * 12)
+    # AIME = total earnings / (SS_TOP_EARNINGS_YEARS * 12 months)
+    total_earnings = sum(top_earnings)
+    aime = total_earnings / (CAREER.SS_TOP_EARNINGS_YEARS * 12)
     return round(aime, 2)
 
 

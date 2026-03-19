@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 
+from app.constants.financial import DEBT
 from app.services.amortization_service import AmortizationService
 
 svc = AmortizationService
@@ -47,14 +48,14 @@ class TestCalculateMonthlyPayment:
 
 class TestCreditCardMinimum:
     def test_floor_applies(self):
-        """$500 * 2% = $10 < $25 floor → should return $25."""
+        """$500 * MIN_PAYMENT_RATE (2%) = $10 < MIN_PAYMENT_FLOOR ($25) → should return floor."""
         result = svc.calculate_credit_card_minimum(Decimal("500"))
-        assert result == Decimal("25.00")
+        assert result == DEBT.MIN_PAYMENT_FLOOR
 
     def test_percentage_exceeds_floor(self):
-        """$5000 * 2% = $100 > $25 → should return $100."""
+        """$5000 * MIN_PAYMENT_RATE (2%) = $100 > $25 floor → should return $100."""
         result = svc.calculate_credit_card_minimum(Decimal("5000"))
-        assert result == Decimal("100.00")
+        assert result == (Decimal("5000") * DEBT.MIN_PAYMENT_RATE).quantize(Decimal("0.01"))
 
     def test_zero_balance(self):
         assert svc.calculate_credit_card_minimum(Decimal("0")) == Decimal("0")

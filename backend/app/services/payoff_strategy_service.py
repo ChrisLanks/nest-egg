@@ -2,13 +2,14 @@
 
 from datetime import date
 from decimal import Decimal
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
-from dateutil.relativedelta import relativedelta
 
-from sqlalchemy import select, and_
+from dateutil.relativedelta import relativedelta
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import DEBT
 from app.models.account import Account, AccountType
 from app.services.amortization_service import AmortizationService
 
@@ -78,17 +79,15 @@ class PayoffStrategyService:
             elif account.account_type == AccountType.CREDIT_CARD:
                 min_payment = AmortizationService.calculate_credit_card_minimum(balance)
             elif account.interest_rate and account.interest_rate > 0:
-                # Estimate based on 5-year payoff
+                # Estimate based on default payoff horizon
                 min_payment = AmortizationService.calculate_monthly_payment(
-                    balance, account.interest_rate, 60  # 5 years
+                    balance, account.interest_rate, DEBT.DEFAULT_PAYOFF_MONTHS
                 )
             else:
-                # Default to 2% of balance
-                min_payment = max(balance * Decimal("0.02"), Decimal("25"))
+                # Default to MIN_PAYMENT_RATE of balance
+                min_payment = max(balance * DEBT.MIN_PAYMENT_RATE, DEBT.MIN_PAYMENT_FLOOR)
 
-            interest_rate = account.interest_rate or Decimal(
-                "18.0"
-            )  # Default 18% for unknown rates
+            interest_rate = account.interest_rate or DEBT.DEFAULT_INTEREST_RATE
 
             debt_accounts.append(
                 DebtAccount(
@@ -218,7 +217,7 @@ class PayoffStrategyService:
         available_extra = extra_payment
         freed_minimums = Decimal(0)
         current_month = 0
-        max_months = 360  # Cap at 30 years
+        max_months = DEBT.MAX_PAYOFF_MONTHS
 
         while current_month < max_months:
             current_month += 1

@@ -11,7 +11,7 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants.financial import FIRE, RETIREMENT
+from app.constants.financial import CAREER, FIRE, RETIREMENT
 from app.core import cache
 from app.models.account import Account, AccountType
 from app.models.notification import Notification, NotificationPriority, NotificationType
@@ -374,7 +374,7 @@ class FireService:
             oldest_birth_year = min(birth_years)
             current_age = utc_now().year - oldest_birth_year
         else:
-            current_age = 35  # Reasonable default when no birth dates are set
+            current_age = CAREER.DEFAULT_CURRENT_AGE  # Fallback when no birth dates available
 
         years_until_retirement = max(retirement_age - current_age, 1)
 

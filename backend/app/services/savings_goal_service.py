@@ -9,6 +9,7 @@ from uuid import UUID
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.financial import SAVINGS_GOALS
 from app.models.account import Account, AccountType
 from app.models.savings_goal import SavingsGoal
 from app.models.transaction import Transaction
@@ -446,9 +447,9 @@ class SavingsGoalService:
         total_expenses = expense_result.scalar() or Decimal("0")
         avg_monthly_expenses = abs(total_expenses) / 6  # always positive
 
-        # Default to $3,000/month if no transaction history
+        # Default to SAVINGS_GOALS.DEFAULT_MONTHLY_EXPENSES if no transaction history
         if avg_monthly_expenses < Decimal("1"):
-            avg_monthly_expenses = Decimal("3000")
+            avg_monthly_expenses = SAVINGS_GOALS.DEFAULT_MONTHLY_EXPENSES
 
         target = (avg_monthly_expenses * 6).quantize(Decimal("0.01"))
 
@@ -495,7 +496,7 @@ class SavingsGoalService:
             user=user,
             name="Vacation Fund",
             description="Annual vacation savings — adjust the target to match your travel plans.",
-            target_amount=Decimal("4000"),
+            target_amount=SAVINGS_GOALS.VACATION_TARGET,
             start_date=date.today(),
             target_date=target_date,
         )
@@ -515,7 +516,7 @@ class SavingsGoalService:
             description=(
                 "20% down payment on a $300K home. " "Adjust the target to your local market."
             ),
-            target_amount=Decimal("60000"),
+            target_amount=SAVINGS_GOALS.HOME_DOWN_PAYMENT,
             start_date=date.today(),
             target_date=target_date,
         )
@@ -543,7 +544,10 @@ class SavingsGoalService:
             )
         )
         total_debt = Decimal(str(debt_result.scalar() or 0))
-        target = max(total_debt * Decimal("0.10"), Decimal("1000")).quantize(Decimal("1"))
+        target = max(
+            total_debt * SAVINGS_GOALS.DEBT_PAYOFF_RESERVE_RATE,
+            SAVINGS_GOALS.DEBT_PAYOFF_RESERVE_MIN,
+        ).quantize(Decimal("1"))
 
         description = (
             f"10% debt payoff reserve (~${total_debt:,.0f} total debt). "

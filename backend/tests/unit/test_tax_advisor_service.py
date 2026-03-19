@@ -9,7 +9,7 @@ Covers:
 
 import pytest
 
-from app.constants.financial import RETIREMENT
+from app.constants.financial import MEDICARE, RETIREMENT
 from app.services.tax_advisor_service import (
     _add_contribution_limits,
     compute_nii_surtax,
@@ -113,20 +113,20 @@ class TestContributionLimits:
 
     def test_over_50_catch_up(self):
         limits = []
-        _add_contribution_limits(55, limits)
+        _add_contribution_limits(RETIREMENT.CATCH_UP_AGE_401K + 1, limits)
         k401 = next(x for x in limits if "401k" in x["account_type"])
         assert k401["catch_up_eligible"] is True
         assert k401["total_limit"] == RETIREMENT.LIMIT_401K + RETIREMENT.LIMIT_401K_CATCH_UP
 
     def test_hsa_not_shown_after_65(self):
         limits = []
-        _add_contribution_limits(70, limits)
+        _add_contribution_limits(MEDICARE.ELIGIBILITY_AGE + 1, limits)
         hsa_limits = [x for x in limits if "HSA" in x["account_type"]]
         assert len(hsa_limits) == 0
 
     def test_hsa_catch_up_at_55(self):
         limits = []
-        _add_contribution_limits(57, limits)
+        _add_contribution_limits(RETIREMENT.CATCH_UP_AGE_HSA + 2, limits)
         hsa = next(x for x in limits if "HSA" in x["account_type"])
         assert hsa["catch_up_eligible"] is True
         assert hsa["catch_up_limit"] == RETIREMENT.LIMIT_HSA_CATCH_UP

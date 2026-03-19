@@ -12,6 +12,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.constants.financial import DEBT
 from app.models.account import AccountType
 from app.services.payoff_strategy_service import (
     _DEBT_ACCOUNT_TYPES,
@@ -26,7 +27,7 @@ from app.services.payoff_strategy_service import (
 
 def make_debt(
     balance: str,
-    rate: str = "18.0",
+    rate: str = str(DEBT.DEFAULT_INTEREST_RATE),
     min_payment: str = "50",
     account_type: AccountType = AccountType.CREDIT_CARD,
     name: str = "Test Debt",
