@@ -2,9 +2,9 @@
  * Post-registration onboarding wizard.
  *
  * Steps:
- * 1. Welcome — household name confirmation
+ * 1. Welcome — value proposition + household name
  * 2. Connect accounts — link first bank or skip
- * 3. Invite household members — or skip
+ * 3. Invite household members — why + how or skip
  * 4. Quick tour highlights — then go to dashboard
  */
 
@@ -22,6 +22,7 @@ import {
   Progress,
   FormControl,
   FormLabel,
+  SimpleGrid,
   useToast,
 } from "@chakra-ui/react";
 import {
@@ -31,6 +32,12 @@ import {
   FiBarChart2,
   FiArrowRight,
   FiCheck,
+  FiDollarSign,
+  FiTarget,
+  FiZap,
+  FiList,
+  FiTrendingUp,
+  FiCalendar,
 } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
@@ -43,6 +50,72 @@ const STEPS = [
   { label: "Accounts", icon: FiLink },
   { label: "Household", icon: FiUsers },
   { label: "Ready", icon: FiBarChart2 },
+];
+
+const HOUSEHOLD_BENEFITS = [
+  {
+    icon: FiBarChart2,
+    title: "Combined net worth",
+    desc: "See all accounts together — or filter to just one person's view",
+  },
+  {
+    icon: FiDollarSign,
+    title: "Shared budgets",
+    desc: "Track spending across both of your accounts in one budget",
+  },
+  {
+    icon: FiZap,
+    title: "FIRE planning together",
+    desc: "Coast FI and financial independence calculations use both your assets",
+  },
+  {
+    icon: FiTrendingUp,
+    title: "Joint retirement scenarios",
+    desc: "Run Monte Carlo simulations that account for both incomes and goals",
+  },
+];
+
+const FEATURE_LIST = [
+  {
+    icon: FiBarChart2,
+    title: "Overview Dashboard",
+    desc: "Net worth trend, spending breakdown, and financial health at a glance",
+  },
+  {
+    icon: FiDollarSign,
+    title: "Budget Tracking",
+    desc: "Monthly budgets per category with real-time spending and overage alerts",
+  },
+  {
+    icon: FiList,
+    title: "Transactions",
+    desc: "Full spending history with smart categorization and search",
+  },
+  {
+    icon: FiTarget,
+    title: "Savings Goals",
+    desc: "Track progress toward specific goals like a house, car, or emergency fund",
+  },
+  {
+    icon: FiLink,
+    title: "Investment Analysis",
+    desc: "Portfolio breakdown, asset allocation, and Monte Carlo projections",
+  },
+  {
+    icon: FiZap,
+    title: "FIRE Dashboard",
+    desc: "FI ratio, Coast FI, and years-to-retirement updated with every sync",
+  },
+  {
+    icon: FiHome,
+    title: "Retirement Planner",
+    desc: "Scenario-based simulations with Social Security, healthcare, and tax modeling",
+  },
+  {
+    icon: FiCalendar,
+    title: "Financial Calendar",
+    desc: "Recurring bills, expected transactions, and cash flow forecasting",
+  },
 ];
 
 export default function WelcomePage() {
@@ -146,9 +219,31 @@ export default function WelcomePage() {
             <VStack spacing={2}>
               <Heading size="lg">Welcome to Nest Egg</Heading>
               <Text color="text.secondary" textAlign="center">
-                Let's get your household set up. This takes about 2 minutes.
+                Your complete household financial dashboard — accounts, budgets,
+                investments, and retirement planning in one place.
               </Text>
             </VStack>
+            <SimpleGrid columns={3} spacing={3}>
+              {[
+                { icon: FiBarChart2, label: "Net worth tracking" },
+                { icon: FiDollarSign, label: "Budget & spending" },
+                { icon: FiZap, label: "FIRE & retirement" },
+              ].map((item) => (
+                <VStack
+                  key={item.label}
+                  p={3}
+                  borderRadius="md"
+                  bg="bg.subtle"
+                  spacing={1}
+                  align="center"
+                >
+                  <Icon as={item.icon} boxSize={5} color="brand.500" />
+                  <Text fontSize="xs" fontWeight="medium" textAlign="center">
+                    {item.label}
+                  </Text>
+                </VStack>
+              ))}
+            </SimpleGrid>
             <FormControl>
               <FormLabel>Household name</FormLabel>
               <Input
@@ -220,13 +315,35 @@ export default function WelcomePage() {
         {step === 2 && (
           <VStack spacing={6} align="stretch">
             <VStack spacing={2}>
-              <Heading size="lg">Invite Household Members</Heading>
+              <Heading size="lg">Invite Your Partner</Heading>
               <Text color="text.secondary" textAlign="center">
-                Nest Egg supports up to 5 household members. Each person gets
-                their own login with individual account views and shared
-                household analytics.
+                Nest Egg is built for couples and families who manage money
+                together. Inviting your partner unlocks the full power of
+                household planning:
               </Text>
             </VStack>
+            <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3}>
+              {HOUSEHOLD_BENEFITS.map((b) => (
+                <HStack
+                  key={b.title}
+                  spacing={3}
+                  p={3}
+                  borderRadius="md"
+                  bg="bg.subtle"
+                  align="start"
+                >
+                  <Icon as={b.icon} boxSize={5} color="brand.500" mt="1px" />
+                  <VStack align="start" spacing={0}>
+                    <Text fontSize="sm" fontWeight="semibold">
+                      {b.title}
+                    </Text>
+                    <Text fontSize="xs" color="text.secondary">
+                      {b.desc}
+                    </Text>
+                  </VStack>
+                </HStack>
+              ))}
+            </SimpleGrid>
             {inviteSent ? (
               <VStack
                 spacing={3}
@@ -246,7 +363,7 @@ export default function WelcomePage() {
               </VStack>
             ) : (
               <FormControl>
-                <FormLabel>Email address</FormLabel>
+                <FormLabel>Partner's email address</FormLabel>
                 <HStack>
                   <Input
                     type="email"
@@ -264,8 +381,9 @@ export default function WelcomePage() {
                   </Button>
                 </HStack>
                 <Text fontSize="xs" color="text.muted" mt={2}>
-                  By default, members can view each other's data but can't edit
-                  it. You control permissions from the Permissions page.
+                  Each person keeps their own login. By default, members can
+                  view each other's data — you control permissions from
+                  Settings.
                 </Text>
               </FormControl>
             )}
@@ -276,39 +394,25 @@ export default function WelcomePage() {
           <VStack spacing={6} align="center">
             <Heading size="lg">You're All Set!</Heading>
             <Text color="text.secondary" textAlign="center" maxW="md">
-              Your dashboard is ready. Here's what you can explore:
+              Here's everything waiting for you in your dashboard:
             </Text>
-            <VStack spacing={3} align="stretch" w="full" maxW="sm">
-              {[
-                {
-                  icon: FiBarChart2,
-                  title: "Overview Dashboard",
-                  desc: "Net worth, spending insights, and financial health at a glance",
-                },
-                {
-                  icon: FiLink,
-                  title: "Investment Analysis",
-                  desc: "9-tab portfolio analysis with Monte Carlo projections",
-                },
-                {
-                  icon: FiHome,
-                  title: "Retirement Planner",
-                  desc: "Monte Carlo simulations with Social Security and healthcare modeling",
-                },
-                {
-                  icon: FiUsers,
-                  title: "Household Views",
-                  desc: "Switch between combined and individual member views",
-                },
-              ].map((item) => (
+            <SimpleGrid columns={2} spacing={3} w="full">
+              {FEATURE_LIST.map((item) => (
                 <HStack
                   key={item.title}
                   spacing={3}
                   p={3}
                   borderRadius="md"
                   bg="bg.subtle"
+                  align="start"
                 >
-                  <Icon as={item.icon} boxSize={5} color="brand.500" />
+                  <Icon
+                    as={item.icon}
+                    boxSize={5}
+                    color="brand.500"
+                    mt="1px"
+                    flexShrink={0}
+                  />
                   <VStack align="start" spacing={0}>
                     <Text fontSize="sm" fontWeight="semibold">
                       {item.title}
@@ -319,7 +423,7 @@ export default function WelcomePage() {
                   </VStack>
                 </HStack>
               ))}
-            </VStack>
+            </SimpleGrid>
           </VStack>
         )}
       </Box>
