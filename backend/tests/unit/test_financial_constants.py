@@ -9,6 +9,10 @@ from decimal import Decimal
 import pytest
 
 from app.constants.financial import (
+    _MEDICARE_DATA,
+    _RETIREMENT_LIMITS,
+    _SS_DATA,
+    _TAX_DATA,
     EDUCATION,
     FIRE,
     HEALTH,
@@ -19,6 +23,7 @@ from app.constants.financial import (
     RMD,
     SS,
     TAX,
+    _best_year,
 )
 
 # ── TAX constants ──────────────────────────────────────────────────────────
@@ -260,3 +265,151 @@ class TestServiceCompatibility:
         from app.services.rebalancing_service import PRESET_PORTFOLIOS
 
         assert PRESET_PORTFOLIOS == PORTFOLIO.PRESETS
+
+
+# ── Year-based lookup ───────────────────────────────────────────────────────
+
+
+class TestYearBasedLookup:
+    """Verify per-year data tables and the _best_year fallback logic."""
+
+    # --- _best_year helper ---
+
+    def test_exact_year_match(self):
+        assert _best_year({2024: {}, 2025: {}}, 2025) == 2025
+
+    def test_falls_back_to_closest_lower_year(self):
+        assert _best_year({2024: {}, 2025: {}}, 2030) == 2025
+
+    def test_falls_back_to_earliest_when_year_is_too_old(self):
+        # Requested year older than all known — return earliest available
+        assert _best_year({2024: {}, 2025: {}}, 2020) == 2024
+
+    # --- RETIREMENT ---
+
+    def test_retirement_2024_401k_limit(self):
+        assert RETIREMENT.for_year(2024)["LIMIT_401K"] == 23_000
+
+    def test_retirement_2025_401k_limit(self):
+        assert RETIREMENT.for_year(2025)["LIMIT_401K"] == 23_500
+
+    def test_retirement_2025_hsa_limits(self):
+        d = RETIREMENT.for_year(2025)
+        assert d["LIMIT_HSA_INDIVIDUAL"] == 4_300
+        assert d["LIMIT_HSA_FAMILY"] == 8_550
+
+    def test_retirement_future_year_falls_back_gracefully(self):
+        d = RETIREMENT.for_year(2099)
+        assert d["LIMIT_401K"] > 0  # No crash; uses latest known year
+
+    def test_retirement_tax_year_attribute_is_known_year(self):
+        assert RETIREMENT.TAX_YEAR in _RETIREMENT_LIMITS
+
+    def test_retirement_class_attrs_match_selected_year(self):
+        d = _RETIREMENT_LIMITS[RETIREMENT.TAX_YEAR]
+        assert RETIREMENT.LIMIT_401K == d["LIMIT_401K"]
+        assert RETIREMENT.LIMIT_IRA == d["LIMIT_IRA"]
+        assert RETIREMENT.LIMIT_HSA_INDIVIDUAL == d["LIMIT_HSA_INDIVIDUAL"]
+
+    # --- TAX ---
+
+    def test_tax_2024_standard_deduction(self):
+        d = TAX.for_year(2024)
+        assert d["STANDARD_DEDUCTION_SINGLE"] == 14_600
+        assert d["STANDARD_DEDUCTION_MARRIED"] == 29_200
+
+    def test_tax_2025_standard_deduction(self):
+        d = TAX.for_year(2025)
+        assert d["STANDARD_DEDUCTION_SINGLE"] == 15_000
+        assert d["STANDARD_DEDUCTION_MARRIED"] == 30_000
+
+    def test_tax_class_attrs_match_selected_year(self):
+        d = _TAX_DATA[TAX.TAX_YEAR]
+        assert TAX.STANDARD_DEDUCTION_SINGLE == d["STANDARD_DEDUCTION_SINGLE"]
+
+    # --- SS ---
+
+    def test_ss_2024_taxable_max(self):
+        assert SS.for_year(2024)["TAXABLE_MAX"] == 168_600
+
+    def test_ss_2025_taxable_max(self):
+        assert SS.for_year(2025)["TAXABLE_MAX"] == 176_100
+
+    def test_ss_class_attrs_match_selected_year(self):
+        d = _SS_DATA[SS.TAX_YEAR]
+        assert SS.TAXABLE_MAX == d["TAXABLE_MAX"]
+        assert SS.BEND_POINT_1 == d["BEND_POINT_1"]
+        assert SS.BEND_POINT_2 == d["BEND_POINT_2"]
+
+    # --- MEDICARE ---
+
+    def test_medicare_2024_part_b(self):
+        assert MEDICARE.for_year(2024)["PART_B_MONTHLY"] == 174.70
+
+    def test_medicare_2025_part_b(self):
+        assert MEDICARE.for_year(2025)["PART_B_MONTHLY"] == 185.00
+
+    def test_medicare_class_attrs_match_selected_year(self):
+        d = _MEDICARE_DATA[MEDICARE.TAX_YEAR]
+        assert MEDICARE.PART_B_MONTHLY == d["PART_B_MONTHLY"]
+
+    # --- 2026 values (sourced from IRS/SSA/CMS Oct 2025 announcements) ---
+
+    def test_retirement_2026_401k_limit(self):
+        d = RETIREMENT.for_year(2026)
+        assert d["LIMIT_401K"] == 24_500
+        assert d["LIMIT_401K_CATCH_UP"] == 8_000
+        assert d["LIMIT_401K_TOTAL"] == 70_000
+
+    def test_retirement_2026_ira_limits(self):
+        d = RETIREMENT.for_year(2026)
+        assert d["LIMIT_IRA"] == 7_500
+        assert d["LIMIT_IRA_CATCH_UP"] == 1_100
+
+    def test_retirement_2026_hsa_limits(self):
+        d = RETIREMENT.for_year(2026)
+        assert d["LIMIT_HSA_INDIVIDUAL"] == 4_400
+        assert d["LIMIT_HSA_FAMILY"] == 8_750
+
+    def test_retirement_2026_sep_simple_limits(self):
+        d = RETIREMENT.for_year(2026)
+        assert d["LIMIT_SEP_IRA"] == 70_000
+        assert d["SEP_IRA_COMPENSATION_CAP"] == 360_000
+        assert d["LIMIT_SIMPLE_IRA"] == 17_000
+
+    def test_tax_2026_standard_deduction(self):
+        d = TAX.for_year(2026)
+        assert d["STANDARD_DEDUCTION_SINGLE"] == 16_100
+        assert d["STANDARD_DEDUCTION_MARRIED"] == 32_200
+
+    def test_tax_2026_ltcg_brackets(self):
+        d = TAX.for_year(2026)
+        single = d["LTCG_BRACKETS_SINGLE"]
+        married = d["LTCG_BRACKETS_MARRIED"]
+        assert single[0] == (49_450, 0.00)
+        assert single[1] == (545_500, 0.15)
+        assert married[0] == (98_900, 0.00)
+        assert married[1] == (613_700, 0.15)
+
+    def test_ss_2026_taxable_max(self):
+        d = SS.for_year(2026)
+        assert d["TAXABLE_MAX"] == 184_500
+        assert d["BEND_POINT_1"] == 1_286
+        assert d["BEND_POINT_2"] == 7_749
+
+    def test_medicare_2026_part_b(self):
+        d = MEDICARE.for_year(2026)
+        assert d["PART_B_MONTHLY"] == 202.90
+
+    def test_medicare_2026_irmaa_brackets(self):
+        d = MEDICARE.for_year(2026)
+        brackets = d["IRMAA_BRACKETS_SINGLE"]
+        assert len(brackets) == 6
+        # Standard: no surcharge below $109,000
+        assert brackets[0] == (109_000, 0.00, 0.00)
+        # Tier 1 confirmed surcharge
+        assert brackets[1][0] == 137_000
+        assert brackets[1][1] == pytest.approx(81.20)
+        # Final tier surcharge confirmed
+        assert brackets[5][1] == pytest.approx(487.00)
+        assert brackets[5][2] == pytest.approx(91.00)

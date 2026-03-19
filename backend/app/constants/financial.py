@@ -11,12 +11,215 @@ Each section is a plain namespace class so IDE autocomplete works and the
 constant's origin is obvious in call-sites.
 
 ===========================================================================
-TAX YEAR: 2024  (update annually — search "# ANNUAL" for lines to review)
+ANNUAL DATA UPDATES
+===========================================================================
+IRS publishes new limits each October/November for the following tax year.
+When that happens, add a new dict entry to the appropriate _*_DATA table
+below — that's the ONLY change needed.
+
+The system automatically selects the closest known year ≤ today, so:
+  • Going from 2026 → 2027 with no update: keeps using 2025 limits.
+  • After you add 2027 data: automatically switches on Jan 1, 2027.
+
+YTD resets are handled dynamically in services (date-based), not here.
 ===========================================================================
 """
 
+import datetime
 from decimal import Decimal
 from typing import Dict, List, Tuple
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _best_year(table: dict, year: int | None = None) -> int:
+    """Return the closest known year ≤ requested year (fallback: latest known).
+
+    Examples:
+        _best_year({2024: ..., 2025: ...}, 2026)  → 2025  (uses latest known)
+        _best_year({2024: ..., 2025: ...}, 2024)  → 2024
+        _best_year({2024: ..., 2025: ...}, 2023)  → 2024  (no older year — use earliest)
+    """
+    y = year if year is not None else datetime.date.today().year
+    candidates = sorted(table, reverse=True)
+    for k in candidates:
+        if k <= y:
+            return k
+    return candidates[-1]  # all known years are ahead of y — return earliest
+
+
+# ===========================================================================
+# PER-YEAR IRS DATA
+# Add a new dict entry each November when IRS announces the next year's limits.
+# ===========================================================================
+
+_RETIREMENT_LIMITS: dict[int, dict] = {
+    2024: {
+        "LIMIT_401K": 23_000,
+        "LIMIT_401K_CATCH_UP": 7_500,
+        "LIMIT_401K_TOTAL": 69_000,
+        "LIMIT_IRA": 7_000,
+        "LIMIT_IRA_CATCH_UP": 1_000,
+        "LIMIT_HSA_INDIVIDUAL": 4_150,
+        "LIMIT_HSA_FAMILY": 8_300,
+        "LIMIT_HSA_CATCH_UP": 1_000,
+        "LIMIT_SEP_IRA": 69_000,
+        "SEP_IRA_COMPENSATION_CAP": 345_000,
+        "LIMIT_SIMPLE_IRA": 16_000,
+        "LIMIT_SIMPLE_IRA_CATCH_UP": 3_500,
+        "LIMIT_529_ANNUAL_GIFT_EXCLUSION": 18_000,
+        "LIMIT_529_SUPERFUND": 90_000,
+    },
+    2025: {
+        "LIMIT_401K": 23_500,
+        "LIMIT_401K_CATCH_UP": 7_500,
+        "LIMIT_401K_TOTAL": 70_000,
+        "LIMIT_IRA": 7_000,
+        "LIMIT_IRA_CATCH_UP": 1_000,
+        "LIMIT_HSA_INDIVIDUAL": 4_300,
+        "LIMIT_HSA_FAMILY": 8_550,
+        "LIMIT_HSA_CATCH_UP": 1_000,
+        "LIMIT_SEP_IRA": 70_000,
+        "SEP_IRA_COMPENSATION_CAP": 350_000,
+        "LIMIT_SIMPLE_IRA": 16_500,
+        "LIMIT_SIMPLE_IRA_CATCH_UP": 3_500,
+        "LIMIT_529_ANNUAL_GIFT_EXCLUSION": 19_000,
+        "LIMIT_529_SUPERFUND": 95_000,
+    },
+    2026: {
+        # Source: IRS Notice 2025-67, IRS.gov newsroom (Oct 2025)
+        "LIMIT_401K": 24_500,  # IRS confirmed
+        "LIMIT_401K_CATCH_UP": 8_000,  # Age 50+ catch-up; IRS confirmed
+        "LIMIT_401K_TOTAL": 70_000,  # Section 415(c) total (employee + employer); IRS confirmed
+        "LIMIT_IRA": 7_500,  # IRS confirmed
+        "LIMIT_IRA_CATCH_UP": 1_100,  # Age 50+; IRS confirmed (increased from $1,000)
+        "LIMIT_HSA_INDIVIDUAL": 4_400,  # IRS confirmed
+        "LIMIT_HSA_FAMILY": 8_750,  # IRS confirmed
+        "LIMIT_HSA_CATCH_UP": 1_000,  # Age 55+ (unchanged)
+        "LIMIT_SEP_IRA": 70_000,  # IRS confirmed (same as 415(c) limit)
+        "SEP_IRA_COMPENSATION_CAP": 360_000,  # IRS confirmed
+        "LIMIT_SIMPLE_IRA": 17_000,  # IRS confirmed
+        "LIMIT_SIMPLE_IRA_CATCH_UP": 4_000,  # Age 50+ catch-up; IRS confirmed
+        "LIMIT_529_ANNUAL_GIFT_EXCLUSION": 19_000,  # Unchanged from 2025; IRS confirmed
+        "LIMIT_529_SUPERFUND": 95_000,  # 5 × gift exclusion; unchanged from 2025
+    },
+}
+
+_TAX_DATA: dict[int, dict] = {
+    2024: {
+        "STANDARD_DEDUCTION_SINGLE": 14_600,
+        "STANDARD_DEDUCTION_MARRIED": 29_200,
+        "STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE": 1_950,
+        "STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED": 1_550,
+        "LTCG_BRACKETS_SINGLE": [
+            (47_025, 0.00),
+            (518_900, 0.15),
+            (float("inf"), 0.20),
+        ],
+        "LTCG_BRACKETS_MARRIED": [
+            (94_050, 0.00),
+            (583_750, 0.15),
+            (float("inf"), 0.20),
+        ],
+    },
+    2025: {
+        "STANDARD_DEDUCTION_SINGLE": 15_000,
+        "STANDARD_DEDUCTION_MARRIED": 30_000,
+        "STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE": 2_000,
+        "STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED": 1_600,
+        "LTCG_BRACKETS_SINGLE": [
+            (48_350, 0.00),
+            (533_400, 0.15),
+            (float("inf"), 0.20),
+        ],
+        "LTCG_BRACKETS_MARRIED": [
+            (96_700, 0.00),
+            (600_050, 0.15),
+            (float("inf"), 0.20),
+        ],
+    },
+    2026: {
+        # Source: IRS Rev. Proc. 2025-32 / IRS newsroom (Oct 2025), includes OBBBA amendments
+        "STANDARD_DEDUCTION_SINGLE": 16_100,  # IRS confirmed
+        "STANDARD_DEDUCTION_MARRIED": 32_200,  # IRS confirmed
+        "STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE": 2_100,  # Inflation-adjusted estimate
+        "STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED": 1_700,  # Inflation-adjusted estimate
+        "LTCG_BRACKETS_SINGLE": [
+            (49_450, 0.00),  # 0% up to $49,450; IRS confirmed
+            (545_500, 0.15),  # 15% up to $545,500; IRS confirmed
+            (float("inf"), 0.20),
+        ],
+        "LTCG_BRACKETS_MARRIED": [
+            (98_900, 0.00),  # 0% up to $98,900; IRS confirmed
+            (613_700, 0.15),  # 15% up to $613,700; IRS confirmed
+            (float("inf"), 0.20),
+        ],
+    },
+}
+
+_SS_DATA: dict[int, dict] = {
+    2024: {
+        "TAXABLE_MAX": 168_600,
+        "BEND_POINT_1": 1_174,
+        "BEND_POINT_2": 7_078,
+    },
+    2025: {
+        "TAXABLE_MAX": 176_100,
+        "BEND_POINT_1": 1_226,
+        "BEND_POINT_2": 7_391,
+    },
+    2026: {
+        # Source: SSA.gov COLA announcement (Oct 2025)
+        "TAXABLE_MAX": 184_500,  # SSA confirmed
+        "BEND_POINT_1": 1_286,  # SSA confirmed
+        "BEND_POINT_2": 7_749,  # SSA confirmed
+    },
+}
+
+_MEDICARE_DATA: dict[int, dict] = {
+    2024: {
+        "PART_B_MONTHLY": 174.70,
+        "PART_D_MONTHLY": 34.70,
+        "IRMAA_BRACKETS_SINGLE": [
+            (103_000, 0.00, 0.00),
+            (129_000, 70.90, 12.90),
+            (161_000, 161.40, 33.30),
+            (193_000, 251.90, 53.80),
+            (500_000, 342.30, 74.20),
+            (float("inf"), 395.60, 81.00),
+        ],
+    },
+    2025: {
+        "PART_B_MONTHLY": 185.00,
+        "PART_D_MONTHLY": 36.78,  # Verify with CMS at cms.gov annually
+        "IRMAA_BRACKETS_SINGLE": [
+            (106_000, 0.00, 0.00),
+            (133_000, 74.00, 13.70),
+            (167_000, 185.00, 35.30),
+            (200_000, 295.90, 57.00),
+            (500_000, 406.90, 78.60),
+            (float("inf"), 443.30, 85.80),
+        ],
+    },
+    2026: {
+        # Source: CMS.gov Medicare announcement (Oct 2025)
+        # IRMAA based on 2024 MAGI; Part B surcharges use CMS multiplier model
+        # Multipliers: 1.4×, 2.0×, 2.6×, 3.2×, 3.4× base Part B premium
+        "PART_B_MONTHLY": 202.90,  # CMS confirmed
+        "PART_D_MONTHLY": 40.00,  # Estimated; verify with CMS at cms.gov annually
+        "IRMAA_BRACKETS_SINGLE": [
+            (109_000, 0.00, 0.00),  # Standard — no surcharge; confirmed
+            (137_000, 81.20, 14.50),  # Tier 1 (1.4×); confirmed
+            (172_000, 202.90, 37.40),  # Tier 2 (2.0×); Part D estimated
+            (205_000, 324.60, 60.30),  # Tier 3 (2.6×); Part D estimated
+            (500_000, 446.40, 83.20),  # Tier 4 (3.2×); Part D estimated
+            (float("inf"), 487.00, 91.00),  # Tier 5 (3.4×); confirmed
+        ],
+    },
+}
+
 
 # =========================================================================
 # TAX RATES & BRACKETS
@@ -27,34 +230,28 @@ class TAX:
     """Federal and state tax defaults used across services."""
 
     # Default marginal rates for estimation (not full bracket math)
-    FEDERAL_MARGINAL_RATE = Decimal("0.22")  # 22% — median earner  # ANNUAL
-    STATE_AVERAGE_RATE = Decimal("0.05")  # 5% average state     # ANNUAL
+    FEDERAL_MARGINAL_RATE = Decimal("0.22")  # 22% — median earner
+    STATE_AVERAGE_RATE = Decimal("0.05")  # 5% average state
     COMBINED_RATE = FEDERAL_MARGINAL_RATE + STATE_AVERAGE_RATE
 
-    # Long-term capital gains brackets (2024, single filer)              # ANNUAL
-    LTCG_BRACKETS_SINGLE: List[Tuple[float, float]] = [
-        (47_025, 0.00),  # 0% up to $47,025 taxable income
-        (518_900, 0.15),  # 15% up to $518,900
-        (float("inf"), 0.20),  # 20% above $518,900
-    ]
-    LTCG_BRACKETS_MARRIED: List[Tuple[float, float]] = [
-        (94_050, 0.00),  # 0% up to $94,050
-        (583_750, 0.15),  # 15% up to $583,750
-        (float("inf"), 0.20),
-    ]
+    # ── Inflation-adjusted — auto-selected for current tax year ──
+    _y = _best_year(_TAX_DATA)
+    _d = _TAX_DATA[_y]
+    TAX_YEAR = _y
 
-    # Net Investment Income Tax (Obamacare surtax)
+    STANDARD_DEDUCTION_SINGLE = _d["STANDARD_DEDUCTION_SINGLE"]
+    STANDARD_DEDUCTION_MARRIED = _d["STANDARD_DEDUCTION_MARRIED"]
+    STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE = _d["STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE"]
+    STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED = _d["STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED"]
+    LTCG_BRACKETS_SINGLE: List[Tuple[float, float]] = _d["LTCG_BRACKETS_SINGLE"]
+    LTCG_BRACKETS_MARRIED: List[Tuple[float, float]] = _d["LTCG_BRACKETS_MARRIED"]
+
+    # Net Investment Income Tax (Obamacare surtax) — thresholds not indexed for inflation
     NII_SURTAX_RATE = 0.038  # 3.8% on investment income above MAGI threshold
-    NII_THRESHOLD_SINGLE = 200_000  # ANNUAL
-    NII_THRESHOLD_MARRIED = 250_000  # ANNUAL
+    NII_THRESHOLD_SINGLE = 200_000
+    NII_THRESHOLD_MARRIED = 250_000
 
-    # Standard deductions (2024)                                          # ANNUAL
-    STANDARD_DEDUCTION_SINGLE = 14_600
-    STANDARD_DEDUCTION_MARRIED = 29_200
-    STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE = 1_950  # Additional for 65+
-    STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED = 1_550  # Additional per spouse 65+
-
-    # Social Security benefit taxation thresholds (combined income)
+    # Social Security benefit taxation thresholds — not indexed for inflation
     SS_TAXATION_THRESHOLDS_SINGLE: List[Tuple[float, float]] = [
         (25_000, 0.00),  # 0% of SS taxable below $25k
         (34_000, 0.50),  # Up to 50% taxable between $25k-$34k
@@ -66,6 +263,11 @@ class TAX:
         (float("inf"), 0.85),
     ]
 
+    @classmethod
+    def for_year(cls, year: int) -> dict:
+        """Return inflation-adjusted tax constants for a specific tax year."""
+        return _TAX_DATA[_best_year(_TAX_DATA, year)]
+
 
 # =========================================================================
 # RETIREMENT CONTRIBUTION LIMITS
@@ -75,33 +277,32 @@ class TAX:
 class RETIREMENT:
     """IRS contribution limits and retirement planning defaults."""
 
-    # 401(k) / 403(b) / 457(b) limits (2024)                             # ANNUAL
-    LIMIT_401K = 23_000
-    LIMIT_401K_CATCH_UP = 7_500  # Age 50+ catch-up
-    LIMIT_401K_TOTAL = 69_000  # Total (employee + employer)
+    # ── Inflation-adjusted limits — auto-selected for current tax year ──
+    _y = _best_year(_RETIREMENT_LIMITS)
+    _d = _RETIREMENT_LIMITS[_y]
+    TAX_YEAR = _y
 
-    # IRA limits (2024)                                                   # ANNUAL
-    LIMIT_IRA = 7_000
-    LIMIT_IRA_CATCH_UP = 1_000  # Age 50+ catch-up
+    LIMIT_401K = _d["LIMIT_401K"]
+    LIMIT_401K_CATCH_UP = _d["LIMIT_401K_CATCH_UP"]
+    LIMIT_401K_TOTAL = _d["LIMIT_401K_TOTAL"]
 
-    # HSA limits (2024)                                                   # ANNUAL
-    LIMIT_HSA_INDIVIDUAL = 4_150
-    LIMIT_HSA_FAMILY = 8_300
-    LIMIT_HSA_CATCH_UP = 1_000  # Age 55+ catch-up
+    LIMIT_IRA = _d["LIMIT_IRA"]
+    LIMIT_IRA_CATCH_UP = _d["LIMIT_IRA_CATCH_UP"]
 
-    # SEP IRA (2024)                                                      # ANNUAL
-    LIMIT_SEP_IRA = 69_000
-    SEP_IRA_COMPENSATION_CAP = 345_000
+    LIMIT_HSA_INDIVIDUAL = _d["LIMIT_HSA_INDIVIDUAL"]
+    LIMIT_HSA_FAMILY = _d["LIMIT_HSA_FAMILY"]
+    LIMIT_HSA_CATCH_UP = _d["LIMIT_HSA_CATCH_UP"]
 
-    # SIMPLE IRA (2024)                                                   # ANNUAL
-    LIMIT_SIMPLE_IRA = 16_000
-    LIMIT_SIMPLE_IRA_CATCH_UP = 3_500
+    LIMIT_SEP_IRA = _d["LIMIT_SEP_IRA"]
+    SEP_IRA_COMPENSATION_CAP = _d["SEP_IRA_COMPENSATION_CAP"]
 
-    # 529 Plan
-    LIMIT_529_ANNUAL_GIFT_EXCLUSION = 18_000  # Per beneficiary, per donor  # ANNUAL
-    LIMIT_529_SUPERFUND = 90_000  # 5-year gift tax averaging
+    LIMIT_SIMPLE_IRA = _d["LIMIT_SIMPLE_IRA"]
+    LIMIT_SIMPLE_IRA_CATCH_UP = _d["LIMIT_SIMPLE_IRA_CATCH_UP"]
 
-    # Retirement planning defaults
+    LIMIT_529_ANNUAL_GIFT_EXCLUSION = _d["LIMIT_529_ANNUAL_GIFT_EXCLUSION"]
+    LIMIT_529_SUPERFUND = _d["LIMIT_529_SUPERFUND"]
+
+    # ── Non-inflation-adjusted constants ──
     DEFAULT_RETIREMENT_AGE = 67
     DEFAULT_LIFE_EXPECTANCY = 95
     SPENDING_RATIO_HOUSEHOLD = 0.85  # 85% of pre-retirement income
@@ -109,9 +310,14 @@ class RETIREMENT:
     FALLBACK_SPENDING_HOUSEHOLD = 80_000  # If no income data available
     FALLBACK_SPENDING_SINGLE = 60_000
 
-    # Catch-up contribution eligibility ages (IRS rules)         # ANNUAL (watch SECURE 3.0)
+    # Catch-up contribution eligibility ages (IRS rules — watch SECURE 3.0)
     CATCH_UP_AGE_401K = 50  # Age 50+: 401k / 403b / IRA catch-up eligible
     CATCH_UP_AGE_HSA = 55  # Age 55+: HSA catch-up eligible
+
+    @classmethod
+    def for_year(cls, year: int) -> dict:
+        """Return contribution limits for a specific tax year."""
+        return _RETIREMENT_LIMITS[_best_year(_RETIREMENT_LIMITS, year)]
 
 
 # =========================================================================
@@ -120,19 +326,25 @@ class RETIREMENT:
 
 
 class SS:
-    """Social Security parameters (2024)."""
+    """Social Security parameters."""
 
-    # PIA bend points (monthly AIME amounts)                              # ANNUAL
-    BEND_POINT_1 = 1_174
-    BEND_POINT_2 = 7_078
+    # ── Inflation-adjusted — auto-selected for current tax year ──
+    _y = _best_year(_SS_DATA)
+    _d = _SS_DATA[_y]
+    TAX_YEAR = _y
+
+    TAXABLE_MAX = _d["TAXABLE_MAX"]
+
+    # PIA bend points (monthly AIME amounts)
+    BEND_POINT_1 = _d["BEND_POINT_1"]
+    BEND_POINT_2 = _d["BEND_POINT_2"]
+
+    # ── Non-inflation-adjusted constants ──
 
     # Replacement rates at each PIA segment
     RATE_1 = 0.90  # 90% of AIME up to 1st bend point
     RATE_2 = 0.32  # 32% between bend points
     RATE_3 = 0.15  # 15% above 2nd bend point
-
-    # Taxable earnings maximum                                            # ANNUAL
-    TAXABLE_MAX = 168_600
 
     # Wage growth assumption for AIME estimation
     WAGE_GROWTH = 0.025  # 2.5% per year
@@ -164,6 +376,11 @@ class SS:
     # Age to start surfacing SS planning advice (2 years before earliest claiming)
     PLANNING_START_AGE = 60
 
+    @classmethod
+    def for_year(cls, year: int) -> dict:
+        """Return Social Security parameters for a specific tax year."""
+        return _SS_DATA[_best_year(_SS_DATA, year)]
+
 
 # =========================================================================
 # MEDICARE & IRMAA
@@ -171,29 +388,32 @@ class SS:
 
 
 class MEDICARE:
-    """Medicare costs and IRMAA brackets (2024)."""
+    """Medicare costs and IRMAA brackets."""
 
-    # Base premiums (monthly)                                             # ANNUAL
-    PART_B_MONTHLY = 174.70
-    PART_D_MONTHLY = 34.70
-    MEDIGAP_MONTHLY = 150.00  # Plan G national average
+    # ── Inflation-adjusted — auto-selected for current tax year ──
+    _y = _best_year(_MEDICARE_DATA)
+    _d = _MEDICARE_DATA[_y]
+    TAX_YEAR = _y
 
-    # IRMAA brackets (single filer): (MAGI threshold, Part B surcharge, Part D surcharge)
-    IRMAA_BRACKETS_SINGLE: List[Tuple[float, float, float]] = [  # ANNUAL
-        (103_000, 0.00, 0.00),  # Standard
-        (129_000, 70.90, 12.90),  # Tier 1
-        (161_000, 161.40, 33.30),  # Tier 2
-        (193_000, 251.90, 53.80),  # Tier 3
-        (500_000, 342.30, 74.20),  # Tier 4
-        (float("inf"), 395.60, 81.00),  # Tier 5
-    ]
+    PART_B_MONTHLY = _d["PART_B_MONTHLY"]
+    PART_D_MONTHLY = _d["PART_D_MONTHLY"]
+    IRMAA_BRACKETS_SINGLE: List[Tuple[float, float, float]] = _d["IRMAA_BRACKETS_SINGLE"]
+
+    # Medigap national average — update alongside PART_B when CMS publishes
+    MEDIGAP_MONTHLY = 150.00
+
     # Married thresholds are approximately 2x single (applied via multiplier in code)
 
-    # Medicare eligibility age
+    # ── Non-inflation-adjusted constants ──
     ELIGIBILITY_AGE = 65
 
     # IRMAA uses income from 2 years prior — start planning 2 years before eligibility
-    IRMAA_PLANNING_AGE = 63  # ANNUAL (tied to ELIGIBILITY_AGE)
+    IRMAA_PLANNING_AGE = 63
+
+    @classmethod
+    def for_year(cls, year: int) -> dict:
+        """Return Medicare costs and IRMAA brackets for a specific tax year."""
+        return _MEDICARE_DATA[_best_year(_MEDICARE_DATA, year)]
 
 
 # =========================================================================
@@ -235,7 +455,7 @@ class HEALTHCARE:
 class RMD:
     """RMD rules under SECURE 2.0 Act."""
 
-    # Age when RMDs begin  # ANNUAL (watch for SECURE 3.0)
+    # Age when RMDs begin  (watch for SECURE 3.0)
     TRIGGER_AGE = 73
 
     # Penalty rate for shortfall (reduced from 50% by SECURE 2.0)
@@ -334,7 +554,7 @@ class FIRE:
     DEFAULT_INFLATION_PCT = Decimal("3.00")
     DEFAULT_REAL_RETURN = DEFAULT_EXPECTED_RETURN - DEFAULT_INFLATION  # 4%
     DEFAULT_WITHDRAWAL_RATE_PCT = Decimal("4.00")  # Same as DEFAULT_WITHDRAWAL_RATE
-    DEFAULT_CAPITAL_GAINS_RATE = Decimal("0.15")  # 15% — middle LTCG bracket  # ANNUAL
+    DEFAULT_CAPITAL_GAINS_RATE = Decimal("0.15")  # 15% — middle LTCG bracket
     DEFAULT_CAPITAL_GAINS_RATE_PCT = Decimal("15.00")
 
     # Monte Carlo defaults
@@ -530,7 +750,7 @@ class DEBT:
     MIN_PAYMENT_FLOOR = Decimal("25.00")  # $25 minimum floor
 
     # Fallback interest rate when the account has no rate set
-    DEFAULT_INTEREST_RATE = Decimal("18.0")  # 18% — typical credit card APR  # ANNUAL
+    DEFAULT_INTEREST_RATE = Decimal("18.0")  # 18% — typical credit card APR
 
     # Payoff horizon defaults
     DEFAULT_PAYOFF_MONTHS = 60  # 5-year assumed payoff for unknown loan terms
