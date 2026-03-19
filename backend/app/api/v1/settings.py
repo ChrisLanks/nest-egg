@@ -117,6 +117,9 @@ async def get_user_profile(
         birth_month=current_user.birthdate.month if current_user.birthdate else None,
         birth_year=current_user.birthdate.year if current_user.birthdate else None,
         is_org_admin=current_user.is_org_admin,
+        email_notifications_enabled=current_user.email_notifications_enabled,
+        notification_preferences=current_user.notification_preferences,
+        default_currency=current_user.default_currency,
         dashboard_layout=current_user.dashboard_layout,
     )
 
@@ -215,6 +218,9 @@ async def update_user_profile(
         birth_month=current_user.birthdate.month if current_user.birthdate else None,
         birth_year=current_user.birthdate.year if current_user.birthdate else None,
         is_org_admin=current_user.is_org_admin,
+        email_notifications_enabled=current_user.email_notifications_enabled,
+        notification_preferences=current_user.notification_preferences,
+        default_currency=current_user.default_currency,
         dashboard_layout=current_user.dashboard_layout,
     )
 
