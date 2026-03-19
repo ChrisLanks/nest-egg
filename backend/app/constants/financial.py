@@ -17,9 +17,10 @@ IRS publishes new limits each October/November for the following tax year.
 When that happens, add a new dict entry to the appropriate _*_DATA table
 below — that's the ONLY change needed.
 
-The system automatically selects the closest known year ≤ today, so:
-  • Going from 2026 → 2027 with no update: keeps using 2025 limits.
-  • After you add 2027 data: automatically switches on Jan 1, 2027.
+If no entry exists for the current year, the projection engine automatically
+estimates values by applying per-field COLA rates (see _*_PROJ dicts) from
+the most recent known anchor year.  Hardcoded years always win over projected
+values, so adding an exact entry for a future year overrides any estimate.
 
 YTD resets are handled dynamically in services (date-based), not here.
 ===========================================================================
@@ -35,12 +36,12 @@ from typing import Dict, List, Tuple
 
 
 def _best_year(table: dict, year: int | None = None) -> int:
-    """Return the closest known year ≤ requested year (fallback: latest known).
+    """Return the closest known year ≤ requested year (fallback: earliest known).
 
     Examples:
-        _best_year({2024: ..., 2025: ...}, 2026)  → 2025  (uses latest known)
-        _best_year({2024: ..., 2025: ...}, 2024)  → 2024
-        _best_year({2024: ..., 2025: ...}, 2023)  → 2024  (no older year — use earliest)
+        _best_year({2024: ..., 2026: ...}, 2025)  → 2024
+        _best_year({2024: ..., 2026: ...}, 2026)  → 2026
+        _best_year({2024: ..., 2026: ...}, 2023)  → 2024  (no older — use earliest)
     """
     y = year if year is not None else datetime.date.today().year
     candidates = sorted(table, reverse=True)
@@ -48,6 +49,74 @@ def _best_year(table: dict, year: int | None = None) -> int:
         if k <= y:
             return k
     return candidates[-1]  # all known years are ahead of y — return earliest
+
+
+def _project(base: dict, years: int, rules: dict) -> dict:
+    """Extrapolate `base` forward by `years` using per-field COLA rules.
+
+    rules format — two variants per field:
+      (rate, rnd)            — scalar or bracket-threshold-only scaling
+      [(r0,rnd0),(r1,rnd1)]  — per-position scaling for bracket lists
+
+    rate=0.0 → fixed by law (value unchanged).
+    rnd=0    → float result (no integer rounding).
+    rnd<1    → round to nearest rnd (e.g. 0.10 for cents).
+    rnd≥1    → round to nearest integer multiple of rnd.
+
+    For list-of-tuple fields with a plain (rate, rnd) rule, only position-0
+    (the income/dollar threshold) is scaled; other positions are kept as-is.
+    """
+    if years <= 0:
+        return dict(base)
+
+    def _scale(v: float, rate: float, rnd: float) -> float:
+        if rate == 0.0:
+            return v
+        projected = v * (1 + rate) ** years
+        if not rnd:
+            return round(projected, 2)
+        rounded = round(projected / rnd) * rnd
+        return int(rounded) if rnd >= 1 else round(rounded, 2)
+
+    result = {}
+    for field, value in base.items():
+        rule = rules.get(field)
+        if rule is None:
+            result[field] = value
+        elif isinstance(value, list):
+            new_list = []
+            for item in value:
+                if not isinstance(item, tuple):
+                    new_list.append(item)
+                    continue
+                new_item = []
+                for i, v in enumerate(item):
+                    if v == float("inf"):
+                        new_item.append(v)
+                        continue
+                    # Per-position list rule or default (scale threshold only)
+                    if isinstance(rule, list):
+                        pos_rule = rule[i] if i < len(rule) else (0.0, 0)
+                    else:
+                        pos_rule = rule if i == 0 else (0.0, 0)
+                    new_item.append(_scale(v, pos_rule[0], pos_rule[1]))
+                new_list.append(tuple(new_item))
+            result[field] = new_list
+        else:
+            r, rnd = rule if isinstance(rule, tuple) else (rule, 0)
+            result[field] = _scale(value, r, rnd)
+    return result
+
+
+def _resolve(table: dict, rules: dict, year: int | None = None) -> dict:
+    """Return data for `year`, projecting forward from the closest anchor if needed.
+
+    If `year` is exactly in `table`, returns that entry unchanged.
+    Otherwise, projects forward from the closest known year ≤ `year`.
+    """
+    y = year if year is not None else datetime.date.today().year
+    anchor = _best_year(table, y)
+    return _project(table[anchor], y - anchor, rules)
 
 
 # ===========================================================================
@@ -107,6 +176,25 @@ _RETIREMENT_LIMITS: dict[int, dict] = {
     },
 }
 
+# COLA projection rules for retirement limits.
+# Format: (annual_rate, round_to_nearest) — round_to=0 means float, rate=0.0 means fixed.
+_RETIREMENT_PROJ: dict[str, tuple] = {
+    "LIMIT_401K": (0.025, 500),  # IRS CPI-W indexed, $500 increments
+    "LIMIT_401K_CATCH_UP": (0.025, 500),
+    "LIMIT_401K_TOTAL": (0.025, 1_000),  # Section 415(c) total
+    "LIMIT_IRA": (0.025, 500),
+    "LIMIT_IRA_CATCH_UP": (0.025, 100),
+    "LIMIT_HSA_INDIVIDUAL": (0.030, 50),  # CPI (all items), $50 increments
+    "LIMIT_HSA_FAMILY": (0.030, 50),
+    "LIMIT_HSA_CATCH_UP": (0.00, 0),  # Fixed at $1,000 by statute
+    "LIMIT_SEP_IRA": (0.025, 1_000),
+    "SEP_IRA_COMPENSATION_CAP": (0.025, 5_000),
+    "LIMIT_SIMPLE_IRA": (0.025, 500),
+    "LIMIT_SIMPLE_IRA_CATCH_UP": (0.025, 500),
+    "LIMIT_529_ANNUAL_GIFT_EXCLUSION": (0.025, 1_000),
+    "LIMIT_529_SUPERFUND": (0.025, 5_000),  # Always 5× gift exclusion
+}
+
 _TAX_DATA: dict[int, dict] = {
     2024: {
         "STANDARD_DEDUCTION_SINGLE": 14_600,
@@ -159,6 +247,16 @@ _TAX_DATA: dict[int, dict] = {
     },
 }
 
+# COLA projection rules for tax data.
+_TAX_PROJ: dict[str, tuple] = {
+    "STANDARD_DEDUCTION_SINGLE": (0.025, 50),
+    "STANDARD_DEDUCTION_MARRIED": (0.025, 50),
+    "STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE": (0.025, 50),
+    "STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED": (0.025, 50),
+    "LTCG_BRACKETS_SINGLE": (0.025, 50),  # Scales income thresholds; rates unchanged
+    "LTCG_BRACKETS_MARRIED": (0.025, 50),
+}
+
 _SS_DATA: dict[int, dict] = {
     2024: {
         "TAXABLE_MAX": 168_600,
@@ -176,6 +274,14 @@ _SS_DATA: dict[int, dict] = {
         "BEND_POINT_1": 1_286,  # SSA confirmed
         "BEND_POINT_2": 7_749,  # SSA confirmed
     },
+}
+
+# COLA projection rules for Social Security.
+# AWI (National Average Wage Index) historically ~3.5%/yr.
+_SS_PROJ: dict[str, tuple] = {
+    "TAXABLE_MAX": (0.035, 300),  # AWI-indexed; $300 increments
+    "BEND_POINT_1": (0.035, 1),  # AWI-indexed
+    "BEND_POINT_2": (0.035, 1),  # AWI-indexed
 }
 
 _MEDICARE_DATA: dict[int, dict] = {
@@ -220,6 +326,19 @@ _MEDICARE_DATA: dict[int, dict] = {
     },
 }
 
+# COLA projection rules for Medicare.
+# IRMAA bracket tuples: (income_threshold, part_b_surcharge, part_d_surcharge)
+# Per-position rules: threshold→CPI 3%, Part B surcharge→5%, Part D surcharge→4%
+_MEDICARE_PROJ: dict[str, object] = {
+    "PART_B_MONTHLY": (0.05, 0.10),  # ~5% avg growth; round to nearest $0.10
+    "PART_D_MONTHLY": (0.04, 0.10),
+    "IRMAA_BRACKETS_SINGLE": [
+        (0.030, 1_000),  # income threshold: CPI ~3%, round to $1k
+        (0.050, 0.10),  # Part B surcharge: tracks Part B growth ~5%
+        (0.040, 0.10),  # Part D surcharge: tracks Part D growth ~4%
+    ],
+}
+
 
 # =========================================================================
 # TAX RATES & BRACKETS
@@ -235,9 +354,8 @@ class TAX:
     COMBINED_RATE = FEDERAL_MARGINAL_RATE + STATE_AVERAGE_RATE
 
     # ── Inflation-adjusted — auto-selected for current tax year ──
-    _y = _best_year(_TAX_DATA)
-    _d = _TAX_DATA[_y]
-    TAX_YEAR = _y
+    TAX_YEAR = datetime.date.today().year
+    _d = _resolve(_TAX_DATA, _TAX_PROJ)
 
     STANDARD_DEDUCTION_SINGLE = _d["STANDARD_DEDUCTION_SINGLE"]
     STANDARD_DEDUCTION_MARRIED = _d["STANDARD_DEDUCTION_MARRIED"]
@@ -265,8 +383,8 @@ class TAX:
 
     @classmethod
     def for_year(cls, year: int) -> dict:
-        """Return inflation-adjusted tax constants for a specific tax year."""
-        return _TAX_DATA[_best_year(_TAX_DATA, year)]
+        """Return tax constants for a specific year (projects forward if year not hardcoded)."""
+        return _resolve(_TAX_DATA, _TAX_PROJ, year)
 
 
 # =========================================================================
@@ -278,9 +396,8 @@ class RETIREMENT:
     """IRS contribution limits and retirement planning defaults."""
 
     # ── Inflation-adjusted limits — auto-selected for current tax year ──
-    _y = _best_year(_RETIREMENT_LIMITS)
-    _d = _RETIREMENT_LIMITS[_y]
-    TAX_YEAR = _y
+    TAX_YEAR = datetime.date.today().year
+    _d = _resolve(_RETIREMENT_LIMITS, _RETIREMENT_PROJ)
 
     LIMIT_401K = _d["LIMIT_401K"]
     LIMIT_401K_CATCH_UP = _d["LIMIT_401K_CATCH_UP"]
@@ -316,8 +433,8 @@ class RETIREMENT:
 
     @classmethod
     def for_year(cls, year: int) -> dict:
-        """Return contribution limits for a specific tax year."""
-        return _RETIREMENT_LIMITS[_best_year(_RETIREMENT_LIMITS, year)]
+        """Return contribution limits for `year`; projects forward if year is not hardcoded."""
+        return _resolve(_RETIREMENT_LIMITS, _RETIREMENT_PROJ, year)
 
 
 # =========================================================================
@@ -329,9 +446,8 @@ class SS:
     """Social Security parameters."""
 
     # ── Inflation-adjusted — auto-selected for current tax year ──
-    _y = _best_year(_SS_DATA)
-    _d = _SS_DATA[_y]
-    TAX_YEAR = _y
+    TAX_YEAR = datetime.date.today().year
+    _d = _resolve(_SS_DATA, _SS_PROJ)
 
     TAXABLE_MAX = _d["TAXABLE_MAX"]
 
@@ -378,8 +494,8 @@ class SS:
 
     @classmethod
     def for_year(cls, year: int) -> dict:
-        """Return Social Security parameters for a specific tax year."""
-        return _SS_DATA[_best_year(_SS_DATA, year)]
+        """Return Social Security parameters for `year`; projects forward if not hardcoded."""
+        return _resolve(_SS_DATA, _SS_PROJ, year)
 
 
 # =========================================================================
@@ -391,9 +507,8 @@ class MEDICARE:
     """Medicare costs and IRMAA brackets."""
 
     # ── Inflation-adjusted — auto-selected for current tax year ──
-    _y = _best_year(_MEDICARE_DATA)
-    _d = _MEDICARE_DATA[_y]
-    TAX_YEAR = _y
+    TAX_YEAR = datetime.date.today().year
+    _d = _resolve(_MEDICARE_DATA, _MEDICARE_PROJ)
 
     PART_B_MONTHLY = _d["PART_B_MONTHLY"]
     PART_D_MONTHLY = _d["PART_D_MONTHLY"]
@@ -412,8 +527,8 @@ class MEDICARE:
 
     @classmethod
     def for_year(cls, year: int) -> dict:
-        """Return Medicare costs and IRMAA brackets for a specific tax year."""
-        return _MEDICARE_DATA[_best_year(_MEDICARE_DATA, year)]
+        """Return Medicare costs and IRMAA brackets for `year`; projects if not hardcoded."""
+        return _resolve(_MEDICARE_DATA, _MEDICARE_PROJ, year)
 
 
 # =========================================================================

@@ -4,15 +4,17 @@ Ensures all constants are properly defined, have correct types, and that
 services correctly import from the centralized file.
 """
 
+import datetime
 from decimal import Decimal
 
 import pytest
 
 from app.constants.financial import (
-    _MEDICARE_DATA,
+    _MEDICARE_PROJ,
     _RETIREMENT_LIMITS,
-    _SS_DATA,
+    _RETIREMENT_PROJ,
     _TAX_DATA,
+    _TAX_PROJ,
     EDUCATION,
     FIRE,
     HEALTH,
@@ -24,6 +26,8 @@ from app.constants.financial import (
     SS,
     TAX,
     _best_year,
+    _project,
+    _resolve,
 )
 
 # ── TAX constants ──────────────────────────────────────────────────────────
@@ -302,11 +306,11 @@ class TestYearBasedLookup:
         d = RETIREMENT.for_year(2099)
         assert d["LIMIT_401K"] > 0  # No crash; uses latest known year
 
-    def test_retirement_tax_year_attribute_is_known_year(self):
-        assert RETIREMENT.TAX_YEAR in _RETIREMENT_LIMITS
+    def test_retirement_tax_year_is_current_year(self):
+        assert RETIREMENT.TAX_YEAR == datetime.date.today().year
 
     def test_retirement_class_attrs_match_selected_year(self):
-        d = _RETIREMENT_LIMITS[RETIREMENT.TAX_YEAR]
+        d = RETIREMENT.for_year(RETIREMENT.TAX_YEAR)
         assert RETIREMENT.LIMIT_401K == d["LIMIT_401K"]
         assert RETIREMENT.LIMIT_IRA == d["LIMIT_IRA"]
         assert RETIREMENT.LIMIT_HSA_INDIVIDUAL == d["LIMIT_HSA_INDIVIDUAL"]
@@ -324,7 +328,7 @@ class TestYearBasedLookup:
         assert d["STANDARD_DEDUCTION_MARRIED"] == 30_000
 
     def test_tax_class_attrs_match_selected_year(self):
-        d = _TAX_DATA[TAX.TAX_YEAR]
+        d = TAX.for_year(TAX.TAX_YEAR)
         assert TAX.STANDARD_DEDUCTION_SINGLE == d["STANDARD_DEDUCTION_SINGLE"]
 
     # --- SS ---
@@ -336,7 +340,7 @@ class TestYearBasedLookup:
         assert SS.for_year(2025)["TAXABLE_MAX"] == 176_100
 
     def test_ss_class_attrs_match_selected_year(self):
-        d = _SS_DATA[SS.TAX_YEAR]
+        d = SS.for_year(SS.TAX_YEAR)
         assert SS.TAXABLE_MAX == d["TAXABLE_MAX"]
         assert SS.BEND_POINT_1 == d["BEND_POINT_1"]
         assert SS.BEND_POINT_2 == d["BEND_POINT_2"]
@@ -350,7 +354,7 @@ class TestYearBasedLookup:
         assert MEDICARE.for_year(2025)["PART_B_MONTHLY"] == 185.00
 
     def test_medicare_class_attrs_match_selected_year(self):
-        d = _MEDICARE_DATA[MEDICARE.TAX_YEAR]
+        d = MEDICARE.for_year(MEDICARE.TAX_YEAR)
         assert MEDICARE.PART_B_MONTHLY == d["PART_B_MONTHLY"]
 
     # --- 2026 values (sourced from IRS/SSA/CMS Oct 2025 announcements) ---
@@ -413,3 +417,68 @@ class TestYearBasedLookup:
         # Final tier surcharge confirmed
         assert brackets[5][1] == pytest.approx(487.00)
         assert brackets[5][2] == pytest.approx(91.00)
+
+
+# ── Projection engine ────────────────────────────────────────────────────────
+
+
+class TestProjection:
+    """Verify _project and _resolve produce reasonable forward estimates."""
+
+    def test_project_zero_years_is_identity(self):
+        base = {"LIMIT_401K": 24_500, "LIMIT_IRA": 7_500}
+        assert _project(base, 0, _RETIREMENT_PROJ) == base
+
+    def test_project_scalar_increases_and_rounds(self):
+        # From 2026 401k $24,500 at 2.5%/yr for 1 year → ~$25,112 → rounds to $25,000
+        result = _project({"LIMIT_401K": 24_500}, 1, {"LIMIT_401K": (0.025, 500)})
+        assert result["LIMIT_401K"] % 500 == 0
+        assert result["LIMIT_401K"] > 24_500
+
+    def test_project_fixed_field_unchanged(self):
+        # HSA catch-up is fixed by law — rate=0.0
+        result = _project({"LIMIT_HSA_CATCH_UP": 1_000}, 5, _RETIREMENT_PROJ)
+        assert result["LIMIT_HSA_CATCH_UP"] == 1_000
+
+    def test_project_bracket_threshold_scales(self):
+        base = {"LTCG_BRACKETS_SINGLE": [(49_450, 0.00), (545_500, 0.15), (float("inf"), 0.20)]}
+        result = _project(base, 1, _TAX_PROJ)
+        brackets = result["LTCG_BRACKETS_SINGLE"]
+        # Threshold scaled up; rates unchanged
+        assert brackets[0][0] > 49_450
+        assert brackets[0][1] == 0.00  # 0% rate unchanged
+        assert brackets[1][1] == 0.15  # 15% rate unchanged
+        assert brackets[2][0] == float("inf")  # inf unchanged
+
+    def test_project_irmaa_per_position(self):
+        base = {"IRMAA_BRACKETS_SINGLE": [(109_000, 81.20, 14.50), (float("inf"), 487.00, 91.00)]}
+        result = _project(base, 1, _MEDICARE_PROJ)
+        brackets = result["IRMAA_BRACKETS_SINGLE"]
+        # Income threshold scaled at 3%
+        assert brackets[0][0] > 109_000
+        # Part B surcharge scaled at 5%
+        assert brackets[0][1] > 81.20
+        # Part D surcharge scaled at 4%
+        assert brackets[0][2] > 14.50
+
+    def test_resolve_exact_year_returns_hardcoded(self):
+        # 2026 is hardcoded — resolve should return the exact table value
+        d = _resolve(_RETIREMENT_LIMITS, _RETIREMENT_PROJ, 2026)
+        assert d["LIMIT_401K"] == 24_500  # exact, not projected
+
+    def test_resolve_future_year_projects_from_latest(self):
+        # 2027 is not hardcoded — resolve should project from 2026
+        d2026 = _resolve(_RETIREMENT_LIMITS, _RETIREMENT_PROJ, 2026)
+        d2027 = _resolve(_RETIREMENT_LIMITS, _RETIREMENT_PROJ, 2027)
+        assert d2027["LIMIT_401K"] >= d2026["LIMIT_401K"]  # goes up or stays
+
+    def test_resolve_future_year_brackets_increase(self):
+        d2026 = _resolve(_TAX_DATA, _TAX_PROJ, 2026)
+        d2027 = _resolve(_TAX_DATA, _TAX_PROJ, 2027)
+        assert d2027["STANDARD_DEDUCTION_SINGLE"] >= d2026["STANDARD_DEDUCTION_SINGLE"]
+        assert d2027["LTCG_BRACKETS_SINGLE"][0][0] > d2026["LTCG_BRACKETS_SINGLE"][0][0]
+
+    def test_resolve_past_year_uses_earliest(self):
+        # Years before our earliest anchor fall back to the earliest known year
+        d = _resolve(_RETIREMENT_LIMITS, _RETIREMENT_PROJ, 2020)
+        assert d["LIMIT_401K"] == _RETIREMENT_LIMITS[min(_RETIREMENT_LIMITS)]["LIMIT_401K"]
