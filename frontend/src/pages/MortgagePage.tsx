@@ -24,6 +24,7 @@ import {
   FormLabel,
   Heading,
   HStack,
+  Icon,
   Input,
   InputGroup,
   InputLeftAddon,
@@ -40,16 +41,18 @@ import {
   Text,
   Th,
   Thead,
+  Tooltip,
   Tr,
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { FiInfo } from "react-icons/fi";
 import {
   financialPlanningApi,
   type MortgageAnalysisResponse,
 } from "../api/financialPlanning";
 import { useUserView } from "../contexts/UserViewContext";
+import { useLocalStorage } from "../hooks/useLocalStorage";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -63,6 +66,22 @@ const fmt = (n: number) =>
 
 const fmtPct = (n: number) => `${(n * 100).toFixed(2)}%`;
 
+function InfoTip({ label }: { label: string }) {
+  return (
+    <Tooltip label={label} placement="top" hasArrow maxW="260px">
+      <Box
+        as="span"
+        display="inline-flex"
+        ml={1}
+        verticalAlign="middle"
+        cursor="help"
+      >
+        <Icon as={FiInfo} boxSize={3} color="text.muted" />
+      </Box>
+    </Tooltip>
+  );
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────
 
 function SummaryCards({ data }: { data: MortgageAnalysisResponse }) {
@@ -71,7 +90,10 @@ function SummaryCards({ data }: { data: MortgageAnalysisResponse }) {
       <Card variant="outline">
         <CardBody>
           <Stat>
-            <StatLabel>Remaining Balance</StatLabel>
+            <StatLabel>
+              Remaining Balance
+              <InfoTip label="How much principal you still owe on your mortgage — the amount that interest is calculated on each month." />
+            </StatLabel>
             <StatNumber fontSize="lg">{fmt(data.loan_balance)}</StatNumber>
           </Stat>
         </CardBody>
@@ -79,7 +101,10 @@ function SummaryCards({ data }: { data: MortgageAnalysisResponse }) {
       <Card variant="outline">
         <CardBody>
           <Stat>
-            <StatLabel>Interest Rate</StatLabel>
+            <StatLabel>
+              Interest Rate
+              <InfoTip label="Your annual interest rate. This is what the lender charges each year to borrow the money. Even a small difference (e.g. 0.5%) adds up to tens of thousands of dollars over the life of the loan." />
+            </StatLabel>
             <StatNumber fontSize="lg">{fmtPct(data.interest_rate)}</StatNumber>
           </Stat>
         </CardBody>
@@ -87,7 +112,10 @@ function SummaryCards({ data }: { data: MortgageAnalysisResponse }) {
       <Card variant="outline">
         <CardBody>
           <Stat>
-            <StatLabel>Monthly Payment</StatLabel>
+            <StatLabel>
+              Monthly Payment
+              <InfoTip label="Your required minimum payment each month, covering both interest charged and principal repayment." />
+            </StatLabel>
             <StatNumber fontSize="lg">{fmt(data.monthly_payment)}</StatNumber>
           </Stat>
         </CardBody>
@@ -95,7 +123,10 @@ function SummaryCards({ data }: { data: MortgageAnalysisResponse }) {
       <Card variant="outline">
         <CardBody>
           <Stat>
-            <StatLabel>Payoff Date</StatLabel>
+            <StatLabel>
+              Payoff Date
+              <InfoTip label="The month and year your mortgage will be fully paid off if you make every scheduled payment on time with no extra payments." />
+            </StatLabel>
             <StatNumber fontSize="lg">{data.summary.payoff_date}</StatNumber>
           </Stat>
         </CardBody>
@@ -119,9 +150,12 @@ function RefinanceSection({ data }: { data: MortgageAnalysisResponse }) {
           <Text fontSize="sm">{rf.recommendation}</Text>
           <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} w="full">
             <Box>
-              <Text fontSize="xs" color="text.secondary">
-                Monthly Savings
-              </Text>
+              <HStack spacing={0}>
+                <Text fontSize="xs" color="text.secondary">
+                  Monthly Savings
+                </Text>
+                <InfoTip label="How much less (or more) you'd pay each month with the new rate. Positive = lower payment. Negative = higher payment — only worth it if you need to lower the rate long-term." />
+              </HStack>
               <Text
                 fontWeight="bold"
                 color={savingsPositive ? "green.500" : "red.500"}
@@ -131,9 +165,12 @@ function RefinanceSection({ data }: { data: MortgageAnalysisResponse }) {
               </Text>
             </Box>
             <Box>
-              <Text fontSize="xs" color="text.secondary">
-                Lifetime Interest Savings
-              </Text>
+              <HStack spacing={0}>
+                <Text fontSize="xs" color="text.secondary">
+                  Lifetime Interest Savings
+                </Text>
+                <InfoTip label="Total interest you'd save (or pay extra) over the full life of both loans. This is the real cost comparison — monthly savings can be misleading if the new term is much longer." />
+              </HStack>
               <Text
                 fontWeight="bold"
                 color={
@@ -144,17 +181,23 @@ function RefinanceSection({ data }: { data: MortgageAnalysisResponse }) {
               </Text>
             </Box>
             <Box>
-              <Text fontSize="xs" color="text.secondary">
-                Break-Even
-              </Text>
+              <HStack spacing={0}>
+                <Text fontSize="xs" color="text.secondary">
+                  Break-Even
+                </Text>
+                <InfoTip label="How long you need to stay in the home for the monthly savings to fully offset your closing costs. If you plan to move before this date, refinancing likely isn't worth it." />
+              </HStack>
               <Text fontWeight="bold">
                 {rf.break_even_months} months ({rf.break_even_date})
               </Text>
             </Box>
             <Box>
-              <Text fontSize="xs" color="text.secondary">
-                New Payoff Date
-              </Text>
+              <HStack spacing={0}>
+                <Text fontSize="xs" color="text.secondary">
+                  New Payoff Date
+                </Text>
+                <InfoTip label="When the refinanced loan would be fully paid off. A longer term lowers monthly payments but increases total interest paid." />
+              </HStack>
               <Text fontWeight="bold">{rf.refinanced.payoff_date}</Text>
             </Box>
           </SimpleGrid>
@@ -171,22 +214,31 @@ function ExtraPaymentSection({ data }: { data: MortgageAnalysisResponse }) {
   return (
     <Card variant="outline">
       <CardHeader pb={0}>
-        <Heading size="sm">Extra Payment Impact</Heading>
+        <Heading size="sm">
+          Extra Payment Impact
+          <InfoTip label="Adding even a small amount to your regular payment each month attacks the principal directly. Because your interest is calculated on the remaining balance, less principal = less interest charged next month. This compounds over time." />
+        </Heading>
       </CardHeader>
       <CardBody>
         <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
           <Box>
-            <Text fontSize="xs" color="text.secondary">
-              Months Saved
-            </Text>
+            <HStack spacing={0}>
+              <Text fontSize="xs" color="text.secondary">
+                Months Saved
+              </Text>
+              <InfoTip label="How many fewer monthly payments you'll make. For example, saving 48 months means you pay off your mortgage 4 years early." />
+            </HStack>
             <Text fontWeight="bold" color="green.500">
               {ep.months_saved} months
             </Text>
           </Box>
           <Box>
-            <Text fontSize="xs" color="text.secondary">
-              Interest Saved
-            </Text>
+            <HStack spacing={0}>
+              <Text fontSize="xs" color="text.secondary">
+                Interest Saved
+              </Text>
+              <InfoTip label="Total interest you avoid paying by paying off the loan early. This money stays in your pocket instead of going to the bank." />
+            </HStack>
             <Text fontWeight="bold" color="green.500">
               {fmt(ep.interest_saved)}
             </Text>
@@ -215,7 +267,10 @@ function EquityMilestones({ data }: { data: MortgageAnalysisResponse }) {
   return (
     <Card variant="outline">
       <CardHeader pb={0}>
-        <Heading size="sm">Equity Milestones</Heading>
+        <Heading size="sm">
+          Equity Milestones
+          <InfoTip label="Equity is the portion of your home you actually own — your home's value minus what you owe. At 20% equity you can usually cancel PMI (Private Mortgage Insurance), saving $100–$200/month. At 100% you own your home free and clear." />
+        </Heading>
       </CardHeader>
       <CardBody>
         <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
@@ -246,7 +301,10 @@ function AmortizationPreview({ data }: { data: MortgageAnalysisResponse }) {
     <Card variant="outline">
       <CardHeader pb={0}>
         <HStack justify="space-between">
-          <Heading size="sm">Amortization Schedule</Heading>
+          <HStack spacing={1}>
+            <Heading size="sm">Amortization Schedule</Heading>
+            <InfoTip label="A month-by-month breakdown of every payment. Early in the loan most of your payment goes to interest — not principal. This gradually shifts over time. It's why paying a little extra early has such a big impact." />
+          </HStack>
           <Text fontSize="xs" color="text.secondary">
             First 24 months · Total interest: {fmt(data.summary.total_interest)}
           </Text>
@@ -257,10 +315,22 @@ function AmortizationPreview({ data }: { data: MortgageAnalysisResponse }) {
           <Thead>
             <Tr>
               <Th>Month</Th>
-              <Th isNumeric>Payment</Th>
-              <Th isNumeric>Principal</Th>
-              <Th isNumeric>Interest</Th>
-              <Th isNumeric>Balance</Th>
+              <Th isNumeric>
+                Payment
+                <InfoTip label="Your total monthly payment (principal + interest)." />
+              </Th>
+              <Th isNumeric>
+                Principal
+                <InfoTip label="The portion of your payment that reduces your loan balance." />
+              </Th>
+              <Th isNumeric>
+                Interest
+                <InfoTip label="The portion that goes to the bank as the cost of borrowing. This decreases every month as your balance drops." />
+              </Th>
+              <Th isNumeric>
+                Balance
+                <InfoTip label="How much you still owe after this payment." />
+              </Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -284,10 +354,22 @@ function AmortizationPreview({ data }: { data: MortgageAnalysisResponse }) {
 
 export const MortgagePage = () => {
   const { selectedUserId } = useUserView();
-  const [refinanceRate, setRefinanceRate] = useState("");
-  const [refinanceTerm, setRefinanceTerm] = useState("");
-  const [closingCosts, setClosingCosts] = useState("");
-  const [extraPayment, setExtraPayment] = useState("");
+  const [refinanceRate, setRefinanceRate] = useLocalStorage(
+    "mortgage-refinance-rate",
+    "",
+  );
+  const [refinanceTerm, setRefinanceTerm] = useLocalStorage(
+    "mortgage-refinance-term",
+    "",
+  );
+  const [closingCosts, setClosingCosts] = useLocalStorage(
+    "mortgage-closing-costs",
+    "",
+  );
+  const [extraPayment, setExtraPayment] = useLocalStorage(
+    "mortgage-extra-payment",
+    "",
+  );
 
   const params = {
     user_id: selectedUserId || undefined,
@@ -343,7 +425,8 @@ export const MortgagePage = () => {
         <Box>
           <Heading size="lg">Mortgage Analyzer</Heading>
           <Text color="text.secondary" mt={1}>
-            Analyse your loan, model a refinance, and see equity milestones.
+            Understand your loan, model a refinance, and see what paying a
+            little extra each month really does over time.
           </Text>
         </Box>
 
@@ -353,12 +436,18 @@ export const MortgagePage = () => {
         {/* Scenario inputs */}
         <Card variant="outline" w="full">
           <CardHeader pb={0}>
-            <Heading size="sm">Model a Scenario</Heading>
+            <HStack spacing={1}>
+              <Heading size="sm">Model a Scenario</Heading>
+              <InfoTip label="Fill in any of these fields to run a what-if calculation. Leave them blank to just view your current loan details." />
+            </HStack>
           </CardHeader>
           <CardBody>
             <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4}>
               <FormControl>
-                <FormLabel fontSize="xs">New Rate (%)</FormLabel>
+                <FormLabel fontSize="xs">
+                  New Rate (%)
+                  <InfoTip label="Enter a potential refinance rate to see how it compares to your current rate. For example, if rates have dropped, type your new quoted rate here (e.g. 5.5)." />
+                </FormLabel>
                 <InputGroup size="sm">
                   <InputLeftAddon>%</InputLeftAddon>
                   <Input
@@ -371,7 +460,10 @@ export const MortgagePage = () => {
                 </InputGroup>
               </FormControl>
               <FormControl>
-                <FormLabel fontSize="xs">New Term (months)</FormLabel>
+                <FormLabel fontSize="xs">
+                  New Term (months)
+                  <InfoTip label="How many months the new loan would run. 360 = 30 years, 180 = 15 years. A shorter term means higher payments but much less total interest." />
+                </FormLabel>
                 <NumberInput size="sm" min={12} max={480}>
                   <NumberInputField
                     placeholder="e.g. 360"
@@ -381,7 +473,10 @@ export const MortgagePage = () => {
                 </NumberInput>
               </FormControl>
               <FormControl>
-                <FormLabel fontSize="xs">Closing Costs ($)</FormLabel>
+                <FormLabel fontSize="xs">
+                  Closing Costs ($)
+                  <InfoTip label="Upfront fees to refinance — typically 2–5% of the loan balance (appraisal, title, origination fees). This affects how long until the refinance pays for itself (break-even)." />
+                </FormLabel>
                 <InputGroup size="sm">
                   <InputLeftAddon>$</InputLeftAddon>
                   <Input
@@ -393,7 +488,10 @@ export const MortgagePage = () => {
                 </InputGroup>
               </FormControl>
               <FormControl>
-                <FormLabel fontSize="xs">Extra Monthly Payment ($)</FormLabel>
+                <FormLabel fontSize="xs">
+                  Extra Monthly Payment ($)
+                  <InfoTip label="Any amount you add on top of your required payment goes directly to principal. Even $100/month extra can shave years off your loan and save thousands in interest." />
+                </FormLabel>
                 <InputGroup size="sm">
                   <InputLeftAddon>$</InputLeftAddon>
                   <Input

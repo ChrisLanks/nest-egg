@@ -22,6 +22,7 @@ import {
   FormLabel,
   Heading,
   HStack,
+  Icon,
   Input,
   InputGroup,
   InputLeftAddon,
@@ -37,16 +38,18 @@ import {
   Text,
   Th,
   Thead,
+  Tooltip,
   Tr,
   VStack,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { FiInfo } from "react-icons/fi";
 import {
   financialPlanningApi,
   type TaxProjectionParams,
 } from "../api/financialPlanning";
 import { useUserView } from "../contexts/UserViewContext";
+import { useLocalStorage } from "../hooks/useLocalStorage";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -60,18 +63,47 @@ const fmt = (n: number) =>
 
 const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
 
+function InfoTip({ label }: { label: string }) {
+  return (
+    <Tooltip label={label} placement="top" hasArrow maxW="260px">
+      <Box
+        as="span"
+        display="inline-flex"
+        ml={1}
+        verticalAlign="middle"
+        cursor="help"
+      >
+        <Icon as={FiInfo} boxSize={3} color="text.muted" />
+      </Box>
+    </Tooltip>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────
 
 export const TaxProjectionPage = () => {
   const { selectedUserId } = useUserView();
 
-  const [filingStatus, setFilingStatus] = useState<"single" | "married">(
+  const [filingStatus, setFilingStatus] = useLocalStorage<"single" | "married">(
+    "tax-filing-status",
     "single",
   );
-  const [selfEmploymentIncome, setSelfEmploymentIncome] = useState("");
-  const [capitalGains, setCapitalGains] = useState("");
-  const [additionalDeductions, setAdditionalDeductions] = useState("");
-  const [priorYearTax, setPriorYearTax] = useState("");
+  const [selfEmploymentIncome, setSelfEmploymentIncome] = useLocalStorage(
+    "tax-se-income",
+    "",
+  );
+  const [capitalGains, setCapitalGains] = useLocalStorage(
+    "tax-capital-gains",
+    "",
+  );
+  const [additionalDeductions, setAdditionalDeductions] = useLocalStorage(
+    "tax-additional-deductions",
+    "",
+  );
+  const [priorYearTax, setPriorYearTax] = useLocalStorage(
+    "tax-prior-year-tax",
+    "",
+  );
 
   const params: TaxProjectionParams = {
     user_id: selectedUserId || undefined,
@@ -115,7 +147,10 @@ export const TaxProjectionPage = () => {
           <CardBody>
             <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
               <FormControl>
-                <FormLabel fontSize="xs">Filing Status</FormLabel>
+                <FormLabel fontSize="xs">
+                  Filing Status
+                  <InfoTip label="How you file your federal taxes. 'Married Filing Jointly' combines both spouses' income but also doubles the standard deduction and uses wider tax brackets — usually the most favorable option for couples." />
+                </FormLabel>
                 <Select
                   size="sm"
                   value={filingStatus}
@@ -128,7 +163,10 @@ export const TaxProjectionPage = () => {
                 </Select>
               </FormControl>
               <FormControl>
-                <FormLabel fontSize="xs">Self-Employment Income ($)</FormLabel>
+                <FormLabel fontSize="xs">
+                  Self-Employment Income
+                  <InfoTip label="Money you earn from freelancing, a side business, or as an independent contractor — income where no employer withholds taxes for you. This is taxed at a higher rate because you pay both the employee and employer portions of Social Security and Medicare (15.3% SE tax)." />
+                </FormLabel>
                 <InputGroup size="sm">
                   <InputLeftAddon>$</InputLeftAddon>
                   <Input
@@ -140,7 +178,10 @@ export const TaxProjectionPage = () => {
                 </InputGroup>
               </FormControl>
               <FormControl>
-                <FormLabel fontSize="xs">Estimated Capital Gains ($)</FormLabel>
+                <FormLabel fontSize="xs">
+                  Estimated Capital Gains
+                  <InfoTip label="Profit from selling investments (stocks, funds, real estate) held longer than one year. Long-term capital gains are taxed at lower rates (0%, 15%, or 20%) than regular income." />
+                </FormLabel>
                 <InputGroup size="sm">
                   <InputLeftAddon>$</InputLeftAddon>
                   <Input
@@ -152,7 +193,10 @@ export const TaxProjectionPage = () => {
                 </InputGroup>
               </FormControl>
               <FormControl>
-                <FormLabel fontSize="xs">Additional Deductions ($)</FormLabel>
+                <FormLabel fontSize="xs">
+                  Additional Deductions
+                  <InfoTip label="Extra deductions beyond the standard deduction — for example mortgage interest, charitable donations, or student loan interest. Only enter this if you plan to itemize and your total itemized deductions exceed the standard deduction." />
+                </FormLabel>
                 <InputGroup size="sm">
                   <InputLeftAddon>$</InputLeftAddon>
                   <Input
@@ -165,7 +209,8 @@ export const TaxProjectionPage = () => {
               </FormControl>
               <FormControl>
                 <FormLabel fontSize="xs">
-                  Prior Year Total Tax ($, for safe harbour)
+                  Prior Year Total Tax (for safe harbour)
+                  <InfoTip label="The total federal tax you paid last year (from your prior year Form 1040, line 24). The IRS 'safe harbour' rule says you won't owe a penalty if you pay at least 100% of last year's tax (110% if your income exceeds $150k). Enter this to see if your projected payments are on track." />
                 </FormLabel>
                 <InputGroup size="sm">
                   <InputLeftAddon>$</InputLeftAddon>
@@ -202,7 +247,10 @@ export const TaxProjectionPage = () => {
               <Card variant="outline">
                 <CardBody>
                   <Stat>
-                    <StatLabel>Total Tax</StatLabel>
+                    <StatLabel>
+                      Total Tax
+                      <InfoTip label="Estimated federal income tax for the full year — includes ordinary income tax, self-employment tax, and any long-term capital gains tax. Does not include state taxes." />
+                    </StatLabel>
                     <StatNumber fontSize="lg">
                       {fmt(data.total_tax_before_credits)}
                     </StatNumber>
@@ -212,7 +260,10 @@ export const TaxProjectionPage = () => {
               <Card variant="outline">
                 <CardBody>
                   <Stat>
-                    <StatLabel>Effective Rate</StatLabel>
+                    <StatLabel>
+                      Effective Rate
+                      <InfoTip label="Your average tax rate — total tax divided by total gross income. This is how much of every dollar you earned actually goes to federal taxes. Most people's effective rate is well below their marginal (top bracket) rate." />
+                    </StatLabel>
                     <StatNumber fontSize="lg">
                       {fmtPct(data.effective_rate)}
                     </StatNumber>
@@ -222,7 +273,10 @@ export const TaxProjectionPage = () => {
               <Card variant="outline">
                 <CardBody>
                   <Stat>
-                    <StatLabel>Marginal Rate</StatLabel>
+                    <StatLabel>
+                      Marginal Rate
+                      <InfoTip label="The tax rate on your next dollar of income — the highest bracket you fall into. This is the rate that matters for decisions like whether to take a bonus, do a Roth conversion, or harvest capital gains." />
+                    </StatLabel>
                     <StatNumber fontSize="lg">
                       {fmtPct(data.marginal_rate)}
                     </StatNumber>
@@ -232,7 +286,10 @@ export const TaxProjectionPage = () => {
               <Card variant="outline">
                 <CardBody>
                   <Stat>
-                    <StatLabel>Taxable Income</StatLabel>
+                    <StatLabel>
+                      Taxable Income
+                      <InfoTip label="The portion of your income that is actually subject to tax after deductions. Federal brackets are applied to this number, not your gross income." />
+                    </StatLabel>
                     <StatNumber fontSize="lg">
                       {fmt(data.taxable_income)}
                     </StatNumber>
@@ -271,12 +328,15 @@ export const TaxProjectionPage = () => {
               {/* Income & deductions breakdown */}
               <Card variant="outline">
                 <CardHeader pb={0}>
-                  <Heading size="sm">Income & Deductions</Heading>
+                  <Heading size="sm">Income &amp; Deductions</Heading>
                 </CardHeader>
                 <CardBody>
                   <VStack align="start" spacing={2} fontSize="sm">
                     <HStack justify="space-between" w="full">
-                      <Text color="text.secondary">Ordinary Income</Text>
+                      <Text color="text.secondary">
+                        Ordinary Income
+                        <InfoTip label="Your projected annual W-2 or salaried income, annualized from your year-to-date transactions." />
+                      </Text>
                       <Text fontWeight="semibold">
                         {fmt(data.ordinary_income)}
                       </Text>
@@ -303,14 +363,20 @@ export const TaxProjectionPage = () => {
                     </HStack>
                     <Divider />
                     <HStack justify="space-between" w="full">
-                      <Text color="text.secondary">Standard Deduction</Text>
+                      <Text color="text.secondary">
+                        Standard Deduction
+                        <InfoTip label="A flat dollar amount the IRS lets you subtract from income before calculating taxes — no receipts needed. For 2024 it's $14,600 (single) or $29,200 (married filing jointly). Most people take this instead of itemizing." />
+                      </Text>
                       <Text color="green.600">
                         −{fmt(data.standard_deduction)}
                       </Text>
                     </HStack>
                     {data.se_deduction > 0 && (
                       <HStack justify="space-between" w="full">
-                        <Text color="text.secondary">SE Tax Deduction</Text>
+                        <Text color="text.secondary">
+                          SE Tax Deduction
+                          <InfoTip label="Self-employed people pay the full 15.3% Social Security + Medicare tax, but the IRS lets you deduct half of that (the 'employer' share) from your income before calculating income tax." />
+                        </Text>
                         <Text color="green.600">−{fmt(data.se_deduction)}</Text>
                       </HStack>
                     )}
@@ -335,13 +401,19 @@ export const TaxProjectionPage = () => {
                     </HStack>
                     {data.se_tax > 0 && (
                       <HStack justify="space-between" w="full">
-                        <Text color="text.secondary">SE Tax (15.3%)</Text>
+                        <Text color="text.secondary">
+                          SE Tax (15.3%)
+                          <InfoTip label="Self-employment tax covers Social Security (12.4%) and Medicare (2.9%) — totaling 15.3%. Employees split this with their employer; self-employed individuals pay the full amount." />
+                        </Text>
                         <Text>{fmt(data.se_tax)}</Text>
                       </HStack>
                     )}
                     {data.ltcg_tax > 0 && (
                       <HStack justify="space-between" w="full">
-                        <Text color="text.secondary">LTCG Tax</Text>
+                        <Text color="text.secondary">
+                          LTCG Tax
+                          <InfoTip label="Long-Term Capital Gains tax on investments held over one year. Taxed at preferential rates (0%, 15%, or 20% depending on total income) — much lower than ordinary income tax rates." />
+                        </Text>
                         <Text>{fmt(data.ltcg_tax)}</Text>
                       </HStack>
                     )}
@@ -358,14 +430,20 @@ export const TaxProjectionPage = () => {
               {/* Bracket breakdown */}
               <Card variant="outline">
                 <CardHeader pb={0}>
-                  <Heading size="sm">Bracket Breakdown</Heading>
+                  <Heading size="sm">
+                    Bracket Breakdown
+                    <InfoTip label="The U.S. uses a progressive tax system — you only pay each rate on the income within that bracket, not on your full income. For example, if you're in the 22% bracket, only the income above the 12% bracket cutoff is taxed at 22%." />
+                  </Heading>
                 </CardHeader>
                 <CardBody overflowX="auto">
                   <Table size="sm">
                     <Thead>
                       <Tr>
                         <Th>Rate</Th>
-                        <Th isNumeric>Income in Bracket</Th>
+                        <Th isNumeric>
+                          Income in Bracket
+                          <InfoTip label="The slice of your taxable income that falls within this tax bracket." />
+                        </Th>
                         <Th isNumeric>Tax Owed</Th>
                       </Tr>
                     </Thead>
@@ -408,6 +486,7 @@ export const TaxProjectionPage = () => {
                 <HStack justify="space-between">
                   <Heading size="sm">
                     Quarterly Estimated Payments (Form 1040-ES)
+                    <InfoTip label="If you have income without tax withholding (self-employment, investments, rental income), the IRS requires you to pay taxes in four installments throughout the year. Missing or underpaying these can result in a penalty." />
                   </Heading>
                   <Text fontSize="xs" color="text.secondary">
                     Total: {fmt(data.total_quarterly_due)}
@@ -419,7 +498,10 @@ export const TaxProjectionPage = () => {
                   <Thead>
                     <Tr>
                       <Th>Quarter</Th>
-                      <Th>Due Date</Th>
+                      <Th>
+                        Due Date
+                        <InfoTip label="IRS 1040-ES payment deadlines. Q1 covers Jan–Mar (due April 15), Q2 covers Apr–May (due June 15), Q3 covers Jun–Aug (due Sept 15), Q4 covers Sep–Dec (due Jan 15 of next year)." />
+                      </Th>
                       <Th isNumeric>Amount Due</Th>
                       <Th>Status</Th>
                     </Tr>

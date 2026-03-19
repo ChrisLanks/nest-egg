@@ -564,6 +564,8 @@ the active household view (individual member vs combined). Pages live under
 - **Extra Payment Impact**: Shows months saved and interest avoided by adding a fixed extra principal payment each month
 - **Equity Milestones**: Month and date when equity crosses 20%, 50%, 80%, and 100%
 - **Household Scoping**: Filtered to the selected member when a specific user view is active
+- **Tooltips**: Plain-English explanations on every stat card, form input, result metric, and amortization table column header
+- **Persistent Inputs**: Refinance rate, term, closing costs, and extra payment are remembered across page refreshes via localStorage
 
 ### Social Security Optimizer (`/ss-claiming`)
 
@@ -573,6 +575,9 @@ the active household view (individual member vs combined). Pages live under
 - **PIA Estimation**: Automatic AIME → PIA calculation from salary + career length, or manual override from SSA statement
 - **Spousal Benefit Estimate**: 50% of higher earner's PIA at FRA; shows benefit at 62, FRA, and 70
 - **Per-User**: Runs on the selected member's salary/birth year — each household member can check their own optimal age
+- **Career Start Age**: Free numeric input (any age 14–80) — not a fixed dropdown — to support varied work histories
+- **Tooltips**: Plain-English explanations on all inputs (PIA, FRA, longevity scenarios, break-even) and result columns
+- **Persistent Inputs**: Salary, birth year, career start age, PIA, and spouse PIA remembered across refreshes via localStorage
 
 ### Tax Projection (`/tax-projection`)
 
@@ -584,6 +589,8 @@ the active household view (individual member vs combined). Pages live under
 - **Safe Harbour Check**: Compares projected tax against 100% of prior-year tax; flags if underpayment penalty risk exists
 - **Bracket Breakdown**: Per-bracket income and tax owed shown in a table
 - **Household Scoping**: `user_id=None` aggregates all members' transactions; a specific `user_id` shows only that member's income
+- **Tooltips**: Plain-English explanations on filing status, each income/deduction line, effective vs marginal rate, SE tax, LTCG, safe harbour, bracket table, and quarterly payment schedule
+- **Persistent Inputs**: Filing status, SE income, capital gains, additional deductions, and prior-year tax remembered across refreshes via localStorage
 
 ## Smart Insights
 
