@@ -692,45 +692,149 @@ export const Layout = () => {
 
   // All nav items with default visibility
   const allSpendingItems = [
-    { label: "Transactions", path: "/transactions" },
-    { label: "Budgets", path: "/budgets" },
-    { label: "Recurring", path: "/recurring" },
-    { label: "Bills", path: "/bills" },
-    { label: "Categories", path: "/categories" },
-    { label: "Rules", path: "/rules" },
+    {
+      label: "Transactions",
+      path: "/transactions",
+      tooltip:
+        "Every purchase, payment, and deposit — search and filter your full history",
+    },
+    {
+      label: "Budgets",
+      path: "/budgets",
+      tooltip:
+        "Set monthly or custom spending limits by category and get alerts when you're close",
+    },
+    {
+      label: "Recurring",
+      path: "/recurring",
+      tooltip:
+        "Subscriptions and bills that repeat — see what you're paying automatically each month",
+    },
+    {
+      label: "Bills",
+      path: "/bills",
+      tooltip: "Upcoming bills and due dates so you never miss a payment",
+    },
+    {
+      label: "Categories",
+      path: "/categories",
+      tooltip:
+        "Organize transactions into groups (Groceries, Dining, etc.) to understand your spending",
+    },
+    {
+      label: "Rules",
+      path: "/rules",
+      tooltip:
+        "Auto-categorize transactions — e.g. anything from 'Starbucks' goes to Dining",
+    },
   ];
 
   const allAnalyticsItems = [
-    { label: "Cash Flow", path: "/income-expenses" },
-    { label: "Net Worth Timeline", path: "/net-worth-timeline" },
-    { label: "Trends", path: "/trends" },
-    { label: "Reports", path: "/reports" },
-    { label: "Year in Review", path: "/year-in-review" },
-    { label: "Tax Deductible", path: "/tax-deductible" },
-    { label: "Rental Properties", path: "/rental-properties" },
-    { label: "Investment Health", path: "/investment-health" },
+    {
+      label: "Cash Flow",
+      path: "/income-expenses",
+      tooltip:
+        "Visual breakdown of income vs. spending — see where your money comes from and goes",
+    },
+    {
+      label: "Net Worth Timeline",
+      path: "/net-worth-timeline",
+      tooltip:
+        "Chart of your total assets minus debts over time — the single most important financial number",
+    },
+    {
+      label: "Trends",
+      path: "/trends",
+      tooltip:
+        "Month-over-month spending patterns by category — spot habits and changes over time",
+    },
+    {
+      label: "Reports",
+      path: "/reports",
+      tooltip:
+        "Custom reports: filter by date, account, or category and export to CSV",
+    },
+    {
+      label: "Year in Review",
+      path: "/year-in-review",
+      tooltip:
+        "Annual financial summary — biggest expenses, income milestones, and net worth growth",
+    },
+    {
+      label: "Tax Deductible",
+      path: "/tax-deductible",
+      tooltip:
+        "Transactions flagged as tax-deductible — helpful for filing or working with an accountant",
+    },
+    {
+      label: "Rental Properties",
+      path: "/rental-properties",
+      tooltip:
+        "Track rental income and expenses, and see your net operating income per property",
+    },
+    {
+      label: "Investment Health",
+      path: "/investment-health",
+      tooltip:
+        "Review your portfolio's diversification, fund fees, and tax-loss harvesting opportunities",
+    },
   ];
 
   const allPlanningItems = [
-    { label: "Smart Insights", path: "/smart-insights" },
-    { label: "Goals", path: "/goals" },
-    { label: "Retirement", path: "/retirement" },
-    { label: "Education", path: "/education" },
+    {
+      label: "Smart Insights",
+      path: "/smart-insights",
+      tooltip:
+        "Personalized tips based on your actual data — savings opportunities, fee alerts, and more",
+    },
+    {
+      label: "Goals",
+      path: "/goals",
+      tooltip:
+        "Set savings targets (emergency fund, vacation, down payment) and track your progress",
+    },
+    {
+      label: "Retirement",
+      path: "/retirement",
+      tooltip:
+        "Project whether you'll have enough to retire — Monte Carlo simulations and life event planning",
+    },
+    {
+      label: "Education",
+      path: "/education",
+      tooltip:
+        "529 college savings projections — see if you're on track to cover tuition costs per child",
+    },
     {
       label: "FIRE",
       path: "/fire",
       tooltip:
         "Financial Independence, Retire Early — track how close you are to never needing to work again",
     },
-    { label: "Debt Payoff", path: "/debt-payoff" },
-    { label: "Mortgage", path: "/mortgage" },
+    {
+      label: "Debt Payoff",
+      path: "/debt-payoff",
+      tooltip:
+        "Snowball or avalanche payoff plans — see your debt-free date and total interest saved",
+    },
+    {
+      label: "Mortgage",
+      path: "/mortgage",
+      tooltip:
+        "Analyze your mortgage: amortization schedule, extra payment impact, and break-even on refinancing",
+    },
     {
       label: "SS Optimizer",
       path: "/ss-claiming",
       tooltip:
         "Social Security Optimizer — find the best age to start collecting Social Security benefits",
     },
-    { label: "Tax Projection", path: "/tax-projection" },
+    {
+      label: "Tax Projection",
+      path: "/tax-projection",
+      tooltip:
+        "Estimate your tax bill before April — factor in income, deductions, and capital gains",
+    },
   ];
 
   // Default visibility for conditional items
@@ -744,8 +848,8 @@ export const Layout = () => {
   };
 
   const filterVisible = (
-    items: { label: string; path: string }[],
-  ): { label: string; path: string }[] =>
+    items: { label: string; path: string; tooltip?: string }[],
+  ): { label: string; path: string; tooltip?: string }[] =>
     items.filter((item) =>
       isNavVisible(item.path, conditionalDefaults[item.path] ?? true),
     );
