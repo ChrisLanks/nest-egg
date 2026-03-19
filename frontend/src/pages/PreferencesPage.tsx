@@ -62,8 +62,52 @@ interface ChangePasswordData {
   new_password: string;
 }
 
+type NotificationPrefs = {
+  account_syncs?: boolean;
+  account_activity?: boolean;
+  budget_alerts?: boolean;
+  milestones?: boolean;
+  household?: boolean;
+};
+
+const NOTIFICATION_CATEGORIES: {
+  key: keyof NotificationPrefs;
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: "account_syncs",
+    label: "Account Syncs",
+    description:
+      "Sync failures, re-authentication required, and stale account warnings.",
+  },
+  {
+    key: "account_activity",
+    label: "Account Activity",
+    description:
+      "New accounts connected, large transactions, and duplicate detection.",
+  },
+  {
+    key: "budget_alerts",
+    label: "Budget Alerts",
+    description: "Notifications when you approach or exceed budget thresholds.",
+  },
+  {
+    key: "milestones",
+    label: "Milestones & FIRE",
+    description:
+      "Portfolio milestones, all-time highs, Coast FI, and FI achievement.",
+  },
+  {
+    key: "household",
+    label: "Household",
+    description: "Members joining or leaving, and retirement scenario updates.",
+  },
+];
+
 function EmailNotificationsSection() {
   const toast = useToast();
+  const queryClient = useQueryClient();
 
   // Check if email is configured on the server
   const { data: emailConfig } = useQuery({
@@ -74,17 +118,23 @@ function EmailNotificationsSection() {
     },
   });
 
-  // Fetch current preference
-  const { data: emailPref, isLoading } = useQuery({
-    queryKey: ["emailNotificationsPref"],
+  // Fetch current profile (includes email_notifications_enabled + notification_preferences)
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ["notificationPrefsProfile"],
     queryFn: async () => {
       const response = await api.get("/settings/profile");
-      return response.data.email_notifications_enabled as boolean;
+      return response.data as {
+        email_notifications_enabled: boolean;
+        notification_preferences: NotificationPrefs | null;
+      };
     },
-    enabled: emailConfig?.configured === true,
   });
 
-  const toggleMutation = useMutation({
+  const emailPref = profile?.email_notifications_enabled ?? true;
+  const categoryPrefs: NotificationPrefs =
+    profile?.notification_preferences ?? {};
+
+  const emailToggleMutation = useMutation({
     mutationFn: async (enabled: boolean) => {
       const response = await api.patch("/settings/email-notifications", null, {
         params: { enabled },
@@ -92,6 +142,7 @@ function EmailNotificationsSection() {
       return response.data;
     },
     onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["notificationPrefsProfile"] });
       toast({
         title: data.email_notifications_enabled
           ? "Email notifications enabled"
@@ -109,8 +160,25 @@ function EmailNotificationsSection() {
     },
   });
 
-  // Don't render section if SMTP is not configured
-  if (!emailConfig?.configured) return null;
+  const categoryMutation = useMutation({
+    mutationFn: async (update: Partial<NotificationPrefs>) => {
+      const response = await api.patch(
+        "/settings/notification-preferences",
+        update,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notificationPrefsProfile"] });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to save preference",
+        status: "error",
+        duration: 3000,
+      });
+    },
+  });
 
   return (
     <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
@@ -118,23 +186,66 @@ function EmailNotificationsSection() {
         Notifications
       </Heading>
       <Text color="text.secondary" fontSize="sm" mb={4}>
-        Control how you receive notifications.
+        Control which notifications you see and how you receive them.
       </Text>
-      <FormControl>
-        <HStack justify="space-between">
-          <FormLabel mb={0}>Email Notifications</FormLabel>
-          <Switch
-            isChecked={emailPref ?? true}
-            isDisabled={isLoading || toggleMutation.isPending}
-            onChange={(e) => toggleMutation.mutate(e.target.checked)}
-            colorScheme="brand"
-          />
-        </HStack>
-        <FormHelperText>
-          Receive email alerts for budget thresholds, account sync issues, and
-          other important events.
-        </FormHelperText>
-      </FormControl>
+
+      <VStack spacing={4} align="stretch">
+        {/* Global email toggle — only shown when SMTP is configured */}
+        {emailConfig?.configured && (
+          <FormControl>
+            <HStack justify="space-between">
+              <Box>
+                <FormLabel mb={0}>Email Notifications</FormLabel>
+                <FormHelperText mt={0}>
+                  Receive email alerts for important events.
+                </FormHelperText>
+              </Box>
+              <Switch
+                isChecked={emailPref}
+                isDisabled={isLoading || emailToggleMutation.isPending}
+                onChange={(e) => emailToggleMutation.mutate(e.target.checked)}
+                colorScheme="brand"
+              />
+            </HStack>
+          </FormControl>
+        )}
+
+        {/* Per-category in-app toggles */}
+        <Box>
+          <Text fontWeight="medium" fontSize="sm" mb={3}>
+            Notification categories
+          </Text>
+          <VStack spacing={3} align="stretch">
+            {NOTIFICATION_CATEGORIES.map(({ key, label, description }) => {
+              const enabled = categoryPrefs[key] !== false; // default true if missing
+              return (
+                <FormControl key={key}>
+                  <HStack justify="space-between" align="start">
+                    <Box flex={1}>
+                      <FormLabel mb={0} fontSize="sm">
+                        {label}
+                      </FormLabel>
+                      <FormHelperText mt={0} fontSize="xs">
+                        {description}
+                      </FormHelperText>
+                    </Box>
+                    <Switch
+                      isChecked={enabled}
+                      isDisabled={isLoading || categoryMutation.isPending}
+                      onChange={(e) =>
+                        categoryMutation.mutate({ [key]: e.target.checked })
+                      }
+                      colorScheme="brand"
+                      size="sm"
+                      mt={1}
+                    />
+                  </HStack>
+                </FormControl>
+              );
+            })}
+          </VStack>
+        </Box>
+      </VStack>
     </Box>
   );
 }

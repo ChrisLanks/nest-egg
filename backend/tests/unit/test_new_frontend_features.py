@@ -31,6 +31,7 @@ def _make_user(**overrides):
         "default_currency": "USD",
         "email_verified": True,
         "email_notifications_enabled": True,
+        "notification_preferences": None,
         "birth_day": None,
         "birth_month": None,
         "birth_year": None,

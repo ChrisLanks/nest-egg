@@ -132,6 +132,10 @@ class User(Base):
     # Customizable dashboard layout — list of {id, span} objects; NULL = default layout
     dashboard_layout = Column(JSON, nullable=True)
 
+    # Per-category notification preferences — {category: bool}; missing key = enabled
+    # Categories: account_syncs, account_activity, budget_alerts, milestones, household
+    notification_preferences = Column(JSON, nullable=True, default=dict)
+
     last_login_at = Column(DateTime)
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)

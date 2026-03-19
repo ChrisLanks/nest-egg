@@ -38,6 +38,9 @@ import {
   FiList,
   FiTrendingUp,
   FiCalendar,
+  FiBell,
+  FiSettings,
+  FiShield,
 } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
@@ -72,6 +75,16 @@ const HOUSEHOLD_BENEFITS = [
     icon: FiTrendingUp,
     title: "Joint retirement scenarios",
     desc: "Run Monte Carlo simulations that account for both incomes and goals",
+  },
+  {
+    icon: FiShield,
+    title: "Granular permissions",
+    desc: "Control exactly what each member can see and do — grant or restrict access per feature",
+  },
+  {
+    icon: FiUsers,
+    title: "Up to 5 members",
+    desc: "Add partners, adult children, or anyone else who shares your financial life",
   },
 ];
 
@@ -115,6 +128,16 @@ const FEATURE_LIST = [
     icon: FiCalendar,
     title: "Financial Calendar",
     desc: "Recurring bills, expected transactions, and cash flow forecasting",
+  },
+  {
+    icon: FiBell,
+    title: "Smart Notifications",
+    desc: "Per-category alerts for budgets, milestones, account syncs, and household events — tune what you see in Preferences",
+  },
+  {
+    icon: FiSettings,
+    title: "Customizable Preferences",
+    desc: "Control notification categories, email delivery, sidebar layout, currency, and appearance",
   },
 ];
 
@@ -297,8 +320,9 @@ export default function WelcomePage() {
                   Connect a Bank Account
                 </Button>
                 <Text fontSize="xs" color="text.muted" textAlign="center">
-                  We support 11,000+ institutions via Plaid, Teller, and MX.
-                  Your credentials are never stored on our servers.
+                  We support 11,000+ institutions via Plaid, Teller, and MX. The
+                  app auto-selects the best configured provider for you. Your
+                  credentials are never stored on our servers.
                 </Text>
               </VStack>
             )}
@@ -315,11 +339,11 @@ export default function WelcomePage() {
         {step === 2 && (
           <VStack spacing={6} align="stretch">
             <VStack spacing={2}>
-              <Heading size="lg">Invite Your Partner</Heading>
+              <Heading size="lg">Build Your Household</Heading>
               <Text color="text.secondary" textAlign="center">
-                Nest Egg is built for couples and families who manage money
-                together. Inviting your partner unlocks the full power of
-                household planning:
+                Nest Egg is built for couples and families managing money
+                together. Add up to 5 members — partners, adult children, or
+                anyone who shares your financial life:
               </Text>
             </VStack>
             <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3}>
@@ -381,9 +405,9 @@ export default function WelcomePage() {
                   </Button>
                 </HStack>
                 <Text fontSize="xs" color="text.muted" mt={2}>
-                  Each person keeps their own login. By default, members can
-                  view each other's data — you control permissions from
-                  Settings.
+                  Each person keeps their own login. You control what they can
+                  view and edit from Household Settings → Permissions. You can
+                  invite more members anytime.
                 </Text>
               </FormControl>
             )}

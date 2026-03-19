@@ -11,6 +11,7 @@ Detailed feature documentation for Nest Egg. For a quick overview, see the [READ
   - **CSV Import**: Manual upload for unsupported banks or historical data
   - **Investment Data**: Yahoo Finance (free, unlimited), Finnhub (60/min free), or Alpha Vantage (25/day free)
   - All providers can be active at the same time; the deduplication layer prevents double-counting
+  - **Auto-Provider Selection**: When adding an account, the app automatically selects the best configured provider (Plaid → Teller → MX priority); a toggle in the Add Account dialog lets users override and choose manually. Selection persists in browser storage. Falls back to manual entry when no provider is configured.
 - **Smart Deduplication**: Multi-layer duplicate detection ensures no double-counting
   - Provider transaction IDs (Teller)
   - Content-based hashing (date + amount + merchant + account)
@@ -115,13 +116,21 @@ Per-user control over which tabs and sub-tabs appear in the navigation:
 - **Notification Types**:
   - Budget alerts (exceeding thresholds)
   - Large transaction warnings
-  - Account sync status
-  - Low balance warnings
+  - Account sync status (failures, re-auth required, stale accounts)
+  - Account activity (new connections, duplicate detection)
+  - Milestone events (net worth all-time highs, FIRE milestones)
+  - Household events (member joins/leaves, retirement scenario updates)
   - Cash flow forecast alerts (projected negative balances)
 - **Notification Bell**: Unread count badge in top navigation
 - **Mark as Read**: Individual or bulk "mark all read" functionality
 - **Action Links**: Click notification to jump to relevant page
 - **Email Delivery**: Automatic email notifications when SMTP is configured (per-user opt-in/out toggle in Preferences)
+- **Per-Category Preferences** (Preferences → Notifications): Fine-grained control over which notification categories appear in-app and trigger email delivery:
+  - *Account Syncs*: sync failures, re-auth prompts, stale account warnings
+  - *Account Activity*: new connections, large transactions, duplicate detection
+  - *Budget Alerts*: threshold breach notifications
+  - *Milestones & FIRE*: portfolio highs, Coast FI reached, FI achieved
+  - *Household*: member changes, retirement scenario staleness
 
 ## Background Automation (Celery)
 

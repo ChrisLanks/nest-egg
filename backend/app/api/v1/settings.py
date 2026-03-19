@@ -51,10 +51,23 @@ class UserProfileResponse(BaseModel):
     birth_year: Optional[int] = None
     is_org_admin: bool
     email_notifications_enabled: bool = True
+    notification_preferences: Optional[dict] = None
     default_currency: Optional[str] = None
     dashboard_layout: Optional[List[Any]] = None
 
     model_config = {"from_attributes": True}
+
+
+class NotificationPreferencesUpdate(BaseModel):
+    """Update per-category notification preferences."""
+
+    # Each key corresponds to a notification category; True = enabled, False = muted.
+    # Omitting a key leaves that category unchanged.
+    account_syncs: Optional[bool] = None
+    account_activity: Optional[bool] = None
+    budget_alerts: Optional[bool] = None
+    milestones: Optional[bool] = None
+    household: Optional[bool] = None
 
 
 class DashboardLayoutUpdate(BaseModel):
@@ -749,6 +762,21 @@ async def update_email_notifications(
     current_user.email_notifications_enabled = enabled
     await db.commit()
     return {"email_notifications_enabled": enabled}
+
+
+@router.patch("/notification-preferences")
+async def update_notification_preferences(
+    body: NotificationPreferencesUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update per-category notification preferences for current user."""
+    prefs: dict = dict(current_user.notification_preferences or {})
+    updates = body.model_dump(exclude_none=True)
+    prefs.update(updates)
+    current_user.notification_preferences = prefs
+    await db.commit()
+    return {"notification_preferences": prefs}
 
 
 @router.get("/email-configured")

@@ -5,15 +5,56 @@ from datetime import timedelta
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_, or_, case, update, func
+from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.notification import Notification, NotificationType, NotificationPriority
+from app.models.notification import Notification, NotificationPriority, NotificationType
 from app.models.user import User
 from app.services.email_service import email_service
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
+
+# Maps preference category keys to the NotificationType values they cover.
+# Missing category key in user prefs → all types in that category are shown.
+NOTIFICATION_CATEGORY_TYPES: dict[str, list[str]] = {
+    "account_syncs": [
+        NotificationType.SYNC_FAILED,
+        NotificationType.REAUTH_REQUIRED,
+        NotificationType.SYNC_STALE,
+        NotificationType.ACCOUNT_ERROR,
+    ],
+    "account_activity": [
+        NotificationType.ACCOUNT_CONNECTED,
+        NotificationType.LARGE_TRANSACTION,
+        NotificationType.TRANSACTION_DUPLICATE,
+    ],
+    "budget_alerts": [
+        NotificationType.BUDGET_ALERT,
+    ],
+    "milestones": [
+        NotificationType.MILESTONE,
+        NotificationType.ALL_TIME_HIGH,
+        NotificationType.FIRE_COAST_FI,
+        NotificationType.FIRE_INDEPENDENT,
+    ],
+    "household": [
+        NotificationType.HOUSEHOLD_MEMBER_JOINED,
+        NotificationType.HOUSEHOLD_MEMBER_LEFT,
+        NotificationType.RETIREMENT_SCENARIO_STALE,
+    ],
+}
+
+
+def _muted_types_for_user(prefs: dict | None) -> list[str]:
+    """Return the list of NotificationType values the user has muted."""
+    if not prefs:
+        return []
+    muted = []
+    for category, types in NOTIFICATION_CATEGORY_TYPES.items():
+        if prefs.get(category) is False:
+            muted.extend(types)
+    return muted
 
 
 class NotificationService:
@@ -128,6 +169,11 @@ class NotificationService:
 
         if not include_read:
             query = query.where(Notification.is_read.is_(False))
+
+        # Exclude notification types the user has muted in their preferences
+        muted = _muted_types_for_user(user.notification_preferences)
+        if muted:
+            query = query.where(Notification.type.notin_(muted))
 
         priority_order = case(
             (Notification.priority == NotificationPriority.URGENT, 0),
@@ -263,7 +309,10 @@ class NotificationService:
         if needs_reauth:
             type = NotificationType.REAUTH_REQUIRED
             title = f"Reconnect {account_name}"
-            message = f"Your connection to {account_name} has expired. Please reconnect to continue syncing."
+            message = (
+                f"Your connection to {account_name} has expired. "
+                "Please reconnect to continue syncing."
+            )
             action_label = "Reconnect Account"
             priority = NotificationPriority.HIGH
         else:
