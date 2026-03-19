@@ -181,6 +181,11 @@ describe("getResourceTypeForPath", () => {
     expect(getResourceTypeForPath("/fire")).toBe("fire_plan");
     expect(getResourceTypeForPath("/calendar")).toBe("recurring_transaction");
     expect(getResourceTypeForPath("/retirement")).toBe("retirement_scenario");
+    expect(getResourceTypeForPath("/mortgage")).toBe("report");
+    expect(getResourceTypeForPath("/ss-claiming")).toBe("report");
+    expect(getResourceTypeForPath("/tax-projection")).toBe("report");
+    expect(getResourceTypeForPath("/smart-insights")).toBe("report");
+    expect(getResourceTypeForPath("/investment-health")).toBe("report");
   });
 
   it("resolves dynamic sub-routes via prefix matching", () => {

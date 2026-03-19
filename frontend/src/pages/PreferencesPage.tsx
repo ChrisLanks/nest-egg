@@ -302,7 +302,7 @@ const NAV_SECTIONS = [
       { label: "FIRE", path: "/fire" },
       { label: "Debt Payoff", path: "/debt-payoff", conditional: true },
       { label: "Mortgage", path: "/mortgage", conditional: true },
-      { label: "SS Optimizer", path: "/ss-claiming" },
+      { label: "SS Optimizer", path: "/ss-claiming", conditional: true },
       { label: "Tax Projection", path: "/tax-projection" },
     ],
   },

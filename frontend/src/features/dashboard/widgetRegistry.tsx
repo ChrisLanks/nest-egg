@@ -36,6 +36,10 @@ import { QuarterlyPerformanceWidget } from "./widgets/QuarterlyPerformanceWidget
 import { LabelInsightsWidget } from "./widgets/LabelInsightsWidget";
 import { HealthcareCostWidget } from "./widgets/HealthcareCostWidget";
 import { MoneyFlowWidget } from "./widgets/MoneyFlowWidget";
+import { SavingsRateWidget } from "./widgets/SavingsRateWidget";
+import { DebtCostWidget } from "./widgets/DebtCostWidget";
+import { BillPriceAlertsWidget } from "./widgets/BillPriceAlertsWidget";
+import { MortgageRateWidget } from "./widgets/MortgageRateWidget";
 import type { LayoutItem, WidgetDefinition } from "./types";
 
 export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
@@ -296,6 +300,38 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
       "Sankey diagram showing how income flows through your household into expense categories and savings.",
     defaultSpan: 2,
     component: MoneyFlowWidget,
+  },
+  "savings-rate": {
+    id: "savings-rate",
+    title: "Savings Rate",
+    description:
+      "Monthly savings rate trend with trailing 3-month and 12-month weighted averages.",
+    defaultSpan: 1,
+    component: SavingsRateWidget,
+  },
+  "debt-cost": {
+    id: "debt-cost",
+    title: "Debt Interest Cost",
+    description:
+      "True monthly and annual interest cost across all debt accounts, plus weighted average rate.",
+    defaultSpan: 1,
+    component: DebtCostWidget,
+  },
+  "bill-price-alerts": {
+    id: "bill-price-alerts",
+    title: "Bill Price Alerts",
+    description:
+      "Subscriptions and recurring bills where the charge has increased more than 5% vs. a year ago.",
+    defaultSpan: 1,
+    component: BillPriceAlertsWidget,
+  },
+  "mortgage-rates": {
+    id: "mortgage-rates",
+    title: "Mortgage Rates",
+    description:
+      "Current 30-yr and 15-yr fixed rates from FRED, compared against your linked mortgage rate.",
+    defaultSpan: 1,
+    component: MortgageRateWidget,
   },
 };
 

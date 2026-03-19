@@ -578,6 +578,42 @@ the active household view (individual member vs combined). Pages live under
 - **Career Start Age**: Free numeric input (any age 14–80) — not a fixed dropdown — to support varied work histories
 - **Tooltips**: Plain-English explanations on all inputs (PIA, FRA, longevity scenarios, break-even) and result columns
 - **Persistent Inputs**: Salary, birth year, career start age, PIA, and spouse PIA remembered across refreshes via localStorage
+- **Age-Gating**: Hidden by default for users under 50 (derived from birthdate in profile). Users can override under **Preferences → Navigation Visibility**. When birthdate is not set, the page is shown to avoid accidentally hiding it.
+
+### Savings Rate Tracker (`GET /api/v1/financial-planning/savings-rate`)
+
+- **Monthly Trend**: Up to 12 months of income vs. expense breakdown with per-month savings rate
+- **Trailing Averages**: Income-weighted trailing 3-month and 12-month savings rates
+- **Best / Worst Month**: Identifies which calendar month had the highest and lowest savings rate
+- **Household Scoping**: Optional `user_id` parameter scopes results to one member's accounts; omit for combined household view
+- **Dashboard Widget**: `savings-rate` widget (span 1) shows current month rate, 12-month average, and a mini bar chart of the last 6 months with color-coded bars (green ≥20%, yellow ≥10%, red <10%)
+- **Links to**: `/income-expenses` for the full cash flow view
+
+### True Monthly Debt Cost (`GET /api/v1/financial-planning/debt-cost`)
+
+- **Per-Account Breakdown**: Monthly interest cost for every active credit card, loan, student loan, and mortgage account
+- **Totals**: Combined monthly interest, annual interest, and weighted average interest rate across all debt
+- **Formula**: `|balance| × (annual_rate / 12)` per account — uses the interest rate stored on the account
+- **Household Scoping**: Optional `user_id` scoping; combined view when omitted
+- **Dashboard Widget**: `debt-cost` widget (span 1) shows monthly interest cost, annual total, weighted average rate, and a per-account breakdown of the top 5 highest-cost accounts. Hidden when total debt is zero.
+- **Links to**: `/debt-payoff` for payoff planning
+
+### Mortgage Rate Watch (`GET /api/v1/financial-planning/mortgage-rates`)
+
+- **Live Market Rates**: Fetches current 30-yr and 15-yr fixed rates from the FRED public API (Federal Reserve / Freddie Mac) — no API key required, updated weekly
+- **Your Rate Comparison**: Compares market rates against the interest rate on the user's linked mortgage account
+- **Status Badge**: Color-coded alert — "Above market — consider refinancing" (red), "Below market — you have a great rate" (green), or "At market rate" (gray). Threshold: ±0.5 percentage points
+- **Graceful Fallback**: Returns `null` rates when FRED is unreachable; widget shows "temporarily unavailable"
+- **Household Scoping**: `user_id` parameter scopes the mortgage account lookup
+- **Dashboard Widget**: `mortgage-rates` widget (span 1) shows 30-yr rate, 15-yr rate, your rate, and the comparison badge. Cached 1 hour (rates are weekly). Links to `/mortgage`.
+
+### Bill Price Alerts (`GET /api/v1/recurring/price-increases`)
+
+- **Automatic Detection**: Returns all active recurring transactions where the charge has increased >5% vs approximately 12 months ago
+- **Per-Merchant Detail**: Shows previous and current average charge amounts and percentage change
+- **Annual Impact**: Projects the extra annual cost from all detected price increases combined
+- **Household Scoping**: Optional `user_id` parameter; combined view when omitted
+- **Dashboard Widget**: `bill-price-alerts` widget (span 1) shows a count badge, total extra annual cost, and a list of affected merchants with old→new amounts. Shows a checkmark when no increases are detected. Links to `/recurring`.
 
 ### Tax Projection (`/tax-projection`)
 

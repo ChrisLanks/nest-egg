@@ -445,3 +445,128 @@ async def get_tax_projection(
         ],
         summary=result.summary,
     )
+
+
+# ── Savings Rate ────────────────────────────────────────────────────────────
+
+
+class SavingsRateResponse(BaseModel):
+    current_month_rate: Optional[float]
+    trailing_3m_rate: Optional[float]
+    trailing_12m_rate: Optional[float]
+    monthly_trend: list
+    avg_monthly_savings: float
+    best_month: Optional[str]
+    worst_month: Optional[str]
+
+
+@router.get("/savings-rate", response_model=SavingsRateResponse)
+async def get_savings_rate(
+    user_id: Optional[UUID] = Query(
+        None,
+        description="Filter to a specific household member. Omit for combined view.",
+    ),
+    months: int = Query(12, ge=3, le=24),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SavingsRateResponse:
+    """Monthly savings rate trend for the last N calendar months."""
+    if user_id:
+        await verify_household_member(user_id, current_user, db)
+    from app.services.savings_rate_service import SavingsRateService
+
+    summary = await SavingsRateService.get_savings_trend(
+        db=db,
+        organization_id=current_user.organization_id,
+        user_id=user_id,
+        months=months,
+    )
+    return SavingsRateResponse(**summary.model_dump())
+
+
+# ── Debt Cost ───────────────────────────────────────────────────────────────
+
+
+class DebtCostResponse(BaseModel):
+    total_debt: float
+    total_monthly_interest: float
+    total_annual_interest: float
+    accounts: list
+    weighted_avg_rate: Optional[float]
+
+
+@router.get("/debt-cost", response_model=DebtCostResponse)
+async def get_debt_cost(
+    user_id: Optional[UUID] = Query(
+        None,
+        description="Filter to a specific household member. Omit for combined view.",
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DebtCostResponse:
+    """True monthly and annual interest cost breakdown across all debt accounts."""
+    if user_id:
+        await verify_household_member(user_id, current_user, db)
+    from app.services.debt_cost_service import DebtCostService
+
+    summary = await DebtCostService.get_debt_cost(
+        db=db,
+        organization_id=current_user.organization_id,
+        user_id=user_id,
+    )
+    return DebtCostResponse(**summary.model_dump())
+
+
+# ── Mortgage Rate Watch ─────────────────────────────────────────────────────
+
+
+class MortgageRateResponse(BaseModel):
+    rate_30yr: Optional[float]
+    rate_15yr: Optional[float]
+    as_of_date: Optional[str]
+    source: str
+    your_rate: Optional[float]
+    rate_comparison: Optional[str]  # "above_market" | "below_market" | "at_market" | None
+
+
+@router.get("/mortgage-rates", response_model=MortgageRateResponse)
+async def get_mortgage_rates(
+    user_id: Optional[UUID] = Query(
+        None,
+        description="Filter to a specific household member for 'your rate' comparison.",
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MortgageRateResponse:
+    """
+    Current 30-yr and 15-yr fixed mortgage rates from FRED, plus a
+    comparison against the user's linked mortgage account rate.
+    """
+    if user_id:
+        await verify_household_member(user_id, current_user, db)
+    from app.services.mortgage_rate_service import get_current_mortgage_rates
+
+    rates = await get_current_mortgage_rates()
+
+    # Fetch the user's mortgage rate for comparison
+    acct = await _get_mortgage_account(db, current_user.organization_id, user_id, None)
+    your_rate = float(acct.interest_rate) if acct and acct.interest_rate else None
+
+    rate_comparison: Optional[str] = None
+    if your_rate is not None and rates.rate_30yr is not None:
+        diff = your_rate - rates.rate_30yr
+        if diff > 0.005:  # >0.5% above market
+            rate_comparison = "above_market"
+        elif diff < -0.005:
+            rate_comparison = "below_market"
+        else:
+            rate_comparison = "at_market"
+
+    return MortgageRateResponse(
+        rate_30yr=rates.rate_30yr,
+        rate_15yr=rates.rate_15yr,
+        as_of_date=rates.as_of_date,
+        source=rates.source,
+        your_rate=your_rate,
+        rate_comparison=rate_comparison,
+    )

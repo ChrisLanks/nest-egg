@@ -345,3 +345,57 @@ async def get_upcoming_bills(
         user_id=user_id,
     )
     return bills
+
+
+# ── Bill Price Increases ────────────────────────────────────────────────────
+
+
+class PriceIncreaseItem(BaseModel):
+    id: str
+    merchant_name: str
+    frequency: str
+    current_amount: float
+    previous_amount: Optional[float]
+    amount_change_pct: float
+    annual_increase: Optional[float]
+    annual_cost: float
+    amount_change_detected_at: Optional[str]
+
+
+class PriceAlertsResponse(BaseModel):
+    price_increases: List[PriceIncreaseItem]
+    total_annual_increase: float
+
+
+@router.get("/price-increases", response_model=PriceAlertsResponse)
+async def get_price_increases(
+    user_id: Optional[UUID] = Query(
+        None,
+        description="Filter to a specific household member. Omit for combined view.",
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return all active recurring transactions where the charge has increased
+    by more than 5% compared to approximately 12 months ago.
+
+    Supports household view scoping via user_id.
+    """
+    if user_id:
+        await verify_household_member(user_id, current_user, db)
+
+    from app.services.subscription_insights_service import SubscriptionInsightsService
+
+    increases = await SubscriptionInsightsService.get_price_increases(
+        db=db,
+        organization_id=current_user.organization_id,
+        user_id=user_id,
+    )
+
+    total_annual_increase = sum(item.get("annual_increase") or 0.0 for item in increases)
+
+    return PriceAlertsResponse(
+        price_increases=[PriceIncreaseItem(**item) for item in increases],
+        total_annual_increase=round(total_annual_increase, 2),
+    )

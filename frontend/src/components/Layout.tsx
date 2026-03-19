@@ -616,6 +616,22 @@ export const Layout = () => {
   });
   const hasInvestmentHoldings = smartInsightsFlags?.hasInvestments ?? false;
 
+  // Fetch user profile for age-based nav gating (birth_year)
+  const { data: userProfile } = useQuery({
+    queryKey: ["user-profile-nav"],
+    queryFn: async () => {
+      const res = await api.get("/settings/profile");
+      return res.data as { birth_year?: number | null };
+    },
+    staleTime: 30 * 60 * 1000,
+  });
+  const currentYear = new Date().getFullYear();
+  const userAge = userProfile?.birth_year
+    ? currentYear - userProfile.birth_year
+    : null;
+  // Show SS optimizer for users 50+ or when age is unknown (no birthdate set)
+  const showSsOptimizer = userAge === null || userAge >= 50;
+
   // All nav items with default visibility
   const allSpendingItems = [
     { label: "Transactions", path: "/transactions" },
@@ -655,6 +671,7 @@ export const Layout = () => {
     "/debt-payoff": hasDebt,
     "/mortgage": hasMortgage,
     "/investment-health": hasInvestmentHoldings,
+    "/ss-claiming": showSsOptimizer,
   };
 
   const filterVisible = (

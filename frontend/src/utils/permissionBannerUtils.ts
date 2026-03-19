@@ -33,6 +33,11 @@ export const ROUTE_TO_RESOURCE_TYPE: Record<string, string> = {
   "/education": "education_plan",
   "/fire": "fire_plan",
   "/calendar": "recurring_transaction",
+  "/mortgage": "report",
+  "/ss-claiming": "report",
+  "/tax-projection": "report",
+  "/smart-insights": "report",
+  "/investment-health": "report",
 };
 
 /** Human-friendly label for each resource type */
