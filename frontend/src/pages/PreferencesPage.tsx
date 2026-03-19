@@ -297,6 +297,18 @@ const NAV_SECTIONS = [
       { label: "Debt Payoff", path: "/debt-payoff", conditional: true },
     ],
   },
+  {
+    group: "Insights",
+    items: [
+      { label: "Smart Insights", path: "/smart-insights" },
+      { label: "Roth Conversion", path: "/roth-conversion", conditional: true },
+      {
+        label: "Investment Health",
+        path: "/investment-health",
+        conditional: true,
+      },
+    ],
+  },
 ];
 
 function NavigationVisibilitySection() {

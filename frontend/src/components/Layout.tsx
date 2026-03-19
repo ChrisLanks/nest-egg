@@ -596,6 +596,24 @@ export const Layout = () => {
     (a) => a.account_type === "retirement_529",
   );
 
+  // Smart-insights visibility flags (loaded once, cached 5 min)
+  const { data: smartInsightsFlags } = useQuery({
+    queryKey: ["smart-insights-flags", selectedUserId],
+    queryFn: async () => {
+      const params = selectedUserId ? { user_id: selectedUserId } : {};
+      const res = await api.get("/smart-insights", {
+        params: { ...params, max_insights: 1 },
+      });
+      return {
+        hasRetirement: res.data.has_retirement_accounts as boolean,
+        hasInvestments: res.data.has_investment_holdings as boolean,
+      };
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+  const hasRetirementAccounts = smartInsightsFlags?.hasRetirement ?? false;
+  const hasInvestmentHoldings = smartInsightsFlags?.hasInvestments ?? false;
+
   // All nav items with default visibility
   const allSpendingItems = [
     { label: "Transactions", path: "/transactions" },
@@ -623,11 +641,19 @@ export const Layout = () => {
     { label: "Debt Payoff", path: "/debt-payoff" },
   ];
 
+  const allInsightsItems = [
+    { label: "Smart Insights", path: "/smart-insights" },
+    { label: "Roth Conversion", path: "/roth-conversion" },
+    { label: "Investment Health", path: "/investment-health" },
+  ];
+
   // Default visibility for conditional items
   const conditionalDefaults: Record<string, boolean> = {
     "/rental-properties": hasRental,
     "/education": has529,
     "/debt-payoff": hasDebt,
+    "/roth-conversion": hasRetirementAccounts,
+    "/investment-health": hasInvestmentHoldings,
   };
 
   const filterVisible = (
@@ -640,6 +666,7 @@ export const Layout = () => {
   const spendingMenuItems = filterVisible(allSpendingItems);
   const analyticsMenuItems = filterVisible(allAnalyticsItems);
   const planningMenuItems = filterVisible(allPlanningItems);
+  const insightsMenuItems = filterVisible(allInsightsItems);
 
   // Fetch dashboard summary for net worth (filtered by user)
   const { data: dashboardSummary } = useQuery({
@@ -913,6 +940,16 @@ export const Layout = () => {
                 currentPath={location.pathname}
                 onNavigate={navigateWithParams}
               />
+
+              {/* Insights Dropdown (shown when user has relevant accounts) */}
+              {insightsMenuItems.length > 0 && (
+                <NavDropdown
+                  label="Insights"
+                  items={insightsMenuItems}
+                  currentPath={location.pathname}
+                  onNavigate={navigateWithParams}
+                />
+              )}
 
               {/* Investments */}
               <TopNavItem

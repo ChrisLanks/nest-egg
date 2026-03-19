@@ -105,6 +105,9 @@ const AcceptInvitationPage = lazy(() =>
     default: m.AcceptInvitationPage,
   })),
 );
+const SmartInsightsPage = lazy(() => import("./pages/SmartInsightsPage"));
+const RothConversionPage = lazy(() => import("./pages/RothConversionPage"));
+const FundFeesPage = lazy(() => import("./pages/FundFeesPage"));
 const WelcomePage = lazy(() => import("./pages/WelcomePage"));
 const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage"));
 const ForgotPasswordPage = lazy(() =>
@@ -214,6 +217,18 @@ function App() {
                       />
                       <Route path="/fire" element={<FireMetricsPage />} />
                       <Route path="/debt-payoff" element={<DebtPayoffPage />} />
+                      <Route
+                        path="/smart-insights"
+                        element={<SmartInsightsPage />}
+                      />
+                      <Route
+                        path="/roth-conversion"
+                        element={<RothConversionPage />}
+                      />
+                      <Route
+                        path="/investment-health"
+                        element={<FundFeesPage />}
+                      />
                       <Route
                         path="/rental-properties"
                         element={<RentalPropertiesPage />}
