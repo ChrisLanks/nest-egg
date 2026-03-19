@@ -592,6 +592,9 @@ export const Layout = () => {
 
   const hasDebt = (accounts ?? []).some((a) => DEBT_TYPES.has(a.account_type));
   const hasRental = (accounts ?? []).some((a) => a.is_rental_property);
+  const hasMortgage = (accounts ?? []).some(
+    (a) => a.account_type === "mortgage",
+  );
   const has529 = (accounts ?? []).some(
     (a) => a.account_type === "retirement_529",
   );
@@ -639,6 +642,9 @@ export const Layout = () => {
     { label: "Education", path: "/education" },
     { label: "FIRE", path: "/fire" },
     { label: "Debt Payoff", path: "/debt-payoff" },
+    { label: "Mortgage", path: "/mortgage" },
+    { label: "SS Optimizer", path: "/ss-claiming" },
+    { label: "Tax Projection", path: "/tax-projection" },
   ];
 
   const allInsightsItems = [
@@ -652,6 +658,7 @@ export const Layout = () => {
     "/rental-properties": hasRental,
     "/education": has529,
     "/debt-payoff": hasDebt,
+    "/mortgage": hasMortgage,
     "/roth-conversion": hasRetirementAccounts,
     "/investment-health": hasInvestmentHoldings,
   };

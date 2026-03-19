@@ -31,6 +31,7 @@ from app.api.v1 import (
     education,
     enhanced_trends,
     enrichment,
+    financial_planning,
     financial_templates,
     fire,
     guest_access,
@@ -465,3 +466,8 @@ app.include_router(
 app.include_router(tax_advisor.router, prefix="/api/v1/tax-advisor", tags=["Tax Advisor"])
 app.include_router(enhanced_trends.router, prefix="/api/v1/trends", tags=["Enhanced Trends"])
 app.include_router(smart_insights.router, prefix="/api/v1/smart-insights", tags=["Smart Insights"])
+app.include_router(
+    financial_planning.router,
+    prefix="/api/v1/financial-planning",
+    tags=["Financial Planning"],
+)

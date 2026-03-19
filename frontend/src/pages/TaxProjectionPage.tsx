@@ -1,0 +1,454 @@
+/**
+ * Tax Projection & Quarterly Estimated Taxes page.
+ *
+ * Automatically annualises income from YTD transaction data.
+ * User can provide additional income sources and override deductions.
+ * Shows federal tax estimate, bracket breakdown, and quarterly payment
+ * schedule (IRS Form 1040-ES due dates).
+ */
+
+import {
+  Alert,
+  AlertIcon,
+  Badge,
+  Box,
+  Card,
+  CardBody,
+  CardHeader,
+  Center,
+  Container,
+  Divider,
+  FormControl,
+  FormLabel,
+  Heading,
+  HStack,
+  Input,
+  InputGroup,
+  InputLeftAddon,
+  Select,
+  SimpleGrid,
+  Spinner,
+  Stat,
+  StatLabel,
+  StatNumber,
+  Table,
+  Tbody,
+  Td,
+  Text,
+  Th,
+  Thead,
+  Tr,
+  VStack,
+} from "@chakra-ui/react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import {
+  financialPlanningApi,
+  type TaxProjectionParams,
+} from "../api/financialPlanning";
+import { useUserView } from "../contexts/UserViewContext";
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+const fmt = (n: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(n);
+
+const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
+
+// ── Page ──────────────────────────────────────────────────────────────────
+
+export const TaxProjectionPage = () => {
+  const { selectedUserId } = useUserView();
+
+  const [filingStatus, setFilingStatus] = useState<"single" | "married">(
+    "single",
+  );
+  const [selfEmploymentIncome, setSelfEmploymentIncome] = useState("");
+  const [capitalGains, setCapitalGains] = useState("");
+  const [additionalDeductions, setAdditionalDeductions] = useState("");
+  const [priorYearTax, setPriorYearTax] = useState("");
+
+  const params: TaxProjectionParams = {
+    user_id: selectedUserId || undefined,
+    filing_status: filingStatus,
+    self_employment_income: selfEmploymentIncome
+      ? parseFloat(selfEmploymentIncome)
+      : undefined,
+    estimated_capital_gains: capitalGains
+      ? parseFloat(capitalGains)
+      : undefined,
+    additional_deductions: additionalDeductions
+      ? parseFloat(additionalDeductions)
+      : undefined,
+    prior_year_tax: priorYearTax ? parseFloat(priorYearTax) : undefined,
+  };
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["tax-projection", selectedUserId, params],
+    queryFn: () => financialPlanningApi.getTaxProjection(params),
+    placeholderData: (prev) => prev,
+  });
+
+  return (
+    <Container maxW="5xl" py={6}>
+      <VStack align="start" spacing={6}>
+        {/* Header */}
+        <Box>
+          <Heading size="lg">Tax Projection</Heading>
+          <Text color="text.secondary" mt={1}>
+            Estimated {new Date().getFullYear()} federal income tax and
+            quarterly payment schedule. Income is auto-sourced from your
+            year-to-date transaction data.
+          </Text>
+        </Box>
+
+        {/* Inputs */}
+        <Card variant="outline" w="full">
+          <CardHeader pb={0}>
+            <Heading size="sm">Adjustments</Heading>
+          </CardHeader>
+          <CardBody>
+            <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+              <FormControl>
+                <FormLabel fontSize="xs">Filing Status</FormLabel>
+                <Select
+                  size="sm"
+                  value={filingStatus}
+                  onChange={(e) =>
+                    setFilingStatus(e.target.value as "single" | "married")
+                  }
+                >
+                  <option value="single">Single</option>
+                  <option value="married">Married Filing Jointly</option>
+                </Select>
+              </FormControl>
+              <FormControl>
+                <FormLabel fontSize="xs">Self-Employment Income ($)</FormLabel>
+                <InputGroup size="sm">
+                  <InputLeftAddon>$</InputLeftAddon>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={selfEmploymentIncome}
+                    onChange={(e) => setSelfEmploymentIncome(e.target.value)}
+                  />
+                </InputGroup>
+              </FormControl>
+              <FormControl>
+                <FormLabel fontSize="xs">Estimated Capital Gains ($)</FormLabel>
+                <InputGroup size="sm">
+                  <InputLeftAddon>$</InputLeftAddon>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={capitalGains}
+                    onChange={(e) => setCapitalGains(e.target.value)}
+                  />
+                </InputGroup>
+              </FormControl>
+              <FormControl>
+                <FormLabel fontSize="xs">Additional Deductions ($)</FormLabel>
+                <InputGroup size="sm">
+                  <InputLeftAddon>$</InputLeftAddon>
+                  <Input
+                    type="number"
+                    placeholder="Mortgage interest, charitable, etc."
+                    value={additionalDeductions}
+                    onChange={(e) => setAdditionalDeductions(e.target.value)}
+                  />
+                </InputGroup>
+              </FormControl>
+              <FormControl>
+                <FormLabel fontSize="xs">
+                  Prior Year Total Tax ($, for safe harbour)
+                </FormLabel>
+                <InputGroup size="sm">
+                  <InputLeftAddon>$</InputLeftAddon>
+                  <Input
+                    type="number"
+                    placeholder="Optional"
+                    value={priorYearTax}
+                    onChange={(e) => setPriorYearTax(e.target.value)}
+                  />
+                </InputGroup>
+              </FormControl>
+            </SimpleGrid>
+          </CardBody>
+        </Card>
+
+        {/* Loading */}
+        {isLoading && (
+          <Center w="full" py={8}>
+            <Spinner size="lg" color="brand.500" />
+          </Center>
+        )}
+        {isError && (
+          <Alert status="error" borderRadius="lg" w="full">
+            <AlertIcon />
+            Failed to load tax projection. Please try again.
+          </Alert>
+        )}
+
+        {/* Results */}
+        {data && (
+          <>
+            {/* Summary stats */}
+            <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} w="full">
+              <Card variant="outline">
+                <CardBody>
+                  <Stat>
+                    <StatLabel>Total Tax</StatLabel>
+                    <StatNumber fontSize="lg">
+                      {fmt(data.total_tax_before_credits)}
+                    </StatNumber>
+                  </Stat>
+                </CardBody>
+              </Card>
+              <Card variant="outline">
+                <CardBody>
+                  <Stat>
+                    <StatLabel>Effective Rate</StatLabel>
+                    <StatNumber fontSize="lg">
+                      {fmtPct(data.effective_rate)}
+                    </StatNumber>
+                  </Stat>
+                </CardBody>
+              </Card>
+              <Card variant="outline">
+                <CardBody>
+                  <Stat>
+                    <StatLabel>Marginal Rate</StatLabel>
+                    <StatNumber fontSize="lg">
+                      {fmtPct(data.marginal_rate)}
+                    </StatNumber>
+                  </Stat>
+                </CardBody>
+              </Card>
+              <Card variant="outline">
+                <CardBody>
+                  <Stat>
+                    <StatLabel>Taxable Income</StatLabel>
+                    <StatNumber fontSize="lg">
+                      {fmt(data.taxable_income)}
+                    </StatNumber>
+                  </Stat>
+                </CardBody>
+              </Card>
+            </SimpleGrid>
+
+            {/* Summary narrative */}
+            <Alert status="info" borderRadius="lg" w="full">
+              <AlertIcon />
+              <Text fontSize="sm">{data.summary}</Text>
+            </Alert>
+
+            {/* Safe harbour */}
+            {data.safe_harbour_amount != null && (
+              <Alert
+                status={data.safe_harbour_met ? "success" : "warning"}
+                borderRadius="lg"
+                w="full"
+              >
+                <AlertIcon />
+                <Text fontSize="sm">
+                  Safe harbour amount (100% of prior year):{" "}
+                  {fmt(data.safe_harbour_amount)}.{" "}
+                  {data.safe_harbour_met
+                    ? "Your projected tax is within safe harbour — no underpayment penalty expected."
+                    : "Your projected tax exceeds safe harbour — consider increasing quarterly payments."}
+                </Text>
+              </Alert>
+            )}
+
+            <Divider />
+
+            <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6} w="full">
+              {/* Income & deductions breakdown */}
+              <Card variant="outline">
+                <CardHeader pb={0}>
+                  <Heading size="sm">Income & Deductions</Heading>
+                </CardHeader>
+                <CardBody>
+                  <VStack align="start" spacing={2} fontSize="sm">
+                    <HStack justify="space-between" w="full">
+                      <Text color="text.secondary">Ordinary Income</Text>
+                      <Text fontWeight="semibold">
+                        {fmt(data.ordinary_income)}
+                      </Text>
+                    </HStack>
+                    {data.self_employment_income > 0 && (
+                      <HStack justify="space-between" w="full">
+                        <Text color="text.secondary">
+                          Self-Employment Income
+                        </Text>
+                        <Text>{fmt(data.self_employment_income)}</Text>
+                      </HStack>
+                    )}
+                    {data.estimated_capital_gains > 0 && (
+                      <HStack justify="space-between" w="full">
+                        <Text color="text.secondary">Capital Gains</Text>
+                        <Text>{fmt(data.estimated_capital_gains)}</Text>
+                      </HStack>
+                    )}
+                    <HStack justify="space-between" w="full">
+                      <Text color="text.secondary">Total Gross Income</Text>
+                      <Text fontWeight="semibold">
+                        {fmt(data.total_gross_income)}
+                      </Text>
+                    </HStack>
+                    <Divider />
+                    <HStack justify="space-between" w="full">
+                      <Text color="text.secondary">Standard Deduction</Text>
+                      <Text color="green.600">
+                        −{fmt(data.standard_deduction)}
+                      </Text>
+                    </HStack>
+                    {data.se_deduction > 0 && (
+                      <HStack justify="space-between" w="full">
+                        <Text color="text.secondary">SE Tax Deduction</Text>
+                        <Text color="green.600">−{fmt(data.se_deduction)}</Text>
+                      </HStack>
+                    )}
+                    {data.additional_deductions > 0 && (
+                      <HStack justify="space-between" w="full">
+                        <Text color="text.secondary">
+                          Additional Deductions
+                        </Text>
+                        <Text color="green.600">
+                          −{fmt(data.additional_deductions)}
+                        </Text>
+                      </HStack>
+                    )}
+                    <HStack justify="space-between" w="full">
+                      <Text fontWeight="semibold">Taxable Income</Text>
+                      <Text fontWeight="bold">{fmt(data.taxable_income)}</Text>
+                    </HStack>
+                    <Divider />
+                    <HStack justify="space-between" w="full">
+                      <Text color="text.secondary">Ordinary Tax</Text>
+                      <Text>{fmt(data.ordinary_tax)}</Text>
+                    </HStack>
+                    {data.se_tax > 0 && (
+                      <HStack justify="space-between" w="full">
+                        <Text color="text.secondary">SE Tax (15.3%)</Text>
+                        <Text>{fmt(data.se_tax)}</Text>
+                      </HStack>
+                    )}
+                    {data.ltcg_tax > 0 && (
+                      <HStack justify="space-between" w="full">
+                        <Text color="text.secondary">LTCG Tax</Text>
+                        <Text>{fmt(data.ltcg_tax)}</Text>
+                      </HStack>
+                    )}
+                    <HStack justify="space-between" w="full">
+                      <Text fontWeight="semibold">Total Federal Tax</Text>
+                      <Text fontWeight="bold" color="red.500">
+                        {fmt(data.total_tax_before_credits)}
+                      </Text>
+                    </HStack>
+                  </VStack>
+                </CardBody>
+              </Card>
+
+              {/* Bracket breakdown */}
+              <Card variant="outline">
+                <CardHeader pb={0}>
+                  <Heading size="sm">Bracket Breakdown</Heading>
+                </CardHeader>
+                <CardBody overflowX="auto">
+                  <Table size="sm">
+                    <Thead>
+                      <Tr>
+                        <Th>Rate</Th>
+                        <Th isNumeric>Income in Bracket</Th>
+                        <Th isNumeric>Tax Owed</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {data.bracket_breakdown.map((b, i) => (
+                        <Tr
+                          key={i}
+                          bg={
+                            i === data.bracket_breakdown.length - 1
+                              ? "orange.50"
+                              : undefined
+                          }
+                        >
+                          <Td>
+                            <Badge
+                              colorScheme={
+                                b.rate >= 0.32
+                                  ? "red"
+                                  : b.rate >= 0.22
+                                    ? "orange"
+                                    : "green"
+                              }
+                            >
+                              {fmtPct(b.rate)}
+                            </Badge>
+                          </Td>
+                          <Td isNumeric>{fmt(b.income_in_bracket)}</Td>
+                          <Td isNumeric>{fmt(b.tax_owed)}</Td>
+                        </Tr>
+                      ))}
+                    </Tbody>
+                  </Table>
+                </CardBody>
+              </Card>
+            </SimpleGrid>
+
+            {/* Quarterly payment schedule */}
+            <Card variant="outline" w="full">
+              <CardHeader pb={0}>
+                <HStack justify="space-between">
+                  <Heading size="sm">
+                    Quarterly Estimated Payments (Form 1040-ES)
+                  </Heading>
+                  <Text fontSize="xs" color="text.secondary">
+                    Total: {fmt(data.total_quarterly_due)}
+                  </Text>
+                </HStack>
+              </CardHeader>
+              <CardBody overflowX="auto">
+                <Table size="sm">
+                  <Thead>
+                    <Tr>
+                      <Th>Quarter</Th>
+                      <Th>Due Date</Th>
+                      <Th isNumeric>Amount Due</Th>
+                      <Th>Status</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {data.quarterly_payments.map((q) => (
+                      <Tr key={q.quarter}>
+                        <Td fontWeight="semibold">{q.quarter}</Td>
+                        <Td>{q.due_date}</Td>
+                        <Td isNumeric>{fmt(q.amount_due)}</Td>
+                        <Td>
+                          <Badge
+                            colorScheme={q.paid ? "green" : "gray"}
+                            variant="subtle"
+                          >
+                            {q.paid ? "paid" : "pending"}
+                          </Badge>
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </CardBody>
+            </Card>
+          </>
+        )}
+      </VStack>
+    </Container>
+  );
+};
+
+export default TaxProjectionPage;
