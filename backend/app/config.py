@@ -135,9 +135,8 @@ class Settings(BaseSettings):
     ACCOUNT_LOCKOUT_MINUTES: int = 30
     # Explicit flags for security features — default based on ENVIRONMENT.
     # Override with env vars to enable in dev (testing) or disable in staging.
-    ENFORCE_ACCOUNT_LOCKOUT: Optional[bool] = (
-        None  # None = auto (enabled unless ENVIRONMENT=development)
-    )
+    # None = auto: enabled unless ENVIRONMENT=development
+    ENFORCE_ACCOUNT_LOCKOUT: Optional[bool] = None
     ENFORCE_MFA: Optional[bool] = None  # None = auto (enabled unless ENVIRONMENT=development)
     # None = auto (enabled unless ENVIRONMENT=development).
     # When True, every /refresh call checks the JTI in Redis before the DB,
