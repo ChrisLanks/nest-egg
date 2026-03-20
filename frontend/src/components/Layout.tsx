@@ -768,7 +768,7 @@ export const Layout = () => {
       label: "Retirement",
       path: "/retirement",
       tooltip:
-        "Project whether you'll have enough to retire — Monte Carlo simulations and life event planning",
+        "Project whether you'll have enough to retire — see your savings trajectory and model different life scenarios",
     },
     {
       label: "Education",
@@ -786,7 +786,7 @@ export const Layout = () => {
       label: "Debt Payoff",
       path: "/debt-payoff",
       tooltip:
-        "Snowball or avalanche payoff plans — see your debt-free date and total interest saved",
+        "Pick a payoff strategy — pay smallest debts first for quick wins, or highest interest first to save money — and see exactly when you'll be debt-free",
     },
     {
       label: "Mortgage",

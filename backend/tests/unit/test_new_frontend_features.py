@@ -1312,3 +1312,244 @@ class TestDashboardStylePicker:
             "DEFAULT_LAYOUT should reference SIMPLE_LAYOUT so new/skipping users "
             "get the simpler experience by default"
         )
+
+
+# ---------------------------------------------------------------------------
+# Nav tooltip plain-English fixes
+# ---------------------------------------------------------------------------
+
+_LAYOUT_PATH = pathlib.Path(__file__).parents[3] / "frontend" / "src" / "components" / "Layout.tsx"
+
+
+def _read_layout() -> str:
+    return _LAYOUT_PATH.read_text(encoding="utf-8")
+
+
+class TestNavTooltips:
+    """Ensure nav tooltips are plain English and jargon-free."""
+
+    def test_retirement_tooltip_no_monte_carlo(self):
+        """Retirement nav tooltip must not mention 'Monte Carlo'."""
+        src = _read_layout()
+        # Find the Retirement nav item block
+        retirement_block = re.search(
+            r'label:\s*"Retirement".*?(?=\{|$)',
+            src,
+            re.DOTALL,
+        )
+        assert retirement_block, "Retirement nav item not found"
+        block = retirement_block.group()
+        assert (
+            "Monte Carlo" not in block
+        ), "Retirement nav tooltip uses 'Monte Carlo' — replace with plain English"
+
+    def test_retirement_tooltip_explains_concept(self):
+        """Retirement nav tooltip must explain what it does in plain terms."""
+        src = _read_layout()
+        retirement_block = re.search(
+            r'label:\s*"Retirement".*?(?=\},)',
+            src,
+            re.DOTALL,
+        )
+        assert retirement_block, "Retirement nav item not found"
+        block = retirement_block.group()
+        assert any(
+            phrase in block for phrase in ["retire", "savings", "enough", "trajectory", "on track"]
+        ), "Retirement tooltip should explain the concept in plain English"
+
+    def test_debt_payoff_tooltip_no_snowball_avalanche(self):
+        """Debt Payoff nav tooltip must not use 'Snowball or avalanche' as jargon."""
+        src = _read_layout()
+        debt_block = re.search(
+            r'label:\s*"Debt Payoff".*?(?=\},)',
+            src,
+            re.DOTALL,
+        )
+        assert debt_block, "Debt Payoff nav item not found"
+        block = debt_block.group()
+        assert "Snowball or avalanche" not in block, (
+            "Debt Payoff tooltip uses 'Snowball or avalanche' jargon — "
+            "describe the strategies in plain English"
+        )
+
+    def test_debt_payoff_tooltip_explains_strategies(self):
+        """Debt Payoff tooltip must explain the two strategies in plain terms."""
+        src = _read_layout()
+        debt_block = re.search(
+            r'label:\s*"Debt Payoff".*?(?=\},)',
+            src,
+            re.DOTALL,
+        )
+        assert debt_block, "Debt Payoff nav item not found"
+        block = debt_block.group()
+        assert any(
+            phrase in block
+            for phrase in [
+                "smallest",
+                "highest interest",
+                "debt-free",
+                "interest saved",
+                "pay off",
+            ]
+        ), "Debt Payoff tooltip should explain strategies in plain English"
+
+
+# ---------------------------------------------------------------------------
+# Getting Started widget — hints and what's next
+# ---------------------------------------------------------------------------
+
+_GETTING_STARTED_PATH = (
+    pathlib.Path(__file__).parents[3]
+    / "frontend"
+    / "src"
+    / "features"
+    / "dashboard"
+    / "widgets"
+    / "GettingStartedWidget.tsx"
+)
+
+
+def _read_getting_started() -> str:
+    return _GETTING_STARTED_PATH.read_text(encoding="utf-8")
+
+
+class TestGettingStartedWidget:
+    """Ensure the Getting Started widget has helpful hints and a what's-next card."""
+
+    def test_each_step_has_hint_prop(self):
+        """Every Step component usage must include a hint prop."""
+        src = _read_getting_started()
+        # Count Step usages and hint= props — should be equal
+        step_usages = len(re.findall(r"<Step\b", src))
+        hint_props = len(re.findall(r'\bhint=\{?"', src))
+        assert step_usages > 0, "No Step components found"
+        assert hint_props == step_usages, (
+            f"Found {step_usages} Step usages but only {hint_props} hint props — "
+            "every step must have a hint"
+        )
+
+    def test_account_step_hint_explains_why(self):
+        """The 'connect account' step hint must explain why accounts matter."""
+        src = _read_getting_started()
+        assert any(
+            phrase in src
+            for phrase in [
+                "real data",
+                "transactions",
+                "everything works",
+                "pull from",
+                "import",
+            ]
+        ), "Account step hint should explain why connecting accounts matters"
+
+    def test_budget_step_hint_explains_how(self):
+        """The budget step hint must explain how to create a budget in plain terms."""
+        src = _read_getting_started()
+        assert any(
+            phrase in src
+            for phrase in [
+                "spending category",
+                "monthly limit",
+                "category",
+                "limit",
+                "Dining",
+                "Groceries",
+            ]
+        ), "Budget step hint should explain what a budget is and how to create one"
+
+    def test_savings_goal_hint_explains_concept(self):
+        """The savings goal step hint must explain what a savings goal is."""
+        src = _read_getting_started()
+        assert any(
+            phrase in src
+            for phrase in [
+                "saving toward",
+                "emergency fund",
+                "target",
+                "down payment",
+                "trip",
+            ]
+        ), "Savings goal hint should explain the concept"
+
+    def test_net_worth_hint_defines_the_term(self):
+        """The net worth step hint must define what net worth means."""
+        src = _read_getting_started()
+        assert any(
+            phrase in src
+            for phrase in [
+                "own minus",
+                "owe",
+                "assets minus",
+                "debts",
+                "single most",
+            ]
+        ), "Net worth hint should define the term for non-finance users"
+
+    def test_what_next_card_exists(self):
+        """A 'what's next' card component must exist and render when all steps are done."""
+        src = _read_getting_started()
+        assert any(
+            phrase in src
+            for phrase in [
+                "WhatNextCard",
+                "set up",
+                "explore next",
+                "all done",
+            ]
+        ), "Widget should show a 'what's next' card when all steps are complete"
+
+    def test_what_next_card_suggests_retirement(self):
+        """What's next card must suggest the retirement feature."""
+        src = _read_getting_started()
+        assert "/retirement" in src, "What's next card should link to /retirement"
+
+    def test_what_next_card_suggests_investments(self):
+        """What's next card must suggest the investments feature."""
+        src = _read_getting_started()
+        assert (
+            '"/investments"' in src or 'path: "/investments"' in src
+        ), "What's next card should link to /investments"
+
+    def test_what_next_card_is_dismissible(self):
+        """What's next card must be dismissible."""
+        src = _read_getting_started()
+        assert (
+            "WHAT_NEXT_DISMISSED_KEY" in src or "what-next-dismissed" in src
+        ), "What's next card should be dismissible via localStorage"
+
+    def test_what_next_tips_customize_dashboard(self):
+        """What's next card should hint at dashboard customization."""
+        src = _read_getting_started()
+        assert any(
+            phrase in src for phrase in ["Customize", "customize", "add or remove", "panels"]
+        ), "What's next card should mention the Customize button"
+
+
+# ---------------------------------------------------------------------------
+# Investments page empty state — button
+# ---------------------------------------------------------------------------
+
+
+class TestInvestmentsEmptyStateButton:
+    """Ensure the investments empty state has a direct CTA button."""
+
+    def test_empty_state_has_connect_button(self):
+        """Investments empty state must have a button to connect an account."""
+        src = _read_investments_page()
+        assert any(
+            phrase in src
+            for phrase in [
+                "Connect an Investment Account",
+                "Connect Investment",
+                "onAddAccountOpen",
+                "Connect a Brokerage",
+            ]
+        ), "Investments empty state should have a button to connect an account"
+
+    def test_empty_state_imports_add_account_modal(self):
+        """InvestmentsPage must import AddAccountModal for the empty state button."""
+        src = _read_investments_page()
+        assert "AddAccountModal" in src, (
+            "InvestmentsPage should import AddAccountModal to support "
+            "the connect button in the empty state"
+        )

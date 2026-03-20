@@ -45,6 +45,7 @@ import {
   FiChevronDown,
   FiChevronUp,
   FiFilter,
+  FiLink,
   FiRefreshCw,
 } from "react-icons/fi";
 import api from "../services/api";
@@ -65,6 +66,7 @@ import { DividendIncomePanel } from "../features/investments/components/Dividend
 import { useRetirementAccountData } from "../features/retirement/hooks/useRetirementScenarios";
 import HelpHint from "../components/HelpHint";
 import { helpContent } from "../constants/helpContent";
+import { AddAccountModal } from "../features/accounts/components/AddAccountModal";
 
 interface Holding {
   id: string;
@@ -307,6 +309,12 @@ export const InvestmentsPage = () => {
 
   // Style Box modal
   const { isOpen: isStyleBoxOpen, onClose: onStyleBoxClose } = useDisclosure();
+  // Add account modal (shown from empty state)
+  const {
+    isOpen: isAddAccountOpen,
+    onOpen: onAddAccountOpen,
+    onClose: onAddAccountClose,
+  } = useDisclosure();
 
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -772,13 +780,25 @@ export const InvestmentsPage = () => {
                     </Box>
                   ))}
                 </SimpleGrid>
-                <Text fontSize="sm" color="text.muted">
-                  Add investment accounts from the sidebar or Accounts page.
+                <Button
+                  colorScheme="brand"
+                  size="lg"
+                  leftIcon={<FiLink />}
+                  onClick={onAddAccountOpen}
+                >
+                  Connect an Investment Account
+                </Button>
+                <Text fontSize="xs" color="text.muted">
+                  You can also add accounts from the sidebar or Accounts page.
                 </Text>
               </VStack>
             </CardBody>
           </Card>
         </VStack>
+        <AddAccountModal
+          isOpen={isAddAccountOpen}
+          onClose={onAddAccountClose}
+        />
       </Container>
     );
   }
