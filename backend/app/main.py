@@ -455,75 +455,196 @@ async def security_status(current_user: UserModel = Depends(get_current_user)):
     }
 
 
+# ---------------------------------------------------------------------------
+# Router registration
+#
+# Routers are split into two groups:
+#
+#   HOUSEHOLD-SCOPED (guest-eligible)
+#     Use dependencies=[Depends(get_organization_scoped_user)] so that the
+#     X-Household-Id header is honoured on every request.  When the header is
+#     absent the dependency behaves identically to get_current_user.
+#     Guests with the "viewer" role get read-only access (POST/PUT/PATCH/DELETE
+#     are rejected at the dependency level).  Guests with the "advisor" role
+#     get full read+write access to the host household.
+#     Default access for authenticated members (no header) is read+write
+#     limited to their own organisation.
+#
+#   MEMBER/ADMIN-ONLY (no guest access)
+#     Use plain get_current_user (or get_current_admin_user inside the
+#     endpoint).  Guests are never allowed here regardless of role.
+# ---------------------------------------------------------------------------
+
+_guest_dep = [Depends(get_organization_scoped_user)]
+
+# ------ MEMBER/ADMIN-ONLY routers (no guest access) ------
 app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["Monitoring"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(household.router, prefix="/api/v1", tags=["Household"])
-app.include_router(accounts.router, prefix="/api/v1/accounts", tags=["Accounts"])
-app.include_router(contributions.router, prefix="/api/v1", tags=["Contributions"])
-app.include_router(holdings.router, prefix="/api/v1/holdings", tags=["Holdings"])
-app.include_router(market_data.router, prefix="/api/v1/market-data", tags=["Market Data"])
-app.include_router(enrichment.router, prefix="/api/v1/enrichment", tags=["Enrichment"])
 app.include_router(bank_linking.router, prefix="/api/v1/bank-linking", tags=["Bank Linking"])
 app.include_router(plaid.router, prefix="/api/v1/plaid", tags=["Plaid"])
 app.include_router(teller.router, prefix="/api/v1/teller", tags=["Teller"])
-app.include_router(transactions.router, prefix="/api/v1/transactions", tags=["Transactions"])
-app.include_router(labels.router, prefix="/api/v1/labels", tags=["Labels"])
-app.include_router(rules.router, prefix="/api/v1/rules", tags=["Rules"])
-app.include_router(categories.router, prefix="/api/v1/categories", tags=["Categories"])
-app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
-app.include_router(
-    income_expenses.router, prefix="/api/v1/income-expenses", tags=["Income vs Expenses"]
-)
+app.include_router(market_data.router, prefix="/api/v1/market-data", tags=["Market Data"])
+app.include_router(enrichment.router, prefix="/api/v1/enrichment", tags=["Enrichment"])
 app.include_router(settings_router.router, prefix="/api/v1/settings", tags=["Settings"])
+app.include_router(permissions.router, prefix="/api/v1/permissions", tags=["Permissions"])
+app.include_router(csv_import.router, prefix="/api/v1/csv-import", tags=["CSV Import"])
+app.include_router(onboarding.router, prefix="/api/v1/onboarding", tags=["Onboarding"])
+app.include_router(guest_access.router, prefix="/api/v1/guest-access", tags=["Guest Access"])
 if settings.ENVIRONMENT == "development":
     app.include_router(dev.router, prefix="/api/v1/dev", tags=["Development"])
 
-app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])
-app.include_router(budgets.router, prefix="/api/v1/budgets", tags=["Budgets"])
+# ------ HOUSEHOLD-SCOPED routers (guest-eligible) ------
+app.include_router(
+    accounts.router, prefix="/api/v1/accounts", tags=["Accounts"], dependencies=_guest_dep
+)
+app.include_router(
+    contributions.router, prefix="/api/v1", tags=["Contributions"], dependencies=_guest_dep
+)
+app.include_router(
+    holdings.router, prefix="/api/v1/holdings", tags=["Holdings"], dependencies=_guest_dep
+)
+app.include_router(
+    transactions.router,
+    prefix="/api/v1/transactions",
+    tags=["Transactions"],
+    dependencies=_guest_dep,
+)
+app.include_router(labels.router, prefix="/api/v1/labels", tags=["Labels"], dependencies=_guest_dep)
+app.include_router(rules.router, prefix="/api/v1/rules", tags=["Rules"], dependencies=_guest_dep)
+app.include_router(
+    categories.router,
+    prefix="/api/v1/categories",
+    tags=["Categories"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"], dependencies=_guest_dep
+)
+app.include_router(
+    income_expenses.router,
+    prefix="/api/v1/income-expenses",
+    tags=["Income vs Expenses"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    notifications.router,
+    prefix="/api/v1/notifications",
+    tags=["Notifications"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    budgets.router, prefix="/api/v1/budgets", tags=["Budgets"], dependencies=_guest_dep
+)
 app.include_router(
     financial_templates.router,
     prefix="/api/v1/financial-templates",
     tags=["Financial Templates"],
+    dependencies=_guest_dep,
 )
-app.include_router(savings_goals.router, prefix="/api/v1/savings-goals", tags=["Savings Goals"])
+app.include_router(
+    savings_goals.router,
+    prefix="/api/v1/savings-goals",
+    tags=["Savings Goals"],
+    dependencies=_guest_dep,
+)
 app.include_router(
     recurring_transactions.router,
     prefix="/api/v1/recurring-transactions",
     tags=["Recurring Transactions"],
-)
-app.include_router(subscriptions.router, prefix="/api/v1/subscriptions", tags=["Subscriptions"])
-app.include_router(
-    transaction_splits.router, prefix="/api/v1/transaction-splits", tags=["Transaction Splits"]
+    dependencies=_guest_dep,
 )
 app.include_router(
-    transaction_merges.router, prefix="/api/v1/transaction-merges", tags=["Transaction Merges"]
+    subscriptions.router,
+    prefix="/api/v1/subscriptions",
+    tags=["Subscriptions"],
+    dependencies=_guest_dep,
 )
-app.include_router(csv_import.router, prefix="/api/v1/csv-import", tags=["CSV Import"])
-app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
-app.include_router(debt_payoff.router, prefix="/api/v1/debt-payoff", tags=["Debt Payoff"])
-app.include_router(rebalancing.router, prefix="/api/v1/rebalancing", tags=["Rebalancing"])
-app.include_router(permissions.router, prefix="/api/v1/permissions", tags=["Permissions"])
-app.include_router(retirement.router, prefix="/api/v1/retirement", tags=["Retirement Planning"])
-app.include_router(education.router, prefix="/api/v1/education", tags=["Education Planning"])
-app.include_router(fire.router, prefix="/api/v1/fire", tags=["FIRE Metrics"])
 app.include_router(
-    rental_properties.router, prefix="/api/v1/rental-properties", tags=["Rental Properties"]
+    transaction_splits.router,
+    prefix="/api/v1/transaction-splits",
+    tags=["Transaction Splits"],
+    dependencies=_guest_dep,
 )
-app.include_router(tax_lots.router, prefix="/api/v1", tags=["Tax Lots"])
-app.include_router(attachments.router, prefix="/api/v1", tags=["Attachments"])
 app.include_router(
-    bulk_operations.router, prefix="/api/v1/bulk-operations", tags=["Bulk Operations"]
+    transaction_merges.router,
+    prefix="/api/v1/transaction-merges",
+    tags=["Transaction Merges"],
+    dependencies=_guest_dep,
 )
-app.include_router(onboarding.router, prefix="/api/v1/onboarding", tags=["Onboarding"])
-app.include_router(guest_access.router, prefix="/api/v1/guest-access", tags=["Guest Access"])
 app.include_router(
-    dividend_income.router, prefix="/api/v1/dividend-income", tags=["Dividend Income"]
+    reports.router, prefix="/api/v1/reports", tags=["Reports"], dependencies=_guest_dep
 )
-app.include_router(tax_advisor.router, prefix="/api/v1/tax-advisor", tags=["Tax Advisor"])
-app.include_router(enhanced_trends.router, prefix="/api/v1/trends", tags=["Enhanced Trends"])
-app.include_router(smart_insights.router, prefix="/api/v1/smart-insights", tags=["Smart Insights"])
+app.include_router(
+    debt_payoff.router,
+    prefix="/api/v1/debt-payoff",
+    tags=["Debt Payoff"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    rebalancing.router,
+    prefix="/api/v1/rebalancing",
+    tags=["Rebalancing"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    retirement.router,
+    prefix="/api/v1/retirement",
+    tags=["Retirement Planning"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    education.router,
+    prefix="/api/v1/education",
+    tags=["Education Planning"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    fire.router, prefix="/api/v1/fire", tags=["FIRE Metrics"], dependencies=_guest_dep
+)
+app.include_router(
+    rental_properties.router,
+    prefix="/api/v1/rental-properties",
+    tags=["Rental Properties"],
+    dependencies=_guest_dep,
+)
+app.include_router(tax_lots.router, prefix="/api/v1", tags=["Tax Lots"], dependencies=_guest_dep)
+app.include_router(
+    attachments.router, prefix="/api/v1", tags=["Attachments"], dependencies=_guest_dep
+)
+app.include_router(
+    bulk_operations.router,
+    prefix="/api/v1/bulk-operations",
+    tags=["Bulk Operations"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    dividend_income.router,
+    prefix="/api/v1/dividend-income",
+    tags=["Dividend Income"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    tax_advisor.router,
+    prefix="/api/v1/tax-advisor",
+    tags=["Tax Advisor"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    enhanced_trends.router,
+    prefix="/api/v1/trends",
+    tags=["Enhanced Trends"],
+    dependencies=_guest_dep,
+)
+app.include_router(
+    smart_insights.router,
+    prefix="/api/v1/smart-insights",
+    tags=["Smart Insights"],
+    dependencies=_guest_dep,
+)
 app.include_router(
     financial_planning.router,
     prefix="/api/v1/financial-planning",
     tags=["Financial Planning"],
+    dependencies=_guest_dep,
 )

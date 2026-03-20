@@ -234,6 +234,42 @@ async def get_current_admin_user(
     return current_user
 
 
+async def require_member_only(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Reject guest users outright — endpoint is for household members only.
+
+    Use this dependency on endpoints where guest access is never appropriate
+    regardless of the guest's role (e.g. bank linking, CSV import, settings,
+    permission grants).  Regular members and org admins pass through unchanged.
+
+    The default access model is:
+      - Authenticated member (no X-Household-Id header): full read+write on
+        their own household.
+      - Guest viewer  (X-Household-Id present, role=viewer): read-only on the
+        host household.  POST/PUT/PATCH/DELETE → 403 at the dependency layer.
+      - Guest advisor (X-Household-Id present, role=advisor): read+write on
+        the host household.
+      - This dependency: members only, no guests at all.
+
+    Args:
+        current_user: Current user from token
+
+    Returns:
+        Current user if they are a household member (not a guest)
+
+    Raises:
+        HTTPException 403: If the caller is a guest
+    """
+    if getattr(current_user, "_is_guest", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This operation is restricted to household members",
+        )
+    return current_user
+
+
 async def get_verified_account(
     account_id: UUID = Path(..., description="Account ID"),
     current_user: User = Depends(get_current_user),

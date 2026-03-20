@@ -13,8 +13,10 @@ from app.dependencies import (
     get_current_active_user,
     get_current_admin_user,
     get_current_user,
+    get_organization_scoped_user,
     get_user_accounts,
     get_verified_account,
+    require_member_only,
     verify_household_member,
 )
 from app.models.account import Account
@@ -399,3 +401,200 @@ class TestGetAllHouseholdAccounts:
         assert len(result) == 2
         assert mock_account1 in result
         assert mock_account2 in result
+
+
+# ---------------------------------------------------------------------------
+# require_member_only
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRequireMemberOnly:
+    """require_member_only must pass regular members through and reject guests."""
+
+    @pytest.mark.asyncio
+    async def test_regular_member_passes_through(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        # _is_guest not set — getattr(..., False) returns False
+        result = await require_member_only(current_user=user)
+        assert result is user
+
+    @pytest.mark.asyncio
+    async def test_guest_viewer_rejected(self):
+        user = Mock(spec=User)
+        user._is_guest = True
+        with pytest.raises(HTTPException) as exc_info:
+            await require_member_only(current_user=user)
+        assert exc_info.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_guest_advisor_rejected(self):
+        user = Mock(spec=User)
+        user._is_guest = True
+        user._guest_role = "advisor"
+        with pytest.raises(HTTPException) as exc_info:
+            await require_member_only(current_user=user)
+        assert exc_info.value.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# get_organization_scoped_user — guest context activation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGetOrganizationScopedUser:
+    """get_organization_scoped_user must activate guest org override when
+    X-Household-Id header points to a foreign org the user has guest access to,
+    and must set _is_guest / _home_org_id metadata correctly."""
+
+    def _make_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        user.is_active = True
+        user.email_verified = True
+        # Allow __dict__ writes (Mock spec blocks attribute assignment otherwise)
+        user.__dict__["organization_id"] = user.organization_id
+        return user
+
+    def _make_request(self, header_value=None):
+        request = Mock()
+        headers = {}
+        if header_value:
+            headers["X-Household-Id"] = header_value
+        request.headers = headers
+        request.method = "GET"
+        return request
+
+    def _make_credentials(self):
+        creds = Mock()
+        creds.credentials = "fake.jwt.token"
+        return creds
+
+    @pytest.mark.asyncio
+    async def test_no_header_returns_user_unchanged(self):
+        user = self._make_user()
+        request = self._make_request(header_value=None)
+        creds = self._make_credentials()
+        db = AsyncMock()
+
+        with patch("app.dependencies.get_current_user", new_callable=AsyncMock, return_value=user):
+            result = await get_organization_scoped_user(request=request, credentials=creds, db=db)
+
+        assert result is user
+        assert getattr(result, "_is_guest", False) is False
+
+    @pytest.mark.asyncio
+    async def test_same_org_header_is_noop(self):
+        user = self._make_user()
+        request = self._make_request(header_value=str(user.organization_id))
+        creds = self._make_credentials()
+        db = AsyncMock()
+
+        with patch("app.dependencies.get_current_user", new_callable=AsyncMock, return_value=user):
+            result = await get_organization_scoped_user(request=request, credentials=creds, db=db)
+
+        assert result is user
+        assert getattr(result, "_is_guest", False) is False
+
+    @pytest.mark.asyncio
+    async def test_invalid_uuid_header_raises_400(self):
+        user = self._make_user()
+        request = self._make_request(header_value="not-a-uuid")
+        creds = self._make_credentials()
+        db = AsyncMock()
+
+        with patch("app.dependencies.get_current_user", new_callable=AsyncMock, return_value=user):
+            with pytest.raises(HTTPException) as exc_info:
+                await get_organization_scoped_user(request=request, credentials=creds, db=db)
+
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_no_guest_record_raises_403(self):
+        user = self._make_user()
+        foreign_org = uuid4()
+        request = self._make_request(header_value=str(foreign_org))
+        creds = self._make_credentials()
+        db = AsyncMock()
+
+        # DB returns no HouseholdGuest record
+        no_result = Mock()
+        no_result.scalar_one_or_none = Mock(return_value=None)
+        db.execute = AsyncMock(return_value=no_result)
+
+        with patch("app.dependencies.get_current_user", new_callable=AsyncMock, return_value=user):
+            with pytest.raises(HTTPException) as exc_info:
+                await get_organization_scoped_user(request=request, credentials=creds, db=db)
+
+        assert exc_info.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_viewer_write_blocked(self):
+        user = self._make_user()
+        foreign_org = uuid4()
+        request = self._make_request(header_value=str(foreign_org))
+        request.method = "POST"
+        creds = self._make_credentials()
+        db = AsyncMock()
+
+        guest_record = Mock()
+        guest_record.role = "viewer"
+        guest_result = Mock()
+        guest_result.scalar_one_or_none = Mock(return_value=guest_record)
+        db.execute = AsyncMock(return_value=guest_result)
+
+        with patch("app.dependencies.get_current_user", new_callable=AsyncMock, return_value=user):
+            with pytest.raises(HTTPException) as exc_info:
+                await get_organization_scoped_user(request=request, credentials=creds, db=db)
+
+        assert exc_info.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_viewer_read_allowed_and_org_overridden(self):
+        user = self._make_user()
+        home_org = user.organization_id
+        foreign_org = uuid4()
+        request = self._make_request(header_value=str(foreign_org))
+        request.method = "GET"
+        creds = self._make_credentials()
+        db = AsyncMock()
+
+        guest_record = Mock()
+        guest_record.role = "viewer"
+        guest_result = Mock()
+        guest_result.scalar_one_or_none = Mock(return_value=guest_record)
+        db.execute = AsyncMock(return_value=guest_result)
+
+        with patch("app.dependencies.get_current_user", new_callable=AsyncMock, return_value=user):
+            result = await get_organization_scoped_user(request=request, credentials=creds, db=db)
+
+        assert result._is_guest is True
+        assert result._guest_role == "viewer"
+        assert result._home_org_id == home_org
+        # org override applied
+        assert result.__dict__["organization_id"] == foreign_org
+
+    @pytest.mark.asyncio
+    async def test_advisor_write_allowed(self):
+        user = self._make_user()
+        foreign_org = uuid4()
+        request = self._make_request(header_value=str(foreign_org))
+        request.method = "POST"
+        creds = self._make_credentials()
+        db = AsyncMock()
+
+        guest_record = Mock()
+        guest_record.role = "advisor"
+        guest_result = Mock()
+        guest_result.scalar_one_or_none = Mock(return_value=guest_record)
+        db.execute = AsyncMock(return_value=guest_result)
+
+        with patch("app.dependencies.get_current_user", new_callable=AsyncMock, return_value=user):
+            result = await get_organization_scoped_user(request=request, credentials=creds, db=db)
+
+        assert result._is_guest is True
+        assert result._guest_role == "advisor"
+        assert result.__dict__["organization_id"] == foreign_org
