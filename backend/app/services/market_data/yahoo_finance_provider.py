@@ -8,28 +8,29 @@ FREE & UNLIMITED - Best for most users
 - No API key required
 """
 
-import yfinance as yf
 import asyncio
-from typing import Dict, List
+import logging
 from datetime import date
 from decimal import Decimal
-import logging
 from time import time
+from typing import Dict, List
+
+import yfinance as yf
 
 # Timeout for all external API calls (seconds)
 REQUEST_TIMEOUT = 5.0
 
 from .base_provider import (
-    MarketDataProvider,
-    QuoteData,
     HistoricalPrice,
     HoldingMetadata,
+    MarketDataProvider,
+    QuoteData,
     SearchResult,
 )
 from .security import (
-    validate_symbol,
-    validate_quote_response,
     SymbolValidationError,
+    validate_quote_response,
+    validate_symbol,
 )
 
 logger = logging.getLogger(__name__)
@@ -365,7 +366,8 @@ class YahooFinanceProvider(MarketDataProvider):
         """
         Fetch classification metadata for a holding from Yahoo Finance.
 
-        Populates: asset_type, asset_class, market_cap, sector, industry, country, name.
+        Populates: asset_type, asset_class, market_cap, sector, industry, country,
+        name, and expense_ratio (for ETFs and mutual funds).
         Fields that Yahoo Finance doesn't return are left as None (preserving any
         existing manual values on the holding).
         """
@@ -415,6 +417,19 @@ class YahooFinanceProvider(MarketDataProvider):
         else:
             market_cap = None
 
+        # Expense ratio — available for ETFs and mutual funds
+        # yfinance returns this as a decimal fraction (e.g. 0.0003 for 0.03%)
+        expense_ratio = None
+        er_raw = info.get("expenseRatio") or info.get("annualReportExpenseRatio")
+        if er_raw is not None:
+            try:
+                er_value = float(er_raw)
+                # Sanity check: valid range is 0–50% (0.0–0.50 as decimal)
+                if 0.0 <= er_value <= 0.50:
+                    expense_ratio = Decimal(str(round(er_value, 4)))
+            except (ValueError, TypeError):
+                pass
+
         return HoldingMetadata(
             symbol=symbol,
             name=info.get("longName") or info.get("shortName"),
@@ -424,6 +439,7 @@ class YahooFinanceProvider(MarketDataProvider):
             sector=info.get("sector"),
             industry=info.get("industry"),
             country=country,
+            expense_ratio=expense_ratio,
         )
 
     def supports_realtime(self) -> bool:

@@ -6,9 +6,10 @@ without changing the application code.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
 from datetime import date
 from decimal import Decimal
+from typing import Dict, List, Optional
+
 from pydantic import BaseModel
 
 
@@ -61,12 +62,13 @@ class HoldingMetadata(BaseModel):
 
     symbol: str
     name: Optional[str] = None
-    asset_type: Optional[str] = None   # 'stock', 'etf', 'mutual_fund', 'crypto', 'other'
+    asset_type: Optional[str] = None  # 'stock', 'etf', 'mutual_fund', 'crypto', 'other'
     asset_class: Optional[str] = None  # 'domestic', 'international'
-    market_cap: Optional[str] = None   # 'large', 'mid', 'small' (equities only)
-    sector: Optional[str] = None       # e.g. 'Technology', 'Healthcare'
-    industry: Optional[str] = None     # e.g. 'Software', 'Biotechnology'
-    country: Optional[str] = None      # e.g. 'United States', 'Germany'
+    market_cap: Optional[str] = None  # 'large', 'mid', 'small' (equities only)
+    sector: Optional[str] = None  # e.g. 'Technology', 'Healthcare'
+    industry: Optional[str] = None  # e.g. 'Software', 'Biotechnology'
+    country: Optional[str] = None  # e.g. 'United States', 'Germany'
+    expense_ratio: Optional[Decimal] = None  # Annual expense ratio as decimal (ETFs/funds only)
 
 
 class MarketDataProvider(ABC):

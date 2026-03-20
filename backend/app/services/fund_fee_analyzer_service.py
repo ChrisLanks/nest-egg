@@ -223,11 +223,14 @@ def resolve_expense_ratio(
     """Return ``(expense_ratio, is_estimated)``.
 
     Priority order:
-    1. ``stored_er`` — manually entered or fetched from data provider (authoritative)
-    2. ``KNOWN_EXPENSE_RATIOS`` ticker lookup
-    3. ``ASSET_CLASS_ER_ESTIMATES`` fallback by asset class
-    4. ``ASSET_TYPE_ER_ESTIMATES`` fallback by asset type
-    5. 0.0 / is_estimated=True (last resort — still better than silently wrong)
+    1. ``stored_er`` — value persisted in DB (from yfinance nightly enrichment
+       task or manual user entry); authoritative, never estimated
+    2. ``KNOWN_EXPENSE_RATIOS`` — static lookup for ~150 well-known tickers;
+       used at query-time when the nightly task hasn't run yet or the ticker
+       isn't covered by yfinance
+    3. ``ASSET_CLASS_ER_ESTIMATES`` — fallback average by asset class (estimated)
+    4. ``ASSET_TYPE_ER_ESTIMATES`` — fallback average by asset type (estimated)
+    5. 0.0 / is_estimated=True — last resort when no data is available
     """
     if stored_er is not None:
         return float(stored_er), False

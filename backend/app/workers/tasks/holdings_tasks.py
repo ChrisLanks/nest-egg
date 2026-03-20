@@ -10,6 +10,7 @@ from app.core.cache import delete_pattern as cache_delete_pattern
 from app.models.holding import Holding
 from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.user import User
+from app.services.fund_fee_analyzer_service import KNOWN_EXPENSE_RATIOS
 from app.services.market_data import get_market_data_provider
 from app.services.snapshot_service import snapshot_service
 from app.utils.datetime_utils import utc_now
@@ -21,12 +22,16 @@ logger = logging.getLogger(__name__)
 @celery_app.task(name="enrich_holdings_metadata")
 def enrich_holdings_metadata_task():
     """
-    Enrich holdings with classification metadata from market data provider.
+    Enrich holdings with classification metadata and expense ratios.
 
     Fetches sector, industry, asset_type, asset_class, market_cap, country,
-    and name for every unique ticker and writes them back to the database.
-    Only overwrites a field if the provider returned a non-null value, so
-    manually set values are preserved when the API has no data.
+    name, and expense_ratio for every unique ticker and writes them back to
+    the database.
+
+    Expense ratio enrichment priority per ticker:
+      1. yfinance API response (authoritative, written only when DB value is NULL)
+      2. KNOWN_EXPENSE_RATIOS static table (fallback for tickers API misses)
+    Manually-entered expense ratios are never overwritten.
 
     Runs daily at 7:00 PM EST (one hour after the price update).
     """
@@ -51,9 +56,17 @@ async def _enrich_metadata_async():
             # so the bulk update is scoped per-org (prevents cross-org metadata bleed
             # if two orgs happen to use the same custom ticker symbol).
             ticker_orgs: dict[str, set] = {}
+            # Track which holdings already have an expense_ratio stored so we
+            # don't overwrite manually-entered values.
+            ticker_has_er: dict[str, bool] = {}
             for h in holdings:
                 key = h.ticker.upper()
                 ticker_orgs.setdefault(key, set()).add(h.organization_id)
+                # If ANY holding for this ticker already has an ER, mark it
+                if h.expense_ratio is not None:
+                    ticker_has_er[key] = True
+                else:
+                    ticker_has_er.setdefault(key, False)
 
             tickers = list(ticker_orgs.keys())
             logger.info(f"Enriching metadata for {len(tickers)} unique tickers")
@@ -61,6 +74,7 @@ async def _enrich_metadata_async():
             market_data = get_market_data_provider()
             enriched_count = 0
             failed_count = 0
+            er_enriched_count = 0
 
             for ticker in tickers:
                 try:
@@ -82,6 +96,28 @@ async def _enrich_metadata_async():
                         updates["industry"] = metadata.industry
                     if metadata.country is not None:
                         updates["country"] = metadata.country
+
+                    # Expense ratio: only write when not already stored
+                    if not ticker_has_er.get(ticker, False):
+                        er_to_store = None
+                        if metadata.expense_ratio is not None:
+                            # Provider returned a value — use it
+                            er_to_store = metadata.expense_ratio
+                        else:
+                            # Fall back to our static known-ER table
+                            known = KNOWN_EXPENSE_RATIOS.get(ticker)
+                            if known is not None:
+                                from decimal import Decimal as _Decimal
+
+                                er_to_store = _Decimal(str(known))
+
+                        if er_to_store is not None:
+                            updates["expense_ratio"] = er_to_store
+                            er_enriched_count += 1
+                            logger.debug(
+                                f"ER enriched for {ticker}: {er_to_store} "
+                                f"({'api' if metadata.expense_ratio is not None else 'static'})"
+                            )
 
                     if len(updates) > 1:  # More than just updated_at
                         for org_id in ticker_orgs[ticker]:
@@ -106,11 +142,13 @@ async def _enrich_metadata_async():
 
             # Invalidate portfolio summary cache for all organizations (metadata affects all)
             await cache_delete_pattern("portfolio:summary:*")
+            # Also invalidate fee-analysis cache since expense ratios may have changed
+            await cache_delete_pattern("fee-analysis:*")
 
             logger.info(
                 f"Holdings metadata enrichment complete. "
-                f"Enriched: {enriched_count}, Failed: {failed_count}, "
-                f"Total tickers: {len(tickers)} "
+                f"Enriched: {enriched_count}, ER enriched: {er_enriched_count}, "
+                f"Failed: {failed_count}, Total tickers: {len(tickers)} "
                 f"(Provider: {market_data.get_provider_name()})"
             )
 
