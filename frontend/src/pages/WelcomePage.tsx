@@ -63,13 +63,13 @@ const HOUSEHOLD_BENEFITS = [
   },
   {
     icon: FiZap,
-    title: "FIRE planning together",
-    desc: "Coast FI and financial independence calculations use both your assets",
+    title: "Retirement planning together",
+    desc: "See if you can both retire when you want — using your combined savings and income",
   },
   {
     icon: FiTrendingUp,
-    title: "Joint retirement scenarios",
-    desc: "Run Monte Carlo simulations that account for both incomes and goals",
+    title: "Joint retirement projections",
+    desc: "Model different scenarios: what if one of you stops working early, or you save more?",
   },
   {
     icon: FiShield,
@@ -105,21 +105,22 @@ const GOAL_OPTIONS = [
 ];
 
 const GOAL_HIGHLIGHTS: Record<string, string> = {
-  spending: "budgets, spending breakdowns, and transaction categorization",
+  spending: "budgets, spending breakdowns, and transaction history",
   retirement:
-    "your FIRE dashboard, retirement planner, and Monte Carlo simulations",
-  investments: "your investment portfolio, asset allocation, and fee analysis",
+    "your retirement planner, savings projections, and years-to-retirement tracker",
+  investments:
+    "your portfolio value, what you're invested in, and how much it costs you each year",
 };
 
 const GOAL_CTA_LABEL: Record<string, string> = {
   spending: "Set my first budget",
-  retirement: "View my FIRE metrics",
+  retirement: "See my retirement outlook",
   investments: "View my investments",
 };
 
 const GOAL_DESTINATION: Record<string, string> = {
   spending: "/budgets",
-  retirement: "/fire",
+  retirement: "/retirement",
   investments: "/investments",
 };
 
@@ -127,9 +128,9 @@ const GOAL_NEXT_SENTENCE: Record<string, string> = {
   spending:
     "Most people start by setting a monthly budget — it takes 2 minutes and immediately shows where your money goes.",
   retirement:
-    "Head to your FIRE dashboard to see how close you are to financial independence.",
+    "Head to your retirement planner to see if you're on track and when you could stop working.",
   investments:
-    "Check your investments page to see your portfolio, fees, and how your money is allocated.",
+    "Check your investments page to see your portfolio, what it's costing you each year, and how your money is split.",
 };
 
 export default function WelcomePage() {
@@ -252,9 +253,15 @@ export default function WelcomePage() {
 
             {/* Goal selector */}
             <VStack spacing={3} align="stretch">
-              <Text fontWeight="semibold" fontSize="sm">
-                What brings you here?
-              </Text>
+              <VStack spacing={0} align="stretch">
+                <Text fontWeight="semibold" fontSize="sm">
+                  What brings you here?
+                </Text>
+                <Text fontSize="xs" color="text.muted">
+                  Pick what to tackle first — you can do all of this once you're
+                  set up.
+                </Text>
+              </VStack>
               <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={3}>
                 {GOAL_OPTIONS.map((goal) => (
                   <Box
@@ -306,12 +313,11 @@ export default function WelcomePage() {
               <Input
                 value={householdName}
                 onChange={(e) => setHouseholdName(e.target.value)}
-                placeholder="e.g. The Smith Family"
+                placeholder="e.g. Jane's Finances or The Smith Family"
                 size="lg"
               />
               <Text fontSize="xs" color="text.muted" mt={1}>
-                This is shown to household members. You can change it later in
-                Household Settings.
+                Just a label for your account — you can change it anytime.
               </Text>
             </FormControl>
           </VStack>
@@ -495,7 +501,7 @@ export default function WelcomePage() {
           onClick={step === 0 ? () => finish() : () => setStep(step - 1)}
           size="sm"
         >
-          {step === 0 ? "Skip setup" : "Back"}
+          {step === 0 ? "Skip for now" : "Back"}
         </Button>
         <Button
           colorScheme="brand"

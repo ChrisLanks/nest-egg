@@ -606,3 +606,188 @@ class TestTaxLotSchemas:
         d3 = date(2025, 1, 1)
         d4 = date(2025, 12, 31)  # 364 days
         assert _determine_holding_period(d3, d4) == "SHORT_TERM"
+
+
+# ---------------------------------------------------------------------------
+# WelcomePage onboarding copy — plain-English audit
+# ---------------------------------------------------------------------------
+
+import pathlib
+import re
+
+
+def _read_welcome_page() -> str:
+    """Return the raw text of WelcomePage.tsx."""
+    # __file__ = backend/tests/unit/test_new_frontend_features.py
+    # parents[3] = repo root (nest-egg/)
+    repo_root = pathlib.Path(__file__).parents[3]
+    welcome = repo_root / "frontend" / "src" / "pages" / "WelcomePage.tsx"
+    return welcome.read_text(encoding="utf-8")
+
+
+@pytest.mark.unit
+class TestWelcomePageCopy:
+    """
+    Verify WelcomePage.tsx uses plain-English copy and avoids jargon
+    that would confuse non-financial users.
+    """
+
+    # ── Banned jargon ────────────────────────────────────────────────────────
+
+    def test_no_fire_acronym_in_goal_highlights(self):
+        """GOAL_HIGHLIGHTS must not mention 'FIRE' (jargon for non-financial users)."""
+        src = _read_welcome_page()
+        # Extract just the GOAL_HIGHLIGHTS block
+        match = re.search(
+            r"const GOAL_HIGHLIGHTS.*?^};",
+            src,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert match, "GOAL_HIGHLIGHTS constant not found"
+        assert (
+            "FIRE" not in match.group()
+        ), "GOAL_HIGHLIGHTS contains 'FIRE' — use plain language like 'retirement planner'"
+
+    def test_no_monte_carlo_in_goal_highlights(self):
+        """GOAL_HIGHLIGHTS must not mention 'Monte Carlo' (statistical jargon)."""
+        src = _read_welcome_page()
+        match = re.search(
+            r"const GOAL_HIGHLIGHTS.*?^};",
+            src,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert match, "GOAL_HIGHLIGHTS constant not found"
+        assert (
+            "Monte Carlo" not in match.group()
+        ), "GOAL_HIGHLIGHTS contains 'Monte Carlo' — use 'projections' or 'scenarios'"
+
+    def test_no_fire_acronym_in_household_benefits(self):
+        """HOUSEHOLD_BENEFITS must not use 'FIRE' or 'Coast FI' jargon."""
+        src = _read_welcome_page()
+        match = re.search(
+            r"const HOUSEHOLD_BENEFITS.*?^];",
+            src,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert match, "HOUSEHOLD_BENEFITS constant not found"
+        block = match.group()
+        assert (
+            "Coast FI" not in block
+        ), "HOUSEHOLD_BENEFITS contains 'Coast FI' — use plain language"
+        assert (
+            "FIRE planning" not in block
+        ), "HOUSEHOLD_BENEFITS contains 'FIRE planning' — use 'Retirement planning'"
+
+    def test_no_monte_carlo_in_household_benefits(self):
+        """HOUSEHOLD_BENEFITS must not mention 'Monte Carlo'."""
+        src = _read_welcome_page()
+        match = re.search(
+            r"const HOUSEHOLD_BENEFITS.*?^];",
+            src,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert match, "HOUSEHOLD_BENEFITS constant not found"
+        assert (
+            "Monte Carlo" not in match.group()
+        ), "HOUSEHOLD_BENEFITS contains 'Monte Carlo' — use 'scenarios' or 'projections'"
+
+    # ── Required plain-English phrases ───────────────────────────────────────
+
+    def test_goal_highlights_retirement_uses_plain_language(self):
+        """Retirement highlight must describe the outcome, not the tool name."""
+        src = _read_welcome_page()
+        match = re.search(
+            r"const GOAL_HIGHLIGHTS.*?^};",
+            src,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert match, "GOAL_HIGHLIGHTS constant not found"
+        block = match.group()
+        # Must contain plain-language terms
+        assert (
+            "retirement planner" in block or "years-to-retirement" in block
+        ), "Retirement highlight should reference 'retirement planner' or 'years-to-retirement'"
+
+    def test_goal_highlights_investments_uses_plain_language(self):
+        """Investments highlight should not say 'asset allocation' or 'fee analysis'."""
+        src = _read_welcome_page()
+        match = re.search(
+            r"const GOAL_HIGHLIGHTS.*?^};",
+            src,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert match, "GOAL_HIGHLIGHTS constant not found"
+        block = match.group()
+        assert (
+            "asset allocation" not in block
+        ), "Investments highlight uses 'asset allocation' — rephrase as 'what you're invested in'"
+
+    def test_goal_next_sentence_retirement_avoids_jargon(self):
+        """GOAL_NEXT_SENTENCE retirement entry must not use 'FIRE dashboard'."""
+        src = _read_welcome_page()
+        match = re.search(
+            r"const GOAL_NEXT_SENTENCE.*?^};",
+            src,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert match, "GOAL_NEXT_SENTENCE constant not found"
+        block = match.group()
+        assert (
+            "FIRE dashboard" not in block
+        ), "GOAL_NEXT_SENTENCE retirement uses 'FIRE dashboard' — use 'retirement planner'"
+
+    # ── Goal selector UX ─────────────────────────────────────────────────────
+
+    def test_goal_selector_has_all_three_goals(self):
+        """GOAL_OPTIONS must define spending, retirement, and investments goals."""
+        src = _read_welcome_page()
+        match = re.search(
+            r"const GOAL_OPTIONS.*?^];",
+            src,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert match, "GOAL_OPTIONS constant not found"
+        block = match.group()
+        assert '"spending"' in block
+        assert '"retirement"' in block
+        assert '"investments"' in block
+
+    def test_goal_selector_has_all_of_the_above_hint(self):
+        """Step 0 must include copy telling users they can do all goals."""
+        src = _read_welcome_page()
+        # Flexible match — the phrase may be worded different ways
+        assert (
+            "can do all" in src or "can do all of this" in src or "tackle first" in src
+        ), "Step 0 should tell users they can do all goals, not just one"
+
+    def test_skip_button_says_skip_for_now(self):
+        """Skip button on step 0 should say 'Skip for now', not 'Skip setup'."""
+        src = _read_welcome_page()
+        assert "Skip for now" in src, "Skip button should say 'Skip for now' (not 'Skip setup')"
+        assert "Skip setup" not in src, "Old label 'Skip setup' should be removed"
+
+    def test_household_name_placeholder_works_for_solo_users(self):
+        """Placeholder must include a solo-user example, not only a family example."""
+        src = _read_welcome_page()
+        # Must offer a solo-friendly example (e.g. "Jane's Finances") alongside any family example
+        assert (
+            "Finances" in src or "My Money" in src or "Jane" in src
+        ), 'Household name placeholder should include a solo-user example like "Jane\'s Finances"'
+
+    # ── Destination routing ───────────────────────────────────────────────────
+
+    def test_retirement_goal_routes_to_retirement_page(self):
+        """Retirement goal must route to /retirement, not /fire."""
+        src = _read_welcome_page()
+        match = re.search(
+            r"const GOAL_DESTINATION.*?^};",
+            src,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert match, "GOAL_DESTINATION constant not found"
+        block = match.group()
+        assert '"/retirement"' in block, "Retirement goal should route to /retirement"
+        # /fire should not appear as a destination value
+        assert (
+            'retirement: "/fire"' not in block
+        ), "Retirement goal routes to /fire — should be /retirement"
