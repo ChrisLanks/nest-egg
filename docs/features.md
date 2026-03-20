@@ -683,3 +683,76 @@ live account data. Accessible at `GET /api/v1/smart-insights` and under
 - **Real Health Check**: `/health` verifies actual DB connectivity and returns 503 when unreachable
 - **Dashboard Query Consolidation**: Account data fetched once (eliminates 4 redundant queries)
 - **Forecast O(n) Optimization**: Transaction-by-date pre-grouping replaces O(n*days) scan
+
+## Progressive Navigation System
+
+The sidebar navigation adapts to the user's data and experience level, reducing
+cognitive overhead for new users while giving experienced users quick access to
+advanced tools.
+
+### Visibility tiers
+
+| Tier | Behaviour |
+|------|-----------|
+| **Always on** | Overview, Calendar, Investments, Accounts — always visible |
+| **Auto (conditional)** | Shown when relevant accounts exist (see table below) |
+| **Advanced** | Hidden by default; revealed via master toggle or smart auto-show |
+
+### Conditional auto-show rules (account-driven)
+
+| Tab | Condition |
+|-----|-----------|
+| Education (529) | User has a `retirement_529` account |
+| Rental Properties | User has an account with `is_rental_property = true` |
+| Debt Payoff | User has `credit_card`, `loan`, `student_loan`, or `mortgage` account |
+| Mortgage | User has a `mortgage` account |
+| SS Optimizer | User age ≥ 50, or no birthdate set |
+
+### Advanced item smart auto-show (account + age driven)
+
+| Tab | Condition |
+|-----|-----------|
+| FIRE | User has an investment account AND age < 50 AND birthdate is set |
+| Tax Projection | User has any investment account |
+
+Investment account types: `brokerage`, `retirement_401k`, `retirement_ira`,
+`retirement_roth_ira`, `retirement_403b`, `retirement_457`, `retirement_pension`, `crypto`.
+
+### Single-store override architecture
+
+All visibility state lives in a single `localStorage` key:
+**`nest-egg-nav-visibility`** — a `Record<string, boolean>` keyed by route path.
+
+```
+// Example state after user enables advanced features and hides Budgets:
+{
+  "/fire": true,
+  "/tax-projection": true,
+  "/budgets": false
+}
+```
+
+**Priority**: explicit override > smart default (`conditionalDefaults`) > always-visible.
+
+### Master "Show advanced features" toggle
+
+The toggle (top nav bar button or Settings → Navigation switch) writes
+`/fire: true/false` and `/tax-projection: true/false` directly into the
+overrides store. It does **not** use a separate flag.
+
+`showAdvancedNav` is **derived**: `ADVANCED_NAV_PATHS.every(p => overrides[p] === true)`
+
+This means:
+- Toggling advanced ON immediately re-renders the nav dropdowns (state change)
+- Per-item switches in Preferences instantly reflect master toggle state
+- A tab manually enabled stays on even when the master toggle is turned off
+- Reset to Defaults clears the overrides store entirely (including advanced paths)
+
+### Relevant files
+
+| File | Role |
+|------|------|
+| `frontend/src/components/Layout.tsx` | `navOverridesState` useState, `toggleAdvancedNav`, `isNavVisible`, `filterVisible` |
+| `frontend/src/pages/PreferencesPage.tsx` | `NavigationVisibilitySection`, per-item switches, master toggle UI |
+| `frontend/src/pages/WelcomePage.tsx` | Onboarding checkbox — writes initial advanced preference on finish |
+| `frontend/src/pages/__tests__/navPreferences.test.ts` | Full logic test suite |

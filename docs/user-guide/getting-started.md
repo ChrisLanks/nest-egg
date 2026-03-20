@@ -169,6 +169,50 @@ plots this on a chart so you can see your progress month by month.
 
 ---
 
+## Customizing the navigation
+
+Nest Egg shows a focused set of tabs by default so new users aren't overwhelmed.
+You can control exactly what appears in the sidebar from **Settings → Navigation**.
+
+### Progressive sidebar
+
+When you first sign up, a small number of tabs are shown. More appear automatically
+as your data grows:
+
+| Tab | When it appears automatically |
+|-----|-------------------------------|
+| Education (529) | When you add a 529 college savings account |
+| Rental Properties | When you add a rental property account |
+| Debt Payoff | When you have a credit card, loan, or student loan |
+| Mortgage | When you add a mortgage account |
+| SS Optimizer | When your age is 50 or older (or no birthdate set) |
+| FIRE | When you have investment accounts and are under 50 |
+| Tax Projection | When you have any investment account |
+
+### Show advanced features
+
+FIRE planning and Tax Projection are hidden by default for new users. To turn
+them on all at once:
+
+- Click **Advanced** in the top navigation bar, or
+- Go to **Settings → Navigation** and toggle **Show advanced features**
+
+Turning the master toggle on sets both tabs to visible. Turning it off sets
+both to hidden. You can also turn individual tabs on or off independently — a
+tab you manually enabled stays on even when the master toggle is off.
+
+### Per-tab overrides
+
+Expand the **Navigation** section in Settings to see every tab and its current
+state. Each tab has its own switch. Items labelled **(auto)** are controlled
+by your account data. Items labelled **(advanced)** are part of the advanced
+feature set.
+
+Clicking **Reset to Default** clears all overrides and returns to the automatic
+rules above.
+
+---
+
 ## Common questions
 
 **Do I have to connect a bank account?**
