@@ -376,18 +376,13 @@ function NavigationVisibilitySection() {
     } catch {
       /* ignore */
     }
-    toast({
-      title: next ? "Advanced features enabled" : "Advanced features hidden",
-      description: next
-        ? "FIRE planning and Tax Projection are now visible in the nav."
-        : "Advanced features hidden. You can still turn individual tabs on below.",
-      status: "info",
-      duration: 4000,
-    });
+    // Reload so the top-nav dropdowns reflect the change immediately
+    window.location.reload();
   };
 
   const toggleItem = (path: string, checked: boolean) => {
     persistOverrides({ ...overrides, [path]: checked });
+    window.location.reload();
   };
 
   const resetToDefaults = () => {
@@ -399,13 +394,7 @@ function NavigationVisibilitySection() {
     } catch {
       /* ignore */
     }
-    toast({
-      title: "Navigation reset to defaults",
-      description:
-        "Tabs will auto-hide based on your accounts. Reload to apply.",
-      status: "success",
-      duration: 3000,
-    });
+    window.location.reload();
   };
 
   const hasOverrides = Object.keys(overrides).length > 0;
