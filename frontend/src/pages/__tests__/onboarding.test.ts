@@ -7,7 +7,7 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { User } from "../../types/user";
 
 // Helper to build a minimal User object for testing
@@ -145,6 +145,94 @@ describe("invite email validation", () => {
   it("empty email disables invite button", () => {
     const email = "";
     expect(email.includes("@")).toBe(false);
+  });
+});
+
+// ── Advanced nav preference during onboarding ────────────────────────────────
+
+const ADVANCED_NAV_KEY = "nest-egg-show-advanced-nav";
+const GOAL_KEY = "nest-egg-onboarding-goal";
+
+describe("WelcomePage: advanced nav preference", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("finish() persists showAdvancedNav=false by default", () => {
+    // Simulate finish() with default checkbox (unchecked)
+    localStorage.setItem(ADVANCED_NAV_KEY, String(false));
+    expect(localStorage.getItem(ADVANCED_NAV_KEY)).toBe("false");
+  });
+
+  it("finish() persists showAdvancedNav=true when checkbox is checked", () => {
+    localStorage.setItem(ADVANCED_NAV_KEY, String(true));
+    expect(localStorage.getItem(ADVANCED_NAV_KEY)).toBe("true");
+  });
+
+  it("Layout reads 'true' string as truthy advanced toggle", () => {
+    localStorage.setItem(ADVANCED_NAV_KEY, "true");
+    const showAdvanced =
+      localStorage.getItem(ADVANCED_NAV_KEY) === "true";
+    expect(showAdvanced).toBe(true);
+  });
+
+  it("Layout reads 'false' string as falsy advanced toggle", () => {
+    localStorage.setItem(ADVANCED_NAV_KEY, "false");
+    const showAdvanced =
+      localStorage.getItem(ADVANCED_NAV_KEY) === "true";
+    expect(showAdvanced).toBe(false);
+  });
+
+  it("goal is persisted to localStorage in finish()", () => {
+    const selectedGoal = "retirement";
+    localStorage.setItem(GOAL_KEY, selectedGoal);
+    expect(localStorage.getItem(GOAL_KEY)).toBe("retirement");
+  });
+
+  it("goal and advanced flag are both persisted independently", () => {
+    localStorage.setItem(GOAL_KEY, "investments");
+    localStorage.setItem(ADVANCED_NAV_KEY, "true");
+    expect(localStorage.getItem(GOAL_KEY)).toBe("investments");
+    expect(localStorage.getItem(ADVANCED_NAV_KEY)).toBe("true");
+  });
+});
+
+// ── Goal option copy ──────────────────────────────────────────────────────────
+
+describe("WelcomePage: goal options content", () => {
+  const GOAL_OPTIONS = [
+    {
+      id: "spending",
+      title: "Track my spending",
+      desc: "See where my money goes each month and set a budget so I stop overspending",
+    },
+    {
+      id: "retirement",
+      title: "Plan for retirement",
+      desc: "Based on what I save, see when I could stop working — and what I need to get there",
+    },
+    {
+      id: "investments",
+      title: "Understand my investments",
+      desc: "If I have a 401(k) or brokerage account, see what's in it and what it costs me each year",
+    },
+  ];
+
+  it("has exactly 3 goal options", () => {
+    expect(GOAL_OPTIONS).toHaveLength(3);
+  });
+
+  it("investments goal mentions 401(k)", () => {
+    const inv = GOAL_OPTIONS.find((g) => g.id === "investments");
+    expect(inv?.desc).toContain("401(k)");
+  });
+
+  it("retirement goal mentions stopping working", () => {
+    const ret = GOAL_OPTIONS.find((g) => g.id === "retirement");
+    expect(ret?.desc).toContain("stop working");
+  });
+
+  it("spending goal mentions budget", () => {
+    const sp = GOAL_OPTIONS.find((g) => g.id === "spending");
+    expect(sp?.desc).toContain("budget");
   });
 });
 

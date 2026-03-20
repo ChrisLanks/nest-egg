@@ -1,24 +1,27 @@
 /**
- * Tests for the NavigationVisibilitySection logic in PreferencesPage.
+ * Tests for the NavigationVisibilitySection logic in PreferencesPage
+ * and the progressive sidebar advanced-features system in Layout.tsx.
  *
- * Mirrors the toggle/persist/reset/isItemOn logic from PreferencesPage
- * to catch regressions without rendering Chakra components.
+ * Mirrors the toggle/persist/reset/isItemOn/isNavVisible logic to catch
+ * regressions without rendering Chakra components.
  */
 
 // @vitest-environment jsdom
 
 import { describe, it, expect, beforeEach } from "vitest";
 
-// ── Constants mirroring PreferencesPage ────────────────────────────────────
+// ── Constants mirroring PreferencesPage / Layout ────────────────────────────
 
 const STORAGE_KEY = "nest-egg-nav-visibility";
 const LEGACY_KEY = "nest-egg-show-all-nav";
+const ADVANCED_KEY = "nest-egg-show-advanced-nav";
 
 interface NavItem {
   label: string;
   path: string;
   alwaysOn?: boolean;
   conditional?: boolean;
+  advanced?: boolean;
 }
 
 const NAV_SECTIONS: { group: string; items: NavItem[] }[] = [
@@ -63,8 +66,9 @@ const NAV_SECTIONS: { group: string; items: NavItem[] }[] = [
       { label: "Goals", path: "/goals" },
       { label: "Retirement", path: "/retirement" },
       { label: "Education", path: "/education", conditional: true },
-      { label: "FIRE", path: "/fire" },
+      { label: "FIRE", path: "/fire", advanced: true },
       { label: "Debt Payoff", path: "/debt-payoff", conditional: true },
+      { label: "Tax Projection", path: "/tax-projection", advanced: true },
     ],
   },
 ];
@@ -78,6 +82,18 @@ const loadOverrides = (): Record<string, boolean> => {
   } catch {
     return {};
   }
+};
+
+const loadShowAdvanced = (): boolean => {
+  try {
+    return localStorage.getItem(ADVANCED_KEY) === "true";
+  } catch {
+    return false;
+  }
+};
+
+const persistAdvanced = (next: boolean) => {
+  localStorage.setItem(ADVANCED_KEY, String(next));
 };
 
 const persist = (next: Record<string, boolean>) => {
@@ -116,7 +132,20 @@ const isItemOn = (
   return !item.conditional;
 };
 
-// ── Tests ──────────────────────────────────────────────────────────────────
+// Mirrors Layout.tsx isNavVisible(path, defaultVisible, isAdvanced)
+const isNavVisible = (
+  path: string,
+  defaultVisible: boolean,
+  isAdvanced: boolean,
+  overrides: Record<string, boolean>,
+  showAdvanced: boolean,
+): boolean => {
+  if (path in overrides) return overrides[path];
+  if (isAdvanced && !showAdvanced) return false;
+  return defaultVisible;
+};
+
+// ── Tests: isItemOn ──────────────────────────────────────────────────────────
 
 describe("NavigationVisibilitySection: isItemOn", () => {
   it("alwaysOn items are always on regardless of overrides", () => {
@@ -158,6 +187,150 @@ describe("NavigationVisibilitySection: isItemOn", () => {
   });
 });
 
+// ── Tests: isNavVisible (advanced-feature gating) ───────────────────────────
+
+describe("isNavVisible: advanced feature gating", () => {
+  it("FIRE is hidden by default when advanced toggle is off", () => {
+    expect(isNavVisible("/fire", true, true, {}, false)).toBe(false);
+  });
+
+  it("Tax Projection is hidden by default when advanced toggle is off", () => {
+    expect(isNavVisible("/tax-projection", true, true, {}, false)).toBe(false);
+  });
+
+  it("FIRE is shown when advanced toggle is on", () => {
+    expect(isNavVisible("/fire", true, true, {}, true)).toBe(true);
+  });
+
+  it("Tax Projection is shown when advanced toggle is on", () => {
+    expect(isNavVisible("/tax-projection", true, true, {}, true)).toBe(true);
+  });
+
+  it("per-item override=true shows an advanced item even when toggle is off", () => {
+    expect(isNavVisible("/fire", true, true, { "/fire": true }, false)).toBe(
+      true,
+    );
+  });
+
+  it("per-item override=false hides a non-advanced item", () => {
+    expect(
+      isNavVisible("/budgets", true, false, { "/budgets": false }, false),
+    ).toBe(false);
+  });
+
+  it("non-advanced items are unaffected by the advanced toggle", () => {
+    expect(isNavVisible("/retirement", true, false, {}, false)).toBe(true);
+    expect(isNavVisible("/retirement", true, false, {}, true)).toBe(true);
+  });
+
+  it("conditional default=false item stays hidden even with advanced toggle on", () => {
+    // e.g. /debt-payoff when user has no debt — defaultVisible=false, isAdvanced=false
+    expect(isNavVisible("/debt-payoff", false, false, {}, true)).toBe(false);
+  });
+});
+
+// ── Tests: smart auto-show rules ─────────────────────────────────────────────
+
+describe("smart auto-show rules for advanced items", () => {
+  type Account = { account_type: string };
+
+  const INVESTMENT_TYPES = new Set([
+    "brokerage",
+    "retirement_401k",
+    "retirement_ira",
+    "retirement_roth_ira",
+    "retirement_403b",
+    "retirement_457",
+    "retirement_pension",
+    "crypto",
+  ]);
+
+  const hasInvestments = (accounts: Account[]) =>
+    accounts.some((a) => INVESTMENT_TYPES.has(a.account_type));
+
+  const showFireSmart = (accounts: Account[], userAge: number | null) =>
+    hasInvestments(accounts) && userAge !== null && userAge < 50;
+
+  const showTaxProjectionSmart = (accounts: Account[]) =>
+    hasInvestments(accounts);
+
+  it("FIRE auto-shows for user under 50 with investment account", () => {
+    const accounts: Account[] = [{ account_type: "retirement_401k" }];
+    expect(showFireSmart(accounts, 35)).toBe(true);
+  });
+
+  it("FIRE does NOT auto-show for user 50 or older", () => {
+    const accounts: Account[] = [{ account_type: "brokerage" }];
+    expect(showFireSmart(accounts, 50)).toBe(false);
+    expect(showFireSmart(accounts, 65)).toBe(false);
+  });
+
+  it("FIRE does NOT auto-show when user has no investment accounts", () => {
+    const accounts: Account[] = [{ account_type: "checking" }];
+    expect(showFireSmart(accounts, 30)).toBe(false);
+  });
+
+  it("FIRE does NOT auto-show when userAge is null (no birthdate)", () => {
+    const accounts: Account[] = [{ account_type: "brokerage" }];
+    expect(showFireSmart(accounts, null)).toBe(false);
+  });
+
+  it("Tax Projection auto-shows for any user with investment account", () => {
+    expect(showTaxProjectionSmart([{ account_type: "brokerage" }])).toBe(true);
+    expect(showTaxProjectionSmart([{ account_type: "retirement_ira" }])).toBe(
+      true,
+    );
+  });
+
+  it("Tax Projection does NOT auto-show with no investment accounts", () => {
+    expect(showTaxProjectionSmart([{ account_type: "savings" }])).toBe(false);
+    expect(showTaxProjectionSmart([])).toBe(false);
+  });
+
+  it("crypto account triggers investment detection", () => {
+    expect(showTaxProjectionSmart([{ account_type: "crypto" }])).toBe(true);
+  });
+});
+
+// ── Tests: advanced toggle persist/read ─────────────────────────────────────
+
+describe("advanced toggle: persist and read", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("defaults to false when key is absent", () => {
+    expect(loadShowAdvanced()).toBe(false);
+  });
+
+  it("persisting true stores 'true' string", () => {
+    persistAdvanced(true);
+    expect(localStorage.getItem(ADVANCED_KEY)).toBe("true");
+  });
+
+  it("persisting false stores 'false' string", () => {
+    persistAdvanced(false);
+    expect(localStorage.getItem(ADVANCED_KEY)).toBe("false");
+  });
+
+  it("loadShowAdvanced reads back true correctly", () => {
+    persistAdvanced(true);
+    expect(loadShowAdvanced()).toBe(true);
+  });
+
+  it("loadShowAdvanced reads back false correctly", () => {
+    persistAdvanced(false);
+    expect(loadShowAdvanced()).toBe(false);
+  });
+
+  it("only 'true' string is truthy — other values return false", () => {
+    localStorage.setItem(ADVANCED_KEY, "1");
+    expect(loadShowAdvanced()).toBe(false);
+    localStorage.setItem(ADVANCED_KEY, "yes");
+    expect(loadShowAdvanced()).toBe(false);
+  });
+});
+
+// ── Tests: toggle and persist (per-item overrides) ───────────────────────────
+
 describe("NavigationVisibilitySection: toggle and persist", () => {
   beforeEach(() => localStorage.clear());
 
@@ -182,6 +355,8 @@ describe("NavigationVisibilitySection: toggle and persist", () => {
   });
 });
 
+// ── Tests: reset to defaults ─────────────────────────────────────────────────
+
 describe("NavigationVisibilitySection: reset to defaults", () => {
   beforeEach(() => localStorage.clear());
 
@@ -202,7 +377,15 @@ describe("NavigationVisibilitySection: reset to defaults", () => {
     resetToDefaults();
     expect(loadOverrides()).toEqual({});
   });
+
+  it("does NOT clear the advanced toggle — that's a separate preference", () => {
+    persistAdvanced(true);
+    resetToDefaults();
+    expect(loadShowAdvanced()).toBe(true);
+  });
 });
+
+// ── Tests: NAV_SECTIONS structure ────────────────────────────────────────────
 
 describe("NavigationVisibilitySection: NAV_SECTIONS structure", () => {
   it("has 4 groups", () => {
@@ -229,13 +412,30 @@ describe("NavigationVisibilitySection: NAV_SECTIONS structure", () => {
     ]);
   });
 
-  it("no spending items are conditional", () => {
+  it("advanced items are exactly: /fire and /tax-projection", () => {
+    const advancedPaths = NAV_SECTIONS.flatMap((s) => s.items)
+      .filter((i) => i.advanced)
+      .map((i) => i.path)
+      .sort();
+    expect(advancedPaths).toEqual(["/fire", "/tax-projection"]);
+  });
+
+  it("no spending items are conditional or advanced", () => {
     const spending = NAV_SECTIONS.find((s) => s.group === "Spending");
-    expect(spending!.items.every((i) => !i.conditional)).toBe(true);
+    expect(spending!.items.every((i) => !i.conditional && !i.advanced)).toBe(
+      true,
+    );
   });
 
   it("all items have unique paths", () => {
     const allPaths = NAV_SECTIONS.flatMap((s) => s.items).map((i) => i.path);
     expect(new Set(allPaths).size).toBe(allPaths.length);
+  });
+
+  it("FIRE and Tax Projection are in Planning group", () => {
+    const planning = NAV_SECTIONS.find((s) => s.group === "Planning");
+    const paths = planning!.items.map((i) => i.path);
+    expect(paths).toContain("/fire");
+    expect(paths).toContain("/tax-projection");
   });
 });
