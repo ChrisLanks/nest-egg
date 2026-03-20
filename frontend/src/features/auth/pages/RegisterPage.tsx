@@ -203,7 +203,17 @@ export const RegisterPage = () => {
                     {...register('password')}
                   />
                   <FormHelperText>
-                    12+ characters with uppercase, lowercase, number, and special character.
+                    12+ characters with uppercase, lowercase, number, and special
+                    character — e.g. <strong>BlueSky!2024x</strong>. A password
+                    manager like{" "}
+                    <ChakraLink
+                      href="https://bitwarden.com"
+                      isExternal
+                      color="brand.500"
+                    >
+                      Bitwarden
+                    </ChakraLink>{" "}
+                    (free) can create and remember one for you.
                   </FormHelperText>
                   <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
                 </FormControl>

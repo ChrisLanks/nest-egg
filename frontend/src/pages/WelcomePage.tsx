@@ -13,6 +13,7 @@ import { useState } from "react";
 import {
   Box,
   Button,
+  Checkbox,
   Container,
   Heading,
   HStack,
@@ -64,7 +65,7 @@ const HOUSEHOLD_BENEFITS = [
   {
     icon: FiBarChart2,
     title: "Combined net worth",
-    desc: "See all accounts together — or filter to just one person's view",
+    desc: "See your total assets minus debts in one number — across both of your accounts",
   },
   {
     icon: FiDollarSign,
@@ -98,19 +99,19 @@ const GOAL_OPTIONS = [
     id: "spending",
     icon: FiDollarSign,
     title: "Track my spending",
-    desc: "See where my money goes and stick to a budget",
+    desc: "See where my money goes each month and set a budget so I stop overspending",
   },
   {
     id: "retirement",
     icon: FiZap,
     title: "Plan for retirement",
-    desc: "Know if I'm on track to retire when I want",
+    desc: "Based on what I save, see when I could stop working — and what I need to get there",
   },
   {
     id: "investments",
     icon: FiTrendingUp,
     title: "Understand my investments",
-    desc: "See my portfolio and whether my fees are too high",
+    desc: "If I have a 401(k) or brokerage account, see what's in it and what it costs me each year",
   },
 ];
 
@@ -179,6 +180,7 @@ export default function WelcomePage() {
   const [addAccountOpen, setAddAccountOpen] = useState(false);
   const [accountLinked, setAccountLinked] = useState(false);
   const [inviteSent, setInviteSent] = useState(false);
+  const [showAdvancedNav, setShowAdvancedNav] = useState(false);
   const navigate = useNavigate();
   const toast = useToast();
   const { user, setUser } = useAuthStore();
@@ -221,6 +223,8 @@ export default function WelcomePage() {
     if (selectedGoal) {
       localStorage.setItem("nest-egg-onboarding-goal", selectedGoal);
     }
+    // Persist advanced nav preference
+    localStorage.setItem("nest-egg-show-advanced-nav", String(showAdvancedNav));
     // Save chosen dashboard layout — best-effort, don't block navigation
     try {
       const layout =
@@ -370,6 +374,29 @@ export default function WelcomePage() {
                 Just a label for your account — you can change it anytime.
               </Text>
             </FormControl>
+
+            {/* Advanced features opt-in */}
+            <Box
+              p={3}
+              bg="bg.subtle"
+              borderRadius="md"
+              border="1px solid"
+              borderColor="border.default"
+            >
+              <Checkbox
+                isChecked={showAdvancedNav}
+                onChange={(e) => setShowAdvancedNav(e.target.checked)}
+                colorScheme="brand"
+              >
+                <Text fontSize="sm" fontWeight="medium">
+                  I&apos;m an experienced investor — show advanced features
+                </Text>
+              </Checkbox>
+              <Text fontSize="xs" color="text.muted" mt={1} ml={6}>
+                Unlocks FIRE planning, Tax Projection, and more. You can turn
+                this on or off anytime in Settings.
+              </Text>
+            </Box>
           </VStack>
         )}
 

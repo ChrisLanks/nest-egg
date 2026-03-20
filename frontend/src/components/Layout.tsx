@@ -541,6 +541,25 @@ export const Layout = () => {
     onClose: onAddAccountClose,
   } = useDisclosure();
 
+  // "Show advanced features" toggle — persisted in localStorage so it survives refresh
+  const [showAdvancedNav, setShowAdvancedNav] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("nest-egg-show-advanced-nav") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleAdvancedNav = () => {
+    const next = !showAdvancedNav;
+    setShowAdvancedNav(next);
+    try {
+      localStorage.setItem("nest-egg-show-advanced-nav", String(next));
+    } catch {
+      /* ignore */
+    }
+  };
+
   const [collapsedSections, setCollapsedSections] = useState<
     Record<string, boolean>
   >(() => {
@@ -592,12 +611,29 @@ export const Layout = () => {
   })();
 
   // Helper: check if a nav item is visible
-  // Priority: user override > account-based default > always visible
-  const isNavVisible = (path: string, defaultVisible: boolean): boolean => {
+  // Priority: user per-item override > advanced-flag > account-based default > always visible
+  const isNavVisible = (
+    path: string,
+    defaultVisible: boolean,
+    isAdvanced = false,
+  ): boolean => {
     if (path in navOverrides) return navOverrides[path];
     if (accountsLoading) return true; // show while loading
+    // Advanced items are hidden by default unless the global toggle is on
+    if (isAdvanced && !showAdvancedNav) return false;
     return defaultVisible;
   };
+
+  const INVESTMENT_TYPES = new Set([
+    "brokerage",
+    "retirement_401k",
+    "retirement_ira",
+    "retirement_roth_ira",
+    "retirement_403b",
+    "retirement_457",
+    "retirement_pension",
+    "crypto",
+  ]);
 
   const hasDebt = (accounts ?? []).some((a) => DEBT_TYPES.has(a.account_type));
   const hasRental = (accounts ?? []).some((a) => a.is_rental_property);
@@ -607,6 +643,17 @@ export const Layout = () => {
   const has529 = (accounts ?? []).some(
     (a) => a.account_type === "retirement_529",
   );
+  const hasInvestments = (accounts ?? []).some((a) =>
+    INVESTMENT_TYPES.has(a.account_type),
+  );
+
+  // Smart auto-show rules for advanced items (bypass the global toggle):
+  // - FIRE: show if user is under 50 AND has investment accounts (they're actively building wealth)
+  // - Tax Projection: show if user has investment accounts (capital gains tax is relevant)
+  // These are overridden by explicit per-item navOverrides as usual.
+  const showFireSmart =
+    hasInvestments && userAge !== null && userAge < 50;
+  const showTaxProjectionSmart = hasInvestments;
 
   // Feature discovery: toast once when conditional nav items first unlock
   const toast = useToast();
@@ -781,6 +828,7 @@ export const Layout = () => {
       path: "/fire",
       tooltip:
         "Financial Independence, Retire Early — track how close you are to never needing to work again",
+      advanced: true,
     },
     {
       label: "Debt Payoff",
@@ -805,6 +853,7 @@ export const Layout = () => {
       path: "/tax-projection",
       tooltip:
         "Estimate your tax bill before April — factor in income, deductions, and capital gains",
+      advanced: true,
     },
   ];
 
@@ -815,13 +864,20 @@ export const Layout = () => {
     "/debt-payoff": hasDebt,
     "/mortgage": hasMortgage,
     "/ss-claiming": showSsOptimizer,
+    // Advanced items: smart auto-show overrides the global advanced toggle
+    "/fire": showFireSmart,
+    "/tax-projection": showTaxProjectionSmart,
   };
 
   const filterVisible = (
-    items: { label: string; path: string; tooltip?: string }[],
+    items: { label: string; path: string; tooltip?: string; advanced?: boolean }[],
   ): { label: string; path: string; tooltip?: string }[] =>
     items.filter((item) =>
-      isNavVisible(item.path, conditionalDefaults[item.path] ?? true),
+      isNavVisible(
+        item.path,
+        conditionalDefaults[item.path] ?? true,
+        item.advanced ?? false,
+      ),
     );
 
   const spendingMenuItems = filterVisible(allSpendingItems);
@@ -1126,6 +1182,24 @@ export const Layout = () => {
             <Box ml={10}>
               <UserViewToggle />
             </Box>
+            <Tooltip
+              label={
+                showAdvancedNav
+                  ? "Hide advanced features (FIRE, Tax Projection)"
+                  : "Show advanced features — FIRE planning, Tax Projection, and more"
+              }
+              hasArrow
+            >
+              <Button
+                size="xs"
+                variant={showAdvancedNav ? "solid" : "ghost"}
+                colorScheme={showAdvancedNav ? "brand" : "gray"}
+                onClick={toggleAdvancedNav}
+                fontWeight="normal"
+              >
+                {showAdvancedNav ? "Advanced ✓" : "Advanced"}
+              </Button>
+            </Tooltip>
             <NotificationBell />
 
             <UserMenu

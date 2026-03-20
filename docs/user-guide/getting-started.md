@@ -1,6 +1,9 @@
-# Getting Started with Nest Egg
+# Getting Started with Nest Egg — Full Guide
 
-Welcome! This guide is for people who are new to personal finance tracking —
+> **Just want the essentials?** See [Quick Start](quick-start.md) — Nest Egg
+> in 5 minutes, no reading required.
+
+This is the full guide for people who are new to personal finance tracking —
 no jargon, no assumptions, just plain English.
 
 ---
@@ -159,9 +162,10 @@ plots this on a chart so you can see your progress month by month.
 | **Portfolio** | All your investments together — stocks, funds, etc. |
 | **Cash flow** | The difference between money coming in (income) and money going out (spending) each month. |
 | **FIRE** | Financial Independence, Retire Early — a goal of saving enough that you no longer need to work. |
-| **Tax lot** | A record of when you bought a specific investment, used for calculating gains and taxes when you sell. |
-| **Cost basis** | What you originally paid for an investment — used to calculate your gain or loss when you sell. |
-| **Net operating income** | For rental properties: rent collected minus expenses (repairs, insurance, etc.). |
+
+> **Advanced terms** (tax lots, cost basis, net operating income, amortization)
+> are covered in the app's in-context help tooltips when you reach those
+> features. They're not needed for everyday budgeting or retirement planning.
 
 ---
 

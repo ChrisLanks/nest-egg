@@ -5,8 +5,10 @@
  * onboarding. Keeps the app feeling personalized after signup and gives
  * beginners a clear "what to do next" prompt.
  *
- * Reads the goal from localStorage (set in WelcomePage on finish).
- * Disappears permanently once the user dismisses it.
+ * - For "investments" goal with no accounts connected yet, the CTA redirects
+ *   to Accounts (to add one) instead of the empty investments page.
+ * - Reads goal from localStorage (set in WelcomePage on finish).
+ * - Disappears permanently once the user dismisses it.
  */
 
 import { useState } from "react";
@@ -21,6 +23,8 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import api from "../../services/api";
 
 const DISMISSED_KEY = "nest-egg-goal-banner-dismissed";
 const GOAL_KEY = "nest-egg-onboarding-goal";
@@ -49,6 +53,14 @@ const GOAL_CONFIGS: Record<string, GoalConfig> = {
   },
 };
 
+// When goal=investments but no accounts exist yet, redirect to Accounts
+// instead of an empty investments page.
+const INVESTMENTS_NO_ACCOUNTS_CONFIG: GoalConfig = {
+  intro: "You said you want to understand your investments.",
+  cta: "Add your investment account first",
+  path: "/accounts",
+};
+
 export const GoalContextBanner = () => {
   const [dismissed, setDismissed] = useState(
     () => localStorage.getItem(DISMISSED_KEY) === "true",
@@ -57,10 +69,24 @@ export const GoalContextBanner = () => {
 
   const goal = localStorage.getItem(GOAL_KEY);
 
+  // Fetch accounts to detect the "investments goal, no accounts" scenario.
+  // Only runs when goal=investments and not yet dismissed.
+  const { data: accounts } = useQuery({
+    queryKey: ["goal-banner-accounts"],
+    queryFn: () => api.get("/accounts").then((r) => r.data as Array<unknown>),
+    enabled: goal === "investments" && !dismissed,
+    staleTime: 60_000,
+  });
+
   // Hide if dismissed, no goal stored, or goal is unrecognised
   if (dismissed || !goal || !GOAL_CONFIGS[goal]) return null;
 
-  const config = GOAL_CONFIGS[goal];
+  const hasNoAccounts =
+    goal === "investments" && Array.isArray(accounts) && accounts.length === 0;
+
+  const config = hasNoAccounts
+    ? INVESTMENTS_NO_ACCOUNTS_CONFIG
+    : GOAL_CONFIGS[goal];
 
   const handleDismiss = () => {
     localStorage.setItem(DISMISSED_KEY, "true");

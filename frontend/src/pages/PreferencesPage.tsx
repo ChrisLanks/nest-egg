@@ -333,6 +333,32 @@ function NavigationVisibilitySection() {
   const toast = useToast();
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Global "show advanced features" toggle
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("nest-egg-show-advanced-nav") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleAdvanced = (next: boolean) => {
+    setShowAdvanced(next);
+    try {
+      localStorage.setItem("nest-egg-show-advanced-nav", String(next));
+    } catch {
+      /* ignore */
+    }
+    toast({
+      title: next ? "Advanced features enabled" : "Advanced features hidden",
+      description: next
+        ? "FIRE planning and Tax Projection are now visible in the nav."
+        : "Advanced features are now hidden. Smart auto-show still applies based on your accounts.",
+      status: "info",
+      duration: 4000,
+    });
+  };
+
   // Read overrides from localStorage
   const [overrides, setOverrides] = useState<Record<string, boolean>>(() => {
     try {
@@ -426,6 +452,25 @@ function NavigationVisibilitySection() {
       <Text color="text.secondary" fontSize="sm" mt={1}>
         Customize which tabs appear in the sidebar.
       </Text>
+
+      {/* Advanced features master toggle — always visible, no need to expand */}
+      <HStack justify="space-between" mt={3} px={1}>
+        <Box>
+          <Text fontSize="sm" fontWeight="medium">
+            Show advanced features
+          </Text>
+          <Text fontSize="xs" color="text.muted">
+            FIRE planning, Tax Projection — hidden by default for new users.
+            Smart auto-show still applies based on your accounts and age.
+          </Text>
+        </Box>
+        <Switch
+          isChecked={showAdvanced}
+          onChange={(e) => toggleAdvanced(e.target.checked)}
+          colorScheme="brand"
+        />
+      </HStack>
+
       <Collapse in={isExpanded} animateOpacity>
         <VStack align="stretch" spacing={4} mt={4}>
           {NAV_SECTIONS.map((section) => (
