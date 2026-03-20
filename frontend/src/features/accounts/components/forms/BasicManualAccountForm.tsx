@@ -99,6 +99,10 @@ export const BasicManualAccountForm = ({
       loan_term_months: loanTermYears
         ? Math.round(parseFloat(loanTermYears) * 12)
         : undefined,
+      // Empty string from an unfilled date input must be omitted, not sent as ""
+      // (the backend expects a valid ISO date or null/absent, never "")
+      origination_date: data.origination_date || undefined,
+      benefit_start_date: data.benefit_start_date || undefined,
     };
     onSubmit(submitData);
   };
@@ -212,11 +216,22 @@ export const BasicManualAccountForm = ({
                     <NumberInput
                       {...field}
                       value={value ?? ""}
-                      onChange={(valueString) =>
-                        onChange(
-                          valueString ? parseFloat(valueString) : undefined,
-                        )
-                      }
+                      onChange={(valueString) => {
+                        // Keep raw string while user is mid-typing (e.g. "6.")
+                        // so the decimal point isn't stripped on every keystroke
+                        if (
+                          valueString === "" ||
+                          valueString === "." ||
+                          valueString.endsWith(".")
+                        ) {
+                          onChange(
+                            valueString === "" ? undefined : valueString,
+                          );
+                        } else {
+                          const parsed = parseFloat(valueString);
+                          onChange(isNaN(parsed) ? undefined : parsed);
+                        }
+                      }}
                       precision={3}
                       step={0.125}
                       min={0}

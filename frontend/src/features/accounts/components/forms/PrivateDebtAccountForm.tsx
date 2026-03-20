@@ -14,14 +14,14 @@ import {
   HStack,
   Text,
   FormHelperText,
-} from '@chakra-ui/react';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowBackIcon } from '@chakra-ui/icons';
+} from "@chakra-ui/react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowBackIcon } from "@chakra-ui/icons";
 import {
   privateDebtAccountSchema,
   type PrivateDebtAccountFormData,
-} from '../../schemas/manualAccountSchemas';
+} from "../../schemas/manualAccountSchemas";
 
 interface PrivateDebtAccountFormProps {
   onSubmit: (data: PrivateDebtAccountFormData) => void;
@@ -42,12 +42,15 @@ export const PrivateDebtAccountForm = ({
   } = useForm<PrivateDebtAccountFormData>({
     resolver: zodResolver(privateDebtAccountSchema),
     defaultValues: {
-      account_type: 'private_debt' as any,
+      account_type: "private_debt" as any,
     },
   });
 
   const handleFormSubmit = (data: PrivateDebtAccountFormData) => {
-    onSubmit(data);
+    onSubmit({
+      ...data,
+      maturity_date: data.maturity_date || undefined,
+    });
   };
 
   return (
@@ -69,21 +72,30 @@ export const PrivateDebtAccountForm = ({
         </Text>
 
         <Text fontSize="sm" color="text.secondary">
-          Track private credit funds or loans you've made to businesses or individuals.
+          Track private credit funds or loans you've made to businesses or
+          individuals.
         </Text>
 
         {/* Investment Name */}
         <FormControl isInvalid={!!errors.name}>
           <FormLabel>Investment Name</FormLabel>
-          <Input {...register('name')} placeholder="e.g., Private Credit Fund or Loan to Business X" />
+          <Input
+            {...register("name")}
+            placeholder="e.g., Private Credit Fund or Loan to Business X"
+          />
           <FormErrorMessage>{errors.name?.message}</FormErrorMessage>
         </FormControl>
 
         {/* Institution/Fund (optional) */}
         <FormControl>
           <FormLabel>Institution/Fund (Optional)</FormLabel>
-          <Input {...register('institution')} placeholder="e.g., Ares Private Credit" />
-          <FormHelperText>Name of the fund or institution managing the debt</FormHelperText>
+          <Input
+            {...register("institution")}
+            placeholder="e.g., Ares Private Credit"
+          />
+          <FormHelperText>
+            Name of the fund or institution managing the debt
+          </FormHelperText>
         </FormControl>
 
         {/* Current Balance */}
@@ -96,7 +108,9 @@ export const PrivateDebtAccountForm = ({
               <NumberInput
                 {...field}
                 value={value as number}
-                onChange={(valueString) => onChange(parseFloat(valueString) || 0)}
+                onChange={(valueString) =>
+                  onChange(parseFloat(valueString) || 0)
+                }
                 min={0}
                 precision={2}
               >
@@ -104,7 +118,9 @@ export const PrivateDebtAccountForm = ({
               </NumberInput>
             )}
           />
-          <FormHelperText>Current remaining balance of the loan or investment</FormHelperText>
+          <FormHelperText>
+            Current remaining balance of the loan or investment
+          </FormHelperText>
           <FormErrorMessage>{errors.balance?.message}</FormErrorMessage>
         </FormControl>
 
@@ -118,7 +134,9 @@ export const PrivateDebtAccountForm = ({
               <NumberInput
                 {...field}
                 value={value as number}
-                onChange={(valueString) => onChange(parseFloat(valueString) || 0)}
+                onChange={(valueString) =>
+                  onChange(parseFloat(valueString) || 0)
+                }
                 min={0}
                 precision={2}
               >
@@ -127,7 +145,9 @@ export const PrivateDebtAccountForm = ({
             )}
           />
           <FormHelperText>Original principal amount of the loan</FormHelperText>
-          <FormErrorMessage>{errors.principal_amount?.message}</FormErrorMessage>
+          <FormErrorMessage>
+            {errors.principal_amount?.message}
+          </FormErrorMessage>
         </FormControl>
 
         {/* Interest Rate */}
@@ -140,7 +160,9 @@ export const PrivateDebtAccountForm = ({
               <NumberInput
                 {...field}
                 value={value as number}
-                onChange={(valueString) => onChange(parseFloat(valueString) || 0)}
+                onChange={(valueString) =>
+                  onChange(parseFloat(valueString) || 0)
+                }
                 min={0}
                 max={100}
                 precision={2}
@@ -156,8 +178,10 @@ export const PrivateDebtAccountForm = ({
         {/* Maturity Date */}
         <FormControl isInvalid={!!errors.maturity_date}>
           <FormLabel>Maturity Date (Optional)</FormLabel>
-          <Input type="date" {...register('maturity_date')} />
-          <FormHelperText>Date when the loan is expected to be paid back in full</FormHelperText>
+          <Input type="date" {...register("maturity_date")} />
+          <FormHelperText>
+            Date when the loan is expected to be paid back in full
+          </FormHelperText>
           <FormErrorMessage>{errors.maturity_date?.message}</FormErrorMessage>
         </FormControl>
 
