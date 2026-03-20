@@ -1,6 +1,7 @@
 """Service for detecting net worth milestones and all-time highs."""
 
 import logging
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional
 from uuid import UUID
@@ -9,7 +10,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.net_worth_snapshot import NetWorthSnapshot
-from app.models.notification import NotificationPriority, NotificationType
+from app.models.notification import Notification, NotificationPriority, NotificationType
 from app.services.notification_service import NotificationService
 from app.utils.datetime_utils import utc_now
 
@@ -29,6 +30,34 @@ MILESTONE_THRESHOLDS = [
     5_000_000,
     10_000_000,
 ]
+
+
+async def _notification_exists_today(
+    db: AsyncSession,
+    organization_id: UUID,
+    type: NotificationType,
+    title: str,
+) -> bool:
+    """Return True if an identical notification was already created today for this org.
+
+    Prevents duplicate milestone/ATH notifications when multiple account syncs
+    run concurrently and each triggers check_milestones independently.
+    """
+    today = utc_now().date()
+    day_start = datetime(today.year, today.month, today.day, tzinfo=timezone.utc)
+    result = await db.execute(
+        select(Notification.id)
+        .where(
+            and_(
+                Notification.organization_id == organization_id,
+                Notification.type == type,
+                Notification.title == title,
+                Notification.created_at >= day_start,
+            )
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
 
 
 def _format_milestone(value: int) -> str:
@@ -98,20 +127,24 @@ async def check_milestones(
 
     if highest_crossed is not None:
         milestone_label = _format_milestone(highest_crossed)
-        await NotificationService.create_notification(
-            db=db,
-            organization_id=organization_id,
-            type=NotificationType.MILESTONE,
-            title=f"Milestone reached: {milestone_label}!",
-            message=(
-                f"Congratulations! Your household net worth has crossed "
-                f"{milestone_label}. Current net worth: ${current_value:,.2f}."
-            ),
-            priority=NotificationPriority.LOW,
-            action_url="/dashboard",
-            action_label="View Dashboard",
-            expires_in_days=30,
-        )
+        milestone_title = f"Milestone reached: {milestone_label}!"
+        if not await _notification_exists_today(
+            db, organization_id, NotificationType.MILESTONE, milestone_title
+        ):
+            await NotificationService.create_notification(
+                db=db,
+                organization_id=organization_id,
+                type=NotificationType.MILESTONE,
+                title=milestone_title,
+                message=(
+                    f"Congratulations! Your household net worth has crossed "
+                    f"{milestone_label}. Current net worth: ${current_value:,.2f}."
+                ),
+                priority=NotificationPriority.LOW,
+                action_url="/dashboard",
+                action_label="View Dashboard",
+                expires_in_days=30,
+            )
 
         logger.info(
             "Milestone %s reached for org %s (net worth: $%s)",
@@ -146,21 +179,25 @@ async def check_milestones(
             }
         )
 
-        await NotificationService.create_notification(
-            db=db,
-            organization_id=organization_id,
-            type=NotificationType.ALL_TIME_HIGH,
-            title="New all-time high net worth!",
-            message=(
-                f"Your household net worth has reached a new all-time high "
-                f"of ${current_value:,.2f}, surpassing the previous record "
-                f"of ${previous_ath_value:,.2f}."
-            ),
-            priority=NotificationPriority.LOW,
-            action_url="/dashboard",
-            action_label="View Dashboard",
-            expires_in_days=30,
-        )
+        ath_title = "New all-time high net worth!"
+        if not await _notification_exists_today(
+            db, organization_id, NotificationType.ALL_TIME_HIGH, ath_title
+        ):
+            await NotificationService.create_notification(
+                db=db,
+                organization_id=organization_id,
+                type=NotificationType.ALL_TIME_HIGH,
+                title=ath_title,
+                message=(
+                    f"Your household net worth has reached a new all-time high "
+                    f"of ${current_value:,.2f}, surpassing the previous record "
+                    f"of ${previous_ath_value:,.2f}."
+                ),
+                priority=NotificationPriority.LOW,
+                action_url="/dashboard",
+                action_label="View Dashboard",
+                expires_in_days=30,
+            )
 
         logger.info(
             "All-time high net worth for org %s: $%s (previous: $%s)",

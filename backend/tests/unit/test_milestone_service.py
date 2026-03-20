@@ -6,11 +6,14 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from app.models.net_worth_snapshot import NetWorthSnapshot
+from app.models.notification import Notification, NotificationType
 from app.services.milestone_service import (
     MILESTONE_THRESHOLDS,
     _format_milestone,
+    _notification_exists_today,
     check_milestones,
     get_milestone_summary,
 )
@@ -409,3 +412,119 @@ class TestGetMilestoneSummary:
 
         assert summary["next_milestone"] is None
         assert len(summary["milestones_achieved"]) == len(MILESTONE_THRESHOLDS)
+
+
+# ---------------------------------------------------------------------------
+# Deduplication — concurrent syncs must not create duplicate notifications
+# ---------------------------------------------------------------------------
+
+
+class TestMilestoneDeduplication:
+    """Verify that calling check_milestones twice in the same day (simulating
+    two concurrent account syncs) only produces one notification per event."""
+
+    @pytest.mark.asyncio
+    async def test_milestone_not_duplicated_on_second_call(self, db, test_user):
+        """Second check_milestones call on the same day skips the notification
+        because one already exists with the same type + title."""
+        prev = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=None,
+            snapshot_date=date.today() - timedelta(days=1),
+            total_net_worth=Decimal("8000"),
+            total_assets=Decimal("8000"),
+            total_liabilities=Decimal("0"),
+        )
+        db.add(prev)
+        await db.commit()
+
+        # First call — should create the notification
+        await check_milestones(db, test_user.organization_id, Decimal("12000"))
+
+        result = await db.execute(
+            select(Notification).where(
+                Notification.organization_id == test_user.organization_id,
+                Notification.type == NotificationType.MILESTONE,
+            )
+        )
+        after_first = result.scalars().all()
+        assert len(after_first) == 1
+
+        # Second call (same day, same net worth) — must NOT add another row
+        await check_milestones(db, test_user.organization_id, Decimal("12000"))
+
+        result = await db.execute(
+            select(Notification).where(
+                Notification.organization_id == test_user.organization_id,
+                Notification.type == NotificationType.MILESTONE,
+            )
+        )
+        after_second = result.scalars().all()
+        assert len(after_second) == 1
+
+    @pytest.mark.asyncio
+    async def test_ath_not_duplicated_on_second_call(self, db, test_user):
+        """Second check_milestones call on the same day skips the ATH notification."""
+        prev = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=None,
+            snapshot_date=date.today() - timedelta(days=1),
+            total_net_worth=Decimal("50000"),
+            total_assets=Decimal("50000"),
+            total_liabilities=Decimal("0"),
+        )
+        db.add(prev)
+        await db.commit()
+
+        await check_milestones(db, test_user.organization_id, Decimal("55000"))
+
+        result = await db.execute(
+            select(Notification).where(
+                Notification.organization_id == test_user.organization_id,
+                Notification.type == NotificationType.ALL_TIME_HIGH,
+            )
+        )
+        assert len(result.scalars().all()) == 1
+
+        await check_milestones(db, test_user.organization_id, Decimal("55000"))
+
+        result = await db.execute(
+            select(Notification).where(
+                Notification.organization_id == test_user.organization_id,
+                Notification.type == NotificationType.ALL_TIME_HIGH,
+            )
+        )
+        assert len(result.scalars().all()) == 1
+
+    @pytest.mark.asyncio
+    async def test_notification_exists_today_helper(self, db, test_user):
+        """_notification_exists_today returns False before creation, True after."""
+        assert not await _notification_exists_today(
+            db,
+            test_user.organization_id,
+            NotificationType.MILESTONE,
+            "Milestone reached: $10,000!",
+        )
+
+        prev = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=None,
+            snapshot_date=date.today() - timedelta(days=1),
+            total_net_worth=Decimal("8000"),
+            total_assets=Decimal("8000"),
+            total_liabilities=Decimal("0"),
+        )
+        db.add(prev)
+        await db.commit()
+
+        await check_milestones(db, test_user.organization_id, Decimal("12000"))
+
+        assert await _notification_exists_today(
+            db,
+            test_user.organization_id,
+            NotificationType.MILESTONE,
+            "Milestone reached: $10,000!",
+        )
