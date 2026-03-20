@@ -66,6 +66,7 @@ type NotificationPrefs = {
   account_syncs?: boolean;
   account_activity?: boolean;
   budget_alerts?: boolean;
+  goal_alerts?: boolean;
   milestones?: boolean;
   household?: boolean;
   weekly_recap?: boolean;
@@ -94,6 +95,12 @@ const NOTIFICATION_CATEGORIES: {
     key: "budget_alerts",
     label: "Budget Alerts",
     description: "Notifications when you approach or exceed budget thresholds.",
+  },
+  {
+    key: "goal_alerts",
+    label: "Goal Alerts",
+    description:
+      "Notifications when you reach a savings goal or mark one as funded.",
   },
   {
     key: "milestones",

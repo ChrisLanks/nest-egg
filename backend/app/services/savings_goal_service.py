@@ -11,9 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import SAVINGS_GOALS
 from app.models.account import Account, AccountType
+from app.models.notification import NotificationPriority, NotificationType
 from app.models.savings_goal import SavingsGoal
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.services.notification_service import NotificationService
 from app.utils.datetime_utils import utc_now
 
 
@@ -136,6 +138,10 @@ class SavingsGoalService:
         if not goal:
             return None
 
+        was_completed = goal.is_completed
+        prev_amount = goal.current_amount
+        prev_target = goal.target_amount
+
         for key, value in kwargs.items():
             if hasattr(goal, key):
                 setattr(goal, key, value)
@@ -155,6 +161,34 @@ class SavingsGoalService:
 
         await db.commit()
         await db.refresh(goal)
+
+        # Fire GOAL_COMPLETED notification when goal transitions to completed
+        # (either explicitly marked or amount reaches target)
+        just_completed = not was_completed and goal.is_completed
+        just_hit_target = (
+            not goal.is_completed
+            and goal.target_amount > 0
+            and prev_amount < prev_target
+            and goal.current_amount >= goal.target_amount
+        )
+        if just_completed or just_hit_target:
+            await NotificationService.create_notification(
+                db=db,
+                organization_id=user.organization_id,
+                user_id=user.id,
+                type=NotificationType.GOAL_COMPLETED,
+                title=f"Goal reached: {goal.name}",
+                message=(
+                    f"You've saved ${float(goal.current_amount):,.0f} — "
+                    f"your {goal.name} goal is complete!"
+                ),
+                priority=NotificationPriority.HIGH,
+                related_entity_type="savings_goal",
+                related_entity_id=goal.id,
+                action_url="/goals",
+                action_label="View Goals",
+                expires_in_days=30,
+            )
 
         return goal
 
@@ -204,11 +238,38 @@ class SavingsGoalService:
         if not account:
             return None
 
+        prev_amount = goal.current_amount
         goal.current_amount = account.current_balance
         goal.updated_at = utc_now()
 
         await db.commit()
         await db.refresh(goal)
+
+        # Notify if balance just crossed the target for the first time
+        if (
+            not goal.is_completed
+            and not goal.is_funded
+            and goal.target_amount > 0
+            and prev_amount < goal.target_amount
+            and goal.current_amount >= goal.target_amount
+        ):
+            await NotificationService.create_notification(
+                db=db,
+                organization_id=user.organization_id,
+                user_id=user.id,
+                type=NotificationType.GOAL_COMPLETED,
+                title=f"Goal reached: {goal.name}",
+                message=(
+                    f"Your account balance hit ${float(goal.current_amount):,.0f} — "
+                    f"you've reached your {goal.name} target!"
+                ),
+                priority=NotificationPriority.HIGH,
+                related_entity_type="savings_goal",
+                related_entity_id=goal.id,
+                action_url="/goals",
+                action_label="View Goals",
+                expires_in_days=30,
+            )
 
         return goal
 
@@ -234,6 +295,25 @@ class SavingsGoalService:
 
         await db.commit()
         await db.refresh(goal)
+
+        # Notify that the goal was used/funded
+        await NotificationService.create_notification(
+            db=db,
+            organization_id=user.organization_id,
+            user_id=user.id,
+            type=NotificationType.GOAL_FUNDED,
+            title=f"Goal funded: {goal.name}",
+            message=(
+                f"You marked your {goal.name} goal as funded — the money has been put to use. "
+                f"Great work!"
+            ),
+            priority=NotificationPriority.MEDIUM,
+            related_entity_type="savings_goal",
+            related_entity_id=goal.id,
+            action_url="/goals",
+            action_label="View Goals",
+            expires_in_days=14,
+        )
 
         # Recalculate remaining auto-sync goals now that this one is excluded
         await SavingsGoalService.auto_sync_goals(db, user, method)

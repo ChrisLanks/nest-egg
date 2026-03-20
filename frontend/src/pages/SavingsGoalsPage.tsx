@@ -452,7 +452,8 @@ export default function SavingsGoalsPage() {
               <HelpHint hint={helpContent.savingsGoals.emergencyFund} />
             </Heading>
             <Text color="text.secondary">
-              Track progress toward your financial goals
+              Savings targets you're working toward — notifies you when you
+              reach them
             </Text>
           </VStack>
           <Tooltip

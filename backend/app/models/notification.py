@@ -27,6 +27,8 @@ class NotificationType(str, enum.Enum):
     ALL_TIME_HIGH = "all_time_high"
     HOUSEHOLD_MEMBER_JOINED = "household_member_joined"
     HOUSEHOLD_MEMBER_LEFT = "household_member_left"
+    GOAL_COMPLETED = "goal_completed"
+    GOAL_FUNDED = "goal_funded"
     FIRE_COAST_FI = "fire_coast_fi"
     FIRE_INDEPENDENT = "fire_independent"
     RETIREMENT_SCENARIO_STALE = "retirement_scenario_stale"

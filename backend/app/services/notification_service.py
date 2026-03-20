@@ -32,6 +32,10 @@ NOTIFICATION_CATEGORY_TYPES: dict[str, list[str]] = {
     "budget_alerts": [
         NotificationType.BUDGET_ALERT,
     ],
+    "goal_alerts": [
+        NotificationType.GOAL_COMPLETED,
+        NotificationType.GOAL_FUNDED,
+    ],
     "milestones": [
         NotificationType.MILESTONE,
         NotificationType.ALL_TIME_HIGH,

@@ -154,7 +154,8 @@ export default function BudgetsPage() {
               <HelpHint hint={helpContent.budgets.period} />
             </Heading>
             <Text color="text.secondary">
-              Track spending and stay within your budget goals
+              Monthly spending limits by category — alerts you before you
+              overspend
             </Text>
           </VStack>
           <Tooltip
@@ -268,7 +269,7 @@ export default function BudgetsPage() {
               onAction={handleCreate}
               showAction={canEdit && (!isPartialSelection || isSelfView)}
             />
-            {(isSelfView || (isOtherUserView && canEdit)) && (
+            {canEdit && (isSelfView || !selectedUserId) && (
               <BudgetSuggestions onAccept={handleAcceptSuggestion} />
             )}
           </>
@@ -309,7 +310,8 @@ export default function BudgetsPage() {
         {!isLoading &&
           budgets.length > 0 &&
           budgets.length <= 3 &&
-          (isSelfView || (isOtherUserView && canEdit)) && (
+          canEdit &&
+          (isSelfView || !selectedUserId) && (
             <BudgetSuggestions onAccept={handleAcceptSuggestion} />
           )}
 
