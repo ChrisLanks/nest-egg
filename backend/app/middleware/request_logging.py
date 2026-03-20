@@ -1,10 +1,9 @@
 """Request/response logging middleware for audit trails."""
 
-import asyncio
 import logging
 import time
 import uuid
-from typing import Callable, Optional
+from typing import Callable
 
 from fastapi import Request, Response
 from jwt.exceptions import InvalidTokenError as JWTError
@@ -161,7 +160,12 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
     AUDIT_PATHS = {
         "/api/v1/auth/login": "LOGIN_ATTEMPT",
         "/api/v1/auth/register": "REGISTRATION",
+        "/api/v1/auth/logout": "LOGOUT",
+        "/api/v1/auth/logout-all": "LOGOUT_ALL",
         "/api/v1/auth/password": "PASSWORD_CHANGE",
+        "/api/v1/auth/reset-password": "PASSWORD_RESET",  # pragma: allowlist secret
+        "/api/v1/auth/forgot-password": "PASSWORD_RESET_REQUEST",  # pragma: allowlist secret
+        "/api/v1/auth/mfa": "MFA_OPERATION",
         "/api/v1/accounts": "ACCOUNT_OPERATION",
         "/api/v1/transactions": "TRANSACTION_OPERATION",
         "/api/v1/household/members": "HOUSEHOLD_CHANGE",
@@ -172,6 +176,8 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         "/api/v1/plaid/exchange-token": "PLAID_LINK",
         "/api/v1/teller/webhook": "TELLER_WEBHOOK",
         "/api/v1/csv-import": "CSV_IMPORT",
+        "/api/v1/settings/delete": "ACCOUNT_DELETE",
+        "/api/v1/settings/profile": "PROFILE_UPDATE",
     }
 
     # Sensitive read operations that should also be audited (GET requests)
@@ -240,10 +246,13 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
             f"request_id={request_id}"
         )
 
-        # Persist to database (fire-and-forget — never block the response)
+        # Enqueue DB persistence via Celery — non-blocking, durable, retried on failure.
+        # The AUDIT log line above is already written; this task writes the DB record.
         duration_ms = int((time.time() - start_time) * 1000)
-        asyncio.ensure_future(
-            _persist_audit_log(
+        try:
+            from app.workers.tasks.auth_tasks import persist_audit_log_task
+
+            persist_audit_log_task.delay(
                 request_id=request_id,
                 action=action,
                 method=method,
@@ -253,45 +262,13 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
                 ip_address=redact_ip(client_host),
                 duration_ms=duration_ms,
             )
-        )
+        except Exception:
+            # Celery broker unavailable — the structured log line above still serves
+            # as the audit record.  Log at WARNING so operators know DB persistence
+            # is degraded, but never raise (never block the HTTP response).
+            logger.warning(
+                "audit_log: Celery unavailable, DB record not persisted for request_id=%s",
+                request_id,
+            )
 
         return response
-
-
-async def _persist_audit_log(
-    request_id: str,
-    action: str,
-    method: str,
-    path: str,
-    status_code: int,
-    user_id: Optional[str],
-    ip_address: str,
-    duration_ms: Optional[int],
-) -> None:
-    """Persist an audit log entry to the database (best-effort).
-
-    Runs as a fire-and-forget coroutine so that a database failure
-    never blocks or delays an API response.
-    """
-    try:
-        from uuid import UUID as _UUID
-
-        from app.core.database import AsyncSessionLocal
-        from app.models.audit_log import AuditLog
-
-        async with AsyncSessionLocal() as session:
-            entry = AuditLog(
-                request_id=request_id,
-                action=action,
-                method=method,
-                path=path,
-                status_code=status_code,
-                user_id=_UUID(user_id) if user_id else None,
-                ip_address=ip_address,
-                duration_ms=duration_ms,
-            )
-            session.add(entry)
-            await session.commit()
-    except Exception:
-        # Best-effort — the log-based audit entry was already written above.
-        logger.debug("Failed to persist audit log to database", exc_info=True)

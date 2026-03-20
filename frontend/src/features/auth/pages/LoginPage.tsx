@@ -18,24 +18,22 @@ import {
   Link as ChakraLink,
   useToast,
   VStack,
-  Checkbox,
   HStack,
   PinInput,
   PinInputField,
-} from '@chakra-ui/react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Link, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { isMFAChallenge } from '../../../types/auth';
-import { authApi } from '../services/authApi';
-import { useAuthStore } from '../stores/authStore';
+} from "@chakra-ui/react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { isMFAChallenge } from "../../../types/auth";
+import { authApi } from "../services/authApi";
+import { useAuthStore } from "../stores/authStore";
 
 const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
-  rememberMe: z.boolean().optional(),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -44,46 +42,26 @@ export const LoginPage = () => {
   const toast = useToast();
   const navigate = useNavigate();
   const { setTokens } = useAuthStore();
-  const [rememberMe, setRememberMe] = useState(false);
   const [credentialError, setCredentialError] = useState<string | null>(null);
 
   // MFA challenge state
   const [mfaToken, setMfaToken] = useState<string | null>(null);
-  const [mfaCode, setMfaCode] = useState('');
+  const [mfaCode, setMfaCode] = useState("");
   const [mfaError, setMfaError] = useState<string | null>(null);
   const [mfaLoading, setMfaLoading] = useState(false);
 
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      rememberMe: false,
-    },
   });
-
-  // Load saved email on mount
-  useEffect(() => {
-    const savedEmail = localStorage.getItem('rememberedEmail');
-    if (savedEmail) {
-      setValue('email', savedEmail);
-      setRememberMe(true);
-    }
-  }, [setValue]);
 
   const onSubmit = async (data: LoginFormData) => {
     setCredentialError(null);
 
     try {
-      if (rememberMe) {
-        localStorage.setItem('rememberedEmail', data.email);
-      } else {
-        localStorage.removeItem('rememberedEmail');
-      }
-
       const result = await authApi.login(data);
 
       if (isMFAChallenge(result)) {
@@ -94,26 +72,29 @@ export const LoginPage = () => {
 
       // Normal login — store tokens and navigate
       setTokens(result.access_token, result.user);
-      navigate('/overview', { replace: true });
+      navigate("/overview", { replace: true });
     } catch (error: any) {
       const status = error?.response?.status;
 
       if (status === 401) {
-        setCredentialError('Incorrect email or password.');
+        setCredentialError("Incorrect email or password.");
       } else if (status === 423) {
-        setCredentialError(error?.response?.data?.detail ?? 'Account temporarily locked. Please try again later.');
+        setCredentialError(
+          error?.response?.data?.detail ??
+            "Account temporarily locked. Please try again later.",
+        );
       } else if (status === 429) {
         toast({
-          title: 'Too many attempts',
-          description: 'Please wait a moment and try again.',
-          status: 'warning',
+          title: "Too many attempts",
+          description: "Please wait a moment and try again.",
+          status: "warning",
           duration: 6000,
         });
       } else {
         toast({
-          title: 'Login failed',
-          description: 'Something went wrong on our end. Please try again.',
-          status: 'error',
+          title: "Login failed",
+          description: "Something went wrong on our end. Please try again.",
+          status: "error",
           duration: 5000,
         });
       }
@@ -126,18 +107,23 @@ export const LoginPage = () => {
     setMfaLoading(true);
 
     try {
-      const result = await authApi.verifyMfa({ mfa_token: mfaToken, code: mfaCode });
+      const result = await authApi.verifyMfa({
+        mfa_token: mfaToken,
+        code: mfaCode,
+      });
       setTokens(result.access_token, result.user);
-      navigate('/overview', { replace: true });
+      navigate("/overview", { replace: true });
     } catch (error: any) {
       const status = error?.response?.status;
       if (status === 401) {
-        setMfaError('Invalid code. Please check your authenticator app and try again.');
-        setMfaCode('');
+        setMfaError(
+          "Invalid code. Please check your authenticator app and try again.",
+        );
+        setMfaCode("");
       } else if (status === 429) {
-        setMfaError('Too many attempts. Please wait a moment.');
+        setMfaError("Too many attempts. Please wait a moment.");
       } else {
-        setMfaError('Something went wrong. Please try again.');
+        setMfaError("Something went wrong. Please try again.");
       }
     } finally {
       setMfaLoading(false);
@@ -196,7 +182,11 @@ export const LoginPage = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => { setMfaToken(null); setMfaCode(''); setMfaError(null); }}
+                onClick={() => {
+                  setMfaToken(null);
+                  setMfaCode("");
+                  setMfaError(null);
+                }}
               >
                 Back to login
               </Button>
@@ -216,17 +206,15 @@ export const LoginPage = () => {
           <Text color="text.secondary">Your personal finance tracker</Text>
         </VStack>
 
-        <Box
-          w="full"
-          bg="bg.surface"
-          p={8}
-          borderRadius="lg"
-          boxShadow="md"
-        >
+        <Box w="full" bg="bg.surface" p={8} borderRadius="lg" boxShadow="md">
           <VStack spacing={6}>
             <Heading size="lg">Login</Heading>
 
-            <form onSubmit={handleSubmit(onSubmit)} style={{ width: '100%' }} autoComplete="on">
+            <form
+              onSubmit={handleSubmit(onSubmit)}
+              style={{ width: "100%" }}
+              autoComplete="on"
+            >
               <Stack spacing={4}>
                 <FormControl isInvalid={!!errors.email}>
                   <FormLabel>Email</FormLabel>
@@ -235,7 +223,7 @@ export const LoginPage = () => {
                     placeholder="you@example.com"
                     autoComplete="email"
                     autoFocus
-                    {...register('email')}
+                    {...register("email")}
                   />
                   <FormErrorMessage>{errors.email?.message}</FormErrorMessage>
                 </FormControl>
@@ -256,9 +244,11 @@ export const LoginPage = () => {
                     type="password"
                     placeholder="Enter your password"
                     autoComplete="current-password"
-                    {...register('password')}
+                    {...register("password")}
                   />
-                  <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
+                  <FormErrorMessage>
+                    {errors.password?.message}
+                  </FormErrorMessage>
                 </FormControl>
 
                 {credentialError && (
@@ -267,15 +257,6 @@ export const LoginPage = () => {
                     {credentialError}
                   </Alert>
                 )}
-
-                <HStack justify="space-between">
-                  <Checkbox
-                    isChecked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                  >
-                    Remember me
-                  </Checkbox>
-                </HStack>
 
                 <Button
                   type="submit"
@@ -290,8 +271,13 @@ export const LoginPage = () => {
             </form>
 
             <Text color="text.secondary">
-              Don't have an account?{' '}
-              <ChakraLink as={Link} to="/register" color="brand.500" fontWeight="semibold">
+              Don't have an account?{" "}
+              <ChakraLink
+                as={Link}
+                to="/register"
+                color="brand.500"
+                fontWeight="semibold"
+              >
                 Register
               </ChakraLink>
             </Text>

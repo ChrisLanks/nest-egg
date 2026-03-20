@@ -136,6 +136,9 @@ end
 """
 
 
+_ASYNC_REDIS_RETRY_COOLDOWN = 30  # seconds before re-trying Redis after a failure
+
+
 class AsyncRateLimiter:
     """
     Async rate limiter with Redis-backed sliding window.
@@ -143,19 +146,37 @@ class AsyncRateLimiter:
     Falls back to an in-memory sliding window when Redis is unavailable
     (e.g., local development without Redis running).  Uses a Lua script
     for atomic check-and-increment to avoid race conditions across workers.
+
+    Redis failures trigger a 30-second cooldown so that every subsequent
+    request does not incur an extra connection attempt.  The in-memory
+    fallback enforces limits during the outage window.
     """
 
     def __init__(self, calls_per_minute: int = 100):
         self.calls_per_minute = calls_per_minute
         self._redis_client = None
         self._redis_initialized = False
+        self._redis_failed_at: Optional[float] = None
         self._script_sha: Optional[str] = None
         # In-memory fallback state
         self._memory_calls: Dict[str, list] = defaultdict(list)
         self._last_cleanup: float = time()
 
     async def _get_redis(self):
-        """Lazily initialise the Redis client; returns None when unavailable."""
+        """Lazily initialise the Redis client; returns None when unavailable.
+
+        Respects a 30-second cooldown after failures to avoid a hot-retry
+        loop that would add latency to every request during a Redis outage.
+        """
+        # Still within cooldown window — skip Redis entirely
+        if self._redis_failed_at is not None:
+            if time() - self._redis_failed_at < _ASYNC_REDIS_RETRY_COOLDOWN:
+                return None
+            # Cooldown elapsed — reset and try again
+            self._redis_failed_at = None
+            self._redis_initialized = False
+            self._redis_client = None
+
         if not self._redis_initialized:
             try:
                 import redis.asyncio as aioredis
@@ -169,6 +190,7 @@ class AsyncRateLimiter:
             except Exception as e:
                 logger.debug(f"AsyncRateLimiter: Redis unavailable, using in-memory fallback ({e})")
                 self._redis_client = None
+                self._redis_failed_at = time()
             finally:
                 self._redis_initialized = True
         return self._redis_client
@@ -211,8 +233,9 @@ class AsyncRateLimiter:
                 return allowed
             except Exception as e:
                 logger.warning(f"AsyncRateLimiter Redis error, falling back to memory: {e}")
-                # Reset so next request retries the Redis connection
+                # Start cooldown — next request will use memory for 30 seconds
                 self._redis_initialized = False
+                self._redis_failed_at = time()
 
         return self._memory_is_allowed(key)
 

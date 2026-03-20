@@ -1,8 +1,17 @@
-"""Rate limiting service using Redis."""
+"""Rate limiting service using Redis with in-memory fallback.
+
+Two layers of protection:
+1. Redis (primary) — atomic Lua script, shared across all workers.
+2. In-memory sliding window (fallback) — used when Redis is unavailable.
+   This ensures rate limits are NEVER silently skipped; the fallback is
+   per-process so limits are less precise under load, but they still apply.
+"""
 
 import hashlib
 import logging
-from typing import Optional
+from collections import defaultdict
+from time import time
+from typing import Dict, Optional
 
 import redis.asyncio as redis
 from fastapi import HTTPException, Request, status
@@ -10,6 +19,8 @@ from fastapi import HTTPException, Request, status
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+_REDIS_RETRY_COOLDOWN = 30  # seconds before re-attempting Redis after a failure
 
 # Atomic rate-limit check via Lua script: INCR + conditional EXPIRE + TTL
 _RATE_LIMIT_SCRIPT = """
@@ -26,18 +37,37 @@ return {current, ttl}
 
 
 class RateLimitService:
-    """Service for rate limiting API endpoints using Redis."""
+    """Service for rate limiting API endpoints using Redis with in-memory fallback."""
 
     def __init__(self):
-        """Initialize Redis connection."""
+        """Initialize Redis connection and in-memory fallback state."""
         self.redis_client: Optional[redis.Redis] = None
+        self._redis_failed_at: Optional[float] = None
+        # In-memory fallback: key → list of (timestamp, window, max_requests) tuples
+        # Simplified to list of timestamps per key; max_requests checked per call.
+        self._memory_calls: Dict[str, list] = defaultdict(list)
 
-    async def get_redis(self) -> redis.Redis:
-        """Get or create Redis connection."""
+    async def get_redis(self) -> Optional[redis.Redis]:
+        """Get or create Redis connection, respecting the cooldown after failures."""
+        # If Redis failed recently, don't retry until cooldown expires
+        if self._redis_failed_at is not None:
+            if time() - self._redis_failed_at < _REDIS_RETRY_COOLDOWN:
+                return None
+            # Cooldown elapsed — reset and retry
+            self._redis_failed_at = None
+            self.redis_client = None
+
         if self.redis_client is None:
-            self.redis_client = redis.from_url(
-                settings.REDIS_URL, encoding="utf-8", decode_responses=True
-            )
+            try:
+                client = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
+                await client.ping()
+                self.redis_client = client
+            except Exception as exc:
+                logger.warning(
+                    "RateLimitService: Redis unavailable, using memory fallback: %s", exc
+                )
+                self._redis_failed_at = time()
+                return None
         return self.redis_client
 
     def _get_rate_limit_key(self, identifier: str, endpoint: str) -> str:
@@ -90,41 +120,65 @@ class RateLimitService:
         if settings.ENVIRONMENT == "test":
             return
 
-        # Get Redis client
-        redis_client = await self.get_redis()
-
-        # Generate rate limit key
         key = self._get_rate_limit_key(identifier, request.url.path)
 
-        try:
-            # Atomic increment + expire + TTL via Lua script
-            result = await redis_client.eval(
-                _RATE_LIMIT_SCRIPT, 1, key, max_requests, window_seconds
-            )
-            current_count, ttl = result[0], result[1]
+        # Try Redis first; fall back to in-memory if unavailable
+        redis_client = await self.get_redis()
 
-            if current_count > max_requests:
-                # Rate limit exceeded
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail={
-                        "error": "Rate limit exceeded",
-                        "message": f"Too many requests. Please try again in {ttl} seconds.",
-                        "retry_after": ttl,
-                    },
-                    headers={"Retry-After": str(ttl)},
+        if redis_client is not None:
+            try:
+                # Atomic increment + expire + TTL via Lua script
+                result = await redis_client.eval(
+                    _RATE_LIMIT_SCRIPT, 1, key, max_requests, window_seconds
                 )
+                current_count, ttl = result[0], result[1]
 
-        except HTTPException:
-            # Re-raise rate limit errors
-            raise
-        except Exception as e:
-            # Fail-open: if Redis is unavailable, allow the request through
-            # rather than blocking all users.  This is acceptable because the
-            # global RateLimitMiddleware (AsyncRateLimiter) provides a second
-            # layer of defense, and individual endpoints are also protected by
-            # per-IP rate limits once Redis recovers.
-            logger.warning("Rate limit check failed (fail-open): %s", e)
+                if current_count > max_requests:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail={
+                            "error": "Rate limit exceeded",
+                            "message": f"Too many requests. Please try again in {ttl} seconds.",
+                            "retry_after": ttl,
+                        },
+                        headers={"Retry-After": str(ttl)},
+                    )
+                return  # Redis check passed
+
+            except HTTPException:
+                raise
+            except Exception as exc:
+                # Redis call failed mid-request — mark cooldown and fall through to memory
+                logger.warning(
+                    "RateLimitService Redis eval failed, switching to memory fallback: %s", exc
+                )
+                self._redis_failed_at = time()
+                self.redis_client = None
+
+        # In-memory fallback — never fail-open
+        self._memory_check(key, max_requests, window_seconds)
+
+    def _memory_check(self, key: str, max_requests: int, window_seconds: int) -> None:
+        """In-memory sliding-window rate check. Raises 429 if limit exceeded."""
+        now = time()
+        cutoff = now - window_seconds
+        calls = self._memory_calls[key]
+        # Evict expired entries
+        self._memory_calls[key] = [t for t in calls if t > cutoff]
+
+        if len(self._memory_calls[key]) >= max_requests:
+            retry_after = window_seconds
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "error": "Rate limit exceeded",
+                    "message": f"Too many requests. Please try again in {retry_after} seconds.",
+                    "retry_after": retry_after,
+                },
+                headers={"Retry-After": str(retry_after)},
+            )
+
+        self._memory_calls[key].append(now)
 
     async def reset_rate_limit(self, identifier: str, endpoint: str) -> None:
         """

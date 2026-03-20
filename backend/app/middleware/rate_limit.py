@@ -123,13 +123,23 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     )
 
         except Exception as e:
-            # Rate limiter is entirely unavailable — allow request through rather
-            # than hard-failing every user.  Log at ERROR so Sentry captures it.
-            logger.error(
-                f"RateLimitMiddleware error ({type(e).__name__}): {e}. "
-                "Allowing request through — rate limiting is degraded."
+            # AsyncRateLimiter should never raise (it has its own memory fallback),
+            # so this branch only fires for truly unexpected errors (e.g. bugs).
+            # Log at CRITICAL and apply a conservative in-process limit so we
+            # never fail completely open.
+            logger.critical(
+                "RateLimitMiddleware unexpected error (%s): %s — "
+                "applying conservative in-process limit.",
+                type(e).__name__,
+                e,
+                exc_info=True,
             )
-            return await call_next(request)
+            # Re-use the in-memory path of api_limiter directly as last resort
+            if not api_limiter._memory_is_allowed(ip_key):
+                return JSONResponse(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    content={"detail": {"error": "Rate limit exceeded", "retry_after": 60}},
+                )
 
         response = await call_next(request)
 

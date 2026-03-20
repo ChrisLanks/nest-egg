@@ -143,6 +143,12 @@ async def create_auth_response(
         expires_at=expires_at,
     )
 
+    # Record JTI in Redis for O(1) revocation checks on /refresh (prod only)
+    if settings.ENFORCE_JTI_REDIS_CHECK:
+        from app.core.jti_store import store_jti
+
+        await store_jti(jti, str(user.id), _REFRESH_COOKIE_MAX_AGE)
+
     if response is not None:
         # Deliver refresh token as httpOnly cookie — not readable by JavaScript
         _set_refresh_cookie(response, refresh_token_str)
@@ -668,6 +674,19 @@ async def refresh_access_token(
                 detail="Token has expired",
             )
 
+        # Fast-path Redis JTI check (production only) — O(1) revocation detection
+        # before the DB lookup completes.  Falls through when Redis is unavailable.
+        if settings.ENFORCE_JTI_REDIS_CHECK:
+            from app.core.jti_store import verify_jti
+
+            if not await verify_jti(jti):
+                logger.warning("Token refresh failed: JTI not found in Redis (revoked or expired)")
+                _clear_refresh_cookie(response)
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Session has been revoked",
+                )
+
         # Get user
         user = await user_crud.get_by_id(db, refresh_token.user_id)
         if not user or not user.is_active:
@@ -702,6 +721,13 @@ async def refresh_access_token(
             expires_at=new_expires_at,
         )
         await refresh_token_crud.revoke(db, token_hash)
+
+        # Mirror token rotation in Redis — add new JTI, remove old one
+        if settings.ENFORCE_JTI_REDIS_CHECK:
+            from app.core.jti_store import delete_jti, store_jti
+
+            await store_jti(new_jti, str(user.id), _REFRESH_COOKIE_MAX_AGE)
+            await delete_jti(jti)
 
         if request.cookies.get("refresh_token"):
             _set_refresh_cookie(response, new_refresh_token_str)
@@ -918,10 +944,48 @@ async def logout(
             if jti:
                 token_hash = hashlib.sha256(jti.encode()).hexdigest()
                 await refresh_token_crud.revoke(db, token_hash)
+                # Remove from Redis immediately — token is now dead in both stores
+                if settings.ENFORCE_JTI_REDIS_CHECK:
+                    from app.core.jti_store import delete_jti
+
+                    await delete_jti(jti)
     except Exception:
         pass  # If token is invalid, still clear cookie and return success
 
     _clear_refresh_cookie(response)
+    return None
+
+
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all_devices(
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Revoke every active refresh token for this user (logout all devices).
+
+    Marks all non-revoked RefreshToken rows as revoked in Postgres, removes
+    all JTIs from Redis (production), and clears the current device's cookie.
+    """
+    # Revoke all tokens in DB
+    await db.execute(
+        sa_update(RefreshToken)
+        .where(
+            RefreshToken.user_id == current_user.id,
+            RefreshToken.revoked_at.is_(None),
+        )
+        .values(revoked_at=utc_now())
+    )
+    await db.commit()
+
+    # Remove all JTIs from Redis — any in-flight tokens are immediately dead
+    if settings.ENFORCE_JTI_REDIS_CHECK:
+        from app.core.jti_store import delete_all_jtis_for_user
+
+        await delete_all_jtis_for_user(str(current_user.id))
+
+    _clear_refresh_cookie(response)
+    logger.info("logout_all: revoked all tokens for user=%s", current_user.id)
     return None
 
 

@@ -139,6 +139,10 @@ class Settings(BaseSettings):
         None  # None = auto (enabled unless ENVIRONMENT=development)
     )
     ENFORCE_MFA: Optional[bool] = None  # None = auto (enabled unless ENVIRONMENT=development)
+    # None = auto (enabled unless ENVIRONMENT=development).
+    # When True, every /refresh call checks the JTI in Redis before the DB,
+    # and /logout deletes the JTI from Redis for immediate revocation.
+    ENFORCE_JTI_REDIS_CHECK: Optional[bool] = None
 
     # Monitoring
     SENTRY_DSN: Optional[str] = None
@@ -173,8 +177,12 @@ class Settings(BaseSettings):
     TERMS_VERSION: str = "2026-02"  # Bump when Terms of Service or Privacy Policy changes
 
     # Data Retention (enterprise compliance)
-    # None = keep data indefinitely (default for self-hosted / small teams)
+    # None or -1 = keep data indefinitely (default for self-hosted / small teams)
+    # N > 0      = hard-delete transactions/snapshots/notifications older than N days
     DATA_RETENTION_DAYS: Optional[int] = None
+    # Audit logs have a separate, usually longer retention (e.g. 365 days for SOC 2).
+    # None or -1 = keep audit logs indefinitely.
+    AUDIT_LOG_RETENTION_DAYS: Optional[int] = None
     # Safety: dry-run logs what would be deleted without actually deleting.
     # Set to False only after verifying the retention window is correct.
     DATA_RETENTION_DRY_RUN: bool = True
@@ -302,7 +310,7 @@ class Settings(BaseSettings):
 
         return v
 
-    @field_validator("ENFORCE_ACCOUNT_LOCKOUT", "ENFORCE_MFA")
+    @field_validator("ENFORCE_ACCOUNT_LOCKOUT", "ENFORCE_MFA", "ENFORCE_JTI_REDIS_CHECK")
     @classmethod
     def resolve_security_flags(cls, v: Optional[bool]) -> bool:
         """Default security flags to True unless ENVIRONMENT=development."""
