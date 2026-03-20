@@ -791,3 +791,315 @@ class TestWelcomePageCopy:
         assert (
             'retirement: "/fire"' not in block
         ), "Retirement goal routes to /fire — should be /retirement"
+
+
+# ---------------------------------------------------------------------------
+# Widget registry plain-English descriptions
+# ---------------------------------------------------------------------------
+
+_REGISTRY_PATH = (
+    pathlib.Path(__file__).parents[3]
+    / "frontend"
+    / "src"
+    / "features"
+    / "dashboard"
+    / "widgetRegistry.tsx"
+)
+
+
+def _read_widget_registry() -> str:
+    return _REGISTRY_PATH.read_text(encoding="utf-8")
+
+
+class TestWidgetRegistryDescriptions:
+    """Ensure widget gallery descriptions are plain-English and jargon-free."""
+
+    # ── Jargon must not appear ────────────────────────────────────────────
+
+    def test_no_raw_monte_carlo_in_descriptions(self):
+        """'Monte Carlo' must not appear as bare jargon in widget descriptions."""
+        src = _read_widget_registry()
+        # Find all description strings
+        descriptions = re.findall(r'description:\s*\n?\s*"([^"]*)"', src, re.DOTALL)
+        combined = " ".join(descriptions)
+        assert (
+            "Monte Carlo" not in combined
+        ), "Widget description uses bare 'Monte Carlo' jargon without explanation"
+
+    def test_no_fi_ratio_jargon_in_descriptions(self):
+        """'FI ratio' must not appear as bare unexplained jargon in widget descriptions."""
+        src = _read_widget_registry()
+        descriptions = re.findall(r'description:\s*\n?\s*"([^"]*)"', src, re.DOTALL)
+        combined = " ".join(descriptions)
+        assert "FI ratio" not in combined, "Widget description uses unexplained 'FI ratio' jargon"
+
+    def test_no_rmd_acronym_unexplained_in_descriptions(self):
+        """RMD widget must explain the concept (age, withdrawal, penalty)."""
+        src = _read_widget_registry()
+        # The title was renamed — check neither title nor description uses bare 'RMD'
+        # in a way that's unexplained (description must mention age or withdrawal or penalty)
+        rmd_block = re.search(
+            r'"rmd-planner".*?component: RmdPlannerWidget',
+            src,
+            re.DOTALL,
+        )
+        assert rmd_block, "rmd-planner widget block not found"
+        block = rmd_block.group()
+        assert any(
+            word in block for word in ["age", "withdraw", "penalty", "IRS", "73", "required"]
+        ), "RMD widget description should explain the concept (age, withdrawal, penalty)"
+
+    def test_no_ltcg_irmaa_unexplained(self):
+        """'LTCG' and 'IRMAA' must not appear in descriptions as unexplained acronyms."""
+        src = _read_widget_registry()
+        descriptions = re.findall(r'description:\s*\n?\s*"([^"]*)"', src, re.DOTALL)
+        combined = " ".join(descriptions)
+        assert "LTCG" not in combined, "Widget description uses unexplained 'LTCG' acronym"
+        assert "IRMAA" not in combined, "Widget description uses unexplained 'IRMAA' acronym"
+
+    def test_no_expense_ratio_drag_jargon(self):
+        """'fee drag' and 'expense ratio' must not appear as bare jargon in descriptions."""
+        src = _read_widget_registry()
+        descriptions = re.findall(r'description:\s*\n?\s*"([^"]*)"', src, re.DOTALL)
+        combined = " ".join(descriptions)
+        assert (
+            "fee drag" not in combined.lower()
+        ), "Widget description uses unexplained 'fee drag' jargon"
+        assert (
+            "expense ratio" not in combined.lower()
+        ), "Widget description uses unexplained 'expense ratio' jargon"
+
+    def test_no_wash_sale_unexplained(self):
+        """'wash sale' must not appear in descriptions without context."""
+        src = _read_widget_registry()
+        descriptions = re.findall(r'description:\s*\n?\s*"([^"]*)"', src, re.DOTALL)
+        combined = " ".join(descriptions)
+        assert (
+            "wash sale" not in combined.lower()
+        ), "Widget description uses unexplained 'wash sale' jargon"
+
+    def test_no_concentration_risk_unexplained(self):
+        """'concentration risk' must not appear as bare jargon in descriptions."""
+        src = _read_widget_registry()
+        descriptions = re.findall(r'description:\s*\n?\s*"([^"]*)"', src, re.DOTALL)
+        combined = " ".join(descriptions)
+        assert (
+            "concentration risk" not in combined.lower()
+        ), "Widget description uses unexplained 'concentration risk' jargon"
+
+    # ── Plain-English content must be present ────────────────────────────
+
+    def test_fire_widget_explains_concept(self):
+        """FIRE widget description must explain what financial independence means."""
+        src = _read_widget_registry()
+        fire_block = re.search(
+            r'"fire-metrics".*?component: FireMetricsWidget',
+            src,
+            re.DOTALL,
+        )
+        assert fire_block, "fire-metrics widget block not found"
+        block = fire_block.group()
+        assert any(
+            phrase in block
+            for phrase in [
+                "never needing to work",
+                "financially independent",
+                "financial independence",
+                "don't need to work",
+                "stop working",
+            ]
+        ), "FIRE widget description should explain the concept in plain English"
+
+    def test_roth_conversion_explains_concept(self):
+        """Roth conversion widget must explain the tax trade-off in plain English."""
+        src = _read_widget_registry()
+        roth_block = re.search(
+            r'"roth-conversion".*?component: RothConversionWidget',
+            src,
+            re.DOTALL,
+        )
+        assert roth_block, "roth-conversion widget block not found"
+        block = roth_block.group()
+        assert any(
+            phrase in block
+            for phrase in [
+                "tax-free",
+                "taxes now",
+                "pay taxes",
+                "future withdrawals",
+            ]
+        ), "Roth conversion widget should explain the tax trade-off"
+
+    def test_fee_analysis_quantifies_impact(self):
+        """Fee analysis widget should mention a concrete dollar or percentage impact."""
+        src = _read_widget_registry()
+        fee_block = re.search(
+            r'"fee-analysis".*?component: FeeAnalysisWidget',
+            src,
+            re.DOTALL,
+        )
+        assert fee_block, "fee-analysis widget block not found"
+        block = fee_block.group()
+        assert any(
+            phrase in block
+            for phrase in [
+                "$",
+                "cost",
+                "decades",
+                "long-term",
+                "years",
+                "0.5%",
+            ]
+        ), "Fee analysis widget should hint at long-term cost impact"
+
+    def test_fund_overlap_explains_diversification(self):
+        """Fund overlap widget must explain why overlap is a problem."""
+        src = _read_widget_registry()
+        overlap_block = re.search(
+            r'"fund-overlap".*?component: FundOverlapWidget',
+            src,
+            re.DOTALL,
+        )
+        assert overlap_block, "fund-overlap widget block not found"
+        block = overlap_block.group()
+        assert any(
+            phrase in block
+            for phrase in [
+                "diversif",
+                "same stocks",
+                "same bets",
+                "less diversified",
+                "doubling down",
+            ]
+        ), "Fund overlap widget should explain why it matters (diversification)"
+
+    def test_tax_loss_harvesting_explains_benefit(self):
+        """Tax loss harvesting widget must explain the tax benefit in plain English."""
+        src = _read_widget_registry()
+        tlh_block = re.search(
+            r'"tax-loss-harvesting".*?component: TaxLossHarvestingWidget',
+            src,
+            re.DOTALL,
+        )
+        assert tlh_block, "tax-loss-harvesting widget block not found"
+        block = tlh_block.group()
+        assert any(
+            phrase in block
+            for phrase in [
+                "tax bill",
+                "reduce your tax",
+                "offset",
+                "save on taxes",
+            ]
+        ), "Tax loss harvesting widget should explain the tax benefit"
+
+    def test_social_security_explains_delay_benefit(self):
+        """Social security widget must explain why delaying claiming is beneficial."""
+        src = _read_widget_registry()
+        ss_block = re.search(
+            r'"social-security".*?component: SocialSecurityWidget',
+            src,
+            re.DOTALL,
+        )
+        assert ss_block, "social-security widget block not found"
+        block = ss_block.group()
+        assert any(
+            phrase in block
+            for phrase in [
+                "bigger",
+                "larger",
+                "more per month",
+                "delay",
+                "waiting",
+                "8%",
+            ]
+        ), "Social Security widget should explain the benefit of delaying claiming"
+
+    def test_financial_health_lists_plain_factors(self):
+        """Financial health widget must describe the score factors in plain English."""
+        src = _read_widget_registry()
+        fh_block = re.search(
+            r'"financial-health".*?component: FinancialHealthWidget',
+            src,
+            re.DOTALL,
+        )
+        assert fh_block, "financial-health widget block not found"
+        block = fh_block.group()
+        # Must NOT just say "debt-to-income" without explanation
+        assert "debt-to-income" not in block, (
+            "Financial health description uses unexplained 'debt-to-income' — "
+            "describe it plainly instead"
+        )
+        # Must mention something recognizable
+        assert any(
+            phrase in block for phrase in ["save", "emergency", "debt", "retirement", "score"]
+        ), "Financial health description should list the factors in plain English"
+
+    # ── Investments page empty state ──────────────────────────────────────
+
+
+_INVESTMENTS_PATH = (
+    pathlib.Path(__file__).parents[3] / "frontend" / "src" / "pages" / "InvestmentsPage.tsx"
+)
+
+
+def _read_investments_page() -> str:
+    return _INVESTMENTS_PATH.read_text(encoding="utf-8")
+
+
+class TestInvestmentsPageCopy:
+    """Ensure InvestmentsPage uses plain-English copy for novice users."""
+
+    def test_empty_state_no_jargon_allocation(self):
+        """Empty state must not use 'allocated' or 'allocation' without explanation."""
+        src = _read_investments_page()
+        # Find the empty state block
+        empty_block_match = re.search(
+            r"No investment accounts yet.*?Add investment accounts",
+            src,
+            re.DOTALL,
+        )
+        assert empty_block_match, "Empty state block not found"
+        block = empty_block_match.group()
+        assert (
+            "allocation" not in block.lower()
+        ), "Empty state uses 'allocation' — replace with plain description"
+
+    def test_empty_state_no_jargon_fees_eating(self):
+        """Empty state must not use 'eating into your returns' slang."""
+        src = _read_investments_page()
+        assert (
+            "eating into" not in src
+        ), "InvestmentsPage uses 'eating into your returns' — replace with plain language"
+
+    def test_empty_state_explains_stocks_and_bonds(self):
+        """Empty state should explain stocks vs bonds in plain terms."""
+        src = _read_investments_page()
+        empty_block_match = re.search(
+            r"No investment accounts yet.*?Add investment accounts",
+            src,
+            re.DOTALL,
+        )
+        assert empty_block_match, "Empty state block not found"
+        block = empty_block_match.group()
+        assert any(
+            phrase in block for phrase in ["growth", "stability", "safety", "stocks", "bonds"]
+        ), "Empty state should describe what stocks and bonds mean"
+
+    def test_cost_basis_label_is_plain_english(self):
+        """'Cost Basis' label must be replaced with plain-English equivalent."""
+        src = _read_investments_page()
+        # The stat help text and column header should say "What you paid" not "Cost Basis"
+        assert (
+            "Cost Basis:" not in src
+        ), "InvestmentsPage uses 'Cost Basis:' label — replace with 'What you paid:'"
+        assert (
+            "What you paid" in src
+        ), "InvestmentsPage should use 'What you paid' instead of 'Cost Basis'"
+
+    def test_cost_basis_column_header_is_plain_english(self):
+        """Holdings table 'Cost Basis' column header should be replaced."""
+        src = _read_investments_page()
+        assert (
+            "<Th isNumeric>Cost Basis</Th>" not in src
+        ), "Holdings table uses 'Cost Basis' column header — replace with plain English"

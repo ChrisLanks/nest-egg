@@ -176,7 +176,7 @@ export const DashboardPage = () => {
         {!isEditing ? (
           <HStack flexShrink={0} spacing={2}>
             <Tooltip
-              label="Force-refresh all widget data, bypassing the cache"
+              label="Get the latest data from all your accounts right now"
               hasArrow
             >
               <Button

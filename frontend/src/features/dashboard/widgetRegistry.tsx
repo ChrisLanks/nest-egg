@@ -157,7 +157,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     id: "asset-allocation",
     title: "Asset Allocation",
     description:
-      "Donut chart breakdown of your investment portfolio by asset type.",
+      "Shows how your portfolio is split between stocks (growth), bonds (stability), and cash. A good mix depends on your age and risk tolerance.",
     defaultSpan: 1,
     component: AssetAllocationWidget,
   },
@@ -165,7 +165,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     id: "net-worth-projection",
     title: "Net Worth Projection",
     description:
-      "Monte Carlo projection of total net worth over 5–20 years, including monthly savings contributions.",
+      "Simulates thousands of possible market scenarios to show how your wealth might grow over 5–20 years. Adjust savings rate and return assumptions to see best, median, and worst cases.",
     defaultSpan: 2,
     component: NetWorthProjectionWidget,
   },
@@ -181,14 +181,15 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     id: "retirement-readiness",
     title: "Retirement Readiness",
     description:
-      "Retirement readiness score and success rate from your default scenario.",
+      "A quick score showing whether you're on track to retire when you want. Based on your savings, expected expenses, and how your investments are likely to grow.",
     defaultSpan: 1,
     component: RetirementReadinessWidget,
   },
   "fire-metrics": {
     id: "fire-metrics",
-    title: "FIRE Progress",
-    description: "FI ratio, savings rate, and years to financial independence.",
+    title: "Financial Independence Progress",
+    description:
+      "Tracks your progress toward never needing to work again — based on your savings rate, portfolio size, and annual expenses. Shows how many years until you're financially independent.",
     defaultSpan: 1,
     component: FireMetricsWidget,
   },
@@ -196,7 +197,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     id: "financial-health",
     title: "Financial Health",
     description:
-      "Composite 0-100 score based on savings rate, emergency fund, debt-to-income, and retirement progress.",
+      "A 0-100 score for your overall financial well-being — based on how much you save each month, whether you have an emergency fund, your debt load, and retirement progress.",
     defaultSpan: 1,
     component: FinancialHealthWidget,
   },
@@ -212,7 +213,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     id: "tax-insights",
     title: "Tax Insights",
     description:
-      "Age-based tax action items: LTCG brackets, IRMAA, RMDs, Roth conversion windows.",
+      "Personalized tax action items based on your age and situation — like when to convert retirement accounts, how to reduce your tax bill, and upcoming mandatory withdrawals.",
     defaultSpan: 1,
     component: TaxInsightsWidget,
   },
@@ -220,7 +221,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     id: "spending-velocity",
     title: "Spending Velocity",
     description:
-      "Month-over-month spending acceleration or deceleration trend.",
+      "Shows whether your spending is trending up or down compared to last month. Useful for catching lifestyle creep before it becomes a habit.",
     defaultSpan: 1,
     component: SpendingVelocityWidget,
   },
@@ -228,7 +229,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     id: "fee-analysis",
     title: "Fee Analysis",
     description:
-      "Portfolio expense ratios, annual fee drag, and high-fee holdings.",
+      "Shows how much you're paying in hidden fund fees each year — and how much that costs you over decades. Even a 0.5% fee difference on $500K costs roughly $90K over 30 years.",
     defaultSpan: 1,
     component: FeeAnalysisWidget,
   },
@@ -236,7 +237,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     id: "fund-overlap",
     title: "Fund Overlap",
     description:
-      "Detects redundant holdings and concentration risk in your portfolio.",
+      "Checks if multiple funds in your portfolio own the same underlying stocks. High overlap means you're less diversified than you think — you're doubling down on the same bets.",
     defaultSpan: 1,
     component: FundOverlapWidget,
   },
@@ -252,7 +253,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     id: "tax-loss-harvesting",
     title: "Tax Loss Harvesting",
     description:
-      "Unrealized losses that could offset capital gains, with wash sale warnings.",
+      "Identifies investments currently worth less than you paid — selling them can reduce your tax bill this year. Shows which ones qualify and flags timing restrictions.",
     defaultSpan: 1,
     component: TaxLossHarvestingWidget,
   },
@@ -267,23 +268,23 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     id: "social-security",
     title: "Social Security",
     description:
-      "Estimated monthly Social Security benefits at ages 62, FRA, and 70.",
+      "Shows your estimated monthly Social Security check at different claiming ages (62, 67, or 70). Waiting longer means a bigger monthly payment — roughly 8% more per year you delay.",
     defaultSpan: 1,
     component: SocialSecurityWidget,
   },
   "rmd-planner": {
     id: "rmd-planner",
-    title: "RMD Planner",
+    title: "Retirement Withdrawal Planner",
     description:
-      "Required Minimum Distribution tracking with deadlines and penalties.",
+      "After age 73, the IRS requires you to withdraw a minimum amount from traditional 401(k)s and IRAs each year — or face a 25% penalty. This tracks what you owe and when.",
     defaultSpan: 1,
     component: RmdPlannerWidget,
   },
   "roth-conversion": {
     id: "roth-conversion",
-    title: "Roth Conversion",
+    title: "Roth Conversion Analyzer",
     description:
-      "Traditional IRA/401k balances and Roth conversion opportunity analysis.",
+      "Helps you decide whether to move money from a traditional 401(k) or IRA into a Roth account. You pay taxes now, but future withdrawals are tax-free. Shows the best windows to convert.",
     defaultSpan: 1,
     component: RothConversionWidget,
   },
@@ -307,7 +308,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     id: "healthcare-costs",
     title: "Healthcare Costs",
     description:
-      "Projected lifetime healthcare costs including Medicare, long-term care, and pre-65 insurance.",
+      "Estimates your future healthcare expenses — including insurance before Medicare kicks in at 65, Medicare premiums, and potential long-term care costs. Often the biggest surprise in retirement planning.",
     defaultSpan: 1,
     component: HealthcareCostWidget,
   },
@@ -347,7 +348,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     id: "mortgage-rates",
     title: "Mortgage Rates",
     description:
-      "Current 30-yr and 15-yr fixed rates from FRED, compared against your linked mortgage rate.",
+      "Shows today's 30-year and 15-year mortgage rates versus your current rate. If rates have dropped significantly, it may be worth looking into refinancing.",
     defaultSpan: 1,
     component: MortgageRateWidget,
   },

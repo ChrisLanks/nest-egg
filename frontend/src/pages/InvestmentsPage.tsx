@@ -216,7 +216,7 @@ const AccountHoldingsCard = memo(
                     <Th isNumeric>Shares</Th>
                     <Th isNumeric>Price</Th>
                     <Th isNumeric>Value</Th>
-                    <Th isNumeric>Cost Basis</Th>
+                    <Th isNumeric>What You Paid</Th>
                     <Th>Type</Th>
                   </Tr>
                 </Thead>
@@ -732,9 +732,8 @@ export const InvestmentsPage = () => {
                 <VStack spacing={2}>
                   <Heading size="md">No investment accounts yet</Heading>
                   <Text color="text.secondary" textAlign="center" maxW="md">
-                    Connect a brokerage, 401(k), or IRA to see your portfolio
-                    value, how your money is allocated across stocks and bonds,
-                    and whether your fund fees are eating into your returns.
+                    Connect a brokerage, 401(k), or IRA to see your complete
+                    investment picture in one place.
                   </Text>
                 </VStack>
                 <SimpleGrid
@@ -744,12 +743,21 @@ export const InvestmentsPage = () => {
                   maxW="lg"
                 >
                   {[
-                    { label: "Portfolio value & gain/loss", color: "blue" },
                     {
-                      label: "Asset allocation & diversification",
+                      label:
+                        "Your total invested amount and how much it's grown",
+                      color: "blue",
+                    },
+                    {
+                      label:
+                        "How your money is split between stocks (growth) and bonds (stability)",
                       color: "green",
                     },
-                    { label: "Fee analysis & cost reduction", color: "orange" },
+                    {
+                      label:
+                        "Hidden fees you're paying each year — and what they cost you long-term",
+                      color: "orange",
+                    },
                   ].map((item) => (
                     <Box
                       key={item.label}
@@ -1004,7 +1012,7 @@ export const InvestmentsPage = () => {
                       </StatNumber>
                       {portfolio.total_cost_basis && (
                         <StatHelpText fontSize="sm">
-                          Cost Basis:{" "}
+                          What you paid:{" "}
                           {formatCurrency(portfolio.total_cost_basis)}
                         </StatHelpText>
                       )}
