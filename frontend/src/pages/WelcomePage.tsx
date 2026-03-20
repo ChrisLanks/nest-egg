@@ -217,6 +217,10 @@ export default function WelcomePage() {
   });
 
   const finish = async (destination?: string) => {
+    // Persist selected goal so the dashboard can show a contextual reminder
+    if (selectedGoal) {
+      localStorage.setItem("nest-egg-onboarding-goal", selectedGoal);
+    }
     // Save chosen dashboard layout — best-effort, don't block navigation
     try {
       const layout =
@@ -375,7 +379,7 @@ export default function WelcomePage() {
               <Heading size="lg">Connect Your Accounts</Heading>
               <Text color="text.secondary" textAlign="center">
                 Link a bank account to automatically import transactions and
-                track your net worth. You can also add accounts manually.
+                track your net worth in real time.
               </Text>
             </VStack>
             {accountLinked ? (
@@ -395,7 +399,49 @@ export default function WelcomePage() {
                 </Text>
               </VStack>
             ) : (
-              <VStack spacing={3}>
+              <VStack spacing={4}>
+                {/* How it works — reassures first-timers before they click */}
+                <Box
+                  w="full"
+                  p={4}
+                  bg="bg.subtle"
+                  borderRadius="lg"
+                  border="1px solid"
+                  borderColor="border.default"
+                >
+                  <VStack spacing={2} align="stretch">
+                    <Text fontSize="sm" fontWeight="semibold">
+                      How this works
+                    </Text>
+                    {[
+                      {
+                        icon: FiShield,
+                        text: "We connect through Plaid — the same technology used by Venmo, Coinbase, and thousands of other apps. Your bank login is entered directly on your bank's own secure page, not ours.",
+                      },
+                      {
+                        icon: FiCheck,
+                        text: "We never see or store your bank password. Nest Egg only receives a read-only connection to import transactions and balances.",
+                      },
+                      {
+                        icon: FiLink,
+                        text: "We support 11,000+ banks and credit unions. You can disconnect at any time from Account Settings.",
+                      },
+                    ].map((item) => (
+                      <HStack key={item.text} spacing={3} align="start">
+                        <Icon
+                          as={item.icon}
+                          boxSize={4}
+                          color="brand.500"
+                          mt="2px"
+                          flexShrink={0}
+                        />
+                        <Text fontSize="xs" color="text.secondary">
+                          {item.text}
+                        </Text>
+                      </HStack>
+                    ))}
+                  </VStack>
+                </Box>
                 <Button
                   size="lg"
                   colorScheme="brand"
@@ -406,9 +452,8 @@ export default function WelcomePage() {
                   Connect a Bank Account
                 </Button>
                 <Text fontSize="xs" color="text.muted" textAlign="center">
-                  We support 11,000+ institutions via Plaid, Teller, and MX. The
-                  app auto-selects the best configured provider for you. Your
-                  credentials are never stored on our servers.
+                  Prefer to enter accounts manually? You can skip this step and
+                  add them by hand from the Accounts page.
                 </Text>
               </VStack>
             )}

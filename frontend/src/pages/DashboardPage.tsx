@@ -32,6 +32,7 @@ import { WIDGET_REGISTRY } from "../features/dashboard/widgetRegistry";
 import type { LayoutItem } from "../features/dashboard/types";
 import api from "../services/api";
 import { AddAccountModal } from "../features/accounts/components/AddAccountModal";
+import { GoalContextBanner } from "../features/dashboard/GoalContextBanner";
 
 const GettingStartedEmptyState = ({
   onConnectBank,
@@ -50,17 +51,32 @@ const GettingStartedEmptyState = ({
     <VStack spacing={6} maxW="md" mx="auto">
       <Icon as={FiBarChart2} boxSize={12} color="brand.500" />
       <VStack spacing={2}>
-        <Heading size="md">Your dashboard is ready</Heading>
+        <Heading size="md">Your financial picture starts here</Heading>
         <Text color="text.secondary">
-          Connect a bank account to start tracking your finances. Your net
-          worth, spending, and budgets will appear here automatically.
+          In about 2 minutes you'll see your full financial picture — net worth,
+          spending by category, and where your money goes — all in one place.
         </Text>
       </VStack>
       <VStack spacing={3} w="full">
         {[
-          { icon: FiLink, label: "Connect a bank account", action: true },
-          { icon: FiDollarSign, label: "Set your first budget", action: false },
-          { icon: FiBarChart2, label: "Check your net worth", action: false },
+          {
+            icon: FiLink,
+            label: "Connect a bank account",
+            hint: "We import your transactions automatically — nothing to enter by hand.",
+            action: true,
+          },
+          {
+            icon: FiDollarSign,
+            label: "Set your first budget",
+            hint: "Pick one spending category and give it a monthly limit.",
+            action: false,
+          },
+          {
+            icon: FiBarChart2,
+            label: "Check your net worth",
+            hint: "Everything you own minus everything you owe — your most important number.",
+            action: false,
+          },
         ].map((step, i) => (
           <HStack
             key={step.label}
@@ -69,22 +85,32 @@ const GettingStartedEmptyState = ({
             bg="bg.subtle"
             borderRadius="md"
             spacing={3}
+            align="start"
           >
             <Icon
-              as={i === 0 ? FiLink : i === 1 ? FiDollarSign : FiBarChart2}
+              as={step.icon}
               color={step.action ? "brand.500" : "text.muted"}
               boxSize={5}
+              mt="2px"
+              flexShrink={0}
             />
-            <Text
-              fontSize="sm"
-              color={step.action ? "text.primary" : "text.muted"}
-              flex={1}
-              textAlign="left"
-            >
-              {i + 1}. {step.label}
-            </Text>
+            <VStack align="start" spacing={0} flex={1}>
+              <Text
+                fontSize="sm"
+                fontWeight="medium"
+                color={step.action ? "text.primary" : "text.muted"}
+                textAlign="left"
+              >
+                {i + 1}. {step.label}
+              </Text>
+              {step.action && (
+                <Text fontSize="xs" color="text.secondary" textAlign="left">
+                  {step.hint}
+                </Text>
+              )}
+            </VStack>
             {step.action && (
-              <Badge colorScheme="brand" fontSize="xs">
+              <Badge colorScheme="brand" fontSize="xs" flexShrink={0}>
                 Start here
               </Badge>
             )}
@@ -99,6 +125,13 @@ const GettingStartedEmptyState = ({
       >
         Connect a Bank Account
       </Button>
+      <Text fontSize="xs" color="text.muted">
+        Prefer to enter accounts manually? You can do that from the{" "}
+        <Text as="span" fontWeight="medium">
+          Accounts
+        </Text>{" "}
+        page in the sidebar.
+      </Text>
     </VStack>
   </Box>
 );
@@ -230,6 +263,8 @@ export const DashboardPage = () => {
           </HStack>
         )}
       </HStack>
+
+      <GoalContextBanner />
 
       {accounts !== undefined && accounts.length === 0 && (
         <GettingStartedEmptyState onConnectBank={onAddAccountOpen} />
