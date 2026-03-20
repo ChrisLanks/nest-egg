@@ -105,7 +105,10 @@ class TaxLotService:
         # Determine method -- use account default if not specified
         if method is None:
             result = await db.execute(
-                select(Account.cost_basis_method).where(Account.id == account_id)
+                select(Account.cost_basis_method).where(
+                    Account.id == account_id,
+                    Account.organization_id == org_id,  # defense-in-depth: verify ownership
+                )
             )
             account_method = result.scalar_one_or_none()
             method = CostBasisMethod(account_method) if account_method else CostBasisMethod.FIFO
@@ -231,6 +234,7 @@ class TaxLotService:
         self,
         db: AsyncSession,
         account_id: UUID,
+        org_id: Optional[UUID] = None,
     ) -> dict:
         """Calculate per-lot unrealized gains using current holding prices.
 
@@ -253,9 +257,12 @@ class TaxLotService:
         )
         lots = result.scalars().all()
 
-        # Get current prices from holdings
+        # Get current prices from holdings — scope to org as defense-in-depth
         holding_ids = {lot.holding_id for lot in lots}
-        holdings_result = await db.execute(select(Holding).where(Holding.id.in_(holding_ids)))
+        holdings_query = select(Holding).where(Holding.id.in_(holding_ids))
+        if org_id is not None:
+            holdings_query = holdings_query.where(Holding.organization_id == org_id)
+        holdings_result = await db.execute(holdings_query)
         holdings_map = {h.id: h for h in holdings_result.scalars().all()}
 
         today = date.today()
@@ -367,6 +374,7 @@ class TaxLotService:
         self,
         db: AsyncSession,
         holding_id: UUID,
+        org_id: Optional[UUID] = None,
     ) -> Optional[TaxLot]:
         """Auto-create a single tax lot from existing holding data (for migration).
 
@@ -376,11 +384,18 @@ class TaxLotService:
         Args:
             db: Database session
             holding_id: Holding ID to import from
+            org_id: Organization ID for ownership verification (defense-in-depth)
 
         Returns:
             Created TaxLot or None if insufficient data
         """
-        result = await db.execute(select(Holding).where(Holding.id == holding_id))
+        query = select(Holding).where(Holding.id == holding_id)
+        if org_id is not None:
+            # Defense-in-depth: verify the holding belongs to the caller's org.
+            # The API layer already does this check, but we enforce it here too
+            # so the service cannot be misused by future callers.
+            query = query.where(Holding.organization_id == org_id)
+        result = await db.execute(query)
         holding = result.scalar_one_or_none()
 
         if not holding:

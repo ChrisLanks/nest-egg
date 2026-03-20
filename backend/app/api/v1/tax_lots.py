@@ -164,7 +164,9 @@ async def import_lots_from_holding(
     """Auto-create a tax lot from existing holding cost basis data (migration helper)."""
     await _get_verified_holding(holding_id, current_user, db)
 
-    lot = await tax_lot_service.import_lots_from_holding(db, holding_id)
+    lot = await tax_lot_service.import_lots_from_holding(
+        db, holding_id, org_id=current_user.organization_id
+    )
     if lot is None:
         raise HTTPException(
             status_code=409,
@@ -198,7 +200,9 @@ async def get_unrealized_gains(
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Account not found")
 
-    summary = await tax_lot_service.get_unrealized_gains(db, account_id)
+    summary = await tax_lot_service.get_unrealized_gains(
+        db, account_id, org_id=current_user.organization_id
+    )
     return summary
 
 

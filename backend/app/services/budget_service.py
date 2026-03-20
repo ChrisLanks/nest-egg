@@ -344,12 +344,21 @@ class BudgetService:
         if budget.category_id:
             # Load the category and all its children so that transactions assigned
             # to a sub-category roll up into the parent budget.
-            cat_result = await db.execute(select(Category).where(Category.id == budget.category_id))
+            # Always scope to the user's org — defense-in-depth against IDOR.
+            cat_result = await db.execute(
+                select(Category).where(
+                    Category.id == budget.category_id,
+                    Category.organization_id == user.organization_id,
+                )
+            )
             category = cat_result.scalar_one_or_none()
 
             if category:
                 children_result = await db.execute(
-                    select(Category).where(Category.parent_category_id == budget.category_id)
+                    select(Category).where(
+                        Category.parent_category_id == budget.category_id,
+                        Category.organization_id == user.organization_id,
+                    )
                 )
                 children = list(children_result.scalars().all())
 
