@@ -702,6 +702,11 @@ advanced tools.
 
 | Tab | Condition |
 |-----|-----------|
+| Recurring | User has at least one linked (bank-synced) account |
+| Bills | User has at least one linked (bank-synced) account |
+| Rules | User has any account |
+| Tax Deductible | User has an investment or rental account |
+| Investment Health | User has an investment account |
 | Education (529) | User has a `retirement_529` account |
 | Rental Properties | User has an account with `is_rental_property = true` |
 | Debt Payoff | User has `credit_card`, `loan`, `student_loan`, or `mortgage` account |

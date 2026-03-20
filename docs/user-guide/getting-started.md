@@ -181,6 +181,11 @@ as your data grows:
 
 | Tab | When it appears automatically |
 |-----|-------------------------------|
+| Recurring | When you connect a bank account |
+| Bills | When you connect a bank account |
+| Rules | When you add any account |
+| Tax Deductible | When you have investment or rental accounts |
+| Investment Health | When you have investment accounts |
 | Education (529) | When you add a 529 college savings account |
 | Rental Properties | When you add a rental property account |
 | Debt Payoff | When you have a credit card, loan, or student loan |
