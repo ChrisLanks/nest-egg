@@ -32,9 +32,11 @@ class IdentityProviderChain:
     def __init__(self, providers: list[IdentityProvider]) -> None:
         self._providers = providers
 
-    async def authenticate(
-        self, token: str, db: AsyncSession
-    ) -> AuthenticatedIdentity:
+    def active_provider_names(self) -> list[str]:
+        """Return provider names in priority order (for logging / headers)."""
+        return [p.provider_name for p in self._providers]
+
+    async def authenticate(self, token: str, db: AsyncSession) -> AuthenticatedIdentity:
         """Validate token and return the authenticated identity.
 
         Raises:
@@ -45,6 +47,11 @@ class IdentityProviderChain:
             if provider.can_handle(token):
                 identity = await provider.validate_token(token, db)
                 if identity is not None:
+                    logger.debug(
+                        "auth: token handled by provider=%s user_id=%s",
+                        identity.provider,
+                        identity.user_id,
+                    )
                     return identity
                 # Provider claimed the token but rejected it (expired, bad sig, etc.)
                 raise HTTPException(
@@ -89,13 +96,13 @@ def build_chain() -> IdentityProviderChain:
                     )
                 )
             )
-            logger.info("Identity chain: added Cognito provider iss=%s", settings.IDP_COGNITO_ISSUER)
+            logger.info(
+                "Identity chain: added Cognito provider iss=%s", settings.IDP_COGNITO_ISSUER
+            )
 
         elif name == "keycloak":
             if not settings.IDP_KEYCLOAK_ISSUER or not settings.IDP_KEYCLOAK_CLIENT_ID:
-                logger.warning(
-                    "Identity chain: 'keycloak' requested but config not set — skipping"
-                )
+                logger.warning("Identity chain: 'keycloak' requested but config not set — skipping")
                 continue
             providers.append(
                 OIDCIdentityProvider(
@@ -108,13 +115,13 @@ def build_chain() -> IdentityProviderChain:
                     )
                 )
             )
-            logger.info("Identity chain: added Keycloak provider iss=%s", settings.IDP_KEYCLOAK_ISSUER)
+            logger.info(
+                "Identity chain: added Keycloak provider iss=%s", settings.IDP_KEYCLOAK_ISSUER
+            )
 
         elif name == "okta":
             if not settings.IDP_OKTA_ISSUER or not settings.IDP_OKTA_CLIENT_ID:
-                logger.warning(
-                    "Identity chain: 'okta' requested but config not set — skipping"
-                )
+                logger.warning("Identity chain: 'okta' requested but config not set — skipping")
                 continue
             providers.append(
                 OIDCIdentityProvider(
@@ -155,12 +162,15 @@ def build_chain() -> IdentityProviderChain:
 
     if not providers:
         # Safe fallback: always have at least the built-in provider
-        logger.warning(
-            "Identity chain: no valid providers configured — falling back to builtin"
-        )
+        logger.warning("Identity chain: no valid providers configured — falling back to builtin")
         providers.append(BuiltinIdentityProvider())
 
-    return IdentityProviderChain(providers)
+    chain = IdentityProviderChain(providers)
+    logger.info(
+        "Identity chain active: [%s]",
+        " → ".join(chain.active_provider_names()),
+    )
+    return chain
 
 
 def get_chain() -> IdentityProviderChain:

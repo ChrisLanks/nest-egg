@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.security import hash_password
 from app.models.identity import UserIdentity
+from app.models.transaction import Category
 from app.models.user import ConsentType, Organization, User, UserConsent
 from app.services.identity.base import AuthenticatedIdentity, IdentityProvider
 from app.utils.datetime_utils import utc_now
@@ -83,9 +84,32 @@ class OIDCIdentityProvider(IdentityProvider):
             return False
 
     async def validate_token(self, token: str, db: AsyncSession) -> Optional[AuthenticatedIdentity]:
-        """Validate RS256 OIDC token and return authenticated identity."""
+        """Validate RS256 OIDC token and return authenticated identity.
+
+        Returns None only when this provider should not handle the token (wrong
+        issuer / unknown kid — let the chain try the next provider). Raises
+        HTTPException(401) when this provider owns the token but it is invalid
+        (expired, bad signature, bad audience, etc.).
+        """
+        from fastapi import HTTPException
+        from fastapi import status as http_status
+
         try:
             jwks_data = await self._get_jwks()
+        except Exception as exc:
+            logger.warning(
+                "OIDC JWKS fetch failed for %s: %s — rejecting token",
+                self.config.provider_name,
+                exc,
+            )
+            raise HTTPException(
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    f"Identity provider '{self.config.provider_name}' is temporarily unavailable"
+                ),
+            )
+
+        try:
             jwk_set = PyJWKSet.from_dict(jwks_data)
             header = jose_jwt.get_unverified_header(token)
             kid = header.get("kid")
@@ -95,6 +119,7 @@ class OIDCIdentityProvider(IdentityProvider):
                     signing_key = jwk.key
                     break
             if signing_key is None:
+                # Unknown kid — not our token, let the chain try the next provider
                 logger.debug("No matching JWK kid=%s for %s", kid, self.config.provider_name)
                 return None
             payload = jose_jwt.decode(
@@ -105,8 +130,15 @@ class OIDCIdentityProvider(IdentityProvider):
                 issuer=self.config.issuer,
             )
         except JWTError as exc:
+            # Known kid but token is invalid (expired, bad sig, wrong audience, etc.)
+            # The token belongs to us but is rejected — raise 401 rather than
+            # silently returning None (which would let another provider attempt it).
             logger.debug("OIDC token validation failed for %s: %s", self.config.provider_name, exc)
-            return None
+            raise HTTPException(
+                status_code=http_status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         except Exception as exc:
             logger.warning(
                 "Unexpected error validating OIDC token for %s: %s",
@@ -145,7 +177,12 @@ class OIDCIdentityProvider(IdentityProvider):
     # ------------------------------------------------------------------
 
     async def _get_jwks(self) -> dict:
-        """Fetch and cache JWKS from the provider's well-known endpoint."""
+        """Fetch and cache JWKS from the provider's well-known endpoint.
+
+        Uses a 5-second connect + 10-second read timeout. On failure, returns
+        the stale cache if available (allows short IdP outages to be transparent).
+        Raises on hard failure with no cache available.
+        """
         now = datetime.now(tz=timezone.utc)
         if (
             self._jwks_cache is not None
@@ -155,12 +192,24 @@ class OIDCIdentityProvider(IdentityProvider):
             return self._jwks_cache
 
         jwks_uri = f"{self.config.issuer}/.well-known/jwks.json"
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(jwks_uri)
-            response.raise_for_status()
-            self._jwks_cache = response.json()
-            self._jwks_fetched_at = now
-            return self._jwks_cache
+        timeout = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0)
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.get(jwks_uri)
+                response.raise_for_status()
+                self._jwks_cache = response.json()
+                self._jwks_fetched_at = now
+                return self._jwks_cache
+        except Exception as exc:
+            if self._jwks_cache is not None:
+                # Serve stale cache rather than breaking all auth during IdP blips
+                logger.warning(
+                    "JWKS refresh failed for %s (%s) — serving stale cache",
+                    self.config.provider_name,
+                    exc,
+                )
+                return self._jwks_cache
+            raise
 
     # ------------------------------------------------------------------
     # User resolution / auto-provisioning
@@ -244,6 +293,20 @@ class OIDCIdentityProvider(IdentityProvider):
                         version=settings.TERMS_VERSION,
                     )
                 )
+
+            # Seed default spending categories (same set as /register)
+            _default_categories = [
+                {"name": "Housing", "color": "#EF5350"},
+                {"name": "Groceries", "color": "#66BB6A"},
+                {"name": "Dining", "color": "#FFA726"},
+                {"name": "Transportation", "color": "#42A5F5"},
+                {"name": "Utilities", "color": "#AB47BC"},
+                {"name": "Entertainment", "color": "#EC407A"},
+                {"name": "Healthcare", "color": "#26A69A"},
+                {"name": "Shopping", "color": "#26C6DA"},
+            ]
+            for _cat in _default_categories:
+                db.add(Category(organization_id=org.id, name=_cat["name"], color=_cat["color"]))
 
             await db.commit()
             logger.info(

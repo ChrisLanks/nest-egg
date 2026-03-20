@@ -1,5 +1,6 @@
 """Unit tests for the identity provider chain."""
 
+import logging
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
@@ -226,3 +227,65 @@ class TestBuildChain:
             chain = build_chain()
         assert len(chain._providers) >= 1
         assert any(isinstance(p, BuiltinIdentityProvider) for p in chain._providers)
+
+    def test_build_chain_logs_active_providers(self, caplog):
+        """build_chain() should log which providers are active at INFO level."""
+        with caplog.at_level(logging.INFO, logger="app.services.identity.chain"):
+            chain = build_chain()
+        provider_names = chain.active_provider_names()
+        # The summary log line must mention at least one provider name
+        assert any(name in caplog.text for name in provider_names)
+        assert "active" in caplog.text.lower() or "chain" in caplog.text.lower()
+
+    def test_active_provider_names_returns_list(self):
+        """active_provider_names() returns names in priority order."""
+        chain = build_chain()
+        names = chain.active_provider_names()
+        assert isinstance(names, list)
+        assert len(names) >= 1
+        assert "builtin" in names
+
+
+@pytest.mark.unit
+class TestChainAuthLogging:
+    """Test per-request provider logging."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.mark.asyncio
+    async def test_authenticate_logs_provider_at_debug(self, mock_db, caplog):
+        """authenticate() should log which provider handled the token at DEBUG level."""
+        uid = uuid4()
+        identity = _make_identity(uid)
+
+        provider = Mock(spec=IdentityProvider)
+        provider.can_handle = Mock(return_value=True)
+        provider.validate_token = AsyncMock(return_value=identity)
+        provider.provider_name = "builtin"
+
+        chain = IdentityProviderChain([provider])
+
+        with caplog.at_level(logging.DEBUG, logger="app.services.identity.chain"):
+            result = await chain.authenticate("sometoken", mock_db)
+
+        assert result.user_id == uid
+        assert "builtin" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_authenticate_passes_through_http_exception(self, mock_db):
+        """HTTPException from validate_token propagates unchanged (not swallowed)."""
+        provider = Mock(spec=IdentityProvider)
+        provider.can_handle = Mock(return_value=True)
+        provider.validate_token = AsyncMock(
+            side_effect=HTTPException(status_code=401, detail="expired")
+        )
+
+        chain = IdentityProviderChain([provider])
+
+        with pytest.raises(HTTPException) as exc_info:
+            await chain.authenticate("sometoken", mock_db)
+
+        assert exc_info.value.status_code == 401
+        assert "expired" in exc_info.value.detail

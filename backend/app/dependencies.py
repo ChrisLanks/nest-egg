@@ -3,7 +3,7 @@
 import logging
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, Path, Request, status
+from fastapi import Depends, HTTPException, Path, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +25,7 @@ security = HTTPBearer()
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
+    response: Response = None,  # type: ignore[assignment]
 ) -> User:
     """
     Get current authenticated user from JWT token.
@@ -35,6 +36,7 @@ async def get_current_user(
     Args:
         credentials: HTTP Bearer credentials
         db: Database session
+        response: FastAPI Response (used to set X-Auth-Provider header)
 
     Returns:
         Current user
@@ -45,6 +47,10 @@ async def get_current_user(
     chain = get_chain()
     # chain.authenticate raises HTTPException(401) on failure
     identity = await chain.authenticate(credentials.credentials, db)
+
+    # Expose which provider authenticated this request for observability
+    if response is not None:
+        response.headers["X-Auth-Provider"] = identity.provider
 
     if identity.user_id is None:
         raise HTTPException(
