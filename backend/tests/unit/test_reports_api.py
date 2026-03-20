@@ -860,3 +860,153 @@ class TestHouseholdSummary:
 
         assert result["total_household_liabilities"] == 300000.0
         assert result["total_household_assets"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Guest user_id filter guard
+# ---------------------------------------------------------------------------
+
+
+def _make_guest_user():
+    """Return a mock user with _is_guest=True (guest viewing a host household)."""
+    user = _make_user()
+    user._is_guest = True
+    return user
+
+
+@pytest.mark.unit
+class TestGuestUserIdFilterBlocked:
+    """Guests must not be able to filter report endpoints by individual member user_id.
+
+    A guest with viewer role can view full household data, but must not be able
+    to isolate a single member's accounts — that would leak per-member financial
+    detail that the guest would not otherwise see through any UI flow.
+    """
+
+    @pytest.mark.asyncio
+    async def test_execute_report_guest_with_user_id_raises_403(self):
+        guest = _make_guest_user()
+        db = AsyncMock()
+        request = ExecuteReportRequest(config={"type": "income_expense"})
+
+        with pytest.raises(HTTPException) as exc_info:
+            await execute_report(
+                request=request,
+                user_id=uuid4(),
+                current_user=guest,
+                db=db,
+            )
+
+        assert exc_info.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_execute_saved_report_guest_with_user_id_raises_403(self):
+        guest = _make_guest_user()
+        template = _make_template(guest)
+        db = _db_returning(template)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await execute_saved_report(
+                template_id=template.id,
+                user_id=uuid4(),
+                current_user=guest,
+                db=db,
+            )
+
+        assert exc_info.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_export_csv_guest_with_user_id_raises_403(self):
+        guest = _make_guest_user()
+        template = _make_template(guest)
+        db = _db_returning(template)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await export_report_csv(
+                template_id=template.id,
+                user_id=uuid4(),
+                current_user=guest,
+                db=db,
+            )
+
+        assert exc_info.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_tax_loss_harvesting_guest_with_user_id_raises_403(self):
+        guest = _make_guest_user()
+        db = AsyncMock()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_tax_loss_harvesting(
+                user_id=uuid4(),
+                current_user=guest,
+                db=db,
+            )
+
+        assert exc_info.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_execute_report_guest_without_user_id_allowed(self):
+        """Guests can still run reports without a user_id filter (full household view)."""
+        guest = _make_guest_user()
+        mock_acc = Mock()
+        mock_acc.id = uuid4()
+        db = AsyncMock()
+        request = ExecuteReportRequest(config={"type": "income_expense"})
+
+        with patch(
+            "app.api.v1.reports.get_all_household_accounts",
+            new_callable=AsyncMock,
+            return_value=[mock_acc],
+        ):
+            with patch(
+                "app.api.v1.reports.deduplication_service.deduplicate_accounts",
+                return_value=[mock_acc],
+            ):
+                with patch(
+                    "app.api.v1.reports.ReportService.execute_report",
+                    new_callable=AsyncMock,
+                    return_value={"data": []},
+                ):
+                    result = await execute_report(
+                        request=request,
+                        user_id=None,
+                        current_user=guest,
+                        db=db,
+                    )
+
+        assert result == {"data": []}
+
+    @pytest.mark.asyncio
+    async def test_non_guest_with_user_id_allowed(self):
+        """Regular household members can still filter by user_id."""
+        user = _make_user()
+        # _is_guest not set — getattr(..., False) returns False
+        target_user_id = uuid4()
+        mock_acc = Mock()
+        mock_acc.id = uuid4()
+        db = AsyncMock()
+        request = ExecuteReportRequest(config={"type": "income_expense"})
+
+        with patch(
+            "app.api.v1.reports.verify_household_member",
+            new_callable=AsyncMock,
+        ):
+            with patch(
+                "app.api.v1.reports.get_user_accounts",
+                new_callable=AsyncMock,
+                return_value=[mock_acc],
+            ):
+                with patch(
+                    "app.api.v1.reports.ReportService.execute_report",
+                    new_callable=AsyncMock,
+                    return_value={"data": []},
+                ):
+                    result = await execute_report(
+                        request=request,
+                        user_id=target_user_id,
+                        current_user=user,
+                        db=db,
+                    )
+
+        assert result == {"data": []}

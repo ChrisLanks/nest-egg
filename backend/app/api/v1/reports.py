@@ -31,6 +31,11 @@ from app.utils.datetime_utils import utc_now
 # Allowed characters in Content-Disposition filenames
 _SAFE_FILENAME_RE = re.compile(r"[^a-zA-Z0-9_.\-]")
 
+_GUEST_USER_ID_FILTER_FORBIDDEN = HTTPException(
+    status_code=403,
+    detail="Guests cannot filter reports by individual member",
+)
+
 router = APIRouter()
 deduplication_service = DeduplicationService()
 
@@ -317,6 +322,8 @@ async def execute_report(
     """
     # Get accounts based on user filter
     if user_id:
+        if getattr(current_user, "_is_guest", False):
+            raise _GUEST_USER_ID_FILTER_FORBIDDEN
         await verify_household_member(db, user_id, current_user.organization_id)
         accounts = await get_user_accounts(db, user_id, current_user.organization_id)
     else:
@@ -366,6 +373,8 @@ async def execute_saved_report(
 
     # Get accounts based on user filter
     if user_id:
+        if getattr(current_user, "_is_guest", False):
+            raise _GUEST_USER_ID_FILTER_FORBIDDEN
         await verify_household_member(db, user_id, current_user.organization_id)
         accounts = await get_user_accounts(db, user_id, current_user.organization_id)
     else:
@@ -421,6 +430,8 @@ async def export_report_csv(
 
     # Get accounts based on user filter
     if user_id:
+        if getattr(current_user, "_is_guest", False):
+            raise _GUEST_USER_ID_FILTER_FORBIDDEN
         await verify_household_member(db, user_id, current_user.organization_id)
         accounts = await get_user_accounts(db, user_id, current_user.organization_id)
     else:
@@ -464,6 +475,8 @@ async def get_tax_loss_harvesting(
     """Get tax-loss harvesting opportunities."""
     account_ids = None
     if user_id:
+        if getattr(current_user, "_is_guest", False):
+            raise _GUEST_USER_ID_FILTER_FORBIDDEN
         await verify_household_member(db, user_id, current_user.organization_id)
         user_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
         account_ids = {acc.id for acc in user_accounts}
