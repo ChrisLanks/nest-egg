@@ -34,7 +34,15 @@ import {
   useColorModeValue,
 } from "@chakra-ui/react";
 import { AddIcon } from "@chakra-ui/icons";
-import { FiLock, FiTarget, FiShield } from "react-icons/fi";
+import {
+  FiLock,
+  FiTarget,
+  FiShield,
+  FiHome,
+  FiSun,
+  FiCreditCard,
+  type IconType,
+} from "react-icons/fi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import {
@@ -191,6 +199,7 @@ export default function SavingsGoalsPage() {
   const accent = useColorModeValue("blue", "cyan");
 
   const currentUser = useAuthStore((s) => s.user);
+  const onboardingGoal = localStorage.getItem("nest-egg-onboarding-goal") ?? "";
 
   // Allocation method — persisted in localStorage
   const [allocationMethod, setAllocationMethod] = useState<
@@ -295,17 +304,32 @@ export default function SavingsGoalsPage() {
     (g) => !g.is_completed && !g.is_funded && g.auto_sync && g.account_id,
   );
 
-  // Emergency Fund quick-start — hide if one already exists
-  const hasEmergencyFundGoal = goals.some((g) =>
-    g.name.toLowerCase().includes("emergency"),
+  // Goal templates — hide each card once the matching goal exists
+  const goalNames = goals.map((g) => g.name.toLowerCase());
+  const hasEmergencyFundGoal = goalNames.some((n) => n.includes("emergency"));
+  const hasVacationGoal = goalNames.some(
+    (n) => n.includes("vacation") || n.includes("travel"),
+  );
+  const hasDownPaymentGoal = goalNames.some(
+    (n) => n.includes("down payment") || n.includes("home"),
+  );
+  const hasDebtPayoffGoal = goalNames.some(
+    (n) => n.includes("debt") || n.includes("payoff"),
   );
 
+  type GoalTemplateKey =
+    | "emergency_fund"
+    | "vacation_fund"
+    | "home_down_payment"
+    | "debt_payoff_reserve";
+
   const createFromTemplateMutation = useMutation({
-    mutationFn: () => savingsGoalsApi.createFromTemplate("emergency_fund"),
+    mutationFn: (template: GoalTemplateKey) =>
+      savingsGoalsApi.createFromTemplate(template),
     onSuccess: (goal) => {
       queryClient.invalidateQueries({ queryKey: ["goals"] });
       toast({
-        title: "Emergency Fund created",
+        title: `${goal.name} created`,
         description: `Target set to $${Number(goal.target_amount).toLocaleString()} — edit anytime to adjust.`,
         status: "success",
         duration: 5000,
@@ -320,6 +344,48 @@ export default function SavingsGoalsPage() {
       });
     },
   });
+
+  const GOAL_TEMPLATES: {
+    key: GoalTemplateKey;
+    label: string;
+    description: string;
+    icon: IconType;
+    hidden: boolean;
+  }[] = [
+    {
+      key: "emergency_fund",
+      label: "Emergency Fund",
+      description:
+        "6 months of expenses — auto-calculated from your spending history",
+      icon: FiShield,
+      hidden: hasEmergencyFundGoal,
+    },
+    {
+      key: "vacation_fund",
+      label: "Vacation Fund",
+      description: "Save $4,000 over the next 12 months for your next trip",
+      icon: FiSun,
+      hidden: hasVacationGoal,
+    },
+    {
+      key: "home_down_payment",
+      label: "Home Down Payment",
+      description:
+        "20% down on a $300K home — adjust the target to your market",
+      icon: FiHome,
+      hidden: hasDownPaymentGoal,
+    },
+    {
+      key: "debt_payoff_reserve",
+      label: "Debt Payoff Reserve",
+      description:
+        "10% of your total debt balance set aside for extra payments",
+      icon: FiCreditCard,
+      hidden: hasDebtPayoffGoal,
+    },
+  ];
+
+  const visibleTemplates = GOAL_TEMPLATES.filter((t) => !t.hidden);
 
   // Group active goals by account_id for the "By Account" view
   const goalsByAccount = (() => {
@@ -508,58 +574,79 @@ export default function SavingsGoalsPage() {
                   ? "This user has no savings goals yet"
                   : "No savings goals yet"
             }
-            description="Set savings goals to track progress toward vacations, emergency funds, down payments, and more."
+            description={
+              onboardingGoal === "retirement"
+                ? "You said you want to plan for retirement — start by building an emergency fund so unexpected costs don't derail your progress."
+                : onboardingGoal === "investments"
+                  ? "Goals work alongside your investments. Set a savings target to fund your next contribution or build a cash buffer."
+                  : "Set savings goals to track progress toward vacations, emergency funds, down payments, and more."
+            }
             actionLabel="Create Your First Goal"
             onAction={handleCreate}
             showAction={canEdit && (!isPartialSelection || isSelfView)}
           />
         )}
 
-        {/* Emergency Fund quick-start card */}
-        {!goalsLoading && canEdit && !hasEmergencyFundGoal && (
-          <Card
-            variant="outline"
-            borderColor="blue.200"
-            bg="blue.50"
-            _dark={{ borderColor: "cyan.700", bg: "cyan.900" }}
-          >
-            <CardBody>
-              <HStack justify="space-between" flexWrap="wrap" spacing={4}>
-                <HStack spacing={3}>
-                  <Icon
-                    as={FiShield}
-                    boxSize={6}
-                    color="blue.500"
-                    _dark={{ color: "cyan.400" }}
-                  />
-                  <VStack align="start" spacing={0}>
-                    <Text
-                      fontWeight="semibold"
-                      color="blue.800"
-                      _dark={{ color: "cyan.200" }}
-                    >
-                      Emergency Fund
-                    </Text>
-                    <Text
-                      fontSize="sm"
-                      color="blue.600"
-                      _dark={{ color: "cyan.300" }}
-                    >
-                      Auto-calculates your 6-month target from spending history
-                    </Text>
-                  </VStack>
-                </HStack>
-                <Button
-                  colorScheme={accent}
+        {/* Goal templates quick-start */}
+        {!goalsLoading && canEdit && visibleTemplates.length > 0 && (
+          <VStack align="stretch" spacing={3}>
+            <HStack>
+              <Icon as={FiTarget} color="brand.500" />
+              <Text fontWeight="semibold" fontSize="sm">
+                Quick-start a goal
+              </Text>
+              <Text fontSize="sm" color="text.muted">
+                — one click to set up a common savings goal
+              </Text>
+            </HStack>
+            <SimpleGrid columns={{ base: 1, md: 2, lg: 2 }} spacing={3}>
+              {visibleTemplates.map((tmpl) => (
+                <Card
+                  key={tmpl.key}
+                  variant="outline"
                   size="sm"
-                  onClick={() => createFromTemplateMutation.mutate()}
-                  isLoading={createFromTemplateMutation.isPending}
+                  _hover={{ borderColor: "brand.300", shadow: "sm" }}
+                  transition="all 0.15s"
                 >
-                  Create Goal
-                </Button>
-              </HStack>
-            </CardBody>
-          </Card>
+                  <CardBody>
+                    <HStack justify="space-between" flexWrap="wrap" spacing={3}>
+                      <HStack spacing={3} flex={1} minW={0}>
+                        <Icon
+                          as={tmpl.icon}
+                          boxSize={5}
+                          color="brand.500"
+                          flexShrink={0}
+                        />
+                        <VStack align="start" spacing={0} minW={0}>
+                          <Text fontWeight="semibold" fontSize="sm">
+                            {tmpl.label}
+                          </Text>
+                          <Text fontSize="xs" color="text.muted" noOfLines={2}>
+                            {tmpl.description}
+                          </Text>
+                        </VStack>
+                      </HStack>
+                      <Button
+                        colorScheme={accent}
+                        size="sm"
+                        variant="outline"
+                        flexShrink={0}
+                        onClick={() =>
+                          createFromTemplateMutation.mutate(tmpl.key)
+                        }
+                        isLoading={
+                          createFromTemplateMutation.isPending &&
+                          createFromTemplateMutation.variables === tmpl.key
+                        }
+                      >
+                        Create
+                      </Button>
+                    </HStack>
+                  </CardBody>
+                </Card>
+              ))}
+            </SimpleGrid>
+          </VStack>
         )}
 
         {/* Goals tabs */}

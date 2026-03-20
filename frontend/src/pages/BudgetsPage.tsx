@@ -58,6 +58,8 @@ export default function BudgetsPage() {
   const isPartialSelection = isPartialMemberSelection;
   const currentUser = useAuthStore((s) => s.user);
 
+  const onboardingGoal = localStorage.getItem("nest-egg-onboarding-goal") ?? "";
+
   // Get all budgets
   const { data: budgets = [], isLoading } = useQuery({
     queryKey: ["budgets", selectedUserId],
@@ -255,7 +257,13 @@ export default function BudgetsPage() {
                     ? "This user has no budgets yet"
                     : "No budgets yet"
               }
-              description="Create budgets to track spending by category and stay on top of your financial goals."
+              description={
+                onboardingGoal === "spending"
+                  ? "You said you want to track spending — a budget is the best place to start. Pick a category below and set a monthly limit."
+                  : onboardingGoal === "retirement"
+                    ? "Budgets help you free up money to save for retirement. Start with your biggest spending category."
+                    : "Create budgets to track spending by category and stay on top of your financial goals."
+              }
               actionLabel="Create Your First Budget"
               onAction={handleCreate}
               showAction={canEdit && (!isPartialSelection || isSelfView)}

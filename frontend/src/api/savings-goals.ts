@@ -115,10 +115,14 @@ export const savingsGoalsApi = {
   },
 
   /**
-   * Create a goal from a built-in template (e.g. 'emergency_fund')
+   * Create a goal from a built-in template
    */
   createFromTemplate: async (
-    template: "emergency_fund",
+    template:
+      | "emergency_fund"
+      | "vacation_fund"
+      | "home_down_payment"
+      | "debt_payoff_reserve",
   ): Promise<SavingsGoal> => {
     const { data } = await api.post<SavingsGoal>(
       "/savings-goals/from-template",
