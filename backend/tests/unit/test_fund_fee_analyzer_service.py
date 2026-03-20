@@ -9,6 +9,8 @@ Tests cover:
 - Sorting by annual fee descending
 - Summary text generation
 - Mixed holdings (some with ER, some without)
+- resolve_expense_ratio() priority chain
+- is_estimated flag propagation through analyze()
 """
 
 from __future__ import annotations
@@ -18,21 +20,34 @@ import pytest
 from app.services.fund_fee_analyzer_service import (
     _BASE_RETURN,
     _BENCHMARK_ER,
+    ASSET_CLASS_ER_ESTIMATES,
+    ASSET_TYPE_ER_ESTIMATES,
+    KNOWN_EXPENSE_RATIOS,
     FundFeeAnalysis,
     FundFeeAnalyzerService,
     HoldingFeeDetail,
+    resolve_expense_ratio,
 )
 
 # ── Test helpers ──────────────────────────────────────────────────────────
 
 
-def _holding(ticker="VTI", name="Total Market", value=10_000.0, er=None):
+def _holding(
+    ticker="VTI",
+    name="Total Market",
+    value=10_000.0,
+    er=None,
+    asset_class=None,
+    asset_type=None,
+):
     """Return a dict-style holding."""
     return {
         "ticker": ticker,
         "name": name,
         "current_total_value": value,
         "expense_ratio": er,
+        "asset_class": asset_class,
+        "asset_type": asset_type,
     }
 
 
@@ -321,3 +336,168 @@ class TestOrmCompatibility:
         result = FundFeeAnalyzerService.analyze(holdings)
         assert result.holdings_with_er_data == 2
         assert result.total_invested == pytest.approx(20_000.0)
+
+
+# ── resolve_expense_ratio ─────────────────────────────────────────────────
+
+
+class TestResolveExpenseRatio:
+    """Tests for the resolve_expense_ratio() priority chain."""
+
+    # ── Priority 1: stored_er ────────────────────────────────────────────
+
+    def test_stored_er_returned_as_authoritative(self):
+        er, is_estimated = resolve_expense_ratio("VTI", None, None, None, 0.0007)
+        assert er == pytest.approx(0.0007)
+        assert is_estimated is False
+
+    def test_stored_er_zero_is_valid(self):
+        """0.0 stored ER (e.g. Fidelity zero-fee funds) is authoritative, not estimated."""
+        er, is_estimated = resolve_expense_ratio("FZROX", None, None, None, 0.0)
+        assert er == pytest.approx(0.0)
+        assert is_estimated is False
+
+    def test_stored_er_takes_priority_over_known_table(self):
+        """A manually overridden ER beats the KNOWN_EXPENSE_RATIOS entry."""
+        # VTI known ER is 0.0003; stored override is 0.0010
+        er, is_estimated = resolve_expense_ratio("VTI", None, None, None, 0.0010)
+        assert er == pytest.approx(0.0010)
+        assert is_estimated is False
+
+    # ── Priority 2: KNOWN_EXPENSE_RATIOS ────────────────────────────────
+
+    def test_known_ticker_returns_authoritative_er(self):
+        er, is_estimated = resolve_expense_ratio("VTI", None, None, None, None)
+        assert er == pytest.approx(KNOWN_EXPENSE_RATIOS["VTI"])
+        assert is_estimated is False
+
+    def test_known_ticker_case_insensitive(self):
+        er_upper, _ = resolve_expense_ratio("VTI", None, None, None, None)
+        er_lower, _ = resolve_expense_ratio("vti", None, None, None, None)
+        assert er_upper == er_lower
+
+    def test_known_ticker_spy(self):
+        er, is_estimated = resolve_expense_ratio("SPY", None, None, None, None)
+        assert er == pytest.approx(KNOWN_EXPENSE_RATIOS["SPY"])
+        assert is_estimated is False
+
+    def test_known_ticker_qqq(self):
+        er, _ = resolve_expense_ratio("QQQ", None, None, None, None)
+        assert er == pytest.approx(KNOWN_EXPENSE_RATIOS["QQQ"])
+
+    # ── Priority 3: asset_class estimate ────────────────────────────────
+
+    def test_unknown_ticker_falls_back_to_asset_class(self):
+        er, is_estimated = resolve_expense_ratio("ZZZNEW", None, "domestic", None, None)
+        assert er == pytest.approx(ASSET_CLASS_ER_ESTIMATES["domestic"])
+        assert is_estimated is True
+
+    def test_international_asset_class_estimate(self):
+        er, is_estimated = resolve_expense_ratio(None, None, "international", None, None)
+        assert er == pytest.approx(ASSET_CLASS_ER_ESTIMATES["international"])
+        assert is_estimated is True
+
+    def test_bond_asset_class_estimate(self):
+        er, is_estimated = resolve_expense_ratio(None, None, "bond", None, None)
+        assert er == pytest.approx(ASSET_CLASS_ER_ESTIMATES["bond"])
+        assert is_estimated is True
+
+    def test_asset_class_takes_priority_over_asset_type(self):
+        """asset_class (priority 3) beats asset_type (priority 4)."""
+        er_class, _ = resolve_expense_ratio(None, None, "domestic", "mutual_fund", None)
+        assert er_class == pytest.approx(ASSET_CLASS_ER_ESTIMATES["domestic"])
+
+    # ── Priority 4: asset_type estimate ─────────────────────────────────
+
+    def test_mutual_fund_asset_type_estimate(self):
+        er, is_estimated = resolve_expense_ratio(None, None, None, "mutual_fund", None)
+        assert er == pytest.approx(ASSET_TYPE_ER_ESTIMATES["mutual_fund"])
+        assert is_estimated is True
+
+    def test_etf_asset_type_estimate(self):
+        er, is_estimated = resolve_expense_ratio(None, None, None, "etf", None)
+        assert er == pytest.approx(ASSET_TYPE_ER_ESTIMATES["etf"])
+        assert is_estimated is True
+
+    def test_stock_asset_type_returns_zero_not_estimated(self):
+        """Individual stocks have no ER — 0.0 and is_estimated=False."""
+        er, is_estimated = resolve_expense_ratio(None, None, None, "stock", None)
+        assert er == pytest.approx(0.0)
+        assert is_estimated is False
+
+    # ── Priority 5: last resort ──────────────────────────────────────────
+
+    def test_no_data_at_all_returns_zero_estimated(self):
+        er, is_estimated = resolve_expense_ratio(None, None, None, None, None)
+        assert er == pytest.approx(0.0)
+        assert is_estimated is True
+
+    def test_unknown_ticker_no_asset_info_returns_zero_estimated(self):
+        er, is_estimated = resolve_expense_ratio("ZZZNEW", None, None, None, None)
+        assert er == pytest.approx(0.0)
+        assert is_estimated is True
+
+
+# ── is_estimated propagation through analyze() ───────────────────────────
+
+
+class TestIsEstimatedInAnalyze:
+    """Test that is_estimated flag is correctly set on HoldingFeeDetail output."""
+
+    def test_stored_er_not_estimated(self):
+        holdings = [_holding("VTI", er=0.0003, value=10_000)]
+        result = FundFeeAnalyzerService.analyze(holdings)
+        assert result.holdings[0].is_estimated is False
+
+    def test_known_ticker_lookup_not_estimated(self):
+        """VTI with no stored ER → resolved from KNOWN_EXPENSE_RATIOS → not estimated."""
+        holdings = [_holding("VTI", er=None, value=10_000)]
+        result = FundFeeAnalyzerService.analyze(holdings)
+        # VTI is in KNOWN_EXPENSE_RATIOS so should not be flagged no_data
+        h = result.holdings[0]
+        assert h.flag != "no_data"
+        assert h.is_estimated is False
+
+    def test_asset_class_fallback_is_estimated(self):
+        holdings = [_holding("ZZZNEW", er=None, asset_class="domestic", value=10_000)]
+        result = FundFeeAnalyzerService.analyze(holdings)
+        h = result.holdings[0]
+        assert h.is_estimated is True
+        assert h.flag != "no_data"  # We have an estimated ER, not truly no_data
+
+    def test_asset_type_fallback_is_estimated(self):
+        holdings = [_holding("ZZZNEW", er=None, asset_type="mutual_fund", value=10_000)]
+        result = FundFeeAnalyzerService.analyze(holdings)
+        h = result.holdings[0]
+        assert h.is_estimated is True
+
+    def test_stock_asset_type_not_estimated(self):
+        """Stocks have 0% ER by definition — should not be marked estimated."""
+        holdings = [_holding("GOOG", er=None, asset_type="stock", value=10_000)]
+        result = FundFeeAnalyzerService.analyze(holdings)
+        h = result.holdings[0]
+        assert h.is_estimated is False
+
+    def test_no_data_at_all_flagged_no_data(self):
+        """Ticker unknown + no asset info → flag='no_data', is_estimated=False."""
+        holdings = [_holding("ZZZNEW", er=None, value=10_000)]
+        result = FundFeeAnalyzerService.analyze(holdings)
+        h = result.holdings[0]
+        assert h.flag == "no_data"
+        assert h.is_estimated is False
+
+    def test_estimated_hint_in_suggestion(self):
+        """Estimated ok holdings should have a suggestion noting the estimate."""
+        holdings = [_holding("ZZZNEW", er=None, asset_class="domestic", value=10_000)]
+        result = FundFeeAnalyzerService.analyze(holdings)
+        h = result.holdings[0]
+        if h.flag == "ok" and h.is_estimated:
+            assert h.suggestion is not None
+            assert "estimated" in h.suggestion.lower()
+
+    def test_is_estimated_in_to_dict(self):
+        """to_dict() roundtrip includes is_estimated."""
+        holdings = [_holding("ZZZNEW", er=None, asset_class="domestic", value=10_000)]
+        result = FundFeeAnalyzerService.analyze(holdings)
+        d = result.holdings[0].to_dict()
+        assert "is_estimated" in d

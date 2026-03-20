@@ -140,6 +140,11 @@ Scheduled tasks for hands-free operation:
 - **Weekly Recurring Detection** (Monday 2am): Auto-detect recurring transactions/subscriptions
 - **Daily Cash Flow Forecast** (6:30am): Check for projected negative balances
 - **Daily Data Retention** (3:30am): Purge transactions older than `DATA_RETENTION_DAYS` (disabled by default; dry-run safety)
+- **Daily Holdings Price Update** (6:00pm EST): Refresh current prices for all stale holdings from Yahoo Finance
+- **Daily Holdings Metadata Enrichment** (7:00pm EST): Enrich sector, industry, asset type, and expense ratios
+  - Fetches `expenseRatio` from yfinance; falls back to the static `KNOWN_EXPENSE_RATIOS` table
+  - Only writes to holdings where the value is currently NULL (never overwrites manual entries)
+  - Invalidates `fee-analysis:*` and `portfolio:summary:*` caches after completion
 - **Daily Portfolio Snapshots** (11:59pm): Capture end-of-day holdings values
   - Household-level snapshot (combined) plus per-user snapshots for each active member
   - Smart offset-based scheduling distributes load across 24 hours
@@ -435,12 +440,37 @@ Add context to transactions and streamline household review:
 
 ## Investment Fee Analyzer
 
-Understand the true cost of your portfolio:
+Understand the true cost of your portfolio (fully integrated into the Investments Optimization tab):
 
 - **Fee Drag Projections**: Model how expense ratios erode returns over 10/20/30-year horizons
+- **Benchmark Comparison**: Compare total portfolio cost against VTI (0.03%) over 10 and 20 years
 - **Fund Overlap Detection**: Identify duplicate holdings across funds to reduce redundancy
 - **Low-Cost Alternatives**: Suggest lower-fee ETF/index fund replacements for high-cost holdings
+- **Per-Holding Breakdown**: Sortable table showing each holding's ER, fee flag (ok / high_cost / extreme_cost), and 10-year fee drag
 - **Fee Summary Panel**: `FeeAnalysisPanel` component with total weighted expense ratio and projected savings
+
+### Expense Ratio (ER) Data Sources
+
+Expense ratios are resolved via a priority chain so data is always available even for newly added holdings:
+
+1. **Stored DB value** — manually entered or previously enriched; never overwritten automatically
+2. **Yahoo Finance API** (`yfinance`) — `expenseRatio` / `annualReportExpenseRatio` from `Ticker.info`; free, no key required
+3. **Static fallback table** (`KNOWN_EXPENSE_RATIOS`) — ~150 common ETF/fund tickers hardcoded as a compile-time safety net
+4. **Asset-class estimate** — e.g. `domestic_bond: 0.10%`, used when no authoritative value exists
+5. **Asset-type estimate** — e.g. `etf: 0.20%`, broadest fallback
+6. **0.0%** — for individual stocks (no ER concept) or completely unknown holdings
+
+Holdings with estimated ERs are annotated with `~est` in the UI and include a tooltip explaining the source.
+
+### Nightly ER Enrichment (Celery Task)
+
+The `enrich_holdings_metadata` Celery task (runs daily at 7 PM EST) automatically populates expense ratios:
+
+- Calls `YahooFinanceProvider.get_holding_metadata()` for each unique ticker
+- Writes API-sourced ER to `Holding.expense_ratio` when the column is currently `NULL`
+- Falls back to the static `KNOWN_EXPENSE_RATIOS` table when the API returns no value
+- **Never overwrites** an existing non-null ER (preserves manual entries)
+- Invalidates `fee-analysis:*` and `portfolio:summary:*` cache patterns after enrichment
 
 ## Year-in-Review
 

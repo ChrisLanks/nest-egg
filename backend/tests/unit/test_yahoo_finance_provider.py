@@ -612,3 +612,139 @@ class TestYahooFinanceProviderAdditional:
         metadata = await provider.get_holding_metadata("INVALID@#$")
         assert metadata.symbol == "INVALID@#$"
         assert metadata.name is None
+
+    # ── expense_ratio extraction ──────────────────────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_etf_with_expense_ratio(self, provider):
+        """ETF with expenseRatio in info dict populates expense_ratio."""
+        from decimal import Decimal
+
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "VTI",
+            "shortName": "Vanguard Total Stock Market ETF",
+            "quoteType": "ETF",
+            "country": "United States",
+            "marketCap": 400_000_000_000,
+            "expenseRatio": 0.0003,
+        }
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            metadata = await provider.get_holding_metadata("VTI")
+            assert metadata.expense_ratio == Decimal("0.0003")
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_expense_ratio_from_annual_report_key(self, provider):
+        """Falls back to annualReportExpenseRatio when expenseRatio is absent."""
+        from decimal import Decimal
+
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "FXAIX",
+            "shortName": "Fidelity 500 Index Fund",
+            "quoteType": "MUTUALFUND",
+            "annualReportExpenseRatio": 0.0015,
+        }
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            metadata = await provider.get_holding_metadata("FXAIX")
+            assert metadata.expense_ratio == Decimal("0.0015")
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_expense_ratio_none_for_stock(self, provider):
+        """Individual stocks have no expense_ratio — should be None."""
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "AAPL",
+            "longName": "Apple Inc.",
+            "quoteType": "EQUITY",
+            "country": "United States",
+            "marketCap": 3_000_000_000_000,
+        }
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            metadata = await provider.get_holding_metadata("AAPL")
+            assert metadata.expense_ratio is None
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_expense_ratio_above_50pct_rejected(self, provider):
+        """Sanity check: ER > 0.50 (50%) is rejected as invalid data."""
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "BAD",
+            "quoteType": "ETF",
+            "expenseRatio": 0.99,  # 99% — clearly bad data
+        }
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            metadata = await provider.get_holding_metadata("BAD")
+            assert metadata.expense_ratio is None
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_expense_ratio_zero_accepted(self, provider):
+        """0.0 ER (e.g. Fidelity zero-fee funds) is a valid value."""
+        from decimal import Decimal
+
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "FZROX",
+            "shortName": "Fidelity Zero Total Market Index Fund",
+            "quoteType": "MUTUALFUND",
+            "expenseRatio": 0.0,
+        }
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            metadata = await provider.get_holding_metadata("FZROX")
+            assert metadata.expense_ratio == Decimal("0.0")
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_expense_ratio_rounded_to_4dp(self, provider):
+        """Expense ratio is rounded to 4 decimal places."""
+        from decimal import Decimal
+
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "XYZ",
+            "quoteType": "ETF",
+            "expenseRatio": 0.00123456789,
+        }
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            metadata = await provider.get_holding_metadata("XYZ")
+            assert metadata.expense_ratio == Decimal("0.0012")
+
+    @pytest.mark.asyncio
+    async def test_get_holding_metadata_bad_expense_ratio_type_ignored(self, provider):
+        """Non-numeric expenseRatio value is silently ignored."""
+        mock_ticker = Mock()
+        mock_ticker.info = {
+            "symbol": "XYZ",
+            "quoteType": "ETF",
+            "expenseRatio": "not-a-number",
+        }
+
+        with patch(
+            "app.services.market_data.yahoo_finance_provider.yf.Ticker",
+            return_value=mock_ticker,
+        ):
+            metadata = await provider.get_holding_metadata("XYZ")
+            assert metadata.expense_ratio is None

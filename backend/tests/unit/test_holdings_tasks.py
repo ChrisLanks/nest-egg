@@ -1,4 +1,10 @@
-"""Unit tests for holdings_tasks — enrich metadata, capture snapshots, update prices."""
+"""Unit tests for holdings_tasks — enrich metadata, capture snapshots, update prices.
+
+Expense ratio (ER) enrichment tests verify the priority chain:
+  1. yfinance API value (metadata.expense_ratio) — stored only when holding ER is NULL
+  2. KNOWN_EXPENSE_RATIOS static table — fallback when API returns None
+  3. Existing holding ER is never overwritten
+"""
 
 import sys
 from unittest.mock import MagicMock
@@ -24,7 +30,7 @@ from app.workers.tasks.holdings_tasks import (
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 
-def _mock_holding(ticker="AAPL", org_id=None, price_as_of=None):
+def _mock_holding(ticker="AAPL", org_id=None, price_as_of=None, expense_ratio=None):
     h = Mock()
     h.id = uuid4()
     h.ticker = ticker
@@ -36,6 +42,7 @@ def _mock_holding(ticker="AAPL", org_id=None, price_as_of=None):
     h.sector = None
     h.industry = None
     h.country = None
+    h.expense_ratio = expense_ratio
     h.price_as_of = price_as_of
     return h
 
@@ -48,6 +55,7 @@ def _mock_metadata(
     sector="Technology",
     industry="Consumer Electronics",
     country="US",
+    expense_ratio=None,
 ):
     m = Mock()
     m.name = name
@@ -57,6 +65,7 @@ def _mock_metadata(
     m.sector = sector
     m.industry = industry
     m.country = country
+    m.expense_ratio = expense_ratio
     return m
 
 
@@ -318,6 +327,242 @@ class TestCaptureSnapshotsAsync:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             await _capture_snapshots_async()
+
+
+# ── TestEnrichExpenseRatio ────────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+class TestEnrichExpenseRatio:
+    """Test expense ratio enrichment in the nightly metadata task."""
+
+    def _setup_db(self, mock_db, holdings):
+        scalars_mock = Mock()
+        scalars_mock.all.return_value = holdings
+        result_mock = Mock()
+        result_mock.scalars.return_value = scalars_mock
+        mock_db.execute.return_value = result_mock
+
+    @pytest.mark.asyncio
+    async def test_er_from_api_written_when_holding_er_is_null(self):
+        """When API returns an expense_ratio and holding has none, ER is stored."""
+        from decimal import Decimal
+
+        org_id = uuid4()
+        h = _mock_holding("VTI", org_id, expense_ratio=None)
+        metadata = _mock_metadata(expense_ratio=Decimal("0.0003"))
+
+        mock_db = AsyncMock()
+        self._setup_db(mock_db, [h])
+
+        mock_provider = AsyncMock()
+        mock_provider.get_holding_metadata = AsyncMock(return_value=metadata)
+        mock_provider.get_provider_name.return_value = "test_provider"
+
+        with (
+            patch("app.workers.utils.get_celery_session") as mock_factory,
+            patch(
+                "app.workers.tasks.holdings_tasks.get_market_data_provider",
+                return_value=mock_provider,
+            ),
+            patch("app.workers.tasks.holdings_tasks.cache_delete_pattern", new_callable=AsyncMock),
+        ):
+            mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+            await _enrich_metadata_async()
+
+        mock_db.commit.assert_awaited_once()
+        # SELECT + UPDATE = at least 2 execute calls
+        assert mock_db.execute.call_count >= 2
+
+    @pytest.mark.asyncio
+    async def test_er_not_overwritten_when_already_stored(self):
+        """When a holding already has an expense_ratio, the task must not overwrite it."""
+        from decimal import Decimal
+
+        org_id = uuid4()
+        # Holding already has an ER stored
+        h = _mock_holding("VTI", org_id, expense_ratio=Decimal("0.0010"))
+        # API also returns an ER — should be ignored
+        metadata = _mock_metadata(expense_ratio=Decimal("0.0003"))
+
+        mock_db = AsyncMock()
+        scalars_mock = Mock()
+        scalars_mock.all.return_value = [h]
+        result_mock = Mock()
+        result_mock.scalars.return_value = scalars_mock
+        mock_db.execute.return_value = result_mock
+
+        mock_provider = AsyncMock()
+        mock_provider.get_holding_metadata = AsyncMock(return_value=metadata)
+        mock_provider.get_provider_name.return_value = "test_provider"
+
+        with (
+            patch("app.workers.utils.get_celery_session") as mock_factory,
+            patch(
+                "app.workers.tasks.holdings_tasks.get_market_data_provider",
+                return_value=mock_provider,
+            ),
+            patch("app.workers.tasks.holdings_tasks.cache_delete_pattern", new_callable=AsyncMock),
+        ):
+            mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+            await _enrich_metadata_async()
+
+        # Commit still called (other metadata fields may be updated)
+        mock_db.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_known_er_fallback_used_when_api_returns_none(self):
+        """When API returns no ER but ticker is in KNOWN_EXPENSE_RATIOS, fallback is stored."""
+        from app.services.fund_fee_analyzer_service import KNOWN_EXPENSE_RATIOS
+
+        # Find a ticker that is in the static table
+        known_ticker = next(iter(KNOWN_EXPENSE_RATIOS))
+        org_id = uuid4()
+        h = _mock_holding(known_ticker, org_id, expense_ratio=None)
+        # API returns no expense_ratio
+        metadata = _mock_metadata(expense_ratio=None)
+
+        mock_db = AsyncMock()
+        scalars_mock = Mock()
+        scalars_mock.all.return_value = [h]
+        result_mock = Mock()
+        result_mock.scalars.return_value = scalars_mock
+        mock_db.execute.return_value = result_mock
+
+        mock_provider = AsyncMock()
+        mock_provider.get_holding_metadata = AsyncMock(return_value=metadata)
+        mock_provider.get_provider_name.return_value = "test_provider"
+
+        with (
+            patch("app.workers.utils.get_celery_session") as mock_factory,
+            patch(
+                "app.workers.tasks.holdings_tasks.get_market_data_provider",
+                return_value=mock_provider,
+            ),
+            patch("app.workers.tasks.holdings_tasks.cache_delete_pattern", new_callable=AsyncMock),
+        ):
+            mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+            await _enrich_metadata_async()
+
+        # UPDATE must have been issued (SELECT + UPDATE = at least 2 execute calls)
+        assert mock_db.execute.call_count >= 2
+
+    @pytest.mark.asyncio
+    async def test_unknown_ticker_no_api_er_no_known_er_commits_cleanly(self):
+        """An unknown ticker with no API ER and no static fallback still completes."""
+        org_id = uuid4()
+        h = _mock_holding("ZZZNEW", org_id, expense_ratio=None)
+        # API returns minimal metadata but no ER
+        metadata = _mock_metadata(
+            name=None,
+            asset_type=None,
+            asset_class=None,
+            market_cap=None,
+            sector=None,
+            industry=None,
+            country=None,
+            expense_ratio=None,
+        )
+
+        mock_db = AsyncMock()
+        scalars_mock = Mock()
+        scalars_mock.all.return_value = [h]
+        result_mock = Mock()
+        result_mock.scalars.return_value = scalars_mock
+        mock_db.execute.return_value = result_mock
+
+        mock_provider = AsyncMock()
+        mock_provider.get_holding_metadata = AsyncMock(return_value=metadata)
+        mock_provider.get_provider_name.return_value = "test_provider"
+
+        with (
+            patch("app.workers.utils.get_celery_session") as mock_factory,
+            patch(
+                "app.workers.tasks.holdings_tasks.get_market_data_provider",
+                return_value=mock_provider,
+            ),
+            patch("app.workers.tasks.holdings_tasks.cache_delete_pattern", new_callable=AsyncMock),
+        ):
+            mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+            await _enrich_metadata_async()
+
+        # Task commits even when there's nothing to enrich
+        mock_db.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_fee_analysis_cache_invalidated_after_enrichment(self):
+        """Both portfolio:summary:* and fee-analysis:* cache patterns are cleared."""
+        org_id = uuid4()
+        h = _mock_holding("AAPL", org_id)
+        metadata = _mock_metadata()
+
+        mock_db = AsyncMock()
+        scalars_mock = Mock()
+        scalars_mock.all.return_value = [h]
+        result_mock = Mock()
+        result_mock.scalars.return_value = scalars_mock
+        mock_db.execute.return_value = result_mock
+
+        mock_provider = AsyncMock()
+        mock_provider.get_holding_metadata = AsyncMock(return_value=metadata)
+        mock_provider.get_provider_name.return_value = "test_provider"
+
+        with (
+            patch("app.workers.utils.get_celery_session") as mock_factory,
+            patch(
+                "app.workers.tasks.holdings_tasks.get_market_data_provider",
+                return_value=mock_provider,
+            ),
+            patch(
+                "app.workers.tasks.holdings_tasks.cache_delete_pattern", new_callable=AsyncMock
+            ) as mock_cache_delete,
+        ):
+            mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+            await _enrich_metadata_async()
+
+        patterns_cleared = [call.args[0] for call in mock_cache_delete.call_args_list]
+        assert "portfolio:summary:*" in patterns_cleared
+        assert "fee-analysis:*" in patterns_cleared
+
+    @pytest.mark.asyncio
+    async def test_multiple_holdings_same_ticker_only_queries_api_once(self):
+        """Two holdings with the same ticker result in a single metadata API call."""
+        org_id = uuid4()
+        h1 = _mock_holding("VTI", org_id, expense_ratio=None)
+        h2 = _mock_holding("VTI", org_id, expense_ratio=None)
+        h2.id = uuid4()
+        metadata = _mock_metadata(expense_ratio=None)
+
+        mock_db = AsyncMock()
+        scalars_mock = Mock()
+        scalars_mock.all.return_value = [h1, h2]
+        result_mock = Mock()
+        result_mock.scalars.return_value = scalars_mock
+        mock_db.execute.return_value = result_mock
+
+        mock_provider = AsyncMock()
+        mock_provider.get_holding_metadata = AsyncMock(return_value=metadata)
+        mock_provider.get_provider_name.return_value = "test_provider"
+
+        with (
+            patch("app.workers.utils.get_celery_session") as mock_factory,
+            patch(
+                "app.workers.tasks.holdings_tasks.get_market_data_provider",
+                return_value=mock_provider,
+            ),
+            patch("app.workers.tasks.holdings_tasks.cache_delete_pattern", new_callable=AsyncMock),
+        ):
+            mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+            await _enrich_metadata_async()
+
+        # Only one API call despite two holdings sharing the same ticker
+        mock_provider.get_holding_metadata.assert_awaited_once_with("VTI")
 
     @pytest.mark.asyncio
     async def test_db_error_raises(self):

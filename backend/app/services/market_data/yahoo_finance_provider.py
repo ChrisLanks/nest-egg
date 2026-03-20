@@ -420,7 +420,9 @@ class YahooFinanceProvider(MarketDataProvider):
         # Expense ratio — available for ETFs and mutual funds
         # yfinance returns this as a decimal fraction (e.g. 0.0003 for 0.03%)
         expense_ratio = None
-        er_raw = info.get("expenseRatio") or info.get("annualReportExpenseRatio")
+        er_raw = info.get("expenseRatio")
+        if er_raw is None:
+            er_raw = info.get("annualReportExpenseRatio")
         if er_raw is not None:
             try:
                 er_value = float(er_raw)
