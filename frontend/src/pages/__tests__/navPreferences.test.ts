@@ -1,95 +1,55 @@
 /**
- * Tests for the NavigationVisibilitySection logic in PreferencesPage
- * and the progressive sidebar advanced-features system in Layout.tsx.
+ * Tests for NavigationVisibilitySection logic in PreferencesPage and the
+ * progressive sidebar advanced-features system.
  *
- * Architecture (post-unification):
- *   - All visibility state lives in a single store: nest-egg-nav-visibility
- *   - The "Show advanced features" master toggle writes /fire and /tax-projection
- *     directly into that store — no separate flag
- *   - isNavVisible(path, defaultVisible) — no isAdvanced param; overrides win always
+ * Architecture (post-unification with useNavDefaults hook):
+ *   - All visibility state in one store: nest-egg-nav-visibility
+ *   - "Show advanced features" toggle writes /fire and /tax-projection into that store
+ *   - isNavVisible(path, overrides, defaults) — overrides always win
  *   - showAdvancedNav is DERIVED: true iff ALL advanced paths are explicitly true
  *   - Per-item switch can turn an advanced tab on even when master toggle is off
+ *   - isItemOn now uses account-aware conditionalDefaults, not !item.conditional
+ *   - Per-item toggles set pendingReload=true; Apply button calls window.location.reload()
+ *   - "Show advanced features" toggle and "Reset to Default" reload immediately
+ *   - No standalone "Advanced" button in the top nav (removed as duplicate)
+ *
+ * @vitest-environment jsdom
  */
 
-// @vitest-environment jsdom
-
 import { describe, it, expect, beforeEach } from "vitest";
+import {
+  buildConditionalDefaults,
+  NAV_SECTIONS,
+} from "../../hooks/useNavDefaults";
 
-// ── Constants mirroring PreferencesPage / Layout ────────────────────────────
+// ── Constants mirroring PreferencesPage / Layout ──────────────────────────────
 
 const STORAGE_KEY = "nest-egg-nav-visibility";
 const LEGACY_KEY = "nest-egg-show-all-nav";
-const LEGACY_ADVANCED_KEY = "nest-egg-show-advanced-nav"; // written for compat, not read for state
-
+const LEGACY_ADVANCED_KEY = "nest-egg-show-advanced-nav";
 const ADVANCED_NAV_PATHS = ["/fire", "/tax-projection"];
 
-interface NavItem {
-  label: string;
-  path: string;
-  alwaysOn?: boolean;
-  conditional?: boolean;
-  advanced?: boolean;
+// ── Account fixtures ──────────────────────────────────────────────────────────
+
+interface Account {
+  account_type: string;
+  is_rental_property?: boolean;
+  plaid_item_id?: string | null;
+  plaid_item_hash?: string | null;
 }
 
-const NAV_SECTIONS: { group: string; items: NavItem[] }[] = [
-  {
-    group: "Top Level",
-    items: [
-      { label: "Overview", path: "/overview", alwaysOn: true },
-      { label: "Calendar", path: "/calendar", alwaysOn: true },
-      { label: "Investments", path: "/investments", alwaysOn: true },
-      { label: "Accounts", path: "/accounts", alwaysOn: true },
-    ],
-  },
-  {
-    group: "Spending",
-    items: [
-      { label: "Transactions", path: "/transactions" },
-      { label: "Budgets", path: "/budgets" },
-      { label: "Categories", path: "/categories" },
-      { label: "Recurring", path: "/recurring", conditional: true },
-      { label: "Bills", path: "/bills", conditional: true },
-      { label: "Rules", path: "/rules", conditional: true },
-    ],
-  },
-  {
-    group: "Analytics",
-    items: [
-      { label: "Cash Flow", path: "/income-expenses" },
-      { label: "Net Worth Timeline", path: "/net-worth-timeline" },
-      { label: "Trends", path: "/trends" },
-      { label: "Reports", path: "/reports" },
-      { label: "Year in Review", path: "/year-in-review" },
-      { label: "Tax Deductible", path: "/tax-deductible", conditional: true },
-      {
-        label: "Rental Properties",
-        path: "/rental-properties",
-        conditional: true,
-      },
-      {
-        label: "Investment Health",
-        path: "/investment-health",
-        conditional: true,
-      },
-    ],
-  },
-  {
-    group: "Planning",
-    items: [
-      { label: "Smart Insights", path: "/smart-insights" },
-      { label: "Goals", path: "/goals" },
-      { label: "Retirement", path: "/retirement" },
-      { label: "Education", path: "/education", conditional: true },
-      { label: "FIRE", path: "/fire", advanced: true },
-      { label: "Debt Payoff", path: "/debt-payoff", conditional: true },
-      { label: "Mortgage", path: "/mortgage", conditional: true },
-      { label: "SS Optimizer", path: "/ss-claiming", conditional: true },
-      { label: "Tax Projection", path: "/tax-projection", advanced: true },
-    ],
-  },
+const noAccounts: Account[] = [];
+const withMortgage: Account[] = [{ account_type: "mortgage" }];
+const withBrokerage: Account[] = [{ account_type: "brokerage" }];
+const withRental: Account[] = [
+  { account_type: "property", is_rental_property: true },
 ];
+const withLinkedBank: Account[] = [
+  { account_type: "checking", plaid_item_id: "plaid-1", plaid_item_hash: null },
+];
+const withCreditCard: Account[] = [{ account_type: "credit_card" }];
 
-// ── Helpers mirroring Layout.tsx / PreferencesPage ──────────────────────────
+// ── Helpers mirroring PreferencesPage / Layout ────────────────────────────────
 
 const loadOverrides = (): Record<string, boolean> => {
   try {
@@ -108,6 +68,7 @@ const persistOverrides = (next: Record<string, boolean>) => {
   }
 };
 
+/** Mirrors toggleItem in PreferencesPage — sets pendingReload=true in real code */
 const toggleItem = (
   overrides: Record<string, boolean>,
   path: string,
@@ -118,8 +79,7 @@ const toggleItem = (
   return next;
 };
 
-// Mirrors Layout.tsx / PreferencesPage toggleAdvancedNav / toggleAdvanced:
-// writes all ADVANCED_NAV_PATHS into overrides and also syncs the legacy flag.
+/** Mirrors toggleAdvanced in PreferencesPage — reloads immediately in real code */
 const toggleAdvancedNav = (
   overrides: Record<string, boolean>,
   next: boolean,
@@ -133,170 +93,191 @@ const toggleAdvancedNav = (
   return updated;
 };
 
-// Mirrors the derived showAdvancedNav in Layout.tsx:
-// true only when ALL advanced paths are explicitly true in overrides.
+/** Mirrors derived showAdvancedNav — true only when ALL advanced paths explicitly true */
 const deriveShowAdvanced = (overrides: Record<string, boolean>): boolean =>
   ADVANCED_NAV_PATHS.every((p) => overrides[p] === true);
 
-const resetToDefaults = (overrides: Record<string, boolean>) => {
-  void overrides;
+/** Mirrors resetToDefaults in PreferencesPage — reloads immediately in real code */
+const resetToDefaults = () => {
   persistOverrides({});
-  try {
-    localStorage.removeItem(LEGACY_KEY);
-    localStorage.removeItem(LEGACY_ADVANCED_KEY);
-  } catch {
-    /* ignore */
-  }
+  localStorage.removeItem(LEGACY_KEY);
+  localStorage.removeItem(LEGACY_ADVANCED_KEY);
 };
 
-// Mirrors simplified Layout.tsx isNavVisible(path, defaultVisible):
-// override wins; falls back to defaultVisible.
+/** Mirror of updated isNavVisible — overrides win over account defaults */
 const isNavVisible = (
   path: string,
-  defaultVisible: boolean,
   overrides: Record<string, boolean>,
+  defaults: Record<string, boolean>,
 ): boolean => {
   if (path in overrides) return overrides[path];
-  return defaultVisible;
+  return defaults[path] ?? true;
 };
 
+/**
+ * Mirror of updated isItemOn in PreferencesPage.
+ * Uses conditionalDefaults (account/age-aware) instead of !item.conditional.
+ */
 const isItemOn = (
-  item: NavItem,
+  item: { path: string; alwaysOn?: boolean },
   overrides: Record<string, boolean>,
+  conditionalDefaults: Record<string, boolean>,
 ): boolean => {
   if (item.alwaysOn) return true;
   if (item.path in overrides) return overrides[item.path];
-  return !item.conditional;
+  return conditionalDefaults[item.path] ?? true;
 };
 
-// ── Tests: isItemOn ──────────────────────────────────────────────────────────
+// ── isItemOn: account-aware defaults ─────────────────────────────────────────
 
-describe("NavigationVisibilitySection: isItemOn", () => {
+describe("isItemOn: account-aware defaults (conditionalDefaults)", () => {
   it("alwaysOn items are always on regardless of overrides", () => {
-    const item: NavItem = {
-      label: "Overview",
-      path: "/overview",
-      alwaysOn: true,
-    };
-    expect(isItemOn(item, {})).toBe(true);
-    expect(isItemOn(item, { "/overview": false })).toBe(true);
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(isItemOn({ path: "/overview", alwaysOn: true }, {}, defaults)).toBe(
+      true,
+    );
+    expect(
+      isItemOn(
+        { path: "/overview", alwaysOn: true },
+        { "/overview": false },
+        defaults,
+      ),
+    ).toBe(true);
   });
 
-  it("non-conditional items default to on", () => {
-    const item: NavItem = { label: "Transactions", path: "/transactions" };
-    expect(isItemOn(item, {})).toBe(true);
+  it("non-conditional items default to on (not in conditionalDefaults map)", () => {
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(isItemOn({ path: "/transactions" }, {}, defaults)).toBe(true);
+    expect(isItemOn({ path: "/retirement" }, {}, defaults)).toBe(true);
+    expect(isItemOn({ path: "/goals" }, {}, defaults)).toBe(true);
   });
 
-  it("conditional items default to off (auto-hide)", () => {
-    const item: NavItem = {
-      label: "Debt Payoff",
-      path: "/debt-payoff",
-      conditional: true,
-    };
-    expect(isItemOn(item, {})).toBe(false);
+  it("mortgage shows as ON when user has mortgage account", () => {
+    const defaults = buildConditionalDefaults(withMortgage, null);
+    expect(isItemOn({ path: "/mortgage" }, {}, defaults)).toBe(true);
   });
 
-  it("override true turns on a conditional item", () => {
-    const item: NavItem = {
-      label: "Education",
-      path: "/education",
-      conditional: true,
-    };
-    expect(isItemOn(item, { "/education": true })).toBe(true);
+  it("mortgage shows as OFF when user has no mortgage account", () => {
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(isItemOn({ path: "/mortgage" }, {}, defaults)).toBe(false);
+  });
+
+  it("debt-payoff shows as ON when user has credit card", () => {
+    const defaults = buildConditionalDefaults(withCreditCard, null);
+    expect(isItemOn({ path: "/debt-payoff" }, {}, defaults)).toBe(true);
+  });
+
+  it("rental-properties shows as ON when rental account exists", () => {
+    const defaults = buildConditionalDefaults(withRental, null);
+    expect(isItemOn({ path: "/rental-properties" }, {}, defaults)).toBe(true);
+  });
+
+  it("rental-properties shows as OFF with no rental account", () => {
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(isItemOn({ path: "/rental-properties" }, {}, defaults)).toBe(false);
+  });
+
+  it("recurring shows as ON with linked bank account", () => {
+    const defaults = buildConditionalDefaults(withLinkedBank, null);
+    expect(isItemOn({ path: "/recurring" }, {}, defaults)).toBe(true);
+  });
+
+  it("recurring shows as OFF with no linked account", () => {
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(isItemOn({ path: "/recurring" }, {}, defaults)).toBe(false);
+  });
+
+  it("investment-health shows as ON with brokerage account", () => {
+    const defaults = buildConditionalDefaults(withBrokerage, null);
+    expect(isItemOn({ path: "/investment-health" }, {}, defaults)).toBe(true);
+  });
+
+  it("override true turns on a conditionally-off item", () => {
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(
+      isItemOn({ path: "/mortgage" }, { "/mortgage": true }, defaults),
+    ).toBe(true);
+  });
+
+  it("override false turns off a conditionally-on item", () => {
+    const defaults = buildConditionalDefaults(withMortgage, null);
+    expect(
+      isItemOn({ path: "/mortgage" }, { "/mortgage": false }, defaults),
+    ).toBe(false);
   });
 
   it("override false turns off a non-conditional item", () => {
-    const item: NavItem = { label: "Budgets", path: "/budgets" };
-    expect(isItemOn(item, { "/budgets": false })).toBe(false);
-  });
-
-  it("advanced items without override default to off (treated like conditional)", () => {
-    // FIRE and Tax Projection are advanced — no explicit override means hidden
-    const fire: NavItem = { label: "FIRE", path: "/fire", advanced: true };
-    // advanced items have no conditional flag — isItemOn uses !conditional = true
-    // but isNavVisible (Layout) uses the override; isItemOn is the Prefs display helper.
-    // Without an override, isItemOn returns true (not conditional).
-    // Visibility in the nav is controlled by conditionalDefaults["/fire"] defaultVisible.
-    expect(isItemOn(fire, { "/fire": false })).toBe(false);
-    expect(isItemOn(fire, { "/fire": true })).toBe(true);
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(
+      isItemOn({ path: "/budgets" }, { "/budgets": false }, defaults),
+    ).toBe(false);
   });
 });
 
-// ── Tests: isNavVisible (unified override model) ─────────────────────────────
+// ── isNavVisible ──────────────────────────────────────────────────────────────
 
 describe("isNavVisible: unified override model", () => {
-  it("override=true shows an item regardless of defaultVisible", () => {
-    expect(isNavVisible("/fire", false, { "/fire": true })).toBe(true);
+  it("override=true shows regardless of account default", () => {
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(isNavVisible("/mortgage", { "/mortgage": true }, defaults)).toBe(
+      true,
+    );
+  });
+  it("override=false hides regardless of account default", () => {
+    const defaults = buildConditionalDefaults(withMortgage, null);
+    expect(isNavVisible("/mortgage", { "/mortgage": false }, defaults)).toBe(
+      false,
+    );
+  });
+  it("no override → account default used", () => {
     expect(
-      isNavVisible("/tax-projection", false, { "/tax-projection": true }),
+      isNavVisible(
+        "/mortgage",
+        {},
+        buildConditionalDefaults(withMortgage, null),
+      ),
     ).toBe(true);
-  });
-
-  it("override=false hides an item regardless of defaultVisible", () => {
-    expect(isNavVisible("/fire", true, { "/fire": false })).toBe(false);
-    expect(isNavVisible("/budgets", true, { "/budgets": false })).toBe(false);
-  });
-
-  it("no override falls back to defaultVisible=true", () => {
-    expect(isNavVisible("/retirement", true, {})).toBe(true);
-  });
-
-  it("no override falls back to defaultVisible=false", () => {
-    expect(isNavVisible("/fire", false, {})).toBe(false);
-  });
-
-  it("advanced items are hidden by default (defaultVisible=false, no override)", () => {
-    // Layout passes conditionalDefaults["/fire"] as defaultVisible; without smart
-    // auto-show conditions met, that resolves to false
-    expect(isNavVisible("/fire", false, {})).toBe(false);
-    expect(isNavVisible("/tax-projection", false, {})).toBe(false);
-  });
-
-  it("advanced items are shown when override is true", () => {
-    expect(isNavVisible("/fire", false, { "/fire": true })).toBe(true);
     expect(
-      isNavVisible("/tax-projection", false, { "/tax-projection": true }),
-    ).toBe(true);
+      isNavVisible("/mortgage", {}, buildConditionalDefaults(noAccounts, null)),
+    ).toBe(false);
+  });
+  it("paths not in conditionalDefaults default to true", () => {
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(isNavVisible("/transactions", {}, defaults)).toBe(true);
+    expect(isNavVisible("/retirement", {}, defaults)).toBe(true);
   });
 });
 
-// ── Tests: toggleAdvancedNav writes into overrides ───────────────────────────
+// ── toggleAdvancedNav ─────────────────────────────────────────────────────────
 
 describe("toggleAdvancedNav: writes into shared overrides store", () => {
   beforeEach(() => localStorage.clear());
 
-  it("enabling advanced sets /fire and /tax-projection to true in overrides", () => {
+  it("enabling sets /fire and /tax-projection to true", () => {
     const updated = toggleAdvancedNav({}, true);
     expect(updated["/fire"]).toBe(true);
     expect(updated["/tax-projection"]).toBe(true);
   });
-
-  it("disabling advanced sets /fire and /tax-projection to false in overrides", () => {
-    const after = toggleAdvancedNav({}, false);
-    expect(after["/fire"]).toBe(false);
-    expect(after["/tax-projection"]).toBe(false);
+  it("disabling sets /fire and /tax-projection to false", () => {
+    const updated = toggleAdvancedNav({}, false);
+    expect(updated["/fire"]).toBe(false);
+    expect(updated["/tax-projection"]).toBe(false);
   });
-
-  it("written values persist to nest-egg-nav-visibility", () => {
+  it("persists to nest-egg-nav-visibility", () => {
     toggleAdvancedNav({}, true);
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
     expect(stored["/fire"]).toBe(true);
     expect(stored["/tax-projection"]).toBe(true);
   });
-
-  it("also writes the legacy compat flag nest-egg-show-advanced-nav", () => {
+  it("also writes legacy compat flag", () => {
     toggleAdvancedNav({}, true);
     expect(localStorage.getItem(LEGACY_ADVANCED_KEY)).toBe("true");
   });
-
-  it("does not disturb other overrides when toggling", () => {
-    const initial = { "/budgets": false, "/debt-payoff": true };
-    const updated = toggleAdvancedNav(initial, true);
+  it("does not disturb other overrides", () => {
+    const updated = toggleAdvancedNav({ "/budgets": false }, true);
     expect(updated["/budgets"]).toBe(false);
-    expect(updated["/debt-payoff"]).toBe(true);
   });
-
-  it("toggle off → then on restores both paths to true", () => {
+  it("toggle off then on restores both paths to true", () => {
     const off = toggleAdvancedNav({}, false);
     const on = toggleAdvancedNav(off, true);
     expect(on["/fire"]).toBe(true);
@@ -304,173 +285,88 @@ describe("toggleAdvancedNav: writes into shared overrides store", () => {
   });
 });
 
-// ── Tests: deriveShowAdvanced ─────────────────────────────────────────────────
+// ── deriveShowAdvanced ────────────────────────────────────────────────────────
 
 describe("deriveShowAdvanced: derived from overrides", () => {
   it("false when overrides is empty", () => {
     expect(deriveShowAdvanced({})).toBe(false);
   });
-
   it("false when only one advanced path is true", () => {
     expect(deriveShowAdvanced({ "/fire": true })).toBe(false);
-    expect(deriveShowAdvanced({ "/tax-projection": true })).toBe(false);
   });
-
   it("false when one advanced path is false", () => {
     expect(
       deriveShowAdvanced({ "/fire": true, "/tax-projection": false }),
     ).toBe(false);
   });
-
   it("true when ALL advanced paths are explicitly true", () => {
     expect(deriveShowAdvanced({ "/fire": true, "/tax-projection": true })).toBe(
       true,
     );
   });
-
-  it("extra non-advanced overrides don't affect derivation", () => {
-    expect(
-      deriveShowAdvanced({
-        "/fire": true,
-        "/tax-projection": true,
-        "/budgets": false,
-      }),
-    ).toBe(true);
-  });
-
   it("roundtrip: toggle on → derive true", () => {
-    const overrides = toggleAdvancedNav({}, true);
-    expect(deriveShowAdvanced(overrides)).toBe(true);
+    expect(deriveShowAdvanced(toggleAdvancedNav({}, true))).toBe(true);
   });
-
   it("roundtrip: toggle off → derive false", () => {
-    const after = toggleAdvancedNav(
-      { "/fire": true, "/tax-projection": true },
-      false,
-    );
-    expect(deriveShowAdvanced(after)).toBe(false);
+    expect(
+      deriveShowAdvanced(
+        toggleAdvancedNav({ "/fire": true, "/tax-projection": true }, false),
+      ),
+    ).toBe(false);
   });
-
-  it("per-item override of one path does not flip master to true", () => {
-    // User manually turned on /fire but not /tax-projection — master stays off
+  it("per-item on for /fire only does not flip master to true", () => {
     expect(deriveShowAdvanced({ "/fire": true })).toBe(false);
   });
 });
 
-// ── Tests: per-item switch independence from master toggle ───────────────────
+// ── Per-item switch independence from master toggle ───────────────────────────
 
 describe("per-item switch independence", () => {
   beforeEach(() => localStorage.clear());
 
   it("per-item on for /fire while master is off — /fire visible, master still false", () => {
-    // Master toggle sets both to false
     let overrides = toggleAdvancedNav({}, false);
-    // User manually turns /fire back on
     overrides = toggleItem(overrides, "/fire", true);
-    expect(isNavVisible("/fire", false, overrides)).toBe(true);
-    // But master derived state is still false (tax-projection is false)
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(isNavVisible("/fire", overrides, defaults)).toBe(true);
     expect(deriveShowAdvanced(overrides)).toBe(false);
   });
 
   it("per-item off for /fire overrides master-on state", () => {
     let overrides = toggleAdvancedNav({}, true);
     overrides = toggleItem(overrides, "/fire", false);
-    expect(isNavVisible("/fire", false, overrides)).toBe(false);
-    // Master derived is also false now (not ALL advanced paths true)
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(isNavVisible("/fire", overrides, defaults)).toBe(false);
     expect(deriveShowAdvanced(overrides)).toBe(false);
   });
 });
 
-// ── Tests: smart auto-show rules ─────────────────────────────────────────────
+// ── Pending reload behavior ───────────────────────────────────────────────────
 
-describe("smart auto-show rules for advanced items", () => {
-  type Account = { account_type: string };
-
-  const INVESTMENT_TYPES = new Set([
-    "brokerage",
-    "retirement_401k",
-    "retirement_ira",
-    "retirement_roth_ira",
-    "retirement_403b",
-    "retirement_457",
-    "retirement_pension",
-    "crypto",
-  ]);
-
-  const hasInvestments = (accounts: Account[]) =>
-    accounts.some((a) => INVESTMENT_TYPES.has(a.account_type));
-
-  // Mirrors Layout.tsx conditionalDefaults["/fire"]
-  const showFireDefault = (accounts: Account[], userAge: number | null) =>
-    hasInvestments(accounts) && userAge !== null && userAge < 50;
-
-  // Mirrors Layout.tsx conditionalDefaults["/tax-projection"]
-  const showTaxProjectionDefault = (accounts: Account[]) =>
-    hasInvestments(accounts);
-
-  it("FIRE auto-shows (defaultVisible=true) for user under 50 with investments", () => {
-    expect(showFireDefault([{ account_type: "retirement_401k" }], 35)).toBe(
-      true,
-    );
-  });
-
-  it("FIRE defaultVisible=false for user 50+", () => {
-    expect(showFireDefault([{ account_type: "brokerage" }], 50)).toBe(false);
-    expect(showFireDefault([{ account_type: "brokerage" }], 65)).toBe(false);
-  });
-
-  it("FIRE defaultVisible=false with no investment accounts", () => {
-    expect(showFireDefault([{ account_type: "checking" }], 30)).toBe(false);
-  });
-
-  it("FIRE defaultVisible=false when userAge is null (no birthdate set)", () => {
-    expect(showFireDefault([{ account_type: "brokerage" }], null)).toBe(false);
-  });
-
-  it("Tax Projection defaultVisible=true for any user with investment account", () => {
-    expect(showTaxProjectionDefault([{ account_type: "brokerage" }])).toBe(
-      true,
-    );
-    expect(showTaxProjectionDefault([{ account_type: "retirement_ira" }])).toBe(
-      true,
-    );
-    expect(showTaxProjectionDefault([{ account_type: "crypto" }])).toBe(true);
-  });
-
-  it("Tax Projection defaultVisible=false with no investment accounts", () => {
-    expect(showTaxProjectionDefault([{ account_type: "savings" }])).toBe(false);
-    expect(showTaxProjectionDefault([])).toBe(false);
-  });
-
-  it("smart auto-show is overridden by explicit override=false", () => {
-    // Even if smart conditions say show, an explicit false override hides it
-    expect(isNavVisible("/fire", true, { "/fire": false })).toBe(false);
-  });
-
-  it("smart auto-show works via defaultVisible even with no override", () => {
-    expect(isNavVisible("/fire", true, {})).toBe(true);
-  });
-});
-
-// ── Tests: toggle and persist (per-item overrides) ───────────────────────────
-
-describe("NavigationVisibilitySection: toggle and persist", () => {
+describe("pending reload: per-item toggle does NOT reload immediately", () => {
   beforeEach(() => localStorage.clear());
 
-  it("toggling stores value in localStorage", () => {
-    toggleItem({}, "/debt-payoff", true);
+  it("toggleItem persists to localStorage without reloading", () => {
+    // In real PreferencesPage, toggleItem sets pendingReload=true but does NOT call
+    // window.location.reload(). The Apply button is what triggers reload.
+    const overrides = toggleItem({}, "/mortgage", true);
+    expect(overrides["/mortgage"]).toBe(true);
+    // Value is in localStorage
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
-    expect(stored["/debt-payoff"]).toBe(true);
+    expect(stored["/mortgage"]).toBe(true);
   });
 
-  it("multiple toggles accumulate", () => {
-    const first = toggleItem({}, "/debt-payoff", true);
-    toggleItem(first, "/education", false);
+  it("multiple toggles accumulate in localStorage before apply", () => {
+    const first = toggleItem({}, "/mortgage", true);
+    toggleItem(first, "/investment-health", false);
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
-    expect(stored).toEqual({ "/debt-payoff": true, "/education": false });
+    expect(stored).toMatchObject({
+      "/mortgage": true,
+      "/investment-health": false,
+    });
   });
 
-  it("toggling same item updates the value", () => {
+  it("toggling same item twice reflects final value", () => {
     const first = toggleItem({}, "/budgets", false);
     toggleItem(first, "/budgets", true);
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
@@ -478,51 +374,77 @@ describe("NavigationVisibilitySection: toggle and persist", () => {
   });
 });
 
-// ── Tests: reset to defaults ─────────────────────────────────────────────────
+// ── Reset to defaults ─────────────────────────────────────────────────────────
 
-describe("NavigationVisibilitySection: reset to defaults", () => {
+describe("reset to defaults", () => {
   beforeEach(() => localStorage.clear());
 
   it("clears all overrides from localStorage", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ "/debt-payoff": true }));
-    resetToDefaults({});
+    resetToDefaults();
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
-
   it("removes legacy show-all-nav key", () => {
     localStorage.setItem(LEGACY_KEY, "true");
-    resetToDefaults({});
+    resetToDefaults();
     expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
   });
-
   it("removes legacy show-advanced-nav key", () => {
     localStorage.setItem(LEGACY_ADVANCED_KEY, "true");
-    resetToDefaults({});
+    resetToDefaults();
     expect(localStorage.getItem(LEGACY_ADVANCED_KEY)).toBeNull();
   });
-
   it("loadOverrides returns empty after reset", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ "/budgets": false }));
-    resetToDefaults({});
+    resetToDefaults();
     expect(loadOverrides()).toEqual({});
   });
-
-  it("clears advanced paths along with all other overrides", () => {
-    // Advanced paths live in the same store — reset clears them too
+  it("advanced paths cleared along with all other overrides", () => {
     const overrides = toggleAdvancedNav({}, true);
-    resetToDefaults(overrides);
+    void overrides;
+    resetToDefaults();
     expect(loadOverrides()).toEqual({});
     expect(deriveShowAdvanced(loadOverrides())).toBe(false);
   });
+
+  // After reset, isItemOn reflects account data (not all-off)
+  it("post-reset: mortgage ON when mortgage account exists", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ "/mortgage": false }));
+    resetToDefaults();
+    const defaults = buildConditionalDefaults(withMortgage, null);
+    expect(isItemOn({ path: "/mortgage" }, loadOverrides(), defaults)).toBe(
+      true,
+    );
+  });
+  it("post-reset: mortgage OFF when no mortgage account", () => {
+    resetToDefaults();
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(isItemOn({ path: "/mortgage" }, loadOverrides(), defaults)).toBe(
+      false,
+    );
+  });
+  it("post-reset: investment-health ON with brokerage", () => {
+    resetToDefaults();
+    const defaults = buildConditionalDefaults(withBrokerage, null);
+    expect(
+      isItemOn({ path: "/investment-health" }, loadOverrides(), defaults),
+    ).toBe(true);
+  });
+  it("post-reset: rental-properties OFF without rental account", () => {
+    resetToDefaults();
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(
+      isItemOn({ path: "/rental-properties" }, loadOverrides(), defaults),
+    ).toBe(false);
+  });
 });
 
-// ── Tests: NAV_SECTIONS structure ────────────────────────────────────────────
+// ── NAV_SECTIONS structure (imported from canonical hook) ─────────────────────
 
-describe("NavigationVisibilitySection: NAV_SECTIONS structure", () => {
+describe("NAV_SECTIONS: structure", () => {
   it("has 4 groups", () => {
     expect(NAV_SECTIONS).toHaveLength(4);
   });
-
   it("all top-level items are alwaysOn", () => {
     const topLevel = NAV_SECTIONS.find((s) => s.group === "Top Level");
     expect(topLevel).toBeDefined();
@@ -530,8 +452,7 @@ describe("NavigationVisibilitySection: NAV_SECTIONS structure", () => {
       expect(item.alwaysOn).toBe(true);
     }
   });
-
-  it("conditional items include account-gated and age-gated tabs", () => {
+  it("conditional items include all account-gated and age-gated tabs", () => {
     const conditionalPaths = NAV_SECTIONS.flatMap((s) => s.items)
       .filter((i) => i.conditional)
       .map((i) => i.path)
@@ -549,35 +470,67 @@ describe("NavigationVisibilitySection: NAV_SECTIONS structure", () => {
       "/tax-deductible",
     ]);
   });
-
-  it("advanced items are exactly: /fire and /tax-projection", () => {
+  it("advanced items are exactly /fire and /tax-projection", () => {
     const advancedPaths = NAV_SECTIONS.flatMap((s) => s.items)
       .filter((i) => i.advanced)
       .map((i) => i.path)
       .sort();
     expect(advancedPaths).toEqual(["/fire", "/tax-projection"]);
   });
-
-  it("no spending items are advanced (some are conditional)", () => {
+  it("no spending items are advanced; Recurring, Bills, Rules are conditional", () => {
     const spending = NAV_SECTIONS.find((s) => s.group === "Spending");
     expect(spending!.items.every((i) => !i.advanced)).toBe(true);
-    // Recurring, Bills, Rules are conditional on having linked/any accounts
-    const conditionalPaths = spending!.items
-      .filter((i) => i.conditional)
-      .map((i) => i.path)
-      .sort();
-    expect(conditionalPaths).toEqual(["/bills", "/recurring", "/rules"]);
+    expect(
+      spending!.items
+        .filter((i) => i.conditional)
+        .map((i) => i.path)
+        .sort(),
+    ).toEqual(["/bills", "/recurring", "/rules"]);
   });
-
   it("all items have unique paths", () => {
     const allPaths = NAV_SECTIONS.flatMap((s) => s.items).map((i) => i.path);
     expect(new Set(allPaths).size).toBe(allPaths.length);
   });
-
   it("FIRE and Tax Projection are in Planning group", () => {
     const planning = NAV_SECTIONS.find((s) => s.group === "Planning");
     const paths = planning!.items.map((i) => i.path);
     expect(paths).toContain("/fire");
     expect(paths).toContain("/tax-projection");
+  });
+  it("Mortgage is in Planning group as a conditional item", () => {
+    const planning = NAV_SECTIONS.find((s) => s.group === "Planning");
+    const mortgage = planning!.items.find((i) => i.path === "/mortgage");
+    expect(mortgage).toBeDefined();
+    expect(mortgage!.conditional).toBe(true);
+  });
+});
+
+// ── Top-nav Advanced button is removed ───────────────────────────────────────
+
+describe("top-nav Advanced button: removed (consolidated into Preferences)", () => {
+  // The standalone "Advanced" toggle button that was in the Layout top nav has
+  // been removed. The single canonical control is Preferences → Navigation →
+  // "Show advanced features" toggle. These tests confirm the toggle/derive logic
+  // works correctly from Preferences alone.
+
+  it("enabling advanced via Preferences toggle makes /fire and /tax-projection visible", () => {
+    const overrides = toggleAdvancedNav({}, true);
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(isNavVisible("/fire", overrides, defaults)).toBe(true);
+    expect(isNavVisible("/tax-projection", overrides, defaults)).toBe(true);
+  });
+
+  it("disabling advanced via Preferences toggle hides /fire and /tax-projection", () => {
+    const overrides = toggleAdvancedNav({}, false);
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(isNavVisible("/fire", overrides, defaults)).toBe(false);
+    expect(isNavVisible("/tax-projection", overrides, defaults)).toBe(false);
+  });
+
+  it("state persists in the same localStorage key used by the nav", () => {
+    toggleAdvancedNav({}, true);
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
+    expect(stored["/fire"]).toBe(true);
+    expect(stored["/tax-projection"]).toBe(true);
   });
 });

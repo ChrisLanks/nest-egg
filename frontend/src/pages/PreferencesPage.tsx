@@ -45,6 +45,10 @@ import {
 import { useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../services/api";
+import {
+  useNavDefaults,
+  NAV_SECTIONS as NAV_SECTIONS_FROM_HOOK,
+} from "../hooks/useNavDefaults";
 import { useAuthStore } from "../features/auth/stores/authStore";
 import HelpHint from "../components/HelpHint";
 import { helpContent } from "../constants/helpContent";
@@ -277,133 +281,16 @@ function EmailNotificationsSection() {
   );
 }
 
-// ── All nav items grouped by section, with default-visibility flags ──
-interface NavItem {
-  label: string;
-  path: string;
-  alwaysOn?: boolean;
-  conditional?: boolean;
-  advanced?: boolean;
-  reason?: string;
-}
-
-interface NavSection {
-  group: string;
-  items: NavItem[];
-}
-
-const NAV_SECTIONS: NavSection[] = [
-  {
-    group: "Top Level",
-    items: [
-      { label: "Overview", path: "/overview", alwaysOn: true },
-      { label: "Calendar", path: "/calendar", alwaysOn: true },
-      { label: "Investments", path: "/investments", alwaysOn: true },
-      { label: "Accounts", path: "/accounts", alwaysOn: true },
-    ],
-  },
-  {
-    group: "Spending",
-    items: [
-      { label: "Transactions", path: "/transactions" },
-      { label: "Budgets", path: "/budgets" },
-      { label: "Categories", path: "/categories" },
-      {
-        label: "Recurring",
-        path: "/recurring",
-        conditional: true,
-        reason: "Shown once a bank account is connected",
-      },
-      {
-        label: "Bills",
-        path: "/bills",
-        conditional: true,
-        reason: "Shown once a bank account is connected",
-      },
-      {
-        label: "Rules",
-        path: "/rules",
-        conditional: true,
-        reason: "Shown once any account is added",
-      },
-    ],
-  },
-  {
-    group: "Analytics",
-    items: [
-      { label: "Cash Flow", path: "/income-expenses" },
-      { label: "Net Worth Timeline", path: "/net-worth-timeline" },
-      { label: "Trends", path: "/trends" },
-      { label: "Reports", path: "/reports" },
-      { label: "Year in Review", path: "/year-in-review" },
-      {
-        label: "Tax Deductible",
-        path: "/tax-deductible",
-        conditional: true,
-        reason: "Shown with investment or rental accounts",
-      },
-      {
-        label: "Rental Properties",
-        path: "/rental-properties",
-        conditional: true,
-        reason: "Shown when you have a rental property account",
-      },
-      {
-        label: "Investment Health",
-        path: "/investment-health",
-        conditional: true,
-        reason: "Shown when you have investment accounts",
-      },
-    ],
-  },
-  {
-    group: "Planning",
-    items: [
-      { label: "Smart Insights", path: "/smart-insights" },
-      { label: "Goals", path: "/goals" },
-      { label: "Retirement", path: "/retirement" },
-      {
-        label: "Education",
-        path: "/education",
-        conditional: true,
-        reason: "Shown when you have a 529 account",
-      },
-      {
-        label: "FIRE",
-        path: "/fire",
-        advanced: true,
-        reason: "Advanced — shown for investors under 50",
-      },
-      {
-        label: "Debt Payoff",
-        path: "/debt-payoff",
-        conditional: true,
-        reason: "Shown when you have loans or credit card debt",
-      },
-      {
-        label: "Mortgage",
-        path: "/mortgage",
-        conditional: true,
-        reason: "Shown when you have a mortgage account",
-      },
-      {
-        label: "SS Optimizer",
-        path: "/ss-claiming",
-        conditional: true,
-        reason: "Shown for users age 50+",
-      },
-      {
-        label: "Tax Projection",
-        path: "/tax-projection",
-        advanced: true,
-        reason: "Advanced — shown with investment accounts",
-      },
-    ],
-  },
-];
+// NAV_SECTIONS and NavItem/NavSection types are imported from useNavDefaults hook
+const NAV_SECTIONS = NAV_SECTIONS_FROM_HOOK;
 
 function NavigationVisibilitySection() {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [pendingReload, setPendingReload] = useState(false);
+
+  // Account/age-aware defaults — same logic as Layout so the toggles reflect
+  // the real nav state (e.g. mortgage shows as "on" when user has a mortgage)
+  const { conditionalDefaults } = useNavDefaults();
 
   // Paths controlled by the "Show advanced features" master toggle
   const ADVANCED_PATHS = ["/fire", "/tax-projection"];
@@ -454,7 +341,7 @@ function NavigationVisibilitySection() {
 
   const toggleItem = (path: string, checked: boolean) => {
     persistOverrides({ ...overrides, [path]: checked });
-    window.location.reload();
+    setPendingReload(true);
   };
 
   const resetToDefaults = () => {
@@ -479,7 +366,9 @@ function NavigationVisibilitySection() {
   }): boolean => {
     if (item.alwaysOn) return true;
     if (item.path in overrides) return overrides[item.path];
-    return !item.conditional && !item.advanced;
+    // Use account/age-aware defaults so e.g. mortgage shows as "on"
+    // when the user actually has a mortgage account
+    return conditionalDefaults[item.path] ?? true;
   };
 
   return (
@@ -617,9 +506,24 @@ function NavigationVisibilitySection() {
             </Box>
           ))}
         </VStack>
-        <Text fontSize="xs" color="text.muted" mt={3}>
-          Changes apply immediately in the navigation bar.
-        </Text>
+        {pendingReload ? (
+          <HStack mt={3} justify="flex-end">
+            <Text fontSize="xs" color="text.muted">
+              Reload to see changes in the nav bar
+            </Text>
+            <Button
+              size="xs"
+              colorScheme="brand"
+              onClick={() => window.location.reload()}
+            >
+              Apply
+            </Button>
+          </HStack>
+        ) : (
+          <Text fontSize="xs" color="text.muted" mt={3}>
+            Toggle tabs above, then click Apply to update the nav bar.
+          </Text>
+        )}
       </Collapse>
     </Box>
   );

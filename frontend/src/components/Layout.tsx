@@ -58,6 +58,7 @@ import {
   getResourceTypeForPath,
 } from "../utils/permissionBannerUtils";
 import { ACCOUNT_TYPE_SIDEBAR_CONFIG } from "../constants/accountTypeGroups";
+import { useNavDefaults } from "../hooks/useNavDefaults";
 
 interface Account {
   id: string;
@@ -541,13 +542,8 @@ export const Layout = () => {
     onClose: onAddAccountClose,
   } = useDisclosure();
 
-  // Paths that are gated behind the "Show advanced features" toggle
-  const ADVANCED_NAV_PATHS = ["/fire", "/tax-projection"];
-
-  // Per-item nav visibility overrides — stored as state so toggling re-renders the nav
-  const [navOverridesState, setNavOverridesState] = useState<
-    Record<string, boolean>
-  >(() => {
+  // Per-item nav visibility overrides — read-only in Layout; written by PreferencesPage
+  const [navOverridesState] = useState<Record<string, boolean>>(() => {
     try {
       const raw = localStorage.getItem("nest-egg-nav-visibility");
       return raw ? JSON.parse(raw) : {};
@@ -555,41 +551,6 @@ export const Layout = () => {
       return {};
     }
   });
-
-  const persistNavOverrides = (next: Record<string, boolean>) => {
-    setNavOverridesState(next);
-    try {
-      if (Object.keys(next).length === 0) {
-        localStorage.removeItem("nest-egg-nav-visibility");
-      } else {
-        localStorage.setItem("nest-egg-nav-visibility", JSON.stringify(next));
-      }
-    } catch {
-      /* ignore */
-    }
-  };
-
-  // Advanced toggle: writes directly into per-item overrides for the advanced paths.
-  // This means the per-item switches in Preferences immediately reflect the state,
-  // and a manually-enabled tab stays on even when the master toggle is off.
-  const showAdvancedNav = ADVANCED_NAV_PATHS.every(
-    (p) => navOverridesState[p] === true,
-  );
-
-  const toggleAdvancedNav = () => {
-    const next = !showAdvancedNav;
-    const updated = { ...navOverridesState };
-    for (const path of ADVANCED_NAV_PATHS) {
-      updated[path] = next;
-    }
-    persistNavOverrides(updated);
-    // Also sync the legacy flag for onboarding/preferences pages that read it
-    try {
-      localStorage.setItem("nest-egg-show-advanced-nav", String(next));
-    } catch {
-      /* ignore */
-    }
-  };
 
   const [collapsedSections, setCollapsedSections] = useState<
     Record<string, boolean>
@@ -612,59 +573,36 @@ export const Layout = () => {
     }
   };
 
-  // Fetch accounts with user filtering (must be above nav visibility logic)
-  const { data: accounts, isLoading: accountsLoading } = useQuery<Account[]>({
-    queryKey: ["accounts", selectedUserId],
-    queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
-      const response = await api.get("/accounts", { params });
-      return response.data;
-    },
-  });
+  // ── Nav visibility: centralized defaults from useNavDefaults hook ──
+  const { accounts, accountsLoading, conditionalDefaults } =
+    useNavDefaults(selectedUserId);
 
-  // ── Nav visibility: auto-hide items when user has no relevant data ──
-
-  const DEBT_TYPES = new Set([
-    "credit_card",
-    "loan",
-    "student_loan",
-    "mortgage",
-  ]);
+  // Derived flags still needed for feature-discovery toasts
+  const has529 = accounts.some((a) => a.account_type === "retirement_529");
+  const hasRental = accounts.some((a) => a.is_rental_property);
+  const hasLinkedAccounts = accounts.some(
+    (a) => a.plaid_item_id !== null || a.plaid_item_hash !== null,
+  );
+  const hasInvestments = accounts.some((a) =>
+    [
+      "brokerage",
+      "retirement_401k",
+      "retirement_ira",
+      "retirement_roth_ira",
+      "retirement_403b",
+      "retirement_457",
+      "retirement_pension",
+      "crypto",
+    ].includes(a.account_type),
+  );
 
   // Helper: check if a nav item is visible
   // Priority: per-item override (navOverridesState) > account-based default
-  const isNavVisible = (path: string, defaultVisible: boolean): boolean => {
+  const isNavVisible = (path: string): boolean => {
     if (path in navOverridesState) return navOverridesState[path];
     if (accountsLoading) return true; // show while loading
-    return defaultVisible;
+    return conditionalDefaults[path] ?? true;
   };
-
-  const INVESTMENT_TYPES = new Set([
-    "brokerage",
-    "retirement_401k",
-    "retirement_ira",
-    "retirement_roth_ira",
-    "retirement_403b",
-    "retirement_457",
-    "retirement_pension",
-    "crypto",
-  ]);
-
-  const hasDebt = (accounts ?? []).some((a) => DEBT_TYPES.has(a.account_type));
-  const hasRental = (accounts ?? []).some((a) => a.is_rental_property);
-  const hasMortgage = (accounts ?? []).some(
-    (a) => a.account_type === "mortgage",
-  );
-  const has529 = (accounts ?? []).some(
-    (a) => a.account_type === "retirement_529",
-  );
-  const hasInvestments = (accounts ?? []).some((a) =>
-    INVESTMENT_TYPES.has(a.account_type),
-  );
-  // "Linked" = connected via Plaid/Teller/MX — makes Recurring & Bills useful
-  const hasLinkedAccounts = (accounts ?? []).some(
-    (a) => a.plaid_item_id !== null || a.plaid_item_hash !== null,
-  );
 
   // Feature discovery: toast once when conditional nav items first unlock
   const toast = useToast();
@@ -729,28 +667,6 @@ export const Layout = () => {
     accountsLoading,
     toast,
   ]);
-
-  // Fetch user profile for age-based nav gating (birth_year)
-  const { data: userProfile } = useQuery({
-    queryKey: ["user-profile-nav"],
-    queryFn: async () => {
-      const res = await api.get("/settings/profile");
-      return res.data as { birth_year?: number | null };
-    },
-    staleTime: 30 * 60 * 1000,
-  });
-  const currentYear = new Date().getFullYear();
-  const userAge = userProfile?.birth_year
-    ? currentYear - userProfile.birth_year
-    : null;
-  // Show SS optimizer for users 50+ or when age is unknown (no birthdate set)
-  const showSsOptimizer = userAge === null || userAge >= 50;
-
-  // Smart auto-show rules for advanced items (bypass the global toggle):
-  // - FIRE: show if user is under 50 AND has investment accounts
-  // - Tax Projection: show if user has investment accounts (capital gains is relevant)
-  const showFireSmart = hasInvestments && userAge !== null && userAge < 50;
-  const showTaxProjectionSmart = hasInvestments;
 
   // All nav items with default visibility
   const allSpendingItems = [
@@ -895,28 +811,6 @@ export const Layout = () => {
     },
   ];
 
-  // Default visibility for conditional items.
-  // A tab NOT listed here defaults to visible (true) via the ?? true fallback.
-  const conditionalDefaults: Record<string, boolean> = {
-    // Account-type gated
-    "/rental-properties": hasRental,
-    "/investment-health": hasInvestments,
-    "/education": has529,
-    "/debt-payoff": hasDebt,
-    "/mortgage": hasMortgage,
-    // Only useful once recurring/bill detection has live sync data
-    "/recurring": hasLinkedAccounts,
-    "/bills": hasLinkedAccounts,
-    // Power-user spending tools — show once any account exists (not just linked)
-    "/rules": (accounts ?? []).length > 0,
-    "/tax-deductible": hasInvestments || hasRental,
-    // Age-gated
-    "/ss-claiming": showSsOptimizer,
-    // Advanced items (also gated by the master advanced toggle via overrides)
-    "/fire": showFireSmart,
-    "/tax-projection": showTaxProjectionSmart,
-  };
-
   const filterVisible = (
     items: {
       label: string;
@@ -925,9 +819,7 @@ export const Layout = () => {
       advanced?: boolean;
     }[],
   ): { label: string; path: string; tooltip?: string }[] =>
-    items.filter((item) =>
-      isNavVisible(item.path, conditionalDefaults[item.path] ?? true),
-    );
+    items.filter((item) => isNavVisible(item.path));
 
   const spendingMenuItems = filterVisible(allSpendingItems);
   const analyticsMenuItems = filterVisible(allAnalyticsItems);
@@ -1231,24 +1123,6 @@ export const Layout = () => {
             <Box ml={10}>
               <UserViewToggle />
             </Box>
-            <Tooltip
-              label={
-                showAdvancedNav
-                  ? "Hide advanced features (FIRE, Tax Projection)"
-                  : "Show advanced features — FIRE planning, Tax Projection, and more"
-              }
-              hasArrow
-            >
-              <Button
-                size="xs"
-                variant={showAdvancedNav ? "solid" : "ghost"}
-                colorScheme={showAdvancedNav ? "brand" : "gray"}
-                onClick={toggleAdvancedNav}
-                fontWeight="normal"
-              >
-                {showAdvancedNav ? "Advanced ✓" : "Advanced"}
-              </Button>
-            </Tooltip>
             <NotificationBell />
 
             <UserMenu
