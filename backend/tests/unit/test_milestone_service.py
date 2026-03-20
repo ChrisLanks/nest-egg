@@ -1,6 +1,6 @@
 """Tests for the Milestone service (net worth milestones and all-time highs)."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models.net_worth_snapshot import NetWorthSnapshot
-from app.models.notification import Notification, NotificationType
+from app.models.notification import Notification, NotificationPriority, NotificationType
 from app.services.milestone_service import (
     MILESTONE_THRESHOLDS,
     _format_milestone,
@@ -17,6 +17,7 @@ from app.services.milestone_service import (
     check_milestones,
     get_milestone_summary,
 )
+from app.utils.datetime_utils import utc_now
 
 # ---------------------------------------------------------------------------
 # Format helper
@@ -528,3 +529,319 @@ class TestMilestoneDeduplication:
             NotificationType.MILESTONE,
             "Milestone reached: $10,000!",
         )
+
+
+# ---------------------------------------------------------------------------
+# _notification_exists_today — isolation and time-window edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestNotificationExistsToday:
+    """Unit tests for the dedup helper in isolation."""
+
+    @pytest.mark.asyncio
+    async def test_different_org_not_matched(self, db, test_user, second_organization):
+        """A notification for a different org must not block the current org."""
+        notif = Notification(
+            id=uuid4(),
+            organization_id=second_organization.id,
+            type=NotificationType.MILESTONE,
+            title="Milestone reached: $10,000!",
+            message="msg",
+            priority=NotificationPriority.LOW,
+        )
+        db.add(notif)
+        await db.commit()
+
+        # Current org has no notification — should return False
+        assert not await _notification_exists_today(
+            db,
+            test_user.organization_id,
+            NotificationType.MILESTONE,
+            "Milestone reached: $10,000!",
+        )
+
+    @pytest.mark.asyncio
+    async def test_different_type_not_matched(self, db, test_user):
+        """A notification with a different type must not trigger the dedup."""
+        notif = Notification(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            type=NotificationType.ALL_TIME_HIGH,
+            title="Milestone reached: $10,000!",
+            message="msg",
+            priority=NotificationPriority.LOW,
+        )
+        db.add(notif)
+        await db.commit()
+
+        assert not await _notification_exists_today(
+            db,
+            test_user.organization_id,
+            NotificationType.MILESTONE,
+            "Milestone reached: $10,000!",
+        )
+
+    @pytest.mark.asyncio
+    async def test_yesterday_notification_does_not_block_today(self, db, test_user):
+        """A notification created yesterday must not suppress today's."""
+        yesterday_start = datetime(*date.today().timetuple()[:3], tzinfo=timezone.utc) - timedelta(
+            days=1
+        )
+        notif = Notification(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            type=NotificationType.MILESTONE,
+            title="Milestone reached: $10,000!",
+            message="msg",
+            priority=NotificationPriority.LOW,
+        )
+        # Back-date the created_at to yesterday
+        notif.created_at = yesterday_start
+        db.add(notif)
+        await db.commit()
+
+        assert not await _notification_exists_today(
+            db,
+            test_user.organization_id,
+            NotificationType.MILESTONE,
+            "Milestone reached: $10,000!",
+        )
+
+
+# ---------------------------------------------------------------------------
+# check_milestones — boundary and edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestCheckMilestoneBoundaries:
+    """Edge cases for threshold crossing logic."""
+
+    @pytest.mark.asyncio
+    @patch(
+        "app.services.milestone_service.NotificationService.create_notification",
+        new_callable=AsyncMock,
+    )
+    async def test_previous_exactly_at_threshold_no_crossing(self, mock_notify, db, test_user):
+        """previous == threshold means it was already crossed; no new milestone."""
+        prev = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=None,
+            snapshot_date=date.today() - timedelta(days=1),
+            total_net_worth=Decimal("10000"),
+            total_assets=Decimal("10000"),
+            total_liabilities=Decimal("0"),
+        )
+        db.add(prev)
+        await db.commit()
+
+        result = await check_milestones(db, test_user.organization_id, Decimal("10500"))
+        thresholds_hit = [m["threshold"] for m in result if m["type"] == "milestone"]
+        assert 10_000 not in thresholds_hit
+        milestone_calls = [
+            c
+            for c in mock_notify.call_args_list
+            if c.kwargs.get("title", "").startswith("Milestone")
+        ]
+        assert len(milestone_calls) == 0
+
+    @pytest.mark.asyncio
+    @patch(
+        "app.services.milestone_service.NotificationService.create_notification",
+        new_callable=AsyncMock,
+    )
+    async def test_current_exactly_at_threshold_triggers(self, mock_notify, db, test_user):
+        """previous < threshold == current should trigger the milestone."""
+        prev = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=None,
+            snapshot_date=date.today() - timedelta(days=1),
+            total_net_worth=Decimal("9999"),
+            total_assets=Decimal("9999"),
+            total_liabilities=Decimal("0"),
+        )
+        db.add(prev)
+        await db.commit()
+
+        result = await check_milestones(db, test_user.organization_id, Decimal("10000"))
+        thresholds_hit = [m["threshold"] for m in result if m["type"] == "milestone"]
+        assert 10_000 in thresholds_hit
+
+    @pytest.mark.asyncio
+    @patch(
+        "app.services.milestone_service.NotificationService.create_notification",
+        new_callable=AsyncMock,
+    )
+    async def test_negative_net_worth_no_milestones(self, mock_notify, db, test_user):
+        """Negative net worth should never trigger any milestone."""
+        prev = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=None,
+            snapshot_date=date.today() - timedelta(days=1),
+            total_net_worth=Decimal("-5000"),
+            total_assets=Decimal("0"),
+            total_liabilities=Decimal("5000"),
+        )
+        db.add(prev)
+        await db.commit()
+
+        result = await check_milestones(db, test_user.organization_id, Decimal("-1000"))
+        assert result == []
+        mock_notify.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch(
+        "app.services.milestone_service.NotificationService.create_notification",
+        new_callable=AsyncMock,
+    )
+    async def test_milestone_and_ath_both_fire_same_call(self, mock_notify, db, test_user):
+        """Crossing a milestone threshold AND setting an ATH should both fire."""
+        prev = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=None,
+            snapshot_date=date.today() - timedelta(days=1),
+            total_net_worth=Decimal("8000"),
+            total_assets=Decimal("8000"),
+            total_liabilities=Decimal("0"),
+        )
+        db.add(prev)
+        await db.commit()
+
+        result = await check_milestones(db, test_user.organization_id, Decimal("12000"))
+
+        types = {m["type"] for m in result}
+        assert "milestone" in types
+        assert "all_time_high" in types
+
+        titles = {call.kwargs["title"] for call in mock_notify.call_args_list}
+        assert any("Milestone" in t for t in titles)
+        assert any("all-time high" in t.lower() for t in titles)
+
+    @pytest.mark.asyncio
+    @patch(
+        "app.services.milestone_service.NotificationService.create_notification",
+        new_callable=AsyncMock,
+    )
+    async def test_user_scoped_snapshots_excluded_from_previous(self, mock_notify, db, test_user):
+        """Per-user snapshots must not be used as the previous household value.
+
+        A user-scoped snapshot at $30k should not prevent the $10k milestone from
+        firing — only household snapshots (user_id IS NULL) count as previous.
+        """
+        # User-scoped snapshot at $30k — above $10k, $25k
+        user_snap = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=test_user.id,
+            snapshot_date=date.today() - timedelta(days=1),
+            total_net_worth=Decimal("30000"),
+            total_assets=Decimal("30000"),
+            total_liabilities=Decimal("0"),
+        )
+        db.add(user_snap)
+        await db.commit()
+
+        # No household snapshot → previous defaults to 0, so $10k threshold fires
+        result = await check_milestones(db, test_user.organization_id, Decimal("12000"))
+        thresholds_hit = [m["threshold"] for m in result if m["type"] == "milestone"]
+        # $10k fires (previous=0, current=12k); $25k and $30k don't (12k < 25k)
+        assert 10_000 in thresholds_hit
+        assert 25_000 not in thresholds_hit
+
+    @pytest.mark.asyncio
+    @patch(
+        "app.services.milestone_service.NotificationService.create_notification",
+        new_callable=AsyncMock,
+    )
+    async def test_milestone_result_contains_expected_fields(self, mock_notify, db, test_user):
+        """Each milestone dict in the return value must carry the expected keys."""
+        prev = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=None,
+            snapshot_date=date.today() - timedelta(days=1),
+            total_net_worth=Decimal("8000"),
+            total_assets=Decimal("8000"),
+            total_liabilities=Decimal("0"),
+        )
+        db.add(prev)
+        await db.commit()
+
+        result = await check_milestones(db, test_user.organization_id, Decimal("12000"))
+        m = next(r for r in result if r["type"] == "milestone")
+        assert m["threshold"] == 10_000
+        assert m["label"] == "$10,000"
+        assert m["net_worth"] == 12_000.0
+        assert m["date"] == utc_now().date().isoformat()
+
+
+# ---------------------------------------------------------------------------
+# get_milestone_summary — additional coverage
+# ---------------------------------------------------------------------------
+
+
+class TestGetMilestoneSummaryExtended:
+    """Additional edge cases for get_milestone_summary."""
+
+    @pytest.mark.asyncio
+    async def test_summary_ath_date_is_set(self, db, test_user):
+        """all_time_high.date must be the ISO date string of the ATH snapshot."""
+        snap_date = date.today() - timedelta(days=5)
+        snap = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=None,
+            snapshot_date=snap_date,
+            total_net_worth=Decimal("30000"),
+            total_assets=Decimal("30000"),
+            total_liabilities=Decimal("0"),
+        )
+        db.add(snap)
+        await db.commit()
+
+        summary = await get_milestone_summary(db, test_user.organization_id)
+        assert summary["all_time_high"]["date"] == snap_date.isoformat()
+
+    @pytest.mark.asyncio
+    async def test_summary_user_scoped_snapshots_excluded(self, db, test_user):
+        """Per-user snapshots must not affect the summary's current net worth."""
+        user_snap = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=test_user.id,
+            snapshot_date=date.today(),
+            total_net_worth=Decimal("200000"),
+            total_assets=Decimal("200000"),
+            total_liabilities=Decimal("0"),
+        )
+        db.add(user_snap)
+        await db.commit()
+
+        summary = await get_milestone_summary(db, test_user.organization_id)
+        # No household snapshot → milestones_achieved should be empty
+        assert summary["milestones_achieved"] == []
+
+    @pytest.mark.asyncio
+    async def test_summary_milestone_labels_formatted(self, db, test_user):
+        """Achieved milestone entries must include correctly formatted labels."""
+        snap = NetWorthSnapshot(
+            id=uuid4(),
+            organization_id=test_user.organization_id,
+            user_id=None,
+            snapshot_date=date.today(),
+            total_net_worth=Decimal("1500000"),
+            total_assets=Decimal("1500000"),
+            total_liabilities=Decimal("0"),
+        )
+        db.add(snap)
+        await db.commit()
+
+        summary = await get_milestone_summary(db, test_user.organization_id)
+        labels = {m["label"] for m in summary["milestones_achieved"]}
+        assert "$1M" in labels
+        assert "$10,000" in labels
+        assert "$500,000" in labels
