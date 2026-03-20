@@ -41,9 +41,18 @@ import { SavingsRateWidget } from "./widgets/SavingsRateWidget";
 import { DebtCostWidget } from "./widgets/DebtCostWidget";
 import { BillPriceAlertsWidget } from "./widgets/BillPriceAlertsWidget";
 import { MortgageRateWidget } from "./widgets/MortgageRateWidget";
+import { GettingStartedWidget } from "./widgets/GettingStartedWidget";
 import type { LayoutItem, WidgetDefinition } from "./types";
 
 export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
+  "getting-started": {
+    id: "getting-started",
+    title: "Getting Started",
+    description:
+      "Track your setup progress: connect accounts, set a budget, add a savings goal, and review your net worth.",
+    defaultSpan: 2,
+    component: GettingStartedWidget,
+  },
   "summary-stats": {
     id: "summary-stats",
     title: "Summary Stats",
@@ -346,6 +355,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
 
 /** Default layout shown to users who have never customized their dashboard. */
 export const DEFAULT_LAYOUT: LayoutItem[] = [
+  { id: "getting-started", span: 2 },
   { id: "summary-stats", span: 2 },
   { id: "net-worth-chart", span: 2 },
   { id: "spending-insights", span: 2 },

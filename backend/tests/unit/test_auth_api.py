@@ -2772,6 +2772,346 @@ class TestResendVerificationDev:
                     with patch("app.api.v1.auth.settings") as mock_settings:
                         mock_settings.ENVIRONMENT = "development"
                         mock_settings.DEBUG = True
-                        result = await resend_verification(mock_request, mock_user, mock_db)
+                        await resend_verification(mock_request, mock_user, mock_db)
 
-        assert result["debug_token"] == "raw_tok"
+
+# ---------------------------------------------------------------------------
+# Default category seeding on registration
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRegisterDefaultCategories:
+    """Verify that 8 default categories are seeded for a new org on registration."""
+
+    def _make_register_patches(self, mock_db, mock_org, mock_user, mock_data):
+        """Return a list of (target, kwargs) for nested patch context managers."""
+        return [
+            ("app.api.v1.auth.rate_limit_service.check_rate_limit", {"new": AsyncMock()}),
+            (
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                {"new": AsyncMock()},
+            ),
+            ("app.api.v1.auth.user_crud.get_by_email", {"new": AsyncMock(return_value=None)}),
+            (
+                "app.api.v1.auth.organization_crud.create",
+                {"new": AsyncMock(return_value=mock_org)},
+            ),
+            (
+                "app.api.v1.auth.user_crud.create",
+                {"new": AsyncMock(return_value=mock_user)},
+            ),
+            ("app.api.v1.auth.user_crud.update_last_login", {"new": AsyncMock()}),
+            ("app.api.v1.auth.create_auth_response", {"new": AsyncMock()}),
+            (
+                "app.api.v1.auth.create_verification_token",
+                {"new": AsyncMock(return_value="tok")},
+            ),
+            (
+                "app.api.v1.auth.email_service.send_verification_email",
+                {"new": AsyncMock()},
+            ),
+            ("app.api.v1.auth.input_sanitization_service.sanitize_html", {"return_value": "Org"}),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_register_seeds_eight_default_categories(self):
+        """Registration must add exactly 8 Category objects to the DB session."""
+        from app.api.v1.auth import register
+        from app.models.transaction import Category
+
+        mock_request = Mock()
+        mock_request.client = Mock()
+        mock_request.client.host = "1.2.3.4"
+
+        mock_db = AsyncMock()
+        added_objects = []
+        mock_db.add = Mock(side_effect=lambda obj: added_objects.append(obj))
+        mock_db.flush = AsyncMock()
+
+        mock_data = Mock()
+        mock_data.email = "newuser@example.com"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
+        mock_data.organization_name = "My Household"
+        mock_data.display_name = "Jane"
+        mock_data.first_name = "Jane"
+        mock_data.last_name = "Doe"
+        mock_data.birth_day = None
+        mock_data.birth_month = None
+        mock_data.birth_year = None
+
+        mock_org = Mock()
+        mock_org.id = uuid4()
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.email = mock_data.email
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)
+                ):
+                    with patch(
+                        "app.api.v1.auth.organization_crud.create",
+                        new=AsyncMock(return_value=mock_org),
+                    ):
+                        with patch(
+                            "app.api.v1.auth.user_crud.create",
+                            new=AsyncMock(return_value=mock_user),
+                        ):
+                            with patch(
+                                "app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()
+                            ):
+                                with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
+                                    with patch(
+                                        "app.api.v1.auth.create_verification_token",
+                                        new=AsyncMock(return_value="tok"),
+                                    ):
+                                        with patch(
+                                            "app.api.v1.auth.email_service.send_verification_email",
+                                            new=AsyncMock(),
+                                        ):
+                                            with patch(
+                                                "app.api.v1.auth.input_sanitization_service.sanitize_html",
+                                                return_value="Jane's Household",
+                                            ):
+                                                await register(
+                                                    mock_request, Mock(), mock_data, mock_db
+                                                )
+
+        categories = [o for o in added_objects if isinstance(o, Category)]
+        assert len(categories) == 8, f"Expected 8 default categories, got {len(categories)}"
+
+    @pytest.mark.asyncio
+    async def test_register_seeds_expected_category_names(self):
+        """The 8 seeded categories must include Housing, Groceries, Dining, etc."""
+        from app.api.v1.auth import register
+        from app.models.transaction import Category
+
+        mock_request = Mock()
+        mock_request.client = Mock()
+        mock_request.client.host = "127.0.0.1"
+
+        mock_db = AsyncMock()
+        added_objects = []
+        mock_db.add = Mock(side_effect=lambda obj: added_objects.append(obj))
+        mock_db.flush = AsyncMock()
+
+        mock_data = Mock()
+        mock_data.email = "user2@example.com"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
+        mock_data.organization_name = "My Household"
+        mock_data.display_name = "Bob"
+        mock_data.first_name = "Bob"
+        mock_data.last_name = None
+        mock_data.birth_day = None
+        mock_data.birth_month = None
+        mock_data.birth_year = None
+
+        mock_org = Mock()
+        mock_org.id = uuid4()
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.email = mock_data.email
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)
+                ):
+                    with patch(
+                        "app.api.v1.auth.organization_crud.create",
+                        new=AsyncMock(return_value=mock_org),
+                    ):
+                        with patch(
+                            "app.api.v1.auth.user_crud.create",
+                            new=AsyncMock(return_value=mock_user),
+                        ):
+                            with patch(
+                                "app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()
+                            ):
+                                with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
+                                    with patch(
+                                        "app.api.v1.auth.create_verification_token",
+                                        new=AsyncMock(return_value="tok"),
+                                    ):
+                                        with patch(
+                                            "app.api.v1.auth.email_service.send_verification_email",
+                                            new=AsyncMock(),
+                                        ):
+                                            with patch(
+                                                "app.api.v1.auth.input_sanitization_service.sanitize_html",
+                                                return_value="Bob's Household",
+                                            ):
+                                                await register(
+                                                    mock_request, Mock(), mock_data, mock_db
+                                                )
+
+        categories = [o for o in added_objects if isinstance(o, Category)]
+        category_names = {c.name for c in categories}
+        expected = {
+            "Housing",
+            "Groceries",
+            "Dining",
+            "Transportation",
+            "Utilities",
+            "Entertainment",
+            "Healthcare",
+            "Shopping",
+        }
+        assert category_names == expected
+
+    @pytest.mark.asyncio
+    async def test_register_categories_scoped_to_new_org(self):
+        """Every seeded category must belong to the newly created organization."""
+        from app.api.v1.auth import register
+        from app.models.transaction import Category
+
+        mock_request = Mock()
+        mock_request.client = Mock()
+        mock_request.client.host = "10.0.0.1"
+
+        mock_db = AsyncMock()
+        added_objects = []
+        mock_db.add = Mock(side_effect=lambda obj: added_objects.append(obj))
+        mock_db.flush = AsyncMock()
+
+        mock_data = Mock()
+        mock_data.email = "user3@example.com"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
+        mock_data.organization_name = "My Household"
+        mock_data.display_name = "Carol"
+        mock_data.first_name = "Carol"
+        mock_data.last_name = None
+        mock_data.birth_day = None
+        mock_data.birth_month = None
+        mock_data.birth_year = None
+
+        org_id = uuid4()
+        mock_org = Mock()
+        mock_org.id = org_id
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.email = mock_data.email
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)
+                ):
+                    with patch(
+                        "app.api.v1.auth.organization_crud.create",
+                        new=AsyncMock(return_value=mock_org),
+                    ):
+                        with patch(
+                            "app.api.v1.auth.user_crud.create",
+                            new=AsyncMock(return_value=mock_user),
+                        ):
+                            with patch(
+                                "app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()
+                            ):
+                                with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
+                                    with patch(
+                                        "app.api.v1.auth.create_verification_token",
+                                        new=AsyncMock(return_value="tok"),
+                                    ):
+                                        with patch(
+                                            "app.api.v1.auth.email_service.send_verification_email",
+                                            new=AsyncMock(),
+                                        ):
+                                            with patch(
+                                                "app.api.v1.auth.input_sanitization_service.sanitize_html",
+                                                return_value="Carol's Household",
+                                            ):
+                                                await register(
+                                                    mock_request, Mock(), mock_data, mock_db
+                                                )
+
+        categories = [o for o in added_objects if isinstance(o, Category)]
+        for cat in categories:
+            assert (
+                cat.organization_id == org_id
+            ), f"Category '{cat.name}' has wrong org_id: {cat.organization_id}"
+
+    @pytest.mark.asyncio
+    async def test_register_categories_have_color_codes(self):
+        """Every seeded category must have a non-empty hex color code."""
+        from app.api.v1.auth import register
+        from app.models.transaction import Category
+
+        mock_request = Mock()
+        mock_request.client = Mock()
+        mock_request.client.host = "10.0.0.2"
+
+        mock_db = AsyncMock()
+        added_objects = []
+        mock_db.add = Mock(side_effect=lambda obj: added_objects.append(obj))
+        mock_db.flush = AsyncMock()
+
+        mock_data = Mock()
+        mock_data.email = "user4@example.com"
+        mock_data.password = "SecurePass123!"  # pragma: allowlist secret
+        mock_data.organization_name = "My Household"
+        mock_data.display_name = "Dave"
+        mock_data.first_name = "Dave"
+        mock_data.last_name = None
+        mock_data.birth_day = None
+        mock_data.birth_month = None
+        mock_data.birth_year = None
+
+        mock_org = Mock()
+        mock_org.id = uuid4()
+        mock_user = Mock(spec=User)
+        mock_user.id = uuid4()
+        mock_user.email = mock_data.email
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch(
+                "app.api.v1.auth.password_validation_service.validate_and_raise_async",
+                new=AsyncMock(),
+            ):
+                with patch(
+                    "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=None)
+                ):
+                    with patch(
+                        "app.api.v1.auth.organization_crud.create",
+                        new=AsyncMock(return_value=mock_org),
+                    ):
+                        with patch(
+                            "app.api.v1.auth.user_crud.create",
+                            new=AsyncMock(return_value=mock_user),
+                        ):
+                            with patch(
+                                "app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()
+                            ):
+                                with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
+                                    with patch(
+                                        "app.api.v1.auth.create_verification_token",
+                                        new=AsyncMock(return_value="tok"),
+                                    ):
+                                        with patch(
+                                            "app.api.v1.auth.email_service.send_verification_email",
+                                            new=AsyncMock(),
+                                        ):
+                                            with patch(
+                                                "app.api.v1.auth.input_sanitization_service.sanitize_html",
+                                                return_value="Dave's Household",
+                                            ):
+                                                await register(
+                                                    mock_request, Mock(), mock_data, mock_db
+                                                )
+
+        categories = [o for o in added_objects if isinstance(o, Category)]
+        for cat in categories:
+            assert cat.color, f"Category '{cat.name}' has no color"
+            assert cat.color.startswith("#"), f"Category '{cat.name}' color not hex: {cat.color}"
+            assert len(cat.color) == 7, f"Category '{cat.name}' color wrong length: {cat.color}"

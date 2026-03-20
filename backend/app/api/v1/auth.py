@@ -29,6 +29,7 @@ from app.crud.user import organization_crud, refresh_token_crud, user_crud
 from app.dependencies import get_current_user
 from app.models.holding import Holding
 from app.models.mfa import UserMFA
+from app.models.transaction import Category
 from app.models.user import (
     ConsentType,
     EmailVerificationToken,
@@ -244,6 +245,26 @@ async def register(
             )
         )
     await db.flush()
+
+    # Seed default categories for the new organization
+    _default_categories = [
+        {"name": "Housing", "color": "#EF5350"},
+        {"name": "Groceries", "color": "#66BB6A"},
+        {"name": "Dining", "color": "#FFA726"},
+        {"name": "Transportation", "color": "#42A5F5"},
+        {"name": "Utilities", "color": "#AB47BC"},
+        {"name": "Entertainment", "color": "#EC407A"},
+        {"name": "Healthcare", "color": "#26A69A"},
+        {"name": "Shopping", "color": "#26C6DA"},
+    ]
+    for _cat in _default_categories:
+        db.add(
+            Category(
+                organization_id=organization.id,
+                name=_cat["name"],
+                color=_cat["color"],
+            )
+        )
 
     # Update last login
     await user_crud.update_last_login(db, user.id)

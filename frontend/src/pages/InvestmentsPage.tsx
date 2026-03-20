@@ -728,10 +728,44 @@ export const InvestmentsPage = () => {
           <Heading size="lg">Investments</Heading>
           <Card>
             <CardBody>
-              <VStack spacing={4}>
-                <Text color="text.muted">No investment accounts found.</Text>
-                <Text fontSize="sm" color="text.secondary">
-                  Add investment accounts to see your portfolio here.
+              <VStack spacing={6} py={6}>
+                <VStack spacing={2}>
+                  <Heading size="md">No investment accounts yet</Heading>
+                  <Text color="text.secondary" textAlign="center" maxW="md">
+                    Connect a brokerage, 401(k), or IRA to see your portfolio
+                    value, how your money is allocated across stocks and bonds,
+                    and whether your fund fees are eating into your returns.
+                  </Text>
+                </VStack>
+                <SimpleGrid
+                  columns={{ base: 1, sm: 3 }}
+                  spacing={3}
+                  w="full"
+                  maxW="lg"
+                >
+                  {[
+                    { label: "Portfolio value & gain/loss", color: "blue" },
+                    {
+                      label: "Asset allocation & diversification",
+                      color: "green",
+                    },
+                    { label: "Fee analysis & cost reduction", color: "orange" },
+                  ].map((item) => (
+                    <Box
+                      key={item.label}
+                      p={3}
+                      bg="bg.subtle"
+                      borderRadius="md"
+                      textAlign="center"
+                    >
+                      <Text fontSize="xs" color="text.secondary">
+                        {item.label}
+                      </Text>
+                    </Box>
+                  ))}
+                </SimpleGrid>
+                <Text fontSize="sm" color="text.muted">
+                  Add investment accounts from the sidebar or Accounts page.
                 </Text>
               </VStack>
             </CardBody>
@@ -747,6 +781,53 @@ export const InvestmentsPage = () => {
   return (
     <Container maxW="container.xl" py={8}>
       <VStack spacing={6} align="stretch">
+        {/* Plain-English portfolio summary */}
+        {portfolio.total_value > 0 && (
+          <Box
+            bg="bg.subtle"
+            borderRadius="lg"
+            p={4}
+            borderLeft="4px solid"
+            borderLeftColor="brand.500"
+          >
+            <Text fontSize="sm" color="text.secondary">
+              {(() => {
+                const parts: string[] = [];
+                parts.push(
+                  `Your portfolio is worth ${formatCurrency(portfolio.total_value)}.`,
+                );
+                if (portfolio.total_gain_loss_percent !== null) {
+                  const pct = portfolio.total_gain_loss_percent;
+                  const dir = pct >= 0 ? "up" : "down";
+                  parts.push(
+                    `You're ${dir} ${Math.abs(pct).toFixed(1)}% overall.`,
+                  );
+                }
+                if (
+                  portfolio.total_annual_fees !== null &&
+                  portfolio.total_annual_fees > 0 &&
+                  portfolio.total_value > 0
+                ) {
+                  const feePct = (
+                    (portfolio.total_annual_fees / portfolio.total_value) *
+                    100
+                  ).toFixed(2);
+                  if (Number(feePct) > 0.5) {
+                    parts.push(
+                      `Your funds cost about ${formatCurrency(portfolio.total_annual_fees)}/year in fees (${feePct}% of your portfolio) — consider switching to lower-cost index funds.`,
+                    );
+                  } else {
+                    parts.push(
+                      `Your fund fees are low at ${feePct}% annually — great job keeping costs down.`,
+                    );
+                  }
+                }
+                return parts.join(" ");
+              })()}
+            </Text>
+          </Box>
+        )}
+
         {/* Header with Date Filter and Category Toggles */}
         <HStack justify="space-between" align="flex-start">
           <VStack align="flex-start" spacing={0}>

@@ -2,7 +2,7 @@
  * Post-registration onboarding wizard.
  *
  * Steps:
- * 1. Welcome — value proposition + household name
+ * 1. Welcome — goal selector + household name
  * 2. Connect accounts — link first bank or skip
  * 3. Invite household members — why + how or skip
  * 4. Quick tour highlights — then go to dashboard
@@ -33,13 +33,8 @@ import {
   FiArrowRight,
   FiCheck,
   FiDollarSign,
-  FiTarget,
   FiZap,
-  FiList,
   FiTrendingUp,
-  FiCalendar,
-  FiBell,
-  FiSettings,
   FiShield,
 } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
@@ -88,61 +83,58 @@ const HOUSEHOLD_BENEFITS = [
   },
 ];
 
-const FEATURE_LIST = [
+const GOAL_OPTIONS = [
   {
-    icon: FiBarChart2,
-    title: "Overview Dashboard",
-    desc: "Net worth trend, spending breakdown, and financial health at a glance",
-  },
-  {
+    id: "spending",
     icon: FiDollarSign,
-    title: "Budget Tracking",
-    desc: "Monthly budgets per category with real-time spending and overage alerts",
+    title: "Track my spending",
+    desc: "See where my money goes and stick to a budget",
   },
   {
-    icon: FiList,
-    title: "Transactions",
-    desc: "Full spending history with smart categorization and search",
-  },
-  {
-    icon: FiTarget,
-    title: "Savings Goals",
-    desc: "Track progress toward specific goals like a house, car, or emergency fund",
-  },
-  {
-    icon: FiLink,
-    title: "Investment Analysis",
-    desc: "Portfolio breakdown, asset allocation, and Monte Carlo projections",
-  },
-  {
+    id: "retirement",
     icon: FiZap,
-    title: "FIRE Dashboard",
-    desc: "FI ratio, Coast FI, and years-to-retirement updated with every sync",
+    title: "Plan for retirement",
+    desc: "Know if I'm on track to retire when I want",
   },
   {
-    icon: FiHome,
-    title: "Retirement Planner",
-    desc: "Scenario-based simulations with Social Security, healthcare, and tax modeling",
-  },
-  {
-    icon: FiCalendar,
-    title: "Financial Calendar",
-    desc: "Recurring bills, expected transactions, and cash flow forecasting",
-  },
-  {
-    icon: FiBell,
-    title: "Smart Notifications",
-    desc: "Per-category alerts for budgets, milestones, account syncs, and household events — tune what you see in Preferences",
-  },
-  {
-    icon: FiSettings,
-    title: "Customizable Preferences",
-    desc: "Control notification categories, email delivery, sidebar layout, currency, and appearance",
+    id: "investments",
+    icon: FiTrendingUp,
+    title: "Understand my investments",
+    desc: "See my portfolio and whether my fees are too high",
   },
 ];
 
+const GOAL_HIGHLIGHTS: Record<string, string> = {
+  spending: "budgets, spending breakdowns, and transaction categorization",
+  retirement:
+    "your FIRE dashboard, retirement planner, and Monte Carlo simulations",
+  investments: "your investment portfolio, asset allocation, and fee analysis",
+};
+
+const GOAL_CTA_LABEL: Record<string, string> = {
+  spending: "Set my first budget",
+  retirement: "View my FIRE metrics",
+  investments: "View my investments",
+};
+
+const GOAL_DESTINATION: Record<string, string> = {
+  spending: "/budgets",
+  retirement: "/fire",
+  investments: "/investments",
+};
+
+const GOAL_NEXT_SENTENCE: Record<string, string> = {
+  spending:
+    "Most people start by setting a monthly budget — it takes 2 minutes and immediately shows where your money goes.",
+  retirement:
+    "Head to your FIRE dashboard to see how close you are to financial independence.",
+  investments:
+    "Check your investments page to see your portfolio, fees, and how your money is allocated.",
+};
+
 export default function WelcomePage() {
   const [step, setStep] = useState(0);
+  const [selectedGoal, setSelectedGoal] = useState<string | null>(null);
   const [householdName, setHouseholdName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [addAccountOpen, setAddAccountOpen] = useState(false);
@@ -185,7 +177,7 @@ export default function WelcomePage() {
     },
   });
 
-  const finish = async () => {
+  const finish = async (destination?: string) => {
     try {
       await api.post("/onboarding/complete");
       if (user) {
@@ -194,7 +186,7 @@ export default function WelcomePage() {
     } catch {
       // Best-effort — don't block navigation
     }
-    navigate("/overview");
+    navigate(destination ?? "/overview");
   };
 
   const next = () => {
@@ -204,11 +196,22 @@ export default function WelcomePage() {
     if (step < STEPS.length - 1) {
       setStep(step + 1);
     } else {
-      finish();
+      const destination = selectedGoal
+        ? GOAL_DESTINATION[selectedGoal]
+        : "/budgets";
+      finish(destination);
     }
   };
 
   const progressPercent = ((step + 1) / STEPS.length) * 100;
+
+  const primaryCtaLabel = selectedGoal
+    ? GOAL_CTA_LABEL[selectedGoal]
+    : "Set a monthly budget";
+
+  const primaryCtaDestination = selectedGoal
+    ? GOAL_DESTINATION[selectedGoal]
+    : "/budgets";
 
   return (
     <Container maxW="container.md" py={12}>
@@ -246,27 +249,58 @@ export default function WelcomePage() {
                 investments, and retirement planning in one place.
               </Text>
             </VStack>
-            <SimpleGrid columns={3} spacing={3}>
-              {[
-                { icon: FiBarChart2, label: "Net worth tracking" },
-                { icon: FiDollarSign, label: "Budget & spending" },
-                { icon: FiZap, label: "FIRE & retirement" },
-              ].map((item) => (
-                <VStack
-                  key={item.label}
-                  p={3}
-                  borderRadius="md"
-                  bg="bg.subtle"
-                  spacing={1}
-                  align="center"
-                >
-                  <Icon as={item.icon} boxSize={5} color="brand.500" />
-                  <Text fontSize="xs" fontWeight="medium" textAlign="center">
-                    {item.label}
+
+            {/* Goal selector */}
+            <VStack spacing={3} align="stretch">
+              <Text fontWeight="semibold" fontSize="sm">
+                What brings you here?
+              </Text>
+              <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={3}>
+                {GOAL_OPTIONS.map((goal) => (
+                  <Box
+                    key={goal.id}
+                    cursor="pointer"
+                    border="2px solid"
+                    borderColor={
+                      selectedGoal === goal.id ? "brand.500" : "border.default"
+                    }
+                    borderRadius="lg"
+                    p={4}
+                    onClick={() => setSelectedGoal(goal.id)}
+                    transition="border-color 0.15s"
+                    _hover={{ borderColor: "brand.400" }}
+                  >
+                    <VStack spacing={2} align="start">
+                      <Icon
+                        as={goal.icon}
+                        boxSize={5}
+                        color={
+                          selectedGoal === goal.id ? "brand.500" : "text.muted"
+                        }
+                      />
+                      <Text fontSize="sm" fontWeight="semibold">
+                        {goal.title}
+                      </Text>
+                      <Text fontSize="xs" color="text.secondary">
+                        {goal.desc}
+                      </Text>
+                    </VStack>
+                  </Box>
+                ))}
+              </SimpleGrid>
+              {selectedGoal && (
+                <Box bg="bg.subtle" p={3} borderRadius="md">
+                  <Text fontSize="sm" color="text.secondary">
+                    We'll highlight{" "}
+                    <Text as="span" fontWeight="medium" color="text.primary">
+                      {GOAL_HIGHLIGHTS[selectedGoal]}
+                    </Text>{" "}
+                    for you.
                   </Text>
-                </VStack>
-              ))}
-            </SimpleGrid>
+                </Box>
+              )}
+            </VStack>
+
             <FormControl>
               <FormLabel>Household name</FormLabel>
               <Input
@@ -416,38 +450,40 @@ export default function WelcomePage() {
 
         {step === 3 && (
           <VStack spacing={6} align="center">
-            <Heading size="lg">You're All Set!</Heading>
+            <Box
+              bg="green.50"
+              borderRadius="full"
+              p={4}
+              display="inline-flex"
+              alignItems="center"
+              justifyContent="center"
+            >
+              <Icon as={FiCheck} boxSize={16} color="green.500" />
+            </Box>
+            <Heading size="lg">You're all set!</Heading>
             <Text color="text.secondary" textAlign="center" maxW="md">
-              Here's everything waiting for you in your dashboard:
+              Your dashboard is ready.{" "}
+              {selectedGoal
+                ? GOAL_NEXT_SENTENCE[selectedGoal]
+                : GOAL_NEXT_SENTENCE["spending"]}
             </Text>
-            <SimpleGrid columns={2} spacing={3} w="full">
-              {FEATURE_LIST.map((item) => (
-                <HStack
-                  key={item.title}
-                  spacing={3}
-                  p={3}
-                  borderRadius="md"
-                  bg="bg.subtle"
-                  align="start"
-                >
-                  <Icon
-                    as={item.icon}
-                    boxSize={5}
-                    color="brand.500"
-                    mt="1px"
-                    flexShrink={0}
-                  />
-                  <VStack align="start" spacing={0}>
-                    <Text fontSize="sm" fontWeight="semibold">
-                      {item.title}
-                    </Text>
-                    <Text fontSize="xs" color="text.secondary">
-                      {item.desc}
-                    </Text>
-                  </VStack>
-                </HStack>
-              ))}
-            </SimpleGrid>
+            <VStack maxW="sm" w="full" mx="auto" spacing={3}>
+              <Button
+                colorScheme="brand"
+                size="lg"
+                w="full"
+                onClick={() => finish(primaryCtaDestination)}
+              >
+                {primaryCtaLabel}
+              </Button>
+              <Button
+                variant="ghost"
+                w="full"
+                onClick={() => finish("/overview")}
+              >
+                Take me to the dashboard
+              </Button>
+            </VStack>
           </VStack>
         )}
       </Box>
@@ -456,7 +492,7 @@ export default function WelcomePage() {
       <HStack justify="space-between" mt={6}>
         <Button
           variant="ghost"
-          onClick={step === 0 ? finish : () => setStep(step - 1)}
+          onClick={step === 0 ? () => finish() : () => setStep(step - 1)}
           size="sm"
         >
           {step === 0 ? "Skip setup" : "Back"}
@@ -467,7 +503,7 @@ export default function WelcomePage() {
           onClick={next}
           size="lg"
         >
-          {step === STEPS.length - 1 ? "Go to Dashboard" : "Continue"}
+          {step === STEPS.length - 1 ? primaryCtaLabel : "Continue"}
         </Button>
       </HStack>
     </Container>
