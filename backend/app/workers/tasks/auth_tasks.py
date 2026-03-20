@@ -88,6 +88,17 @@ def persist_audit_log_task(
     )
 
 
+def _safe_uuid(value: Optional[str]):
+    from uuid import UUID as _UUID
+
+    if not value or value in ("N/A", "unknown", "anonymous"):
+        return None
+    try:
+        return _UUID(value)
+    except (ValueError, AttributeError):
+        return None
+
+
 async def _persist_audit_log_async(
     request_id: str,
     action: str,
@@ -99,8 +110,6 @@ async def _persist_audit_log_async(
     duration_ms: Optional[int],
 ) -> None:
     """Async implementation — writes one AuditLog row per call."""
-    from uuid import UUID as _UUID
-
     from app.models.audit_log import AuditLog
     from app.workers.utils import get_celery_session
 
@@ -111,7 +120,7 @@ async def _persist_audit_log_async(
             method=method,
             path=path,
             status_code=status_code,
-            user_id=_UUID(user_id) if user_id and user_id != "N/A" else None,
+            user_id=_safe_uuid(user_id),
             ip_address=ip_address,
             duration_ms=duration_ms,
         )

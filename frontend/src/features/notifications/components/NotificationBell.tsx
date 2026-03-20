@@ -19,6 +19,7 @@ import {
   useToast,
 } from "@chakra-ui/react";
 import { BellIcon } from "@chakra-ui/icons";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notificationsApi } from "../../../api/notifications";
 import NotificationItem from "./NotificationItem";
@@ -26,6 +27,7 @@ import NotificationItem from "./NotificationItem";
 export default function NotificationBell() {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const [showAll, setShowAll] = useState(false);
 
   // Get unread count — poll every 2 min, pause when tab not focused,
   // refresh instantly when popover opens
@@ -36,16 +38,19 @@ export default function NotificationBell() {
     refetchIntervalInBackground: false,
   });
 
-  // Get recent notifications
+  // Get notifications — recent unread by default, all when expanded
   const { data: notifications = [], isLoading } = useQuery({
-    queryKey: ["notifications", "recent"],
+    queryKey: ["notifications", showAll ? "all" : "recent"],
     queryFn: () =>
-      notificationsApi.getNotifications({ include_read: false, limit: 10 }),
+      notificationsApi.getNotifications(
+        showAll ? { include_read: true } : { include_read: false, limit: 10 },
+      ),
     refetchInterval: 120_000,
     refetchIntervalInBackground: false,
   });
 
   const onPopoverOpen = () => {
+    setShowAll(false);
     queryClient.invalidateQueries({ queryKey: ["notifications"] });
   };
 
@@ -135,9 +140,14 @@ export default function NotificationBell() {
           )}
         </PopoverBody>
 
-        {notifications.length > 0 && (
+        {!showAll && notifications.length > 0 && (
           <PopoverFooter>
-            <Button size="sm" variant="ghost" width="full">
+            <Button
+              size="sm"
+              variant="ghost"
+              width="full"
+              onClick={() => setShowAll(true)}
+            >
               View all notifications
             </Button>
           </PopoverFooter>
