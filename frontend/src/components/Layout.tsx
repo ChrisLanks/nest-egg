@@ -647,14 +647,6 @@ export const Layout = () => {
     INVESTMENT_TYPES.has(a.account_type),
   );
 
-  // Smart auto-show rules for advanced items (bypass the global toggle):
-  // - FIRE: show if user is under 50 AND has investment accounts (they're actively building wealth)
-  // - Tax Projection: show if user has investment accounts (capital gains tax is relevant)
-  // These are overridden by explicit per-item navOverrides as usual.
-  const showFireSmart =
-    hasInvestments && userAge !== null && userAge < 50;
-  const showTaxProjectionSmart = hasInvestments;
-
   // Feature discovery: toast once when conditional nav items first unlock
   const toast = useToast();
   useEffect(() => {
@@ -713,6 +705,12 @@ export const Layout = () => {
     : null;
   // Show SS optimizer for users 50+ or when age is unknown (no birthdate set)
   const showSsOptimizer = userAge === null || userAge >= 50;
+
+  // Smart auto-show rules for advanced items (bypass the global toggle):
+  // - FIRE: show if user is under 50 AND has investment accounts
+  // - Tax Projection: show if user has investment accounts (capital gains is relevant)
+  const showFireSmart = hasInvestments && userAge !== null && userAge < 50;
+  const showTaxProjectionSmart = hasInvestments;
 
   // All nav items with default visibility
   const allSpendingItems = [
