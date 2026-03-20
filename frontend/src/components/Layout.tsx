@@ -541,18 +541,49 @@ export const Layout = () => {
     onClose: onAddAccountClose,
   } = useDisclosure();
 
-  // "Show advanced features" toggle — persisted in localStorage so it survives refresh
-  const [showAdvancedNav, setShowAdvancedNav] = useState<boolean>(() => {
+  // Paths that are gated behind the "Show advanced features" toggle
+  const ADVANCED_NAV_PATHS = ["/fire", "/tax-projection"];
+
+  // Per-item nav visibility overrides — stored as state so toggling re-renders the nav
+  const [navOverridesState, setNavOverridesState] = useState<
+    Record<string, boolean>
+  >(() => {
     try {
-      return localStorage.getItem("nest-egg-show-advanced-nav") === "true";
+      const raw = localStorage.getItem("nest-egg-nav-visibility");
+      return raw ? JSON.parse(raw) : {};
     } catch {
-      return false;
+      return {};
     }
   });
 
+  const persistNavOverrides = (next: Record<string, boolean>) => {
+    setNavOverridesState(next);
+    try {
+      if (Object.keys(next).length === 0) {
+        localStorage.removeItem("nest-egg-nav-visibility");
+      } else {
+        localStorage.setItem("nest-egg-nav-visibility", JSON.stringify(next));
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Advanced toggle: writes directly into per-item overrides for the advanced paths.
+  // This means the per-item switches in Preferences immediately reflect the state,
+  // and a manually-enabled tab stays on even when the master toggle is off.
+  const showAdvancedNav = ADVANCED_NAV_PATHS.every(
+    (p) => navOverridesState[p] === true,
+  );
+
   const toggleAdvancedNav = () => {
     const next = !showAdvancedNav;
-    setShowAdvancedNav(next);
+    const updated = { ...navOverridesState };
+    for (const path of ADVANCED_NAV_PATHS) {
+      updated[path] = next;
+    }
+    persistNavOverrides(updated);
+    // Also sync the legacy flag for onboarding/preferences pages that read it
     try {
       localStorage.setItem("nest-egg-show-advanced-nav", String(next));
     } catch {
@@ -600,27 +631,11 @@ export const Layout = () => {
     "mortgage",
   ]);
 
-  // Per-item visibility overrides from localStorage
-  const navOverrides: Record<string, boolean> = (() => {
-    try {
-      const raw = localStorage.getItem("nest-egg-nav-visibility");
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  })();
-
   // Helper: check if a nav item is visible
-  // Priority: user per-item override > advanced-flag > account-based default > always visible
-  const isNavVisible = (
-    path: string,
-    defaultVisible: boolean,
-    isAdvanced = false,
-  ): boolean => {
-    if (path in navOverrides) return navOverrides[path];
+  // Priority: per-item override (navOverridesState) > account-based default
+  const isNavVisible = (path: string, defaultVisible: boolean): boolean => {
+    if (path in navOverridesState) return navOverridesState[path];
     if (accountsLoading) return true; // show while loading
-    // Advanced items are hidden by default unless the global toggle is on
-    if (isAdvanced && !showAdvancedNav) return false;
     return defaultVisible;
   };
 
@@ -871,11 +886,7 @@ export const Layout = () => {
     items: { label: string; path: string; tooltip?: string; advanced?: boolean }[],
   ): { label: string; path: string; tooltip?: string }[] =>
     items.filter((item) =>
-      isNavVisible(
-        item.path,
-        conditionalDefaults[item.path] ?? true,
-        item.advanced ?? false,
-      ),
+      isNavVisible(item.path, conditionalDefaults[item.path] ?? true),
     );
 
   const spendingMenuItems = filterVisible(allSpendingItems);

@@ -320,11 +320,11 @@ const NAV_SECTIONS = [
       { label: "Goals", path: "/goals" },
       { label: "Retirement", path: "/retirement" },
       { label: "Education", path: "/education", conditional: true },
-      { label: "FIRE", path: "/fire" },
+      { label: "FIRE", path: "/fire", advanced: true },
       { label: "Debt Payoff", path: "/debt-payoff", conditional: true },
       { label: "Mortgage", path: "/mortgage", conditional: true },
       { label: "SS Optimizer", path: "/ss-claiming", conditional: true },
-      { label: "Tax Projection", path: "/tax-projection" },
+      { label: "Tax Projection", path: "/tax-projection", advanced: true },
     ],
   },
 ];
@@ -333,33 +333,12 @@ function NavigationVisibilitySection() {
   const toast = useToast();
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Global "show advanced features" toggle
-  const [showAdvanced, setShowAdvanced] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("nest-egg-show-advanced-nav") === "true";
-    } catch {
-      return false;
-    }
-  });
+  // Paths controlled by the "Show advanced features" master toggle
+  const ADVANCED_PATHS = ["/fire", "/tax-projection"];
 
-  const toggleAdvanced = (next: boolean) => {
-    setShowAdvanced(next);
-    try {
-      localStorage.setItem("nest-egg-show-advanced-nav", String(next));
-    } catch {
-      /* ignore */
-    }
-    toast({
-      title: next ? "Advanced features enabled" : "Advanced features hidden",
-      description: next
-        ? "FIRE planning and Tax Projection are now visible in the nav."
-        : "Advanced features are now hidden. Smart auto-show still applies based on your accounts.",
-      status: "info",
-      duration: 4000,
-    });
-  };
-
-  // Read overrides from localStorage
+  // Single source of truth: per-item overrides from nest-egg-nav-visibility.
+  // The advanced master switch reads from and writes into this same store,
+  // so the per-item switches immediately reflect the master toggle state.
   const [overrides, setOverrides] = useState<Record<string, boolean>>(() => {
     try {
       const raw = localStorage.getItem("nest-egg-nav-visibility");
@@ -369,7 +348,10 @@ function NavigationVisibilitySection() {
     }
   });
 
-  const persist = (next: Record<string, boolean>) => {
+  // Master "show advanced" is true when ALL advanced paths are explicitly on
+  const showAdvanced = ADVANCED_PATHS.every((p) => overrides[p] === true);
+
+  const persistOverrides = (next: Record<string, boolean>) => {
     setOverrides(next);
     try {
       if (Object.keys(next).length === 0) {
@@ -382,16 +364,38 @@ function NavigationVisibilitySection() {
     }
   };
 
+  const toggleAdvanced = (next: boolean) => {
+    const updated = { ...overrides };
+    for (const path of ADVANCED_PATHS) {
+      updated[path] = next;
+    }
+    persistOverrides(updated);
+    // Sync legacy flag read by Layout's toggle button
+    try {
+      localStorage.setItem("nest-egg-show-advanced-nav", String(next));
+    } catch {
+      /* ignore */
+    }
+    toast({
+      title: next ? "Advanced features enabled" : "Advanced features hidden",
+      description: next
+        ? "FIRE planning and Tax Projection are now visible in the nav."
+        : "Advanced features hidden. You can still turn individual tabs on below.",
+      status: "info",
+      duration: 4000,
+    });
+  };
+
   const toggleItem = (path: string, checked: boolean) => {
-    const next = { ...overrides, [path]: checked };
-    persist(next);
+    persistOverrides({ ...overrides, [path]: checked });
   };
 
   const resetToDefaults = () => {
-    persist({});
-    // Also remove the legacy key if present
+    persistOverrides({});
+    // Also remove the legacy keys if present
     try {
       localStorage.removeItem("nest-egg-show-all-nav");
+      localStorage.removeItem("nest-egg-show-advanced-nav");
     } catch {
       /* ignore */
     }
@@ -502,6 +506,11 @@ function NavigationVisibilitySection() {
                             (auto)
                           </Text>
                         )}
+                        {item.advanced && (
+                          <Text fontSize="xs" color="text.muted">
+                            (advanced)
+                          </Text>
+                        )}
                       </HStack>
                       <Switch
                         size="sm"
@@ -521,7 +530,7 @@ function NavigationVisibilitySection() {
           ))}
         </VStack>
         <Text fontSize="xs" color="text.muted" mt={3}>
-          Changes apply after navigating away or refreshing.
+          Changes apply immediately in the navigation bar.
         </Text>
       </Collapse>
     </Box>
