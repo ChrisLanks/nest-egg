@@ -366,12 +366,13 @@ describe("Budget suggestions visibility", () => {
 // ── Source-level verification ───────────────────────────────────────────────
 
 describe("BudgetsPage suggestion gating", () => {
-  it("uses isSelfView and isOtherUserView for suggestion visibility", async () => {
+  it("gates suggestions on canEdit and user context", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync("src/pages/BudgetsPage.tsx", "utf-8");
-    // Suggestions should be gated on isSelfView or (isOtherUserView && canEdit)
+    // Suggestions are shown when canEdit and (self view or no specific user selected)
+    expect(source).toContain("canEdit");
     expect(source).toContain("isSelfView");
-    expect(source).toContain("isOtherUserView && canEdit");
+    expect(source).toContain("selectedUserId");
   });
 });
 

@@ -143,7 +143,7 @@ describe("DEFAULT_LAYOUT", () => {
     const ids = new Set(DEFAULT_LAYOUT.map((i) => i.id));
     expect(ids.has("summary-stats")).toBe(true);
     expect(ids.has("net-worth-chart")).toBe(true);
-    expect(ids.has("account-balances")).toBe(true);
+    expect(ids.has("recent-transactions")).toBe(true);
   });
 
   it("summary-stats defaults to full width (span 2)", () => {

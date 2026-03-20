@@ -386,9 +386,16 @@ export default function BudgetForm({
                   <Stack direction="row" spacing={4}>
                     <Radio value="all">All spending</Radio>
                     <Radio value="category">Category</Radio>
-                    <Radio value="label">Label</Radio>
+                    <Radio value="label">Label / Merchant</Radio>
                   </Stack>
                 </RadioGroup>
+                {filterBy === "label" && (
+                  <Text fontSize="xs" color="text.muted" mt={1}>
+                    Use a label to budget by merchant — e.g. create a
+                    &quot;Starbucks&quot; label and set a monthly limit on it.
+                    Assign the label to transactions via Rules.
+                  </Text>
+                )}
               </FormControl>
 
               {/* Category dropdown — only shown when filterBy === 'category' */}

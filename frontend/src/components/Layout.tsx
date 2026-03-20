@@ -1435,17 +1435,33 @@ export const Layout = () => {
                 )}
               </VStack>
               {dashboardSummary?.net_worth !== undefined && (
-                <Text
-                  fontSize="md"
-                  fontWeight="bold"
-                  color={
-                    dashboardSummary.net_worth >= 0
-                      ? "finance.positive"
-                      : "finance.negative"
-                  }
-                >
-                  {formatCurrency(Number(dashboardSummary.net_worth))}
-                </Text>
+                <VStack align="end" spacing={0}>
+                  <Text
+                    fontSize="md"
+                    fontWeight="bold"
+                    color={
+                      dashboardSummary.net_worth >= 0
+                        ? "finance.positive"
+                        : "finance.negative"
+                    }
+                  >
+                    {formatCurrency(Number(dashboardSummary.net_worth))}
+                  </Text>
+                  {(() => {
+                    // Show oldest sync time across linked accounts so users know
+                    // when the stalest balance was last refreshed
+                    const synced = (accounts ?? [])
+                      .map((a) => a.last_synced_at)
+                      .filter(Boolean) as string[];
+                    if (synced.length === 0) return null;
+                    const oldest = synced.sort()[0];
+                    return (
+                      <Text fontSize="2xs" color="text.muted">
+                        as of {formatLastUpdated(oldest)}
+                      </Text>
+                    );
+                  })()}
+                </VStack>
               )}
             </HStack>
           </VStack>

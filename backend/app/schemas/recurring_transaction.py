@@ -77,6 +77,7 @@ class UpcomingBillResponse(BaseModel):
     is_overdue: bool
     account_id: UUID
     category_id: Optional[UUID] = None
+    last_occurrence: Optional[date] = None
 
     class Config:
         from_attributes = True

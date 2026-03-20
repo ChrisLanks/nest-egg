@@ -3,12 +3,12 @@
  */
 
 export enum RecurringFrequency {
-  WEEKLY = 'weekly',
-  BIWEEKLY = 'biweekly',
-  MONTHLY = 'monthly',
-  QUARTERLY = 'quarterly',
-  YEARLY = 'yearly',
-  ON_DEMAND = 'on_demand',
+  WEEKLY = "weekly",
+  BIWEEKLY = "biweekly",
+  MONTHLY = "monthly",
+  QUARTERLY = "quarterly",
+  YEARLY = "yearly",
+  ON_DEMAND = "on_demand",
 }
 
 export interface RecurringTransaction {
@@ -70,6 +70,7 @@ export interface UpcomingBill {
   is_overdue: boolean;
   account_id: string;
   category_id: string | null;
+  last_occurrence: string | null;
 }
 
 export interface DetectRecurringRequest {

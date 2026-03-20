@@ -100,6 +100,11 @@ const UpcomingBillCard = React.memo(
                 Due: {formatDate(bill.next_expected_date)}
               </Text>
             </HStack>
+            {bill.last_occurrence && (
+              <Text fontSize="xs" color="text.muted">
+                Last paid: {formatDate(bill.last_occurrence)}
+              </Text>
+            )}
           </VStack>
           <HStack spacing={4}>
             <VStack align="end" spacing={0}>

@@ -73,6 +73,80 @@ const Step: React.FC<StepProps> = ({ label, hint, to, done }) => {
 
 const WHAT_NEXT_DISMISSED_KEY = "nest-egg-what-next-dismissed";
 
+const WHAT_NEXT_ITEMS: Record<
+  string,
+  { label: string; desc: string; path: string }[]
+> = {
+  spending: [
+    {
+      label: "See your spending trends",
+      desc: "How has your spending changed month to month?",
+      path: "/income-expenses",
+    },
+    {
+      label: "Set up recurring bill tracking",
+      desc: "Auto-detect subscriptions and upcoming bills.",
+      path: "/bills",
+    },
+    {
+      label: "Review your budget progress",
+      desc: "Are you staying within your limits this month?",
+      path: "/budgets",
+    },
+  ],
+  retirement: [
+    {
+      label: "Check your retirement outlook",
+      desc: "Are you on track to retire when you want?",
+      path: "/retirement",
+    },
+    {
+      label: "Review your investments",
+      desc: "What are your fees? How is your money allocated?",
+      path: "/investments",
+    },
+    {
+      label: "See your net worth over time",
+      desc: "Track the number that matters most.",
+      path: "/net-worth-timeline",
+    },
+  ],
+  investments: [
+    {
+      label: "Review your investments",
+      desc: "What are your fees? How is your money split?",
+      path: "/investments",
+    },
+    {
+      label: "Check your retirement outlook",
+      desc: "Are you on track to retire when you want?",
+      path: "/retirement",
+    },
+    {
+      label: "See your net worth over time",
+      desc: "Track total assets minus debts over time.",
+      path: "/net-worth-timeline",
+    },
+  ],
+  default: [
+    {
+      label: "See your spending trends",
+      desc: "How has your spending changed month to month?",
+      path: "/income-expenses",
+    },
+    {
+      label: "Check your retirement outlook",
+      desc: "Are you on track to retire when you want?",
+      path: "/retirement",
+    },
+    {
+      label: "Review your investments",
+      desc: "What are your fees? How is your money split?",
+      path: "/investments",
+    },
+  ],
+};
+
 const WhatNextCard: React.FC = () => {
   const [dismissed, setDismissed] = useState<boolean>(
     () => localStorage.getItem(WHAT_NEXT_DISMISSED_KEY) === "true",
@@ -80,6 +154,9 @@ const WhatNextCard: React.FC = () => {
   const navigate = useNavigate();
 
   if (dismissed) return null;
+
+  const goal = localStorage.getItem("nest-egg-onboarding-goal") ?? "default";
+  const items = WHAT_NEXT_ITEMS[goal] ?? WHAT_NEXT_ITEMS.default;
 
   return (
     <Card h="100%" borderColor="brand.200" borderWidth="1px">
@@ -108,23 +185,7 @@ const WhatNextCard: React.FC = () => {
             The basics are covered. Here are a few things worth exploring next:
           </Text>
           <VStack align="stretch" spacing={2}>
-            {[
-              {
-                label: "See your spending trends",
-                desc: "How has your spending changed month to month?",
-                path: "/cash-flow",
-              },
-              {
-                label: "Check your retirement outlook",
-                desc: "Are you on track to retire when you want?",
-                path: "/retirement",
-              },
-              {
-                label: "Review your investments",
-                desc: "What are your fees? How is your money split?",
-                path: "/investments",
-              },
-            ].map((item) => (
+            {items.map((item) => (
               <HStack
                 key={item.label}
                 p={3}

@@ -466,6 +466,7 @@ class RecurringDetectionService:
                         "is_overdue": days_until_due < 0,
                         "account_id": bill.account_id,
                         "category_id": bill.category_id,
+                        "last_occurrence": bill.last_occurrence,
                     }
                 )
 
