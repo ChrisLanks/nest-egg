@@ -1,6 +1,7 @@
 /**
  * Widget catalog: all available dashboard widgets and the default layout.
  */
+/* eslint-disable react-refresh/only-export-components */
 
 import { InsightsCard } from "../../components/InsightsCard";
 import { ForecastChart } from "../../components/ForecastChart";
@@ -354,8 +355,23 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
   },
 };
 
-/** Default layout shown to users who have never customized their dashboard. */
-export const DEFAULT_LAYOUT: LayoutItem[] = [
+/**
+ * Simple layout — for users who picked "Keep it simple" during onboarding.
+ * Shows only the essentials: checklist, net worth at a glance, recent spending.
+ */
+export const SIMPLE_LAYOUT: LayoutItem[] = [
+  { id: "getting-started", span: 2 },
+  { id: "summary-stats", span: 2 },
+  { id: "net-worth-chart", span: 2 },
+  { id: "top-expenses", span: 1 },
+  { id: "recent-transactions", span: 1 },
+];
+
+/**
+ * Advanced layout — for users who picked "Show me everything" during onboarding.
+ * Full view with cash flow, forecasting, budgets, accounts, and insights.
+ */
+export const ADVANCED_LAYOUT: LayoutItem[] = [
   { id: "getting-started", span: 2 },
   { id: "summary-stats", span: 2 },
   { id: "net-worth-chart", span: 2 },
@@ -365,4 +381,9 @@ export const DEFAULT_LAYOUT: LayoutItem[] = [
   { id: "top-expenses", span: 1 },
   { id: "recent-transactions", span: 1 },
   { id: "account-balances", span: 2 },
+  { id: "budgets", span: 1 },
+  { id: "savings-goals", span: 1 },
 ];
+
+/** Default layout for users who skipped onboarding or came from an older version. */
+export const DEFAULT_LAYOUT: LayoutItem[] = SIMPLE_LAYOUT;

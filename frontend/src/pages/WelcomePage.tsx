@@ -5,7 +5,8 @@
  * 1. Welcome — goal selector + household name
  * 2. Connect accounts — link first bank or skip
  * 3. Invite household members — why + how or skip
- * 4. Quick tour highlights — then go to dashboard
+ * 4. Dashboard style — simple (5 widgets) or advanced (11 widgets)
+ * 5. Ready — focused CTA based on chosen goal
  */
 
 import { useState } from "react";
@@ -23,12 +24,16 @@ import {
   FormControl,
   FormLabel,
   SimpleGrid,
+  List,
+  ListItem,
+  ListIcon,
   useToast,
 } from "@chakra-ui/react";
 import {
   FiHome,
   FiLink,
   FiUsers,
+  FiLayout,
   FiBarChart2,
   FiArrowRight,
   FiCheck,
@@ -42,11 +47,16 @@ import { useMutation } from "@tanstack/react-query";
 import api from "../services/api";
 import { AddAccountModal } from "../features/accounts/components/AddAccountModal";
 import { useAuthStore } from "../features/auth/stores/authStore";
+import {
+  SIMPLE_LAYOUT,
+  ADVANCED_LAYOUT,
+} from "../features/dashboard/widgetRegistry";
 
 const STEPS = [
   { label: "Welcome", icon: FiHome },
   { label: "Accounts", icon: FiLink },
   { label: "Household", icon: FiUsers },
+  { label: "Dashboard", icon: FiLayout },
   { label: "Ready", icon: FiBarChart2 },
 ];
 
@@ -133,9 +143,37 @@ const GOAL_NEXT_SENTENCE: Record<string, string> = {
     "Check your investments page to see your portfolio, what it's costing you each year, and how your money is split.",
 };
 
+const DASHBOARD_OPTIONS = [
+  {
+    id: "simple",
+    title: "Keep it simple",
+    desc: "A clean starting point — just the essentials. You can always add more later.",
+    includes: [
+      "Net worth at a glance",
+      "Your top spending categories this month",
+      "Recent transactions",
+      "Setup checklist to guide you",
+    ],
+  },
+  {
+    id: "advanced",
+    title: "Show me everything",
+    desc: "The full dashboard — every chart and panel from day one.",
+    includes: [
+      "Everything in Simple, plus:",
+      "Cash flow trend and 90-day forecast",
+      "Spending insights and anomaly alerts",
+      "Account balances, budgets, and savings goals",
+    ],
+  },
+];
+
 export default function WelcomePage() {
   const [step, setStep] = useState(0);
   const [selectedGoal, setSelectedGoal] = useState<string | null>(null);
+  const [selectedDashboard, setSelectedDashboard] = useState<
+    "simple" | "advanced" | null
+  >(null);
   const [householdName, setHouseholdName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [addAccountOpen, setAddAccountOpen] = useState(false);
@@ -179,6 +217,14 @@ export default function WelcomePage() {
   });
 
   const finish = async (destination?: string) => {
+    // Save chosen dashboard layout — best-effort, don't block navigation
+    try {
+      const layout =
+        selectedDashboard === "advanced" ? ADVANCED_LAYOUT : SIMPLE_LAYOUT;
+      await api.put("/settings/dashboard-layout", { layout });
+    } catch {
+      // Non-critical
+    }
     try {
       await api.post("/onboarding/complete");
       if (user) {
@@ -258,8 +304,8 @@ export default function WelcomePage() {
                   What brings you here?
                 </Text>
                 <Text fontSize="xs" color="text.muted">
-                  Pick what to tackle first — you can do all of this once you're
-                  set up.
+                  Pick what to tackle first — you can do all of this once
+                  you&apos;re set up.
                 </Text>
               </VStack>
               <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={3}>
@@ -298,7 +344,7 @@ export default function WelcomePage() {
               {selectedGoal && (
                 <Box bg="bg.subtle" p={3} borderRadius="md">
                   <Text fontSize="sm" color="text.secondary">
-                    We'll highlight{" "}
+                    We&apos;ll highlight{" "}
                     <Text as="span" fontWeight="medium" color="text.primary">
                       {GOAL_HIGHLIGHTS[selectedGoal]}
                     </Text>{" "}
@@ -421,13 +467,13 @@ export default function WelcomePage() {
                   Invitation sent to {inviteEmail}
                 </Text>
                 <Text fontSize="sm" color="text.secondary">
-                  They'll receive a link to join your household. You can invite
-                  more people from Household Settings.
+                  They&apos;ll receive a link to join your household. You can
+                  invite more people from Household Settings.
                 </Text>
               </VStack>
             ) : (
               <FormControl>
-                <FormLabel>Partner's email address</FormLabel>
+                <FormLabel>Partner&apos;s email address</FormLabel>
                 <HStack>
                   <Input
                     type="email"
@@ -455,6 +501,78 @@ export default function WelcomePage() {
         )}
 
         {step === 3 && (
+          <VStack spacing={6} align="stretch">
+            <VStack spacing={2}>
+              <Heading size="lg">How do you want your dashboard?</Heading>
+              <Text color="text.secondary" textAlign="center">
+                Choose how much you want to see when you first log in. You can
+                always add or remove panels later.
+              </Text>
+            </VStack>
+            <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
+              {DASHBOARD_OPTIONS.map((opt) => (
+                <Box
+                  key={opt.id}
+                  cursor="pointer"
+                  border="2px solid"
+                  borderColor={
+                    selectedDashboard === opt.id
+                      ? "brand.500"
+                      : "border.default"
+                  }
+                  borderRadius="lg"
+                  p={5}
+                  onClick={() =>
+                    setSelectedDashboard(opt.id as "simple" | "advanced")
+                  }
+                  transition="border-color 0.15s"
+                  _hover={{ borderColor: "brand.400" }}
+                  position="relative"
+                >
+                  {selectedDashboard === opt.id && (
+                    <Icon
+                      as={FiCheck}
+                      position="absolute"
+                      top={3}
+                      right={3}
+                      color="brand.500"
+                      boxSize={4}
+                    />
+                  )}
+                  <VStack spacing={3} align="start">
+                    <VStack spacing={0} align="start">
+                      <Text fontWeight="semibold">{opt.title}</Text>
+                      <Text fontSize="xs" color="text.secondary">
+                        {opt.desc}
+                      </Text>
+                    </VStack>
+                    <List spacing={1}>
+                      {opt.includes.map((item) => (
+                        <ListItem key={item} fontSize="xs" color="text.muted">
+                          <ListIcon
+                            as={FiCheck}
+                            color={
+                              selectedDashboard === opt.id
+                                ? "brand.500"
+                                : "text.muted"
+                            }
+                          />
+                          {item}
+                        </ListItem>
+                      ))}
+                    </List>
+                  </VStack>
+                </Box>
+              ))}
+            </SimpleGrid>
+            <Text fontSize="xs" color="text.muted" textAlign="center">
+              Not sure? Start simple — it&apos;s easier to add panels than to
+              feel overwhelmed.
+            </Text>
+          </VStack>
+        )}
+
+        {step === 4 && (
           <VStack spacing={6} align="center">
             <Box
               bg="green.50"
@@ -466,7 +584,7 @@ export default function WelcomePage() {
             >
               <Icon as={FiCheck} boxSize={16} color="green.500" />
             </Box>
-            <Heading size="lg">You're all set!</Heading>
+            <Heading size="lg">You&apos;re all set!</Heading>
             <Text color="text.secondary" textAlign="center" maxW="md">
               Your dashboard is ready.{" "}
               {selectedGoal

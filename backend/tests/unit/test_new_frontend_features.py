@@ -1103,3 +1103,212 @@ class TestInvestmentsPageCopy:
         assert (
             "<Th isNumeric>Cost Basis</Th>" not in src
         ), "Holdings table uses 'Cost Basis' column header — replace with plain English"
+
+
+# ---------------------------------------------------------------------------
+# Dashboard style picker — onboarding step 3
+# ---------------------------------------------------------------------------
+
+_WELCOME_PAGE_PATH = (
+    pathlib.Path(__file__).parents[3] / "frontend" / "src" / "pages" / "WelcomePage.tsx"
+)
+
+
+def _read_welcome_page_fresh() -> str:
+    return _WELCOME_PAGE_PATH.read_text(encoding="utf-8")
+
+
+_REGISTRY_PATH2 = (
+    pathlib.Path(__file__).parents[3]
+    / "frontend"
+    / "src"
+    / "features"
+    / "dashboard"
+    / "widgetRegistry.tsx"
+)
+
+
+class TestDashboardStylePicker:
+    """Ensure the onboarding dashboard picker step is present and correct."""
+
+    # ── WelcomePage structure ─────────────────────────────────────────────
+
+    def test_dashboard_step_exists_in_steps_array(self):
+        """STEPS array must include a Dashboard step."""
+        src = _read_welcome_page_fresh()
+        steps_match = re.search(
+            r"const STEPS\s*=\s*\[.*?^];",
+            src,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert steps_match, "STEPS constant not found"
+        block = steps_match.group()
+        assert "Dashboard" in block, "STEPS should include a 'Dashboard' step"
+
+    def test_dashboard_picker_has_simple_option(self):
+        """Dashboard picker must include a 'simple' option."""
+        src = _read_welcome_page_fresh()
+        assert (
+            '"simple"' in src or 'id: "simple"' in src or "id: 'simple'" in src
+        ), "Dashboard picker must have a 'simple' option"
+
+    def test_dashboard_picker_has_advanced_option(self):
+        """Dashboard picker must include an 'advanced' option."""
+        src = _read_welcome_page_fresh()
+        assert (
+            '"advanced"' in src or 'id: "advanced"' in src or "id: 'advanced'" in src
+        ), "Dashboard picker must have an 'advanced' option"
+
+    def test_simple_option_uses_friendly_label(self):
+        """Simple option must use approachable, non-intimidating label."""
+        src = _read_welcome_page_fresh()
+        assert any(
+            phrase in src
+            for phrase in [
+                "Keep it simple",
+                "Simple",
+                "Just the basics",
+                "Essentials",
+            ]
+        ), "Simple dashboard option must use a friendly, approachable label"
+
+    def test_advanced_option_uses_power_user_label(self):
+        """Advanced option must be clearly differentiated as more complete."""
+        src = _read_welcome_page_fresh()
+        assert any(
+            phrase in src
+            for phrase in [
+                "Show me everything",
+                "Full dashboard",
+                "Advanced",
+                "Everything",
+            ]
+        ), "Advanced dashboard option must clearly signal it shows more"
+
+    def test_picker_has_reassuring_hint(self):
+        """Picker must include a reassuring note that the choice can be changed."""
+        src = _read_welcome_page_fresh()
+        assert any(
+            phrase in src
+            for phrase in [
+                "always add",
+                "change later",
+                "add or remove",
+                "customize",
+                "anytime",
+                "add more later",
+            ]
+        ), "Dashboard picker should reassure the user they can change their choice"
+
+    def test_layout_saved_on_finish(self):
+        """finish() must call /settings/dashboard-layout to save the chosen layout."""
+        src = _read_welcome_page_fresh()
+        assert "/settings/dashboard-layout" in src, (
+            "WelcomePage finish() should save the chosen layout "
+            "via PUT /settings/dashboard-layout"
+        )
+
+    def test_imports_simple_layout(self):
+        """WelcomePage must import SIMPLE_LAYOUT from widgetRegistry."""
+        src = _read_welcome_page_fresh()
+        assert "SIMPLE_LAYOUT" in src, "WelcomePage should import SIMPLE_LAYOUT from widgetRegistry"
+
+    def test_imports_advanced_layout(self):
+        """WelcomePage must import ADVANCED_LAYOUT from widgetRegistry."""
+        src = _read_welcome_page_fresh()
+        assert (
+            "ADVANCED_LAYOUT" in src
+        ), "WelcomePage should import ADVANCED_LAYOUT from widgetRegistry"
+
+    def test_ready_step_is_last(self):
+        """The Ready/completion step must be the last step (step 4 with 5 steps)."""
+        src = _read_welcome_page_fresh()
+        steps_match = re.search(
+            r"const STEPS\s*=\s*\[.*?^];",
+            src,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert steps_match, "STEPS constant not found"
+        block = steps_match.group()
+        assert "Ready" in block, "STEPS should still include a 'Ready' final step"
+        # Dashboard step must come before Ready
+        dashboard_pos = block.find("Dashboard")
+        ready_pos = block.find("Ready")
+        assert (
+            dashboard_pos < ready_pos
+        ), "Dashboard step should appear before Ready step in STEPS array"
+
+    # ── widgetRegistry layout presets ────────────────────────────────────
+
+    def test_simple_layout_exported(self):
+        """widgetRegistry must export SIMPLE_LAYOUT."""
+        src = _REGISTRY_PATH2.read_text(encoding="utf-8")
+        assert "export const SIMPLE_LAYOUT" in src, "widgetRegistry.tsx must export SIMPLE_LAYOUT"
+
+    def test_advanced_layout_exported(self):
+        """widgetRegistry must export ADVANCED_LAYOUT."""
+        src = _REGISTRY_PATH2.read_text(encoding="utf-8")
+        assert (
+            "export const ADVANCED_LAYOUT" in src
+        ), "widgetRegistry.tsx must export ADVANCED_LAYOUT"
+
+    def test_simple_layout_is_smaller_than_advanced(self):
+        """SIMPLE_LAYOUT must have fewer widgets than ADVANCED_LAYOUT."""
+        src = _REGISTRY_PATH2.read_text(encoding="utf-8")
+
+        def count_ids_in_layout(layout_name: str) -> int:
+            match = re.search(
+                rf"export const {layout_name}.*?^];",
+                src,
+                re.MULTILINE | re.DOTALL,
+            )
+            assert match, f"{layout_name} not found in widgetRegistry"
+            return match.group().count("{ id:")
+
+        simple_count = count_ids_in_layout("SIMPLE_LAYOUT")
+        advanced_count = count_ids_in_layout("ADVANCED_LAYOUT")
+        assert simple_count < advanced_count, (
+            f"SIMPLE_LAYOUT ({simple_count} widgets) must have fewer widgets "
+            f"than ADVANCED_LAYOUT ({advanced_count} widgets)"
+        )
+
+    def test_simple_layout_has_getting_started_widget(self):
+        """SIMPLE_LAYOUT must include the getting-started checklist."""
+        src = _REGISTRY_PATH2.read_text(encoding="utf-8")
+        simple_match = re.search(
+            r"export const SIMPLE_LAYOUT.*?^];",
+            src,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert simple_match, "SIMPLE_LAYOUT not found"
+        assert (
+            "getting-started" in simple_match.group()
+        ), "SIMPLE_LAYOUT must include the getting-started checklist widget"
+
+    def test_advanced_layout_includes_cash_flow(self):
+        """ADVANCED_LAYOUT must include cash-flow widgets absent from simple."""
+        src = _REGISTRY_PATH2.read_text(encoding="utf-8")
+        advanced_match = re.search(
+            r"export const ADVANCED_LAYOUT.*?^];",
+            src,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert advanced_match, "ADVANCED_LAYOUT not found"
+        block = advanced_match.group()
+        assert "cash-flow" in block, "ADVANCED_LAYOUT should include cash-flow widgets"
+
+    def test_default_layout_is_simple(self):
+        """DEFAULT_LAYOUT should fall back to the simple layout, not advanced."""
+        src = _REGISTRY_PATH2.read_text(encoding="utf-8")
+        # DEFAULT_LAYOUT should equal SIMPLE_LAYOUT (not inline the advanced list)
+        default_match = re.search(
+            r"export const DEFAULT_LAYOUT.*?;",
+            src,
+            re.MULTILINE | re.DOTALL,
+        )
+        assert default_match, "DEFAULT_LAYOUT not found"
+        block = default_match.group()
+        assert "SIMPLE_LAYOUT" in block, (
+            "DEFAULT_LAYOUT should reference SIMPLE_LAYOUT so new/skipping users "
+            "get the simpler experience by default"
+        )
