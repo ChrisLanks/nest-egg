@@ -3,6 +3,7 @@
 import hashlib
 from datetime import date, timedelta
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -13,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.services.data_retention_service import DataRetentionService
+from app.services.data_retention_service import DataRetentionService, _is_indefinite
 
 
 def _dedup(acct_id, d, amt, merchant, idx):
@@ -69,6 +70,26 @@ async def retention_setup(db_session: AsyncSession, test_user: User, test_accoun
     }
 
 
+class TestIsIndefinite:
+    """Unit tests for the _is_indefinite helper — no DB needed."""
+
+    def test_none_is_indefinite(self):
+        assert _is_indefinite(None) is True
+
+    def test_negative_one_is_indefinite(self):
+        assert _is_indefinite(-1) is True
+
+    def test_negative_large_is_indefinite(self):
+        assert _is_indefinite(-999) is True
+
+    def test_zero_is_not_indefinite(self):
+        assert _is_indefinite(0) is False
+
+    def test_positive_is_not_indefinite(self):
+        assert _is_indefinite(365) is False
+
+
+@pytest.mark.unit
 class TestDataRetentionService:
     """Test data retention purge logic."""
 
@@ -77,19 +98,20 @@ class TestDataRetentionService:
         """90-day retention should delete transactions older than 90 days."""
         org_id = retention_setup["org_id"]
 
-        deleted = await DataRetentionService.purge_old_data(
+        result = await DataRetentionService.purge_old_data(
             db_session, org_id, retention_days=90, dry_run=False
         )
 
-        assert deleted == retention_setup["old_count"]
+        assert isinstance(result, dict)
+        assert result["transactions"] == retention_setup["old_count"]
 
         # Verify remaining
-        result = await db_session.execute(
+        count_result = await db_session.execute(
             select(func.count())
             .select_from(Transaction)
             .where(Transaction.organization_id == org_id)
         )
-        remaining = result.scalar()
+        remaining = count_result.scalar()
         assert remaining == retention_setup["recent_count"]
 
     @pytest.mark.asyncio
@@ -98,19 +120,20 @@ class TestDataRetentionService:
         org_id = retention_setup["org_id"]
         total = retention_setup["old_count"] + retention_setup["recent_count"]
 
-        would_delete = await DataRetentionService.purge_old_data(
+        result = await DataRetentionService.purge_old_data(
             db_session, org_id, retention_days=90, dry_run=True
         )
 
-        assert would_delete == retention_setup["old_count"]
+        assert isinstance(result, dict)
+        assert result["transactions"] == retention_setup["old_count"]
 
         # Verify nothing was actually deleted
-        result = await db_session.execute(
+        count_result = await db_session.execute(
             select(func.count())
             .select_from(Transaction)
             .where(Transaction.organization_id == org_id)
         )
-        remaining = result.scalar()
+        remaining = count_result.scalar()
         assert remaining == total
 
     @pytest.mark.asyncio
@@ -118,8 +141,92 @@ class TestDataRetentionService:
         """With a very long retention window, nothing should be deleted."""
         org_id = retention_setup["org_id"]
 
-        deleted = await DataRetentionService.purge_old_data(
+        result = await DataRetentionService.purge_old_data(
             db_session, org_id, retention_days=9999, dry_run=False
         )
 
-        assert deleted == 0
+        assert result["transactions"] == 0
+
+    @pytest.mark.asyncio
+    async def test_purge_old_data_returns_dict_with_all_keys(
+        self, db_session: AsyncSession, retention_setup
+    ):
+        """purge_old_data must return a dict with transactions/snapshots/notifications keys."""
+        org_id = retention_setup["org_id"]
+
+        result = await DataRetentionService.purge_old_data(
+            db_session, org_id, retention_days=90, dry_run=True
+        )
+
+        assert set(result.keys()) >= {"transactions", "snapshots", "notifications"}
+
+    @pytest.mark.asyncio
+    async def test_indefinite_retention_skips_purge(
+        self, db_session: AsyncSession, retention_setup
+    ):
+        """retention_days=-1 should return zero counts without touching data."""
+        org_id = retention_setup["org_id"]
+
+        result = await DataRetentionService.purge_old_data(
+            db_session, org_id, retention_days=-1, dry_run=False
+        )
+
+        assert result == {"transactions": 0, "snapshots": 0, "notifications": 0}
+
+        # Verify all transactions still exist
+        count_result = await db_session.execute(
+            select(func.count())
+            .select_from(Transaction)
+            .where(Transaction.organization_id == org_id)
+        )
+        total = retention_setup["old_count"] + retention_setup["recent_count"]
+        assert count_result.scalar() == total
+
+
+@pytest.mark.unit
+class TestDataRetentionUnitMocked:
+    """Pure-unit tests using mock DB — no fixtures needed, fast."""
+
+    def _make_db(self, scalar_value=0):
+        """Build a mock AsyncSession."""
+        db = AsyncMock()
+        result = MagicMock()
+        result.scalar.return_value = scalar_value
+        result.rowcount = scalar_value
+        db.execute = AsyncMock(return_value=result)
+        db.commit = AsyncMock()
+        return db
+
+    @pytest.mark.asyncio
+    async def test_purge_transactions_dry_run_returns_count(self):
+        db = self._make_db(scalar_value=42)
+        count = await DataRetentionService.purge_transactions(db, "org-1", 90, dry_run=True)
+        assert count == 42
+        db.commit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_purge_transactions_live_commits(self):
+        db = self._make_db(scalar_value=7)
+        count = await DataRetentionService.purge_transactions(db, "org-1", 90, dry_run=False)
+        assert count == 7
+        db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_purge_audit_logs_dry_run(self):
+        db = self._make_db(scalar_value=100)
+        count = await DataRetentionService.purge_audit_logs(db, 365, dry_run=True)
+        assert count == 100
+        db.commit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_purge_audit_logs_live(self):
+        db = self._make_db(scalar_value=50)
+        count = await DataRetentionService.purge_audit_logs(db, 365, dry_run=False)
+        assert count == 50
+        db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_gdpr_delete_user_commits(self):
+        db = self._make_db(scalar_value=1)
+        await DataRetentionService.gdpr_delete_user(db, str(uuid4()))
+        db.commit.assert_called_once()

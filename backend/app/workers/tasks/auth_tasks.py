@@ -111,7 +111,7 @@ async def _persist_audit_log_async(
             method=method,
             path=path,
             status_code=status_code,
-            user_id=_UUID(user_id) if user_id else None,
+            user_id=_UUID(user_id) if user_id and user_id != "N/A" else None,
             ip_address=ip_address,
             duration_ms=duration_ms,
         )

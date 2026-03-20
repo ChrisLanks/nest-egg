@@ -1,5 +1,6 @@
 """Unit tests for RateLimitService — rate limiting, IP extraction, fail-open."""
 
+from time import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -95,8 +96,8 @@ class TestCheckRateLimit:
 
     @pytest.mark.asyncio
     @patch("app.services.rate_limit_service.settings")
-    async def test_fail_open_on_redis_error(self, mock_settings, service):
-        """When Redis is down, requests should be allowed through."""
+    async def test_falls_back_to_memory_on_redis_error(self, mock_settings, service):
+        """When Redis fails mid-request, fall through to in-memory check (never fail-open)."""
         mock_settings.ENVIRONMENT = "production"
         mock_settings.REDIS_URL = "redis://localhost:6379"
 
@@ -106,8 +107,52 @@ class TestCheckRateLimit:
         service.redis_client = mock_redis
 
         request = _make_request()
-        # Should not raise — fail-open
+        # Should not raise — within limit on first call
         await service.check_rate_limit(request, max_requests=5)
+        # Redis should now be in cooldown
+        assert service._redis_failed_at is not None
+
+    @pytest.mark.asyncio
+    @patch("app.services.rate_limit_service.settings")
+    async def test_memory_fallback_enforces_limit(self, mock_settings, service):
+        """In-memory fallback raises 429 when limit is exceeded — never fail-open."""
+        mock_settings.ENVIRONMENT = "production"
+        mock_settings.REDIS_URL = "redis://localhost:6379"
+
+        # Force Redis into cooldown so memory fallback is used
+        service._redis_failed_at = time()
+
+        request = _make_request()
+        # Exhaust the limit (max_requests=3)
+        for _ in range(3):
+            await service.check_rate_limit(request, max_requests=3, window_seconds=60)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.check_rate_limit(request, max_requests=3, window_seconds=60)
+        assert exc_info.value.status_code == 429
+
+    @pytest.mark.asyncio
+    @patch("app.services.rate_limit_service.settings")
+    async def test_memory_check_evicts_expired_entries(self, mock_settings, service):
+        """Expired window entries are evicted before checking the limit."""
+        mock_settings.ENVIRONMENT = "production"
+
+        key = service._get_rate_limit_key("1.2.3.4", "/api/test")
+        # Inject old timestamps that are outside the 1-second window
+        service._memory_calls[key] = [time() - 5] * 10  # all expired
+
+        # Should not raise — old entries are evicted
+        service._memory_check(key, max_requests=1, window_seconds=1)
+
+    def test_memory_check_raises_at_limit(self, service):
+        """_memory_check raises 429 exactly when at the limit."""
+        key = "rate_limit:testkey"
+        # Pre-fill with max_requests current entries
+        service._memory_calls[key] = [time()] * 5
+
+        with pytest.raises(HTTPException) as exc_info:
+            service._memory_check(key, max_requests=5, window_seconds=60)
+        assert exc_info.value.status_code == 429
 
 
 class TestIPExtraction:

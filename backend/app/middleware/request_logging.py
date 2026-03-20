@@ -160,8 +160,8 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
     AUDIT_PATHS = {
         "/api/v1/auth/login": "LOGIN_ATTEMPT",
         "/api/v1/auth/register": "REGISTRATION",
-        "/api/v1/auth/logout": "LOGOUT",
         "/api/v1/auth/logout-all": "LOGOUT_ALL",
+        "/api/v1/auth/logout": "LOGOUT",
         "/api/v1/auth/password": "PASSWORD_CHANGE",
         "/api/v1/auth/reset-password": "PASSWORD_RESET",  # pragma: allowlist secret
         "/api/v1/auth/forgot-password": "PASSWORD_RESET_REQUEST",  # pragma: allowlist secret

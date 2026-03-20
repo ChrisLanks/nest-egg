@@ -20,7 +20,6 @@ Bug fixes:
 - Market data Holding.symbol → Holding.ticker fix
 """
 
-import asyncio
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
@@ -246,10 +245,11 @@ class TestAuditLogModel:
         }
         assert required.issubset(column_names)
 
-    def test_persist_audit_log_function_exists(self):
-        from app.middleware.request_logging import _persist_audit_log
+    def test_persist_audit_log_task_exists(self):
+        """Audit log persistence is now handled by a durable Celery task."""
+        from app.workers.tasks.auth_tasks import persist_audit_log_task
 
-        assert asyncio.iscoroutinefunction(_persist_audit_log)
+        assert callable(persist_audit_log_task)
 
 
 # ---------------------------------------------------------------------------

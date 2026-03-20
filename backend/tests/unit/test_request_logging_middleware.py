@@ -1,6 +1,6 @@
 """Unit tests for request logging middleware."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from fastapi import Request, Response
@@ -476,3 +476,76 @@ class TestAuditLogMiddleware:
         with patch("app.middleware.request_logging.logger") as mock_logger:
             await middleware.dispatch(mock_request, mock_call_next)
             assert not mock_logger.info.called
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "path,expected_type",
+        [
+            ("/api/v1/auth/logout", "LOGOUT"),
+            ("/api/v1/auth/logout-all", "LOGOUT_ALL"),
+            ("/api/v1/auth/reset-password", "PASSWORD_RESET"),
+            ("/api/v1/auth/forgot-password", "PASSWORD_RESET_REQUEST"),
+            ("/api/v1/auth/mfa", "MFA_OPERATION"),
+            ("/api/v1/settings/delete", "ACCOUNT_DELETE"),
+            ("/api/v1/settings/profile", "PROFILE_UPDATE"),
+        ],
+    )
+    async def test_new_audit_paths_are_covered(
+        self, middleware, mock_request, mock_call_next, path, expected_type
+    ):
+        """All security-sensitive paths added in the hardening pass must be audited."""
+        mock_request.url.path = path
+
+        with patch("app.middleware.request_logging.logger") as mock_logger:
+            await middleware.dispatch(mock_request, mock_call_next)
+            assert mock_logger.info.called, f"No audit log for {path}"
+            log_message = mock_logger.info.call_args[0][0]
+            assert "AUDIT" in log_message
+            assert expected_type in log_message
+
+    @pytest.mark.asyncio
+    async def test_audit_log_calls_celery_task(self, middleware, mock_request, mock_call_next):
+        """Audit middleware must enqueue persist_audit_log_task via Celery, not asyncio."""
+        mock_request.url.path = "/api/v1/auth/login"
+        mock_request.state.request_id = "req-abc"
+        mock_request.state.user_id = "user-xyz"
+
+        mock_task = MagicMock()
+
+        with (
+            patch("app.middleware.request_logging.logger"),
+            patch(
+                "app.workers.tasks.auth_tasks.persist_audit_log_task",
+                mock_task,
+            ),
+        ):
+            await middleware.dispatch(mock_request, mock_call_next)
+
+        mock_task.delay.assert_called_once()
+        kwargs = mock_task.delay.call_args.kwargs
+        assert kwargs["action"] == "LOGIN_ATTEMPT"
+        assert kwargs["path"] == "/api/v1/auth/login"
+
+    @pytest.mark.asyncio
+    async def test_audit_log_celery_unavailable_does_not_raise(
+        self, middleware, mock_request, mock_call_next
+    ):
+        """If Celery broker is down, the audit middleware must NOT raise — response unblocked."""
+        mock_request.url.path = "/api/v1/auth/login"
+
+        mock_task = MagicMock()
+        mock_task.delay.side_effect = Exception("broker unavailable")
+
+        with (
+            patch("app.middleware.request_logging.logger") as mock_logger,
+            patch(
+                "app.workers.tasks.auth_tasks.persist_audit_log_task",
+                mock_task,
+            ),
+        ):
+            response = await middleware.dispatch(mock_request, mock_call_next)
+
+        assert response.status_code == 200
+        # Should have logged a WARNING about degraded DB persistence
+        warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+        assert any("audit_log" in w for w in warning_calls)

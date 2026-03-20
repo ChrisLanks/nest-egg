@@ -36,6 +36,7 @@ Variables marked **[required]** have no default and the app will not start witho
 | `ENCRYPTION_CURRENT_VERSION` | `1` | Version tag written on new encrypted rows. Increment on key rotation. |
 | `MAX_LOGIN_ATTEMPTS` | `5` | Failed logins before account lockout (skipped in `ENVIRONMENT=development`). |
 | `ACCOUNT_LOCKOUT_MINUTES` | `30` | Lockout duration after too many failed login attempts. |
+| `ENFORCE_JTI_REDIS_CHECK` | auto (`true` in prod) | When `true`, each token refresh and API call verifies the JWT ID (JTI) against Redis. Provides O(1) session revocation — revoking one token or all tokens for a user takes effect immediately. Auto-enabled in `production`/`staging`; disabled in `development`/`test` so Redis is not required locally. |
 | `ALLOWED_HOSTS` | `["*"]` | Trusted host list (TrustedHostMiddleware). Must be specific domains in production. |
 | `CORS_ORIGINS` | `["http://localhost:3000", "http://localhost:5173"]` | Allowed CORS origins. Set to your frontend domain in production. |
 | `TERMS_VERSION` | `2026-02` | Current Terms of Service version. Bump when ToS/Privacy Policy changes — users are re-prompted. |
@@ -119,8 +120,9 @@ At least one key must be set to enable the "Refresh Valuation" button on propert
 
 | Variable | Default | Description |
 |---|---|---|
-| `DATA_RETENTION_DAYS` | — (indefinite) | Delete transactions older than this many days. Leave unset to keep all data forever. |
+| `DATA_RETENTION_DAYS` | — (indefinite) | Delete transactions, snapshots, and notifications older than this many days. Leave unset or set to `-1` to keep all data forever. Set `DATA_RETENTION_DRY_RUN=false` to enable real purges. |
 | `DATA_RETENTION_DRY_RUN` | `true` | When `true`, logs what would be deleted without actually deleting. Set to `false` to enable real purges. |
+| `AUDIT_LOG_RETENTION_DAYS` | — (indefinite) | Delete audit log entries older than this many days. Independent of `DATA_RETENTION_DAYS` — compliance policies often require longer audit log retention (e.g., 7 years). Leave unset to keep audit logs forever. |
 
 ## Email / SMTP (optional)
 
