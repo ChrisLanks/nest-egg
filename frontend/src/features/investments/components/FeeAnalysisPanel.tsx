@@ -1,7 +1,8 @@
 /**
  * Fee Analysis Panel
  *
- * Shows fee drag projections (line chart), high-fee holdings table,
+ * Shows fee drag projections (line chart), benchmark comparison stats,
+ * per-holding breakdown with flags, high-fee holdings table,
  * low-cost alternatives, and fund overlap detection.
  */
 
@@ -26,6 +27,7 @@ import {
   Text,
   Th,
   Thead,
+  Tooltip as ChakraTooltip,
   Tr,
   VStack,
   useColorModeValue,
@@ -44,6 +46,10 @@ import {
   ComposedChart,
 } from "recharts";
 import api from "../../../services/api";
+import {
+  smartInsightsApi,
+  type HoldingFeeDetail,
+} from "../../../api/smartInsights";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,10 +118,24 @@ const formatCurrencyFull = (value: number): string =>
 
 // ── Component ────────────────────────────────────────────────────────────────
 
+const flagColors: Record<HoldingFeeDetail["flag"], string> = {
+  ok: "green",
+  high_cost: "orange",
+  extreme_cost: "red",
+  no_data: "gray",
+};
+
+const flagLabels: Record<HoldingFeeDetail["flag"], string> = {
+  ok: "Low Cost",
+  high_cost: "High Cost",
+  extreme_cost: "Extreme Cost",
+  no_data: "No Data",
+};
+
 export const FeeAnalysisPanel = ({ userId }: FeeAnalysisPanelProps) => {
   const gridColor = useColorModeValue("#e0e0e0", "#4A5568");
 
-  // Fetch fee analysis data
+  // Fetch fee analysis data (projections, high-fee, alternatives, overlap)
   const {
     data: feeData,
     isLoading: feeLoading,
@@ -127,6 +147,13 @@ export const FeeAnalysisPanel = ({ userId }: FeeAnalysisPanelProps) => {
       const response = await api.get("/holdings/fee-analysis", { params });
       return response.data;
     },
+  });
+
+  // Fetch benchmark comparison + per-holding breakdown (from smart-insights)
+  const { data: fundFeesData, isLoading: fundFeesLoading } = useQuery({
+    queryKey: ["fund-fees", userId],
+    queryFn: () =>
+      smartInsightsApi.getFundFees({ user_id: userId || undefined }),
   });
 
   // Fetch fund overlap data
@@ -168,7 +195,7 @@ export const FeeAnalysisPanel = ({ userId }: FeeAnalysisPanelProps) => {
     return data;
   }, [feeData]);
 
-  const isLoading = feeLoading || overlapLoading;
+  const isLoading = feeLoading || overlapLoading || fundFeesLoading;
 
   if (isLoading) {
     return (
@@ -364,6 +391,221 @@ export const FeeAnalysisPanel = ({ userId }: FeeAnalysisPanelProps) => {
           </Text>
         </CardBody>
       </Card>
+
+      {/* Benchmark Comparison (from smart-insights) */}
+      {fundFeesData && fundFeesData.has_investment_holdings && (
+        <>
+          <SimpleGrid columns={{ base: 2, md: 2 }} spacing={4}>
+            <Card variant="outline">
+              <CardBody py={3}>
+                <Stat>
+                  <StatLabel fontSize="xs">10-yr vs Benchmark</StatLabel>
+                  <StatNumber
+                    fontSize="lg"
+                    color={
+                      fundFeesData.ten_year_impact_vs_benchmark > 0
+                        ? "red.500"
+                        : "green.500"
+                    }
+                  >
+                    {fundFeesData.ten_year_impact_vs_benchmark > 0
+                      ? `-${new Intl.NumberFormat("en-US", {
+                          style: "currency",
+                          currency: "USD",
+                          maximumFractionDigits: 0,
+                        }).format(fundFeesData.ten_year_impact_vs_benchmark)}`
+                      : "—"}
+                  </StatNumber>
+                  <StatHelpText fontSize="xs">
+                    vs {(fundFeesData.benchmark_expense_ratio * 100).toFixed(2)}
+                    % benchmark (VTI)
+                  </StatHelpText>
+                </Stat>
+              </CardBody>
+            </Card>
+
+            <Card variant="outline">
+              <CardBody py={3}>
+                <Stat>
+                  <StatLabel fontSize="xs">20-yr vs Benchmark</StatLabel>
+                  <StatNumber
+                    fontSize="lg"
+                    color={
+                      fundFeesData.twenty_year_impact_vs_benchmark > 0
+                        ? "red.500"
+                        : "green.500"
+                    }
+                  >
+                    {fundFeesData.twenty_year_impact_vs_benchmark > 0
+                      ? `-${new Intl.NumberFormat("en-US", {
+                          style: "currency",
+                          currency: "USD",
+                          maximumFractionDigits: 0,
+                        }).format(
+                          fundFeesData.twenty_year_impact_vs_benchmark,
+                        )}`
+                      : "—"}
+                  </StatNumber>
+                  <StatHelpText fontSize="xs">
+                    compounding drag vs low-cost index
+                  </StatHelpText>
+                </Stat>
+              </CardBody>
+            </Card>
+          </SimpleGrid>
+
+          {fundFeesData.high_cost_count > 0 && (
+            <HStack>
+              <Badge colorScheme="red" px={3} py={1} borderRadius="full">
+                {fundFeesData.high_cost_count} high-cost holding
+                {fundFeesData.high_cost_count > 1 ? "s" : ""} (&gt; 0.50% ER)
+              </Badge>
+            </HStack>
+          )}
+
+          {/* Summary text */}
+          <Card variant="outline" bg="purple.50" _dark={{ bg: "purple.900" }}>
+            <CardBody>
+              <Text fontSize="sm">{fundFeesData.summary}</Text>
+            </CardBody>
+          </Card>
+
+          {/* Per-holding breakdown */}
+          <Card variant="outline">
+            <CardBody>
+              <Heading size="sm" mb={3}>
+                Holdings Breakdown
+              </Heading>
+              <Box overflowX="auto">
+                <Table size="sm" variant="simple">
+                  <Thead>
+                    <Tr>
+                      <Th>Ticker / Name</Th>
+                      <Th isNumeric>Market Value</Th>
+                      <Th isNumeric>Expense Ratio</Th>
+                      <Th isNumeric>Annual Fee</Th>
+                      <Th isNumeric>10-yr Drag</Th>
+                      <Th isNumeric>20-yr Drag</Th>
+                      <Th>Flag</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {fundFeesData.holdings.map((h, i) => (
+                      <Tr key={`${h.ticker ?? h.name ?? "unknown"}-${i}`}>
+                        <Td>
+                          <VStack align="start" spacing={0}>
+                            <Text fontWeight="semibold" fontSize="sm">
+                              {h.ticker ?? "—"}
+                            </Text>
+                            {h.name && (
+                              <Text
+                                fontSize="xs"
+                                color="text.muted"
+                                noOfLines={1}
+                              >
+                                {h.name}
+                              </Text>
+                            )}
+                          </VStack>
+                        </Td>
+                        <Td isNumeric fontSize="sm">
+                          {new Intl.NumberFormat("en-US", {
+                            style: "currency",
+                            currency: "USD",
+                            maximumFractionDigits: 0,
+                          }).format(h.market_value)}
+                        </Td>
+                        <Td isNumeric fontSize="sm">
+                          {h.flag === "no_data" ? (
+                            <Text color="text.muted" fontSize="xs">
+                              N/A
+                            </Text>
+                          ) : (
+                            <ChakraTooltip
+                              label={
+                                h.is_estimated
+                                  ? "Estimated based on asset class — no manual ER entered"
+                                  : undefined
+                              }
+                              hasArrow
+                            >
+                              <Text
+                                color={
+                                  h.is_estimated ? "text.muted" : undefined
+                                }
+                                cursor={h.is_estimated ? "help" : undefined}
+                              >
+                                {(h.expense_ratio * 100).toFixed(2)}%
+                                {h.is_estimated && " ~est"}
+                              </Text>
+                            </ChakraTooltip>
+                          )}
+                        </Td>
+                        <Td isNumeric fontSize="sm">
+                          {h.annual_fee > 0 ? (
+                            <Text
+                              color={h.flag === "ok" ? undefined : "orange.500"}
+                            >
+                              {new Intl.NumberFormat("en-US", {
+                                style: "currency",
+                                currency: "USD",
+                                maximumFractionDigits: 0,
+                              }).format(h.annual_fee)}
+                            </Text>
+                          ) : (
+                            <Text color="text.muted">—</Text>
+                          )}
+                        </Td>
+                        <Td isNumeric fontSize="sm">
+                          {h.ten_year_drag > 0 ? (
+                            new Intl.NumberFormat("en-US", {
+                              style: "currency",
+                              currency: "USD",
+                              maximumFractionDigits: 0,
+                            }).format(h.ten_year_drag)
+                          ) : (
+                            <Text color="text.muted">—</Text>
+                          )}
+                        </Td>
+                        <Td isNumeric fontSize="sm">
+                          {h.twenty_year_drag > 0 ? (
+                            new Intl.NumberFormat("en-US", {
+                              style: "currency",
+                              currency: "USD",
+                              maximumFractionDigits: 0,
+                            }).format(h.twenty_year_drag)
+                          ) : (
+                            <Text color="text.muted">—</Text>
+                          )}
+                        </Td>
+                        <Td>
+                          <ChakraTooltip
+                            label={h.suggestion ?? undefined}
+                            hasArrow
+                          >
+                            <Badge
+                              colorScheme={flagColors[h.flag]}
+                              size="sm"
+                              cursor={h.suggestion ? "help" : "default"}
+                            >
+                              {flagLabels[h.flag]}
+                            </Badge>
+                          </ChakraTooltip>
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </Box>
+              <Text fontSize="xs" color="text.muted" mt={2}>
+                Benchmark: VTI at 0.03% ER. Drag at 7% assumed return.{" "}
+                <em>~est</em> = expense ratio estimated from asset class (no
+                manual data entered).
+              </Text>
+            </CardBody>
+          </Card>
+        </>
+      )}
 
       {/* High-Fee Holdings */}
       {feeData.high_fee_holdings.length > 0 && (

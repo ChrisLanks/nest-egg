@@ -53,6 +53,7 @@ from app.schemas.holding import (
 )
 from app.schemas.rmd import AccountRMD, RMDSummary
 from app.services.deduplication_service import deduplication_service
+from app.services.fund_fee_analyzer_service import resolve_expense_ratio
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.market_data import get_market_data_provider
 from app.services.snapshot_service import snapshot_service
@@ -2269,17 +2270,28 @@ async def get_fee_analysis(
     ticker_data: dict[str, dict] = {}
     for h in holdings:
         val = float(h.current_total_value or 0)
-        er = float(h.expense_ratio or 0)
+        er, is_estimated = resolve_expense_ratio(
+            h.ticker,
+            h.name,
+            h.asset_class,
+            h.asset_type,
+            float(h.expense_ratio) if h.expense_ratio is not None else None,
+        )
         if h.ticker not in ticker_data:
             ticker_data[h.ticker] = {
                 "name": h.name,
                 "value": 0.0,
                 "expense_ratio": er,
+                "is_estimated": is_estimated,
             }
         ticker_data[h.ticker]["value"] += val
-        # Keep highest ER across duplicate rows for same ticker
-        if er > ticker_data[h.ticker]["expense_ratio"]:
+        # Keep highest ER across duplicate rows for same ticker;
+        # prefer stored/known values over estimates
+        stored_er_higher = er > ticker_data[h.ticker]["expense_ratio"]
+        known_beats_estimate = not is_estimated and ticker_data[h.ticker]["is_estimated"]
+        if stored_er_higher or known_beats_estimate:
             ticker_data[h.ticker]["expense_ratio"] = er
+            ticker_data[h.ticker]["is_estimated"] = is_estimated
 
     portfolio_value = sum(d["value"] for d in ticker_data.values())
     if portfolio_value <= 0:

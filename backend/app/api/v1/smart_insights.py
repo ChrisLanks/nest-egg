@@ -122,6 +122,7 @@ class HoldingFeeDetailResponse(BaseModel):
     twenty_year_drag: float
     flag: str
     suggestion: Optional[str] = None
+    is_estimated: bool = False
 
 
 class FundFeeResponse(BaseModel):
@@ -352,6 +353,8 @@ async def get_fund_fees(
             Holding.name,
             Holding.current_total_value,
             Holding.expense_ratio,
+            Holding.asset_class,
+            Holding.asset_type,
         )
         .join(Account, Holding.account_id == Account.id)
         .where(and_(*conditions))
@@ -362,6 +365,8 @@ async def get_fund_fees(
             "name": r.name,
             "current_total_value": float(r.current_total_value),
             "expense_ratio": float(r.expense_ratio) if r.expense_ratio is not None else None,
+            "asset_class": r.asset_class,
+            "asset_type": r.asset_type,
         }
         for r in result.all()
     ]

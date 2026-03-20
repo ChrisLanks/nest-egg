@@ -90,6 +90,7 @@ export interface HoldingFeeDetail {
   twenty_year_drag: number;
   flag: "ok" | "high_cost" | "extreme_cost" | "no_data";
   suggestion: string | null;
+  is_estimated?: boolean;
 }
 
 export interface FundFeeResponse {

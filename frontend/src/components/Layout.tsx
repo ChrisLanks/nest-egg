@@ -608,23 +608,6 @@ export const Layout = () => {
     (a) => a.account_type === "retirement_529",
   );
 
-  // Smart-insights visibility flags (loaded once, cached 5 min)
-  const { data: smartInsightsFlags } = useQuery({
-    queryKey: ["smart-insights-flags", selectedUserId],
-    queryFn: async () => {
-      const params = selectedUserId ? { user_id: selectedUserId } : {};
-      const res = await api.get("/smart-insights", {
-        params: { ...params, max_insights: 1 },
-      });
-      return {
-        hasRetirement: res.data.has_retirement_accounts as boolean,
-        hasInvestments: res.data.has_investment_holdings as boolean,
-      };
-    },
-    staleTime: 1000 * 60 * 5,
-  });
-  const hasInvestmentHoldings = smartInsightsFlags?.hasInvestments ?? false;
-
   // Feature discovery: toast once when conditional nav items first unlock
   const toast = useToast();
   useEffect(() => {
@@ -652,13 +635,6 @@ export const Layout = () => {
       }
     };
 
-    if (hasInvestmentHoldings) {
-      announce(
-        "investment-health",
-        "Investment Health unlocked",
-        "You now have investment holdings — check Investment Health under Analytics for portfolio insights.",
-      );
-    }
     if (has529) {
       announce(
         "education",
@@ -673,7 +649,7 @@ export const Layout = () => {
         "You have a rental property account — visit Rental Properties under Analytics for income tracking.",
       );
     }
-  }, [hasInvestmentHoldings, has529, hasRental, accountsLoading, toast]);
+  }, [has529, hasRental, accountsLoading, toast]);
 
   // Fetch user profile for age-based nav gating (birth_year)
   const { data: userProfile } = useQuery({
@@ -773,12 +749,6 @@ export const Layout = () => {
       tooltip:
         "Track rental income and expenses, and see your net operating income per property",
     },
-    {
-      label: "Investment Health",
-      path: "/investment-health",
-      tooltip:
-        "Review your portfolio's diversification, fund fees, and tax-loss harvesting opportunities",
-    },
   ];
 
   const allPlanningItems = [
@@ -844,7 +814,6 @@ export const Layout = () => {
     "/education": has529,
     "/debt-payoff": hasDebt,
     "/mortgage": hasMortgage,
-    "/investment-health": hasInvestmentHoldings,
     "/ss-claiming": showSsOptimizer,
   };
 
