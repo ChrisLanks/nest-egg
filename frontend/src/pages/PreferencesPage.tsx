@@ -271,7 +271,21 @@ function EmailNotificationsSection() {
 }
 
 // ── All nav items grouped by section, with default-visibility flags ──
-const NAV_SECTIONS = [
+interface NavItem {
+  label: string;
+  path: string;
+  alwaysOn?: boolean;
+  conditional?: boolean;
+  advanced?: boolean;
+  reason?: string;
+}
+
+interface NavSection {
+  group: string;
+  items: NavItem[];
+}
+
+const NAV_SECTIONS: NavSection[] = [
   {
     group: "Top Level",
     items: [
@@ -286,10 +300,25 @@ const NAV_SECTIONS = [
     items: [
       { label: "Transactions", path: "/transactions" },
       { label: "Budgets", path: "/budgets" },
-      { label: "Recurring", path: "/recurring" },
-      { label: "Bills", path: "/bills" },
       { label: "Categories", path: "/categories" },
-      { label: "Rules", path: "/rules" },
+      {
+        label: "Recurring",
+        path: "/recurring",
+        conditional: true,
+        reason: "Shown once a bank account is connected",
+      },
+      {
+        label: "Bills",
+        path: "/bills",
+        conditional: true,
+        reason: "Shown once a bank account is connected",
+      },
+      {
+        label: "Rules",
+        path: "/rules",
+        conditional: true,
+        reason: "Shown once any account is added",
+      },
     ],
   },
   {
@@ -300,16 +329,23 @@ const NAV_SECTIONS = [
       { label: "Trends", path: "/trends" },
       { label: "Reports", path: "/reports" },
       { label: "Year in Review", path: "/year-in-review" },
-      { label: "Tax Deductible", path: "/tax-deductible" },
+      {
+        label: "Tax Deductible",
+        path: "/tax-deductible",
+        conditional: true,
+        reason: "Shown with investment or rental accounts",
+      },
       {
         label: "Rental Properties",
         path: "/rental-properties",
         conditional: true,
+        reason: "Shown when you have a rental property account",
       },
       {
         label: "Investment Health",
         path: "/investment-health",
         conditional: true,
+        reason: "Shown when you have investment accounts",
       },
     ],
   },
@@ -319,18 +355,47 @@ const NAV_SECTIONS = [
       { label: "Smart Insights", path: "/smart-insights" },
       { label: "Goals", path: "/goals" },
       { label: "Retirement", path: "/retirement" },
-      { label: "Education", path: "/education", conditional: true },
-      { label: "FIRE", path: "/fire", advanced: true },
-      { label: "Debt Payoff", path: "/debt-payoff", conditional: true },
-      { label: "Mortgage", path: "/mortgage", conditional: true },
-      { label: "SS Optimizer", path: "/ss-claiming", conditional: true },
-      { label: "Tax Projection", path: "/tax-projection", advanced: true },
+      {
+        label: "Education",
+        path: "/education",
+        conditional: true,
+        reason: "Shown when you have a 529 account",
+      },
+      {
+        label: "FIRE",
+        path: "/fire",
+        advanced: true,
+        reason: "Advanced — shown for investors under 50",
+      },
+      {
+        label: "Debt Payoff",
+        path: "/debt-payoff",
+        conditional: true,
+        reason: "Shown when you have loans or credit card debt",
+      },
+      {
+        label: "Mortgage",
+        path: "/mortgage",
+        conditional: true,
+        reason: "Shown when you have a mortgage account",
+      },
+      {
+        label: "SS Optimizer",
+        path: "/ss-claiming",
+        conditional: true,
+        reason: "Shown for users age 50+",
+      },
+      {
+        label: "Tax Projection",
+        path: "/tax-projection",
+        advanced: true,
+        reason: "Advanced — shown with investment accounts",
+      },
     ],
   },
 ];
 
 function NavigationVisibilitySection() {
-  const toast = useToast();
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Paths controlled by the "Show advanced features" master toggle
@@ -399,39 +464,52 @@ function NavigationVisibilitySection() {
 
   const hasOverrides = Object.keys(overrides).length > 0;
 
-  // Check if an item is currently "on"
   const isItemOn = (item: {
     path: string;
     alwaysOn?: boolean;
     conditional?: boolean;
+    advanced?: boolean;
   }): boolean => {
     if (item.alwaysOn) return true;
     if (item.path in overrides) return overrides[item.path];
-    // Default: conditional items show "Default" (unset), others are on
-    return !item.conditional;
+    return !item.conditional && !item.advanced;
   };
 
   return (
     <Box bg="bg.surface" p={6} borderRadius="lg" boxShadow="sm">
+      {/* Clickable header — styled as a button so it's obviously interactive */}
       <HStack
         justify="space-between"
         cursor="pointer"
         onClick={() => setIsExpanded((v) => !v)}
         userSelect="none"
+        p={2}
+        mx={-2}
+        borderRadius="md"
+        _hover={{ bg: "bg.subtle" }}
+        transition="background 0.15s"
       >
-        <HStack spacing={2}>
+        <HStack spacing={3}>
           <Icon
             as={isExpanded ? ChevronDownIcon : ChevronRightIcon}
             boxSize={5}
-            color="text.secondary"
+            color="brand.500"
           />
-          <Heading size="md">Navigation</Heading>
+          <Box>
+            <Heading size="md">Navigation</Heading>
+            <Text fontSize="xs" color="text.muted" mt={0.5}>
+              {isExpanded
+                ? "Click to collapse"
+                : "Click to customize which tabs are visible"}
+            </Text>
+          </Box>
         </HStack>
         <HStack spacing={2}>
           {hasOverrides && (
             <Button
               size="xs"
-              variant="ghost"
+              variant="outline"
+              colorScheme="gray"
               onClick={(e) => {
                 e.stopPropagation();
                 resetToDefaults();
@@ -442,9 +520,6 @@ function NavigationVisibilitySection() {
           )}
         </HStack>
       </HStack>
-      <Text color="text.secondary" fontSize="sm" mt={1}>
-        Customize which tabs appear in the sidebar.
-      </Text>
 
       {/* Advanced features master toggle — always visible, no need to expand */}
       <HStack justify="space-between" mt={3} px={1}>
@@ -481,26 +556,43 @@ function NavigationVisibilitySection() {
                 {section.items.map((item) => {
                   const isOn = isItemOn(item);
                   const isOverridden = item.path in overrides;
+                  const isAutoControlled =
+                    (item.conditional || item.advanced) && !isOverridden;
                   return (
                     <HStack
                       key={item.path}
                       justify="space-between"
                       px={3}
-                      py={1.5}
+                      py={2}
+                      borderRadius="md"
+                      _hover={item.alwaysOn ? undefined : { bg: "bg.subtle" }}
                     >
-                      <HStack spacing={2}>
-                        <Text fontSize="sm">{item.label}</Text>
-                        {item.conditional && !isOverridden && (
-                          <Text fontSize="xs" color="text.muted">
-                            (auto)
+                      <Box flex={1}>
+                        <HStack spacing={2}>
+                          <Text fontSize="sm" fontWeight="medium">
+                            {item.label}
+                          </Text>
+                          {item.alwaysOn && (
+                            <Text fontSize="xs" color="text.muted">
+                              always on
+                            </Text>
+                          )}
+                          {isOverridden && !item.alwaysOn && (
+                            <Text fontSize="xs" color="brand.500">
+                              overridden
+                            </Text>
+                          )}
+                        </HStack>
+                        {(item as any).reason && (
+                          <Text fontSize="xs" color="text.muted" mt={0.5}>
+                            {isAutoControlled
+                              ? (item as any).reason
+                              : isOn
+                                ? "Manually enabled"
+                                : "Manually hidden"}
                           </Text>
                         )}
-                        {item.advanced && (
-                          <Text fontSize="xs" color="text.muted">
-                            (advanced)
-                          </Text>
-                        )}
-                      </HStack>
+                      </Box>
                       <Switch
                         size="sm"
                         isChecked={isOn}

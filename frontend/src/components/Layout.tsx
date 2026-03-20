@@ -661,6 +661,10 @@ export const Layout = () => {
   const hasInvestments = (accounts ?? []).some((a) =>
     INVESTMENT_TYPES.has(a.account_type),
   );
+  // "Linked" = connected via Plaid/Teller/MX — makes Recurring & Bills useful
+  const hasLinkedAccounts = (accounts ?? []).some(
+    (a) => a.plaid_item_id !== null || a.plaid_item_hash !== null,
+  );
 
   // Feature discovery: toast once when conditional nav items first unlock
   const toast = useToast();
@@ -703,7 +707,28 @@ export const Layout = () => {
         "You have a rental property account — visit Rental Properties under Analytics for income tracking.",
       );
     }
-  }, [has529, hasRental, accountsLoading, toast]);
+    if (hasLinkedAccounts) {
+      announce(
+        "linked-accounts",
+        "Recurring & Bills unlocked",
+        "Your bank is connected — Recurring and Bills are now visible under Spending.",
+      );
+    }
+    if (hasInvestments) {
+      announce(
+        "investments-nav",
+        "More features unlocked",
+        "With investment accounts you now have access to Tax Deductible and Investment Health.",
+      );
+    }
+  }, [
+    has529,
+    hasRental,
+    hasLinkedAccounts,
+    hasInvestments,
+    accountsLoading,
+    toast,
+  ]);
 
   // Fetch user profile for age-based nav gating (birth_year)
   const { data: userProfile } = useQuery({
@@ -870,20 +895,35 @@ export const Layout = () => {
     },
   ];
 
-  // Default visibility for conditional items
+  // Default visibility for conditional items.
+  // A tab NOT listed here defaults to visible (true) via the ?? true fallback.
   const conditionalDefaults: Record<string, boolean> = {
+    // Account-type gated
     "/rental-properties": hasRental,
+    "/investment-health": hasInvestments,
     "/education": has529,
     "/debt-payoff": hasDebt,
     "/mortgage": hasMortgage,
+    // Only useful once recurring/bill detection has live sync data
+    "/recurring": hasLinkedAccounts,
+    "/bills": hasLinkedAccounts,
+    // Power-user spending tools — show once any account exists (not just linked)
+    "/rules": (accounts ?? []).length > 0,
+    "/tax-deductible": hasInvestments || hasRental,
+    // Age-gated
     "/ss-claiming": showSsOptimizer,
-    // Advanced items: smart auto-show overrides the global advanced toggle
+    // Advanced items (also gated by the master advanced toggle via overrides)
     "/fire": showFireSmart,
     "/tax-projection": showTaxProjectionSmart,
   };
 
   const filterVisible = (
-    items: { label: string; path: string; tooltip?: string; advanced?: boolean }[],
+    items: {
+      label: string;
+      path: string;
+      tooltip?: string;
+      advanced?: boolean;
+    }[],
   ): { label: string; path: string; tooltip?: string }[] =>
     items.filter((item) =>
       isNavVisible(item.path, conditionalDefaults[item.path] ?? true),

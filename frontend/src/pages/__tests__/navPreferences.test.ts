@@ -46,23 +46,29 @@ const NAV_SECTIONS: { group: string; items: NavItem[] }[] = [
     items: [
       { label: "Transactions", path: "/transactions" },
       { label: "Budgets", path: "/budgets" },
-      { label: "Recurring", path: "/recurring" },
-      { label: "Bills", path: "/bills" },
       { label: "Categories", path: "/categories" },
-      { label: "Rules", path: "/rules" },
+      { label: "Recurring", path: "/recurring", conditional: true },
+      { label: "Bills", path: "/bills", conditional: true },
+      { label: "Rules", path: "/rules", conditional: true },
     ],
   },
   {
     group: "Analytics",
     items: [
       { label: "Cash Flow", path: "/income-expenses" },
+      { label: "Net Worth Timeline", path: "/net-worth-timeline" },
       { label: "Trends", path: "/trends" },
       { label: "Reports", path: "/reports" },
       { label: "Year in Review", path: "/year-in-review" },
-      { label: "Tax Deductible", path: "/tax-deductible" },
+      { label: "Tax Deductible", path: "/tax-deductible", conditional: true },
       {
         label: "Rental Properties",
         path: "/rental-properties",
+        conditional: true,
+      },
+      {
+        label: "Investment Health",
+        path: "/investment-health",
         conditional: true,
       },
     ],
@@ -70,11 +76,14 @@ const NAV_SECTIONS: { group: string; items: NavItem[] }[] = [
   {
     group: "Planning",
     items: [
+      { label: "Smart Insights", path: "/smart-insights" },
       { label: "Goals", path: "/goals" },
       { label: "Retirement", path: "/retirement" },
       { label: "Education", path: "/education", conditional: true },
       { label: "FIRE", path: "/fire", advanced: true },
       { label: "Debt Payoff", path: "/debt-payoff", conditional: true },
+      { label: "Mortgage", path: "/mortgage", conditional: true },
+      { label: "SS Optimizer", path: "/ss-claiming", conditional: true },
       { label: "Tax Projection", path: "/tax-projection", advanced: true },
     ],
   },
@@ -164,7 +173,11 @@ const isItemOn = (
 
 describe("NavigationVisibilitySection: isItemOn", () => {
   it("alwaysOn items are always on regardless of overrides", () => {
-    const item: NavItem = { label: "Overview", path: "/overview", alwaysOn: true };
+    const item: NavItem = {
+      label: "Overview",
+      path: "/overview",
+      alwaysOn: true,
+    };
     expect(isItemOn(item, {})).toBe(true);
     expect(isItemOn(item, { "/overview": false })).toBe(true);
   });
@@ -175,12 +188,20 @@ describe("NavigationVisibilitySection: isItemOn", () => {
   });
 
   it("conditional items default to off (auto-hide)", () => {
-    const item: NavItem = { label: "Debt Payoff", path: "/debt-payoff", conditional: true };
+    const item: NavItem = {
+      label: "Debt Payoff",
+      path: "/debt-payoff",
+      conditional: true,
+    };
     expect(isItemOn(item, {})).toBe(false);
   });
 
   it("override true turns on a conditional item", () => {
-    const item: NavItem = { label: "Education", path: "/education", conditional: true };
+    const item: NavItem = {
+      label: "Education",
+      path: "/education",
+      conditional: true,
+    };
     expect(isItemOn(item, { "/education": true })).toBe(true);
   });
 
@@ -206,7 +227,9 @@ describe("NavigationVisibilitySection: isItemOn", () => {
 describe("isNavVisible: unified override model", () => {
   it("override=true shows an item regardless of defaultVisible", () => {
     expect(isNavVisible("/fire", false, { "/fire": true })).toBe(true);
-    expect(isNavVisible("/tax-projection", false, { "/tax-projection": true })).toBe(true);
+    expect(
+      isNavVisible("/tax-projection", false, { "/tax-projection": true }),
+    ).toBe(true);
   });
 
   it("override=false hides an item regardless of defaultVisible", () => {
@@ -231,7 +254,9 @@ describe("isNavVisible: unified override model", () => {
 
   it("advanced items are shown when override is true", () => {
     expect(isNavVisible("/fire", false, { "/fire": true })).toBe(true);
-    expect(isNavVisible("/tax-projection", false, { "/tax-projection": true })).toBe(true);
+    expect(
+      isNavVisible("/tax-projection", false, { "/tax-projection": true }),
+    ).toBe(true);
   });
 });
 
@@ -292,16 +317,24 @@ describe("deriveShowAdvanced: derived from overrides", () => {
   });
 
   it("false when one advanced path is false", () => {
-    expect(deriveShowAdvanced({ "/fire": true, "/tax-projection": false })).toBe(false);
+    expect(
+      deriveShowAdvanced({ "/fire": true, "/tax-projection": false }),
+    ).toBe(false);
   });
 
   it("true when ALL advanced paths are explicitly true", () => {
-    expect(deriveShowAdvanced({ "/fire": true, "/tax-projection": true })).toBe(true);
+    expect(deriveShowAdvanced({ "/fire": true, "/tax-projection": true })).toBe(
+      true,
+    );
   });
 
   it("extra non-advanced overrides don't affect derivation", () => {
     expect(
-      deriveShowAdvanced({ "/fire": true, "/tax-projection": true, "/budgets": false }),
+      deriveShowAdvanced({
+        "/fire": true,
+        "/tax-projection": true,
+        "/budgets": false,
+      }),
     ).toBe(true);
   });
 
@@ -311,7 +344,10 @@ describe("deriveShowAdvanced: derived from overrides", () => {
   });
 
   it("roundtrip: toggle off → derive false", () => {
-    const after = toggleAdvancedNav({ "/fire": true, "/tax-projection": true }, false);
+    const after = toggleAdvancedNav(
+      { "/fire": true, "/tax-projection": true },
+      false,
+    );
     expect(deriveShowAdvanced(after)).toBe(false);
   });
 
@@ -373,7 +409,9 @@ describe("smart auto-show rules for advanced items", () => {
     hasInvestments(accounts);
 
   it("FIRE auto-shows (defaultVisible=true) for user under 50 with investments", () => {
-    expect(showFireDefault([{ account_type: "retirement_401k" }], 35)).toBe(true);
+    expect(showFireDefault([{ account_type: "retirement_401k" }], 35)).toBe(
+      true,
+    );
   });
 
   it("FIRE defaultVisible=false for user 50+", () => {
@@ -390,8 +428,12 @@ describe("smart auto-show rules for advanced items", () => {
   });
 
   it("Tax Projection defaultVisible=true for any user with investment account", () => {
-    expect(showTaxProjectionDefault([{ account_type: "brokerage" }])).toBe(true);
-    expect(showTaxProjectionDefault([{ account_type: "retirement_ira" }])).toBe(true);
+    expect(showTaxProjectionDefault([{ account_type: "brokerage" }])).toBe(
+      true,
+    );
+    expect(showTaxProjectionDefault([{ account_type: "retirement_ira" }])).toBe(
+      true,
+    );
     expect(showTaxProjectionDefault([{ account_type: "crypto" }])).toBe(true);
   });
 
@@ -489,15 +531,22 @@ describe("NavigationVisibilitySection: NAV_SECTIONS structure", () => {
     }
   });
 
-  it("conditional items are exactly: rental-properties, education, debt-payoff", () => {
+  it("conditional items include account-gated and age-gated tabs", () => {
     const conditionalPaths = NAV_SECTIONS.flatMap((s) => s.items)
       .filter((i) => i.conditional)
       .map((i) => i.path)
       .sort();
     expect(conditionalPaths).toEqual([
+      "/bills",
       "/debt-payoff",
       "/education",
+      "/investment-health",
+      "/mortgage",
+      "/recurring",
       "/rental-properties",
+      "/rules",
+      "/ss-claiming",
+      "/tax-deductible",
     ]);
   });
 
@@ -509,9 +558,15 @@ describe("NavigationVisibilitySection: NAV_SECTIONS structure", () => {
     expect(advancedPaths).toEqual(["/fire", "/tax-projection"]);
   });
 
-  it("no spending items are conditional or advanced", () => {
+  it("no spending items are advanced (some are conditional)", () => {
     const spending = NAV_SECTIONS.find((s) => s.group === "Spending");
-    expect(spending!.items.every((i) => !i.conditional && !i.advanced)).toBe(true);
+    expect(spending!.items.every((i) => !i.advanced)).toBe(true);
+    // Recurring, Bills, Rules are conditional on having linked/any accounts
+    const conditionalPaths = spending!.items
+      .filter((i) => i.conditional)
+      .map((i) => i.path)
+      .sort();
+    expect(conditionalPaths).toEqual(["/bills", "/recurring", "/rules"]);
   });
 
   it("all items have unique paths", () => {
