@@ -608,20 +608,28 @@ async def get_invitation_details(
     """
     Get invitation details by code (public endpoint for accepting invitations).
     Rate limited to prevent brute force guessing of invitation codes.
+
+    Uses a single generic 404 for all failure modes (not found, expired, used)
+    to avoid leaking information about which codes exist.
     """
-    # Rate limit: 10 checks per minute per IP (lenient since user might mistype)
+    # Rate limit: 5 checks per hour per IP (was 10/min = 600/hr).
+    # Legitimate users follow an emailed link and only need one lookup.
+    # The tighter window prevents timing-oracle enumeration.
     await rate_limit_service.check_rate_limit(
         request=request,
-        max_requests=10,
-        window_seconds=60,
+        max_requests=5,
+        window_seconds=3600,
     )
     result = await db.execute(
         select(HouseholdInvitation).where(HouseholdInvitation.invitation_code == invitation_code)
     )
     invitation = result.scalar_one_or_none()
 
+    _not_found = HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found or expired"
+    )
     if not invitation:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
+        raise _not_found
 
     # Get invited_by user email
     result = await db.execute(select(User).where(User.id == invitation.invited_by_user_id))

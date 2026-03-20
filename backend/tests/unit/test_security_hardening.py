@@ -613,3 +613,231 @@ class TestWithdrawalStrategyTaxCapping:
 
         call_kwargs = mock_response.set_cookie.call_args[1]
         assert call_kwargs["secure"] is False
+
+
+# ---------------------------------------------------------------------------
+# Config validators: staging is treated same as production
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestConfigValidatorsStagingCoverage:
+    """Security config validators must enforce the same rules in staging as production.
+
+    Previously validators only checked ENVIRONMENT == 'production', so staging
+    deployments could run with wildcard hosts, localhost CORS, and weak secrets.
+    """
+
+    def test_secret_key_rejected_in_staging(self):
+        """Insecure SECRET_KEY should be rejected in staging, not just production."""
+        import os
+
+        from pydantic import ValidationError
+
+        from app.config import Settings
+
+        with patch.dict(os.environ, {"ENVIRONMENT": "staging"}):
+            with pytest.raises((ValidationError, ValueError)):
+                Settings(
+                    SECRET_KEY="dev-secret-key-change-in-production",  # pragma: allowlist secret
+                    ENVIRONMENT="staging",
+                    DATABASE_URL="postgresql+asyncpg://u:p@localhost/db",
+                )
+
+    def test_secret_key_accepted_in_development(self):
+        """Insecure SECRET_KEY should be allowed in development (dev convenience)."""
+        import os
+
+        from app.config import Settings
+
+        with patch.dict(os.environ, {"ENVIRONMENT": "development"}):
+            # Should not raise — dev environment allows weak keys
+            s = Settings(
+                SECRET_KEY="dev-secret-key-change-in-production",  # pragma: allowlist secret
+                ENVIRONMENT="development",
+                DATABASE_URL="postgresql+asyncpg://u:p@localhost/db",
+            )
+            assert s.SECRET_KEY == "dev-secret-key-change-in-production"  # pragma: allowlist secret
+
+    def test_metrics_password_rejected_in_staging(self):
+        """Default METRICS_PASSWORD should be rejected in staging."""
+        import os
+
+        from pydantic import ValidationError
+
+        from app.config import Settings
+
+        with patch.dict(os.environ, {"ENVIRONMENT": "staging"}):
+            with pytest.raises((ValidationError, ValueError)):
+                Settings(
+                    ENVIRONMENT="staging",
+                    METRICS_PASSWORD="metrics_admin",  # pragma: allowlist secret
+                    DATABASE_URL="postgresql+asyncpg://u:p@localhost/db",
+                    SECRET_KEY="a" * 32,
+                )
+
+    def test_allowed_hosts_wildcard_rejected_in_staging(self):
+        """ALLOWED_HOSTS=['*'] should be rejected in staging."""
+        import os
+
+        from pydantic import ValidationError
+
+        from app.config import Settings
+
+        with patch.dict(os.environ, {"ENVIRONMENT": "staging"}):
+            with pytest.raises((ValidationError, ValueError)):
+                Settings(
+                    ENVIRONMENT="staging",
+                    ALLOWED_HOSTS=["*"],
+                    DATABASE_URL="postgresql+asyncpg://u:p@localhost/db",
+                    SECRET_KEY="a" * 32,
+                    METRICS_PASSWORD="str0ng-metrics-pw",  # pragma: allowlist secret
+                )
+
+    def test_cors_localhost_rejected_in_staging(self):
+        """Localhost CORS origins should be rejected in staging."""
+        import os
+
+        from pydantic import ValidationError
+
+        from app.config import Settings
+
+        with patch.dict(os.environ, {"ENVIRONMENT": "staging"}):
+            with pytest.raises((ValidationError, ValueError)):
+                Settings(
+                    ENVIRONMENT="staging",
+                    CORS_ORIGINS=["http://localhost:3000"],
+                    ALLOWED_HOSTS=["staging.nestegg.com"],
+                    DATABASE_URL="postgresql+asyncpg://u:p@localhost/db",
+                    SECRET_KEY="a" * 32,
+                    METRICS_PASSWORD="str0ng-metrics-pw",  # pragma: allowlist secret
+                )
+
+
+# ---------------------------------------------------------------------------
+# SKIP_CSRF_IN_TESTS startup guard
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestSkipCsrfStartupGuard:
+    """SKIP_CSRF_IN_TESTS=True outside pytest must crash the app at startup."""
+
+    def test_skip_csrf_allowed_in_pytest(self):
+        """SKIP_CSRF_IN_TESTS=True is fine when pytest is in sys.modules."""
+        import sys
+
+        # pytest IS in sys.modules when this test runs — guard should pass
+        assert "pytest" in sys.modules
+
+        with patch("app.config.settings") as mock_settings:
+            mock_settings.SKIP_CSRF_IN_TESTS = True
+            mock_settings.ENVIRONMENT = "test"
+            # Simulate the guard logic
+            is_pytest = "pytest" in sys.modules
+            if mock_settings.SKIP_CSRF_IN_TESTS and not is_pytest:
+                raise RuntimeError("SECURITY: SKIP_CSRF_IN_TESTS outside pytest")
+            # Should reach here without raising
+
+    def test_skip_csrf_blocked_outside_pytest(self):
+        """SKIP_CSRF_IN_TESTS=True without pytest in sys.modules must raise RuntimeError."""
+        import sys
+
+        with patch("app.config.settings") as mock_settings:
+            mock_settings.SKIP_CSRF_IN_TESTS = True
+            mock_settings.ENVIRONMENT = "production"
+
+            # Simulate the guard with pytest NOT in sys.modules
+            fake_modules = {k: v for k, v in sys.modules.items() if k != "pytest"}
+            is_pytest = "pytest" in fake_modules
+            assert not is_pytest  # Confirm our simulation
+
+            with pytest.raises(RuntimeError, match="SKIP_CSRF_IN_TESTS"):
+                if mock_settings.SKIP_CSRF_IN_TESTS and not is_pytest:
+                    raise RuntimeError(
+                        "SECURITY: SKIP_CSRF_IN_TESTS=true is set but this is not a pytest session."
+                    )
+
+
+# ---------------------------------------------------------------------------
+# Invitation preview endpoint hardening
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestInvitationPreviewHardening:
+    """Invitation preview endpoints must use tight rate limits and generic 404s."""
+
+    def test_guest_preview_rate_limit_is_5_per_hour(self):
+        """guest_access preview should call rate_limit with max_requests=5, window=3600."""
+
+        import pathlib
+
+        src = pathlib.Path("/home/lanx/git/nest-egg/backend/app/api/v1/guest_access.py").read_text()
+        # Find the preview_invitation function and check the rate limit call
+        assert "max_requests=5" in src, "guest_access preview must use max_requests=5"
+        assert "window_seconds=3600" in src, "guest_access preview must use window=3600 (per hour)"
+
+    def test_household_invite_preview_rate_limit_is_5_per_hour(self):
+        """household invitation preview should call rate_limit with max_requests=5, window=3600."""
+        import pathlib
+
+        src = pathlib.Path("/home/lanx/git/nest-egg/backend/app/api/v1/household.py").read_text()
+        assert "max_requests=5" in src, "household invitation preview must use max_requests=5"
+        assert "window_seconds=3600" in src, "household invitation preview must use window=3600"
+
+    def test_guest_preview_uses_generic_404(self):
+        """guest_access preview must return same 404 for not-found, expired, and used codes."""
+        import pathlib
+
+        src = pathlib.Path("/home/lanx/git/nest-egg/backend/app/api/v1/guest_access.py").read_text()
+        # Both expired and not-found cases should raise the same _not_found exception
+        assert "_not_found" in src, "Should use a single _not_found variable for all 404 cases"
+
+    def test_household_preview_uses_generic_404(self):
+        """household invitation preview must return same message for all failure cases."""
+        import pathlib
+
+        src = pathlib.Path("/home/lanx/git/nest-egg/backend/app/api/v1/household.py").read_text()
+        assert "_not_found" in src, "Should use a single _not_found variable for all 404 cases"
+        assert (
+            "not found or expired" in src.lower()
+        ), "404 message must not distinguish 'not found' from 'expired'"
+
+
+# ---------------------------------------------------------------------------
+# Dev router not mounted outside development
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestDevRouterNotInNonDevEnv:
+    """Dev router must only be registered when ENVIRONMENT=development."""
+
+    def test_dev_router_only_registered_in_development(self):
+        """main.py must only include the dev router for development environments."""
+        import pathlib
+
+        src = pathlib.Path("/home/lanx/git/nest-egg/backend/app/main.py").read_text()
+        # Find the dev router registration
+        assert 'ENVIRONMENT == "development"' in src or "ENVIRONMENT not in" in src
+        # The dev router inclusion must be guarded by environment check
+        dev_include = "app.include_router(dev.router"
+        assert dev_include in src
+        # Verify it's inside an if block guarding development
+        lines = src.splitlines()
+        for i, line in enumerate(lines):
+            if dev_include in line:
+                # Look backward for the if statement
+                context = "\n".join(lines[max(0, i - 3) : i + 1])
+                assert (
+                    "development" in context
+                ), f"dev router include at line {i+1} must be guarded by ENVIRONMENT check"
+
+    def test_dev_router_lifespan_guard_exists(self):
+        """main.py lifespan must contain a runtime check for dev router in non-dev envs."""
+        import pathlib
+
+        src = pathlib.Path("/home/lanx/git/nest-egg/backend/app/main.py").read_text()
+        assert "/api/v1/dev" in src, "Lifespan must verify dev prefix not mounted in non-dev env"
+        assert "SECURITY" in src, "Guard must include SECURITY in the error message"

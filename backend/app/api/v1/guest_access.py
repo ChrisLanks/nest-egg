@@ -569,14 +569,21 @@ async def preview_invitation(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """Preview a guest invitation (public, rate-limited)."""
-    client_ip = request.client.host if request.client else "unknown"
-    allowed = await rate_limit_service.check_rate_limit(f"guest_preview:{client_ip}", 20, 3600)
-    if not allowed:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many requests",
-        )
+    """Preview a guest invitation (public, rate-limited).
+
+    Rate limit is kept intentionally tight: invitation codes are 32-byte
+    URL-safe tokens (~192 bits of entropy), but we still limit enumeration
+    attempts to reduce oracle surface. We always return the same 404 detail
+    regardless of whether the code exists, is expired, or is already used —
+    so an attacker cannot distinguish valid-but-used from never-existed.
+    """
+    # 5 previews per hour per IP — tighter than before (was 20).
+    # Legitimate users follow an emailed link; they don't need many attempts.
+    await rate_limit_service.check_rate_limit(
+        request=request,
+        max_requests=5,
+        window_seconds=3600,
+    )
 
     result = await db.execute(
         select(HouseholdGuestInvitation).where(
@@ -584,11 +591,14 @@ async def preview_invitation(
         )
     )
     invitation = result.scalar_one_or_none()
+    # Use a single generic message for all failure cases to avoid leaking
+    # information about which codes exist, are expired, or are already used.
+    _not_found = HTTPException(status_code=404, detail="Invitation not found or expired")
     if not invitation or invitation.status != GuestInvitationStatus.PENDING:
-        raise HTTPException(status_code=404, detail="Invitation not found or expired")
+        raise _not_found
 
     if invitation.is_expired:
-        raise HTTPException(status_code=404, detail="Invitation has expired")
+        raise _not_found
 
     # Get org name and inviter email
     org_result = await db.execute(

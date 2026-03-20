@@ -240,7 +240,11 @@ class Settings(BaseSettings):
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
-        """Validate SECRET_KEY is not using insecure defaults in production."""
+        """Validate SECRET_KEY is not using insecure defaults in non-dev environments.
+
+        Covers production AND staging — using a weak key in staging is equally
+        dangerous because staging environments often mirror production data.
+        """
         insecure_defaults = [
             "dev-secret-key-change-in-production",
             "dev-secret-key-change-in-production-generate-with-openssl",
@@ -254,9 +258,9 @@ class Settings(BaseSettings):
 
         environment = os.getenv("ENVIRONMENT", "development")
 
-        if environment == "production" and (v in insecure_defaults or len(v) < 32):
+        if environment not in ("development", "test") and (v in insecure_defaults or len(v) < 32):
             raise ValueError(
-                "Insecure SECRET_KEY detected in production! "
+                f"Insecure SECRET_KEY detected in {environment} environment! "
                 "Generate a secure key with: openssl rand -hex 32"
             )
 
@@ -269,7 +273,7 @@ class Settings(BaseSettings):
         import os
 
         environment = os.getenv("ENVIRONMENT", "development")
-        if environment != "development" and v == "metrics_admin":
+        if environment not in ("development", "test") and v == "metrics_admin":
             raise ValueError(
                 "Insecure default METRICS_PASSWORD detected. "
                 "Set a strong password via the METRICS_PASSWORD environment variable."
@@ -279,14 +283,18 @@ class Settings(BaseSettings):
     @field_validator("ALLOWED_HOSTS")
     @classmethod
     def validate_allowed_hosts(cls, v: list[str]) -> list[str]:
-        """Validate ALLOWED_HOSTS is configured for production."""
+        """Validate ALLOWED_HOSTS is not wildcard in non-dev environments.
+
+        Staging is included — wildcard host headers in staging allow host-header
+        injection attacks that are identical in impact to production exploits.
+        """
         import os
 
         environment = os.getenv("ENVIRONMENT", "development")
 
-        if environment == "production" and "*" in v:
+        if environment not in ("development", "test") and "*" in v:
             raise ValueError(
-                "ALLOWED_HOSTS=['*'] is insecure in production! "
+                f"ALLOWED_HOSTS=['*'] is insecure in {environment} environment! "
                 "Set specific domains like ['app.nestegg.com', 'api.nestegg.com']"
             )
 
@@ -295,16 +303,17 @@ class Settings(BaseSettings):
     @field_validator("CORS_ORIGINS")
     @classmethod
     def validate_cors_origins(cls, v: list[str]) -> list[str]:
-        """Reject localhost CORS origins in production."""
+        """Reject localhost CORS origins in non-dev environments."""
         import os
 
         environment = os.getenv("ENVIRONMENT", "development")
 
-        if environment == "production":
+        if environment not in ("development", "test"):
             localhost_origins = [o for o in v if "localhost" in o or "127.0.0.1" in o]
             if localhost_origins:
                 raise ValueError(
-                    f"CORS_ORIGINS contains localhost entries in production: {localhost_origins}. "
+                    f"CORS_ORIGINS contains localhost entries in {environment} environment: "
+                    f"{localhost_origins}. "
                     "Set to your public domain(s), e.g. ['https://app.nestegg.com']"
                 )
 
@@ -313,12 +322,12 @@ class Settings(BaseSettings):
     @field_validator("ENFORCE_ACCOUNT_LOCKOUT", "ENFORCE_MFA", "ENFORCE_JTI_REDIS_CHECK")
     @classmethod
     def resolve_security_flags(cls, v: Optional[bool]) -> bool:
-        """Default security flags to True unless ENVIRONMENT=development."""
+        """Default security flags to True unless ENVIRONMENT=development or test."""
         if v is not None:
             return v
         import os
 
-        return os.getenv("ENVIRONMENT", "development") != "development"
+        return os.getenv("ENVIRONMENT", "development") not in ("development", "test")
 
     @field_validator("PLAID_CLIENT_ID", "PLAID_SECRET")
     @classmethod

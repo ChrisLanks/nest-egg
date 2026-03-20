@@ -145,7 +145,7 @@ elif SENTRY_AVAILABLE and not settings.SENTRY_DSN:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI):  # noqa: F811 — shadows module-level `app` intentionally
     """Application lifespan manager."""
     import asyncio
 
@@ -156,7 +156,63 @@ async def lifespan(app: FastAPI):
     setup_logging()
     print("✅ Logging configured")
 
-    # Validate secrets and configuration (production only)
+    # ── Security startup assertions ────────────────────────────────────────
+    # These run unconditionally on every startup so misconfigurations are
+    # caught immediately — not discovered during an incident.
+
+    # Guard 1: SKIP_CSRF_IN_TESTS must never be set outside a pytest session.
+    # Setting this in .env or via an env var in any deployed environment
+    # silently disables all CSRF protection for every user.
+    if settings.SKIP_CSRF_IN_TESTS:
+        import sys
+
+        _is_pytest = "pytest" in sys.modules
+        if not _is_pytest:
+            raise RuntimeError(
+                "SECURITY: SKIP_CSRF_IN_TESTS=true is set but this is not a pytest session. "
+                "This flag disables CSRF protection for all users. "
+                "Remove it from your .env / environment variables immediately."
+            )
+
+    # Guard 2: dev router must never be reachable outside development.
+    # The dev router contains endpoints that dump data, seed fake accounts,
+    # and create backdoor users with a known password ('test1234').
+    # FastAPI passes the app instance as the `app` parameter to lifespan,
+    # so we can inspect its routes directly here.
+    if settings.ENVIRONMENT not in ("development", "test"):
+        _dev_prefix = "/api/v1/dev"
+        _dev_routes = [
+            r for r in app.routes if hasattr(r, "path") and r.path.startswith(_dev_prefix)
+        ]
+        if _dev_routes:
+            raise RuntimeError(
+                f"SECURITY: Dev router is mounted at {_dev_prefix} in "
+                f"ENVIRONMENT={settings.ENVIRONMENT!r}. "
+                "This exposes data-dump, seed, and backdoor-account endpoints. "
+                "Check main.py router registration."
+            )
+
+    # Guard 3: warn when running multiple workers with in-memory rate limiting.
+    # Each worker maintains independent counters, so effective rate limits are
+    # multiplied by worker count — an attacker can distribute requests to evade.
+    if settings.ENVIRONMENT not in ("development", "test"):
+        import os
+
+        workers = int(os.getenv("WEB_CONCURRENCY", os.getenv("UVICORN_WORKERS", "1")))
+        redis_url = settings.REDIS_URL if hasattr(settings, "REDIS_URL") else None
+        if workers > 1 and not redis_url:
+            _logger.warning(
+                "SECURITY WARNING: Running %d workers without Redis. "
+                "Rate limiting and anomaly detection are per-process — "
+                "effective limits are %dx the configured values. "
+                "Set REDIS_URL to enable global rate limiting.",
+                workers,
+                workers,
+            )
+
+    # ── End security startup assertions ───────────────────────────────────
+
+    # Validate secrets and configuration (non-dev environments)
     if not settings.DEBUG:
         print("🔒 Validating production secrets...")
         validation_result = secrets_validation_service.validate_production_secrets()
