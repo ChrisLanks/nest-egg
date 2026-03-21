@@ -153,6 +153,7 @@ class TestUserCRUD:
     async def test_update_last_login_user_found(self, mock_db):
         """Updates last_login_at when user exists."""
         user = Mock()
+        user.login_count = 3
         result_mock = Mock()
         result_mock.scalar_one_or_none.return_value = user
         mock_db.execute.return_value = result_mock
