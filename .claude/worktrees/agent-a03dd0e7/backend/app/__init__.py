@@ -1,1 +1,0 @@
-# Nest Egg Backend Application

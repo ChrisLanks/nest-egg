@@ -84,3 +84,4 @@ celerybeat.pid
 temp/
 tmp/
 frontend/coverage/
+.claude/worktrees/
