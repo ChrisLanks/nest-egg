@@ -201,6 +201,25 @@ _TAX_DATA: dict[int, dict] = {
         "STANDARD_DEDUCTION_MARRIED": 29_200,
         "STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE": 1_950,
         "STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED": 1_550,
+        # Ordinary income brackets: list of (rate, ceiling) — ceiling is top of bracket
+        "BRACKETS_SINGLE": [
+            (0.10, 11_600),
+            (0.12, 47_150),
+            (0.22, 100_525),
+            (0.24, 191_950),
+            (0.32, 243_725),
+            (0.35, 609_350),
+            (0.37, float("inf")),
+        ],
+        "BRACKETS_MARRIED": [
+            (0.10, 23_200),
+            (0.12, 94_300),
+            (0.22, 201_050),
+            (0.24, 383_900),
+            (0.32, 487_450),
+            (0.35, 731_200),
+            (0.37, float("inf")),
+        ],
         "LTCG_BRACKETS_SINGLE": [
             (47_025, 0.00),
             (518_900, 0.15),
@@ -217,6 +236,24 @@ _TAX_DATA: dict[int, dict] = {
         "STANDARD_DEDUCTION_MARRIED": 30_000,
         "STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE": 2_000,
         "STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED": 1_600,
+        "BRACKETS_SINGLE": [
+            (0.10, 11_925),
+            (0.12, 48_475),
+            (0.22, 103_350),
+            (0.24, 197_300),
+            (0.32, 250_525),
+            (0.35, 626_350),
+            (0.37, float("inf")),
+        ],
+        "BRACKETS_MARRIED": [
+            (0.10, 23_850),
+            (0.12, 96_950),
+            (0.22, 206_700),
+            (0.24, 394_600),
+            (0.32, 501_050),
+            (0.35, 751_600),
+            (0.37, float("inf")),
+        ],
         "LTCG_BRACKETS_SINGLE": [
             (48_350, 0.00),
             (533_400, 0.15),
@@ -234,6 +271,24 @@ _TAX_DATA: dict[int, dict] = {
         "STANDARD_DEDUCTION_MARRIED": 32_200,  # IRS confirmed
         "STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE": 2_100,  # Inflation-adjusted estimate
         "STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED": 1_700,  # Inflation-adjusted estimate
+        "BRACKETS_SINGLE": [
+            (0.10, 12_300),   # IRS Rev. Proc. 2025-32
+            (0.12, 49_950),
+            (0.22, 106_550),
+            (0.24, 203_350),
+            (0.32, 258_250),
+            (0.35, 645_850),
+            (0.37, float("inf")),
+        ],
+        "BRACKETS_MARRIED": [
+            (0.10, 24_600),
+            (0.12, 99_900),
+            (0.22, 213_100),
+            (0.24, 406_700),
+            (0.32, 516_500),
+            (0.35, 775_100),
+            (0.37, float("inf")),
+        ],
         "LTCG_BRACKETS_SINGLE": [
             (49_450, 0.00),  # 0% up to $49,450; IRS confirmed
             (545_500, 0.15),  # 15% up to $545,500; IRS confirmed
@@ -253,6 +308,9 @@ _TAX_PROJ: dict[str, tuple] = {
     "STANDARD_DEDUCTION_MARRIED": (0.025, 50),
     "STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE": (0.025, 50),
     "STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED": (0.025, 50),
+    # Ordinary brackets: scale income thresholds (pos 0) by CPI-W ~2.5%; rates (pos 1) fixed
+    "BRACKETS_SINGLE": (0.025, 25),
+    "BRACKETS_MARRIED": (0.025, 25),
     "LTCG_BRACKETS_SINGLE": (0.025, 50),  # Scales income thresholds; rates unchanged
     "LTCG_BRACKETS_MARRIED": (0.025, 50),
 }
@@ -361,6 +419,9 @@ class TAX:
     STANDARD_DEDUCTION_MARRIED = _d["STANDARD_DEDUCTION_MARRIED"]
     STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE = _d["STANDARD_DEDUCTION_OVER_65_EXTRA_SINGLE"]
     STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED = _d["STANDARD_DEDUCTION_OVER_65_EXTRA_MARRIED"]
+    # Ordinary income brackets for current tax year (COLA-projected if year not in table)
+    BRACKETS_SINGLE: List[Tuple[float, float]] = _d["BRACKETS_SINGLE"]
+    BRACKETS_MARRIED: List[Tuple[float, float]] = _d["BRACKETS_MARRIED"]
     LTCG_BRACKETS_SINGLE: List[Tuple[float, float]] = _d["LTCG_BRACKETS_SINGLE"]
     LTCG_BRACKETS_MARRIED: List[Tuple[float, float]] = _d["LTCG_BRACKETS_MARRIED"]
 

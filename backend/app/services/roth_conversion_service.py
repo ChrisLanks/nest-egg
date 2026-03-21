@@ -36,35 +36,23 @@ logger = logging.getLogger(__name__)
 
 # ── Tax bracket helpers ────────────────────────────────────────────────────
 
-# 2026 ordinary income brackets (rate, single ceiling, married ceiling)
-# Using only the thresholds we need: top of each bracket.
-# Source: IRS Rev. Proc. 2025-32
-_BRACKETS_SINGLE = [
-    (0.10, 11_925),
-    (0.12, 48_475),
-    (0.22, 103_350),
-    (0.24, 197_300),
-    (0.32, 250_525),
-    (0.35, 626_350),
-    (0.37, float("inf")),
-]
-_BRACKETS_MARRIED = [
-    (0.10, 23_850),
-    (0.12, 96_950),
-    (0.22, 206_700),
-    (0.24, 394_600),
-    (0.32, 501_050),
-    (0.35, 751_600),
-    (0.37, float("inf")),
-]
+# Ordinary income brackets are sourced from TAX.BRACKETS_SINGLE/MARRIED in
+# financial.py, which holds IRS-confirmed values for each year and auto-projects
+# forward via COLA when the current year is not yet in the table.
+# Do NOT hardcode bracket values here — update financial.py each November instead.
 
-# Annual inflation adjustment applied to bracket ceilings
+# Annual inflation adjustment applied to bracket ceilings for multi-year projection
 _BRACKET_COLA = 0.025
 
 
 def _get_brackets(filing_status: str, years_from_now: int) -> list[tuple[float, float]]:
-    """Return inflation-adjusted brackets for *years_from_now* in the future."""
-    base = _BRACKETS_SINGLE if filing_status == "single" else _BRACKETS_MARRIED
+    """Return inflation-adjusted ordinary income brackets for *years_from_now* ahead.
+
+    Uses TAX.BRACKETS_SINGLE/MARRIED from financial.py (current-year values,
+    already COLA-projected from the last known IRS anchor) then applies a further
+    2.5% per-year adjustment for multi-year lookahead (Roth conversion horizon).
+    """
+    base = TAX.BRACKETS_SINGLE if filing_status == "single" else TAX.BRACKETS_MARRIED
     factor = (1 + _BRACKET_COLA) ** years_from_now
     return [(rate, ceil * factor) for rate, ceil in base]
 
