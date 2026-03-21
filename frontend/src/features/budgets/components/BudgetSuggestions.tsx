@@ -20,15 +20,18 @@ import {
 import { FiTrendingUp, FiPlus, FiZap, FiBookOpen } from "react-icons/fi";
 import { useQuery } from "@tanstack/react-query";
 import { budgetsApi } from "../../../api/budgets";
+import { categoriesApi } from "../../../api/categories";
 import type { BudgetSuggestion } from "../../../types/budget";
 import { useCurrency } from "../../../contexts/CurrencyContext";
 
 // Starter budgets shown to brand-new users with no spending history.
-// Amounts are conservative medians — users are prompted to adjust.
+// These are generic templates — no category is pre-selected when accepted.
+// Amounts are conservative medians; users are prompted to adjust.
 const STARTER_BUDGETS: BudgetSuggestion[] = [
   {
     category_name: "Groceries",
     category_id: null,
+    category_primary_raw: null,
     suggested_amount: 400,
     suggested_period: "monthly",
     avg_monthly_spend: 0,
@@ -39,6 +42,7 @@ const STARTER_BUDGETS: BudgetSuggestion[] = [
   {
     category_name: "Dining Out",
     category_id: null,
+    category_primary_raw: null,
     suggested_amount: 200,
     suggested_period: "monthly",
     avg_monthly_spend: 0,
@@ -49,6 +53,7 @@ const STARTER_BUDGETS: BudgetSuggestion[] = [
   {
     category_name: "Gas & Transportation",
     category_id: null,
+    category_primary_raw: null,
     suggested_amount: 150,
     suggested_period: "monthly",
     avg_monthly_spend: 0,
@@ -59,6 +64,7 @@ const STARTER_BUDGETS: BudgetSuggestion[] = [
   {
     category_name: "Entertainment",
     category_id: null,
+    category_primary_raw: null,
     suggested_amount: 100,
     suggested_period: "monthly",
     avg_monthly_spend: 0,
@@ -69,6 +75,7 @@ const STARTER_BUDGETS: BudgetSuggestion[] = [
   {
     category_name: "Shopping",
     category_id: null,
+    category_primary_raw: null,
     suggested_amount: 200,
     suggested_period: "monthly",
     avg_monthly_spend: 0,
@@ -79,6 +86,7 @@ const STARTER_BUDGETS: BudgetSuggestion[] = [
   {
     category_name: "Subscriptions",
     category_id: null,
+    category_primary_raw: null,
     suggested_amount: 50,
     suggested_period: "monthly",
     avg_monthly_spend: 0,
@@ -137,6 +145,11 @@ export default function BudgetSuggestions({
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
+  const { data: allCategories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: categoriesApi.getCategories,
+  });
+
   if (isLoading) {
     return (
       <VStack align="stretch" spacing={4}>
@@ -154,7 +167,26 @@ export default function BudgetSuggestions({
   }
 
   const isHistoryBased = historySuggestions.length > 0;
-  const suggestions = isHistoryBased ? historySuggestions : STARTER_BUDGETS;
+
+  // For history-based suggestions, only show provider category suggestions where
+  // we can find an exact match in allCategories (so the form can pre-select it).
+  // Custom category suggestions (with a UUID) are always shown.
+  // Starter budgets (no history) have no category pre-selection, so no filtering needed.
+  const suggestions = isHistoryBased
+    ? historySuggestions.filter((s) => {
+        if (s.category_id) return true; // custom category with UUID — always valid
+        if (!s.category_primary_raw) return false; // no raw value to match
+        return allCategories.some(
+          (c) =>
+            !c.id &&
+            c.name.toLowerCase() === s.category_primary_raw!.toLowerCase()
+        );
+      })
+    : STARTER_BUDGETS;
+
+  if (isHistoryBased && suggestions.length === 0) {
+    return null; // all history suggestions were filtered out — nothing to show
+  }
 
   return (
     <VStack align="stretch" spacing={4}>

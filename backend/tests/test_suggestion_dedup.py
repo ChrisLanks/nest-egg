@@ -3,6 +3,8 @@ Tests for budget suggestion deduplication fixes:
 1. Provider category suggestions excluded when a same-name budget already exists
 2. Custom category suggestions still excluded by UUID
 3. Case-insensitive name matching for provider categories
+4. History-based suggestions filtered to only those matchable in allCategories
+5. Starter budgets (no category_primary_raw) never pre-select a category
 """
 
 import pytest
@@ -160,3 +162,86 @@ class TestProviderCategoryNameResolution:
         resolved_name = "food and drink"
         select_value = f"provider::{resolved_name}"
         assert select_value == "provider::food and drink"
+
+
+class TestSuggestionMatchabilityFilter:
+    """History-based provider category suggestions should only be shown when
+    their category_primary_raw has an exact match in allCategories."""
+
+    def _is_suggestion_matchable(self, suggestion: dict, all_categories: list) -> bool:
+        """Mirror BudgetSuggestions.tsx filter logic."""
+        if suggestion.get("category_id"):
+            return True  # custom category with UUID — always valid
+        raw = suggestion.get("category_primary_raw")
+        if not raw:
+            return False  # no raw value (e.g. starter budget)
+        return any(
+            not c.get("id") and c["name"].lower() == raw.lower()
+            for c in all_categories
+        )
+
+    def test_exact_match_is_shown(self):
+        """'Transportation' raw matches 'Transportation' category."""
+        suggestion = {"category_id": None, "category_primary_raw": "transportation", "category_name": "Transportation"}
+        all_cats = [{"id": None, "name": "Transportation"}]
+        assert self._is_suggestion_matchable(suggestion, all_cats) is True
+
+    def test_case_insensitive_match_is_shown(self):
+        """'food and drink' raw matches 'Food and Drink' category case-insensitively."""
+        suggestion = {"category_id": None, "category_primary_raw": "food and drink", "category_name": "Food And Drink"}
+        all_cats = [{"id": None, "name": "Food and Drink"}]
+        assert self._is_suggestion_matchable(suggestion, all_cats) is True
+
+    def test_no_match_is_filtered_out(self):
+        """'gas & transportation' does not match 'Transportation' — different string."""
+        suggestion = {"category_id": None, "category_primary_raw": "gas & transportation", "category_name": "Gas & Transportation"}
+        all_cats = [{"id": None, "name": "Transportation"}]
+        assert self._is_suggestion_matchable(suggestion, all_cats) is False
+
+    def test_dining_out_does_not_match_food_and_drink(self):
+        """'dining out' does not match 'Food and Drink' — different string."""
+        suggestion = {"category_id": None, "category_primary_raw": "dining out", "category_name": "Dining Out"}
+        all_cats = [{"id": None, "name": "Food and Drink"}]
+        assert self._is_suggestion_matchable(suggestion, all_cats) is False
+
+    def test_uuid_category_always_shown(self):
+        """Custom categories with a UUID are always shown regardless of allCategories."""
+        suggestion = {"category_id": "some-uuid", "category_primary_raw": None, "category_name": "My Category"}
+        assert self._is_suggestion_matchable(suggestion, []) is True
+
+    def test_starter_budget_no_raw_is_filtered(self):
+        """Starter budgets (no category_primary_raw) are filtered out of history mode."""
+        suggestion = {"category_id": None, "category_primary_raw": None, "category_name": "Gas & Transportation"}
+        all_cats = [{"id": None, "name": "Transportation"}]
+        assert self._is_suggestion_matchable(suggestion, all_cats) is False
+
+    def test_shopping_matches_shopping(self):
+        """'shopping' raw matches 'Shopping' category."""
+        suggestion = {"category_id": None, "category_primary_raw": "shopping", "category_name": "Shopping"}
+        all_cats = [{"id": None, "name": "Shopping"}]
+        assert self._is_suggestion_matchable(suggestion, all_cats) is True
+
+
+class TestStarterBudgetCategoryPreselection:
+    """Starter budgets should never pass a provider category name to BudgetForm."""
+
+    def _get_provider_category_name(self, suggestion: dict) -> str | None:
+        """Mirror BudgetsPage handleAcceptSuggestion logic."""
+        if not suggestion.get("category_id") and suggestion.get("category_primary_raw"):
+            return suggestion["category_primary_raw"]
+        return None
+
+    def test_starter_budget_returns_none(self):
+        """Starter budgets have no category_primary_raw → no pre-selection."""
+        starter = {"category_id": None, "category_primary_raw": None, "category_name": "Dining Out"}
+        assert self._get_provider_category_name(starter) is None
+
+    def test_history_suggestion_returns_raw(self):
+        """History-based provider suggestions return the raw value for exact lookup."""
+        history = {"category_id": None, "category_primary_raw": "food and drink", "category_name": "Food And Drink"}
+        assert self._get_provider_category_name(history) == "food and drink"
+
+    def test_uuid_suggestion_returns_none(self):
+        """Custom category suggestions don't set providerCategoryName (they have a UUID)."""
+        custom = {"category_id": "abc-uuid", "category_primary_raw": None, "category_name": "My Custom"}
+        assert self._get_provider_category_name(custom) is None

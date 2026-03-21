@@ -112,12 +112,12 @@ export default function BudgetsPage() {
       category_id: suggestion.category_id ?? undefined,
       start_date: new Date().toISOString().split("T")[0],
     });
-    // If the suggestion is based on a provider category (no UUID), pass the raw
-    // category_primary value so the form can find the exact match in allCategories.
-    // category_primary_raw is the lowercased DB value; fall back to category_name.
+    // Only pre-select a category if we have a raw DB value to match against.
+    // Starter budgets (category_primary_raw = null) open the form with no
+    // category pre-selected so the user picks their own.
     setPrefillProviderCategoryName(
-      !suggestion.category_id
-        ? (suggestion.category_primary_raw ?? suggestion.category_name)
+      !suggestion.category_id && suggestion.category_primary_raw
+        ? suggestion.category_primary_raw
         : null,
     );
     onOpen();
