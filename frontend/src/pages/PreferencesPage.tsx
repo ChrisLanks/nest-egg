@@ -27,6 +27,7 @@ import {
   NumberInputField,
   Select,
   SimpleGrid,
+  Skeleton,
   Stack,
   Switch,
   Text,
@@ -757,7 +758,11 @@ export default function PreferencesPage() {
   if (profileLoading) {
     return (
       <Container maxW="container.lg" py={8}>
-        <Text>Loading...</Text>
+        <VStack spacing={4}>
+          <Skeleton height="40px" />
+          <Skeleton height="40px" />
+          <Skeleton height="40px" />
+        </VStack>
       </Container>
     );
   }

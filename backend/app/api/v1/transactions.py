@@ -386,6 +386,7 @@ async def list_transactions(
         query = query.where(
             Transaction.merchant_name.ilike(search_pattern)
             | Transaction.description.ilike(search_pattern)
+            | Transaction.notes.ilike(search_pattern)
         )
 
     if flagged is not None:
@@ -462,6 +463,7 @@ async def list_transactions(
             count_query = count_query.where(
                 Transaction.merchant_name.ilike(search_pattern)
                 | Transaction.description.ilike(search_pattern)
+                | Transaction.notes.ilike(search_pattern)
             )
         if flagged is not None:
             count_query = count_query.where(Transaction.flagged_for_review.is_(flagged))

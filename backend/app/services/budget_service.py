@@ -10,7 +10,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import Budget, BudgetPeriod
-from app.models.notification import NotificationPriority, NotificationType
+from app.models.notification import Notification, NotificationPriority, NotificationType
 from app.models.transaction import Category, Transaction, TransactionLabel
 from app.models.user import Organization, User
 from app.services.notification_service import NotificationService
@@ -454,6 +454,19 @@ class BudgetService:
         budgets = await BudgetService.get_budgets(db, user, is_active=True)
         alerts = []
 
+        # Fetch org members once so we can attach a real user_id to alerts
+        members_result = await db.execute(
+            select(User).where(
+                User.organization_id == user.organization_id,
+                User.is_active.is_(True),
+            )
+        )
+        org_members = members_result.scalars().all()
+        # Prefer the org admin; fall back to any member; last resort: the caller
+        alert_user = next(
+            (m for m in org_members if m.is_org_admin), org_members[0] if org_members else user
+        )
+
         for budget in budgets:
             spending = await BudgetService.get_budget_spending(db, budget.id, user)
 
@@ -464,6 +477,25 @@ class BudgetService:
 
             # Check if over alert threshold
             if percentage >= (budget.alert_threshold * 100):
+                # Deduplication: skip if an unread BUDGET_ALERT for this budget already
+                # exists today for this org (prevents duplicate alerts from repeated runs)
+                today_str = utc_now().date().isoformat()
+                existing_result = await db.execute(
+                    select(Notification.id)
+                    .where(
+                        and_(
+                            Notification.organization_id == user.organization_id,
+                            Notification.type == NotificationType.BUDGET_ALERT,
+                            Notification.related_entity_id == budget.id,
+                            Notification.is_read.is_(False),
+                            func.date(Notification.created_at) == today_str,
+                        )
+                    )
+                    .limit(1)
+                )
+                if existing_result.scalar_one_or_none() is not None:
+                    continue
+
                 # Create notification
                 priority = (
                     NotificationPriority.HIGH if percentage >= 100 else NotificationPriority.MEDIUM
@@ -485,6 +517,7 @@ class BudgetService:
                 await NotificationService.create_notification(
                     db=db,
                     organization_id=user.organization_id,
+                    user_id=alert_user.id,
                     type=NotificationType.BUDGET_ALERT,
                     title=title,
                     message=message,

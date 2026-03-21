@@ -451,7 +451,7 @@ export const CategoriesPage = () => {
             bg="bg.surface"
             borderRadius="lg"
             boxShadow="sm"
-            overflow="hidden"
+            overflowX="auto"
           >
             <Table variant="simple" size="sm">
               <Thead bg="bg.subtle">

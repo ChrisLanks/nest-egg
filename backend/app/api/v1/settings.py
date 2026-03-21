@@ -14,6 +14,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select
 from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import hash_password, verify_password
@@ -24,7 +25,7 @@ from app.models.holding import Holding
 from app.models.permission import PermissionGrant
 from app.models.recurring_transaction import RecurringTransaction
 from app.models.rule import Rule
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, TransactionLabel
 from app.models.user import Organization, RefreshToken, User
 from app.schemas.user import OrganizationUpdate, UserUpdate
 from app.services.email_service import create_verification_token, email_service
@@ -68,6 +69,24 @@ class NotificationPreferencesUpdate(BaseModel):
     budget_alerts: Optional[bool] = None
     milestones: Optional[bool] = None
     household: Optional[bool] = None
+    goal_alerts: Optional[bool] = None
+    weekly_recap: Optional[bool] = None
+    equity_alerts: Optional[bool] = None
+    crypto_alerts: Optional[bool] = None
+
+
+class NotificationPreferencesResponse(BaseModel):
+    """Response schema for notification preferences (all 9 categories)."""
+
+    account_syncs: Optional[bool] = True
+    account_activity: Optional[bool] = True
+    budget_alerts: Optional[bool] = True
+    milestones: Optional[bool] = True
+    household: Optional[bool] = True
+    goal_alerts: Optional[bool] = True
+    weekly_recap: Optional[bool] = True
+    equity_alerts: Optional[bool] = True
+    crypto_alerts: Optional[bool] = True
 
 
 class DashboardLayoutUpdate(BaseModel):
@@ -466,6 +485,9 @@ async def export_data(
             batch_result = await db.execute(
                 select(Transaction)
                 .where(Transaction.organization_id == org_id)
+                .options(
+                    selectinload(Transaction.labels).selectinload(TransactionLabel.label)
+                )
                 .order_by(Transaction.date.desc())
                 .offset(txn_offset)
                 .limit(EXPORT_BATCH_SIZE)
@@ -482,7 +504,13 @@ async def export_data(
                 labels = ""
                 try:
                     if t.labels:
-                        labels = ",".join(str(lbl) for lbl in t.labels)
+                        label_names = []
+                        for lbl in t.labels:
+                            # lbl is a TransactionLabel; the Label ORM object is lbl.label
+                            name = getattr(lbl.label, "name", None) or getattr(lbl, "name", None)
+                            if name:
+                                label_names.append(name)
+                        labels = ",".join(label_names)
                 except Exception:
                     pass
                 txn_writer.writerow(
@@ -784,7 +812,26 @@ async def update_email_notifications(
     return {"email_notifications_enabled": enabled}
 
 
-@router.patch("/notification-preferences")
+@router.get("/notification-preferences", response_model=NotificationPreferencesResponse)
+async def get_notification_preferences(
+    current_user: User = Depends(get_current_user),
+):
+    """Get per-category notification preferences for current user."""
+    prefs: dict = dict(current_user.notification_preferences or {})
+    return NotificationPreferencesResponse(
+        account_syncs=prefs.get("account_syncs", True),
+        account_activity=prefs.get("account_activity", True),
+        budget_alerts=prefs.get("budget_alerts", True),
+        milestones=prefs.get("milestones", True),
+        household=prefs.get("household", True),
+        goal_alerts=prefs.get("goal_alerts", True),
+        weekly_recap=prefs.get("weekly_recap", True),
+        equity_alerts=prefs.get("equity_alerts", True),
+        crypto_alerts=prefs.get("crypto_alerts", True),
+    )
+
+
+@router.patch("/notification-preferences", response_model=NotificationPreferencesResponse)
 async def update_notification_preferences(
     body: NotificationPreferencesUpdate,
     current_user: User = Depends(get_current_user),
@@ -796,7 +843,17 @@ async def update_notification_preferences(
     prefs.update(updates)
     current_user.notification_preferences = prefs
     await db.commit()
-    return {"notification_preferences": prefs}
+    return NotificationPreferencesResponse(
+        account_syncs=prefs.get("account_syncs", True),
+        account_activity=prefs.get("account_activity", True),
+        budget_alerts=prefs.get("budget_alerts", True),
+        milestones=prefs.get("milestones", True),
+        household=prefs.get("household", True),
+        goal_alerts=prefs.get("goal_alerts", True),
+        weekly_recap=prefs.get("weekly_recap", True),
+        equity_alerts=prefs.get("equity_alerts", True),
+        crypto_alerts=prefs.get("crypto_alerts", True),
+    )
 
 
 @router.get("/email-configured")

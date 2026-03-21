@@ -59,6 +59,7 @@ celery_app.Task = RetryableTask
 # Import tasks here as they're created
 from app.workers.tasks import (
     auth_tasks,  # noqa: F401
+    bill_reminder_tasks,  # noqa: F401
     budget_tasks,  # noqa: F401
     forecast_tasks,  # noqa: F401
     guest_access_tasks,  # noqa: F401
@@ -139,6 +140,11 @@ celery_app.conf.beat_schedule = {
     # Scheduled report delivery — templates with scheduled_delivery.enabled=true
     "send-scheduled-reports": {
         "task": "send_scheduled_reports",
+        "schedule": crontab(hour=8, minute=0),  # 8am daily
+    },
+    # Bill payment reminders — notify users of upcoming/overdue bills
+    "send-bill-reminders": {
+        "task": "send_bill_reminders",
         "schedule": crontab(hour=8, minute=0),  # 8am daily
     },
 }

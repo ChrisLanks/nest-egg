@@ -246,7 +246,13 @@ const GettingStartedWidgetBase: React.FC = () => {
   const step1Done = Array.isArray(accounts) && accounts.length > 0;
   const step2Done = Array.isArray(budgets) && budgets.length > 0;
   const step3Done = Array.isArray(savingsGoals) && savingsGoals.length > 0;
-  const step4Done = localStorage.getItem(NET_WORTH_VIEWED_KEY) === "true";
+  const step4Done =
+    (Array.isArray(accounts) &&
+      accounts.some(
+        (a: { current_balance?: number | null }) =>
+          (a.current_balance ?? 0) !== 0,
+      )) ||
+    localStorage.getItem(NET_WORTH_VIEWED_KEY) === "true";
 
   const allDone = step1Done && step2Done && step3Done && step4Done;
 

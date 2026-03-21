@@ -7,6 +7,7 @@ import {
   AlertIcon,
   Box,
   Button,
+  Container,
   Heading,
   HStack,
   SimpleGrid,
@@ -146,7 +147,7 @@ export default function BudgetsPage() {
     activeBudgets.length === 0 && inactiveBudgets.length === 0;
 
   return (
-    <Box p={8}>
+    <Container maxW="container.xl" py={8}>
       <VStack align="stretch" spacing={6}>
         {/* Header */}
         <HStack justify="space-between">
@@ -356,6 +357,6 @@ export default function BudgetsPage() {
         budget={selectedBudget}
         initialValues={prefillValues}
       />
-    </Box>
+    </Container>
   );
 }

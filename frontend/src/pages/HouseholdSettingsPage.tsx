@@ -725,6 +725,7 @@ export const HouseholdSettingsPage: React.FC = () => {
                   <Spinner />
                 </HStack>
               ) : (
+                <Box overflowX="auto">
                 <Table variant="simple" size="sm">
                   <Thead>
                     <Tr>
@@ -774,6 +775,7 @@ export const HouseholdSettingsPage: React.FC = () => {
                     ))}
                   </Tbody>
                 </Table>
+                </Box>
               )}
             </CardBody>
           </Card>
@@ -844,7 +846,7 @@ export const HouseholdSettingsPage: React.FC = () => {
                     <Spinner />
                   </HStack>
                 ) : guestRecords && guestRecords.length > 0 ? (
-                  <Box>
+                  <Box overflowX="auto">
                     <Text fontWeight="medium" mb={3}>
                       Active Guests
                     </Text>
@@ -933,7 +935,7 @@ export const HouseholdSettingsPage: React.FC = () => {
 
                 {/* Pending guest invitations */}
                 {guestInvitations && guestInvitations.length > 0 && (
-                  <Box>
+                  <Box overflowX="auto">
                     <Text fontWeight="medium" mb={3}>
                       Pending Guest Invitations
                     </Text>

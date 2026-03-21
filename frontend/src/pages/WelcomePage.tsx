@@ -9,7 +9,7 @@
  * 5. Ready — focused CTA based on chosen goal
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -48,6 +48,7 @@ import { useMutation } from "@tanstack/react-query";
 import api from "../services/api";
 import { AddAccountModal } from "../features/accounts/components/AddAccountModal";
 import { useAuthStore } from "../features/auth/stores/authStore";
+import { validateEmail } from "../utils/validation";
 import {
   SIMPLE_LAYOUT,
   ADVANCED_LAYOUT,
@@ -184,6 +185,13 @@ export default function WelcomePage() {
   const navigate = useNavigate();
   const toast = useToast();
   const { user, setUser } = useAuthStore();
+
+  // Re-entry guard: redirect users who have already completed onboarding
+  useEffect(() => {
+    if (user?.onboarding_completed) {
+      navigate("/", { replace: true });
+    }
+  }, [user, navigate]);
 
   const updateHouseholdMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -557,7 +565,7 @@ export default function WelcomePage() {
                     colorScheme="brand"
                     onClick={() => inviteMutation.mutate(inviteEmail)}
                     isLoading={inviteMutation.isPending}
-                    isDisabled={!inviteEmail.includes("@")}
+                    isDisabled={!validateEmail(inviteEmail).valid}
                   >
                     Invite
                   </Button>
