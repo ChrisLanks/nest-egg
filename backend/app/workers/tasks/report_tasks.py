@@ -4,6 +4,8 @@ import html
 import logging
 from datetime import date, datetime
 
+from app.utils.datetime_utils import utc_now
+
 from sqlalchemy import select
 
 from app.models.report_template import ReportTemplate
@@ -12,7 +14,12 @@ from app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name="send_scheduled_reports")
+@celery_app.task(
+    name="send_scheduled_reports",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    retry_backoff=True,
+)
 def send_scheduled_reports_task():
     """
     Send scheduled report emails.
@@ -29,7 +36,7 @@ async def _send_scheduled_reports_async():
     from app.services.report_service import ReportService
     from app.workers.utils import get_celery_session
 
-    today = date.today()
+    today = utc_now().date()
 
     async with get_celery_session() as db:
         try:
@@ -124,6 +131,12 @@ async def _send_scheduled_reports_async():
                     template.scheduled_delivery = updated_delivery
                     await db.commit()
                     sent_count += 1
+                elif delivery_emails:
+                    logger.warning(
+                        "Scheduled report %s: all %d email sends failed",
+                        template.id,
+                        len(delivery_emails),
+                    )
 
             logger.info("Scheduled report delivery complete. Reports sent: %d", sent_count)
 

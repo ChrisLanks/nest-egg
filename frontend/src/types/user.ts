@@ -24,6 +24,7 @@ export interface Organization {
   name: string;
   custom_month_end_day: number;
   timezone: string;
+  default_currency: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;

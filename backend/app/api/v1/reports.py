@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,24 +43,60 @@ deduplication_service = DeduplicationService()
 # Pydantic schemas
 
 
+VALID_REPORT_TYPES = {
+    "income_expense",
+    "cash_flow",
+    "net_worth",
+    "category_breakdown",
+    "tax_summary",
+    "investment_performance",
+    "custom",
+}
+
+VALID_DELIVERY_FREQUENCIES = {"daily", "weekly", "monthly"}
+
+
 class ReportTemplateCreate(BaseModel):
     """Schema for creating a report template."""
 
-    name: str
+    name: str = Field(..., max_length=255)
     description: Optional[str] = None
     report_type: str
     config: Dict[str, Any]
     is_shared: bool = False
 
+    @field_validator("report_type")
+    @classmethod
+    def validate_report_type(cls, v: str) -> str:
+        """Validate report_type is a known type."""
+        if v not in VALID_REPORT_TYPES:
+            raise ValueError(
+                f"report_type must be one of: {', '.join(sorted(VALID_REPORT_TYPES))}"
+            )
+        return v
+
 
 class ReportTemplateUpdate(BaseModel):
     """Schema for updating a report template."""
 
-    name: Optional[str] = None
+    name: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = None
     config: Optional[Dict[str, Any]] = None
     is_shared: Optional[bool] = None
     scheduled_delivery: Optional[Dict[str, Any]] = None
+
+    @field_validator("scheduled_delivery")
+    @classmethod
+    def validate_scheduled_delivery(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Validate scheduled_delivery frequency when present."""
+        if v is None:
+            return v
+        frequency = v.get("frequency")
+        if frequency is not None and frequency not in VALID_DELIVERY_FREQUENCIES:
+            raise ValueError(
+                f"scheduled_delivery.frequency must be one of: {', '.join(sorted(VALID_DELIVERY_FREQUENCIES))}"
+            )
+        return v
 
 
 class ReportTemplateResponse(BaseModel):

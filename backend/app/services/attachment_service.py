@@ -23,7 +23,15 @@ ALLOWED_CONTENT_TYPES = {
     "application/pdf",
 }
 
-
+# Map of magic bytes to allowed MIME types (order matters — check longer prefixes first)
+MAGIC_BYTES = {
+    b'\xff\xd8\xff': 'image/jpeg',
+    b'\x89PNG\r\n': 'image/png',
+    b'GIF87a': 'image/gif',
+    b'GIF89a': 'image/gif',
+    b'%PDF': 'application/pdf',
+    b'RIFF': 'image/webp',  # needs further check
+}
 async def _verify_transaction_access(
     db: AsyncSession,
     transaction_id: uuid.UUID,
@@ -105,14 +113,33 @@ async def upload_attachment(
     """
     txn = await _verify_transaction_access(db, transaction_id, user)
 
-    # Validate content type
-    content_type = file.content_type or "application/octet-stream"
-    if content_type not in ALLOWED_CONTENT_TYPES:
+    # Validate content type from client-supplied header
+    client_content_type = file.content_type or "application/octet-stream"
+    if client_content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File type '{content_type}' is not allowed. "
+            detail=f"File type '{client_content_type}' is not allowed. "
             f"Allowed types: {', '.join(sorted(ALLOWED_CONTENT_TYPES))}",
         )
+
+    # Read first 261 bytes to detect actual file type
+    file_header = await file.read(261)
+    await file.seek(0)  # reset for actual upload
+
+    detected_type = None
+    for magic, mime in MAGIC_BYTES.items():
+        if file_header[:len(magic)] == magic:
+            detected_type = mime
+            break
+
+    if detected_type is None or detected_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File content does not match an allowed type. Detected: {detected_type or 'unknown'}",
+        )
+
+    # Use detected type, not client-supplied header
+    content_type = detected_type
 
     # Read file data and validate size
     data = await file.read()
@@ -145,7 +172,7 @@ async def upload_attachment(
 
     await storage.save(storage_key, data, content_type=content_type)
 
-    # Best-effort OCR — never blocks upload
+    # Best-effort OCR â never blocks upload
     ocr_status = None
     ocr_data = None
     try:
@@ -276,7 +303,7 @@ async def get_download_url(
             "filename": attachment.original_filename,
         }
     else:
-        # Local storage — return storage key so the API can stream the file
+        # Local storage â return storage key so the API can stream the file
         return {
             "storage_key": attachment.storage_key,
             "content_type": attachment.content_type,

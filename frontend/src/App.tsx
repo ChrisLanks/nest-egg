@@ -10,6 +10,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { theme } from "./styles/theme";
 import { queryClient } from "./services/queryClient";
 import { UserViewProvider } from "./contexts/UserViewContext";
+import { CurrencyProvider } from "./contexts/CurrencyContext";
 // Eager-loaded components (critical for initial render)
 import { LoginPage } from "./features/auth/pages/LoginPage";
 import { RegisterPage } from "./features/auth/pages/RegisterPage";
@@ -136,6 +137,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ChakraProvider theme={theme}>
         <BrowserRouter>
+          <CurrencyProvider>
           <UserViewProvider>
             <ErrorBoundary>
               <Suspense fallback={<PageLoader />}>
@@ -276,6 +278,7 @@ function App() {
               </Suspense>
             </ErrorBoundary>
           </UserViewProvider>
+          </CurrencyProvider>
         </BrowserRouter>
       </ChakraProvider>
     </QueryClientProvider>

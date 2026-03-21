@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.budget import BudgetPeriod
 
@@ -13,7 +13,7 @@ from app.models.budget import BudgetPeriod
 class BudgetBase(BaseModel):
     """Base budget schema."""
 
-    name: str
+    name: str = Field(..., max_length=255)
     amount: Decimal = Field(gt=0)
     period: BudgetPeriod
     start_date: date
@@ -30,11 +30,18 @@ class BudgetCreate(BudgetBase):
     is_shared: bool = False
     shared_user_ids: Optional[List[str]] = None
 
+    @model_validator(mode="after")
+    def validate_date_range(self) -> "BudgetCreate":
+        """Ensure end_date >= start_date when both are provided."""
+        if self.end_date is not None and self.end_date < self.start_date:
+            raise ValueError("end_date must be on or after start_date")
+        return self
+
 
 class BudgetUpdate(BaseModel):
     """Schema for updating a budget."""
 
-    name: Optional[str] = None
+    name: Optional[str] = Field(None, max_length=255)
     amount: Optional[Decimal] = Field(None, gt=0)
     period: Optional[BudgetPeriod] = None
     start_date: Optional[date] = None
@@ -46,6 +53,14 @@ class BudgetUpdate(BaseModel):
     is_active: Optional[bool] = None
     is_shared: Optional[bool] = None
     shared_user_ids: Optional[List[str]] = None
+
+    @model_validator(mode="after")
+    def validate_date_range(self) -> "BudgetUpdate":
+        """Ensure end_date >= start_date when both are provided."""
+        if self.start_date is not None and self.end_date is not None:
+            if self.end_date < self.start_date:
+                raise ValueError("end_date must be on or after start_date")
+        return self
 
 
 class BudgetResponse(BudgetBase):

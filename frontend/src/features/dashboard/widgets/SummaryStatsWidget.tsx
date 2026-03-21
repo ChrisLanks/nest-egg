@@ -11,18 +11,12 @@ import {
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useUserView } from "../../../contexts/UserViewContext";
+import { useCurrency } from "../../../contexts/CurrencyContext";
 import api from "../../../services/api";
-
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
 
 const SummaryStatsWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
+  const { formatCurrency } = useCurrency();
 
   const { data } = useQuery({
     queryKey: ["dashboard", selectedUserId],

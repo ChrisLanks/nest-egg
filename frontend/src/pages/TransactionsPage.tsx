@@ -91,6 +91,7 @@ import { InfiniteScrollSentinel } from "../components/InfiniteScrollSentinel";
 import { useInfiniteTransactions } from "../hooks/useInfiniteTransactions";
 import { transactionApi } from "../services/transactionApi";
 import { useUserView } from "../contexts/UserViewContext";
+import { useCurrency } from "../contexts/CurrencyContext";
 import type { Transaction } from "../types/transaction";
 import api from "../services/api";
 import { TransactionsSkeleton } from "../components/LoadingSkeleton";
@@ -637,6 +638,7 @@ export const TransactionsPage = () => {
     isPartialMemberSelection,
     matchesMemberFilter,
   } = useUserView();
+  const { formatCurrency: _formatCurrency } = useCurrency();
   const canEdit = canWriteResource("transaction");
   const isMobile = useBreakpointValue({ base: true, md: false });
 
@@ -1691,10 +1693,7 @@ export const TransactionsPage = () => {
 
   const formatCurrency = (amount: number) => {
     const isNegative = amount < 0;
-    const formatted = new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(Math.abs(amount));
+    const formatted = _formatCurrency(Math.abs(amount));
     return { formatted, isNegative };
   };
 

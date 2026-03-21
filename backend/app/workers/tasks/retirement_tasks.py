@@ -18,7 +18,12 @@ from app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name="run_retirement_simulation")
+@celery_app.task(
+    name="run_retirement_simulation",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    retry_backoff=True,
+)
 def run_retirement_simulation(scenario_id: str, user_id: str):
     """
     Run Monte Carlo simulation for a retirement scenario in the background.

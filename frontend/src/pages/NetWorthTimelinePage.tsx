@@ -50,6 +50,7 @@ import {
 } from "recharts";
 import api from "../services/api";
 import { useUserView } from "../contexts/UserViewContext";
+import { useCurrency } from "../contexts/CurrencyContext";
 
 type TimeRange = "1M" | "3M" | "6M" | "1Y" | "2Y" | "ALL" | "CUSTOM";
 
@@ -72,21 +73,7 @@ interface NetWorthPoint {
   other_debts: number;
 }
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(v);
-
-const fmtFull = (v: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(v);
+// fmt and fmtFull are defined inside the component using useCurrency()
 
 const ASSET_LAYERS = [
   { key: "cash_and_checking", label: "Cash & Checking", color: "#38B2AC" },
@@ -148,6 +135,10 @@ function getDateRange(
 
 export default function NetWorthTimelinePage() {
   const { selectedUserId } = useUserView();
+  const { formatCurrency, formatCurrencyCompact } = useCurrency();
+  const fmt = formatCurrencyCompact;
+  const fmtFull = (v: number) =>
+    formatCurrency(v, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
   const tooltipBorder = useColorModeValue("#E2E8F0", "#4A5568");
 

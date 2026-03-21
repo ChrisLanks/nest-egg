@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class TransactionBase(BaseModel):
@@ -14,8 +14,8 @@ class TransactionBase(BaseModel):
 
     date: date
     amount: Decimal
-    merchant_name: Optional[str] = None
-    description: Optional[str] = None
+    merchant_name: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = Field(None, max_length=255)
     category_primary: Optional[str] = None
     category_detailed: Optional[str] = None
 
@@ -35,18 +35,27 @@ class ManualTransactionCreate(TransactionBase):
     category_id: Optional[UUID] = None
     is_pending: bool = False
     is_transfer: bool = False
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=10000)
     flagged_for_review: bool = False
+
+    @field_validator("date")
+    @classmethod
+    def validate_date_not_too_far_future(cls, v: date) -> date:
+        """Warn if date is more than 1 year in the future (cap accepted at year 2100)."""
+        from datetime import date as date_type
+        if v > date_type(2100, 1, 1):
+            raise ValueError("date must be on or before 2100-01-01")
+        return v
 
 
 class TransactionUpdate(BaseModel):
     """Transaction update schema."""
 
-    merchant_name: Optional[str] = None
-    description: Optional[str] = None
+    merchant_name: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = Field(None, max_length=255)
     category_primary: Optional[str] = None
     is_transfer: Optional[bool] = None
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=10000)
     flagged_for_review: Optional[bool] = None
 
 
