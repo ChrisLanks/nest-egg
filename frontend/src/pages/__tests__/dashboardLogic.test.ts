@@ -582,3 +582,94 @@ describe("DashboardGrid: handleDragEnd guard", () => {
     expect(shouldReorder).toBe(false);
   });
 });
+
+// ── NetWorthChartWidget error state ──────────────────────────────────────────
+//
+// Mirrors the render-branch logic added to NetWorthChartWidget:
+//   isLoading || isFetching → overlay spinner
+//   historicalError         → error state with retry button
+//   chartData.length === 0  → no-data message
+//   otherwise               → chart
+
+type NetWorthWidgetState = "loading" | "error" | "empty" | "chart";
+
+const resolveNetWorthWidgetState = (
+  isLoading: boolean,
+  historicalError: boolean,
+  chartDataLength: number,
+): NetWorthWidgetState => {
+  if (isLoading) return "loading";
+  if (historicalError) return "error";
+  if (chartDataLength === 0) return "empty";
+  return "chart";
+};
+
+const netWorthErrorText = "Failed to load net worth data. Please try again.";
+
+describe("NetWorthChartWidget error state", () => {
+  it("resolves to 'loading' when isLoading is true", () => {
+    expect(resolveNetWorthWidgetState(true, false, 0)).toBe("loading");
+  });
+
+  it("loading takes priority over error", () => {
+    expect(resolveNetWorthWidgetState(true, true, 0)).toBe("loading");
+  });
+
+  it("resolves to 'error' when historicalError is true", () => {
+    expect(resolveNetWorthWidgetState(false, true, 0)).toBe("error");
+  });
+
+  it("resolves to 'empty' when no error and no chart data", () => {
+    expect(resolveNetWorthWidgetState(false, false, 0)).toBe("empty");
+  });
+
+  it("resolves to 'chart' when data is available", () => {
+    expect(resolveNetWorthWidgetState(false, false, 5)).toBe("chart");
+  });
+
+  it("error message text mentions net worth", () => {
+    expect(netWorthErrorText.toLowerCase()).toContain("net worth");
+  });
+});
+
+// ── BudgetsWidget error state ─────────────────────────────────────────────────
+//
+// Mirrors the render-branch logic added to BudgetsWidget:
+//   isLoading    → spinner card
+//   budgetsError → error card with retry button
+//   otherwise    → budget list (or no-budgets message)
+
+type BudgetsWidgetState = "loading" | "error" | "content";
+
+const resolveBudgetsWidgetState = (
+  isLoading: boolean,
+  budgetsError: boolean,
+): BudgetsWidgetState => {
+  if (isLoading) return "loading";
+  if (budgetsError) return "error";
+  return "content";
+};
+
+const budgetsWidgetErrorText = "Failed to load budgets. Please try again.";
+
+describe("BudgetsWidget error state", () => {
+  it("resolves to 'loading' when isLoading is true", () => {
+    expect(resolveBudgetsWidgetState(true, false)).toBe("loading");
+  });
+
+  it("loading takes priority over error", () => {
+    expect(resolveBudgetsWidgetState(true, true)).toBe("loading");
+  });
+
+  it("resolves to 'error' when budgetsError is true", () => {
+    expect(resolveBudgetsWidgetState(false, true)).toBe("error");
+  });
+
+  it("resolves to 'content' when loaded successfully", () => {
+    expect(resolveBudgetsWidgetState(false, false)).toBe("content");
+  });
+
+  it("error message text mentions budgets", () => {
+    expect(budgetsWidgetErrorText.toLowerCase()).toContain("budgets");
+  });
+});

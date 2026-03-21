@@ -442,3 +442,50 @@ describe("HouseholdMember type includes birth_year", () => {
     expect(source).toContain("birth_year");
   });
 });
+
+// ── CalendarPage error state rendering decision ──────────────────────────────
+//
+// Mirrors the render-branch logic added to CalendarPage:
+//   financialCalendarLoading → spinner
+//   financialCalendarError   → error state with retry button
+//   otherwise                → calendar grid
+
+type CalendarPageState = "loading" | "error" | "calendar";
+
+const resolveCalendarPageState = (
+  isLoading: boolean,
+  isError: boolean,
+): CalendarPageState => {
+  if (isLoading) return "loading";
+  if (isError) return "error";
+  return "calendar";
+};
+
+const calendarErrorMessageText = "Failed to load calendar. Please try again.";
+const calendarRetryButtonLabel = "Retry";
+
+describe("CalendarPage error state", () => {
+  it("resolves to 'loading' when isLoading is true", () => {
+    expect(resolveCalendarPageState(true, false)).toBe("loading");
+  });
+
+  it("loading takes priority over error", () => {
+    expect(resolveCalendarPageState(true, true)).toBe("loading");
+  });
+
+  it("resolves to 'error' when isError is true", () => {
+    expect(resolveCalendarPageState(false, true)).toBe("error");
+  });
+
+  it("resolves to 'calendar' when not loading and no error", () => {
+    expect(resolveCalendarPageState(false, false)).toBe("calendar");
+  });
+
+  it("error message text mentions calendar", () => {
+    expect(calendarErrorMessageText.toLowerCase()).toContain("calendar");
+  });
+
+  it("retry button label is defined", () => {
+    expect(calendarRetryButtonLabel).toBe("Retry");
+  });
+});

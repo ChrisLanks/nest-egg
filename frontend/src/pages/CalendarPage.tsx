@@ -1,6 +1,10 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { useUserView } from "../contexts/UserViewContext";
 import {
+  Alert,
+  AlertDescription,
+  AlertIcon,
+  AlertTitle,
   Badge,
   Box,
   Button,
@@ -131,12 +135,16 @@ export const CalendarPage: React.FC = () => {
   // ── Query ───────────────────────────────────────────────────────────────────
 
   const calMonthStr = `${calYear}-${String(calMonth + 1).padStart(2, "0")}`;
-  const { data: financialCalendar, isLoading: financialCalendarLoading } =
-    useQuery<FinancialCalendarResponse>({
-      queryKey: ["financial-calendar", calMonthStr, selectedUserId],
-      queryFn: () => financialCalendarApi.getMonth(calMonthStr, selectedUserId),
-      staleTime: 2 * 60 * 1000,
-    });
+  const {
+    data: financialCalendar,
+    isLoading: financialCalendarLoading,
+    isError: financialCalendarError,
+    refetch: refetchCalendar,
+  } = useQuery<FinancialCalendarResponse>({
+    queryKey: ["financial-calendar", calMonthStr, selectedUserId],
+    queryFn: () => financialCalendarApi.getMonth(calMonthStr, selectedUserId),
+    staleTime: 2 * 60 * 1000,
+  });
 
   // ── Calendar helpers ────────────────────────────────────────────────────────
 
@@ -209,6 +217,19 @@ export const CalendarPage: React.FC = () => {
         {financialCalendarLoading ? (
           <Center py={12}>
             <Spinner size="xl" />
+          </Center>
+        ) : financialCalendarError ? (
+          <Center py={16}>
+            <VStack spacing={4}>
+              <Alert status="error" borderRadius="md">
+                <AlertIcon />
+                <AlertTitle>Failed to load calendar.</AlertTitle>
+                <AlertDescription>Please try again.</AlertDescription>
+              </Alert>
+              <Button colorScheme="blue" onClick={() => refetchCalendar()}>
+                Retry
+              </Button>
+            </VStack>
           </Center>
         ) : (
           <VStack align="stretch" spacing={4}>

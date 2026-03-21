@@ -4,6 +4,10 @@
  */
 
 import {
+  Alert,
+  AlertDescription,
+  AlertIcon,
+  AlertTitle,
   Box,
   Button,
   Card,
@@ -124,7 +128,12 @@ export default function TaxDeductiblePage() {
   });
 
   // Fetch tax-deductible summary
-  const { data: summaries = [], isLoading } = useQuery<TaxSummary[]>({
+  const {
+    data: summaries = [],
+    isLoading,
+    isError: summariesError,
+    refetch: refetchSummaries,
+  } = useQuery<TaxSummary[]>({
     queryKey: ["tax-deductible", startDate, endDate, selectedUserId],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -328,6 +337,22 @@ export default function TaxDeductiblePage() {
               </Card>
             </SimpleGrid>
 
+            {/* Error State */}
+            {summariesError && (
+              <Center py={12}>
+                <VStack spacing={4}>
+                  <Alert status="error" borderRadius="md">
+                    <AlertIcon />
+                    <AlertTitle>Failed to load tax data.</AlertTitle>
+                    <AlertDescription>Please try again.</AlertDescription>
+                  </Alert>
+                  <Button colorScheme="blue" onClick={() => refetchSummaries()}>
+                    Retry
+                  </Button>
+                </VStack>
+              </Center>
+            )}
+
             {/* Loading State */}
             {isLoading && (
               <Center py={12}>
@@ -336,7 +361,7 @@ export default function TaxDeductiblePage() {
             )}
 
             {/* Empty State */}
-            {!isLoading && totalTransactions === 0 && (
+            {!isLoading && !summariesError && totalTransactions === 0 && (
               <EmptyState
                 icon={"💼" as any}
                 title="No tax-deductible transactions"

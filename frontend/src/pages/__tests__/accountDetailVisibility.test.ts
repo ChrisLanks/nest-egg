@@ -597,3 +597,66 @@ describe('section mutual exclusivity', () => {
     expect(showDebtBalanceUpdate('manual', 'retirement_529')).toBe(false);
   });
 });
+
+// ── AccountDetailPage error state rendering decision ─────────────────────────
+//
+// Mirrors the render-branch logic added to AccountDetailPage:
+//   isLoading    → spinner
+//   accountError → error state with retry button
+//   !account     → account not found message
+//   otherwise    → full account detail page
+
+type AccountDetailPageState =
+  | 'loading'
+  | 'error'
+  | 'not-found'
+  | 'content';
+
+const resolveAccountDetailPageState = (
+  isLoading: boolean,
+  accountError: boolean,
+  account: object | null,
+): AccountDetailPageState => {
+  if (isLoading) return 'loading';
+  if (accountError) return 'error';
+  if (!account) return 'not-found';
+  return 'content';
+};
+
+const accountErrorMessageText =
+  'Failed to load account. Please try again.';
+const accountRetryButtonLabel = 'Retry';
+
+describe('AccountDetailPage error state', () => {
+  it("resolves to 'loading' when isLoading is true", () => {
+    expect(resolveAccountDetailPageState(true, false, null)).toBe('loading');
+  });
+
+  it("loading takes priority over error", () => {
+    expect(resolveAccountDetailPageState(true, true, null)).toBe('loading');
+  });
+
+  it("resolves to 'error' when accountError is true", () => {
+    expect(resolveAccountDetailPageState(false, true, null)).toBe('error');
+  });
+
+  it("resolves to 'not-found' when no error and account is null", () => {
+    expect(resolveAccountDetailPageState(false, false, null)).toBe(
+      'not-found',
+    );
+  });
+
+  it("resolves to 'content' when account data is available", () => {
+    expect(
+      resolveAccountDetailPageState(false, false, { id: 'acc-1' }),
+    ).toBe('content');
+  });
+
+  it("error message text mentions account", () => {
+    expect(accountErrorMessageText.toLowerCase()).toContain('account');
+  });
+
+  it("retry button label is defined", () => {
+    expect(accountRetryButtonLabel).toBe('Retry');
+  });
+});

@@ -317,3 +317,167 @@ class TestDeleteTransactionSplits:
 
             assert exc_info.value.status_code == 404
             assert "Transaction not found" in exc_info.value.detail
+
+
+# ---------------------------------------------------------------------------
+# Additional targeted coverage for the task specification
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestSplitSumValidation:
+    """Explicit validation: splits must sum to transaction total."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_splits_summing_to_transaction_total_returns_splits(self, mock_db, mock_user):
+        """Splits whose amounts sum exactly to the transaction total → service returns list."""
+        transaction_id = uuid4()
+        mock_split = Mock()
+        mock_split.id = uuid4()
+        mock_split.parent_transaction_id = transaction_id
+
+        split_request = CreateSplitsRequest(
+            transaction_id=transaction_id,
+            splits=[
+                TransactionSplitCreate(amount=Decimal("75.00")),
+                TransactionSplitCreate(amount=Decimal("25.00")),
+            ],
+        )
+
+        with patch(
+            "app.api.v1.transaction_splits.transaction_split_service.create_splits",
+            new_callable=AsyncMock,
+            return_value=[mock_split, mock_split],
+        ):
+            result = await create_transaction_splits(
+                split_request=split_request,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+        # Endpoint returns the service result directly; expect 2 splits
+        assert len(result) == 2
+
+    @pytest.mark.asyncio
+    async def test_splits_not_summing_to_total_returns_400(self, mock_db, mock_user):
+        """Splits that don't match the transaction amount → 400 Bad Request."""
+        transaction_id = uuid4()
+
+        split_request = CreateSplitsRequest(
+            transaction_id=transaction_id,
+            splits=[
+                TransactionSplitCreate(amount=Decimal("40.00")),
+                TransactionSplitCreate(amount=Decimal("40.00")),
+            ],
+        )
+
+        with patch(
+            "app.api.v1.transaction_splits.transaction_split_service.create_splits",
+            new_callable=AsyncMock,
+            side_effect=ValueError(
+                "Split amounts (80.00) must equal transaction amount (100.00)"
+            ),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await create_transaction_splits(
+                    split_request=split_request,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_split_on_nonexistent_transaction_propagates_as_400(self, mock_db, mock_user):
+        """Service raises ValueError('Transaction not found') → endpoint returns 400.
+
+        The endpoint maps *all* ValueErrors to 400. The distinct 404 case lives at
+        the delete endpoint (which returns False rather than raising). Creating
+        splits for a non-existent transaction surfaces as a 400 via ValueError.
+        """
+        transaction_id = uuid4()
+
+        split_request = CreateSplitsRequest(
+            transaction_id=transaction_id,
+            splits=[TransactionSplitCreate(amount=Decimal("50.00"))],
+        )
+
+        with patch(
+            "app.api.v1.transaction_splits.transaction_split_service.create_splits",
+            new_callable=AsyncMock,
+            side_effect=ValueError("Transaction not found"),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await create_transaction_splits(
+                    split_request=split_request,
+                    current_user=mock_user,
+                    db=mock_db,
+                )
+
+        assert exc_info.value.status_code == 400
+        assert "Invalid split request" in exc_info.value.detail
+
+
+@pytest.mark.unit
+class TestGetSplitsResponseShape:
+    """Verify get_transaction_splits returns the expected data shape."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_user(self):
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_get_splits_returns_200_with_correct_fields(self, mock_db, mock_user):
+        """GET splits endpoint returns list; each item exposes the transaction_id linkage."""
+        from datetime import datetime
+        from app.schemas.transaction_split import TransactionSplitResponse
+
+        transaction_id = uuid4()
+
+        # Build a proper response object so field access works
+        split = TransactionSplitResponse(
+            id=uuid4(),
+            parent_transaction_id=transaction_id,
+            organization_id=mock_user.organization_id,
+            amount=Decimal("60.00"),
+            description="Groceries",
+            category_id=None,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+
+        with patch(
+            "app.api.v1.transaction_splits.transaction_split_service.get_transaction_splits",
+            new_callable=AsyncMock,
+            return_value=[split],
+        ):
+            result = await get_transaction_splits(
+                transaction_id=transaction_id,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+        assert len(result) == 1
+        item = result[0]
+        assert item.parent_transaction_id == transaction_id
+        assert item.amount == Decimal("60.00")
+        assert item.description == "Groceries"
+        assert item.category_id is None

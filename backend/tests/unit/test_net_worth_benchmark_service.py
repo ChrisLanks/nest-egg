@@ -164,6 +164,73 @@ class TestComputeBenchmark:
 
 
 # ===========================================================================
+# Edge cases: age=0, age=100+, negative net worth, missing birthdate
+# ===========================================================================
+
+
+@pytest.mark.unit
+class TestComputeBenchmarkEdgeCases:
+    """Edge cases required by task spec."""
+
+    def test_age_zero_maps_to_under_35_group(self):
+        """age=0 is unusual but must not crash; it falls into the under_35 bucket."""
+        result = compute_benchmark(0.0, 0)
+        assert result.age_group == "under_35"
+        assert result.median_net_worth > 0
+        assert 0 <= result.percentile <= 100
+
+    def test_age_zero_net_worth_zero_is_coherent(self):
+        """age=0, net_worth=0 — result must be a valid NetWorthBenchmark."""
+        result = compute_benchmark(0.0, 0)
+        assert result.user_net_worth == 0.0
+        assert result.percentile >= 0
+        # Milestone should point at p25 (user is below every milestone)
+        assert result.next_milestone_label is not None
+
+    def test_age_100_maps_to_75_plus_group(self):
+        """Centenarian (age=100) falls into the 75_plus bucket without error."""
+        result = compute_benchmark(500_000.0, 100)
+        assert result.age_group == "75_plus"
+        assert result.age_group_label == "75+"
+        assert result.median_net_worth > 0
+
+    def test_age_100_percentile_in_valid_range(self):
+        """Percentile for a centenarian must be clamped to [0, 100]."""
+        result = compute_benchmark(500_000.0, 100)
+        assert 0 <= result.percentile <= 100
+
+    def test_very_high_age_still_returns_75_plus(self):
+        """Any age ≥ 75 maps to 75_plus — including implausibly large values."""
+        for age in (75, 90, 120, 150):
+            result = compute_benchmark(100_000.0, age)
+            assert result.age_group == "75_plus", f"age={age} should map to 75_plus"
+
+    def test_large_negative_net_worth_low_percentile(self):
+        """A deeply negative net worth should yield a very low (but ≥ 0) percentile."""
+        result = compute_benchmark(-500_000.0, 35)
+        assert result.user_net_worth == -500_000.0
+        assert result.percentile >= 0
+        assert result.percentile < 25  # clearly below p25
+
+    def test_negative_net_worth_has_positive_gap_to_milestone(self):
+        """When net worth is negative, gap_to_next_milestone must be positive."""
+        result = compute_benchmark(-100_000.0, 40)
+        assert result.next_milestone_label is not None
+        assert result.gap_to_next_milestone is not None
+        assert result.gap_to_next_milestone > 0
+
+    def test_null_birthdate_fallback_age_40(self):
+        """The dashboard API defaults to age=40 when birthdate is None.
+
+        compute_benchmark itself takes an int; this test exercises that fallback
+        value (40) directly, mirroring the logic in dashboard.py ~line 1218.
+        """
+        result = compute_benchmark(100_000.0, 40)
+        assert result.age_group == "35_44"
+        assert 0 <= result.percentile <= 100
+
+
+# ===========================================================================
 # get_all_age_group_medians
 # ===========================================================================
 

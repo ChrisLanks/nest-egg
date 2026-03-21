@@ -3,6 +3,12 @@
  */
 
 import {
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
   Box,
   Button,
   Heading,
@@ -118,6 +124,15 @@ export default function RecurringTransactionsPage() {
   const { canWriteResource, isOtherUserView } = useUserView();
   const canEdit = canWriteResource("recurring_transaction");
   const [tabIndex, setTabIndex] = useState(0);
+
+  // Delete confirmation dialog
+  const {
+    isOpen: isDeleteOpen,
+    onOpen: onDeleteOpen,
+    onClose: onDeleteClose,
+  } = useDisclosure();
+  const [patternToDelete, setPatternToDelete] = useState<string | null>(null);
+  const deleteCancelRef = useRef<HTMLButtonElement>(null);
 
   // Edit modal
   const {
@@ -495,7 +510,10 @@ export default function RecurringTransactionsPage() {
           size="sm"
           variant="ghost"
           colorScheme={!canEdit ? "gray" : "red"}
-          onClick={() => deleteMutation.mutate(pattern.id)}
+          onClick={() => {
+            setPatternToDelete(pattern.id);
+            onDeleteOpen();
+          }}
           isLoading={deleteMutation.isPending}
           isDisabled={!canEdit}
         />
@@ -1160,6 +1178,47 @@ export default function RecurringTransactionsPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog
+        isOpen={isDeleteOpen}
+        leastDestructiveRef={deleteCancelRef}
+        onClose={onDeleteClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Pattern
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              Are you sure you want to delete this recurring pattern? This
+              action cannot be undone.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={deleteCancelRef} onClick={onDeleteClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                ml={3}
+                isLoading={deleteMutation.isPending}
+                onClick={() => {
+                  if (patternToDelete) {
+                    deleteMutation.mutate(patternToDelete, {
+                      onSettled: () => {
+                        setPatternToDelete(null);
+                        onDeleteClose();
+                      },
+                    });
+                  }
+                }}
+              >
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 }

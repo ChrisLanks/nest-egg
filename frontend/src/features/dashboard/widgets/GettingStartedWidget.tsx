@@ -226,19 +226,19 @@ const GettingStartedWidgetBase: React.FC = () => {
   );
 
   const { data: accounts } = useQuery({
-    queryKey: ["getting-started-accounts"],
+    queryKey: ["accounts"],
     queryFn: () => api.get("/accounts/").then((r) => r.data),
     staleTime: 60_000,
   });
 
   const { data: budgets } = useQuery({
-    queryKey: ["getting-started-budgets"],
+    queryKey: ["budgets"],
     queryFn: () => api.get("/budgets/").then((r) => r.data),
     staleTime: 60_000,
   });
 
   const { data: savingsGoals } = useQuery({
-    queryKey: ["getting-started-savings-goals"],
+    queryKey: ["goals"],
     queryFn: () => api.get("/savings-goals/").then((r) => r.data),
     staleTime: 60_000,
   });

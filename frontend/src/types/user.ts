@@ -13,6 +13,7 @@ export interface User {
   is_org_admin: boolean;
   email_verified: boolean;
   onboarding_completed: boolean;
+  onboarding_step?: string | null;
   onboarding_goal?: string | null;
   dashboard_layout?: Array<{ id: string; span: 1 | 2 }> | null;
   last_login_at: string | null;
@@ -25,6 +26,7 @@ export interface Organization {
   id: string;
   name: string;
   custom_month_end_day: number;
+  monthly_start_day?: number;
   timezone: string;
   default_currency: string;
   is_active: boolean;

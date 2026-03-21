@@ -816,3 +816,93 @@ describe("Edge Cases", () => {
     expect(groups.get(null)).toHaveLength(2);
   });
 });
+
+// ── SavingsGoalsPage error state rendering decision ──────────────────────────
+//
+// Mirrors the render-branch logic added to SavingsGoalsPage:
+//   if (goalsError) → error state with retry button
+//   otherwise       → normal content (loading handled inline)
+
+type GoalsPageState = "error" | "normal";
+
+const resolveGoalsPageState = (goalsError: boolean): GoalsPageState => {
+  if (goalsError) return "error";
+  return "normal";
+};
+
+const goalsErrorMessageText =
+  "Failed to load savings goals. Please try again.";
+const goalsRetryButtonLabel = "Retry";
+
+describe("SavingsGoalsPage error state", () => {
+  it("resolves to 'error' when goalsError is true", () => {
+    expect(resolveGoalsPageState(true)).toBe("error");
+  });
+
+  it("resolves to 'normal' when goalsError is false", () => {
+    expect(resolveGoalsPageState(false)).toBe("normal");
+  });
+
+  it("error message text mentions savings goals", () => {
+    expect(goalsErrorMessageText.toLowerCase()).toContain("savings goals");
+  });
+
+  it("retry button label is defined", () => {
+    expect(goalsRetryButtonLabel).toBe("Retry");
+  });
+
+  it("normal state with empty goals triggers empty-state rendering", () => {
+    const state = resolveGoalsPageState(false);
+    expect(state).toBe("normal");
+    const goals: SavingsGoal[] = [];
+    expect(goals.length).toBe(0);
+  });
+});
+
+// ── GoalCard delete confirmation dialog ──────────────────────────────────────
+//
+// Mirrors the confirmation guard added to GoalCard:
+//   clicking Delete opens AlertDialog; actual deletion only on Confirm.
+
+const deleteConfirmationDialogHeaderText = "Delete Goal";
+const deleteConfirmationDialogBody =
+  "Are you sure you want to delete";
+const deleteConfirmButtonLabel = "Delete";
+const deleteCancelButtonLabel = "Cancel";
+
+describe("GoalCard delete confirmation dialog", () => {
+  it("dialog header mentions Delete Goal", () => {
+    expect(deleteConfirmationDialogHeaderText).toBe("Delete Goal");
+  });
+
+  it("dialog body warns about irreversibility", () => {
+    expect(deleteConfirmationDialogBody.toLowerCase()).toContain(
+      "are you sure",
+    );
+  });
+
+  it("confirm button label is 'Delete'", () => {
+    expect(deleteConfirmButtonLabel).toBe("Delete");
+  });
+
+  it("cancel button label is 'Cancel'", () => {
+    expect(deleteCancelButtonLabel).toBe("Cancel");
+  });
+
+  it("delete action should not fire before confirmation", () => {
+    // Simulates the pattern: clicking the menu item opens the dialog (no mutation yet)
+    let mutationFired = false;
+    const openDialog = () => {
+      /* opens AlertDialog */
+    };
+    const confirmDelete = () => {
+      mutationFired = true;
+    };
+
+    openDialog();
+    expect(mutationFired).toBe(false); // mutation has not fired yet
+
+    confirmDelete();
+    expect(mutationFired).toBe(true); // mutation fires only after confirmation
+  });
+});

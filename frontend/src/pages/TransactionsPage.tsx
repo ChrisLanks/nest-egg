@@ -97,7 +97,8 @@ import api from "../services/api";
 import { TransactionsSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { CSVImportModal } from "../components/CSVImportModal";
-import { FiFlag, FiInbox, FiUpload, FiZap, FiX } from "react-icons/fi";
+import { TransactionMergeModal } from "../features/transactions/components/TransactionMergeModal";
+import { FiFlag, FiInbox, FiUpload, FiZap, FiX, FiCopy } from "react-icons/fi";
 
 const STORAGE_KEY = "transactions-date-range";
 
@@ -616,6 +617,12 @@ export const TransactionsPage = () => {
     isOpen: isImportOpen,
     onOpen: onImportOpen,
     onClose: onImportClose,
+  } = useDisclosure();
+  // Transaction merge modal
+  const {
+    isOpen: isMergeOpen,
+    onOpen: onMergeOpen,
+    onClose: onMergeClose,
   } = useDisclosure();
   const [pendingLabelsToAdd, setPendingLabelsToAdd] = useState<string[]>([]);
   const [pendingLabelsToRemove, setPendingLabelsToRemove] = useState<string[]>(
@@ -1747,6 +1754,15 @@ export const TransactionsPage = () => {
           </Box>
           <HStack spacing={2}>
             <Button
+              leftIcon={<FiCopy />}
+              variant="outline"
+              onClick={onMergeOpen}
+              size="sm"
+              colorScheme="purple"
+            >
+              Find Duplicates
+            </Button>
+            <Button
               leftIcon={<FiUpload />}
               variant="outline"
               onClick={onImportOpen}
@@ -2731,6 +2747,9 @@ export const TransactionsPage = () => {
 
         {/* CSV Import Modal */}
         <CSVImportModal isOpen={isImportOpen} onClose={onImportClose} />
+
+        {/* Transaction Merge Modal */}
+        <TransactionMergeModal isOpen={isMergeOpen} onClose={onMergeClose} />
       </VStack>
     </Container>
   );

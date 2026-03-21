@@ -1,9 +1,14 @@
 import {
+  Alert,
+  AlertDescription,
+  AlertIcon,
+  AlertTitle,
   Box,
   Button,
   ButtonGroup,
   Card,
   CardBody,
+  Center,
   FormControl,
   FormLabel,
   Heading,
@@ -77,6 +82,8 @@ const NetWorthChartWidgetBase: React.FC = () => {
     data: historicalData,
     isFetching,
     isLoading,
+    isError: historicalError,
+    refetch: refetchHistorical,
   } = useQuery({
     queryKey: [
       "historical-net-worth",
@@ -217,7 +224,20 @@ const NetWorthChartWidgetBase: React.FC = () => {
           </ButtonGroup>
         </HStack>
 
-        {!isLoading && chartData.length === 0 ? (
+        {!isLoading && historicalError ? (
+          <Center py={8}>
+            <VStack spacing={3}>
+              <Alert status="error" borderRadius="md">
+                <AlertIcon />
+                <AlertTitle>Failed to load net worth data.</AlertTitle>
+                <AlertDescription>Please try again.</AlertDescription>
+              </Alert>
+              <Button size="sm" colorScheme="blue" onClick={() => refetchHistorical()}>
+                Retry
+              </Button>
+            </VStack>
+          </Center>
+        ) : !isLoading && chartData.length === 0 ? (
           <Box
             height={300}
             display="flex"

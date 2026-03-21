@@ -4,6 +4,10 @@
 
 import { useState, useEffect } from "react";
 import {
+  Alert,
+  AlertDescription,
+  AlertIcon,
+  AlertTitle,
   Box,
   Button,
   ButtonGroup,
@@ -217,7 +221,12 @@ export default function SavingsGoalsPage() {
   };
 
   // Get all goals — scoped to selected household member when one is chosen
-  const { data: goals = [], isLoading: goalsLoading } = useQuery({
+  const {
+    data: goals = [],
+    isLoading: goalsLoading,
+    isError: goalsError,
+    refetch: refetchGoals,
+  } = useQuery({
     queryKey: ["goals", selectedUserId],
     queryFn: () =>
       savingsGoalsApi.getAll(
@@ -440,6 +449,25 @@ export default function SavingsGoalsPage() {
       queryClient.invalidateQueries({ queryKey: ["goals"] });
     });
   };
+
+  if (goalsError) {
+    return (
+      <Box p={8}>
+        <Center py={16}>
+          <VStack spacing={4}>
+            <Alert status="error" borderRadius="md">
+              <AlertIcon />
+              <AlertTitle>Failed to load savings goals.</AlertTitle>
+              <AlertDescription>Please try again.</AlertDescription>
+            </Alert>
+            <Button colorScheme="blue" onClick={() => refetchGoals()}>
+              Retry
+            </Button>
+          </VStack>
+        </Center>
+      </Box>
+    );
+  }
 
   return (
     <Box p={8}>

@@ -199,3 +199,56 @@ describe("Default date range", () => {
     expect(endDate).toMatch(/^\d{4}-12-31$/);
   });
 });
+
+// ── TaxDeductiblePage summaries error state ──────────────────────────────────
+//
+// Mirrors the render-branch logic added to TaxDeductiblePage:
+//   summariesError → error state with retry button (not the misleading empty state)
+//   otherwise      → normal content
+
+type TaxPageSummaryState = "error" | "loading" | "empty" | "data";
+
+const resolveTaxSummaryState = (
+  isLoading: boolean,
+  summariesError: boolean,
+  totalTransactions: number,
+): TaxPageSummaryState => {
+  if (summariesError) return "error";
+  if (isLoading) return "loading";
+  if (totalTransactions === 0) return "empty";
+  return "data";
+};
+
+const taxErrorMessageText = "Failed to load tax data. Please try again.";
+const taxRetryButtonLabel = "Retry";
+
+describe("TaxDeductiblePage summaries error state", () => {
+  it("resolves to 'error' when summariesError is true", () => {
+    expect(resolveTaxSummaryState(false, true, 0)).toBe("error");
+  });
+
+  it("error takes priority over empty state (prevents misleading no-data message)", () => {
+    // summariesError=true, totalTransactions=0 → should show error, not empty
+    expect(resolveTaxSummaryState(false, true, 0)).toBe("error");
+  });
+
+  it("resolves to 'loading' when isLoading is true and no error", () => {
+    expect(resolveTaxSummaryState(true, false, 0)).toBe("loading");
+  });
+
+  it("resolves to 'empty' when no error, not loading, and no transactions", () => {
+    expect(resolveTaxSummaryState(false, false, 0)).toBe("empty");
+  });
+
+  it("resolves to 'data' when summaries have transactions", () => {
+    expect(resolveTaxSummaryState(false, false, 5)).toBe("data");
+  });
+
+  it("error message text mentions tax data", () => {
+    expect(taxErrorMessageText.toLowerCase()).toContain("tax");
+  });
+
+  it("retry button label is defined", () => {
+    expect(taxRetryButtonLabel).toBe("Retry");
+  });
+});

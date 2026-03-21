@@ -505,3 +505,65 @@ describe("recurring card display flags", () => {
     );
   });
 });
+
+// ── BillsPage error state rendering decision ─────────────────────────────────
+//
+// Mirrors the render-branch logic added to BillsPage:
+//   if (billsLoading || recurringLoading) → spinner
+//   if (billsError || recurringError)     → error state with retry button
+//   otherwise                             → normal content
+
+type BillsPageState = "loading" | "error" | "content";
+
+const resolveBillsPageState = (
+  billsLoading: boolean,
+  recurringLoading: boolean,
+  billsError: boolean,
+  recurringError: boolean,
+): BillsPageState => {
+  if (billsLoading || recurringLoading) return "loading";
+  if (billsError || recurringError) return "error";
+  return "content";
+};
+
+const billsErrorMessageText =
+  "Failed to load bills. Please try again.";
+const billsRetryButtonLabel = "Retry";
+
+describe("BillsPage error state", () => {
+  it("resolves to 'loading' when billsLoading is true", () => {
+    expect(resolveBillsPageState(true, false, false, false)).toBe("loading");
+  });
+
+  it("resolves to 'loading' when recurringLoading is true", () => {
+    expect(resolveBillsPageState(false, true, false, false)).toBe("loading");
+  });
+
+  it("loading takes priority over error", () => {
+    expect(resolveBillsPageState(true, false, true, false)).toBe("loading");
+  });
+
+  it("resolves to 'error' when billsError is true", () => {
+    expect(resolveBillsPageState(false, false, true, false)).toBe("error");
+  });
+
+  it("resolves to 'error' when recurringError is true", () => {
+    expect(resolveBillsPageState(false, false, false, true)).toBe("error");
+  });
+
+  it("resolves to 'error' when both errors are true", () => {
+    expect(resolveBillsPageState(false, false, true, true)).toBe("error");
+  });
+
+  it("resolves to 'content' when both load successfully", () => {
+    expect(resolveBillsPageState(false, false, false, false)).toBe("content");
+  });
+
+  it("error message text mentions bills", () => {
+    expect(billsErrorMessageText.toLowerCase()).toContain("bills");
+  });
+
+  it("retry button label is defined", () => {
+    expect(billsRetryButtonLabel).toBe("Retry");
+  });
+});

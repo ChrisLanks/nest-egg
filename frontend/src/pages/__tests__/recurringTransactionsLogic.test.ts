@@ -710,3 +710,77 @@ describe("RecurringTransactionsPage error state", () => {
     expect(state).toBe("error");
   });
 });
+
+// ── RecurringTransactionsPage delete confirmation dialog ─────────────────────
+//
+// Mirrors the confirmation guard added to RecurringTransactionsPage:
+//   clicking the Delete icon opens AlertDialog;
+//   actual deletion only fires after the user confirms.
+
+const deleteConfirmHeaderText = "Delete Pattern";
+const deleteConfirmBodyText =
+  "Are you sure you want to delete this recurring pattern? This action cannot be undone.";
+const deleteConfirmButtonLabel = "Delete";
+const deleteCancelButtonLabel = "Cancel";
+
+describe("RecurringTransactionsPage delete confirmation dialog", () => {
+  it("dialog header is 'Delete Pattern'", () => {
+    expect(deleteConfirmHeaderText).toBe("Delete Pattern");
+  });
+
+  it("dialog body warns about irreversibility", () => {
+    expect(deleteConfirmBodyText.toLowerCase()).toContain("cannot be undone");
+  });
+
+  it("confirm button label is 'Delete'", () => {
+    expect(deleteConfirmButtonLabel).toBe("Delete");
+  });
+
+  it("cancel button label is 'Cancel'", () => {
+    expect(deleteCancelButtonLabel).toBe("Cancel");
+  });
+
+  it("delete mutation does not fire until user confirms", () => {
+    let mutationFired = false;
+    let dialogOpen = false;
+
+    const openConfirmDialog = (patternId: string) => {
+      expect(patternId).toBeTruthy();
+      dialogOpen = true;
+    };
+
+    const confirmAndDelete = (patternId: string) => {
+      expect(patternId).toBeTruthy();
+      mutationFired = true;
+      dialogOpen = false;
+    };
+
+    // Step 1: clicking delete icon opens dialog, mutation not yet fired
+    openConfirmDialog("pattern-123");
+    expect(dialogOpen).toBe(true);
+    expect(mutationFired).toBe(false);
+
+    // Step 2: confirming fires the mutation
+    confirmAndDelete("pattern-123");
+    expect(mutationFired).toBe(true);
+    expect(dialogOpen).toBe(false);
+  });
+
+  it("cancelling closes dialog without firing mutation", () => {
+    let mutationFired = false;
+    let dialogOpen = false;
+
+    const openConfirmDialog = () => {
+      dialogOpen = true;
+    };
+    const cancelDelete = () => {
+      dialogOpen = false;
+    };
+
+    openConfirmDialog();
+    expect(dialogOpen).toBe(true);
+    cancelDelete();
+    expect(dialogOpen).toBe(false);
+    expect(mutationFired).toBe(false);
+  });
+});

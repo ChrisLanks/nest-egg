@@ -1,7 +1,13 @@
 import {
+  Alert,
+  AlertDescription,
+  AlertIcon,
+  AlertTitle,
   Box,
+  Button,
   Card,
   CardBody,
+  Center,
   Heading,
   HStack,
   Link,
@@ -27,7 +33,12 @@ const formatCurrency = (amount: number) =>
 const BudgetsWidgetBase: React.FC = () => {
   const { selectedUserId } = useUserView();
 
-  const { data: budgets, isLoading } = useQuery({
+  const {
+    data: budgets,
+    isLoading,
+    isError: budgetsError,
+    refetch: refetchBudgets,
+  } = useQuery({
     queryKey: ["budgets-widget", selectedUserId],
     queryFn: () =>
       budgetsApi.getAll({
@@ -51,6 +62,27 @@ const BudgetsWidgetBase: React.FC = () => {
       <Card h="100%">
         <CardBody display="flex" alignItems="center" justifyContent="center">
           <Spinner />
+        </CardBody>
+      </Card>
+    );
+  }
+
+  if (budgetsError) {
+    return (
+      <Card h="100%">
+        <CardBody>
+          <Center h="100%">
+            <VStack spacing={3}>
+              <Alert status="error" borderRadius="md">
+                <AlertIcon />
+                <AlertTitle>Failed to load budgets.</AlertTitle>
+                <AlertDescription>Please try again.</AlertDescription>
+              </Alert>
+              <Button size="sm" colorScheme="blue" onClick={() => refetchBudgets()}>
+                Retry
+              </Button>
+            </VStack>
+          </Center>
         </CardBody>
       </Card>
     );

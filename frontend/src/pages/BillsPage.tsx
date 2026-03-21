@@ -149,18 +149,25 @@ const BillsPage: React.FC = () => {
 
   // ── Queries ──────────────────────────────────────────────────────────────────
 
-  const { data: upcomingBills, isLoading: billsLoading } = useQuery<
-    UpcomingBill[]
-  >({
+  const {
+    data: upcomingBills,
+    isLoading: billsLoading,
+    isError: billsError,
+    refetch: refetchBills,
+  } = useQuery<UpcomingBill[]>({
     queryKey: ["upcoming-bills"],
     queryFn: () => recurringTransactionsApi.getUpcomingBills(30),
   });
 
-  const { data: recurringTransactions = [], isLoading: recurringLoading } =
-    useQuery<RecurringTransaction[]>({
-      queryKey: ["recurring-transactions"],
-      queryFn: () => recurringTransactionsApi.getAll(),
-    });
+  const {
+    data: recurringTransactions = [],
+    isLoading: recurringLoading,
+    isError: recurringError,
+    refetch: refetchRecurring,
+  } = useQuery<RecurringTransaction[]>({
+    queryKey: ["recurring-transactions"],
+    queryFn: () => recurringTransactionsApi.getAll(),
+  });
 
   const { data: accounts } = useQuery<Account[]>({
     queryKey: ["accounts"],
@@ -364,6 +371,31 @@ const BillsPage: React.FC = () => {
       <Container maxW="container.xl" py={8}>
         <Center>
           <Spinner />
+        </Center>
+      </Container>
+    );
+  }
+
+  if (billsError || recurringError) {
+    return (
+      <Container maxW="container.xl" py={8}>
+        <Center py={16}>
+          <VStack spacing={4}>
+            <Alert status="error" borderRadius="md">
+              <AlertIcon />
+              <AlertTitle>Failed to load bills.</AlertTitle>
+              <AlertDescription>Please try again.</AlertDescription>
+            </Alert>
+            <Button
+              colorScheme="blue"
+              onClick={() => {
+                if (billsError) refetchBills();
+                if (recurringError) refetchRecurring();
+              }}
+            >
+              Retry
+            </Button>
+          </VStack>
         </Center>
       </Container>
     );

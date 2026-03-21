@@ -575,6 +575,213 @@ class TestStaleCacheRefresh:
         mock_enqueue.assert_not_called()
 
 
+# ---------------------------------------------------------------------------
+# 12. Additional targeted coverage for the task specification
+# ---------------------------------------------------------------------------
+
+class TestGetCachedSuggestionsBehaviours:
+    """Explicit coverage for the four scenarios required by task spec."""
+
+    @pytest.mark.asyncio
+    async def test_cold_cache_returns_empty_list_and_enqueues(self):
+        """Cold cache: returns {suggestions: [], scanning: True} and fires background refresh."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        org_id = uuid4()
+        mock_user = MagicMock()
+        mock_user.organization_id = org_id
+        mock_db = AsyncMock()
+
+        with patch.object(
+            BudgetSuggestionService, "_read_cached", new=AsyncMock(return_value=[])
+        ), patch.object(
+            BudgetSuggestionService, "_enqueue_refresh"
+        ) as mock_enqueue:
+            result = await BudgetSuggestionService.get_cached_suggestions(
+                mock_db, mock_user, scoped_user_id=None
+            )
+
+        assert result["suggestions"] == []
+        assert result["scanning"] is True
+        mock_enqueue.assert_called_once_with(org_id, None)
+
+    @pytest.mark.asyncio
+    async def test_fresh_cache_returns_rows_without_enqueue(self):
+        """Fresh cache: returns existing rows immediately, no background refresh enqueued."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        org_id = uuid4()
+        mock_user = MagicMock()
+        mock_user.organization_id = org_id
+        mock_db = AsyncMock()
+
+        fresh_row = _make_cached_row(org_id=org_id, hours_old=2)
+
+        with patch.object(
+            BudgetSuggestionService, "_read_cached", new=AsyncMock(return_value=[fresh_row])
+        ), patch.object(
+            BudgetSuggestionService, "_enqueue_refresh"
+        ) as mock_enqueue:
+            result = await BudgetSuggestionService.get_cached_suggestions(
+                mock_db, mock_user, scoped_user_id=None
+            )
+
+        assert result["scanning"] is False
+        assert len(result["suggestions"]) == 1
+        assert result["suggestions"][0]["category_name"] == "Shopping"
+        mock_enqueue.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_stale_cache_serves_data_and_enqueues_refresh(self):
+        """Stale cache: stale rows are served immediately AND a background refresh is enqueued."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        org_id = uuid4()
+        mock_user = MagicMock()
+        mock_user.organization_id = org_id
+        mock_db = AsyncMock()
+
+        stale_row = _make_cached_row(org_id=org_id, hours_old=30)
+
+        with patch.object(
+            BudgetSuggestionService, "_read_cached", new=AsyncMock(return_value=[stale_row])
+        ), patch.object(
+            BudgetSuggestionService, "_enqueue_refresh"
+        ) as mock_enqueue:
+            result = await BudgetSuggestionService.get_cached_suggestions(
+                mock_db, mock_user, scoped_user_id=None
+            )
+
+        # Stale data is still served
+        assert result["scanning"] is False
+        assert len(result["suggestions"]) == 1
+        # Background refresh was enqueued
+        mock_enqueue.assert_called_once_with(org_id, None)
+
+
+class TestRefreshForOrgWritesRows:
+    """Test that refresh_for_org persists rows to the database."""
+
+    @pytest.mark.asyncio
+    async def test_refresh_for_org_calls_write_cached_with_suggestions(self):
+        """refresh_for_org must persist the computed suggestions via _write_cached."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        org_id = uuid4()
+        mock_db = AsyncMock()
+        mock_user = MagicMock()
+        mock_user.organization_id = org_id
+
+        user_result = MagicMock()
+        user_result.scalar_one_or_none.return_value = mock_user
+        mock_db.execute = AsyncMock(return_value=user_result)
+
+        suggestions = [
+            _make_suggestion_dict(category_name="Groceries"),
+            _make_suggestion_dict(category_name="Transport"),
+        ]
+
+        with patch.object(
+            BudgetSuggestionService, "get_suggestions", new=AsyncMock(return_value=suggestions)
+        ), patch.object(
+            BudgetSuggestionService, "_write_cached", new=AsyncMock()
+        ) as mock_write:
+            count = await BudgetSuggestionService.refresh_for_org(mock_db, org_id)
+
+        assert count == 2
+        # Verify _write_cached was called with the org_id and the suggestion list
+        mock_write.assert_awaited_once_with(mock_db, org_id, None, suggestions)
+
+    @pytest.mark.asyncio
+    async def test_refresh_for_org_writes_zero_suggestions_when_empty(self):
+        """When get_suggestions returns [], _write_cached is still called to clear old rows."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        org_id = uuid4()
+        mock_db = AsyncMock()
+        mock_user = MagicMock()
+        mock_user.organization_id = org_id
+
+        user_result = MagicMock()
+        user_result.scalar_one_or_none.return_value = mock_user
+        mock_db.execute = AsyncMock(return_value=user_result)
+
+        with patch.object(
+            BudgetSuggestionService, "get_suggestions", new=AsyncMock(return_value=[])
+        ), patch.object(
+            BudgetSuggestionService, "_write_cached", new=AsyncMock()
+        ) as mock_write:
+            count = await BudgetSuggestionService.refresh_for_org(mock_db, org_id)
+
+        assert count == 0
+        mock_write.assert_awaited_once_with(mock_db, org_id, None, [])
+
+
+class TestRowToDictShape:
+    """Explicit verification of every field in _row_to_dict output."""
+
+    def test_all_expected_keys_present(self):
+        """_row_to_dict must return exactly the nine expected keys."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        row = _make_cached_row()
+        result = BudgetSuggestionService._row_to_dict(row)
+
+        expected_keys = {
+            "category_name",
+            "category_id",
+            "category_primary_raw",
+            "suggested_amount",
+            "suggested_period",
+            "avg_monthly_spend",
+            "total_spend",
+            "month_count",
+            "transaction_count",
+        }
+        assert set(result.keys()) == expected_keys
+
+    def test_numeric_fields_are_python_floats(self):
+        """suggested_amount, avg_monthly_spend, total_spend must be native Python floats."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        row = _make_cached_row()
+        result = BudgetSuggestionService._row_to_dict(row)
+
+        assert isinstance(result["suggested_amount"], float)
+        assert isinstance(result["avg_monthly_spend"], float)
+        assert isinstance(result["total_spend"], float)
+
+    def test_category_id_none_when_provider_category(self):
+        """Provider-category rows (no category_id) must return None, not a UUID string."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        row = _make_cached_row(category_id=None)
+        result = BudgetSuggestionService._row_to_dict(row)
+
+        assert result["category_id"] is None
+
+    def test_category_id_stringified_when_present(self):
+        """Custom-category rows must return category_id as a UUID string."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        cat_id = uuid4()
+        row = _make_cached_row(category_id=cat_id)
+        result = BudgetSuggestionService._row_to_dict(row)
+
+        assert result["category_id"] == str(cat_id)
+        assert isinstance(result["category_id"], str)
+
+    def test_integer_count_fields_preserved(self):
+        """month_count and transaction_count are returned as-is (int)."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        row = _make_cached_row(month_count=4, transaction_count=17)
+        result = BudgetSuggestionService._row_to_dict(row)
+
+        assert result["month_count"] == 4
+        assert result["transaction_count"] == 17
+
+
 class TestRoundUpNice:
     def test_values(self):
         from app.services.budget_suggestion_service import _round_up_nice

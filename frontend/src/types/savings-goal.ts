@@ -21,6 +21,7 @@ export interface SavingsGoal {
   funded_at: string | null;
   is_shared: boolean;
   shared_user_ids: string[] | null;
+  member_contributions: Record<string, number> | null;
   created_at: string;
   updated_at: string;
 }

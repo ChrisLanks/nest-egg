@@ -3,6 +3,10 @@
  */
 
 import {
+  Alert,
+  AlertDescription,
+  AlertIcon,
+  AlertTitle,
   Box,
   Container,
   Heading,
@@ -177,7 +181,12 @@ export const AccountDetailPage = () => {
   const [adjustmentPct, setAdjustmentPct] = useState("");
 
   // Fetch account details
-  const { data: account, isLoading } = useQuery<Account>({
+  const {
+    data: account,
+    isLoading,
+    isError: accountError,
+    refetch: refetchAccount,
+  } = useQuery<Account>({
     queryKey: ["account", accountId],
     queryFn: async () => {
       const response = await api.get(`/accounts/${accountId}`);
@@ -804,6 +813,25 @@ export const AccountDetailPage = () => {
       <Center h="100vh">
         <Spinner size="xl" color="brand.500" />
       </Center>
+    );
+  }
+
+  if (accountError) {
+    return (
+      <Container maxW="container.lg" py={8}>
+        <Center py={16}>
+          <VStack spacing={4}>
+            <Alert status="error" borderRadius="md">
+              <AlertIcon />
+              <AlertTitle>Failed to load account.</AlertTitle>
+              <AlertDescription>Please try again.</AlertDescription>
+            </Alert>
+            <Button colorScheme="blue" onClick={() => refetchAccount()}>
+              Retry
+            </Button>
+          </VStack>
+        </Center>
+      </Container>
     );
   }
 

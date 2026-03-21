@@ -10,6 +10,16 @@ import type {
   SavingsGoalProgress,
 } from "../types/savings-goal";
 
+export interface ContributionResult {
+  goal_id: string;
+  goal_name: string;
+  contribution_amount: number;
+  user_total_contributions: number;
+  current_amount: number;
+  target_amount: number;
+  member_contributions: Record<string, number>;
+}
+
 export const savingsGoalsApi = {
   /**
    * Create a new savings goal
@@ -110,6 +120,20 @@ export const savingsGoalsApi = {
   getProgress: async (goalId: string): Promise<SavingsGoalProgress> => {
     const { data } = await api.get<SavingsGoalProgress>(
       `/savings-goals/${goalId}/progress`,
+    );
+    return data;
+  },
+
+  /**
+   * Record a member contribution to a shared savings goal
+   */
+  recordContribution: async (
+    goalId: string,
+    amount: number,
+  ): Promise<ContributionResult> => {
+    const { data } = await api.post<ContributionResult>(
+      `/savings-goals/${goalId}/contributions`,
+      { amount },
     );
     return data;
   },

@@ -3,6 +3,12 @@
  */
 
 import {
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
   Card,
   CardHeader,
   CardBody,
@@ -13,10 +19,23 @@ import {
   VStack,
   Badge,
   IconButton,
+  Button,
   Menu,
   MenuButton,
   MenuList,
   MenuItem,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  ModalCloseButton,
+  NumberInput,
+  NumberInputField,
+  FormControl,
+  FormLabel,
+  useDisclosure,
   useToast,
   Box,
   Checkbox,
@@ -25,8 +44,9 @@ import {
   Divider,
   useColorModeValue,
 } from '@chakra-ui/react';
-import { EditIcon, DeleteIcon, SettingsIcon, RepeatIcon } from '@chakra-ui/icons';
+import { EditIcon, DeleteIcon, SettingsIcon, RepeatIcon, AddIcon } from '@chakra-ui/icons';
 import { FiMove, FiCheckSquare, FiLink, FiRefreshCw } from 'react-icons/fi';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SavingsGoal } from '../../../types/savings-goal';
 import { savingsGoalsApi } from '../../../api/savings-goals';
@@ -55,6 +75,10 @@ export default function GoalCard({
   const toast = useToast();
   const queryClient = useQueryClient();
   const { data: householdMembers = [] } = useHouseholdMembers();
+  const { isOpen: isContribOpen, onOpen: onContribOpen, onClose: onContribClose } = useDisclosure();
+  const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+  const deleteCancelRef = useRef<HTMLButtonElement>(null);
+  const [contributionAmount, setContributionAmount] = useState('');
 
   // Build shared tooltip label
   const sharedLabel = (() => {
@@ -134,6 +158,31 @@ export default function GoalCard({
     },
   });
 
+  // Contribution mutation
+  const contributionMutation = useMutation({
+    mutationFn: (amount: number) => savingsGoalsApi.recordContribution(goal.id, amount),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      onContribClose();
+      setContributionAmount('');
+      toast({
+        title: `$${result.contribution_amount.toLocaleString()} contributed`,
+        description: `New total: $${result.current_amount.toLocaleString()} of $${result.target_amount.toLocaleString()}`,
+        status: 'success',
+        duration: 4000,
+      });
+    },
+    onError: () => {
+      toast({ title: 'Failed to record contribution', status: 'error', duration: 3000 });
+    },
+  });
+
+  const handleContribute = () => {
+    const parsed = parseFloat(contributionAmount);
+    if (!parsed || parsed <= 0) return;
+    contributionMutation.mutate(parsed);
+  };
+
   const percentage = progress?.progress_percentage ?? (
     goal.target_amount > 0 ? (goal.current_amount / goal.target_amount) * 100 : 0
   );
@@ -193,6 +242,18 @@ export default function GoalCard({
           </HStack>
 
           <HStack spacing={1} flexShrink={0}>
+            {!goal.is_completed && !goal.is_funded && canEdit && (
+              <Tooltip label="Record a contribution" placement="top">
+                <IconButton
+                  icon={<AddIcon />}
+                  aria-label="Add contribution"
+                  variant="ghost"
+                  size="sm"
+                  colorScheme="blue"
+                  onClick={onContribOpen}
+                />
+              </Tooltip>
+            )}
             {dragHandleListeners && (
               <IconButton
                 icon={<FiMove />}
@@ -235,7 +296,7 @@ export default function GoalCard({
                 </MenuItem>
                 <MenuItem
                   icon={<DeleteIcon />}
-                  onClick={() => deleteMutation.mutate()}
+                  onClick={onDeleteOpen}
                   isDisabled={!canEdit || deleteMutation.isPending}
                   color="red.600"
                 >
@@ -320,6 +381,28 @@ export default function GoalCard({
             </Text>
           )}
 
+          {/* Member contributions */}
+          {goal.member_contributions && Object.keys(goal.member_contributions).length > 0 && (
+            <>
+              <Divider />
+              <VStack align="stretch" spacing={1}>
+                <Text fontSize="xs" fontWeight="semibold" color="text.secondary">
+                  Contributions
+                </Text>
+                {Object.entries(goal.member_contributions).map(([userId, amount]) => {
+                  const member = householdMembers.find(m => m.id === userId);
+                  const name = member?.display_name || member?.first_name || member?.email || userId;
+                  return (
+                    <HStack key={userId} justify="space-between">
+                      <Text fontSize="xs" color="text.muted">{name}</Text>
+                      <Text fontSize="xs" fontWeight="medium">{formatCurrency(amount)}</Text>
+                    </HStack>
+                  );
+                })}
+              </VStack>
+            </>
+          )}
+
           {/* Account & auto-sync metadata */}
           {linkedAccount && (
             <>
@@ -340,6 +423,77 @@ export default function GoalCard({
           )}
         </VStack>
       </CardBody>
+
+      {/* Add Contribution Modal */}
+      <Modal isOpen={isContribOpen} onClose={onContribClose} size="sm">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Add Contribution</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl>
+              <FormLabel fontSize="sm">Amount</FormLabel>
+              <NumberInput
+                min={0.01}
+                precision={2}
+                value={contributionAmount}
+                onChange={(val) => setContributionAmount(val)}
+              >
+                <NumberInputField placeholder="0.00" autoFocus />
+              </NumberInput>
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onContribClose}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="blue"
+              onClick={handleContribute}
+              isLoading={contributionMutation.isPending}
+              isDisabled={!contributionAmount || parseFloat(contributionAmount) <= 0}
+            >
+              Record Contribution
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog
+        isOpen={isDeleteOpen}
+        leastDestructiveRef={deleteCancelRef}
+        onClose={onDeleteClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Goal
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              Are you sure you want to delete "{goal.name}"? This action cannot
+              be undone.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={deleteCancelRef} onClick={onDeleteClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                ml={3}
+                isLoading={deleteMutation.isPending}
+                onClick={() => {
+                  deleteMutation.mutate(undefined, {
+                    onSettled: onDeleteClose,
+                  });
+                }}
+              >
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Card>
   );
 }

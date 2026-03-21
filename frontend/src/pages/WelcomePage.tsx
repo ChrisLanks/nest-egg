@@ -186,12 +186,27 @@ export default function WelcomePage() {
   const toast = useToast();
   const { user, setUser } = useAuthStore();
 
-  // Re-entry guard: redirect users who have already completed onboarding
+  // Re-entry guard: redirect users who have already completed onboarding.
+  // For users mid-onboarding, restore their last saved step.
   useEffect(() => {
     if (user?.onboarding_completed) {
       navigate("/", { replace: true });
+      return;
     }
-  }, [user, navigate]);
+    if (user?.onboarding_step) {
+      const STEP_MAP: Record<string, number> = {
+        profile: 0,
+        accounts: 1,
+        budget: 3,
+        goals: 3,
+      };
+      const restored = STEP_MAP[user.onboarding_step];
+      if (restored !== undefined) {
+        setStep(restored);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const updateHouseholdMutation = useMutation({
     mutationFn: async (name: string) => {
