@@ -127,7 +127,7 @@ class TestNotificationEmailSentTracking:
                 db=mock_db,
                 organization_id=org_id,
                 user_id=user_id,
-                notification_type=NotificationType.BUDGET_ALERT,
+                type=NotificationType.BUDGET_ALERT,
                 title="Test",
                 message="Test message",
             )
@@ -176,7 +176,7 @@ class TestNotificationEmailSentTracking:
                 db=mock_db,
                 organization_id=org_id,
                 user_id=user_id,
-                notification_type=NotificationType.BUDGET_ALERT,
+                type=NotificationType.BUDGET_ALERT,
                 title="Test",
                 message="Test message",
             )

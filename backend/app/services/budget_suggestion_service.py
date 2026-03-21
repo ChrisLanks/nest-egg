@@ -186,6 +186,7 @@ class BudgetSuggestionService:
                 {
                     "category_id": str(cat_id),
                     "category_name": cat_name,
+                    "category_primary_raw": None,
                     "total_spend": float(total),
                     "transaction_count": txn_count,
                     "first_date": first_date,
@@ -208,6 +209,9 @@ class BudgetSuggestionService:
                 {
                     "category_id": None,
                     "category_name": cat_name.title(),
+                    # Raw category_primary value (lowercased by DB grouping) for
+                    # frontend to do exact case-insensitive lookup in allCategories
+                    "category_primary_raw": cat_name,
                     "total_spend": float(total),
                     "transaction_count": txn_count,
                     "first_date": first_date,

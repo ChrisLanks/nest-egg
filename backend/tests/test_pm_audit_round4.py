@@ -108,7 +108,7 @@ class TestRecurringTransactionLimit:
 
         recurring_data = RecurringTransactionCreate(
             merchant_name="Netflix",
-            amount=Decimal("15.99"),
+            average_amount=Decimal("15.99"),
             frequency="monthly",
             account_id=uuid4(),
         )
@@ -154,7 +154,7 @@ class TestRecurringTransactionLimit:
 
         recurring_data = RecurringTransactionCreate(
             merchant_name="Spotify",
-            amount=Decimal("9.99"),
+            average_amount=Decimal("9.99"),
             frequency="monthly",
             account_id=uuid4(),
         )
@@ -199,7 +199,7 @@ class TestRecurringTransactionLimit:
 
         recurring_data = RecurringTransactionCreate(
             merchant_name="Amazon Prime",
-            amount=Decimal("14.99"),
+            average_amount=Decimal("14.99"),
             frequency="yearly",
             account_id=uuid4(),
         )

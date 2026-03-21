@@ -61,6 +61,8 @@ export interface BudgetUpdate {
 export interface BudgetSuggestion {
   category_name: string;
   category_id: string | null;
+  /** Raw category_primary value (lowercase) for provider categories; null for custom categories */
+  category_primary_raw: string | null;
   suggested_amount: number;
   suggested_period: BudgetPeriod;
   avg_monthly_spend: number;

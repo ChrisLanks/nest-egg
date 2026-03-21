@@ -1,6 +1,6 @@
 """Add email_sent column to notifications for delivery tracking
 
-Revision ID: c1d2e3f4a5b6
+Revision ID: n1o2t3i4f5y6
 Revises: z8a9b0c1d2e3
 Create Date: 2026-03-21
 
@@ -15,7 +15,7 @@ This gives an audit trail for delivery failures instead of silent drops.
 from alembic import op
 import sqlalchemy as sa
 
-revision = "c1d2e3f4a5b6"
+revision = "n1o2t3i4f5y6"
 down_revision = "z8a9b0c1d2e3"
 branch_labels = None
 depends_on = None
