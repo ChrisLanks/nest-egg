@@ -87,8 +87,13 @@ class BudgetSuggestionService:
     ) -> List[dict]:
         """Return suggestions from the pre-computed table.
 
-        If no rows exist or rows are stale (>25h old), falls back to on-demand
-        compute AND writes the results to the table for next time.
+        If no cached rows exist yet, returns [] immediately and enqueues the
+        Celery task to populate the cache in the background. This keeps the
+        budget page fast — suggestions are a secondary feature and should never
+        block the primary page load.
+
+        If rows are stale (>25h), returns the stale rows immediately (better
+        than nothing) and enqueues a refresh in the background.
 
         Args:
             db: Database session
@@ -100,36 +105,47 @@ class BudgetSuggestionService:
         )
 
         if rows:
-            return [BudgetSuggestionService._row_to_dict(r) for r in rows]
+            # Check if stale — serve existing rows but kick off background refresh
+            stale_cutoff = utc_now() - timedelta(hours=SUGGESTION_STALENESS_HOURS)
+            if rows[0].generated_at < stale_cutoff:
+                logger.info(
+                    "Stale suggestions for org %s — serving cached, refreshing in background",
+                    user.organization_id,
+                )
+                BudgetSuggestionService._enqueue_refresh(
+                    user.organization_id, scoped_user_id
+                )
+            return {
+                "suggestions": [BudgetSuggestionService._row_to_dict(r) for r in rows],
+                "scanning": False,
+            }
 
-        # Nothing cached — compute on-demand and persist
+        # Cold cache — return empty immediately, populate in background
         logger.info(
-            "No cached suggestions for org %s user %s — computing on-demand",
+            "No cached suggestions for org %s user %s — enqueuing background refresh",
             user.organization_id,
             scoped_user_id,
         )
-        scoped_account_ids = None
-        if scoped_user_id:
-            acct_result = await db.execute(
-                select(Account.id).where(
-                    and_(
-                        Account.organization_id == user.organization_id,
-                        Account.user_id == scoped_user_id,
-                    )
-                )
+        BudgetSuggestionService._enqueue_refresh(user.organization_id, scoped_user_id)
+        return {"suggestions": [], "scanning": True}
+
+    @staticmethod
+    def _enqueue_refresh(
+        organization_id: UUID,
+        scoped_user_id: Optional[UUID],
+    ) -> None:
+        """Fire-and-forget: enqueue the Celery task to refresh suggestions."""
+        try:
+            from app.workers.tasks.suggestion_tasks import refresh_org_suggestions_task
+            refresh_org_suggestions_task.delay(
+                str(organization_id),
+                str(scoped_user_id) if scoped_user_id else None,
             )
-            scoped_account_ids = [row[0] for row in acct_result.all()]
-
-        suggestions = await BudgetSuggestionService.get_suggestions(
-            db, user, scoped_account_ids=scoped_account_ids
-        )
-
-        # Persist so next call is instant
-        await BudgetSuggestionService._write_cached(
-            db, user.organization_id, scoped_user_id, suggestions
-        )
-
-        return suggestions
+        except Exception as exc:
+            # If Celery/Redis is unavailable (e.g. local dev without a worker),
+            # log and swallow — suggestions simply won't appear until the next
+            # scheduled run or until the broker comes up.
+            logger.warning("Could not enqueue suggestion refresh: %s", exc)
 
     # ---------------------------------------------------------------------------
     # Public: Celery task entry point

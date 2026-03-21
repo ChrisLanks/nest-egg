@@ -28,12 +28,12 @@ import {
   Box,
   Progress,
 } from "@chakra-ui/react";
-import { FiTrendingUp, FiPlus, FiZap, FiArrowRight, FiSkipForward } from "react-icons/fi";
+import { FiTrendingUp, FiPlus, FiZap, FiArrowRight, FiSkipForward, FiClock } from "react-icons/fi";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { budgetsApi } from "../../../api/budgets";
 import { categoriesApi } from "../../../api/categories";
-import type { BudgetSuggestion } from "../../../types/budget";
+import type { BudgetSuggestion, BudgetSuggestionsResponse } from "../../../types/budget";
 import { useCurrency } from "../../../contexts/CurrencyContext";
 
 const periodLabel = (period: string): string => {
@@ -72,11 +72,14 @@ export default function BudgetSuggestions({
   const { formatCurrency } = useCurrency();
   const [skippedIndices, setSkippedIndices] = useState<Set<number>>(new Set());
 
-  const { data: allSuggestions = [], isLoading } = useQuery({
+  const defaultResponse: BudgetSuggestionsResponse = { suggestions: [], scanning: false };
+  const { data: suggestionsResponse = defaultResponse, isLoading } = useQuery({
     queryKey: ["budget-suggestions", userId ?? "all"],
     queryFn: () => budgetsApi.getSuggestions(userId ? { user_id: userId } : undefined),
     staleTime: 10 * 60 * 1000,
   });
+  const allSuggestions = suggestionsResponse.suggestions;
+  const isScanning = suggestionsResponse.scanning;
 
   const { data: allCategories = [] } = useQuery({
     queryKey: ["categories"],
@@ -114,6 +117,32 @@ export default function BudgetSuggestions({
   if (matchableSuggestions.length === 0) {
     // If the user has budgets already, show nothing more
     if (existingBudgetCount > 0) return null;
+
+    // Background scan is running — tell the user to check back shortly
+    if (isScanning) {
+      return (
+        <Box
+          p={5}
+          borderWidth="1px"
+          borderRadius="md"
+          borderColor="blue.200"
+          bg="blue.50"
+          _dark={{ borderColor: "blue.700", bg: "blue.900" }}
+        >
+          <HStack spacing={3} align="start">
+            <Icon as={FiClock} color="blue.500" mt="2px" flexShrink={0} />
+            <VStack spacing={1} align="start">
+              <Heading size="sm">Analysing your spending history…</Heading>
+              <Text fontSize="sm" color="text.muted">
+                We're scanning your transactions in the background to find smart
+                budget suggestions. This usually takes under a minute — check
+                back shortly and refresh the page.
+              </Text>
+            </VStack>
+          </HStack>
+        </Box>
+      );
+    }
 
     // Truly new user with no transaction history — simple prompt only
     return (

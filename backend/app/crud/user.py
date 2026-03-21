@@ -72,6 +72,7 @@ class UserCRUD:
         user = result.scalar_one_or_none()
         if user:
             user.last_login_at = utc_now()
+            user.login_count = (user.login_count or 0) + 1
             await db.commit()
 
 

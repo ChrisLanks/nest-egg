@@ -15,6 +15,7 @@ export interface User {
   onboarding_completed: boolean;
   dashboard_layout?: Array<{ id: string; span: 1 | 2 }> | null;
   last_login_at: string | null;
+  login_count: number;
   created_at: string;
   updated_at: string;
 }

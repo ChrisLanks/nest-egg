@@ -25,6 +25,48 @@ def refresh_budget_suggestions_task():
     asyncio.run(_refresh_all_async())
 
 
+@celery_app.task(name="refresh_org_suggestions")
+def refresh_org_suggestions_task(org_id: str, user_id: str | None = None):
+    """Recompute budget suggestions for a single org (and optional user scope).
+
+    Called on-demand when the suggestions cache is cold/stale for a specific
+    org or member view. Fires asynchronously so the HTTP request returns immediately.
+    """
+    import asyncio
+
+    asyncio.run(_refresh_org_async(org_id, user_id))
+
+
+async def _refresh_org_async(org_id: str, user_id: str | None):
+    import uuid
+
+    from app.services.budget_suggestion_service import BudgetSuggestionService
+    from app.workers.utils import get_celery_session
+
+    parsed_org_id = uuid.UUID(org_id)
+    parsed_user_id = uuid.UUID(user_id) if user_id else None
+
+    async with get_celery_session() as db:
+        try:
+            count = await BudgetSuggestionService.refresh_for_org(
+                db, parsed_org_id, scoped_user_id=parsed_user_id
+            )
+            logger.info(
+                "On-demand suggestion refresh complete. org=%s user=%s count=%d",
+                org_id,
+                user_id,
+                count,
+            )
+        except Exception as exc:
+            logger.error(
+                "Error in on-demand suggestion refresh org=%s user=%s: %s",
+                org_id,
+                user_id,
+                exc,
+                exc_info=True,
+            )
+
+
 async def _refresh_all_async():
     from app.services.budget_suggestion_service import BudgetSuggestionService
     from app.workers.utils import get_celery_session

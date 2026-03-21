@@ -137,6 +137,7 @@ class User(Base):
     notification_preferences = Column(JSON, nullable=True, default=dict)
 
     last_login_at = Column(DateTime)
+    login_count = Column(Integer, default=0, nullable=False, server_default="0")
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
     updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
 

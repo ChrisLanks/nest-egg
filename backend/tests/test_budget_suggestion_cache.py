@@ -178,8 +178,8 @@ class TestStaleness:
 
 class TestGetCachedSuggestions:
     @pytest.mark.asyncio
-    async def test_cache_miss_falls_back_to_compute(self):
-        """When no cached rows exist, get_suggestions is called and results are written."""
+    async def test_cache_miss_returns_empty_and_enqueues(self):
+        """When no cached rows exist, returns [] immediately and enqueues background refresh."""
         from app.services.budget_suggestion_service import BudgetSuggestionService
 
         org_id = uuid4()
@@ -187,22 +187,21 @@ class TestGetCachedSuggestions:
         mock_user.organization_id = org_id
         mock_db = AsyncMock()
 
-        suggestions = [_make_suggestion_dict()]
-
         with patch.object(
             BudgetSuggestionService, "_read_cached", new=AsyncMock(return_value=[])
         ), patch.object(
-            BudgetSuggestionService, "get_suggestions", new=AsyncMock(return_value=suggestions)
+            BudgetSuggestionService, "get_suggestions", new=AsyncMock()
         ) as mock_compute, patch.object(
-            BudgetSuggestionService, "_write_cached", new=AsyncMock()
-        ) as mock_write:
+            BudgetSuggestionService, "_enqueue_refresh"
+        ) as mock_enqueue:
             result = await BudgetSuggestionService.get_cached_suggestions(
                 mock_db, mock_user, scoped_user_id=None
             )
 
-        mock_compute.assert_called_once()
-        mock_write.assert_called_once()
-        assert result == suggestions
+        # On cold cache: return empty immediately, never block on compute
+        mock_compute.assert_not_called()
+        mock_enqueue.assert_called_once_with(org_id, None)
+        assert result == {"suggestions": [], "scanning": True}
 
     @pytest.mark.asyncio
     async def test_cache_hit_skips_compute(self):
@@ -228,8 +227,9 @@ class TestGetCachedSuggestions:
             )
 
         mock_compute.assert_not_called()
-        assert len(result) == 1
-        assert result[0]["category_name"] == "Shopping"
+        assert result["scanning"] is False
+        assert len(result["suggestions"]) == 1
+        assert result["suggestions"][0]["category_name"] == "Shopping"
 
     @pytest.mark.asyncio
     async def test_scoped_user_passed_to_read(self):
@@ -244,15 +244,8 @@ class TestGetCachedSuggestions:
         with patch.object(
             BudgetSuggestionService, "_read_cached", new=AsyncMock(return_value=[])
         ) as mock_read, patch.object(
-            BudgetSuggestionService, "get_suggestions", new=AsyncMock(return_value=[])
-        ), patch.object(
-            BudgetSuggestionService, "_write_cached", new=AsyncMock()
+            BudgetSuggestionService, "_enqueue_refresh"
         ):
-            # Mock account lookup for scoped user
-            mock_acct = AsyncMock()
-            mock_acct.all.return_value = []
-            mock_db.execute = AsyncMock(return_value=MagicMock(all=MagicMock(return_value=[])))
-
             await BudgetSuggestionService.get_cached_suggestions(
                 mock_db, mock_user, scoped_user_id=user_id
             )
@@ -392,10 +385,195 @@ class TestCeleryTask:
         assert cron.hour == {2}
         assert cron.minute == {5}
 
+    def test_org_task_is_importable(self):
+        from app.workers.tasks.suggestion_tasks import refresh_org_suggestions_task
+        assert callable(refresh_org_suggestions_task)
+
+    def test_org_task_name(self):
+        from app.workers.tasks.suggestion_tasks import refresh_org_suggestions_task
+        assert refresh_org_suggestions_task.name == "refresh_org_suggestions"
+
 
 # ---------------------------------------------------------------------------
-# 8. round_up_nice helper
+# 9. _enqueue_refresh behaviour
 # ---------------------------------------------------------------------------
+
+class TestEnqueueRefresh:
+    def test_enqueue_calls_org_task_delay(self):
+        """_enqueue_refresh calls refresh_org_suggestions_task.delay with correct args."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        org_id = uuid4()
+        with patch(
+            "app.workers.tasks.suggestion_tasks.refresh_org_suggestions_task"
+        ) as mock_task:
+            BudgetSuggestionService._enqueue_refresh(org_id, None)
+
+        mock_task.delay.assert_called_once_with(str(org_id), None)
+
+    def test_enqueue_passes_user_id_as_string(self):
+        """When scoped_user_id is given, it is serialised to a string for Celery."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        org_id = uuid4()
+        user_id = uuid4()
+        with patch(
+            "app.workers.tasks.suggestion_tasks.refresh_org_suggestions_task"
+        ) as mock_task:
+            BudgetSuggestionService._enqueue_refresh(org_id, user_id)
+
+        mock_task.delay.assert_called_once_with(str(org_id), str(user_id))
+
+    def test_enqueue_swallows_exception(self):
+        """If Celery/Redis is unavailable, _enqueue_refresh must NOT raise."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        org_id = uuid4()
+        with patch(
+            "app.workers.tasks.suggestion_tasks.refresh_org_suggestions_task"
+        ) as mock_task:
+            mock_task.delay.side_effect = Exception("Redis connection refused")
+            # Should not raise
+            BudgetSuggestionService._enqueue_refresh(org_id, None)
+
+
+# ---------------------------------------------------------------------------
+# 10. _refresh_org_async — unit test for the async helper
+# ---------------------------------------------------------------------------
+
+class TestRefreshOrgAsync:
+    @pytest.mark.asyncio
+    async def test_parses_uuid_strings_and_calls_refresh_for_org(self):
+        """_refresh_org_async converts string args to UUIDs and delegates."""
+        from app.workers.tasks import suggestion_tasks
+
+        org_id = uuid4()
+        user_id = uuid4()
+
+        mock_db_ctx = AsyncMock()
+        mock_db = AsyncMock()
+        mock_db_ctx.__aenter__ = AsyncMock(return_value=mock_db)
+        mock_db_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "app.workers.utils.get_celery_session",
+            return_value=mock_db_ctx,
+        ), patch.object(
+            suggestion_tasks,
+            "_refresh_org_async",
+            wraps=suggestion_tasks._refresh_org_async,
+        ), patch(
+            "app.services.budget_suggestion_service.BudgetSuggestionService.refresh_for_org",
+            new=AsyncMock(return_value=3),
+        ) as mock_refresh:
+            await suggestion_tasks._refresh_org_async(str(org_id), str(user_id))
+
+        mock_refresh.assert_called_once_with(mock_db, org_id, scoped_user_id=user_id)
+
+    @pytest.mark.asyncio
+    async def test_none_user_id_passes_none(self):
+        """user_id=None is forwarded as None (org-wide suggestions)."""
+        from app.workers.tasks import suggestion_tasks
+
+        org_id = uuid4()
+
+        mock_db_ctx = AsyncMock()
+        mock_db = AsyncMock()
+        mock_db_ctx.__aenter__ = AsyncMock(return_value=mock_db)
+        mock_db_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "app.workers.utils.get_celery_session",
+            return_value=mock_db_ctx,
+        ), patch(
+            "app.services.budget_suggestion_service.BudgetSuggestionService.refresh_for_org",
+            new=AsyncMock(return_value=5),
+        ) as mock_refresh:
+            await suggestion_tasks._refresh_org_async(str(org_id), None)
+
+        mock_refresh.assert_called_once_with(mock_db, org_id, scoped_user_id=None)
+
+    @pytest.mark.asyncio
+    async def test_exception_is_caught_and_logged(self):
+        """Errors inside _refresh_org_async are caught — they must not propagate."""
+        from app.workers.tasks import suggestion_tasks
+
+        org_id = uuid4()
+
+        mock_db_ctx = AsyncMock()
+        mock_db = AsyncMock()
+        mock_db_ctx.__aenter__ = AsyncMock(return_value=mock_db)
+        mock_db_ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "app.workers.utils.get_celery_session",
+            return_value=mock_db_ctx,
+        ), patch(
+            "app.services.budget_suggestion_service.BudgetSuggestionService.refresh_for_org",
+            new=AsyncMock(side_effect=RuntimeError("DB exploded")),
+        ):
+            # Must not raise
+            await suggestion_tasks._refresh_org_async(str(org_id), None)
+
+
+# ---------------------------------------------------------------------------
+# 11. Stale cache triggers background refresh but still returns data
+# ---------------------------------------------------------------------------
+
+class TestStaleCacheRefresh:
+    @pytest.mark.asyncio
+    async def test_stale_rows_returned_and_refresh_enqueued(self):
+        """Stale cached rows are still served immediately; a background refresh is enqueued."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        org_id = uuid4()
+        mock_user = MagicMock()
+        mock_user.organization_id = org_id
+        mock_db = AsyncMock()
+
+        stale_row = _make_cached_row(org_id=org_id, hours_old=30)
+
+        with patch.object(
+            BudgetSuggestionService, "_read_cached", new=AsyncMock(return_value=[stale_row])
+        ), patch.object(
+            BudgetSuggestionService, "_enqueue_refresh"
+        ) as mock_enqueue:
+            result = await BudgetSuggestionService.get_cached_suggestions(
+                mock_db, mock_user, scoped_user_id=None
+            )
+
+        # Stale data still returned immediately
+        assert result["scanning"] is False
+        assert len(result["suggestions"]) == 1
+        assert result["suggestions"][0]["category_name"] == "Shopping"
+        # Background refresh was enqueued
+        mock_enqueue.assert_called_once_with(org_id, None)
+
+    @pytest.mark.asyncio
+    async def test_fresh_rows_do_not_enqueue_refresh(self):
+        """Fresh cached rows are served without enqueuing a background refresh."""
+        from app.services.budget_suggestion_service import BudgetSuggestionService
+
+        org_id = uuid4()
+        mock_user = MagicMock()
+        mock_user.organization_id = org_id
+        mock_db = AsyncMock()
+
+        fresh_row = _make_cached_row(org_id=org_id, hours_old=1)
+
+        with patch.object(
+            BudgetSuggestionService, "_read_cached", new=AsyncMock(return_value=[fresh_row])
+        ), patch.object(
+            BudgetSuggestionService, "_enqueue_refresh"
+        ) as mock_enqueue:
+            result = await BudgetSuggestionService.get_cached_suggestions(
+                mock_db, mock_user, scoped_user_id=None
+            )
+
+        assert result["scanning"] is False
+        assert len(result["suggestions"]) == 1
+        mock_enqueue.assert_not_called()
+
 
 class TestRoundUpNice:
     def test_values(self):

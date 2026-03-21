@@ -71,6 +71,12 @@ export interface BudgetSuggestion {
   transaction_count: number;
 }
 
+export interface BudgetSuggestionsResponse {
+  suggestions: BudgetSuggestion[];
+  /** True when the cache was empty and a background scan has been enqueued */
+  scanning: boolean;
+}
+
 export interface BudgetSpending {
   budget_amount: number;
   spent: number;

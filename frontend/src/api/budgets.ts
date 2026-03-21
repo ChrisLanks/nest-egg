@@ -9,6 +9,7 @@ import type {
   BudgetUpdate,
   BudgetSpending,
   BudgetSuggestion,
+  BudgetSuggestionsResponse,
 } from "../types/budget";
 
 export const budgetsApi = {
@@ -67,11 +68,11 @@ export const budgetsApi = {
   /**
    * Get smart budget suggestions based on spending history
    */
-  getSuggestions: async (opts?: { months?: number; user_id?: string }): Promise<BudgetSuggestion[]> => {
+  getSuggestions: async (opts?: { months?: number; user_id?: string }): Promise<BudgetSuggestionsResponse> => {
     const params: Record<string, unknown> = {};
     if (opts?.months) params.months = opts.months;
     if (opts?.user_id) params.user_id = opts.user_id;
-    const { data } = await api.get<BudgetSuggestion[]>("/budgets/suggestions", {
+    const { data } = await api.get<BudgetSuggestionsResponse>("/budgets/suggestions", {
       params: Object.keys(params).length ? params : undefined,
     });
     return data;

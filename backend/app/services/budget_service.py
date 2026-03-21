@@ -567,6 +567,41 @@ class BudgetService:
             Transaction.amount < 0,
         ]
 
+        # Resolve category filter — mirrors the spending query logic so that
+        # budgets without a category_id (provider-category budgets) still filter
+        # correctly via category_primary name matching.
+        category_filter = None
+        if budget.category_id:
+            cat_result = await db.execute(
+                select(Category).where(
+                    Category.id == budget.category_id,
+                    Category.organization_id == user.organization_id,
+                )
+            )
+            category = cat_result.scalar_one_or_none()
+            if category:
+                children_result = await db.execute(
+                    select(Category).where(
+                        Category.parent_category_id == budget.category_id,
+                        Category.organization_id == user.organization_id,
+                    )
+                )
+                children = list(children_result.scalars().all())
+                all_category_ids = [budget.category_id] + [c.id for c in children]
+                all_names = set()
+                for cat in [category] + children:
+                    all_names.add((cat.plaid_category_name or cat.name).lower())
+                conditions = [Transaction.category_id.in_(all_category_ids)]
+                if all_names:
+                    conditions.append(func.lower(Transaction.category_primary).in_(all_names))
+                category_filter = or_(*conditions)
+            else:
+                category_filter = Transaction.category_id == budget.category_id
+        else:
+            # No custom category — match by budget name against category_primary
+            # (provider-category budget created from a suggestion)
+            category_filter = func.lower(Transaction.category_primary) == budget.name.lower()
+
         # Build merchant breakdown query
         merchant_query = (
             select(
@@ -574,14 +609,12 @@ class BudgetService:
                 func.sum(Transaction.amount).label("total"),
                 func.count(Transaction.id).label("count"),
             )
-            .where(and_(*base_conditions))
+            .where(and_(*base_conditions, category_filter))
             .group_by(Transaction.merchant_name)
             .order_by(func.sum(Transaction.amount).asc())  # Most negative = biggest spend
             .limit(10)
         )
 
-        if budget.category_id:
-            merchant_query = merchant_query.where(Transaction.category_id == budget.category_id)
         if budget.label_id:
             merchant_query = merchant_query.join(
                 TransactionLabel,
@@ -597,12 +630,10 @@ class BudgetService:
         # Top 3 largest transactions
         top_query = (
             select(Transaction.id, Transaction.date, Transaction.merchant_name, Transaction.amount)
-            .where(and_(*base_conditions))
+            .where(and_(*base_conditions, category_filter))
             .order_by(Transaction.amount.asc())
             .limit(3)
         )
-        if budget.category_id:
-            top_query = top_query.where(Transaction.category_id == budget.category_id)
         if budget.label_id:
             top_query = top_query.join(
                 TransactionLabel,
@@ -614,7 +645,7 @@ class BudgetService:
         top_rows = top_result.all()
 
         total_spent_result = await db.execute(
-            select(func.sum(Transaction.amount)).where(and_(*base_conditions))
+            select(func.sum(Transaction.amount)).where(and_(*base_conditions, category_filter))
         )
         total_spent = abs(total_spent_result.scalar() or Decimal("0.00"))
 

@@ -1116,3 +1116,185 @@ class TestBudgetService:
 
         assert budget_service is not None
         assert isinstance(budget_service, BudgetService)
+
+    # -----------------------------------------------------------------------
+    # Provider-category budget spending (no category_id, match by name)
+    # -----------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_no_category_id_counts_all_spending(
+        self, db, test_user, test_account
+    ):
+        """Budget with no category_id and no label_id is a catch-all:
+        it counts all org spending regardless of category_primary."""
+        service = BudgetService()
+
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Food And Drink",
+            Decimal("300.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            category_id=None,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        txn1 = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-80.00"),
+            merchant_name="Cafe",
+            category_id=None,
+            category_primary="food and drink",
+            deduplication_hash=str(uuid4()),
+        )
+        txn2 = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-50.00"),
+            merchant_name="Shell",
+            category_id=None,
+            category_primary="Travel",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add_all([txn1, txn2])
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+        # No category filter — catches all spending
+        assert spending["spent"] == Decimal("130.00")
+
+    # -----------------------------------------------------------------------
+    # Variance breakdown — provider-category budget (no category_id)
+    # -----------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_get_budget_variance_breakdown_provider_category(
+        self, db, test_user, test_account
+    ):
+        """Variance breakdown should filter by category_primary when there is
+        no category_id, not return all-org spending."""
+        service = BudgetService()
+
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Food And Drink",
+            Decimal("300.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            category_id=None,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        food_txn1 = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-60.00"),
+            merchant_name="Chipotle",
+            category_id=None,
+            category_primary="food and drink",
+            deduplication_hash=str(uuid4()),
+        )
+        food_txn2 = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=2),
+            amount=Decimal("-40.00"),
+            merchant_name="Starbucks",
+            category_id=None,
+            category_primary="Food And Drink",
+            deduplication_hash=str(uuid4()),
+        )
+        # Should NOT appear in breakdown
+        other_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=3),
+            amount=Decimal("-200.00"),
+            merchant_name="Shell",
+            category_id=None,
+            category_primary="Travel",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add_all([food_txn1, food_txn2, other_txn])
+        await db.commit()
+
+        result = await service.get_budget_variance_breakdown(db, budget.id, test_user)
+
+        assert result is not None
+        assert result["total_spent"] == 100.0
+        merchant_names = {m["merchant_name"] for m in result["merchant_breakdown"]}
+        assert "Chipotle" in merchant_names
+        assert "Starbucks" in merchant_names
+        assert "Shell" not in merchant_names
+
+    @pytest.mark.asyncio
+    async def test_get_budget_variance_breakdown_with_category_id(
+        self, db, test_user, test_account
+    ):
+        """Variance breakdown with a real category_id should still work correctly."""
+        service = BudgetService()
+
+        category = Category(
+            organization_id=test_user.organization_id, name="Groceries"
+        )
+        db.add(category)
+        await db.commit()
+
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Groceries Budget",
+            Decimal("400.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            category_id=category.id,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        cat_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-150.00"),
+            merchant_name="Whole Foods",
+            category_id=category.id,
+            deduplication_hash=str(uuid4()),
+        )
+        other_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-300.00"),
+            merchant_name="Amazon",
+            category_id=None,
+            category_primary="Shops",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add_all([cat_txn, other_txn])
+        await db.commit()
+
+        result = await service.get_budget_variance_breakdown(db, budget.id, test_user)
+
+        assert result is not None
+        assert result["total_spent"] == 150.0
+        merchant_names = {m["merchant_name"] for m in result["merchant_breakdown"]}
+        assert "Whole Foods" in merchant_names
+        assert "Amazon" not in merchant_names
+
+    @pytest.mark.asyncio
+    async def test_get_budget_variance_breakdown_returns_none_for_missing_budget(
+        self, db, test_user
+    ):
+        """Should return None when budget_id does not exist."""
+        service = BudgetService()
+        result = await service.get_budget_variance_breakdown(db, uuid4(), test_user)
+        assert result is None

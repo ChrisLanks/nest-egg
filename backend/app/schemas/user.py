@@ -65,6 +65,7 @@ class UserInDB(UserBase):
     onboarding_completed: bool = False
     dashboard_layout: Optional[List[Any]] = None
     last_login_at: Optional[datetime] = None
+    login_count: int = 0
     created_at: datetime
     updated_at: datetime
 

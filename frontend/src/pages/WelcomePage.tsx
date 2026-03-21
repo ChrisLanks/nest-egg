@@ -451,7 +451,7 @@ export default function WelcomePage() {
                     {[
                       {
                         icon: FiShield,
-                        text: "We connect through Plaid — the same technology used by Venmo, Coinbase, and thousands of other apps. Your bank login is entered directly on your bank's own secure page, not ours.",
+                        text: "We connect through trusted providers like Plaid and Teller — the same technology used by Venmo, Coinbase, and thousands of other apps. Your bank login is entered directly on your bank's own secure page, not ours.",
                       },
                       {
                         icon: FiCheck,
