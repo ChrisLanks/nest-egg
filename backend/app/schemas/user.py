@@ -4,7 +4,11 @@ from datetime import date, datetime
 from typing import Any, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from zoneinfo import available_timezones
+
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+
+_VALID_TIMEZONES: frozenset[str] = frozenset(available_timezones())
 
 
 class UserBase(BaseModel):
@@ -82,6 +86,16 @@ class OrganizationBase(BaseModel):
     )
     timezone: str = Field(default="UTC")
 
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, v: str) -> str:
+        if v not in _VALID_TIMEZONES:
+            raise ValueError(
+                f"'{v}' is not a valid IANA timezone. "
+                "Use a value like 'America/New_York' or 'UTC'."
+            )
+        return v
+
 
 class OrganizationCreate(OrganizationBase):
     """Schema for creating an organization."""
@@ -96,6 +110,16 @@ class OrganizationUpdate(BaseModel):
         None, ge=1, le=28, description="Day of month to start monthly tracking (1-28)"
     )
     timezone: Optional[str] = None
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in _VALID_TIMEZONES:
+            raise ValueError(
+                f"'{v}' is not a valid IANA timezone. "
+                "Use a value like 'America/New_York' or 'UTC'."
+            )
+        return v
 
 
 class OrganizationInDB(OrganizationBase):

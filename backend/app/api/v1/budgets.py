@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db, verify_household_member
+from app.dependencies import get_current_user, get_db, get_user_accounts, verify_household_member
 from app.models.user import User
 from app.schemas.budget import (
     BudgetCreate,
@@ -144,6 +144,7 @@ async def export_budgets_csv(
 @router.get("/suggestions")
 async def get_budget_suggestions(
     months: int = Query(6, ge=1, le=24, description="Months of history to analyze"),
+    user_id: Optional[UUID] = Query(None, description="Scope suggestions to a specific member"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -151,11 +152,19 @@ async def get_budget_suggestions(
 
     Analyzes transaction history to find top spending categories
     and suggests appropriate budget amounts and periods.
+    Accepts an optional user_id to scope suggestions to a specific member's spending.
     """
+    scoped_account_ids: list[UUID] | None = None
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        user_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+        scoped_account_ids = [acc.id for acc in user_accounts]
+
     return await budget_suggestion_service.get_suggestions(
         db=db,
         user=current_user,
         months=months,
+        scoped_account_ids=scoped_account_ids,
     )
 
 

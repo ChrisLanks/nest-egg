@@ -79,13 +79,31 @@ export default function BudgetsPage() {
 
   const handleCreate = () => {
     setSelectedBudget(null);
-    setPrefillValues(null);
+    // Pre-fill scope defaults based on the current view context
+    const viewDefaults: Partial<BudgetCreate> = {};
+    if (!isSelfView && !selectedUserId) {
+      // Combined / all-members view → default to shared with everyone
+      viewDefaults.is_shared = true;
+      viewDefaults.shared_user_ids = null;
+    } else if (selectedUserId && isOtherUserView) {
+      // Viewing a specific other member → personal budget for that member
+      // (budget_service will assign user_id server-side based on context)
+      viewDefaults.is_shared = false;
+    }
+    setPrefillValues(viewDefaults);
     onOpen();
   };
 
   const handleAcceptSuggestion = (suggestion: BudgetSuggestion) => {
     setSelectedBudget(null);
+    // Inherit scope defaults from current view, then layer suggestion specifics
+    const viewDefaults: Partial<BudgetCreate> = {};
+    if (!isSelfView && !selectedUserId) {
+      viewDefaults.is_shared = true;
+      viewDefaults.shared_user_ids = null;
+    }
     setPrefillValues({
+      ...viewDefaults,
       name: suggestion.category_name,
       amount: suggestion.suggested_amount,
       period: suggestion.suggested_period as BudgetPeriod,
@@ -281,7 +299,7 @@ export default function BudgetsPage() {
               showAction={canEdit && (!isPartialSelection || isSelfView)}
             />
             {canEdit && (isSelfView || !selectedUserId) && (
-              <BudgetSuggestions onAccept={handleAcceptSuggestion} />
+              <BudgetSuggestions onAccept={handleAcceptSuggestion} userId={selectedUserId} />
             )}
           </>
         )}
@@ -323,7 +341,7 @@ export default function BudgetsPage() {
           budgets.length <= 3 &&
           canEdit &&
           (isSelfView || !selectedUserId) && (
-            <BudgetSuggestions onAccept={handleAcceptSuggestion} />
+            <BudgetSuggestions onAccept={handleAcceptSuggestion} userId={selectedUserId} />
           )}
 
         {/* Inactive budgets */}

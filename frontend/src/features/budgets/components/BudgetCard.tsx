@@ -31,6 +31,8 @@ import { BudgetPeriod } from "../../../types/budget";
 import { budgetsApi } from "../../../api/budgets";
 import { labelsApi } from "../../../api/labels";
 import { useHouseholdMembers } from "../../../hooks/useHouseholdMembers";
+import { useAuthStore } from "../../auth/stores/authStore";
+import { useCurrency } from "../../../contexts/CurrencyContext";
 import api from "../../../services/api";
 
 interface BudgetCardProps {
@@ -47,20 +49,36 @@ export default function BudgetCard({
   const toast = useToast();
   const queryClient = useQueryClient();
   const { data: householdMembers = [] } = useHouseholdMembers();
+  const currentUser = useAuthStore((s) => s.user);
+  const { formatCurrency } = useCurrency();
   const [varianceOpen, setVarianceOpen] = useState(false);
   const [varianceData, setVarianceData] = useState<any>(null);
   const [varianceLoading, setVarianceLoading] = useState(false);
 
-  // Build shared tooltip label
-  const sharedLabel = (() => {
-    if (!budget.is_shared) return "";
-    if (!budget.shared_user_ids) return "Shared with all members";
-    const names = budget.shared_user_ids
-      .map((id) => householdMembers.find((m) => m.id === id))
-      .filter(Boolean)
-      .map((m) => m!.display_name || m!.first_name || m!.email);
-    return `Shared with ${names.join(", ")}`;
+  // Resolve owner display name
+  const ownerName = (() => {
+    if (!budget.user_id) return null; // org-wide budget
+    if (budget.user_id === currentUser?.id) return "You";
+    const member = householdMembers.find((m) => m.id === budget.user_id);
+    return member?.display_name || member?.first_name || member?.email || "Member";
   })();
+
+  // Scope label: who this budget covers
+  const scopeLabel = (() => {
+    if (budget.is_shared) {
+      if (!budget.shared_user_ids) return "All members";
+      const names = budget.shared_user_ids
+        .map((id) => householdMembers.find((m) => m.id === id))
+        .filter(Boolean)
+        .map((m) => m!.display_name || m!.first_name || m!.email);
+      return names.length ? `Shared: ${names.join(", ")}` : "Shared";
+    }
+    if (!budget.user_id) return "All members";
+    return null; // personal budget — owner badge alone is enough
+  })();
+
+  // Build shared tooltip label (kept for backward-compat Tooltip)
+  const sharedLabel = scopeLabel ?? "";
 
   // Get spending data
   const { data: spending } = useQuery({
@@ -119,12 +137,7 @@ export default function BudgetCard({
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount);
-  };
+  // formatCurrency from CurrencyContext (org-aware)
 
   const handleVarianceClick = async () => {
     if (varianceOpen) {
@@ -156,14 +169,23 @@ export default function BudgetCard({
         <HStack justify="space-between">
           <VStack align="start" spacing={1}>
             <Heading size="md">{budget.name}</Heading>
-            <HStack>
+            <HStack flexWrap="wrap" gap={1}>
               <Badge colorScheme="blue" size="sm">
                 {formatPeriod(budget.period)}
               </Badge>
-              {budget.is_shared && (
-                <Tooltip label={sharedLabel} placement="top">
+              {/* Owner badge */}
+              {ownerName && (
+                <Tooltip label={`Created by ${ownerName}`} placement="top">
+                  <Badge colorScheme="gray" size="sm" cursor="default">
+                    {ownerName}
+                  </Badge>
+                </Tooltip>
+              )}
+              {/* Scope badge */}
+              {scopeLabel && (
+                <Tooltip label={scopeLabel} placement="top">
                   <Badge colorScheme="teal" size="sm" cursor="default">
-                    Shared
+                    {budget.is_shared ? "Shared" : "All members"}
                   </Badge>
                 </Tooltip>
               )}

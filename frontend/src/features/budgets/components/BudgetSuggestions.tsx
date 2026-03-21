@@ -21,6 +21,7 @@ import { FiTrendingUp, FiPlus, FiZap, FiBookOpen } from "react-icons/fi";
 import { useQuery } from "@tanstack/react-query";
 import { budgetsApi } from "../../../api/budgets";
 import type { BudgetSuggestion } from "../../../types/budget";
+import { useCurrency } from "../../../contexts/CurrencyContext";
 
 // Starter budgets shown to brand-new users with no spending history.
 // Amounts are conservative medians — users are prompted to adjust.
@@ -87,13 +88,7 @@ const STARTER_BUDGETS: BudgetSuggestion[] = [
   },
 ];
 
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
+// formatCurrency is obtained from CurrencyContext inside the component
 
 const periodLabel = (period: string): string => {
   switch (period) {
@@ -127,14 +122,18 @@ const periodColor = (period: string): string => {
 
 interface BudgetSuggestionsProps {
   onAccept: (suggestion: BudgetSuggestion) => void;
+  /** Scope suggestions to a specific member's spending history */
+  userId?: string | null;
 }
 
 export default function BudgetSuggestions({
   onAccept,
+  userId,
 }: BudgetSuggestionsProps) {
+  const { formatCurrency } = useCurrency();
   const { data: historySuggestions = [], isLoading } = useQuery({
-    queryKey: ["budget-suggestions"],
-    queryFn: () => budgetsApi.getSuggestions(),
+    queryKey: ["budget-suggestions", userId ?? "all"],
+    queryFn: () => budgetsApi.getSuggestions(userId ? { user_id: userId } : undefined),
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
@@ -197,7 +196,7 @@ export default function BudgetSuggestions({
                 <HStack spacing={3}>
                   <VStack align="start" spacing={0}>
                     <Text fontSize="lg" fontWeight="bold">
-                      {formatCurrency(s.suggested_amount)}
+                      {formatCurrency(s.suggested_amount, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                     </Text>
                     <Text fontSize="xs" color="text.muted">
                       suggested budget
@@ -212,7 +211,7 @@ export default function BudgetSuggestions({
                           boxSize={3}
                         />
                         <Text fontSize="sm" color="text.muted">
-                          {formatCurrency(s.avg_monthly_spend)}/mo
+                          {formatCurrency(s.avg_monthly_spend, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/mo
                         </Text>
                       </HStack>
                       <Text fontSize="xs" color="text.muted">

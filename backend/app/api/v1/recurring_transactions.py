@@ -7,7 +7,7 @@ from uuid import UUID
 from dateutil.relativedelta import relativedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db, get_user_accounts, verify_household_member
@@ -125,6 +125,23 @@ async def create_recurring_transaction(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a manually defined recurring transaction pattern."""
+    # Enforce per-org limit to prevent spam / excessive notifications
+    MAX_RECURRING_PER_ORG = 100
+    count_result = await db.execute(
+        select(func.count(RecurringTransaction.id)).where(
+            and_(
+                RecurringTransaction.organization_id == current_user.organization_id,
+                RecurringTransaction.is_active.is_(True),
+            )
+        )
+    )
+    active_count = count_result.scalar_one()
+    if active_count >= MAX_RECURRING_PER_ORG:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Organisation limit reached: maximum {MAX_RECURRING_PER_ORG} active recurring patterns allowed.",
+        )
+
     # Sanitize user text input
     sanitized = recurring_data.model_dump()
     if sanitized.get("merchant_name"):

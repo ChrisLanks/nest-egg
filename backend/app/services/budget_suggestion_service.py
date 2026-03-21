@@ -72,6 +72,7 @@ class BudgetSuggestionService:
         user: User,
         months: int = 6,
         max_suggestions: int = 8,
+        scoped_account_ids: Optional[list[UUID]] = None,
     ) -> List[dict]:
         """Analyze spending history and suggest budgets.
 
@@ -80,6 +81,8 @@ class BudgetSuggestionService:
             user: Current user
             months: How many months of history to analyze (default 6)
             max_suggestions: Maximum number of suggestions to return
+            scoped_account_ids: If provided, restrict analysis to these account IDs
+                (used when viewing a specific member in household context).
 
         Returns:
             List of suggestion dicts with: category_name, category_id,
@@ -88,13 +91,17 @@ class BudgetSuggestionService:
         """
         lookback = date.today() - timedelta(days=months * 31)
 
-        # Get account IDs for this org
-        acct_result = await db.execute(
-            select(Account.id).where(
-                Account.organization_id == user.organization_id,
+        if scoped_account_ids is not None:
+            # Caller already resolved user-scoped accounts
+            account_ids = scoped_account_ids
+        else:
+            # Get all account IDs for this org
+            acct_result = await db.execute(
+                select(Account.id).where(
+                    Account.organization_id == user.organization_id,
+                )
             )
-        )
-        account_ids = [row[0] for row in acct_result.all()]
+            account_ids = [row[0] for row in acct_result.all()]
         if not account_ids:
             return []
 

@@ -67,9 +67,12 @@ export const budgetsApi = {
   /**
    * Get smart budget suggestions based on spending history
    */
-  getSuggestions: async (months?: number): Promise<BudgetSuggestion[]> => {
+  getSuggestions: async (opts?: { months?: number; user_id?: string }): Promise<BudgetSuggestion[]> => {
+    const params: Record<string, unknown> = {};
+    if (opts?.months) params.months = opts.months;
+    if (opts?.user_id) params.user_id = opts.user_id;
     const { data } = await api.get<BudgetSuggestion[]>("/budgets/suggestions", {
-      params: months ? { months } : undefined,
+      params: Object.keys(params).length ? params : undefined,
     });
     return data;
   },
