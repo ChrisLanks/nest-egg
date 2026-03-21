@@ -3,6 +3,8 @@
  */
 
 import {
+  Alert,
+  AlertIcon,
   Box,
   Button,
   Heading,
@@ -61,7 +63,7 @@ export default function BudgetsPage() {
   const onboardingGoal = localStorage.getItem("nest-egg-onboarding-goal") ?? "";
 
   // Get all budgets
-  const { data: budgets = [], isLoading } = useQuery({
+  const { data: budgets = [], isLoading, isError } = useQuery({
     queryKey: ["budgets", selectedUserId],
     queryFn: () =>
       budgetsApi.getAll(
@@ -244,6 +246,14 @@ export default function BudgetsPage() {
           <Center py={12}>
             <Spinner size="xl" />
           </Center>
+        )}
+
+        {/* Error state */}
+        {isError && !isLoading && (
+          <Alert status="error" borderRadius="md">
+            <AlertIcon />
+            Unable to load budgets. Please try again.
+          </Alert>
         )}
 
         {/* Empty state — no budgets at all */}

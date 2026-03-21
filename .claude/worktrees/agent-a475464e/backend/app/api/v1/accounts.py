@@ -1,0 +1,1041 @@
+"""Account API endpoints."""
+
+import json
+import logging
+import re
+from datetime import datetime, timezone
+from decimal import Decimal
+from typing import List, Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
+from sqlalchemy import delete, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
+
+from app.config import settings
+from app.core.cache import delete_pattern as cache_delete_pattern
+from app.core.cache import get as cache_get
+from app.core.cache import setex as cache_setex
+from app.core.database import get_db
+from app.dependencies import (
+    get_all_household_accounts,
+    get_current_user,
+    get_user_accounts,
+    get_verified_account,
+    verify_household_member,
+)
+from app.models.account import Account, AccountType
+from app.models.holding import Holding
+from app.models.user import User
+from app.schemas.account import (
+    Account as AccountSchema,
+)
+from app.schemas.account import (
+    AccountSummary,
+    AccountUpdate,
+    ManualAccountCreate,
+)
+from app.schemas.account_migration import (
+    MigrateAccountRequest,
+    MigrateAccountResponse,
+    MigrationLogResponse,
+)
+from app.services.account_migration_service import (
+    MigrationError,
+    account_migration_service,
+)
+from app.services.deduplication_service import DeduplicationService
+from app.services.input_sanitization_service import input_sanitization_service
+from app.services.market_data import get_market_data_provider
+from app.services.permission_service import permission_service
+from app.services.rate_limit_service import rate_limit_service
+from app.services.reconciliation_service import reconciliation_service
+from app.services.valuation_service import (
+    decode_vin_nhtsa,
+    get_available_property_providers,
+    get_available_vehicle_providers,
+    get_property_value,
+    get_vehicle_value,
+)
+from app.utils.account_type_groups import MANUAL_EXCLUDE_CASH_FLOW_TYPES, TAX_TREATMENT_DEFAULTS
+
+logger = logging.getLogger(__name__)
+
+_ALLOWED_VALUATION_PROVIDERS = {"rentcast", "attom", "marketcheck"}
+
+
+class ProviderAvailability(BaseModel):
+    """Response model for provider availability."""
+
+    plaid: bool
+    teller: bool
+    mx: bool
+
+
+class BulkVisibilityUpdate(BaseModel):
+    """Request model for bulk visibility updates."""
+
+    account_ids: List[UUID]
+    is_active: bool
+
+
+router = APIRouter()
+
+# Initialize deduplication service
+deduplication_service = DeduplicationService()
+
+
+@router.get("/providers/availability", response_model=ProviderAvailability)
+async def get_provider_availability(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get availability status of account providers based on configured credentials.
+
+    Returns which providers (Plaid, Teller, MX) are available based on whether
+    their API credentials are configured in the environment.
+    """
+    return ProviderAvailability(
+        plaid=settings.PLAID_ENABLED and bool(settings.PLAID_CLIENT_ID and settings.PLAID_SECRET),
+        teller=settings.TELLER_ENABLED and bool(settings.TELLER_APP_ID and settings.TELLER_API_KEY),
+        mx=False,  # MX not yet implemented
+    )
+
+
+@router.get("/", response_model=List[AccountSummary])
+async def list_accounts(
+    include_hidden: bool = Query(False, description="Include hidden accounts (admin view)"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all accounts for the current user's organization (provider-agnostic)."""
+    # Check Redis cache for default (non-admin, non-filtered) requests
+    cache_key = None
+    if not include_hidden and not user_id:
+        cache_key = f"accounts:list:{current_user.organization_id}"
+        try:
+            cached = await cache_get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception:
+            pass  # fail-open on Redis errors
+
+    # Query accounts directly to respect include_hidden parameter
+    if include_hidden:
+        # Admin view - include ALL accounts regardless of is_active status
+        conditions = [Account.organization_id == current_user.organization_id]
+        if user_id:
+            await verify_household_member(db, user_id, current_user.organization_id)
+            conditions.append(Account.user_id == user_id)
+
+        result = await db.execute(
+            select(Account)
+            .options(joinedload(Account.plaid_item), joinedload(Account.teller_enrollment))
+            .where(*conditions)
+        )
+        accounts = result.unique().scalars().all()
+    else:
+        # Normal view - use existing dependencies that filter by is_active
+        if user_id:
+            await verify_household_member(db, user_id, current_user.organization_id)
+            accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+        else:
+            accounts = await get_all_household_accounts(db, current_user.organization_id)
+
+    # Deduplicate accounts (shared accounts appear multiple
+    # times when multiple household members link the same account)
+    accounts = deduplication_service.deduplicate_accounts(accounts)
+
+    # Sort by name
+    accounts = sorted(accounts, key=lambda a: a.name)
+
+    # Construct AccountSummary with provider-agnostic sync status
+    summaries = []
+    for acc in accounts:
+        # Determine which provider to use for sync status
+        provider_item_id = None
+        last_synced_at = None
+        last_error_code = None
+        last_error_message = None
+        needs_reauth = None
+
+        if acc.account_source.value == "plaid" and acc.plaid_item:
+            provider_item_id = acc.plaid_item_id
+            last_synced_at = acc.plaid_item.last_synced_at
+            last_error_code = acc.plaid_item.last_error_code
+            last_error_message = acc.plaid_item.last_error_message
+            needs_reauth = acc.plaid_item.needs_reauth
+        elif acc.account_source.value == "teller" and acc.teller_enrollment:
+            provider_item_id = acc.teller_enrollment_id
+            last_synced_at = acc.teller_enrollment.last_synced_at
+            last_error_code = acc.teller_enrollment.last_error_code
+            last_error_message = acc.teller_enrollment.last_error_message
+            needs_reauth = False  # Teller doesn't use reauth concept
+
+        summary = AccountSummary(
+            id=acc.id,
+            user_id=acc.user_id,
+            name=acc.name,
+            account_type=acc.account_type,
+            account_source=acc.account_source,
+            property_type=acc.property_type,
+            institution_name=acc.institution_name,
+            mask=acc.mask,
+            current_balance=acc.current_balance,
+            balance_as_of=acc.balance_as_of,
+            is_active=acc.is_active,
+            exclude_from_cash_flow=acc.exclude_from_cash_flow,
+            plaid_item_hash=acc.plaid_item_hash,
+            # Provider-agnostic sync status
+            provider_item_id=provider_item_id,
+            last_synced_at=last_synced_at,
+            last_error_code=last_error_code,
+            last_error_message=last_error_message,
+            needs_reauth=needs_reauth,
+        )
+        summaries.append(summary)
+
+    # Cache default account list for 60 seconds
+    if cache_key:
+        try:
+            await cache_setex(cache_key, 60, [s.model_dump(mode="json") for s in summaries])
+        except Exception:
+            pass  # fail-open on Redis errors
+
+    return summaries
+
+
+# CSV Export must be defined before /{account_id} to avoid route shadowing
+@router.get("/export/csv")
+async def export_accounts_csv(
+    request: Request,
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Export accounts as a CSV file.
+
+    Returns active accounts with key financial details suitable for
+    spreadsheet applications or archival purposes.
+    Accepts optional user_id to filter to a specific member's accounts.
+    """
+    import csv
+    from io import StringIO
+
+    from fastapi.responses import StreamingResponse
+
+    # Rate limit: 10 exports per hour per user
+    await rate_limit_service.check_rate_limit(
+        request=request,
+        max_requests=10,
+        window_seconds=3600,
+        identifier=str(current_user.id),
+    )
+
+    # Fetch accounts based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        accounts = await get_all_household_accounts(db, current_user.organization_id)
+        accounts = deduplication_service.deduplicate_accounts(accounts)
+    accounts = sorted(accounts, key=lambda a: a.name)
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    # Write header
+    writer.writerow(
+        [
+            "Account Name",
+            "Account Type",
+            "Institution",
+            "Current Balance",
+            "Available Balance",
+            "Credit Limit",
+            "Account Source",
+            "Tax Treatment",
+            "Mask",
+            "Is Active",
+            "Account ID",
+        ]
+    )
+
+    # Write rows
+    for acc in accounts:
+        writer.writerow(
+            [
+                acc.name,
+                acc.account_type.value if acc.account_type else "",
+                acc.institution_name or "",
+                float(acc.current_balance) if acc.current_balance is not None else "",
+                float(acc.available_balance) if acc.available_balance is not None else "",
+                float(acc.limit) if acc.limit is not None else "",
+                acc.account_source.value if acc.account_source else "",
+                acc.tax_treatment.value if acc.tax_treatment else "",
+                f"****{acc.mask}" if acc.mask else "",
+                "Yes" if acc.is_active else "No",
+                str(acc.id),
+            ]
+        )
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="accounts.csv"'},
+    )
+
+
+@router.get("/{account_id}", response_model=AccountSchema)
+async def get_account(
+    account: Account = Depends(get_verified_account),
+    current_user: User = Depends(get_current_user),
+):
+    """Get a specific account."""
+    # Strip sensitive financial fields for guest users
+    if getattr(current_user, "_is_guest", False):
+        account.annual_salary = None
+    return account
+
+
+@router.post("/manual", response_model=AccountSchema)
+async def create_manual_account(
+    account_data: ManualAccountCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a manual account."""
+    # Generate hash for deduplication across household members
+    plaid_item_hash = deduplication_service.calculate_manual_account_hash(
+        account_type=account_data.account_type,
+        institution_name=account_data.institution,
+        mask=account_data.account_number_last4,
+        name=account_data.name,
+    )
+
+    # Determine if account should be excluded from cash flow by default
+    # Loans and mortgages are excluded to prevent
+    # double-counting (payment from checking + loan balance decrease)
+    exclude_from_cash_flow = account_data.account_type in MANUAL_EXCLUDE_CASH_FLOW_TYPES
+
+    # Determine tax treatment: use explicit value, or infer from account type
+    tax_treatment = account_data.tax_treatment
+    if tax_treatment is None:
+        tax_treatment = TAX_TREATMENT_DEFAULTS.get(account_data.account_type)
+
+    # Create the account
+    account = Account(
+        organization_id=current_user.organization_id,
+        user_id=current_user.id,
+        name=input_sanitization_service.sanitize_html(account_data.name),
+        account_type=account_data.account_type,
+        tax_treatment=tax_treatment,
+        property_type=account_data.property_type,
+        account_source=account_data.account_source,
+        institution_name=account_data.institution,
+        mask=account_data.account_number_last4,
+        # Debt accounts always carry negative balances in this system.
+        # Negate if the user entered a positive value (e.g. "200000" for a mortgage).
+        current_balance=(
+            -abs(account_data.balance)
+            if account_data.account_type.is_debt and account_data.balance > 0
+            else account_data.balance
+        ),
+        plaid_item_hash=plaid_item_hash,
+        is_manual=True,
+        is_active=True,
+        exclude_from_cash_flow=exclude_from_cash_flow,
+        # Debt/Loan fields
+        interest_rate=account_data.interest_rate,
+        interest_rate_type=account_data.interest_rate_type,
+        minimum_payment=account_data.minimum_payment,
+        payment_due_day=account_data.payment_due_day,
+        original_amount=account_data.original_amount,
+        origination_date=account_data.origination_date,
+        maturity_date=account_data.maturity_date,
+        loan_term_months=account_data.loan_term_months,
+        compounding_frequency=account_data.compounding_frequency,
+        # Private Debt fields
+        principal_amount=account_data.principal_amount,
+        # Private Equity fields
+        grant_type=account_data.grant_type,
+        grant_date=account_data.grant_date,
+        quantity=account_data.quantity,
+        strike_price=account_data.strike_price,
+        vesting_schedule=(
+            json.dumps(
+                [
+                    {"date": m.date.isoformat(), "quantity": float(m.quantity)}
+                    for m in account_data.vesting_schedule
+                ]
+            )
+            if account_data.vesting_schedule
+            else None
+        ),
+        share_price=account_data.share_price,
+        company_status=account_data.company_status,
+        valuation_method=account_data.valuation_method,
+        include_in_networth=account_data.include_in_networth,
+        # Pension / Annuity income fields
+        monthly_benefit=account_data.monthly_benefit,
+        benefit_start_date=account_data.benefit_start_date,
+        # Credit card fields
+        limit=account_data.credit_limit,
+        # Business Equity fields
+        company_valuation=account_data.company_valuation,
+        ownership_percentage=account_data.ownership_percentage,
+        equity_value=account_data.equity_value,
+        # Valuation adjustment (property + vehicle)
+        valuation_adjustment_pct=account_data.valuation_adjustment_pct,
+    )
+
+    db.add(account)
+    await db.commit()
+    await db.refresh(account)
+
+    # Invalidate portfolio and dashboard caches
+    await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"accounts:list:{current_user.organization_id}")
+
+    # Create holdings if provided (for investment accounts)
+    if account_data.holdings:
+        for holding_data in account_data.holdings:
+            # Calculate cost basis (use current price as cost basis)
+            cost_basis_per_share = holding_data.price_per_share
+            total_cost_basis = holding_data.shares * cost_basis_per_share
+
+            holding = Holding(
+                account_id=account.id,
+                organization_id=current_user.organization_id,
+                ticker=holding_data.ticker.upper(),
+                shares=holding_data.shares,
+                cost_basis_per_share=cost_basis_per_share,
+                total_cost_basis=total_cost_basis,
+                current_price_per_share=holding_data.price_per_share,
+                current_total_value=holding_data.shares * holding_data.price_per_share,
+            )
+            db.add(holding)
+
+        await db.commit()
+
+    return account
+
+
+@router.patch("/bulk-visibility")
+async def bulk_update_visibility(
+    request: BulkVisibilityUpdate,
+    http_request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Update visibility for multiple accounts.
+    Rate limited to 30 requests per minute.
+    Only updates accounts the current user owns or has 'update' grant for.
+    """
+    # Rate limit: 30 bulk update requests per minute per IP
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=30,
+        window_seconds=60,
+    )
+
+    # Fetch all requested accounts that are within the org
+    check_result = await db.execute(
+        select(Account.id, Account.user_id).where(
+            Account.id.in_(request.account_ids),
+            Account.organization_id == current_user.organization_id,
+        )
+    )
+    existing_accounts = check_result.all()
+
+    if not existing_accounts:
+        return {"updated_count": 0}
+
+    # Bulk permission check: single DB query instead of one per account
+    allowed_ids = await permission_service.filter_allowed_resources(
+        db,
+        current_user,
+        "update",
+        "account",
+        resource_owner_pairs=[(acc_id, acc_user_id) for acc_id, acc_user_id in existing_accounts],
+    )
+
+    if not allowed_ids:
+        return {"updated_count": 0}
+
+    result = await db.execute(
+        update(Account).where(Account.id.in_(allowed_ids)).values(is_active=request.is_active)
+    )
+    await db.commit()
+
+    # Invalidate portfolio and dashboard caches
+    await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"accounts:list:{current_user.organization_id}")
+
+    return {"updated_count": result.rowcount}
+
+
+@router.patch("/{account_id}", response_model=AccountSchema)
+async def update_account(
+    account_data: AccountUpdate,
+    account: Account = Depends(get_verified_account),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update account details."""
+    # Enforce permission: owner, org admin, or holder of an 'update' grant
+    await permission_service.require(
+        db,
+        current_user,
+        "update",
+        "account",
+        resource_id=account.id,
+        owner_id=account.user_id,
+    )
+
+    # Update basic fields
+    if account_data.name is not None:
+        account.name = input_sanitization_service.sanitize_html(account_data.name)
+    if account_data.is_active is not None:
+        account.is_active = account_data.is_active
+    if account_data.current_balance is not None:
+        # Keep debt accounts negative — negate if user supplied a positive value.
+        if account.account_type.is_debt and account_data.current_balance > 0:
+            account.current_balance = -account_data.current_balance
+        else:
+            account.current_balance = account_data.current_balance
+    if account_data.mask is not None:
+        account.mask = account_data.mask
+    if account_data.exclude_from_cash_flow is not None:
+        account.exclude_from_cash_flow = account_data.exclude_from_cash_flow
+
+    # Update tax treatment
+    if account_data.tax_treatment is not None:
+        account.tax_treatment = account_data.tax_treatment
+
+    # Update Debt/Loan fields
+    if account_data.interest_rate is not None:
+        account.interest_rate = account_data.interest_rate
+    if account_data.interest_rate_type is not None:
+        account.interest_rate_type = account_data.interest_rate_type
+    if account_data.minimum_payment is not None:
+        account.minimum_payment = account_data.minimum_payment
+    if account_data.payment_due_day is not None:
+        account.payment_due_day = account_data.payment_due_day
+    if account_data.original_amount is not None:
+        account.original_amount = account_data.original_amount
+    if account_data.origination_date is not None:
+        account.origination_date = account_data.origination_date
+    if account_data.maturity_date is not None:
+        account.maturity_date = account_data.maturity_date
+    if account_data.loan_term_months is not None:
+        account.loan_term_months = account_data.loan_term_months
+    if account_data.compounding_frequency is not None:
+        account.compounding_frequency = account_data.compounding_frequency
+
+    # Update Private Debt fields
+    if account_data.principal_amount is not None:
+        account.principal_amount = account_data.principal_amount
+
+    # Update Private Equity fields
+    if account_data.grant_type is not None:
+        account.grant_type = account_data.grant_type
+    if account_data.grant_date is not None:
+        account.grant_date = account_data.grant_date
+    if account_data.quantity is not None:
+        account.quantity = account_data.quantity
+    if account_data.strike_price is not None:
+        account.strike_price = account_data.strike_price
+    if account_data.vesting_schedule is not None:
+        account.vesting_schedule = json.dumps(
+            [
+                {"date": m.date.isoformat(), "quantity": float(m.quantity)}
+                for m in account_data.vesting_schedule
+            ]
+        )
+    if account_data.share_price is not None:
+        account.share_price = account_data.share_price
+    if account_data.company_status is not None:
+        account.company_status = account_data.company_status
+    if account_data.valuation_method is not None:
+        account.valuation_method = account_data.valuation_method
+    if account_data.include_in_networth is not None:
+        account.include_in_networth = account_data.include_in_networth
+
+    # Update Pension / Annuity income fields
+    if account_data.monthly_benefit is not None:
+        account.monthly_benefit = account_data.monthly_benefit
+    if account_data.benefit_start_date is not None:
+        account.benefit_start_date = account_data.benefit_start_date
+
+    # Update credit card limit
+    if account_data.credit_limit is not None:
+        account.limit = account_data.credit_limit
+
+    # Update Business Equity fields
+    if account_data.company_valuation is not None:
+        account.company_valuation = account_data.company_valuation
+    if account_data.ownership_percentage is not None:
+        account.ownership_percentage = account_data.ownership_percentage
+    if account_data.equity_value is not None:
+        account.equity_value = account_data.equity_value
+
+    # Property auto-valuation fields
+    if account_data.property_address is not None:
+        account.property_address = account_data.property_address
+    if account_data.property_zip is not None:
+        account.property_zip = account_data.property_zip
+
+    # Vehicle auto-valuation fields
+    if account_data.vehicle_vin is not None:
+        account.vehicle_vin = account_data.vehicle_vin.upper()
+    if account_data.vehicle_mileage is not None:
+        account.vehicle_mileage = account_data.vehicle_mileage
+
+    # Valuation adjustment
+    if account_data.valuation_adjustment_pct is not None:
+        account.valuation_adjustment_pct = account_data.valuation_adjustment_pct
+
+    await db.commit()
+    await db.refresh(account)
+
+    # Invalidate portfolio and dashboard caches
+    await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"accounts:list:{current_user.organization_id}")
+
+    return account
+
+
+@router.get("/valuation-providers")
+async def get_valuation_providers(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Return the lists of configured valuation providers.
+
+    The frontend uses this to decide whether to show/hide the "Refresh
+    Valuation" button and, when multiple providers are available, render
+    a provider selector.
+
+    Response shape:
+        {
+            "property": ["rentcast", "attom"],   # zero or more
+            "vehicle":  ["marketcheck"]           # zero or more
+        }
+    """
+    return {
+        "property": get_available_property_providers(),
+        "vehicle": get_available_vehicle_providers(),
+    }
+
+
+@router.post("/{account_id}/refresh-valuation")
+async def refresh_account_valuation(
+    account_id: UUID,
+    provider: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Refresh the current_balance of a property or vehicle account via
+    the configured auto-valuation APIs.
+
+    Optional query param:
+        provider=rentcast|attom|marketcheck
+    When omitted, the first available configured provider is used.
+    """
+    if provider is not None and provider not in _ALLOWED_VALUATION_PROVIDERS:
+        raise HTTPException(status_code=400, detail="Invalid provider")
+
+    result = await db.execute(
+        select(Account).where(
+            Account.id == account_id,
+            Account.organization_id == current_user.organization_id,
+        )
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # Enforce permission: owner, org admin, or holder of an 'update' grant
+    await permission_service.require(
+        db,
+        current_user,
+        "update",
+        "account",
+        resource_id=account.id,
+        owner_id=account.user_id,
+    )
+
+    valuation_result = None
+    vin_info = None
+
+    if account.account_type == AccountType.PROPERTY:
+        if not account.property_address or not account.property_zip:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Set property_address and property_zip on this account "
+                    "before requesting an auto-valuation."
+                ),
+            )
+        if not get_available_property_providers():
+            logger.warning(
+                "property_valuation: no provider configured — "
+                "set RENTCAST_API_KEY (free) or ATTOM_API_KEY"
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="Automatic property valuation is not available at this time.",
+            )
+        valuation_result = await get_property_value(
+            account.property_address, account.property_zip, provider=provider
+        )
+
+    elif account.account_type == AccountType.VEHICLE:
+        if account.vehicle_vin:
+            vin_info = await decode_vin_nhtsa(account.vehicle_vin)
+
+        if not get_available_vehicle_providers():
+            logger.warning("vehicle_valuation: no provider configured — set MARKETCHECK_API_KEY")
+            raise HTTPException(
+                status_code=503,
+                detail="Automatic vehicle valuation is not available at this time.",
+            )
+        if not account.vehicle_vin:
+            raise HTTPException(
+                status_code=422,
+                detail="Set vehicle_vin on this account before requesting an auto-valuation.",
+            )
+        valuation_result = await get_vehicle_value(
+            account.vehicle_vin, account.vehicle_mileage, provider=provider
+        )
+
+    else:
+        raise HTTPException(
+            status_code=422,
+            detail="Auto-valuation is only supported for property and vehicle accounts.",
+        )
+
+    if valuation_result is None:
+        raise HTTPException(
+            status_code=502,
+            detail="The valuation provider did not return a value. Please try again later.",
+        )
+
+    # Apply valuation adjustment percentage if set
+    raw_value = valuation_result.value
+    adj = account.valuation_adjustment_pct
+    if adj is not None and adj != 0:
+        multiplier = 1 + adj / Decimal("100")
+        adjusted_value = (raw_value * multiplier).quantize(Decimal("0.01"))
+        adjusted_low = (
+            (valuation_result.low * multiplier).quantize(Decimal("0.01"))
+            if valuation_result.low
+            else None
+        )
+        adjusted_high = (
+            (valuation_result.high * multiplier).quantize(Decimal("0.01"))
+            if valuation_result.high
+            else None
+        )
+    else:
+        adjusted_value = raw_value
+        adjusted_low = valuation_result.low
+        adjusted_high = valuation_result.high
+
+    now = datetime.now(timezone.utc)
+    await db.execute(
+        update(Account)
+        .where(
+            Account.id == account_id,
+            Account.organization_id == current_user.organization_id,
+        )
+        .values(
+            current_balance=adjusted_value,
+            last_auto_valued_at=now,
+            balance_as_of=now,
+        )
+    )
+    await db.commit()
+
+    # Invalidate portfolio and dashboard caches
+    await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"accounts:list:{current_user.organization_id}")
+
+    return {
+        "id": str(account.id),
+        "raw_value": float(raw_value),
+        "new_value": float(adjusted_value),
+        "adjustment_pct": float(adj) if adj else None,
+        "provider": valuation_result.provider,
+        "low": float(adjusted_low) if adjusted_low else None,
+        "high": float(adjusted_high) if adjusted_high else None,
+        "last_auto_valued_at": now.isoformat(),
+        "vin_info": vin_info,
+    }
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_accounts(
+    account_ids: List[UUID],
+    http_request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete multiple accounts at once.
+
+    Only deletes accounts the user owns or has
+    'delete' grant for.
+    """
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=60,
+    )
+    # Fetch all requested accounts within the org
+    fetch_result = await db.execute(
+        select(Account.id, Account.user_id).where(
+            Account.id.in_(account_ids),
+            Account.organization_id == current_user.organization_id,
+        )
+    )
+    existing_accounts = fetch_result.all()
+
+    if not existing_accounts:
+        return {"deleted_count": 0}
+
+    # Bulk permission check: single DB query instead of one per account
+    allowed_ids = await permission_service.filter_allowed_resources(
+        db,
+        current_user,
+        "delete",
+        "account",
+        resource_owner_pairs=[(acc_id, acc_user_id) for acc_id, acc_user_id in existing_accounts],
+    )
+
+    if not allowed_ids:
+        return {"deleted_count": 0}
+
+    result = await db.execute(delete(Account).where(Account.id.in_(allowed_ids)))
+    await db.commit()
+
+    # Invalidate portfolio and dashboard caches
+    await cache_delete_pattern(f"portfolio:summary:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"dashboard:{current_user.organization_id}:*")
+    await cache_delete_pattern(f"accounts:list:{current_user.organization_id}")
+
+    return {"deleted_count": result.rowcount}
+
+
+@router.post("/{account_id}/migrate", response_model=MigrateAccountResponse)
+async def migrate_account(
+    account_id: UUID,
+    request_body: MigrateAccountRequest,
+    http_request: Request,
+    account: Account = Depends(get_verified_account),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Migrate an account from one provider to another.
+
+    This changes the account's data source (e.g., Plaid -> Manual)
+    while preserving ALL history (transactions, holdings, contributions, etc.).
+
+    Provider-specific sync state (cursor, last_synced_at) will be lost
+    for the old provider. The account will start syncing from the new provider
+    (or become manually managed if target is 'manual').
+    """
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=5,
+        window_seconds=60,
+    )
+
+    await permission_service.require(
+        db,
+        current_user,
+        "update",
+        "account",
+        resource_id=account.id,
+        owner_id=account.user_id,
+    )
+
+    if not request_body.confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="You must set confirm=true to proceed with migration.",
+        )
+
+    try:
+        migration_log = await account_migration_service.migrate_account(
+            db=db,
+            account_id=account_id,
+            user=current_user,
+            target_source=request_body.target_source,
+            target_enrollment_id=request_body.target_enrollment_id,
+            target_external_account_id=request_body.target_external_account_id,
+        )
+        await db.commit()
+
+        return MigrateAccountResponse(
+            migration_log=MigrationLogResponse.model_validate(migration_log),
+            message=(
+                f"Account successfully migrated from "
+                f"{migration_log.source_provider} to {migration_log.target_provider}."
+            ),
+        )
+
+    except MigrationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get(
+    "/{account_id}/migration-history",
+    response_model=List[MigrationLogResponse],
+)
+async def get_migration_history(
+    account_id: UUID,
+    account: Account = Depends(get_verified_account),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get the migration history for an account."""
+    return await account_migration_service.get_migration_history(
+        db=db,
+        account_id=account_id,
+        organization_id=current_user.organization_id,
+    )
+
+
+@router.get("/{account_id}/reconciliation")
+async def get_account_reconciliation(
+    account_id: UUID,
+    account: Account = Depends(get_verified_account),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get balance reconciliation for an account.
+
+    Compares the bank-reported balance (from Plaid/Teller/MX sync) against the
+    locally computed balance (sum of all transactions) and reports any discrepancy.
+    """
+    result = await reconciliation_service.reconcile_account(db=db, account=account)
+    return result.to_dict()
+
+
+# ── Equity / RSU price refresh ────────────────────────────────────────────────
+
+
+class EquityPriceRefreshResponse(BaseModel):
+    """Response after refreshing equity share price."""
+
+    account_id: str
+    ticker: Optional[str]
+    share_price: Optional[float]
+    quantity: Optional[float]
+    current_balance: Optional[float]
+    provider: str
+    refreshed_at: str
+
+
+@router.post("/{account_id}/equity-refresh", response_model=EquityPriceRefreshResponse)
+async def refresh_equity_price(
+    account_id: UUID,
+    account: Account = Depends(get_verified_account),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Refresh the share price for a STOCK_OPTIONS / PRIVATE_EQUITY account whose
+    company_status is PUBLIC.
+
+    Uses the configured market data provider (Yahoo Finance by default) to fetch
+    the latest price for the account's ticker symbol, then updates share_price
+    and current_balance (share_price × quantity).
+
+    Returns 400 if the account is not a supported equity type, has no ticker,
+    or is a private company (private valuations must be set manually).
+    """
+    from app.models.account import AccountType, CompanyStatus
+    from app.utils.datetime_utils import utc_now
+
+    # Validate account type supports equity price refresh
+    equity_types = {AccountType.STOCK_OPTIONS, AccountType.PRIVATE_EQUITY}
+    if account.account_type not in equity_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Account type '{account.account_type}' does not support equity price refresh. "
+            "Only stock_options and private_equity accounts are supported.",
+        )
+
+    # Require a ticker symbol — used as the lookup key
+    ticker = account.name.strip() if not account.institution_name else None
+    # Prefer institution_name as ticker if it looks like a stock symbol
+    # Fall back to checking name for short uppercase strings
+    if account.institution_name and re.match(r"^[A-Z]{1,5}$", account.institution_name.strip()):
+        ticker = account.institution_name.strip()
+    elif account.name and re.match(r"^[A-Z]{1,5}$", account.name.strip()):
+        ticker = account.name.strip()
+    else:
+        # Use name as a search query — caller should set institution_name to the ticker
+        ticker = account.institution_name or account.name
+
+    if not ticker:
+        raise HTTPException(status_code=400, detail="Account has no ticker symbol set.")
+
+    # Private companies cannot be refreshed via market data
+    if account.company_status == CompanyStatus.PRIVATE:
+        raise HTTPException(
+            status_code=400,
+            detail="Private company valuations must be set manually.",
+        )
+
+    # Fetch quote
+    provider = get_market_data_provider()
+    try:
+        quote = await provider.get_quote(ticker)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    # Update account
+    new_price = quote.price
+    new_balance = new_price * Decimal(str(account.quantity or 0))
+    now = utc_now()
+
+    await db.execute(
+        update(Account)
+        .where(Account.id == account_id)
+        .values(
+            share_price=new_price,
+            current_balance=new_balance,
+            balance_as_of=now,
+            updated_at=now,
+        )
+    )
+    await db.commit()
+    await cache_delete_pattern(f"accounts:{current_user.organization_id}:*")
+
+    return EquityPriceRefreshResponse(
+        account_id=str(account_id),
+        ticker=ticker,
+        share_price=float(new_price),
+        quantity=float(account.quantity or 0),
+        current_balance=float(new_balance),
+        provider=provider.get_provider_name(),
+        refreshed_at=now.isoformat(),
+    )

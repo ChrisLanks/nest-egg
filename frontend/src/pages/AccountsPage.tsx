@@ -59,6 +59,7 @@ import { formatAssetType } from "../utils/formatAssetType";
 import { EmptyState } from "../components/EmptyState";
 import { useUserView } from "../contexts/UserViewContext";
 import { AccountsSkeleton } from "../components/LoadingSkeleton";
+import { AddAccountModal } from "../features/accounts/components/AddAccountModal";
 
 interface Account {
   id: string;
@@ -97,6 +98,7 @@ export const AccountsPage = () => {
     null,
   );
   const [syncingItemId, setSyncingItemId] = useState<string | null>(null);
+  const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
   const toast = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -991,13 +993,17 @@ export const AccountsPage = () => {
             title="No accounts yet"
             description="Connect your bank accounts or add manual accounts to start tracking your finances."
             actionLabel="Add Account"
-            onAction={() => {
-              /* TODO: Open add account modal */
-            }}
-            showAction={false}
+            onAction={() => setIsAddAccountOpen(true)}
+            showAction={true}
           />
         )}
       </VStack>
+
+      {/* Add Account Modal */}
+      <AddAccountModal
+        isOpen={isAddAccountOpen}
+        onClose={() => setIsAddAccountOpen(false)}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog

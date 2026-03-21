@@ -3,6 +3,8 @@
  */
 
 import {
+  Alert,
+  AlertIcon,
   Box,
   Container,
   Heading,
@@ -158,7 +160,7 @@ export default function TrendsPage() {
   }, [apiYears, currentYear]);
 
   // Fetch year-over-year comparison
-  const { data: yoyData, isLoading: yoyLoading } = useQuery<YearOverYearData[]>(
+  const { data: yoyData, isLoading: yoyLoading, isError: yoyError } = useQuery<YearOverYearData[]>(
     {
       queryKey: ["year-over-year", selectedYears, activeUserId, selectedIdsKey],
       queryFn: async () => {
@@ -337,6 +339,17 @@ export default function TrendsPage() {
         <Center py={20}>
           <Spinner size="xl" color="brand.500" />
         </Center>
+      </Container>
+    );
+  }
+
+  if (yoyError) {
+    return (
+      <Container maxW="container.xl" py={8}>
+        <Alert status="error" borderRadius="md">
+          <AlertIcon />
+          Unable to load trends data. Please try again.
+        </Alert>
       </Container>
     );
   }

@@ -83,6 +83,7 @@ export default function BudgetCard({
     mutationFn: () => budgetsApi.delete(budget.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      queryClient.invalidateQueries({ queryKey: ["budgets-widget"] });
       toast({
         title: "Budget deleted",
         status: "success",

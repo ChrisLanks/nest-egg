@@ -601,6 +601,7 @@ export const TransactionsPage = () => {
     "mark" | "unmark" | null
   >(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [lastBulkOpId, setLastBulkOpId] = useState<string | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   // Bulk edit modal
@@ -781,11 +782,22 @@ export const TransactionsPage = () => {
         isTransfer,
       };
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       const action = result.isTransfer
         ? "marked as transfers"
         : "unmarked as transfers";
       const skipped = result.attempted - result.modified;
+      // Fetch latest bulk op for undo support
+      let opId: string | null = null;
+      try {
+        const opRes = await api.get("/bulk-operations/", {
+          params: { limit: 1 },
+        });
+        opId = opRes.data?.[0]?.id ?? null;
+      } catch {
+        /* undo not available */
+      }
+      if (opId) setLastBulkOpId(opId);
       toast({
         title: `${result.modified} transaction(s) ${action}`,
         description:
@@ -793,7 +805,17 @@ export const TransactionsPage = () => {
             ? `${skipped} transaction(s) skipped (not owned by you)`
             : undefined,
         status: skipped > 0 ? "warning" : "success",
-        duration: 3000,
+        duration: 8000,
+        isClosable: true,
+        ...(opId && skipped === 0
+          ? {
+              action: (
+                <Button size="xs" onClick={() => handleUndo(opId!)}>
+                  Undo
+                </Button>
+              ),
+            }
+          : {}),
       });
       // Refetch transactions to get updated labels
       refetch();
@@ -841,8 +863,18 @@ export const TransactionsPage = () => {
         modified: ownedTransactionIds.length,
       };
     },
-    onSuccess: (result, _variables) => {
+    onSuccess: async (result, _variables) => {
       const skipped = result.attempted - result.modified;
+      let opId: string | null = null;
+      try {
+        const opRes = await api.get("/bulk-operations/", {
+          params: { limit: 1 },
+        });
+        opId = opRes.data?.[0]?.id ?? null;
+      } catch {
+        /* undo not available */
+      }
+      if (opId) setLastBulkOpId(opId);
       toast({
         title: `Label added to ${result.modified} transaction(s)`,
         description:
@@ -850,7 +882,17 @@ export const TransactionsPage = () => {
             ? `${skipped} transaction(s) skipped (not owned by you)`
             : undefined,
         status: skipped > 0 ? "warning" : "success",
-        duration: 3000,
+        duration: 8000,
+        isClosable: true,
+        ...(opId && skipped === 0
+          ? {
+              action: (
+                <Button size="xs" onClick={() => handleUndo(opId!)}>
+                  Undo
+                </Button>
+              ),
+            }
+          : {}),
       });
       refetch();
       queryClient.invalidateQueries({ queryKey: ["income-expenses"] });
@@ -896,8 +938,18 @@ export const TransactionsPage = () => {
         modified: ownedTransactionIds.length,
       };
     },
-    onSuccess: (result, _variables) => {
+    onSuccess: async (result, _variables) => {
       const skipped = result.attempted - result.modified;
+      let opId: string | null = null;
+      try {
+        const opRes = await api.get("/bulk-operations/", {
+          params: { limit: 1 },
+        });
+        opId = opRes.data?.[0]?.id ?? null;
+      } catch {
+        /* undo not available */
+      }
+      if (opId) setLastBulkOpId(opId);
       toast({
         title: `Label removed from ${result.modified} transaction(s)`,
         description:
@@ -905,7 +957,17 @@ export const TransactionsPage = () => {
             ? `${skipped} transaction(s) skipped (not owned by you)`
             : undefined,
         status: skipped > 0 ? "warning" : "success",
-        duration: 3000,
+        duration: 8000,
+        isClosable: true,
+        ...(opId && skipped === 0
+          ? {
+              action: (
+                <Button size="xs" onClick={() => handleUndo(opId!)}>
+                  Undo
+                </Button>
+              ),
+            }
+          : {}),
       });
       refetch();
       queryClient.invalidateQueries({ queryKey: ["income-expenses"] });
@@ -951,8 +1013,18 @@ export const TransactionsPage = () => {
         modified: ownedTransactionIds.length,
       };
     },
-    onSuccess: (result, _variables) => {
+    onSuccess: async (result, _variables) => {
       const skipped = result.attempted - result.modified;
+      let opId: string | null = null;
+      try {
+        const opRes = await api.get("/bulk-operations/", {
+          params: { limit: 1 },
+        });
+        opId = opRes.data?.[0]?.id ?? null;
+      } catch {
+        /* undo not available */
+      }
+      if (opId) setLastBulkOpId(opId);
       toast({
         title: `Category updated for ${result.modified} transaction(s)`,
         description:
@@ -960,7 +1032,17 @@ export const TransactionsPage = () => {
             ? `${skipped} transaction(s) skipped (not owned by you)`
             : undefined,
         status: skipped > 0 ? "warning" : "success",
-        duration: 3000,
+        duration: 8000,
+        isClosable: true,
+        ...(opId && skipped === 0
+          ? {
+              action: (
+                <Button size="xs" onClick={() => handleUndo(opId!)}>
+                  Undo
+                </Button>
+              ),
+            }
+          : {}),
       });
       refetch();
       queryClient.invalidateQueries({ queryKey: ["income-expenses"] });
@@ -1527,6 +1609,26 @@ export const TransactionsPage = () => {
 
     setRuleTransaction(commonTransaction);
     setIsRuleBuilderOpen(true);
+  };
+
+  const handleUndo = async (opId: string) => {
+    try {
+      await api.post(`/bulk-operations/${opId}/undo`);
+      setLastBulkOpId(null);
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ["income-expenses"] });
+      toast({
+        title: "Action undone",
+        status: "info",
+        duration: 3000,
+      });
+    } catch {
+      toast({
+        title: "Failed to undo action",
+        status: "error",
+        duration: 5000,
+      });
+    }
   };
 
   const confirmBulkAction = () => {

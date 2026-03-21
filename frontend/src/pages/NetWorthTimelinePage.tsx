@@ -4,6 +4,8 @@
  */
 
 import {
+  Alert,
+  AlertIcon,
   Box,
   Button,
   ButtonGroup,
@@ -157,7 +159,7 @@ export default function NetWorthTimelinePage() {
   );
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  const { data: rawData, isLoading } = useQuery<NetWorthPoint[]>({
+  const { data: rawData, isLoading, isError } = useQuery<NetWorthPoint[]>({
     queryKey: [
       "net-worth-history",
       timeRange,
@@ -356,6 +358,11 @@ export default function NetWorthTimelinePage() {
               >
                 <Spinner size="xl" color="brand.500" />
               </Box>
+            ) : isError ? (
+              <Alert status="error" borderRadius="md">
+                <AlertIcon />
+                Unable to load net worth history. Please try again.
+              </Alert>
             ) : chartData.length === 0 ? (
               <Box
                 height={400}

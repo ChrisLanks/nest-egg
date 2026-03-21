@@ -157,7 +157,7 @@ export function YearInReviewPage() {
   const availableYears = useMemo(() => {
     if (apiYears && apiYears.length > 0) return apiYears;
     const years = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 11; i++) {
       years.push(currentDate.getFullYear() - i);
     }
     return years;
@@ -187,13 +187,31 @@ export function YearInReviewPage() {
     );
   }
 
-  if (isError || !reviewData) {
+  if (isError) {
     return (
       <Container maxW="container.xl" py={8}>
         <Alert status="error" borderRadius="md">
           <AlertIcon />
           Failed to load year-in-review data. Please try again.
         </Alert>
+      </Container>
+    );
+  }
+
+  if (!reviewData) {
+    return (
+      <Container maxW="container.xl" py={8}>
+        <Center py={20}>
+          <VStack spacing={3}>
+            <Text fontSize="lg" color="text.secondary">
+              No data available for {selectedYear}.
+            </Text>
+            <Text fontSize="sm" color="text.muted">
+              Try selecting a different year or import transactions to get
+              started.
+            </Text>
+          </VStack>
+        </Center>
       </Container>
     );
   }

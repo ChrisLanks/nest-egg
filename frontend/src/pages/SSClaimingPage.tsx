@@ -18,6 +18,7 @@ import {
   Center,
   Container,
   FormControl,
+  FormHelperText,
   FormLabel,
   Heading,
   HStack,
@@ -153,6 +154,10 @@ export const SSClaimingPage = () => {
                       onChange={(e) => setSalary(e.target.value)}
                     />
                   </InputGroup>
+                  <FormHelperText fontSize="xs">
+                    Used to estimate your benefit. If left at 0, a $75,000
+                    salary baseline is assumed.
+                  </FormHelperText>
                 </FormControl>
                 <FormControl isRequired>
                   <FormLabel fontSize="xs">

@@ -1,0 +1,1025 @@
+"""Transaction API endpoints."""
+
+import base64
+import csv
+import json
+import re
+from datetime import date, datetime
+from decimal import Decimal
+from io import StringIO
+from typing import Optional
+from uuid import UUID, uuid4
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy import and_, func, or_, select, tuple_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
+
+from app.core.cache import delete_pattern as cache_delete_pattern
+from app.core.cache import get as cache_get
+from app.core.cache import setex as cache_setex
+from app.core.database import get_db
+from app.dependencies import (
+    get_all_household_accounts,
+    get_current_user,
+    get_user_accounts,
+    verify_household_member,
+)
+from app.models.account import Account
+from app.models.transaction import Category, Label, Transaction, TransactionLabel
+from app.models.user import User
+from app.schemas.transaction import (
+    CategorySummary,
+    ManualTransactionCreate,
+    TransactionDetail,
+    TransactionListResponse,
+    TransactionUpdate,
+)
+from app.services.input_sanitization_service import input_sanitization_service
+from app.services.nlp_search_service import parse_natural_query
+from app.utils.datetime_utils import utc_now
+
+router = APIRouter()
+
+
+async def get_or_create_transfer_label(db: AsyncSession, organization_id: UUID) -> Label:
+    """Get or create the system Transfer label for an organization."""
+    # Check if Transfer label already exists
+    result = await db.execute(
+        select(Label).where(
+            Label.organization_id == organization_id,
+            Label.name == "Transfer",
+            Label.is_system.is_(True),
+        )
+    )
+    label = result.scalar_one_or_none()
+
+    if not label:
+        # Create the Transfer label
+        label = Label(
+            organization_id=organization_id,
+            name="Transfer",
+            color="#718096",  # Gray color
+            is_income=False,
+            is_system=True,
+        )
+        db.add(label)
+        await db.flush()  # Ensure ID is generated
+
+    return label
+
+
+def encode_cursor(txn_date: date, created_at: datetime, txn_id: UUID) -> str:
+    """Encode transaction cursor for pagination."""
+    cursor_data = {
+        "date": txn_date.isoformat(),
+        "created_at": created_at.isoformat(),
+        "id": str(txn_id),
+    }
+    json_str = json.dumps(cursor_data)
+    return base64.b64encode(json_str.encode()).decode()
+
+
+def decode_cursor(cursor: str) -> tuple:
+    """Decode transaction cursor."""
+    try:
+        json_str = base64.b64decode(cursor.encode()).decode()
+        cursor_data = json.loads(json_str)
+        return (
+            datetime.fromisoformat(cursor_data["date"]).date(),
+            datetime.fromisoformat(cursor_data["created_at"]),
+            UUID(cursor_data["id"]),
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid cursor")
+
+
+@router.post("/", response_model=TransactionDetail, status_code=201)
+async def create_transaction(
+    transaction_data: ManualTransactionCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new transaction manually."""
+    # Validate account belongs to organization
+    account_result = await db.execute(
+        select(Account).where(
+            Account.id == transaction_data.account_id,
+            Account.organization_id == current_user.organization_id,
+        )
+    )
+    account = account_result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    txn = Transaction(
+        organization_id=current_user.organization_id,
+        account_id=transaction_data.account_id,
+        date=transaction_data.date,
+        amount=transaction_data.amount,
+        merchant_name=(
+            input_sanitization_service.sanitize_html(transaction_data.merchant_name)
+            if transaction_data.merchant_name
+            else None
+        ),
+        description=(
+            input_sanitization_service.sanitize_html(transaction_data.description)
+            if transaction_data.description
+            else None
+        ),
+        category_id=transaction_data.category_id,
+        category_primary=transaction_data.category_primary,
+        category_detailed=transaction_data.category_detailed,
+        is_pending=transaction_data.is_pending,
+        is_transfer=transaction_data.is_transfer,
+        notes=(
+            input_sanitization_service.sanitize_html(transaction_data.notes)
+            if transaction_data.notes
+            else None
+        ),
+        flagged_for_review=transaction_data.flagged_for_review,
+        deduplication_hash=str(uuid4()),
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn)
+    await cache_delete_pattern(f"transactions:{current_user.organization_id}:*")
+
+    # Load related data
+    result = await db.execute(
+        select(Transaction)
+        .options(joinedload(Transaction.account))
+        .options(joinedload(Transaction.category).joinedload(Category.parent))
+        .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
+        .where(Transaction.id == txn.id)
+    )
+    txn = result.unique().scalar_one()
+    transaction_labels = [tl.label for tl in txn.labels if tl.label]
+
+    category_summary = None
+    if txn.category:
+        category_summary = CategorySummary(
+            id=txn.category.id,
+            name=txn.category.name,
+            color=txn.category.color,
+            parent_id=txn.category.parent_category_id,
+            parent_name=txn.category.parent.name if txn.category.parent else None,
+        )
+
+    return TransactionDetail(
+        id=txn.id,
+        organization_id=txn.organization_id,
+        account_id=txn.account_id,
+        external_transaction_id=txn.external_transaction_id,
+        date=txn.date,
+        amount=txn.amount,
+        merchant_name=txn.merchant_name,
+        description=txn.description,
+        category_primary=txn.category_primary,
+        category_detailed=txn.category_detailed,
+        is_pending=txn.is_pending,
+        is_transfer=txn.is_transfer,
+        notes=txn.notes,
+        flagged_for_review=txn.flagged_for_review,
+        created_at=txn.created_at,
+        updated_at=txn.updated_at,
+        account_name=txn.account.name if txn.account else None,
+        account_mask=txn.account.mask if txn.account else None,
+        category=category_summary,
+        labels=transaction_labels,
+    )
+
+
+@router.get("/flagged", response_model=TransactionListResponse)
+async def list_flagged_transactions(
+    page_size: int = Query(50, ge=1, le=1000),
+    cursor: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List transactions flagged for review (household review queue)."""
+    query = (
+        select(Transaction)
+        .join(Account)
+        .options(joinedload(Transaction.account))
+        .options(joinedload(Transaction.category).joinedload(Category.parent))
+        .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Transaction.flagged_for_review.is_(True),
+            Account.is_active.is_(True),
+        )
+    )
+
+    if cursor:
+        cursor_date, cursor_created_at, cursor_id = decode_cursor(cursor)
+        query = query.where(
+            tuple_(Transaction.date, Transaction.created_at, Transaction.id)
+            < tuple_(cursor_date, cursor_created_at, cursor_id)
+        )
+
+    query = query.order_by(
+        Transaction.date.desc(), Transaction.created_at.desc(), Transaction.id.desc()
+    )
+    query = query.limit(page_size + 1)
+
+    result = await db.execute(query)
+    transactions = result.unique().scalars().all()
+
+    has_more = len(transactions) > page_size
+    if has_more:
+        transactions = transactions[:page_size]
+
+    next_cursor = None
+    if has_more and transactions:
+        last_txn = transactions[-1]
+        next_cursor = encode_cursor(last_txn.date, last_txn.created_at, last_txn.id)
+
+    total = 0
+    if not cursor:
+        count_query = (
+            select(func.count())
+            .select_from(Transaction)
+            .join(Account)
+            .where(
+                Transaction.organization_id == current_user.organization_id,
+                Transaction.flagged_for_review.is_(True),
+                Account.is_active.is_(True),
+            )
+        )
+        total_result = await db.execute(count_query)
+        total = total_result.scalar()
+
+    transaction_details = []
+    for txn in transactions:
+        transaction_labels = [tl.label for tl in txn.labels if tl.label]
+        category_summary = None
+        if txn.category:
+            category_summary = CategorySummary(
+                id=txn.category.id,
+                name=txn.category.name,
+                color=txn.category.color,
+                parent_id=txn.category.parent_category_id,
+                parent_name=txn.category.parent.name if txn.category.parent else None,
+            )
+
+        detail = TransactionDetail(
+            id=txn.id,
+            organization_id=txn.organization_id,
+            account_id=txn.account_id,
+            external_transaction_id=txn.external_transaction_id,
+            date=txn.date,
+            amount=txn.amount,
+            merchant_name=txn.merchant_name,
+            description=txn.description,
+            category_primary=txn.category_primary,
+            category_detailed=txn.category_detailed,
+            is_pending=txn.is_pending,
+            is_transfer=txn.is_transfer,
+            notes=txn.notes,
+            flagged_for_review=txn.flagged_for_review,
+            created_at=txn.created_at,
+            updated_at=txn.updated_at,
+            account_name=txn.account.name if txn.account else None,
+            account_mask=txn.account.mask if txn.account else None,
+            category=category_summary,
+            labels=transaction_labels,
+        )
+        transaction_details.append(detail)
+
+    return TransactionListResponse(
+        transactions=transaction_details,
+        total=total,
+        page=1,
+        page_size=page_size,
+        has_more=has_more,
+        next_cursor=next_cursor,
+    )
+
+
+@router.get("/", response_model=TransactionListResponse)
+async def list_transactions(
+    page_size: int = Query(50, ge=1, le=1000),
+    cursor: Optional[str] = None,
+    account_id: Optional[UUID] = None,
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    search: Optional[str] = None,
+    flagged: Optional[bool] = Query(None, description="Filter by flagged_for_review status"),
+    min_amount: Optional[float] = Query(None, description="Minimum absolute transaction amount"),
+    max_amount: Optional[float] = Query(None, description="Maximum absolute transaction amount"),
+    is_income: Optional[bool] = Query(
+        None, description="True = income only, False = expenses only"
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List transactions with filtering and cursor-based pagination."""
+    # Check Redis cache for first page of unfiltered queries (most common request)
+    cache_key = None
+    if not cursor and not search and not flagged:
+        cache_key = (
+            f"transactions:{current_user.organization_id}"
+            f":{user_id}:{account_id}:{start_date}:{end_date}:{page_size}"
+        )
+        try:
+            cached = await cache_get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception:
+            pass  # fail-open on Redis errors
+
+    # Validate user_id belongs to the same household
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+
+    # Parse date strings if provided
+    start_date_obj = None
+    end_date_obj = None
+
+    if start_date:
+        try:
+            start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
+
+    if end_date:
+        try:
+            end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
+
+    # Build base query - only include transactions from active accounts
+    query = (
+        select(Transaction)
+        .join(Account)
+        .options(joinedload(Transaction.account))
+        .options(joinedload(Transaction.category).joinedload(Category.parent))
+        .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
+        .where(
+            Transaction.organization_id == current_user.organization_id, Account.is_active.is_(True)
+        )
+    )
+
+    # Apply filters
+    if account_id:
+        query = query.where(Transaction.account_id == account_id)
+
+    if user_id:
+        query = query.where(Account.user_id == user_id)
+
+    if start_date_obj:
+        query = query.where(Transaction.date >= start_date_obj)
+
+    if end_date_obj:
+        query = query.where(Transaction.date <= end_date_obj)
+
+    if search:
+        # Escape ILIKE wildcards in user input to prevent pattern injection
+        escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        search_pattern = f"%{escaped}%"
+        query = query.where(
+            Transaction.merchant_name.ilike(search_pattern)
+            | Transaction.description.ilike(search_pattern)
+        )
+
+    if flagged is not None:
+        query = query.where(Transaction.flagged_for_review.is_(flagged))
+
+    if min_amount is not None:
+        query = query.where(func.abs(Transaction.amount) >= Decimal(str(min_amount)))
+
+    if max_amount is not None:
+        query = query.where(func.abs(Transaction.amount) <= Decimal(str(max_amount)))
+
+    if is_income is True:
+        # Income = positive amount (deposits)
+        query = query.where(Transaction.amount > 0)
+    elif is_income is False:
+        # Expenses = negative amount
+        query = query.where(Transaction.amount < 0)
+
+    # Apply cursor pagination
+    if cursor:
+        cursor_date, cursor_created_at, cursor_id = decode_cursor(cursor)
+        # Use tuple comparison for stable ordering
+        query = query.where(
+            tuple_(Transaction.date, Transaction.created_at, Transaction.id)
+            < tuple_(cursor_date, cursor_created_at, cursor_id)
+        )
+
+    # Order by date DESC, created_at DESC, id DESC for consistent ordering
+    query = query.order_by(
+        Transaction.date.desc(), Transaction.created_at.desc(), Transaction.id.desc()
+    )
+
+    # Fetch one extra to determine if there are more results
+    query = query.limit(page_size + 1)
+
+    result = await db.execute(query)
+    transactions = result.unique().scalars().all()
+
+    # Check if there are more results
+    has_more = len(transactions) > page_size
+    if has_more:
+        transactions = transactions[:page_size]
+
+    # Generate next cursor from last transaction
+    next_cursor = None
+    if has_more and transactions:
+        last_txn = transactions[-1]
+        next_cursor = encode_cursor(last_txn.date, last_txn.created_at, last_txn.id)
+
+    # Get total count (only when no cursor, for first page)
+    total = 0
+    if not cursor:
+        # Build count query with same filters - only count transactions from active accounts
+        count_query = (
+            select(func.count())
+            .select_from(Transaction)
+            .join(Account)
+            .where(
+                Transaction.organization_id == current_user.organization_id,
+                Account.is_active.is_(True),
+            )
+        )
+        if account_id:
+            count_query = count_query.where(Transaction.account_id == account_id)
+        if user_id:
+            count_query = count_query.where(Account.user_id == user_id)
+        if start_date_obj:
+            count_query = count_query.where(Transaction.date >= start_date_obj)
+        if end_date_obj:
+            count_query = count_query.where(Transaction.date <= end_date_obj)
+        if search:
+            escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            search_pattern = f"%{escaped}%"
+            count_query = count_query.where(
+                Transaction.merchant_name.ilike(search_pattern)
+                | Transaction.description.ilike(search_pattern)
+            )
+        if flagged is not None:
+            count_query = count_query.where(Transaction.flagged_for_review.is_(flagged))
+
+        total_result = await db.execute(count_query)
+        total = total_result.scalar()
+
+    # Transform to response format
+    transaction_details = []
+    for txn in transactions:
+        # Extract labels from the many-to-many relationship
+        transaction_labels = [tl.label for tl in txn.labels if tl.label]
+
+        # Extract category information
+        category_summary = None
+        if txn.category:
+            category_summary = CategorySummary(
+                id=txn.category.id,
+                name=txn.category.name,
+                color=txn.category.color,
+                parent_id=txn.category.parent_category_id,
+                parent_name=txn.category.parent.name if txn.category.parent else None,
+            )
+
+        detail = TransactionDetail(
+            id=txn.id,
+            organization_id=txn.organization_id,
+            account_id=txn.account_id,
+            external_transaction_id=txn.external_transaction_id,
+            date=txn.date,
+            amount=txn.amount,
+            merchant_name=txn.merchant_name,
+            description=txn.description,
+            category_primary=txn.category_primary,
+            category_detailed=txn.category_detailed,
+            is_pending=txn.is_pending,
+            is_transfer=txn.is_transfer,
+            notes=txn.notes,
+            flagged_for_review=txn.flagged_for_review,
+            created_at=txn.created_at,
+            updated_at=txn.updated_at,
+            account_name=txn.account.name if txn.account else None,
+            account_mask=txn.account.mask if txn.account else None,
+            category=category_summary,
+            labels=transaction_labels,
+        )
+        transaction_details.append(detail)
+
+    response = TransactionListResponse(
+        transactions=transaction_details,
+        total=total,
+        page=1,  # Always return 1 for cursor-based pagination
+        page_size=page_size,
+        has_more=has_more,
+        next_cursor=next_cursor,
+    )
+
+    # Cache first-page unfiltered results for 5 minutes
+    if cache_key:
+        try:
+            await cache_setex(cache_key, 300, response.model_dump(mode="json"))
+        except Exception:
+            pass  # fail-open on Redis errors
+
+    return response
+
+
+@router.get("/merchants")
+async def get_merchant_names(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    search: Optional[str] = Query(None, description="Filter merchants by prefix"),
+    limit: int = Query(500, ge=1, le=1000, description="Max merchants to return"),
+):
+    """Return distinct merchant names for the org with optional prefix search."""
+    conditions = [
+        Transaction.organization_id == current_user.organization_id,
+        Transaction.merchant_name.isnot(None),
+        Transaction.merchant_name != "",
+    ]
+    if search:
+        escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        conditions.append(Transaction.merchant_name.ilike(f"{escaped}%"))
+
+    result = await db.execute(
+        select(Transaction.merchant_name)
+        .where(*conditions)
+        .distinct()
+        .order_by(Transaction.merchant_name)
+        .limit(limit)
+    )
+    return {"merchants": [row[0] for row in result.all()]}
+
+
+@router.get("/{transaction_id}", response_model=TransactionDetail)
+async def get_transaction(
+    transaction_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a specific transaction with details."""
+    result = await db.execute(
+        select(Transaction)
+        .options(joinedload(Transaction.account))
+        .options(joinedload(Transaction.category).joinedload(Category.parent))
+        .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
+        .where(
+            Transaction.id == transaction_id,
+            Transaction.organization_id == current_user.organization_id,
+        )
+    )
+    txn = result.unique().scalar_one_or_none()
+
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    # Extract labels from the many-to-many relationship
+    transaction_labels = [tl.label for tl in txn.labels if tl.label]
+
+    # Extract category information
+    category_summary = None
+    if txn.category:
+        category_summary = CategorySummary(
+            id=txn.category.id,
+            name=txn.category.name,
+            color=txn.category.color,
+            parent_id=txn.category.parent_category_id,
+            parent_name=txn.category.parent.name if txn.category.parent else None,
+        )
+
+    return TransactionDetail(
+        id=txn.id,
+        organization_id=txn.organization_id,
+        account_id=txn.account_id,
+        external_transaction_id=txn.external_transaction_id,
+        date=txn.date,
+        amount=txn.amount,
+        merchant_name=txn.merchant_name,
+        description=txn.description,
+        category_primary=txn.category_primary,
+        category_detailed=txn.category_detailed,
+        is_pending=txn.is_pending,
+        is_transfer=txn.is_transfer,
+        created_at=txn.created_at,
+        updated_at=txn.updated_at,
+        account_name=txn.account.name if txn.account else None,
+        account_mask=txn.account.mask if txn.account else None,
+        category=category_summary,
+        labels=transaction_labels,
+    )
+
+
+@router.patch("/{transaction_id}", response_model=TransactionDetail)
+async def update_transaction(
+    transaction_id: UUID,
+    update_data: TransactionUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a transaction."""
+    result = await db.execute(
+        select(Transaction)
+        .options(joinedload(Transaction.account))
+        .options(joinedload(Transaction.labels).joinedload(TransactionLabel.label))
+        .where(
+            Transaction.id == transaction_id,
+            Transaction.organization_id == current_user.organization_id,
+        )
+    )
+    txn = result.unique().scalar_one_or_none()
+
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    # Update fields (sanitize text inputs to prevent XSS)
+    if update_data.merchant_name is not None:
+        txn.merchant_name = input_sanitization_service.sanitize_html(update_data.merchant_name)
+    if update_data.description is not None:
+        txn.description = input_sanitization_service.sanitize_html(update_data.description)
+    if update_data.category_primary is not None:
+        txn.category_primary = update_data.category_primary
+    if update_data.is_transfer is not None:
+        # Handle Transfer label
+        transfer_label = await get_or_create_transfer_label(db, current_user.organization_id)
+
+        if update_data.is_transfer:
+            # Add Transfer label if not already present
+            existing_label = await db.execute(
+                select(TransactionLabel).where(
+                    TransactionLabel.transaction_id == transaction_id,
+                    TransactionLabel.label_id == transfer_label.id,
+                )
+            )
+            if not existing_label.scalar_one_or_none():
+                txn_label = TransactionLabel(
+                    transaction_id=transaction_id,
+                    label_id=transfer_label.id,
+                )
+                db.add(txn_label)
+        else:
+            # Remove Transfer label if present
+            existing_label = await db.execute(
+                select(TransactionLabel).where(
+                    TransactionLabel.transaction_id == transaction_id,
+                    TransactionLabel.label_id == transfer_label.id,
+                )
+            )
+            label_to_remove = existing_label.scalar_one_or_none()
+            if label_to_remove:
+                await db.delete(label_to_remove)
+
+        txn.is_transfer = update_data.is_transfer
+
+    if update_data.notes is not None:
+        txn.notes = (
+            input_sanitization_service.sanitize_html(update_data.notes)
+            if update_data.notes
+            else None
+        )
+    if update_data.flagged_for_review is not None:
+        txn.flagged_for_review = update_data.flagged_for_review
+
+    txn.updated_at = utc_now()
+
+    await db.commit()
+    await db.refresh(txn, ["labels"])
+    await cache_delete_pattern(f"transactions:{current_user.organization_id}:*")
+
+    # Extract labels from the many-to-many relationship
+    transaction_labels = [tl.label for tl in txn.labels if tl.label]
+
+    return TransactionDetail(
+        id=txn.id,
+        organization_id=txn.organization_id,
+        account_id=txn.account_id,
+        external_transaction_id=txn.external_transaction_id,
+        date=txn.date,
+        amount=txn.amount,
+        merchant_name=txn.merchant_name,
+        description=txn.description,
+        category_primary=txn.category_primary,
+        category_detailed=txn.category_detailed,
+        is_pending=txn.is_pending,
+        is_transfer=txn.is_transfer,
+        created_at=txn.created_at,
+        updated_at=txn.updated_at,
+        account_name=txn.account.name if txn.account else None,
+        account_mask=txn.account.mask if txn.account else None,
+        labels=transaction_labels,
+    )
+
+
+@router.post("/{transaction_id}/labels/{label_id}", status_code=201)
+async def add_label_to_transaction(
+    transaction_id: UUID,
+    label_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Add a label to a transaction."""
+    # Verify transaction exists and belongs to organization
+    txn_result = await db.execute(
+        select(Transaction).where(
+            Transaction.id == transaction_id,
+            Transaction.organization_id == current_user.organization_id,
+        )
+    )
+    txn = txn_result.scalar_one_or_none()
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    # Verify label exists and belongs to organization
+    label_result = await db.execute(
+        select(Label).where(
+            Label.id == label_id,
+            Label.organization_id == current_user.organization_id,
+        )
+    )
+    label = label_result.scalar_one_or_none()
+    if not label:
+        raise HTTPException(status_code=404, detail="Label not found")
+
+    # Check if already labeled
+    existing = await db.execute(
+        select(TransactionLabel).where(
+            TransactionLabel.transaction_id == transaction_id,
+            TransactionLabel.label_id == label_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        return {"message": "Label already applied"}
+
+    # Add label
+    txn_label = TransactionLabel(
+        transaction_id=transaction_id,
+        label_id=label_id,
+    )
+    db.add(txn_label)
+    await db.commit()
+
+    return {"message": "Label added successfully"}
+
+
+@router.delete("/{transaction_id}/labels/{label_id}", status_code=204)
+async def remove_label_from_transaction(
+    transaction_id: UUID,
+    label_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove a label from a transaction."""
+    # Verify transaction belongs to organization
+    txn_result = await db.execute(
+        select(Transaction).where(
+            Transaction.id == transaction_id,
+            Transaction.organization_id == current_user.organization_id,
+        )
+    )
+    if not txn_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    # Remove label
+    result = await db.execute(
+        select(TransactionLabel).where(
+            TransactionLabel.transaction_id == transaction_id,
+            TransactionLabel.label_id == label_id,
+        )
+    )
+    txn_label = result.scalar_one_or_none()
+
+    if txn_label:
+        await db.delete(txn_label)
+        await db.commit()
+
+
+@router.get("/export/csv")
+async def export_transactions_csv(
+    request: Request = None,
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    account_id: Optional[UUID] = Query(None, description="Filter by account"),
+    user_id: Optional[UUID] = Query(
+        None, description="Filter by user. None = combined household view"
+    ),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Export transactions as CSV file.
+
+    Returns transactions matching the filters in CSV format suitable for
+    spreadsheet applications, tax software, or archival purposes.
+    Accepts optional user_id to filter to a specific member's transactions.
+    """
+    # Rate limit: 10 exports per hour per user
+    if request is not None:
+        from app.services.rate_limit_service import rate_limit_service as _rls
+
+        await _rls.check_rate_limit(
+            request=request,
+            max_requests=10,
+            window_seconds=3600,
+            identifier=str(current_user.id),
+        )
+
+    # Resolve account scope based on user filter
+    if user_id:
+        await verify_household_member(db, user_id, current_user.organization_id)
+        scoped_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+    else:
+        scoped_accounts = await get_all_household_accounts(db, current_user.organization_id)
+    scoped_account_ids = [acc.id for acc in scoped_accounts]
+
+    # Validate account_id belongs to the user's scoped accounts
+    if account_id and account_id not in scoped_account_ids:
+        raise HTTPException(status_code=403, detail="Account not accessible")
+
+    # Build query
+    query = (
+        select(Transaction)
+        .options(
+            joinedload(Transaction.account),
+            joinedload(Transaction.category),
+            joinedload(Transaction.labels).joinedload(TransactionLabel.label),
+        )
+        .where(
+            Transaction.organization_id == current_user.organization_id,
+            Transaction.account_id.in_(scoped_account_ids),
+        )
+    )
+
+    # Apply filters
+    if start_date:
+        query = query.where(Transaction.date >= datetime.fromisoformat(start_date).date())
+    if end_date:
+        query = query.where(Transaction.date <= datetime.fromisoformat(end_date).date())
+    if account_id:
+        query = query.where(Transaction.account_id == account_id)
+
+    # Generator function to stream CSV rows
+    async def generate_csv():
+        """Generate CSV content in chunks to avoid loading all data into memory."""
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # Write header
+        writer.writerow(
+            [
+                "Date",
+                "Merchant",
+                "Description",
+                "Category",
+                "Labels",
+                "Amount",
+                "Account",
+                "Account Number",
+                "Is Pending",
+                "Is Transfer",
+                "Transaction ID",
+            ]
+        )
+        yield output.getvalue()
+        output.seek(0)
+        output.truncate(0)
+
+        # Stream transactions in batches to avoid memory issues.
+        # Cap at 500K rows to prevent runaway exports on very large datasets.
+        # Uses keyset/cursor pagination on (date, id) to avoid O(n^2) OFFSET.
+        MAX_EXPORT_ROWS = 500_000
+        batch_size = 1000
+        total_exported = 0
+        last_date = None
+        last_id = None
+
+        while total_exported < MAX_EXPORT_ROWS:
+            # Fetch batch using keyset pagination
+            batch_query = query.limit(batch_size)
+            if last_date is not None and last_id is not None:
+                # Keyset pagination: skip rows we've already seen
+                batch_query = batch_query.where(
+                    or_(
+                        Transaction.date < last_date,
+                        and_(Transaction.date == last_date, Transaction.id < last_id),
+                    )
+                )
+            batch_query = batch_query.order_by(Transaction.date.desc(), Transaction.id.desc())
+            result = await db.execute(batch_query)
+            transactions = result.unique().scalars().all()
+
+            if not transactions:
+                break
+
+            # Write batch to CSV
+            for txn in transactions:
+                # Format labels as comma-separated list
+                labels_str = (
+                    ", ".join([label.label.name for label in txn.labels]) if txn.labels else ""
+                )
+
+                # Format category (use custom category if available, otherwise Plaid category)
+                category_str = txn.category.name if txn.category else (txn.category_primary or "")
+
+                writer.writerow(
+                    [
+                        txn.date.isoformat(),
+                        txn.merchant_name or "",
+                        txn.description or "",
+                        category_str,
+                        labels_str,
+                        float(txn.amount),
+                        txn.account.name if txn.account else "",
+                        f"****{txn.account.mask}" if txn.account and txn.account.mask else "",
+                        "Yes" if txn.is_pending else "No",
+                        "Yes" if txn.is_transfer else "No",
+                        str(txn.id),
+                    ]
+                )
+
+            total_exported += len(transactions)
+            last_date = transactions[-1].date
+            last_id = transactions[-1].id
+
+            # Yield batch
+            yield output.getvalue()
+            output.seek(0)
+            output.truncate(0)
+
+    # Generate filename with date range (sanitize to prevent header injection)
+    def _safe_date(val: str | None) -> str:
+        return re.sub(r"[^0-9\-]", "", val or "")
+
+    filename = "transactions"
+    if start_date and end_date:
+        filename = f"transactions_{_safe_date(start_date)}_to_{_safe_date(end_date)}"
+    elif start_date:
+        filename = f"transactions_from_{_safe_date(start_date)}"
+    elif end_date:
+        filename = f"transactions_until_{_safe_date(end_date)}"
+    filename += ".csv"
+
+    return StreamingResponse(
+        generate_csv(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ── Natural-Language Search ───────────────────────────────────────────────────
+
+
+class NLPSearchResponse(BaseModel):
+    """Response from the natural-language search parse endpoint."""
+
+    search: Optional[str]
+    start_date: Optional[str]
+    end_date: Optional[str]
+    min_amount: Optional[float]
+    max_amount: Optional[float]
+    is_income: Optional[bool]
+    raw_query: str
+
+
+class _NLPRequest(BaseModel):
+    query: str
+
+
+@router.post("/search/natural", response_model=NLPSearchResponse)
+async def natural_language_search(
+    body: _NLPRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Parse a free-text query into structured transaction filters.
+
+    The client sends a natural-language query and receives back structured
+    filter params it can use to call GET /transactions/ directly.
+
+    Examples:
+    - "coffee last month"          → search=coffee, last-month date range
+    - "amazon over $50 in 2024"    → search=amazon, min_amount=50, year 2024
+    - "income this year"           → is_income=true, this-year date range
+    - "rent over $1000"            → search=rent, min_amount=1000
+    """
+    # Sanitize input
+    raw = input_sanitization_service.sanitize_html(body.query or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Query must not be empty")
+    if len(raw) > 500:
+        raise HTTPException(status_code=400, detail="Query too long (max 500 chars)")
+
+    parsed = parse_natural_query(raw)
+
+    return NLPSearchResponse(
+        search=parsed.search,
+        start_date=parsed.start_date.isoformat() if parsed.start_date else None,
+        end_date=parsed.end_date.isoformat() if parsed.end_date else None,
+        min_amount=parsed.min_amount,
+        max_amount=parsed.max_amount,
+        is_income=parsed.is_income,
+        raw_query=parsed.raw_query,
+    )

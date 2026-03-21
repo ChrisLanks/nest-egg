@@ -260,6 +260,7 @@ export default function BudgetForm({
         return old.map((b) => (b.id === "__optimistic__" ? savedBudget : b));
       });
       queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      queryClient.invalidateQueries({ queryKey: ["budgets-widget"] });
       toast({
         title: isEditing ? "Budget updated" : "Budget created",
         status: "success",
@@ -281,6 +282,7 @@ export default function BudgetForm({
     onSettled: () => {
       // Always resync with server after mutation settles
       queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      queryClient.invalidateQueries({ queryKey: ["budgets-widget"] });
     },
   });
 

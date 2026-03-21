@@ -3,6 +3,8 @@
  */
 
 import {
+  Alert,
+  AlertIcon,
   Box,
   Container,
   Heading,
@@ -442,7 +444,7 @@ export const InvestmentsPage = () => {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Fetch portfolio summary
-  const { data: rawPortfolio, isLoading } = useQuery<PortfolioSummary>({
+  const { data: rawPortfolio, isLoading, isError } = useQuery<PortfolioSummary>({
     queryKey: ["portfolio", activeUserId, selectedIdsKey],
     queryFn: async () => {
       const params = activeUserId ? { user_id: activeUserId } : {};
@@ -721,6 +723,17 @@ export const InvestmentsPage = () => {
       <Center h="100vh">
         <Spinner size="xl" color="brand.500" />
       </Center>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Container maxW="container.lg" py={8}>
+        <Alert status="error" borderRadius="md">
+          <AlertIcon />
+          Unable to load portfolio data. Please try again.
+        </Alert>
+      </Container>
     );
   }
 

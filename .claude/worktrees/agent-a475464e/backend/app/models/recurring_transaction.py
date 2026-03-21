@@ -1,0 +1,127 @@
+"""Recurring transaction detection models."""
+
+import enum
+import uuid
+from decimal import Decimal
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+)
+from sqlalchemy import (
+    Enum as SQLEnum,
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+
+from app.core.database import Base
+from app.utils.datetime_utils import utc_now_lambda
+
+
+class RecurringFrequency(str, enum.Enum):
+    """Frequency of recurring transaction."""
+
+    WEEKLY = "weekly"
+    BIWEEKLY = "biweekly"
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    YEARLY = "yearly"
+    ON_DEMAND = "on_demand"  # Irregular / as-needed (e.g. oil delivery, contractor)
+
+
+class RecurringTransaction(Base):
+    """Detected or manually created recurring transaction pattern."""
+
+    __tablename__ = "recurring_transactions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    account_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("accounts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # Pattern details
+    merchant_name = Column(String(255), nullable=False, index=True)
+    description_pattern = Column(String(500), nullable=True)  # Regex or pattern for matching
+    frequency = Column(SQLEnum(RecurringFrequency, native_enum=False), nullable=False)
+    average_amount = Column(Numeric(15, 2), nullable=False)
+    amount_variance = Column(
+        Numeric(15, 2), default=Decimal("5.00"), nullable=False
+    )  # Allow +/- $5 by default
+
+    # Category assignment (auto-apply to matched transactions)
+    category_id = Column(
+        UUID(as_uuid=True), ForeignKey("categories.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Label to auto-apply to matching transactions (nullable — no labeling if unset)
+    label_id = Column(
+        UUID(as_uuid=True), ForeignKey("labels.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Detection
+    is_user_created = Column(Boolean, default=False, nullable=False)  # Manual vs auto-detected
+    confidence_score = Column(Numeric(5, 2), nullable=True)  # 0.00-1.00 for auto-detected patterns
+
+    # Tracking
+    first_occurrence = Column(Date, nullable=False)
+    last_occurrence = Column(Date, nullable=True)
+    next_expected_date = Column(Date, nullable=True)
+    occurrence_count = Column(Integer, default=1, nullable=False)
+
+    # Status
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_archived = Column(
+        Boolean, default=False, nullable=False
+    )  # User-archived (still visible in archive tab)
+    is_no_longer_found = Column(
+        Boolean, default=False, nullable=False
+    )  # Auto-only: not seen in latest detection run
+
+    # Year-over-year price tracking
+    previous_amount = Column(Numeric(15, 2), nullable=True)  # Amount from ~12 months ago
+    amount_change_pct = Column(Numeric(5, 2), nullable=True)  # Year-over-year change %
+    amount_change_detected_at = Column(DateTime, nullable=True)
+    annual_cost = Column(Numeric(15, 2), nullable=True)  # Projected yearly cost based on frequency
+
+    # Bill Reminder fields
+    is_bill = Column(Boolean, default=False, nullable=False)  # Mark as a bill requiring reminders
+    reminder_days_before = Column(
+        Integer, default=3, nullable=False
+    )  # Days before due date to remind
+
+    # Timestamps
+    created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    updated_at = Column(DateTime, default=utc_now_lambda, onupdate=utc_now_lambda, nullable=False)
+
+    # Relationships
+    account = relationship("Account")
+    category = relationship("Category")
+    label = relationship("Label")
+
+    __table_args__ = (
+        Index("ix_recurring_org_merchant", "organization_id", "merchant_name"),
+        Index("ix_recurring_org_active", "organization_id", "is_active"),
+        # Composite: org + active + next_expected_date for scheduled-item queries
+        Index(
+            "ix_recurring_org_active_next_date",
+            "organization_id",
+            "is_active",
+            "next_expected_date",
+        ),
+    )

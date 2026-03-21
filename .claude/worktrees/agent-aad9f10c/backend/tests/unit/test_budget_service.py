@@ -1,0 +1,1118 @@
+"""Tests for budget service."""
+
+from datetime import date, timedelta
+from decimal import Decimal
+from uuid import uuid4
+
+import pytest
+
+from app.models.budget import Budget, BudgetPeriod
+from app.models.notification import NotificationType
+from app.models.transaction import Category, Label, Transaction, TransactionLabel
+from app.services.budget_service import BudgetService
+
+
+class TestBudgetService:
+    """Test suite for budget service."""
+
+    def test_get_period_dates_monthly(self):
+        """Should calculate monthly period dates."""
+        service = BudgetService()
+
+        # January 2024
+        ref_date = date(2024, 1, 15)
+        start, end = service._get_period_dates(BudgetPeriod.MONTHLY, ref_date)
+
+        assert start == date(2024, 1, 1)
+        assert end == date(2024, 1, 31)
+
+    def test_get_period_dates_monthly_february(self):
+        """Should handle February correctly."""
+        service = BudgetService()
+
+        # February 2024 (leap year)
+        ref_date = date(2024, 2, 15)
+        start, end = service._get_period_dates(BudgetPeriod.MONTHLY, ref_date)
+
+        assert start == date(2024, 2, 1)
+        assert end == date(2024, 2, 29)  # Leap year
+
+        # February 2023 (non-leap year)
+        ref_date = date(2023, 2, 15)
+        start, end = service._get_period_dates(BudgetPeriod.MONTHLY, ref_date)
+
+        assert start == date(2023, 2, 1)
+        assert end == date(2023, 2, 28)
+
+    def test_get_period_dates_monthly_december(self):
+        """Should handle December correctly."""
+        service = BudgetService()
+
+        ref_date = date(2024, 12, 15)
+        start, end = service._get_period_dates(BudgetPeriod.MONTHLY, ref_date)
+
+        assert start == date(2024, 12, 1)
+        assert end == date(2024, 12, 31)
+
+    def test_get_period_dates_quarterly(self):
+        """Should calculate quarterly period dates."""
+        service = BudgetService()
+
+        # Q1 (Jan-Mar)
+        ref_date = date(2024, 2, 15)
+        start, end = service._get_period_dates(BudgetPeriod.QUARTERLY, ref_date)
+
+        assert start == date(2024, 1, 1)
+        assert end == date(2024, 3, 31)
+
+        # Q2 (Apr-Jun)
+        ref_date = date(2024, 5, 15)
+        start, end = service._get_period_dates(BudgetPeriod.QUARTERLY, ref_date)
+
+        assert start == date(2024, 4, 1)
+        assert end == date(2024, 6, 30)
+
+        # Q3 (Jul-Sep)
+        ref_date = date(2024, 8, 15)
+        start, end = service._get_period_dates(BudgetPeriod.QUARTERLY, ref_date)
+
+        assert start == date(2024, 7, 1)
+        assert end == date(2024, 9, 30)
+
+        # Q4 (Oct-Dec)
+        ref_date = date(2024, 11, 15)
+        start, end = service._get_period_dates(BudgetPeriod.QUARTERLY, ref_date)
+
+        assert start == date(2024, 10, 1)
+        assert end == date(2024, 12, 31)
+
+    def test_get_period_dates_yearly(self):
+        """Should calculate yearly period dates."""
+        service = BudgetService()
+
+        ref_date = date(2024, 6, 15)
+        start, end = service._get_period_dates(BudgetPeriod.YEARLY, ref_date)
+
+        assert start == date(2024, 1, 1)
+        assert end == date(2024, 12, 31)
+
+    def test_get_period_dates_semi_annual_h1(self):
+        """Should calculate H1 semi-annual period dates."""
+        service = BudgetService()
+
+        # H1 (Jan-Jun)
+        ref_date = date(2024, 3, 15)
+        start, end = service._get_period_dates(BudgetPeriod.SEMI_ANNUAL, ref_date)
+
+        assert start == date(2024, 1, 1)
+        assert end == date(2024, 6, 30)
+
+    def test_get_period_dates_semi_annual_h2(self):
+        """Should calculate H2 semi-annual period dates."""
+        service = BudgetService()
+
+        # H2 (Jul-Dec)
+        ref_date = date(2024, 9, 15)
+        start, end = service._get_period_dates(BudgetPeriod.SEMI_ANNUAL, ref_date)
+
+        assert start == date(2024, 7, 1)
+        assert end == date(2024, 12, 31)
+
+    def test_get_period_dates_semi_annual_boundary_july_1(self):
+        """July 1st should be in H2."""
+        service = BudgetService()
+
+        ref_date = date(2024, 7, 1)
+        start, end = service._get_period_dates(BudgetPeriod.SEMI_ANNUAL, ref_date)
+
+        assert start == date(2024, 7, 1)
+        assert end == date(2024, 12, 31)
+
+    def test_get_period_dates_semi_annual_boundary_june_30(self):
+        """June 30th should be in H1."""
+        service = BudgetService()
+
+        ref_date = date(2024, 6, 30)
+        start, end = service._get_period_dates(BudgetPeriod.SEMI_ANNUAL, ref_date)
+
+        assert start == date(2024, 1, 1)
+        assert end == date(2024, 6, 30)
+
+    def test_get_period_dates_semi_annual_offset(self):
+        """Semi-annual with start_day=15: H1 runs Jan 15 – Jul 14."""
+        service = BudgetService()
+        ref_date = date(2026, 3, 20)
+        start, end = service._get_period_dates(
+            BudgetPeriod.SEMI_ANNUAL, ref_date, monthly_start_day=15
+        )
+        assert start == date(2026, 1, 15)
+        assert end == date(2026, 7, 14)
+
+    def test_get_period_dates_semi_annual_offset_h2(self):
+        """Semi-annual with start_day=15: H2 runs Jul 15 – Jan 14 next year."""
+        service = BudgetService()
+        ref_date = date(2026, 10, 1)
+        start, end = service._get_period_dates(
+            BudgetPeriod.SEMI_ANNUAL, ref_date, monthly_start_day=15
+        )
+        assert start == date(2026, 7, 15)
+        assert end == date(2027, 1, 14)
+
+    def test_get_period_dates_semi_annual_offset_before_h1_start(self):
+        """Semi-annual with start_day=15: date before Jan 15 belongs to prior year's H2."""
+        service = BudgetService()
+        ref_date = date(2026, 1, 10)
+        start, end = service._get_period_dates(
+            BudgetPeriod.SEMI_ANNUAL, ref_date, monthly_start_day=15
+        )
+        assert start == date(2025, 7, 15)
+        assert end == date(2026, 1, 14)
+
+    # --- monthly_start_day offset tests ---
+
+    def test_get_period_dates_monthly_offset_after_start_day(self):
+        """Monthly with start_day=15: today after the 15th → period starts this month."""
+        service = BudgetService()
+        # Feb 20 with start_day=15 → Feb 15 – Mar 14
+        ref_date = date(2026, 2, 20)
+        start, end = service._get_period_dates(BudgetPeriod.MONTHLY, ref_date, monthly_start_day=15)
+        assert start == date(2026, 2, 15)
+        assert end == date(2026, 3, 14)
+
+    def test_get_period_dates_monthly_offset_before_start_day(self):
+        """Monthly with start_day=15: today before the 15th → period started last month."""
+        service = BudgetService()
+        # Feb 10 with start_day=15 → Jan 15 – Feb 14
+        ref_date = date(2026, 2, 10)
+        start, end = service._get_period_dates(BudgetPeriod.MONTHLY, ref_date, monthly_start_day=15)
+        assert start == date(2026, 1, 15)
+        assert end == date(2026, 2, 14)
+
+    def test_get_period_dates_monthly_offset_january_rollback(self):
+        """Monthly with start_day=15: today before the 15th in January → wraps to prior December."""
+        service = BudgetService()
+        ref_date = date(2026, 1, 10)
+        start, end = service._get_period_dates(BudgetPeriod.MONTHLY, ref_date, monthly_start_day=15)
+        assert start == date(2025, 12, 15)
+        assert end == date(2026, 1, 14)
+
+    def test_get_period_dates_quarterly_offset(self):
+        """Quarterly with start_day=15: Q1 runs Jan 15 – Apr 14."""
+        service = BudgetService()
+        ref_date = date(2026, 2, 20)
+        start, end = service._get_period_dates(
+            BudgetPeriod.QUARTERLY, ref_date, monthly_start_day=15
+        )
+        assert start == date(2026, 1, 15)
+        assert end == date(2026, 4, 14)
+
+    def test_get_period_dates_quarterly_offset_before_q1_start(self):
+        """Quarterly with start_day=15: date before Jan 15 belongs to prior year's Q4."""
+        service = BudgetService()
+        ref_date = date(2026, 1, 10)
+        start, end = service._get_period_dates(
+            BudgetPeriod.QUARTERLY, ref_date, monthly_start_day=15
+        )
+        assert start == date(2025, 10, 15)
+        assert end == date(2026, 1, 14)
+
+    def test_get_period_dates_yearly_offset_after_start(self):
+        """Yearly with start_day=15: period runs Jan 15 of this year to Jan 14 of next."""
+        service = BudgetService()
+        ref_date = date(2026, 2, 20)
+        start, end = service._get_period_dates(BudgetPeriod.YEARLY, ref_date, monthly_start_day=15)
+        assert start == date(2026, 1, 15)
+        assert end == date(2027, 1, 14)
+
+    def test_get_period_dates_yearly_offset_before_start(self):
+        """Yearly with start_day=15: date before Jan 15 belongs to prior year's period."""
+        service = BudgetService()
+        ref_date = date(2026, 1, 10)
+        start, end = service._get_period_dates(BudgetPeriod.YEARLY, ref_date, monthly_start_day=15)
+        assert start == date(2025, 1, 15)
+        assert end == date(2026, 1, 14)
+
+    @pytest.mark.asyncio
+    async def test_create_budget(self, db_session, test_user):
+        """Should create a new budget."""
+        service = BudgetService()
+
+        budget = await service.create_budget(
+            db=db_session,
+            user=test_user,
+            name="Groceries",
+            amount=Decimal("500.00"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date(2024, 1, 1),
+        )
+
+        assert budget.id is not None
+        assert budget.name == "Groceries"
+        assert budget.amount == Decimal("500.00")
+        assert budget.period == BudgetPeriod.MONTHLY
+        assert budget.alert_threshold == Decimal("0.80")  # Default
+        assert budget.is_active is True
+
+    @pytest.mark.asyncio
+    async def test_create_budget_with_category(self, db_session, test_user):
+        """Should create budget linked to category."""
+        service = BudgetService()
+
+        # Create category
+        category = Category(
+            organization_id=test_user.organization_id,
+            name="Food",
+        )
+        db_session.add(category)
+        await db_session.commit()
+
+        budget = await service.create_budget(
+            db=db_session,
+            user=test_user,
+            name="Food Budget",
+            amount=Decimal("600.00"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date(2024, 1, 1),
+            category_id=category.id,
+        )
+
+        assert budget.category_id == category.id
+
+    @pytest.mark.asyncio
+    async def test_create_budget_with_custom_threshold(self, db_session, test_user):
+        """Should allow custom alert threshold."""
+        service = BudgetService()
+
+        budget = await service.create_budget(
+            db=db_session,
+            user=test_user,
+            name="Custom Alert",
+            amount=Decimal("1000.00"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date(2024, 1, 1),
+            alert_threshold=Decimal("0.90"),
+        )
+
+        assert budget.alert_threshold == Decimal("0.90")
+
+    @pytest.mark.asyncio
+    async def test_get_budgets(self, db, test_user):
+        """Should get all budgets for organization."""
+        service = BudgetService()
+
+        # Create multiple budgets
+        await service.create_budget(
+            db, test_user, "Budget 1", Decimal("100"), BudgetPeriod.MONTHLY, date.today()
+        )
+        await service.create_budget(
+            db, test_user, "Budget 2", Decimal("200"), BudgetPeriod.MONTHLY, date.today()
+        )
+
+        budgets = await service.get_budgets(db, test_user)
+
+        assert len(budgets) >= 2
+
+    @pytest.mark.asyncio
+    async def test_get_budgets_filter_active(self, db, test_user):
+        """Should filter budgets by is_active status."""
+        service = BudgetService()
+
+        # Create active budget
+        _active = await service.create_budget(
+            db, test_user, "Active", Decimal("100"), BudgetPeriod.MONTHLY, date.today()
+        )
+
+        # Create inactive budget
+        inactive = await service.create_budget(
+            db, test_user, "Inactive", Decimal("100"), BudgetPeriod.MONTHLY, date.today()
+        )
+        inactive.is_active = False
+        await db.commit()
+
+        # Get only active
+        active_budgets = await service.get_budgets(db, test_user, is_active=True)
+        active_names = [b.name for b in active_budgets]
+
+        assert "Active" in active_names
+        assert "Inactive" not in active_names
+
+    @pytest.mark.asyncio
+    async def test_get_budget(self, db, test_user):
+        """Should get specific budget by ID."""
+        service = BudgetService()
+
+        created = await service.create_budget(
+            db, test_user, "Test", Decimal("100"), BudgetPeriod.MONTHLY, date.today()
+        )
+
+        retrieved = await service.get_budget(db, created.id, test_user)
+
+        assert retrieved is not None
+        assert retrieved.id == created.id
+        assert retrieved.name == "Test"
+
+    @pytest.mark.asyncio
+    async def test_get_budget_cross_org_blocked(self, db, test_user, second_organization):
+        """Should not allow accessing budgets from other orgs."""
+        service = BudgetService()
+
+        # Create budget in other org
+        other_budget = Budget(
+            id=uuid4(),
+            organization_id=second_organization.id,
+            name="Other Org",
+            amount=Decimal("100"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date.today(),
+        )
+        db.add(other_budget)
+        await db.commit()
+
+        retrieved = await service.get_budget(db, other_budget.id, test_user)
+
+        assert retrieved is None
+
+    @pytest.mark.asyncio
+    async def test_update_budget(self, db, test_user):
+        """Should update budget fields."""
+        service = BudgetService()
+
+        budget = await service.create_budget(
+            db, test_user, "Original", Decimal("100"), BudgetPeriod.MONTHLY, date.today()
+        )
+
+        updated = await service.update_budget(
+            db,
+            budget.id,
+            test_user,
+            name="Updated",
+            amount=Decimal("200"),
+        )
+
+        assert updated is not None
+        assert updated.name == "Updated"
+        assert updated.amount == Decimal("200")
+
+    @pytest.mark.asyncio
+    async def test_update_budget_cross_org_blocked(self, db, test_user, second_organization):
+        """Should not allow updating budgets from other orgs."""
+        service = BudgetService()
+
+        other_budget = Budget(
+            id=uuid4(),
+            organization_id=second_organization.id,
+            name="Other",
+            amount=Decimal("100"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date.today(),
+        )
+        db.add(other_budget)
+        await db.commit()
+
+        updated = await service.update_budget(db, other_budget.id, test_user, name="Hacked")
+
+        assert updated is None
+
+    @pytest.mark.asyncio
+    async def test_delete_budget(self, db, test_user):
+        """Should delete budget."""
+        service = BudgetService()
+
+        budget = await service.create_budget(
+            db, test_user, "To Delete", Decimal("100"), BudgetPeriod.MONTHLY, date.today()
+        )
+        budget_id = budget.id
+
+        success = await service.delete_budget(db, budget_id, test_user)
+        assert success is True
+
+        # Verify deleted
+        retrieved = await service.get_budget(db, budget_id, test_user)
+        assert retrieved is None
+
+    @pytest.mark.asyncio
+    async def test_delete_budget_cross_org_blocked(self, db, test_user, second_organization):
+        """Should not allow deleting budgets from other orgs."""
+        service = BudgetService()
+
+        other_budget = Budget(
+            id=uuid4(),
+            organization_id=second_organization.id,
+            name="Other",
+            amount=Decimal("100"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date.today(),
+        )
+        db.add(other_budget)
+        await db.commit()
+
+        success = await service.delete_budget(db, other_budget.id, test_user)
+        assert success is False
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending(self, db, test_user, test_account):
+        """Should calculate spending for budget."""
+        service = BudgetService()
+
+        # Create monthly budget
+        budget = await service.create_budget(
+            db, test_user, "Monthly", Decimal("500.00"), BudgetPeriod.MONTHLY, date.today()
+        )
+
+        # Get current month dates
+        period_start, period_end = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        # Create transactions in current month
+        txn1 = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=5),
+            amount=Decimal("-100.00"),
+            merchant_name="Store 1",
+            deduplication_hash=str(uuid4()),
+        )
+        txn2 = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=10),
+            amount=Decimal("-150.00"),
+            merchant_name="Store 2",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add_all([txn1, txn2])
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+
+        assert spending["budget_amount"] == Decimal("500.00")
+        assert spending["spent"] == Decimal("250.00")  # 100 + 150
+        assert spending["remaining"] == Decimal("250.00")  # 500 - 250
+        assert spending["percentage"] == Decimal("50.00")  # 250/500 * 100
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_category_specific(self, db, test_user, test_account):
+        """Should only count transactions in budget's category."""
+        service = BudgetService()
+
+        # Create category
+        category = Category(
+            organization_id=test_user.organization_id,
+            name="Food",
+        )
+        db.add(category)
+        await db.commit()
+
+        # Create category-specific budget
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Food Budget",
+            Decimal("300.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            category_id=category.id,
+        )
+
+        period_start, period_end = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        # Transaction in category
+        food_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=5),
+            amount=Decimal("-50.00"),
+            merchant_name="Grocery",
+            category_id=category.id,
+            deduplication_hash=str(uuid4()),
+        )
+        # Transaction in different category
+        other_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=5),
+            amount=Decimal("-100.00"),
+            merchant_name="Gas Station",
+            category_id=None,
+            deduplication_hash=str(uuid4()),
+        )
+        db.add_all([food_txn, other_txn])
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+
+        # Should only count food transaction
+        assert spending["spent"] == Decimal("50.00")
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_child_categories_roll_up(self, db, test_user, test_account):
+        """Child category transactions should roll up into the parent budget."""
+        service = BudgetService()
+
+        parent = Category(organization_id=test_user.organization_id, name="Food")
+        db.add(parent)
+        await db.commit()
+
+        child = Category(
+            organization_id=test_user.organization_id,
+            name="Food and Drink",
+            parent_category_id=parent.id,
+        )
+        db.add(child)
+        await db.commit()
+
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Food Budget",
+            Decimal("500.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            category_id=parent.id,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        child_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-75.00"),
+            merchant_name="Restaurant",
+            category_id=child.id,
+            deduplication_hash=str(uuid4()),
+        )
+        parent_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=2),
+            amount=Decimal("-25.00"),
+            merchant_name="Grocery",
+            category_id=parent.id,
+            deduplication_hash=str(uuid4()),
+        )
+        db.add_all([child_txn, parent_txn])
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+
+        assert spending["spent"] == Decimal("100.00")
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_child_does_not_bleed_into_other_budget(
+        self, db, test_user, test_account
+    ):
+        """A transaction in a child category should NOT count toward an unrelated budget."""
+        service = BudgetService()
+
+        parent = Category(organization_id=test_user.organization_id, name="Food2")
+        other = Category(organization_id=test_user.organization_id, name="Entertainment")
+        db.add_all([parent, other])
+        await db.commit()
+
+        child = Category(
+            organization_id=test_user.organization_id,
+            name="Food and Drink2",
+            parent_category_id=parent.id,
+        )
+        db.add(child)
+        await db.commit()
+
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Entertainment Budget",
+            Decimal("200.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            category_id=other.id,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        food_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-50.00"),
+            merchant_name="Restaurant",
+            category_id=child.id,
+            deduplication_hash=str(uuid4()),
+        )
+        db.add(food_txn)
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+        assert spending["spent"] == Decimal("0.00")
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_matches_category_primary(self, db, test_user, test_account):
+        """Provider-categorized transactions (category_primary set,
+        no category_id) should match by name."""
+        service = BudgetService()
+
+        category = Category(organization_id=test_user.organization_id, name="Food and Drink")
+        db.add(category)
+        await db.commit()
+
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Food Budget",
+            Decimal("300.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            category_id=category.id,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        # Plaid-imported transaction: has category_primary but no category_id
+        provider_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-60.00"),
+            merchant_name="Cafe",
+            category_id=None,
+            category_primary="Food and Drink",
+            deduplication_hash=str(uuid4()),
+        )
+        # Unrelated provider transaction should not be counted
+        other_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-40.00"),
+            merchant_name="Gas",
+            category_id=None,
+            category_primary="Travel",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add_all([provider_txn, other_txn])
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+        assert spending["spent"] == Decimal("60.00")
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_no_transactions(self, db, test_user):
+        """Should handle budget with no spending."""
+        service = BudgetService()
+
+        budget = await service.create_budget(
+            db, test_user, "Empty", Decimal("500.00"), BudgetPeriod.MONTHLY, date.today()
+        )
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+
+        assert spending["spent"] == Decimal("0.00")
+        assert spending["remaining"] == Decimal("500.00")
+        assert spending["percentage"] == Decimal("0.00")
+
+    @pytest.mark.asyncio
+    async def test_check_budget_alerts_under_threshold(self, db, test_user, test_account):
+        """Should not create alert when under threshold."""
+        service = BudgetService()
+
+        # Create budget with 80% threshold
+        await service.create_budget(
+            db,
+            test_user,
+            "Test",
+            Decimal("1000.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            alert_threshold=Decimal("0.80"),
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        # Spend 70% (under threshold)
+        txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start,
+            amount=Decimal("-700.00"),
+            merchant_name="Store",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add(txn)
+        await db.commit()
+
+        alerts = await service.check_budget_alerts(db, test_user)
+
+        # Should not trigger alert
+        assert len(alerts) == 0
+
+    @pytest.mark.asyncio
+    async def test_check_budget_alerts_at_threshold(self, db, test_user, test_account):
+        """Should create alert when at threshold."""
+        service = BudgetService()
+
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Test",
+            Decimal("1000.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            alert_threshold=Decimal("0.80"),
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        # Spend exactly 80%
+        txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start,
+            amount=Decimal("-800.00"),
+            merchant_name="Store",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add(txn)
+        await db.commit()
+
+        alerts = await service.check_budget_alerts(db, test_user)
+
+        # Should trigger alert
+        assert len(alerts) > 0
+        alert = alerts[0]
+        assert alert["budget"].id == budget.id
+
+    @pytest.mark.asyncio
+    async def test_check_budget_alerts_over_budget(self, db, test_user, test_account):
+        """Should create high priority alert when over budget."""
+        service = BudgetService()
+
+        await service.create_budget(
+            db,
+            test_user,
+            "Test",
+            Decimal("1000.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            alert_threshold=Decimal("0.80"),
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        # Spend 110%
+        txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start,
+            amount=Decimal("-1100.00"),
+            merchant_name="Store",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add(txn)
+        await db.commit()
+
+        alerts = await service.check_budget_alerts(db, test_user)
+
+        assert len(alerts) > 0
+        # Verify notification was created
+        from sqlalchemy import select
+
+        from app.models.notification import Notification
+
+        result = await db.execute(
+            select(Notification).where(
+                Notification.organization_id == test_user.organization_id,
+                Notification.type == NotificationType.BUDGET_ALERT,
+            )
+        )
+        notification = result.scalar_one_or_none()
+        assert notification is not None
+        assert "Test" in notification.title
+
+    @pytest.mark.asyncio
+    async def test_check_budget_alerts_ignores_inactive(self, db, test_user, test_account):
+        """Should ignore inactive budgets."""
+        service = BudgetService()
+
+        # Create inactive budget
+        budget = await service.create_budget(
+            db, test_user, "Inactive", Decimal("100.00"), BudgetPeriod.MONTHLY, date.today()
+        )
+        budget.is_active = False
+        await db.commit()
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        # Overspend
+        txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start,
+            amount=Decimal("-200.00"),
+            merchant_name="Store",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add(txn)
+        await db.commit()
+
+        alerts = await service.check_budget_alerts(db, test_user)
+
+        # Should not create alert for inactive budget
+        inactive_alerts = [a for a in alerts if a["budget"].id == budget.id]
+        assert len(inactive_alerts) == 0
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_label_specific(self, db, test_user, test_account):
+        """Should only count transactions tagged with the budget's label."""
+        service = BudgetService()
+
+        label = Label(
+            organization_id=test_user.organization_id,
+            name="Dining Out",
+        )
+        db.add(label)
+        await db.commit()
+
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Dining Budget",
+            Decimal("200.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            label_id=label.id,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        # Transaction tagged with the budget label
+        labeled_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=3),
+            amount=Decimal("-80.00"),
+            merchant_name="Restaurant",
+            deduplication_hash=str(uuid4()),
+        )
+        # Unrelated transaction — should NOT be counted
+        unlabeled_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=3),
+            amount=Decimal("-50.00"),
+            merchant_name="Grocery",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add_all([labeled_txn, unlabeled_txn])
+        await db.commit()
+
+        # Apply label only to the first transaction
+        txn_label = TransactionLabel(
+            transaction_id=labeled_txn.id,
+            label_id=label.id,
+        )
+        db.add(txn_label)
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+
+        assert spending["spent"] == Decimal("80.00")
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_label_excludes_other_labels(
+        self, db, test_user, test_account
+    ):
+        """Transactions tagged with a different label should not count toward the budget."""
+        service = BudgetService()
+
+        budget_label = Label(
+            organization_id=test_user.organization_id,
+            name="Entertainment",
+        )
+        other_label = Label(
+            organization_id=test_user.organization_id,
+            name="Travel",
+        )
+        db.add_all([budget_label, other_label])
+        await db.commit()
+
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Entertainment Budget",
+            Decimal("300.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            label_id=budget_label.id,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        # Transaction tagged with the budget label
+        entertainment_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=2),
+            amount=Decimal("-60.00"),
+            merchant_name="Cinema",
+            deduplication_hash=str(uuid4()),
+        )
+        # Transaction tagged with a DIFFERENT label — should not count
+        travel_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=2),
+            amount=Decimal("-200.00"),
+            merchant_name="Airline",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add_all([entertainment_txn, travel_txn])
+        await db.commit()
+
+        db.add(TransactionLabel(transaction_id=entertainment_txn.id, label_id=budget_label.id))
+        db.add(TransactionLabel(transaction_id=travel_txn.id, label_id=other_label.id))
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+
+        assert spending["spent"] == Decimal("60.00")
+
+    @pytest.mark.asyncio
+    async def test_get_budget_spending_label_no_tagged_transactions(
+        self, db, test_user, test_account
+    ):
+        """Label budget with no matching tagged transactions should show zero spending."""
+        service = BudgetService()
+
+        label = Label(
+            organization_id=test_user.organization_id,
+            name="Wellness",
+        )
+        db.add(label)
+        await db.commit()
+
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Wellness Budget",
+            Decimal("150.00"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            label_id=label.id,
+        )
+
+        period_start, _ = service._get_period_dates(BudgetPeriod.MONTHLY)
+
+        # Transaction exists but has no labels at all
+        unlabeled_txn = Transaction(
+            organization_id=test_user.organization_id,
+            account_id=test_account.id,
+            date=period_start + timedelta(days=1),
+            amount=Decimal("-40.00"),
+            merchant_name="Pharmacy",
+            deduplication_hash=str(uuid4()),
+        )
+        db.add(unlabeled_txn)
+        await db.commit()
+
+        spending = await service.get_budget_spending(db, budget.id, test_user)
+
+        assert spending["spent"] == Decimal("0.00")
+        assert spending["remaining"] == Decimal("150.00")
+
+    @pytest.mark.asyncio
+    async def test_create_shared_budget(self, db_session, test_user):
+        """Should create a shared budget with shared_user_ids."""
+        service = BudgetService()
+        other_user_id = str(uuid4())
+
+        budget = await service.create_budget(
+            db=db_session,
+            user=test_user,
+            name="Household Groceries",
+            amount=Decimal("800.00"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date.today(),
+            is_shared=True,
+            shared_user_ids=[other_user_id],
+        )
+
+        assert budget.is_shared is True
+        assert budget.shared_user_ids == [other_user_id]
+        assert budget.user_id == test_user.id
+
+    @pytest.mark.asyncio
+    async def test_create_budget_defaults_not_shared(self, db_session, test_user):
+        """Budget should default to not shared."""
+        service = BudgetService()
+
+        budget = await service.create_budget(
+            db=db_session,
+            user=test_user,
+            name="Personal",
+            amount=Decimal("100.00"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date.today(),
+        )
+
+        assert budget.is_shared is False
+        assert budget.shared_user_ids is None
+
+    @pytest.mark.asyncio
+    async def test_update_budget_shared_status(self, db, test_user):
+        """Should toggle is_shared via update."""
+        service = BudgetService()
+
+        budget = await service.create_budget(
+            db, test_user, "Toggle", Decimal("100"), BudgetPeriod.MONTHLY, date.today()
+        )
+        assert budget.is_shared is False
+
+        updated = await service.update_budget(db, budget.id, test_user, is_shared=True)
+        assert updated.is_shared is True
+
+        updated2 = await service.update_budget(db, budget.id, test_user, is_shared=False)
+        assert updated2.is_shared is False
+
+    @pytest.mark.asyncio
+    async def test_update_budget_shared_user_ids(self, db, test_user):
+        """Should update shared_user_ids list."""
+        service = BudgetService()
+        uid1, uid2 = str(uuid4()), str(uuid4())
+
+        budget = await service.create_budget(
+            db,
+            test_user,
+            "Shared",
+            Decimal("500"),
+            BudgetPeriod.MONTHLY,
+            date.today(),
+            is_shared=True,
+            shared_user_ids=[uid1],
+        )
+
+        updated = await service.update_budget(
+            db, budget.id, test_user, shared_user_ids=[uid1, uid2]
+        )
+        assert set(updated.shared_user_ids) == {uid1, uid2}
+
+    @pytest.mark.asyncio
+    async def test_budget_stores_user_id(self, db_session, test_user):
+        """Budget should store the creating user's ID."""
+        service = BudgetService()
+
+        budget = await service.create_budget(
+            db=db_session,
+            user=test_user,
+            name="User Budget",
+            amount=Decimal("300.00"),
+            period=BudgetPeriod.MONTHLY,
+            start_date=date.today(),
+        )
+
+        assert budget.user_id == test_user.id
+
+    def test_singleton_instance(self):
+        """Should provide singleton instance."""
+        from app.services.budget_service import budget_service
+
+        assert budget_service is not None
+        assert isinstance(budget_service, BudgetService)

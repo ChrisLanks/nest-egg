@@ -83,7 +83,7 @@ export const DividendIncomePanel: React.FC = () => {
   const { data: summary, isLoading } = useQuery<DividendSummary>({
     queryKey: ["dividend-summary"],
     queryFn: async () => {
-      const res = await api.get("/api/v1/dividend-income/summary");
+      const res = await api.get("/dividend-income/summary");
       return res.data;
     },
     staleTime: 5 * 60 * 1000,

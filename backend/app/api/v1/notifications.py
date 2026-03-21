@@ -10,7 +10,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_admin_user, get_current_user, get_db
 from app.models.notification import Notification, NotificationPriority, NotificationType
 from app.models.user import User
 from app.schemas.notification import (
@@ -156,10 +156,10 @@ async def mark_all_notifications_read(
 
 @router.post("/test", response_model=NotificationResponse)
 async def create_test_notification(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a test notification (for testing purposes). Disabled in production."""
+    """Create a test notification (for testing purposes). Admin only; disabled in production."""
     if settings.ENVIRONMENT == "production":
         raise HTTPException(status_code=404, detail="Not found")
 
