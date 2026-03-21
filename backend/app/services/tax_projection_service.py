@@ -32,6 +32,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import TAX
+from app.constants.state_tax_rates import STATE_NAMES, STATE_TAX_RATES
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.services.roth_conversion_service import _get_brackets, _standard_deduction
@@ -104,6 +105,12 @@ class TaxProjection:
     # Breakdown
     bracket_breakdown: list[TaxBracketBreakdown]
     summary: str
+    # State tax (optional — defaults so must come last)
+    state: Optional[str] = None  # state abbreviation e.g. "CA"
+    state_tax: float = 0.0
+    state_tax_rate: float = 0.0
+    combined_tax: float = 0.0  # total_tax_before_credits + state_tax
+    combined_effective_rate: float = 0.0
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -211,6 +218,7 @@ class TaxProjectionService:
         estimated_capital_gains: float = 0.0,
         additional_deductions: float = 0.0,
         prior_year_tax: Optional[float] = None,
+        state: Optional[str] = None,
         today: Optional[date] = None,
     ) -> TaxProjection:
         """
@@ -265,6 +273,15 @@ class TaxProjectionService:
         effective_rate = round(total_tax / ordinary_income, 4) if ordinary_income > 0 else 0.0
         marginal_rate = bracket_breakdown[-1].rate if bracket_breakdown else 0.0
 
+        # State income tax (applied to taxable income as a flat-rate approximation)
+        state_upper = state.upper() if state else None
+        state_tax_rate = STATE_TAX_RATES.get(state_upper, 0.0) if state_upper else 0.0
+        state_tax = round(taxable_income * state_tax_rate, 2) if state_upper else 0.0
+        combined_tax = round(total_tax + state_tax, 2)
+        combined_effective_rate = (
+            round(combined_tax / ordinary_income, 4) if ordinary_income > 0 else 0.0
+        )
+
         # Quarterly payments
         quarterly = _quarterly_schedule(total_tax, today)
         total_quarterly = round(sum(q.amount_due for q in quarterly), 2)
@@ -286,6 +303,8 @@ class TaxProjectionService:
             ltcg_tax,
             filing_status,
             quarterly,
+            state=state_upper,
+            state_tax=state_tax,
         )
 
         return TaxProjection(
@@ -306,6 +325,11 @@ class TaxProjectionService:
             total_tax_before_credits=total_tax,
             effective_rate=effective_rate,
             marginal_rate=marginal_rate,
+            state=state_upper,
+            state_tax=state_tax,
+            state_tax_rate=state_tax_rate,
+            combined_tax=combined_tax,
+            combined_effective_rate=combined_effective_rate,
             quarterly_payments=quarterly,
             total_quarterly_due=total_quarterly,
             prior_year_tax=prior_year_tax,
@@ -351,6 +375,8 @@ class TaxProjectionService:
         ltcg_tax: float,
         filing_status: str,
         quarterly: list[QuarterlyPayment],
+        state: Optional[str] = None,
+        state_tax: float = 0.0,
     ) -> str:
         parts = [
             f"Estimated {date.today().year} federal tax: ${total_tax:,.0f} "
@@ -361,11 +387,22 @@ class TaxProjectionService:
             parts.append(f"Self-employment tax: ${se_tax:,.0f}.")
         if ltcg_tax > 0:
             parts.append(f"Capital gains tax: ${ltcg_tax:,.0f}.")
+        if state and state_tax > 0:
+            state_name = STATE_NAMES.get(state, state)
+            combined = total_tax + state_tax
+            parts.append(
+                f"{state_name} state income tax: ${state_tax:,.0f}. "
+                f"Combined federal + state: ${combined:,.0f}."
+            )
+        elif state and state_tax == 0:
+            state_name = STATE_NAMES.get(state, state)
+            parts.append(f"{state_name} has no state income tax.")
+        else:
+            parts.append("Federal only — does not include state taxes or credits.")
         next_due = next((q for q in quarterly if not q.paid), None)
         if next_due:
             parts.append(
                 f"Next quarterly payment: ${next_due.amount_due:,.0f} "
                 f"due {next_due.due_date} ({next_due.quarter})."
             )
-        parts.append("Federal only — does not include state taxes or credits.")
         return " ".join(parts)

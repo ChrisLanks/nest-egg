@@ -125,6 +125,24 @@ interface DebtUpdatePayload {
   payment_due_day?: number;
 }
 
+interface AmortizationEntry {
+  month: number;
+  date: string;
+  payment: number;
+  principal: number;
+  interest: number;
+  balance: number;
+}
+
+interface AmortizationResult {
+  schedule: AmortizationEntry[];
+  total_months: number;
+  total_interest: number;
+  total_paid: number;
+  monthly_payment: number;
+  payoff_date: string | null;
+}
+
 function SortIndicator({
   field,
   sortField,
@@ -196,6 +214,10 @@ export default function DebtPayoffPage() {
     minimum_payment: "",
     payment_due_day: "",
   });
+  const [amortizationData, setAmortizationData] = useState<Record<string, AmortizationResult>>({});
+  const [amortizationLoading, setAmortizationLoading] = useState<Record<string, boolean>>({});
+  const [amortizationOpen, setAmortizationOpen] = useState<Record<string, boolean>>({});
+  const [amortizationExtra, setAmortizationExtra] = useState<Record<string, string>>({});
 
   // Fetch debt summary
   const { data: summary, isLoading: summaryLoading } = useQuery({
@@ -326,6 +348,33 @@ export default function DebtPayoffPage() {
     if (editForm.payment_due_day)
       updates.payment_due_day = parseInt(editForm.payment_due_day);
     updateDebtMutation.mutate({ account_id: editingDebt.account_id, updates });
+  };
+
+  const fetchAmortization = async (accountId: string, extraPayment?: string) => {
+    const extra = extraPayment ?? amortizationExtra[accountId] ?? "0";
+    setAmortizationLoading((prev) => ({ ...prev, [accountId]: true }));
+    try {
+      const params: Record<string, string> = {};
+      if (extra && parseFloat(extra) > 0) params.extra_payment = extra;
+      const response = await api.get(`/debt-payoff/debts/${accountId}/amortization`, { params });
+      setAmortizationData((prev) => ({ ...prev, [accountId]: response.data }));
+    } catch {
+      toast({
+        title: "Could not load amortization schedule",
+        status: "error",
+        duration: 3000,
+      });
+    } finally {
+      setAmortizationLoading((prev) => ({ ...prev, [accountId]: false }));
+    }
+  };
+
+  const toggleAmortization = async (accountId: string) => {
+    const isOpen = amortizationOpen[accountId];
+    setAmortizationOpen((prev) => ({ ...prev, [accountId]: !isOpen }));
+    if (!isOpen && !amortizationData[accountId]) {
+      await fetchAmortization(accountId);
+    }
   };
 
   // Fetch strategy comparison
@@ -685,56 +734,144 @@ export default function DebtPayoffPage() {
                           sortDir={sortDir}
                         />
                       </Th>
-                      <Th width="80px">Actions</Th>
+                      <Th width="120px">Actions</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
                     {sortedDebts.map((debt) => (
-                      <Tr
-                        key={debt.account_id}
-                        opacity={
-                          effectiveSelectedAccounts.has(debt.account_id)
-                            ? 1
-                            : 0.5
-                        }
-                        bg={
-                          effectiveSelectedAccounts.has(debt.account_id)
-                            ? "transparent"
-                            : "gray.50"
-                        }
-                      >
-                        <Td>
-                          <Checkbox
-                            isChecked={effectiveSelectedAccounts.has(
-                              debt.account_id,
-                            )}
-                            onChange={() => toggleAccount(debt.account_id)}
-                            colorScheme="blue"
-                          />
-                        </Td>
-                        <Td fontWeight="medium">{debt.name}</Td>
-                        <Td>
-                          <Badge colorScheme="purple">
-                            {debt.account_type.replace("_", " ")}
-                          </Badge>
-                        </Td>
-                        <Td isNumeric>{formatCurrency(debt.balance)}</Td>
-                        <Td isNumeric>{debt.interest_rate.toFixed(2)}%</Td>
-                        <Td isNumeric>
-                          {formatCurrency(debt.minimum_payment)}
-                        </Td>
-                        <Td>
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            colorScheme="blue"
-                            onClick={() => handleEditDebt(debt)}
-                            isDisabled={!canEdit}
-                          >
-                            Edit
-                          </Button>
-                        </Td>
-                      </Tr>
+                      <>
+                        <Tr
+                          key={debt.account_id}
+                          opacity={
+                            effectiveSelectedAccounts.has(debt.account_id)
+                              ? 1
+                              : 0.5
+                          }
+                          bg={
+                            effectiveSelectedAccounts.has(debt.account_id)
+                              ? "transparent"
+                              : "gray.50"
+                          }
+                        >
+                          <Td>
+                            <Checkbox
+                              isChecked={effectiveSelectedAccounts.has(
+                                debt.account_id,
+                              )}
+                              onChange={() => toggleAccount(debt.account_id)}
+                              colorScheme="blue"
+                            />
+                          </Td>
+                          <Td fontWeight="medium">{debt.name}</Td>
+                          <Td>
+                            <Badge colorScheme="purple">
+                              {debt.account_type.replace("_", " ")}
+                            </Badge>
+                          </Td>
+                          <Td isNumeric>{formatCurrency(debt.balance)}</Td>
+                          <Td isNumeric>{debt.interest_rate.toFixed(2)}%</Td>
+                          <Td isNumeric>
+                            {formatCurrency(debt.minimum_payment)}
+                          </Td>
+                          <Td>
+                            <HStack spacing={1}>
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                colorScheme="blue"
+                                onClick={() => handleEditDebt(debt)}
+                                isDisabled={!canEdit}
+                              >
+                                Edit
+                              </Button>
+                              {debt.interest_rate > 0 && debt.minimum_payment > 0 && (
+                                <Button
+                                  size="xs"
+                                  variant="ghost"
+                                  colorScheme="teal"
+                                  onClick={() => toggleAmortization(debt.account_id)}
+                                  isLoading={amortizationLoading[debt.account_id]}
+                                >
+                                  {amortizationOpen[debt.account_id] ? "Hide" : "Schedule"}
+                                </Button>
+                              )}
+                            </HStack>
+                          </Td>
+                        </Tr>
+                        {debt.interest_rate > 0 && debt.minimum_payment > 0 && (
+                          <Tr key={`${debt.account_id}-amortization`}>
+                            <Td colSpan={7} p={0} border="none">
+                              <Collapse in={!!amortizationOpen[debt.account_id]} animateOpacity>
+                                <Box p={4} bg="bg.subtle" borderBottomWidth={1}>
+                                  {amortizationData[debt.account_id] ? (
+                                    <>
+                                      <HStack justify="space-between" mb={3} flexWrap="wrap" gap={2}>
+                                        <Text fontSize="sm" fontWeight="semibold">
+                                          Amortization Schedule — {debt.name}
+                                        </Text>
+                                        <Text fontSize="sm" color="text.secondary">
+                                          Paid off in {amortizationData[debt.account_id].total_months} months
+                                          {" · "}Total interest: {formatCurrency(amortizationData[debt.account_id].total_interest)}
+                                          {" · "}Payoff: {formatDate(amortizationData[debt.account_id].payoff_date)}
+                                        </Text>
+                                      </HStack>
+                                      <HStack mb={3} spacing={2}>
+                                        <FormControl maxW="180px">
+                                          <FormLabel fontSize="xs" mb={1}>Extra payment/mo</FormLabel>
+                                          <Input
+                                            size="xs"
+                                            type="number"
+                                            min="0"
+                                            step="10"
+                                            value={amortizationExtra[debt.account_id] ?? "0"}
+                                            onChange={(e) => {
+                                              setAmortizationExtra((prev) => ({ ...prev, [debt.account_id]: e.target.value }));
+                                            }}
+                                            onBlur={(e) => fetchAmortization(debt.account_id, e.target.value)}
+                                          />
+                                        </FormControl>
+                                      </HStack>
+                                      <Table size="xs" variant="simple">
+                                        <Thead>
+                                          <Tr>
+                                            <Th>Month</Th>
+                                            <Th>Date</Th>
+                                            <Th isNumeric>Payment</Th>
+                                            <Th isNumeric>Principal</Th>
+                                            <Th isNumeric>Interest</Th>
+                                            <Th isNumeric>Balance</Th>
+                                          </Tr>
+                                        </Thead>
+                                        <Tbody>
+                                          {amortizationData[debt.account_id].schedule.slice(0, 12).map((entry) => (
+                                            <Tr key={entry.month}>
+                                              <Td>{entry.month}</Td>
+                                              <Td>{new Date(entry.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</Td>
+                                              <Td isNumeric>{formatCurrency(entry.payment)}</Td>
+                                              <Td isNumeric>{formatCurrency(entry.principal)}</Td>
+                                              <Td isNumeric color="finance.negative">{formatCurrency(entry.interest)}</Td>
+                                              <Td isNumeric>{formatCurrency(entry.balance)}</Td>
+                                            </Tr>
+                                          ))}
+                                        </Tbody>
+                                      </Table>
+                                      {amortizationData[debt.account_id].schedule.length > 12 && (
+                                        <Text fontSize="xs" color="text.muted" mt={2}>
+                                          Showing first 12 of {amortizationData[debt.account_id].total_months} months
+                                        </Text>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <Center py={4}>
+                                      <Spinner size="sm" />
+                                    </Center>
+                                  )}
+                                </Box>
+                              </Collapse>
+                            </Td>
+                          </Tr>
+                        )}
+                      </>
                     ))}
                   </Tbody>
                 </Table>

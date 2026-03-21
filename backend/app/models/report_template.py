@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, JSON, String, Text, Boolean, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 
@@ -30,6 +30,10 @@ class ReportTemplate(Base):
 
     # Report configuration (stored as JSON)
     config = Column(JSONB, nullable=False)
+    scheduled_delivery = Column(JSON, nullable=True)
+    # JSON structure: {"enabled": bool, "frequency": "daily"|"weekly"|"monthly",
+    #                  "delivery_emails": ["..."], "last_delivered_at": null|"ISO date",
+    #                  "day_of_week": 0-6, "day_of_month": 1-28}
     """
     Config JSON structure:
     {

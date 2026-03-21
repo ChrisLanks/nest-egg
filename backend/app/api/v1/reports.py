@@ -60,6 +60,7 @@ class ReportTemplateUpdate(BaseModel):
     description: Optional[str] = None
     config: Optional[Dict[str, Any]] = None
     is_shared: Optional[bool] = None
+    scheduled_delivery: Optional[Dict[str, Any]] = None
 
 
 class ReportTemplateResponse(BaseModel):
@@ -75,6 +76,7 @@ class ReportTemplateResponse(BaseModel):
     created_by_user_id: str
     created_at: str
     updated_at: str
+    scheduled_delivery: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
@@ -143,6 +145,7 @@ async def list_report_templates(
             created_by_user_id=str(template.created_by_user_id),
             created_at=template.created_at.isoformat(),
             updated_at=template.updated_at.isoformat(),
+            scheduled_delivery=template.scheduled_delivery,
         )
         for template in templates
     ]
@@ -182,6 +185,7 @@ async def create_report_template(
         created_by_user_id=str(template.created_by_user_id),
         created_at=template.created_at.isoformat(),
         updated_at=template.updated_at.isoformat(),
+        scheduled_delivery=template.scheduled_delivery,
     )
 
 
@@ -221,6 +225,7 @@ async def get_report_template(
         created_by_user_id=str(template.created_by_user_id),
         created_at=template.created_at.isoformat(),
         updated_at=template.updated_at.isoformat(),
+        scheduled_delivery=template.scheduled_delivery,
     )
 
 
@@ -259,6 +264,8 @@ async def update_report_template(
         template.config = template_data.config
     if template_data.is_shared is not None:
         template.is_shared = template_data.is_shared
+    if template_data.scheduled_delivery is not None:
+        template.scheduled_delivery = template_data.scheduled_delivery
 
     template.updated_at = utc_now()
 
@@ -276,6 +283,7 @@ async def update_report_template(
         created_by_user_id=str(template.created_by_user_id),
         created_at=template.created_at.isoformat(),
         updated_at=template.updated_at.isoformat(),
+        scheduled_delivery=template.scheduled_delivery,
     )
 
 

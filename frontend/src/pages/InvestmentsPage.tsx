@@ -63,6 +63,7 @@ import TaxLossHarvestingPanel from "../features/investments/components/TaxLossHa
 import { RebalancingPanel } from "../features/investments/components/RebalancingPanel";
 import { FeeAnalysisPanel } from "../features/investments/components/FeeAnalysisPanel";
 import { DividendIncomePanel } from "../features/investments/components/DividendIncomePanel";
+import { AllocationHistoryChart } from "../features/investments/components/AllocationHistoryChart";
 import { useRetirementAccountData } from "../features/retirement/hooks/useRetirementScenarios";
 import HelpHint from "../components/HelpHint";
 import { helpContent } from "../constants/helpContent";
@@ -1542,12 +1543,22 @@ export const InvestmentsPage = () => {
 
             {/* Active panel content */}
             <Box>
-              {selectedTabIndex === 0 && portfolio.treemap_data && (
-                <AssetAllocationTreemap
-                  key={`treemap-${hiddenAccountIds.join("-")}`}
-                  data={portfolio.treemap_data}
-                  onDrillDown={handleTreemapDrillDown}
-                />
+              {selectedTabIndex === 0 && (
+                <VStack align="stretch" spacing={6}>
+                  {portfolio.treemap_data && (
+                    <AssetAllocationTreemap
+                      key={`treemap-${hiddenAccountIds.join("-")}`}
+                      data={portfolio.treemap_data}
+                      onDrillDown={handleTreemapDrillDown}
+                    />
+                  )}
+                  <Box>
+                    <Heading size="sm" mb={3}>
+                      Allocation History
+                    </Heading>
+                    <AllocationHistoryChart userId={activeUserId} />
+                  </Box>
+                </VStack>
               )}
               {selectedTabIndex === 1 && (
                 <SectorBreakdownChart holdings={portfolio.holdings_by_ticker} />

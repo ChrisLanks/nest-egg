@@ -47,11 +47,16 @@ class InviteGuestRequest(BaseModel):
     email: EmailStr
     role: GuestRole = GuestRole.VIEWER
     label: Optional[str] = Field(None, max_length=100)
+    access_expires_days: Optional[int] = Field(
+        None, ge=1, le=365, description="Days until guest access expires (optional)"
+    )
 
 
 class UpdateGuestRequest(BaseModel):
     role: Optional[GuestRole] = None
     label: Optional[str] = Field(None, max_length=100)
+    expires_at: Optional[datetime] = None
+    access_expires_days: Optional[int] = Field(None, ge=1, le=365)
 
 
 class GuestResponse(BaseModel):
@@ -64,6 +69,7 @@ class GuestResponse(BaseModel):
     is_active: bool
     created_at: datetime
     revoked_at: Optional[datetime]
+    expires_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -189,6 +195,7 @@ async def invite_guest(
         status=GuestInvitationStatus.PENDING,
         expires_at=utc_now() + timedelta(days=GUEST_INVITATION_EXPIRY_DAYS),
         created_at=utc_now(),
+        access_expires_days=body.access_expires_days,
     )
     db.add(invitation)
     await db.commit()
@@ -257,6 +264,7 @@ async def list_guests(
             is_active=guest.is_active,
             created_at=guest.created_at,
             revoked_at=guest.revoked_at,
+            expires_at=guest.expires_at,
         )
         for guest, email in rows
     ]
@@ -309,6 +317,10 @@ async def update_guest(
         guest.role = body.role
     if body.label is not None:
         guest.label = body.label
+    if body.expires_at is not None:
+        guest.expires_at = body.expires_at
+    elif body.access_expires_days is not None:
+        guest.expires_at = utc_now() + timedelta(days=body.access_expires_days)
 
     await db.commit()
     await db.refresh(guest)
@@ -327,6 +339,7 @@ async def update_guest(
         is_active=guest.is_active,
         created_at=guest.created_at,
         revoked_at=guest.revoked_at,
+        expires_at=guest.expires_at,
     )
 
 
@@ -471,6 +484,11 @@ async def accept_guest_invitation(
     )
     existing_guest = result.scalar_one_or_none()
 
+    # Compute guest expiry from invitation's access_expires_days
+    guest_expires_at = None
+    if invitation.access_expires_days:
+        guest_expires_at = utc_now() + timedelta(days=invitation.access_expires_days)
+
     if existing_guest:
         if existing_guest.is_active:
             raise HTTPException(
@@ -484,6 +502,7 @@ async def accept_guest_invitation(
         existing_guest.revoked_at = None
         existing_guest.revoked_by_id = None
         existing_guest.invited_by_id = invitation.invited_by_id
+        existing_guest.expires_at = guest_expires_at
     else:
         guest = HouseholdGuest(
             user_id=current_user.id,
@@ -492,6 +511,7 @@ async def accept_guest_invitation(
             role=invitation.role,
             label=invitation.label,
             created_at=utc_now(),
+            expires_at=guest_expires_at,
         )
         db.add(guest)
 

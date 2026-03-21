@@ -267,6 +267,18 @@ export const TransactionDetailModal = ({
     setPendingLabelsToRemove([]);
   };
 
+  const handleApplyOcrSuggestion = (suggestion: {
+    merchant: string | null;
+    amount: string | null;
+    date: string | null;
+  }) => {
+    // Enter edit mode pre-filled with OCR data
+    setMerchantName(suggestion.merchant || currentTransaction?.merchant_name || "");
+    setCategory(currentTransaction?.category_primary || "");
+    setNotes(currentTransaction?.notes || "");
+    setIsEditing(true);
+  };
+
   const handleCreateRule = () => {
     onRuleBuilderOpen();
   };
@@ -734,6 +746,7 @@ export const TransactionDetailModal = ({
             <AttachmentsList
               transactionId={currentTransaction.id}
               canEdit={canEdit}
+              onApplyOcrSuggestion={handleApplyOcrSuggestion}
             />
 
             <Divider />

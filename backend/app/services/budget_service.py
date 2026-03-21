@@ -320,6 +320,7 @@ class BudgetService:
             return {}
 
         # Determine period dates
+        monthly_start_day = 1
         if period_start is None or period_end is None:
             org_result = await db.execute(
                 select(Organization).where(Organization.id == user.organization_id)
@@ -329,6 +330,39 @@ class BudgetService:
             period_start, period_end = BudgetService._get_period_dates(
                 budget.period, monthly_start_day=monthly_start_day
             )
+
+        # Calculate rollover from previous period
+        rollover_amount = Decimal("0.00")
+        if budget.rollover_unused:
+            prev_end = period_start - timedelta(days=1)
+            prev_start, _ = BudgetService._get_period_dates(
+                budget.period,
+                reference_date=prev_end,
+                monthly_start_day=monthly_start_day,
+            )
+            prev_query = select(func.sum(Transaction.amount)).where(
+                and_(
+                    Transaction.organization_id == user.organization_id,
+                    Transaction.date >= prev_start,
+                    Transaction.date <= prev_end,
+                    Transaction.amount < 0,
+                )
+            )
+            if budget.category_id:
+                prev_query = prev_query.where(Transaction.category_id == budget.category_id)
+            if budget.label_id:
+                prev_query = prev_query.join(
+                    TransactionLabel,
+                    and_(
+                        TransactionLabel.transaction_id == Transaction.id,
+                        TransactionLabel.label_id == budget.label_id,
+                    ),
+                )
+            prev_result = await db.execute(prev_query)
+            prev_spent = abs(prev_result.scalar() or Decimal("0.00"))
+            rollover_amount = max(Decimal("0.00"), budget.amount - prev_spent)
+
+        effective_budget = budget.amount + rollover_amount
 
         # Build query for transactions
         query = select(func.sum(Transaction.amount)).where(
@@ -392,8 +426,8 @@ class BudgetService:
         result = await db.execute(query)
         spent = abs(result.scalar() or Decimal("0.00"))
 
-        remaining = budget.amount - spent
-        percentage = (spent / budget.amount * 100) if budget.amount > 0 else Decimal("0.00")
+        remaining = effective_budget - spent
+        percentage = (spent / effective_budget * 100) if effective_budget > 0 else Decimal("0.00")
 
         return {
             "budget_amount": budget.amount,
@@ -402,6 +436,8 @@ class BudgetService:
             "percentage": percentage,
             "period_start": period_start,
             "period_end": period_end,
+            "rollover_amount": rollover_amount,
+            "effective_budget": effective_budget,
         }
 
     @staticmethod
@@ -468,6 +504,109 @@ class BudgetService:
                 )
 
         return alerts
+
+
+    @staticmethod
+    async def get_budget_variance_breakdown(
+        db: AsyncSession,
+        budget_id: UUID,
+        user: User,
+    ) -> Optional[dict]:
+        """Return per-merchant spending breakdown for the current budget period."""
+        budget = await BudgetService.get_budget(db, budget_id, user)
+        if not budget:
+            return None
+
+        org_result = await db.execute(
+            select(Organization).where(Organization.id == user.organization_id)
+        )
+        org = org_result.scalar_one_or_none()
+        monthly_start_day = org.monthly_start_day if org else 1
+        period_start, period_end = BudgetService._get_period_dates(
+            budget.period, monthly_start_day=monthly_start_day
+        )
+
+        # Base conditions
+        base_conditions = [
+            Transaction.organization_id == user.organization_id,
+            Transaction.date >= period_start,
+            Transaction.date <= period_end,
+            Transaction.amount < 0,
+        ]
+
+        # Build merchant breakdown query
+        merchant_query = (
+            select(
+                Transaction.merchant_name,
+                func.sum(Transaction.amount).label("total"),
+                func.count(Transaction.id).label("count"),
+            )
+            .where(and_(*base_conditions))
+            .group_by(Transaction.merchant_name)
+            .order_by(func.sum(Transaction.amount).asc())  # Most negative = biggest spend
+            .limit(10)
+        )
+
+        if budget.category_id:
+            merchant_query = merchant_query.where(Transaction.category_id == budget.category_id)
+        if budget.label_id:
+            merchant_query = merchant_query.join(
+                TransactionLabel,
+                and_(
+                    TransactionLabel.transaction_id == Transaction.id,
+                    TransactionLabel.label_id == budget.label_id,
+                ),
+            )
+
+        merchant_result = await db.execute(merchant_query)
+        merchant_rows = merchant_result.all()
+
+        # Top 3 largest transactions
+        top_query = (
+            select(Transaction.id, Transaction.date, Transaction.merchant_name, Transaction.amount)
+            .where(and_(*base_conditions))
+            .order_by(Transaction.amount.asc())
+            .limit(3)
+        )
+        if budget.category_id:
+            top_query = top_query.where(Transaction.category_id == budget.category_id)
+        if budget.label_id:
+            top_query = top_query.join(
+                TransactionLabel,
+                and_(TransactionLabel.transaction_id == Transaction.id,
+                     TransactionLabel.label_id == budget.label_id),
+            )
+
+        top_result = await db.execute(top_query)
+        top_rows = top_result.all()
+
+        total_spent_result = await db.execute(
+            select(func.sum(Transaction.amount)).where(and_(*base_conditions))
+        )
+        total_spent = abs(total_spent_result.scalar() or Decimal("0.00"))
+
+        return {
+            "merchant_breakdown": [
+                {
+                    "merchant_name": row.merchant_name or "Unknown",
+                    "amount": abs(float(row.total)),
+                    "transaction_count": row.count,
+                }
+                for row in merchant_rows
+            ],
+            "largest_transactions": [
+                {
+                    "id": str(row.id),
+                    "date": row.date.isoformat() if row.date else None,
+                    "merchant_name": row.merchant_name or "Unknown",
+                    "amount": abs(float(row.amount)),
+                }
+                for row in top_rows
+            ],
+            "total_spent": float(total_spent),
+            "period_start": period_start.isoformat(),
+            "period_end": period_end.isoformat(),
+        }
 
 
 budget_service = BudgetService()

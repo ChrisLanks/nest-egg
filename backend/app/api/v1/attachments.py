@@ -1,6 +1,7 @@
 """Transaction attachment API endpoints."""
 
 from datetime import datetime
+from typing import Any, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, UploadFile
@@ -32,6 +33,8 @@ class AttachmentResponse(BaseModel):
     content_type: str
     file_size: int
     created_at: datetime
+    ocr_status: Optional[str] = None
+    ocr_data: Optional[Any] = None
 
     model_config = {"from_attributes": True}
 

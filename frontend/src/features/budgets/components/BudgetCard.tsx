@@ -20,14 +20,18 @@ import {
   useToast,
   Box,
   Tooltip,
+  Collapse,
+  Button,
 } from "@chakra-ui/react";
 import { EditIcon, DeleteIcon, SettingsIcon } from "@chakra-ui/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import type { Budget } from "../../../types/budget";
 import { BudgetPeriod } from "../../../types/budget";
 import { budgetsApi } from "../../../api/budgets";
 import { labelsApi } from "../../../api/labels";
 import { useHouseholdMembers } from "../../../hooks/useHouseholdMembers";
+import api from "../../../services/api";
 
 interface BudgetCardProps {
   budget: Budget;
@@ -43,6 +47,9 @@ export default function BudgetCard({
   const toast = useToast();
   const queryClient = useQueryClient();
   const { data: householdMembers = [] } = useHouseholdMembers();
+  const [varianceOpen, setVarianceOpen] = useState(false);
+  const [varianceData, setVarianceData] = useState<any>(null);
+  const [varianceLoading, setVarianceLoading] = useState(false);
 
   // Build shared tooltip label
   const sharedLabel = (() => {
@@ -116,6 +123,30 @@ export default function BudgetCard({
       style: "currency",
       currency: "USD",
     }).format(amount);
+  };
+
+  const handleVarianceClick = async () => {
+    if (varianceOpen) {
+      setVarianceOpen(false);
+      return;
+    }
+    setVarianceOpen(true);
+    if (!varianceData) {
+      setVarianceLoading(true);
+      try {
+        const response = await api.get(`/budgets/${budget.id}/variance`);
+        setVarianceData(response.data);
+      } catch {
+        toast({
+          title: "Could not load spending breakdown",
+          status: "error",
+          duration: 3000,
+        });
+        setVarianceOpen(false);
+      } finally {
+        setVarianceLoading(false);
+      }
+    }
   };
 
   return (
@@ -215,12 +246,77 @@ export default function BudgetCard({
             </Text>
           </HStack>
 
+          {/* Rollover info */}
+          {spending && spending.rollover_amount != null && spending.rollover_amount > 0 && (
+            <Text fontSize="xs" color="text.muted">
+              + {formatCurrency(spending.rollover_amount)} rollover from last period
+            </Text>
+          )}
+
           {/* Period dates */}
           {spending && (
             <Text fontSize="xs" color="text.muted">
               {new Date(spending.period_start).toLocaleDateString()} -{" "}
               {new Date(spending.period_end).toLocaleDateString()}
             </Text>
+          )}
+
+          {/* "Why?" variance button — shown when over 80% */}
+          {percentage >= 80 && (
+            <Box>
+              <Button
+                size="xs"
+                variant="ghost"
+                colorScheme="orange"
+                onClick={handleVarianceClick}
+                isLoading={varianceLoading}
+              >
+                {varianceOpen ? "Hide breakdown" : "Why? View breakdown"}
+              </Button>
+
+              <Collapse in={varianceOpen && !!varianceData} animateOpacity>
+                {varianceData && (
+                  <Box mt={2} p={3} bg="bg.subtle" borderRadius="md" fontSize="sm">
+                    <Text fontWeight="semibold" mb={2} fontSize="xs">
+                      Top merchants this period
+                    </Text>
+                    <VStack align="stretch" spacing={1}>
+                      {(varianceData.merchant_breakdown || []).slice(0, 5).map(
+                        (m: any, i: number) => (
+                          <HStack key={i} justify="space-between">
+                            <Text fontSize="xs" noOfLines={1} flex={1}>
+                              {m.merchant_name}
+                            </Text>
+                            <Text fontSize="xs" color="text.secondary" flexShrink={0}>
+                              {formatCurrency(m.amount)} ({m.transaction_count} txn{m.transaction_count !== 1 ? "s" : ""})
+                            </Text>
+                          </HStack>
+                        )
+                      )}
+                    </VStack>
+                    {varianceData.largest_transactions?.length > 0 && (
+                      <Box mt={2}>
+                        <Text fontWeight="semibold" mb={1} fontSize="xs">
+                          Largest transactions
+                        </Text>
+                        <VStack align="stretch" spacing={1}>
+                          {varianceData.largest_transactions.map((t: any) => (
+                            <HStack key={t.id} justify="space-between">
+                              <Text fontSize="xs" noOfLines={1} flex={1}>
+                                {t.merchant_name}
+                              </Text>
+                              <Text fontSize="xs" color="finance.negative" flexShrink={0}>
+                                {formatCurrency(t.amount)}
+                              </Text>
+                            </HStack>
+                          ))}
+                        </VStack>
+                      </Box>
+                    )}
+                  </Box>
+                )}
+              </Collapse>
+            </Box>
           )}
         </VStack>
       </CardBody>

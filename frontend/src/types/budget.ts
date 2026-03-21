@@ -76,4 +76,6 @@ export interface BudgetSpending {
   percentage: number;
   period_start: string;
   period_end: string;
+  rollover_amount?: number;
+  effective_budget?: number;
 }

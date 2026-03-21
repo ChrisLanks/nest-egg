@@ -25,6 +25,7 @@ export interface GuestRecord {
   is_active: boolean;
   created_at: string;
   revoked_at: string | null;
+  expires_at: string | null;
 }
 
 export interface InvitationPreview {
@@ -41,6 +42,7 @@ export const guestAccessApi = {
     email: string;
     role?: "viewer" | "advisor";
     label?: string;
+    access_expires_days?: number;
   }): Promise<GuestInvitation> => {
     const { data: result } = await api.post<GuestInvitation>(
       "/guest-access/invite",

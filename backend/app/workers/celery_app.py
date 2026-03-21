@@ -61,10 +61,12 @@ from app.workers.tasks import (
     auth_tasks,  # noqa: F401
     budget_tasks,  # noqa: F401
     forecast_tasks,  # noqa: F401
+    guest_access_tasks,  # noqa: F401
     holdings_tasks,  # noqa: F401
     interest_accrual_tasks,  # noqa: F401
     recap_tasks,  # noqa: F401
     recurring_tasks,  # noqa: F401
+    report_tasks,  # noqa: F401
     retention_tasks,  # noqa: F401
     retirement_tasks,  # noqa: F401
     snapshot_tasks,  # noqa: F401
@@ -128,5 +130,15 @@ celery_app.conf.beat_schedule = {
     "send-weekly-recaps": {
         "task": "send_weekly_recaps",
         "schedule": crontab(hour=8, minute=0, day_of_week=1),
+    },
+    # Auto-revoke guest access records past their expires_at date
+    "auto-revoke-expired-guests": {
+        "task": "auto_revoke_expired_guests",
+        "schedule": crontab(hour=2, minute=0),  # 2am daily
+    },
+    # Scheduled report delivery — templates with scheduled_delivery.enabled=true
+    "send-scheduled-reports": {
+        "task": "send_scheduled_reports",
+        "schedule": crontab(hour=8, minute=0),  # 8am daily
     },
 }

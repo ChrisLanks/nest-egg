@@ -4,6 +4,17 @@
 
 import api from "../services/api";
 
+export interface AllocationHistoryPoint {
+  snapshot_date: string;
+  total_value: number;
+  stocks_pct: number;
+  bonds_pct: number;
+  etf_pct: number;
+  mutual_funds_pct: number;
+  cash_pct: number;
+  other_pct: number;
+}
+
 export interface StyleBoxItem {
   style_class: string;
   percentage: number;
@@ -59,4 +70,17 @@ export const holdingsApi = {
   deleteHolding: async (holdingId: string): Promise<void> => {
     await api.delete(`/holdings/${holdingId}`);
   },
+
+  /**
+   * Get portfolio allocation percentages over time (for the history chart)
+   */
+  getAllocationHistory: (
+    months: number = 12,
+    userId?: string,
+  ): Promise<AllocationHistoryPoint[]> =>
+    api
+      .get("/holdings/portfolio/allocation-history", {
+        params: { months, ...(userId ? { user_id: userId } : {}) },
+      })
+      .then((r) => r.data as AllocationHistoryPoint[]),
 };

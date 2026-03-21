@@ -161,6 +161,11 @@ class TaxProjectionResponse(BaseModel):
     total_tax_before_credits: float
     effective_rate: float
     marginal_rate: float
+    state: Optional[str] = None
+    state_tax: float = 0.0
+    state_tax_rate: float = 0.0
+    combined_tax: float = 0.0
+    combined_effective_rate: float = 0.0
     quarterly_payments: List[QuarterlyPaymentResponse]
     total_quarterly_due: float
     prior_year_tax: Optional[float] = None
@@ -393,6 +398,7 @@ async def get_tax_projection(
         0.0, ge=0, description="Extra itemised deductions (mortgage interest, charitable, etc.)"
     ),
     prior_year_tax: Optional[float] = Query(None, ge=0),
+    state: Optional[str] = Query(None, max_length=2, description="Two-letter state abbreviation for state income tax estimate (e.g. 'CA', 'TX')"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TaxProjectionResponse:
@@ -415,6 +421,7 @@ async def get_tax_projection(
         estimated_capital_gains=estimated_capital_gains,
         additional_deductions=additional_deductions,
         prior_year_tax=prior_year_tax,
+        state=state,
     )
 
     return TaxProjectionResponse(
@@ -435,6 +442,11 @@ async def get_tax_projection(
         total_tax_before_credits=result.total_tax_before_credits,
         effective_rate=result.effective_rate,
         marginal_rate=result.marginal_rate,
+        state=result.state,
+        state_tax=result.state_tax,
+        state_tax_rate=result.state_tax_rate,
+        combined_tax=result.combined_tax,
+        combined_effective_rate=result.combined_effective_rate,
         quarterly_payments=[QuarterlyPaymentResponse(**vars(q)) for q in result.quarterly_payments],
         total_quarterly_due=result.total_quarterly_due,
         prior_year_tax=result.prior_year_tax,

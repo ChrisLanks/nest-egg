@@ -2439,3 +2439,65 @@ async def get_fund_overlap(
 
     await cache_setex(cache_key, result, 300)
     return result
+
+
+@router.get("/portfolio/allocation-history")
+async def get_allocation_history(
+    months: int = Query(12, ge=1, le=60),
+    user_id: Optional[UUID] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return portfolio allocation percentages over time.
+    Used for the allocation history chart.
+    """
+    start_date = date.today() - timedelta(days=months * 30)
+    end_date = date.today()
+
+    # If user_id provided, verify they belong to the same household
+    if user_id is not None:
+        await verify_household_member(
+            user_id=user_id,
+            organization_id=current_user.organization_id,
+            db=db,
+        )
+
+    snapshots = await snapshot_service.get_snapshots(
+        db=db,
+        organization_id=current_user.organization_id,
+        start_date=start_date,
+        end_date=end_date,
+        user_id=user_id,
+    )
+
+    if not snapshots:
+        return []
+
+    result = []
+    for snap in snapshots:
+        total = float(snap.total_value) if snap.total_value else 0.0
+        if total > 0:
+            stocks_pct = float(snap.stocks_value or 0) / total * 100
+            bonds_pct = float(snap.bonds_value or 0) / total * 100
+            etf_pct = float(snap.etf_value or 0) / total * 100
+            mutual_funds_pct = float(snap.mutual_funds_value or 0) / total * 100
+            cash_pct = float(snap.cash_value or 0) / total * 100
+            other_pct = float(snap.other_value or 0) / total * 100
+        else:
+            stocks_pct = bonds_pct = etf_pct = mutual_funds_pct = cash_pct = other_pct = 0.0
+
+        result.append(
+            {
+                "snapshot_date": snap.snapshot_date.isoformat(),
+                "total_value": total,
+                "stocks_pct": round(stocks_pct, 4),
+                "bonds_pct": round(bonds_pct, 4),
+                "etf_pct": round(etf_pct, 4),
+                "mutual_funds_pct": round(mutual_funds_pct, 4),
+                "cash_pct": round(cash_pct, 4),
+                "other_pct": round(other_pct, 4),
+            }
+        )
+
+    return result

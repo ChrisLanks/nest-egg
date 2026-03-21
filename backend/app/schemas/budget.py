@@ -73,3 +73,5 @@ class BudgetSpendingResponse(BaseModel):
     percentage: Decimal
     period_start: date
     period_end: date
+    rollover_amount: Decimal = Decimal("0.00")
+    effective_budget: Optional[Decimal] = None

@@ -206,6 +206,7 @@ class HouseholdInvitation(Base):
     expires_at = Column(DateTime, nullable=False)
     accepted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    access_expires_days = Column(Integer, nullable=True)  # Optional days until guest access expires
 
     # Relationships
     organization = relationship("Organization")
@@ -391,6 +392,7 @@ class HouseholdGuest(Base):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    expires_at = Column(DateTime, nullable=True)  # Optional auto-revoke date
 
     __table_args__ = (
         UniqueConstraint("user_id", "organization_id", name="uq_guest_user_org"),
@@ -402,6 +404,11 @@ class HouseholdGuest(Base):
     organization = relationship("Organization")
     invited_by = relationship("User", foreign_keys=[invited_by_id])
     revoked_by = relationship("User", foreign_keys=[revoked_by_id])
+
+    @property
+    def is_expired(self) -> bool:
+        from app.utils.datetime_utils import utc_now
+        return self.expires_at is not None and utc_now() > self.expires_at
 
     def __repr__(self):
         return f"<HouseholdGuest user={self.user_id} org={self.organization_id} role={self.role}>"
@@ -439,6 +446,7 @@ class HouseholdGuestInvitation(Base):
     expires_at = Column(DateTime, nullable=False)
     accepted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
+    access_expires_days = Column(Integer, nullable=True)  # Days until guest access auto-revokes after accepting
 
     __table_args__ = (
         Index("ix_guest_invitation_email_org_status", "email", "organization_id", "status"),

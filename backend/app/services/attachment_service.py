@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.attachment import TransactionAttachment
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.services.ocr_service import ocr_service
 from app.services.storage_service import StorageService
 
 # Validation constants
@@ -144,6 +145,17 @@ async def upload_attachment(
 
     await storage.save(storage_key, data, content_type=content_type)
 
+    # Best-effort OCR — never blocks upload
+    ocr_status = None
+    ocr_data = None
+    try:
+        ocr_result = ocr_service.extract_from_image(data, content_type)
+        ocr_status = "completed" if ocr_result.get("raw_text") else "skipped"
+        ocr_data = ocr_result
+    except Exception:
+        ocr_status = "failed"
+        ocr_data = None
+
     # Create DB record
     attachment = TransactionAttachment(
         organization_id=txn.organization_id,
@@ -154,6 +166,8 @@ async def upload_attachment(
         storage_key=storage_key,
         content_type=content_type,
         file_size=len(data),
+        ocr_status=ocr_status,
+        ocr_data=ocr_data,
     )
     db.add(attachment)
     await db.commit()

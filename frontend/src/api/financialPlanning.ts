@@ -151,6 +151,11 @@ export interface TaxProjectionResponse {
   total_tax_before_credits: number;
   effective_rate: number;
   marginal_rate: number;
+  state: string | null;
+  state_tax: number;
+  state_tax_rate: number;
+  combined_tax: number;
+  combined_effective_rate: number;
   quarterly_payments: QuarterlyPayment[];
   total_quarterly_due: number;
   prior_year_tax: number | null;
@@ -167,6 +172,7 @@ export interface TaxProjectionParams {
   estimated_capital_gains?: number;
   additional_deductions?: number;
   prior_year_tax?: number;
+  state?: string;
 }
 
 // ── API client ────────────────────────────────────────────────────────────

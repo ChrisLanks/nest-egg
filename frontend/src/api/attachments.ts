@@ -4,6 +4,14 @@
 
 import api from "../services/api";
 
+export interface OcrData {
+  merchant: string | null;
+  amount: string | null;
+  date: string | null;
+  raw_text: string | null;
+  confidence: number;
+}
+
 export interface Attachment {
   id: string;
   transaction_id: string;
@@ -12,6 +20,8 @@ export interface Attachment {
   content_type: string;
   file_size: number;
   created_at: string;
+  ocr_status?: string | null;
+  ocr_data?: OcrData | null;
 }
 
 export const attachmentsApi = {

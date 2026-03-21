@@ -220,6 +220,21 @@ async def delete_budget(
         raise HTTPException(status_code=404, detail="Budget not found")
 
 
+@router.get("/{budget_id}/variance")
+async def get_budget_variance(
+    budget_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get per-merchant spending breakdown for a budget in the current period."""
+    breakdown = await budget_service.get_budget_variance_breakdown(
+        db=db, budget_id=budget_id, user=current_user
+    )
+    if breakdown is None:
+        raise HTTPException(status_code=404, detail="Budget not found")
+    return breakdown
+
+
 @router.get("/{budget_id}/spending", response_model=BudgetSpendingResponse)
 async def get_budget_spending(
     budget_id: UUID,

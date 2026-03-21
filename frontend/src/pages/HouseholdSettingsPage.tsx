@@ -159,6 +159,7 @@ export const HouseholdSettingsPage: React.FC = () => {
   const [guestRole, setGuestRole] = useState<"viewer" | "advisor">("viewer");
   const [guestLabel, setGuestLabel] = useState("");
   const [guestEmailError, setGuestEmailError] = useState("");
+  const [guestExpiresDays, setGuestExpiresDays] = useState<string>("");
   const { user, logout } = useAuthStore();
   const [monthlyStartDay, setMonthlyStartDay] = useState(1);
   // Reusable confirmation dialog state
@@ -444,6 +445,7 @@ export const HouseholdSettingsPage: React.FC = () => {
       setGuestEmail("");
       setGuestRole("viewer");
       setGuestLabel("");
+      setGuestExpiresDays("");
       onGuestInviteClose();
       queryClient.invalidateQueries({
         queryKey: ["guest-access-invitations"],
@@ -512,6 +514,7 @@ export const HouseholdSettingsPage: React.FC = () => {
       email: guestEmail,
       role: guestRole,
       label: guestLabel || undefined,
+      access_expires_days: guestExpiresDays ? parseInt(guestExpiresDays, 10) : undefined,
     });
   };
 
@@ -852,49 +855,72 @@ export const HouseholdSettingsPage: React.FC = () => {
                           <Th>Role</Th>
                           <Th>Label</Th>
                           <Th>Since</Th>
+                          <Th>Expires</Th>
                           <Th></Th>
                         </Tr>
                       </Thead>
                       <Tbody>
-                        {guestRecords.map((guest) => (
-                          <Tr key={guest.id}>
-                            <Td>{guest.user_email}</Td>
-                            <Td>
-                              <Badge
-                                colorScheme={
-                                  guest.role === "advisor" ? "purple" : "gray"
-                                }
-                              >
-                                {guest.role}
-                              </Badge>
-                            </Td>
-                            <Td fontSize="sm" color="text.secondary">
-                              {guest.label || "—"}
-                            </Td>
-                            <Td fontSize="sm">
-                              {formatDate(guest.created_at)}
-                            </Td>
-                            <Td textAlign="right">
-                              <Button
-                                size="xs"
-                                colorScheme="red"
-                                variant="ghost"
-                                onClick={() =>
-                                  openConfirmDialog({
-                                    title: "Revoke Guest Access?",
-                                    body: `${guest.user_email} will immediately lose access to your household data.`,
-                                    confirmLabel: "Revoke Access",
-                                    colorScheme: "red",
-                                    onConfirm: () =>
-                                      revokeGuestMutation.mutate(guest.id),
-                                  })
-                                }
-                              >
-                                Revoke
-                              </Button>
-                            </Td>
-                          </Tr>
-                        ))}
+                        {guestRecords.map((guest) => {
+                          const expiresAt = guest.expires_at ? new Date(guest.expires_at) : null;
+                          const daysUntilExpiry = expiresAt
+                            ? Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                            : null;
+                          const expiresImminently =
+                            daysUntilExpiry !== null && daysUntilExpiry <= 14 && daysUntilExpiry > 0;
+                          return (
+                            <Tr key={guest.id}>
+                              <Td>{guest.user_email}</Td>
+                              <Td>
+                                <Badge
+                                  colorScheme={
+                                    guest.role === "advisor" ? "purple" : "gray"
+                                  }
+                                >
+                                  {guest.role}
+                                </Badge>
+                              </Td>
+                              <Td fontSize="sm" color="text.secondary">
+                                {guest.label || "—"}
+                              </Td>
+                              <Td fontSize="sm">
+                                {formatDate(guest.created_at)}
+                              </Td>
+                              <Td fontSize="sm">
+                                {expiresAt ? (
+                                  <VStack spacing={0.5} align="start">
+                                    <Text>{formatDate(guest.expires_at!)}</Text>
+                                    {expiresImminently && (
+                                      <Badge colorScheme="orange" fontSize="xs">
+                                        Expires in {daysUntilExpiry}d
+                                      </Badge>
+                                    )}
+                                  </VStack>
+                                ) : (
+                                  <Text color="text.secondary">Never</Text>
+                                )}
+                              </Td>
+                              <Td textAlign="right">
+                                <Button
+                                  size="xs"
+                                  colorScheme="red"
+                                  variant="ghost"
+                                  onClick={() =>
+                                    openConfirmDialog({
+                                      title: "Revoke Guest Access?",
+                                      body: `${guest.user_email} will immediately lose access to your household data.`,
+                                      confirmLabel: "Revoke Access",
+                                      colorScheme: "red",
+                                      onConfirm: () =>
+                                        revokeGuestMutation.mutate(guest.id),
+                                    })
+                                  }
+                                >
+                                  Revoke
+                                </Button>
+                              </Td>
+                            </Tr>
+                          );
+                        })}
                       </Tbody>
                     </Table>
                   </Box>
@@ -1180,6 +1206,22 @@ export const HouseholdSettingsPage: React.FC = () => {
                 />
                 <FormHelperText>
                   A display name to help you remember who this guest is.
+                </FormHelperText>
+              </FormControl>
+              <FormControl>
+                <FormLabel>Access Duration</FormLabel>
+                <Select
+                  value={guestExpiresDays}
+                  onChange={(e) => setGuestExpiresDays(e.target.value)}
+                >
+                  <option value="">No expiry</option>
+                  <option value="30">30 days</option>
+                  <option value="60">60 days</option>
+                  <option value="90">90 days</option>
+                  <option value="365">1 year</option>
+                </Select>
+                <FormHelperText>
+                  Guest access will be automatically revoked after this period.
                 </FormHelperText>
               </FormControl>
               <Alert status="info" borderRadius="md">

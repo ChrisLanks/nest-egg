@@ -131,3 +131,79 @@ async def get_debt_summary(
         "average_interest_rate": float(avg_rate),
         "debt_count": len(debts),
     }
+
+
+@router.get("/debts/{account_id}/amortization")
+async def get_loan_amortization(
+    account_id: UUID,
+    extra_payment: Decimal = Query(Decimal("0"), ge=0),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Calculate amortization schedule for a loan account (up to 24 months shown).
+    Returns monthly payment breakdown: principal, interest, remaining balance.
+    """
+    from datetime import date as date_type
+    from dateutil.relativedelta import relativedelta
+    from sqlalchemy import select
+    from app.models.account import Account
+
+    result = await db.execute(
+        select(Account).where(
+            Account.id == account_id,
+            Account.organization_id == current_user.organization_id,
+        )
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    if not account.interest_rate or account.interest_rate <= 0:
+        raise HTTPException(status_code=400, detail="Account has no interest rate set")
+    if not account.minimum_payment or account.minimum_payment <= 0:
+        raise HTTPException(status_code=400, detail="Account has no minimum payment set")
+
+    balance = abs(float(account.current_balance or 0))
+    annual_rate = float(account.interest_rate) / 100
+    monthly_rate = annual_rate / 12
+    monthly_payment = float(account.minimum_payment) + float(extra_payment)
+
+    if monthly_rate > 0 and monthly_payment <= balance * monthly_rate:
+        raise HTTPException(status_code=400, detail="Monthly payment too small to cover interest")
+
+    schedule = []
+    total_interest = 0.0
+    total_paid = 0.0
+    current_balance = balance
+    current_date = date_type.today()
+    MAX_MONTHS = 360
+
+    for month in range(1, MAX_MONTHS + 1):
+        if current_balance <= 0.005:
+            break
+        interest = current_balance * monthly_rate if monthly_rate > 0 else 0.0
+        payment = min(monthly_payment, current_balance + interest)
+        principal = payment - interest
+        current_balance = max(0.0, current_balance - principal)
+        total_interest += interest
+        total_paid += payment
+        payment_date = current_date + relativedelta(months=month)
+
+        schedule.append({
+            "month": month,
+            "date": payment_date.isoformat(),
+            "payment": round(payment, 2),
+            "principal": round(principal, 2),
+            "interest": round(interest, 2),
+            "balance": round(current_balance, 2),
+        })
+
+    return {
+        "schedule": schedule[:24],  # Return first 24 months in response
+        "total_months": len(schedule),
+        "total_interest": round(total_interest, 2),
+        "total_paid": round(total_paid, 2),
+        "monthly_payment": round(monthly_payment, 2),
+        "payoff_date": schedule[-1]["date"] if schedule else None,
+    }

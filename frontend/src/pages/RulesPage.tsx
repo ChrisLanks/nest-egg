@@ -27,8 +27,15 @@ import {
   AlertDialogHeader,
   AlertDialogContent,
   AlertDialogOverlay,
+  Input,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
 } from "@chakra-ui/react";
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   DeleteIcon,
@@ -75,6 +82,10 @@ export const RulesPage = () => {
   const [isRuleBuilderOpen, setIsRuleBuilderOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<Rule | null>(null);
   const [expandedRule, setExpandedRule] = useState<string | null>(null);
+  const [merchantAliases, setMerchantAliases] = useState<
+    Record<string, string>
+  >({});
+  const [showMerchantAliases, setShowMerchantAliases] = useState(false);
   const toast = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -223,6 +234,57 @@ export const RulesPage = () => {
 
   const toggleExpanded = (ruleId: string) => {
     setExpandedRule(expandedRule === ruleId ? null : ruleId);
+  };
+
+  // Fetch distinct merchants for the alias section
+  const { data: merchantList } = useQuery({
+    queryKey: ["merchants"],
+    queryFn: async () => {
+      const response = await api.get<
+        Array<{ merchant_name: string; transaction_count: number }>
+      >("/transactions/merchants");
+      return response.data;
+    },
+    enabled: showMerchantAliases,
+  });
+
+  // Pre-populate alias inputs from existing SET_MERCHANT rules
+  useEffect(() => {
+    if (!rules) return;
+    const initialAliases: Record<string, string> = {};
+    rules.forEach((rule) => {
+      if (rule.actions?.[0]?.action_type === "set_merchant") {
+        const cond = rule.conditions?.[0];
+        if (cond?.field === "merchant_name" && cond?.operator === "equals") {
+          initialAliases[cond.value] = rule.actions[0].action_value ?? "";
+        }
+      }
+    });
+    setMerchantAliases((prev) => ({ ...initialAliases, ...prev }));
+  }, [rules]);
+
+  const saveMerchantAlias = async (rawName: string, displayName: string) => {
+    if (!displayName.trim() || displayName === rawName) return;
+    try {
+      await api.post("/rules", {
+        name: `Alias: ${rawName}`,
+        is_active: true,
+        conditions: [
+          { field: "merchant_name", operator: "equals", value: rawName },
+        ],
+        actions: [
+          { action_type: "set_merchant", action_value: displayName.trim() },
+        ],
+      });
+      queryClient.invalidateQueries({ queryKey: ["rules"] });
+      toast({
+        title: "Merchant alias saved",
+        status: "success",
+        duration: 2000,
+      });
+    } catch {
+      toast({ title: "Failed to save alias", status: "error", duration: 3000 });
+    }
   };
 
   const formatDate = (dateStr: string) => {
@@ -537,6 +599,88 @@ export const RulesPage = () => {
             })}
           </VStack>
         )}
+
+        {/* Merchant Aliases section */}
+        <Card variant="outline">
+          <CardBody>
+            <HStack justify="space-between" mb={2}>
+              <Heading size="sm">Merchant Aliases</Heading>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowMerchantAliases(!showMerchantAliases)}
+                rightIcon={
+                  showMerchantAliases ? (
+                    <ChevronUpIcon />
+                  ) : (
+                    <ChevronDownIcon />
+                  )
+                }
+              >
+                {showMerchantAliases ? "Hide" : "Show"}
+              </Button>
+            </HStack>
+            <Text fontSize="sm" color="text.secondary" mb={2}>
+              Set display names for raw merchant names from your transactions.
+            </Text>
+            <Collapse in={showMerchantAliases}>
+              {merchantList && merchantList.length > 0 ? (
+                <Table size="sm" variant="simple">
+                  <Thead>
+                    <Tr>
+                      <Th>Raw Name</Th>
+                      <Th># Txns</Th>
+                      <Th>Display Name</Th>
+                      <Th />
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {merchantList.slice(0, 50).map((m) => (
+                      <Tr key={m.merchant_name}>
+                        <Td fontSize="sm">{m.merchant_name}</Td>
+                        <Td fontSize="sm" isNumeric>
+                          {m.transaction_count}
+                        </Td>
+                        <Td>
+                          <Input
+                            size="sm"
+                            placeholder={m.merchant_name}
+                            value={merchantAliases[m.merchant_name] ?? ""}
+                            onChange={(e) =>
+                              setMerchantAliases((prev) => ({
+                                ...prev,
+                                [m.merchant_name]: e.target.value,
+                              }))
+                            }
+                          />
+                        </Td>
+                        <Td>
+                          <Button
+                            size="xs"
+                            colorScheme="brand"
+                            isDisabled={!canEdit}
+                            onClick={() =>
+                              saveMerchantAlias(
+                                m.merchant_name,
+                                merchantAliases[m.merchant_name] ?? ""
+                              )
+                            }
+                          >
+                            Save
+                          </Button>
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              ) : (
+                <Text fontSize="sm" color="text.secondary">
+                  {merchantList ? "No merchants found." : "Loading…"}
+                </Text>
+              )}
+            </Collapse>
+          </CardBody>
+        </Card>
 
         <RuleBuilderModal
           isOpen={isRuleBuilderOpen}

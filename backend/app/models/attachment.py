@@ -3,7 +3,7 @@
 import uuid
 
 from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -41,6 +41,10 @@ class TransactionAttachment(Base):
     storage_key = Column(String(500), nullable=False)  # path in S3 or local
     content_type = Column(String(100), nullable=False)
     file_size = Column(Integer, nullable=False)
+
+    # OCR extraction results (best-effort, never blocks upload)
+    ocr_status = Column(String(20), nullable=True)  # "pending", "completed", "failed", "skipped"
+    ocr_data = Column(JSON, nullable=True)  # extracted: {merchant, amount, date, raw_text}
 
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)

@@ -104,6 +104,10 @@ export const TaxProjectionPage = () => {
     "tax-prior-year-tax",
     "",
   );
+  const [selectedState, setSelectedState] = useLocalStorage(
+    "tax-state",
+    "",
+  );
 
   const params: TaxProjectionParams = {
     user_id: selectedUserId || undefined,
@@ -118,6 +122,7 @@ export const TaxProjectionPage = () => {
       ? parseFloat(additionalDeductions)
       : undefined,
     prior_year_tax: priorYearTax ? parseFloat(priorYearTax) : undefined,
+    state: selectedState || undefined,
   };
 
   const { data, isLoading, isError } = useQuery({
@@ -221,6 +226,70 @@ export const TaxProjectionPage = () => {
                     onChange={(e) => setPriorYearTax(e.target.value)}
                   />
                 </InputGroup>
+              </FormControl>
+              <FormControl>
+                <FormLabel fontSize="xs">
+                  State
+                  <InfoTip label="Select your state to include a state income tax estimate alongside the federal estimate. Uses simplified effective rates at ~$75k AGI. No-income-tax states (FL, TX, WA, etc.) show $0." />
+                </FormLabel>
+                <Select
+                  size="sm"
+                  value={selectedState}
+                  onChange={(e) => setSelectedState(e.target.value)}
+                  placeholder="None (federal only)"
+                >
+                  <option value="AL">Alabama</option>
+                  <option value="AK">Alaska (no income tax)</option>
+                  <option value="AZ">Arizona</option>
+                  <option value="AR">Arkansas</option>
+                  <option value="CA">California</option>
+                  <option value="CO">Colorado</option>
+                  <option value="CT">Connecticut</option>
+                  <option value="DE">Delaware</option>
+                  <option value="DC">Washington D.C.</option>
+                  <option value="FL">Florida (no income tax)</option>
+                  <option value="GA">Georgia</option>
+                  <option value="HI">Hawaii</option>
+                  <option value="ID">Idaho</option>
+                  <option value="IL">Illinois</option>
+                  <option value="IN">Indiana</option>
+                  <option value="IA">Iowa</option>
+                  <option value="KS">Kansas</option>
+                  <option value="KY">Kentucky</option>
+                  <option value="LA">Louisiana</option>
+                  <option value="ME">Maine</option>
+                  <option value="MD">Maryland</option>
+                  <option value="MA">Massachusetts</option>
+                  <option value="MI">Michigan</option>
+                  <option value="MN">Minnesota</option>
+                  <option value="MS">Mississippi</option>
+                  <option value="MO">Missouri</option>
+                  <option value="MT">Montana</option>
+                  <option value="NE">Nebraska</option>
+                  <option value="NV">Nevada (no income tax)</option>
+                  <option value="NH">New Hampshire (no income tax)</option>
+                  <option value="NJ">New Jersey</option>
+                  <option value="NM">New Mexico</option>
+                  <option value="NY">New York</option>
+                  <option value="NC">North Carolina</option>
+                  <option value="ND">North Dakota</option>
+                  <option value="OH">Ohio</option>
+                  <option value="OK">Oklahoma</option>
+                  <option value="OR">Oregon</option>
+                  <option value="PA">Pennsylvania</option>
+                  <option value="RI">Rhode Island</option>
+                  <option value="SC">South Carolina</option>
+                  <option value="SD">South Dakota (no income tax)</option>
+                  <option value="TN">Tennessee (no income tax)</option>
+                  <option value="TX">Texas (no income tax)</option>
+                  <option value="UT">Utah</option>
+                  <option value="VT">Vermont</option>
+                  <option value="VA">Virginia</option>
+                  <option value="WA">Washington (no income tax)</option>
+                  <option value="WV">West Virginia</option>
+                  <option value="WI">Wisconsin</option>
+                  <option value="WY">Wyoming (no income tax)</option>
+                </Select>
               </FormControl>
             </SimpleGrid>
           </CardBody>
@@ -423,6 +492,37 @@ export const TaxProjectionPage = () => {
                         {fmt(data.total_tax_before_credits)}
                       </Text>
                     </HStack>
+                    {data.state && (
+                      <>
+                        <HStack justify="space-between" w="full">
+                          <Text color="text.secondary">
+                            State Tax ({data.state})
+                            <InfoTip label={`Simplified state income tax estimate for ${data.state} using an effective rate of ${(data.state_tax_rate * 100).toFixed(2)}% applied to taxable income. Approximate only — does not account for state-specific deductions or credits.`} />
+                          </Text>
+                          <Text color="red.500">
+                            {fmt(data.state_tax)}
+                          </Text>
+                        </HStack>
+                        <Divider />
+                        <HStack justify="space-between" w="full">
+                          <Text fontWeight="semibold">
+                            Combined Total
+                            <InfoTip label="Federal + state income tax combined. This is the total estimated tax burden across both levels." />
+                          </Text>
+                          <Text fontWeight="bold" color="red.600" fontSize="md">
+                            {fmt(data.combined_tax)}
+                          </Text>
+                        </HStack>
+                        <HStack justify="space-between" w="full">
+                          <Text color="text.secondary" fontSize="xs">
+                            Combined effective rate
+                          </Text>
+                          <Text fontSize="xs" color="text.secondary">
+                            {fmtPct(data.combined_effective_rate)}
+                          </Text>
+                        </HStack>
+                      </>
+                    )}
                   </VStack>
                 </CardBody>
               </Card>

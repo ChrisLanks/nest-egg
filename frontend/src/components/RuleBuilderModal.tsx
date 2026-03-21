@@ -26,6 +26,14 @@ import {
   RadioGroup,
   Stack,
   useToast,
+  Collapse,
+  Badge,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
 } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
 import { AddIcon, DeleteIcon } from '@chakra-ui/icons';
@@ -89,6 +97,8 @@ export const RuleBuilderModal = ({
   const [applyTo, setApplyTo] = useState<RuleApplyTo>(RuleApplyTo.NEW_ONLY);
   const [conditions, setConditions] = useState<RuleCondition[]>([]);
   const [actions, setActions] = useState<RuleAction[]>([]);
+  const [previewResult, setPreviewResult] = useState<any>(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
 
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -194,7 +204,42 @@ export const RuleBuilderModal = ({
     setApplyTo(RuleApplyTo.NEW_ONLY);
     setConditions([]);
     setActions([]);
+    setPreviewResult(null);
     onClose();
+  };
+
+  const handlePreview = async () => {
+    if (conditions.length === 0) {
+      toast({
+        title: 'Add at least one condition to preview',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+    const ruleData = {
+      name: name || 'Preview',
+      description: description || undefined,
+      match_type: matchType,
+      apply_to: applyTo,
+      priority: rule?.priority ?? 0,
+      is_active: rule?.is_active ?? true,
+      conditions,
+      actions,
+    };
+    setIsPreviewing(true);
+    try {
+      const response = await api.post('/rules/test', ruleData);
+      setPreviewResult(response.data);
+    } catch {
+      toast({
+        title: 'Preview failed',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setIsPreviewing(false);
+    }
   };
 
   const addCondition = () => {
@@ -544,12 +589,71 @@ export const RuleBuilderModal = ({
                 </option>
               </Select>
             </FormControl>
+
+            {/* Preview results */}
+            <Collapse in={!!previewResult} animateOpacity>
+              {previewResult && (
+                <Box borderWidth={1} borderRadius="md" p={4} bg="bg.subtle">
+                  <HStack mb={3} spacing={3}>
+                    <Text fontWeight="semibold" fontSize="sm">Preview Results</Text>
+                    <Badge
+                      colorScheme={previewResult.matching_count > 0 ? 'green' : 'gray'}
+                    >
+                      {previewResult.matching_count} match{previewResult.matching_count !== 1 ? 'es' : ''}
+                    </Badge>
+                    <Text fontSize="xs" color="text.muted">
+                      of {previewResult.total_tested} transactions tested
+                    </Text>
+                  </HStack>
+                  {previewResult.matching_count === 0 ? (
+                    <Text fontSize="sm" color="text.muted">
+                      No transactions match these conditions.
+                    </Text>
+                  ) : (
+                    <Table size="sm" variant="simple">
+                      <Thead>
+                        <Tr>
+                          <Th>Date</Th>
+                          <Th>Merchant</Th>
+                          <Th isNumeric>Amount</Th>
+                          <Th>Change</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {(previewResult.matching_transactions || []).slice(0, 5).map((txn: any) => (
+                          <Tr key={txn.id}>
+                            <Td>{txn.date}</Td>
+                            <Td>{txn.merchant}</Td>
+                            <Td isNumeric>${Math.abs(txn.amount).toFixed(2)}</Td>
+                            <Td>
+                              {(txn.changes || []).map((c: any, i: number) => (
+                                <Text key={i} fontSize="xs">
+                                  {c.field}: {c.from} → {c.to}
+                                </Text>
+                              ))}
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  )}
+                </Box>
+              )}
+            </Collapse>
           </VStack>
         </ModalBody>
 
         <ModalFooter>
           <Button variant="ghost" mr={3} onClick={handleClose}>
             Cancel
+          </Button>
+          <Button
+            colorScheme="gray"
+            mr={3}
+            onClick={handlePreview}
+            isLoading={isPreviewing}
+          >
+            Preview matches
           </Button>
           <Button
             colorScheme="brand"
