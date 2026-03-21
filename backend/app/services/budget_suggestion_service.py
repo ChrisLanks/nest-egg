@@ -105,17 +105,20 @@ class BudgetSuggestionService:
         if not account_ids:
             return []
 
-        # Get existing budget category IDs to exclude
+        # Get existing active budgets to exclude — both UUID-based and name-based
         budget_result = await db.execute(
-            select(Budget.category_id).where(
+            select(Budget.category_id, Budget.name).where(
                 and_(
                     Budget.organization_id == user.organization_id,
                     Budget.is_active.is_(True),
-                    Budget.category_id.isnot(None),
                 )
             )
         )
-        existing_category_ids = {row[0] for row in budget_result.all()}
+        existing_budgets = budget_result.all()
+        existing_category_ids = {row[0] for row in existing_budgets if row[0] is not None}
+        # Also track budget names (lower) so provider categories with an existing
+        # same-named budget are excluded (budgets with no category_id)
+        existing_budget_names_lower = {row[1].lower() for row in existing_budgets if row[1]}
 
         # Aggregate spending by category (custom categories)
         custom_cat_query = (
@@ -193,6 +196,12 @@ class BudgetSuggestionService:
         for row in provider_results:
             cat_name, total, txn_count, first_date, last_date = row
             if cat_name in seen_names:
+                continue
+            # Exclude if an active budget with this name already exists
+            if cat_name.lower() in existing_budget_names_lower:
+                continue
+            # Also check titlecased form (service returns title() to frontend)
+            if cat_name.title().lower() in existing_budget_names_lower:
                 continue
             seen_names.add(cat_name)
             candidates.append(

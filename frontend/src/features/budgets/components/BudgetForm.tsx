@@ -204,8 +204,19 @@ export default function BudgetForm({
 
   // The current select value: UUID for custom categories, "provider::Name" for provider categories
   const watchedCategoryId = watch("category_id");
-  const categorySelectValue = providerCategoryName
-    ? `provider::${providerCategoryName}`
+
+  // When a provider category name is pre-filled from a suggestion, resolve it
+  // against allCategories to get the exact name as it appears in the dropdown
+  // (case-insensitive match, since the suggestion service titlecases names but
+  //  the DB may store them differently e.g. "food and drink" vs "Food And Drink")
+  const resolvedProviderName = providerCategoryName
+    ? (allCategories.find(
+        (c) => !c.id && c.name.toLowerCase() === providerCategoryName.toLowerCase()
+      )?.name ?? providerCategoryName)
+    : null;
+
+  const categorySelectValue = resolvedProviderName
+    ? `provider::${resolvedProviderName}`
     : (watchedCategoryId ?? "");
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
