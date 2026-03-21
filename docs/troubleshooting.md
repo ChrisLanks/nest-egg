@@ -234,6 +234,23 @@ cd backend && python scripts/reset_test_password.py   # resets test@test.com to 
 
 ## Known Issues
 
+### Budget Suggestions Show "Scanning" or Empty State
+
+**Symptom**: The Budget Suggestions panel shows a scanning/loading state or no suggestions after first visiting the Budgets page.
+
+Budget suggestions are computed by a background Celery job that scans your transaction history. On first visit (or after a cache flush) the job has not run yet, so the UI shows a scanning or empty state while it queues and executes.
+
+- Suggestions typically appear within a few minutes once the Celery worker processes the task
+- Verify the worker is running: `docker compose logs celery-worker`
+- If it never resolves, check that Redis is reachable: `docker compose exec redis redis-cli ping`
+- You can manually trigger the task: `celery -A app.workers.celery_app call compute_budget_suggestions`
+
+### "Welcome" vs "Welcome Back" Greeting
+
+**Symptom**: A user always sees "Welcome back" even on their very first login, or always sees "Welcome" on repeat logins.
+
+The greeting is driven by the `login_count` field on the user record. `"Welcome, [Name]!"` is shown when `login_count == 1`; `"Welcome back, [Name]!"` is shown for all subsequent logins. If the count is incorrect, check whether `login_count` was incremented by the auth flow (see `backend/app/api/v1/auth.py`) and whether the migration `add_login_count` has been applied (`alembic current`).
+
 ### First Portfolio Snapshot Takes 24 Hours
 
 The smart snapshot scheduler distributes organizations across 24 hours. Your first snapshot may not appear immediately. Manual override: `POST /api/v1/holdings/capture-snapshot`.

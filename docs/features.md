@@ -89,6 +89,8 @@ Comprehensive 11-tab portfolio analysis with **multi-provider** market data:
 - **Budget Tracking**: Real-time spending vs budget with progress bars
 - **User-Specific**: Create budgets for household members or combined
 - **Shared Budgets**: Share budgets with specific household members or the entire household
+- **Budget End Date**: Budgets can have an optional expiry date; the budget card shows a date badge when one is set
+- **Budget Suggestions**: Auto-scanned from your transaction history via a background Celery job — not hardcoded templates. Suggestions appear within a few minutes on first visit while the job runs. The UI shows a "scanning" / empty state until results are ready.
 
 ## Per-User Historical Snapshots
 
@@ -238,6 +240,17 @@ Drop-in support for external identity providers alongside the built-in JWT syste
   - Preserves all transactions, holdings, and contributions
   - Full migration audit log with history viewer
   - Reversible — migrate back to a linked provider later
+
+## Account Settings
+
+Per-account configuration available from the account detail page:
+
+- **Include in Net Worth**: Toggle whether an account's balance is counted in the net worth calculation. Useful for excluding accounts you want to track but not include in your overall picture (e.g., a custodial account or a dormant account).
+
+## Login Count & First-Login Greeting
+
+- **Login count tracking**: The `login_count` field on the user record is incremented on each successful login
+- **Welcome greeting**: The dashboard greeting says "Welcome, [Name]!" on the very first login (`login_count == 1`) and "Welcome back, [Name]!" on all subsequent logins
 
 ## Predictive Features
 
@@ -437,6 +450,15 @@ Add context to transactions and streamline household review:
 - **Flagged for Review**: Mark transactions for household member attention
 - **Review Workflow**: Flagged transactions appear in a dedicated filter for easy triage
 - **Household Collaboration**: One member flags, another reviews — visible in combined view
+
+## Transaction Splits
+
+Split a single transaction across multiple categories or amounts from the transaction detail modal:
+
+- **Split by Category**: Divide one transaction into two or more line items, each with its own category and amount
+- **Split by Amount**: Assign specific dollar amounts to each split; the UI enforces that splits sum to the original transaction total
+- **Accessible from Detail Modal**: Open any transaction to add, edit, or remove splits inline
+- **Reporting Integration**: Splits are respected in budget tracking and cash flow analytics — each portion counts toward its assigned category
 
 ## Investment Fee Analyzer
 
@@ -673,6 +695,7 @@ live account data. Accessible at `GET /api/v1/smart-insights` and under
 - **Stock Concentration**: Warns when a single equity position exceeds a healthy portfolio percentage
 - **LTCG Harvesting**: Suggests realising long-term gains in the 0% LTCG bracket when income allows
 - **Priority Scoring**: Each insight has high/medium/low priority; cards are grouped by category (cash, tax, retirement, investing)
+- **Category Filter Pills**: Clickable pills at the top of the page filter the displayed insights by category (cash, tax, retirement, investing); selecting a pill hides all other categories
 - **Household Scoping**: All checks respect the active user view
 
 ## Scalability Safeguards

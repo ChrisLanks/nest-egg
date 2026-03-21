@@ -67,7 +67,7 @@ Note: there is dark mode and light mode
 - **Smart Categorization** — custom categories, automatic mapping, rule engine, tax-deductible tracking
 - **Investment Dashboard** — 10-tab analysis: allocation, sectors, Monte Carlo growth, performance trends, risk analysis, Roth conversion, tax-loss harvesting, dividend income
 - **Cash Flow Analytics** — income vs expenses with drill-down, time periods, category/label grouping
-- **Budget Management** — flexible periods, category-based limits, proactive alerts, shared budgets
+- **Budget Management** — flexible periods, category-based limits, proactive alerts, shared budgets, optional end dates, and auto-scanned suggestions from transaction history (background Celery job)
 - **Retirement Planner** — Monte Carlo simulation, Social Security estimator, healthcare cost modeling, scenario comparison
 - **Multi-User Households** — up to 5 members, combined/individual views, account deduplication
 - **Guest Access** — invite external users (family, financial advisors) to view or edit household data without joining as members
@@ -81,6 +81,7 @@ Note: there is dark mode and light mode
 - **Financial Health Score** — composite wellness score from savings rate, emergency fund, debt-to-income, retirement progress
 - **Net Worth Milestones** — threshold alerts and all-time-high notifications
 - **Transaction Notes & Flagged for Review** — free-text notes, household review workflow, flagged filter
+- **Transaction Splits** — split a single transaction across multiple categories/amounts from the transaction detail modal
 - **Investment Fee Analyzer** — fee drag projections, fund overlap detection, low-cost alternatives
 - **Year-in-Review** — annual financial summary with YoY comparison
 - **Unified Financial Calendar** — bills + subscriptions + income with toggles and projected daily balance
