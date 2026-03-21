@@ -32,10 +32,11 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.financial import TAX
-from app.constants.state_tax_rates import STATE_NAMES, STATE_TAX_RATES
+from app.constants.state_tax_rates import STATE_NAMES
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.services.roth_conversion_service import _get_brackets, _standard_deduction
+from app.services.tax_rate_providers import get_provider
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,9 @@ class TaxProjection:
     state_tax_rate: float = 0.0
     combined_tax: float = 0.0  # total_tax_before_credits + state_tax
     combined_effective_rate: float = 0.0
+    # Provider metadata
+    provider_source: Optional[str] = None
+    provider_tax_year: Optional[int] = None
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -273,9 +277,13 @@ class TaxProjectionService:
         effective_rate = round(total_tax / ordinary_income, 4) if ordinary_income > 0 else 0.0
         marginal_rate = bracket_breakdown[-1].rate if bracket_breakdown else 0.0
 
-        # State income tax (applied to taxable income as a flat-rate approximation)
+        # State income tax — use pluggable provider for bracket-aware rates
         state_upper = state.upper() if state else None
-        state_tax_rate = STATE_TAX_RATES.get(state_upper, 0.0) if state_upper else 0.0
+        provider = await get_provider()
+        if state_upper:
+            state_tax_rate = await provider.get_rate(state_upper, filing_status, taxable_income)
+        else:
+            state_tax_rate = 0.0
         state_tax = round(taxable_income * state_tax_rate, 2) if state_upper else 0.0
         combined_tax = round(total_tax + state_tax, 2)
         combined_effective_rate = (
@@ -337,6 +345,8 @@ class TaxProjectionService:
             safe_harbour_met=safe_harbour_met,
             bracket_breakdown=bracket_breakdown,
             summary=summary,
+            provider_source=provider.source_name() if state_upper else None,
+            provider_tax_year=provider.tax_year() if state_upper else None,
         )
 
     async def _ytd_income(
