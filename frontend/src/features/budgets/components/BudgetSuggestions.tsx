@@ -27,6 +27,7 @@ import {
   Skeleton,
   Box,
   Progress,
+  Spinner,
 } from "@chakra-ui/react";
 import { FiTrendingUp, FiPlus, FiZap, FiArrowRight, FiSkipForward, FiClock } from "react-icons/fi";
 import { useQuery } from "@tanstack/react-query";
@@ -73,10 +74,16 @@ export default function BudgetSuggestions({
   const [skippedIndices, setSkippedIndices] = useState<Set<number>>(new Set());
 
   const defaultResponse: BudgetSuggestionsResponse = { suggestions: [], scanning: false };
-  const { data: suggestionsResponse = defaultResponse, isLoading } = useQuery({
+  const { data: suggestionsResponse = defaultResponse, isLoading, refetch } = useQuery({
     queryKey: ["budget-suggestions", userId ?? "all"],
     queryFn: () => budgetsApi.getSuggestions(userId ? { user_id: userId } : undefined),
     staleTime: 10 * 60 * 1000,
+    refetchInterval: (query) => {
+      const data = query.state.data as BudgetSuggestionsResponse | undefined;
+      return data?.scanning && (!data?.suggestions || data.suggestions.length === 0)
+        ? 15_000
+        : false;
+    },
   });
   const allSuggestions = suggestionsResponse.suggestions;
   const isScanning = suggestionsResponse.scanning;
@@ -118,7 +125,7 @@ export default function BudgetSuggestions({
     // If the user has budgets already, show nothing more
     if (existingBudgetCount > 0) return null;
 
-    // Background scan is running — tell the user to check back shortly
+    // Background scan is running — show spinner and retry button
     if (isScanning) {
       return (
         <Box
@@ -131,13 +138,23 @@ export default function BudgetSuggestions({
         >
           <HStack spacing={3} align="start">
             <Icon as={FiClock} color="blue.500" mt="2px" flexShrink={0} />
-            <VStack spacing={1} align="start">
-              <Heading size="sm">Analysing your spending history…</Heading>
+            <VStack spacing={2} align="start" flex={1}>
+              <HStack spacing={2}>
+                <Heading size="sm">Analysing your spending history…</Heading>
+                <Spinner size="sm" color="blue.500" />
+              </HStack>
               <Text fontSize="sm" color="text.muted">
                 We're scanning your transactions in the background to find smart
-                budget suggestions. This usually takes under a minute — check
-                back shortly and refresh the page.
+                budget suggestions. This usually takes under a minute.
               </Text>
+              <Button
+                size="sm"
+                variant="outline"
+                colorScheme="blue"
+                onClick={() => refetch()}
+              >
+                Check now
+              </Button>
             </VStack>
           </HStack>
         </Box>

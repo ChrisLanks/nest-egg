@@ -225,7 +225,12 @@ export default function RecurringTransactionsPage() {
   }, []);
 
   // Get all recurring patterns
-  const { data: patterns = [], isLoading } = useQuery({
+  const {
+    data: patterns = [],
+    isLoading,
+    isError: patternsError,
+    refetch: refetchPatterns,
+  } = useQuery({
     queryKey: ["recurring-transactions"],
     queryFn: () => recurringTransactionsApi.getAll(),
   });
@@ -497,6 +502,21 @@ export default function RecurringTransactionsPage() {
       </Tooltip>
     </HStack>
   );
+
+  if (patternsError) {
+    return (
+      <Box p={8}>
+        <VStack spacing={4} align="center" py={16}>
+          <Text fontSize="lg" fontWeight="medium" color="red.500">
+            Failed to load recurring transactions. Please try again.
+          </Text>
+          <Button colorScheme="brand" onClick={() => refetchPatterns()}>
+            Retry
+          </Button>
+        </VStack>
+      </Box>
+    );
+  }
 
   return (
     <Box p={8}>

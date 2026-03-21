@@ -25,6 +25,11 @@ import {
   useDisclosure,
   Tooltip,
   Textarea,
+  Tabs,
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
 } from "@chakra-ui/react";
 import { CloseIcon } from "@chakra-ui/icons";
 import { FiFlag } from "react-icons/fi";
@@ -37,6 +42,7 @@ import { CategorySelect } from "./CategorySelect";
 import { MerchantSelect } from "./MerchantSelect";
 import { RuleBuilder } from "../features/rules/components/RuleBuilder";
 import { AttachmentsList } from "../features/transactions/components/AttachmentsList";
+import { TransactionSplitPanel } from "../features/transactions/components/TransactionSplitPanel";
 
 interface TransactionDetailModalProps {
   transaction: Transaction | null;
@@ -414,6 +420,14 @@ export const TransactionDetailModal = ({
         </ModalHeader>
         <ModalCloseButton />
         <ModalBody pb={6}>
+          <Tabs variant="line" colorScheme="brand">
+            <TabList mb={4}>
+              <Tab>Details</Tab>
+              {!currentTransaction.is_pending && <Tab>Split</Tab>}
+            </TabList>
+            <TabPanels>
+              {/* ── Details tab ── */}
+              <TabPanel px={0} py={0}>
           <VStack spacing={4} align="stretch">
             {/* Amount and Status */}
             <HStack justify="space-between">
@@ -808,6 +822,19 @@ export const TransactionDetailModal = ({
               </VStack>
             )}
           </VStack>
+              </TabPanel>
+
+              {/* ── Split tab (non-pending transactions only) ── */}
+              {!currentTransaction.is_pending && (
+                <TabPanel px={0} py={0}>
+                  <TransactionSplitPanel
+                    transaction={currentTransaction}
+                    canEdit={canEdit}
+                  />
+                </TabPanel>
+              )}
+            </TabPanels>
+          </Tabs>
         </ModalBody>
       </ModalContent>
 

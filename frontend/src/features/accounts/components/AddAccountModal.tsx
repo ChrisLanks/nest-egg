@@ -92,9 +92,10 @@ type WizardStep =
 interface AddAccountModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
+export const AddAccountModal = ({ isOpen, onClose, onSuccess }: AddAccountModalProps) => {
   const [currentStep, setCurrentStep] =
     useState<WizardStep>("source_selection");
   const [, setSelectedSource] = useState<AccountSource | null>(null);
@@ -231,6 +232,7 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
   // Handle bank link success (Plaid or Teller)
   const handleBankLinkSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["accounts"] });
+    onSuccess?.();
     handleClose();
   };
 
@@ -260,6 +262,7 @@ export const AddAccountModal = ({ isOpen, onClose }: AddAccountModalProps) => {
         duration: 3000,
         isClosable: true,
       });
+      onSuccess?.();
       handleClose();
     },
     onError: (error: any) => {

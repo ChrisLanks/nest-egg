@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FiCheckCircle, FiCircle, FiArrowRight } from "react-icons/fi";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import api from "../../../services/api";
+import { useAuthStore } from "../../auth/stores/authStore";
 
 const DISMISSED_KEY = "nest-egg-getting-started-dismissed";
 const NET_WORTH_VIEWED_KEY = "nest-egg-net-worth-viewed";
@@ -152,10 +153,11 @@ const WhatNextCard: React.FC = () => {
     () => localStorage.getItem(WHAT_NEXT_DISMISSED_KEY) === "true",
   );
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
 
   if (dismissed) return null;
 
-  const goal = localStorage.getItem("nest-egg-onboarding-goal") ?? "default";
+  const goal = localStorage.getItem("nest-egg-onboarding-goal") || user?.onboarding_goal || "default";
   const items = WHAT_NEXT_ITEMS[goal] ?? WHAT_NEXT_ITEMS.default;
 
   return (

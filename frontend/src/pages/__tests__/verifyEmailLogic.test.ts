@@ -20,6 +20,22 @@ function shouldShowErrorUI(state: State): boolean {
   return state === "error" || state === "no-token";
 }
 
+function shouldShowNoTokenUI(state: State): boolean {
+  return state === "no-token";
+}
+
+function shouldShowInvalidLinkUI(state: State): boolean {
+  return state === "error";
+}
+
+function getNoTokenHeading(): string {
+  return "Check your email";
+}
+
+function getErrorHeading(): string {
+  return "Link invalid or expired";
+}
+
 function shouldShowResendButton(resendDone: boolean): boolean {
   return !resendDone;
 }
@@ -55,6 +71,36 @@ describe("shouldShowErrorUI", () => {
 
   it("does not show error UI for loading", () => {
     expect(shouldShowErrorUI("loading")).toBe(false);
+  });
+});
+
+describe("no-token state — check your email", () => {
+  it("shows no-token UI only for no-token state", () => {
+    expect(shouldShowNoTokenUI("no-token")).toBe(true);
+    expect(shouldShowNoTokenUI("error")).toBe(false);
+    expect(shouldShowNoTokenUI("success")).toBe(false);
+    expect(shouldShowNoTokenUI("loading")).toBe(false);
+  });
+
+  it("has the correct heading for no-token state", () => {
+    expect(getNoTokenHeading()).toBe("Check your email");
+  });
+});
+
+describe("error state — link invalid or expired", () => {
+  it("shows invalid link UI only for error state", () => {
+    expect(shouldShowInvalidLinkUI("error")).toBe(true);
+    expect(shouldShowInvalidLinkUI("no-token")).toBe(false);
+    expect(shouldShowInvalidLinkUI("success")).toBe(false);
+    expect(shouldShowInvalidLinkUI("loading")).toBe(false);
+  });
+
+  it("has the correct heading for error state", () => {
+    expect(getErrorHeading()).toBe("Link invalid or expired");
+  });
+
+  it("error and no-token states have different headings", () => {
+    expect(getNoTokenHeading()).not.toBe(getErrorHeading());
   });
 });
 

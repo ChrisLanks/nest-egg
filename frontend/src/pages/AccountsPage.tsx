@@ -136,7 +136,7 @@ export const AccountsPage = () => {
 
   // Fetch all accounts (ALWAYS include hidden - this is the admin page)
   // Filter by selected user when not in combined view
-  const { data: rawAccounts, isLoading } = useQuery({
+  const { data: rawAccounts, isLoading, isError, refetch } = useQuery({
     queryKey: ["accounts-admin", "include-hidden", queryUserId, selectedIdsKey],
     queryFn: async () => {
       const params: { include_hidden: boolean; user_id?: string } = {
@@ -599,6 +599,21 @@ export const AccountsPage = () => {
 
   if (isLoading) {
     return <AccountsSkeleton />;
+  }
+
+  if (isError) {
+    return (
+      <Container maxW="container.xl" py={8}>
+        <VStack spacing={4} align="center" py={16}>
+          <Text fontSize="lg" fontWeight="medium" color="red.500">
+            Failed to load accounts. Please try again.
+          </Text>
+          <Button colorScheme="brand" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </VStack>
+      </Container>
+    );
   }
 
   return (

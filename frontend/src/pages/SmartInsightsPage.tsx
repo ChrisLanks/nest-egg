@@ -26,6 +26,7 @@ import {
   WrapItem,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { smartInsightsApi, type InsightItem } from "../api/smartInsights";
 import { useUserView } from "../contexts/UserViewContext";
 
@@ -120,6 +121,7 @@ function InsightCard({ insight }: { insight: InsightItem }) {
 
 export const SmartInsightsPage = () => {
   const { selectedUserId } = useUserView();
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["smart-insights", selectedUserId],
@@ -159,6 +161,19 @@ export const SmartInsightsPage = () => {
 
   const categoryOrder = ["cash", "tax", "retirement", "investing"] as const;
 
+  // Categories that actually have insights (in display order)
+  const activeCategories = categoryOrder.filter((c) => grouped[c]?.length);
+
+  // Which categories to display — all, or only the selected one
+  const visibleCategories =
+    selectedCategory !== null
+      ? activeCategories.filter((c) => c === selectedCategory)
+      : activeCategories;
+
+  const handlePillClick = (cat: string) => {
+    setSelectedCategory((prev) => (prev === cat ? null : cat));
+  };
+
   return (
     <Container maxW="5xl" py={6}>
       <VStack align="start" spacing={6}>
@@ -171,24 +186,43 @@ export const SmartInsightsPage = () => {
           </Text>
         </Box>
 
-        {/* Category filter pills (visual only) */}
+        {/* Category filter pills */}
         {insights.length > 0 && (
           <Wrap spacing={2}>
-            {categoryOrder
-              .filter((c) => grouped[c]?.length)
-              .map((cat) => (
-                <WrapItem key={cat}>
-                  <Badge
-                    colorScheme={categoryColor[cat]}
-                    px={3}
-                    py={1}
-                    borderRadius="full"
-                    fontSize="xs"
-                  >
-                    {categoryLabel[cat]} · {grouped[cat].length}
-                  </Badge>
-                </WrapItem>
-              ))}
+            {/* "All" pill */}
+            <WrapItem>
+              <Badge
+                colorScheme={selectedCategory === null ? "gray" : "gray"}
+                px={3}
+                py={1}
+                borderRadius="full"
+                fontSize="xs"
+                cursor="pointer"
+                variant={selectedCategory === null ? "solid" : "outline"}
+                onClick={() => setSelectedCategory(null)}
+                data-testid="pill-all"
+              >
+                All · {insights.length}
+              </Badge>
+            </WrapItem>
+
+            {activeCategories.map((cat) => (
+              <WrapItem key={cat}>
+                <Badge
+                  colorScheme={categoryColor[cat]}
+                  px={3}
+                  py={1}
+                  borderRadius="full"
+                  fontSize="xs"
+                  cursor="pointer"
+                  variant={selectedCategory === cat ? "solid" : "subtle"}
+                  onClick={() => handlePillClick(cat)}
+                  data-testid={`pill-${cat}`}
+                >
+                  {categoryLabel[cat]} · {grouped[cat].length}
+                </Badge>
+              </WrapItem>
+            ))}
           </Wrap>
         )}
 
@@ -207,31 +241,29 @@ export const SmartInsightsPage = () => {
         )}
 
         {/* Insights grouped by category */}
-        {categoryOrder
-          .filter((cat) => grouped[cat]?.length)
-          .map((cat) => (
-            <Box key={cat} w="full">
-              <HStack spacing={2} mb={3}>
-                <Text
-                  fontWeight="bold"
-                  fontSize="sm"
-                  textTransform="uppercase"
-                  letterSpacing="wider"
-                  color="text.secondary"
-                >
-                  {categoryLabel[cat]}
-                </Text>
-                <Badge colorScheme={categoryColor[cat]} variant="subtle">
-                  {grouped[cat].length}
-                </Badge>
-              </HStack>
-              <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={4}>
-                {grouped[cat].map((insight, i) => (
-                  <InsightCard key={`${insight.type}-${i}`} insight={insight} />
-                ))}
-              </SimpleGrid>
-            </Box>
-          ))}
+        {visibleCategories.map((cat) => (
+          <Box key={cat} w="full">
+            <HStack spacing={2} mb={3}>
+              <Text
+                fontWeight="bold"
+                fontSize="sm"
+                textTransform="uppercase"
+                letterSpacing="wider"
+                color="text.secondary"
+              >
+                {categoryLabel[cat]}
+              </Text>
+              <Badge colorScheme={categoryColor[cat]} variant="subtle">
+                {grouped[cat].length}
+              </Badge>
+            </HStack>
+            <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={4}>
+              {grouped[cat].map((insight, i) => (
+                <InsightCard key={`${insight.type}-${i}`} insight={insight} />
+              ))}
+            </SimpleGrid>
+          </Box>
+        ))}
       </VStack>
     </Container>
   );

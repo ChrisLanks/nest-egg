@@ -1113,6 +1113,39 @@ export const AccountDetailPage = () => {
                 </Tooltip>
               </FormControl>
 
+              {/* Include in Net Worth — shown for all non-vehicle accounts;
+                  vehicle accounts have this toggle in their dedicated section */}
+              {account.account_type !== "vehicle" && (
+                <FormControl display="flex" alignItems="center">
+                  <Box flex={1}>
+                    <FormLabel fontSize="sm" mb={0}>
+                      Include in Net Worth
+                    </FormLabel>
+                    <Text fontSize="xs" color="text.muted" mt={0.5}>
+                      When off, this account's balance won't be counted in your
+                      net worth
+                    </Text>
+                  </Box>
+                  <Tooltip
+                    label={
+                      !canEditAccount
+                        ? "You can only edit your own accounts"
+                        : ""
+                    }
+                    placement="top"
+                    isDisabled={canEditAccount}
+                  >
+                    <Switch
+                      id="include-in-networth-toggle"
+                      isChecked={account.include_in_networth ?? true}
+                      onChange={handleToggleIncludeInNetworth}
+                      colorScheme="brand"
+                      isDisabled={!canEditAccount}
+                    />
+                  </Tooltip>
+                </FormControl>
+              )}
+
               {/* Account Info */}
               <Box>
                 <HStack justify="space-between" align="start">

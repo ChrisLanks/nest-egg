@@ -25,6 +25,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import api from "../../services/api";
+import { useAuthStore } from "../../features/auth/stores/authStore";
 
 const DISMISSED_KEY = "nest-egg-goal-banner-dismissed";
 const GOAL_KEY = "nest-egg-onboarding-goal";
@@ -66,8 +67,9 @@ export const GoalContextBanner = () => {
     () => localStorage.getItem(DISMISSED_KEY) === "true",
   );
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
 
-  const goal = localStorage.getItem(GOAL_KEY);
+  const goal = localStorage.getItem(GOAL_KEY) || user?.onboarding_goal || null;
 
   // Fetch accounts to detect the "investments goal, no accounts" scenario.
   // Only runs when goal=investments and not yet dismissed.

@@ -22,6 +22,7 @@ import {
   Tooltip,
   Collapse,
   Button,
+  Skeleton,
 } from "@chakra-ui/react";
 import { EditIcon, DeleteIcon, SettingsIcon } from "@chakra-ui/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -81,7 +82,7 @@ export default function BudgetCard({
   const sharedLabel = scopeLabel ?? "";
 
   // Get spending data
-  const { data: spending } = useQuery({
+  const { data: spending, isLoading: spendingLoading } = useQuery({
     queryKey: ["budgets", budget.id, "spending"],
     queryFn: () => budgetsApi.getSpending(budget.id),
   });
@@ -199,6 +200,30 @@ export default function BudgetCard({
                   Inactive
                 </Badge>
               )}
+              {/* End date badge */}
+              {budget.end_date && (() => {
+                const endDate = new Date(budget.end_date);
+                const now = new Date();
+                const isFuture = endDate > now;
+                const formatted = endDate.toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                });
+                if (isFuture) {
+                  return (
+                    <Tooltip label={endDate.toLocaleDateString()} placement="top">
+                      <Badge colorScheme="yellow" size="sm" cursor="default">
+                        Expires {formatted}
+                      </Badge>
+                    </Tooltip>
+                  );
+                }
+                return (
+                  <Badge colorScheme="red" size="sm">
+                    Expired
+                  </Badge>
+                );
+              })()}
             </HStack>
           </VStack>
 
@@ -235,20 +260,32 @@ export default function BudgetCard({
           {/* Progress bar */}
           <Box>
             <HStack justify="space-between" mb={2}>
-              <Text fontSize="sm" fontWeight="medium">
-                {formatCurrency(spending?.spent ?? 0)} of{" "}
-                {formatCurrency(budget.amount)}
-              </Text>
-              <Text fontSize="sm" color={getProgressColor()}>
-                {percentage.toFixed(1)}%
-              </Text>
+              {spendingLoading ? (
+                <Skeleton height="16px" width="160px" />
+              ) : (
+                <Text fontSize="sm" fontWeight="medium">
+                  {formatCurrency(spending?.spent ?? 0)} of{" "}
+                  {formatCurrency(budget.amount)}
+                </Text>
+              )}
+              {spendingLoading ? (
+                <Skeleton height="16px" width="40px" />
+              ) : (
+                <Text fontSize="sm" color={getProgressColor()}>
+                  {percentage.toFixed(1)}%
+                </Text>
+              )}
             </HStack>
-            <Progress
-              value={percentage}
-              colorScheme={getProgressColor()}
-              size="lg"
-              borderRadius="md"
-            />
+            {spendingLoading ? (
+              <Skeleton height="16px" borderRadius="md" />
+            ) : (
+              <Progress
+                value={percentage}
+                colorScheme={getProgressColor()}
+                size="lg"
+                borderRadius="md"
+              />
+            )}
           </Box>
 
           {/* Remaining amount */}
@@ -256,17 +293,21 @@ export default function BudgetCard({
             <Text fontSize="sm" color="text.secondary">
               Remaining
             </Text>
-            <Text
-              fontSize="sm"
-              fontWeight="medium"
-              color={
-                spending?.remaining && spending.remaining < 0
-                  ? "finance.negative"
-                  : "finance.positive"
-              }
-            >
-              {formatCurrency(spending?.remaining ?? budget.amount)}
-            </Text>
+            {spendingLoading ? (
+              <Skeleton height="16px" width="80px" />
+            ) : (
+              <Text
+                fontSize="sm"
+                fontWeight="medium"
+                color={
+                  spending?.remaining && spending.remaining < 0
+                    ? "finance.negative"
+                    : "finance.positive"
+                }
+              >
+                {formatCurrency(spending?.remaining ?? budget.amount)}
+              </Text>
+            )}
           </HStack>
 
           {/* Rollover info */}

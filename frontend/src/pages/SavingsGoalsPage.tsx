@@ -199,7 +199,7 @@ export default function SavingsGoalsPage() {
   const accent = useColorModeValue("blue", "cyan");
 
   const currentUser = useAuthStore((s) => s.user);
-  const onboardingGoal = localStorage.getItem("nest-egg-onboarding-goal") ?? "";
+  const onboardingGoal = localStorage.getItem("nest-egg-onboarding-goal") || currentUser?.onboarding_goal || "";
 
   // Allocation method — persisted in localStorage
   const [allocationMethod, setAllocationMethod] = useState<

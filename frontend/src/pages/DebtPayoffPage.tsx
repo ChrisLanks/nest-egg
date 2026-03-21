@@ -220,7 +220,12 @@ export default function DebtPayoffPage() {
   const [amortizationExtra, setAmortizationExtra] = useState<Record<string, string>>({});
 
   // Fetch debt summary
-  const { data: summary, isLoading: summaryLoading } = useQuery({
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+    isError: summaryError,
+    refetch: refetchSummary,
+  } = useQuery({
     queryKey: ["debt-summary", selectedUserId],
     queryFn: async () => {
       const params: Record<string, string> = {};
@@ -231,7 +236,12 @@ export default function DebtPayoffPage() {
   });
 
   // Fetch debt accounts
-  const { data: debts, isLoading: debtsLoading } = useQuery<DebtAccount[]>({
+  const {
+    data: debts,
+    isLoading: debtsLoading,
+    isError: debtsError,
+    refetch: refetchDebts,
+  } = useQuery<DebtAccount[]>({
     queryKey: ["debt-accounts", selectedUserId],
     queryFn: async () => {
       const params: Record<string, string> = {};
@@ -529,6 +539,27 @@ export default function DebtPayoffPage() {
               </Stack>
             </CardBody>
           </Card>
+        </VStack>
+      </Container>
+    );
+  }
+
+  if (summaryError || debtsError) {
+    return (
+      <Container maxW="container.xl" py={8}>
+        <VStack spacing={4} align="center" py={16}>
+          <Text fontSize="lg" fontWeight="medium" color="red.500">
+            Failed to load debt data. Please try again.
+          </Text>
+          <Button
+            colorScheme="brand"
+            onClick={() => {
+              refetchSummary();
+              refetchDebts();
+            }}
+          >
+            Retry
+          </Button>
         </VStack>
       </Container>
     );

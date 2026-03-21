@@ -128,6 +128,7 @@ class User(Base):
     onboarding_step = Column(
         String(50), nullable=True
     )  # current step: "profile", "accounts", "budget", "goals"
+    onboarding_goal = Column(String(50), nullable=True)  # goal selected during onboarding
 
     # Customizable dashboard layout — list of {id, span} objects; NULL = default layout
     dashboard_layout = Column(JSON, nullable=True)

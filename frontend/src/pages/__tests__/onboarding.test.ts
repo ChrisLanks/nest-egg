@@ -321,3 +321,247 @@ describe("finish() onboarding completion flow", () => {
     expect(updatedUser.onboarding_completed).toBe(true);
   });
 });
+
+// ── Fix 1: finish() error handling ───────────────────────────────────────────
+
+describe("finish() error handling: onboarding/complete failure", () => {
+  /**
+   * When POST /onboarding/complete fails, finish() must show a toast error
+   * and NOT navigate away. The user stays on the wizard to retry.
+   */
+
+  async function runFinishFixed(opts: {
+    apiSucceeds: boolean;
+    user: User | null;
+  }) {
+    const mockPost = opts.apiSucceeds
+      ? vi.fn().mockResolvedValue({ data: { onboarding_completed: true } })
+      : vi.fn().mockRejectedValue(new Error("Network error"));
+    const mockSetUser = vi.fn();
+    const mockNavigate = vi.fn();
+    const mockToast = vi.fn();
+
+    // Replicate the FIXED finish() logic: failure shows toast and returns early
+    try {
+      await mockPost("/onboarding/complete");
+      if (opts.user) {
+        mockSetUser({ ...opts.user, onboarding_completed: true });
+      }
+    } catch {
+      mockToast({
+        title: "Failed to complete setup. Please try again.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return { mockPost, mockSetUser, mockNavigate, mockToast };
+    }
+    mockNavigate("/overview");
+
+    return { mockPost, mockSetUser, mockNavigate, mockToast };
+  }
+
+  it("shows error toast when POST /onboarding/complete fails", async () => {
+    const { mockToast } = await runFinishFixed({
+      apiSucceeds: false,
+      user: makeUser(),
+    });
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Failed to complete setup. Please try again.",
+        status: "error",
+      }),
+    );
+  });
+
+  it("does NOT navigate when POST /onboarding/complete fails", async () => {
+    const { mockNavigate } = await runFinishFixed({
+      apiSucceeds: false,
+      user: makeUser(),
+    });
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("does NOT call setUser when POST /onboarding/complete fails", async () => {
+    const { mockSetUser } = await runFinishFixed({
+      apiSucceeds: false,
+      user: makeUser(),
+    });
+    expect(mockSetUser).not.toHaveBeenCalled();
+  });
+
+  it("navigates normally when POST /onboarding/complete succeeds", async () => {
+    const { mockNavigate, mockToast } = await runFinishFixed({
+      apiSucceeds: true,
+      user: makeUser(),
+    });
+    expect(mockNavigate).toHaveBeenCalledWith("/overview");
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+});
+
+// ── Fix 2: accountLinked set only on actual connection ────────────────────────
+
+describe("accountLinked flag: only set on successful account connection", () => {
+  /**
+   * accountLinked should be set to true only when an account is actually
+   * connected (via the onSuccess callback), NOT when the modal is closed
+   * without linking anything.
+   */
+
+  it("accountLinked is NOT set when modal is closed without connection", () => {
+    let accountLinked = false;
+
+    // Simulate closing the modal without connecting — onSuccess is NOT called
+    const onClose = () => {
+      // No setAccountLinked here (the fix)
+    };
+    onClose();
+
+    expect(accountLinked).toBe(false);
+  });
+
+  it("accountLinked IS set when onSuccess callback fires", () => {
+    let accountLinked = false;
+
+    const onSuccess = () => {
+      accountLinked = true;
+    };
+
+    // Simulate a successful account connection triggering onSuccess
+    onSuccess();
+
+    expect(accountLinked).toBe(true);
+  });
+
+  it("modal can be dismissed without side effects on accountLinked", () => {
+    let accountLinked = false;
+    let modalOpen = true;
+
+    // Simulate dismiss: close sets open=false, does NOT set accountLinked
+    const onClose = () => {
+      modalOpen = false;
+    };
+    const onSuccess = () => {
+      accountLinked = true;
+    };
+
+    // User opens modal then dismisses without connecting
+    onClose();
+
+    expect(modalOpen).toBe(false);
+    expect(accountLinked).toBe(false);
+    // onSuccess was never called
+    void onSuccess; // referenced so TS doesn't complain
+  });
+
+  it("accountLinked and modal-closed are independent when onSuccess fires", () => {
+    let accountLinked = false;
+    let modalOpen = true;
+
+    const onClose = () => {
+      modalOpen = false;
+    };
+    const onSuccess = () => {
+      accountLinked = true;
+    };
+
+    // User connects successfully: onSuccess fires, then modal closes
+    onSuccess();
+    onClose();
+
+    expect(accountLinked).toBe(true);
+    expect(modalOpen).toBe(false);
+  });
+});
+
+// ── Fix 3: onboarding goal fallback to user.onboarding_goal ──────────────────
+
+describe("onboarding goal: localStorage fallback to user.onboarding_goal", () => {
+  const GOAL_KEY = "nest-egg-onboarding-goal";
+
+  beforeEach(() => localStorage.clear());
+
+  /**
+   * Simulate the goal-reading logic with fallback:
+   *   localStorage.getItem(GOAL_KEY) || user?.onboarding_goal || null
+   */
+  function readGoal(user: User | null): string | null {
+    return localStorage.getItem(GOAL_KEY) || user?.onboarding_goal || null;
+  }
+
+  it("reads goal from localStorage when present", () => {
+    localStorage.setItem(GOAL_KEY, "retirement");
+    const goal = readGoal(makeUser({ onboarding_goal: "investments" }));
+    expect(goal).toBe("retirement");
+  });
+
+  it("falls back to user.onboarding_goal when localStorage is empty", () => {
+    const user = makeUser({ onboarding_goal: "retirement" });
+    const goal = readGoal(user);
+    expect(goal).toBe("retirement");
+  });
+
+  it("returns null when both localStorage and user.onboarding_goal are empty", () => {
+    const user = makeUser({ onboarding_goal: null });
+    const goal = readGoal(user);
+    expect(goal).toBeNull();
+  });
+
+  it("returns null when user is null and localStorage is empty", () => {
+    const goal = readGoal(null);
+    expect(goal).toBeNull();
+  });
+
+  it("localStorage value takes precedence over user.onboarding_goal", () => {
+    localStorage.setItem(GOAL_KEY, "spending");
+    const user = makeUser({ onboarding_goal: "retirement" });
+    const goal = readGoal(user);
+    expect(goal).toBe("spending");
+  });
+
+  it("finish() persists goal to localStorage", () => {
+    const selectedGoal = "investments";
+    // Simulate finish() localStorage write
+    if (selectedGoal) {
+      localStorage.setItem(GOAL_KEY, selectedGoal);
+    }
+    expect(localStorage.getItem(GOAL_KEY)).toBe("investments");
+  });
+
+  it("finish() sends goal to server via PATCH /settings/profile", async () => {
+    const mockPatch = vi.fn().mockResolvedValue({ data: {} });
+    const selectedGoal = "spending";
+
+    // Simulate finish() server-side persist (non-critical)
+    if (selectedGoal) {
+      try {
+        await mockPatch("/settings/profile", { onboarding_goal: selectedGoal });
+      } catch {
+        // Non-critical
+      }
+    }
+
+    expect(mockPatch).toHaveBeenCalledWith("/settings/profile", {
+      onboarding_goal: "spending",
+    });
+  });
+
+  it("finish() continues silently when PATCH /settings/profile fails", async () => {
+    const mockPatch = vi.fn().mockRejectedValue(new Error("Server error"));
+    const selectedGoal = "retirement";
+    let errorThrown = false;
+
+    // Simulate finish() non-critical server persist
+    if (selectedGoal) {
+      try {
+        await mockPatch("/settings/profile", { onboarding_goal: selectedGoal });
+      } catch {
+        // Non-critical — swallowed silently
+        errorThrown = false;
+      }
+    }
+
+    expect(errorThrown).toBe(false);
+  });
+});

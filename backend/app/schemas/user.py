@@ -38,6 +38,7 @@ class UserUpdate(BaseModel):
     birth_year: Optional[int] = Field(None, ge=1900, le=2100)
     default_currency: Optional[str] = Field(None, max_length=3)
     dashboard_layout: Optional[List[Any]] = None
+    onboarding_goal: Optional[str] = Field(None, max_length=50)
 
     @model_validator(mode="after")
     def validate_birthday(self) -> "UserUpdate":
@@ -63,6 +64,7 @@ class UserInDB(UserBase):
     is_org_admin: bool
     email_verified: bool
     onboarding_completed: bool = False
+    onboarding_goal: Optional[str] = None
     dashboard_layout: Optional[List[Any]] = None
     last_login_at: Optional[datetime] = None
     login_count: int = 0

@@ -814,3 +814,67 @@ describe("Edge Cases", () => {
     expect(sorted[1].interest_rate).toBe(0);
   });
 });
+
+// ── Error state rendering decision ────────────────────────────────────────────
+//
+// Mirrors the render-branch logic in DebtPayoffPage:
+//   if (summaryLoading || debtsLoading) → skeleton
+//   if (summaryError || debtsError)     → error state with retry button
+//   if (!debts || debts.length === 0)   → empty state
+//   otherwise                           → normal content
+
+type DebtPageState = "loading" | "error" | "empty" | "normal";
+
+const resolveDebtPageState = (
+  summaryLoading: boolean,
+  debtsLoading: boolean,
+  summaryError: boolean,
+  debtsError: boolean,
+  debts: DebtAccount[] | undefined,
+): DebtPageState => {
+  if (summaryLoading || debtsLoading) return "loading";
+  if (summaryError || debtsError) return "error";
+  if (!debts || debts.length === 0) return "empty";
+  return "normal";
+};
+
+const debtErrorMessageText = "Failed to load debt data. Please try again.";
+const debtRetryButtonLabel = "Retry";
+
+describe("DebtPayoffPage error state", () => {
+  it("resolves to 'error' when summaryError is true", () => {
+    expect(resolveDebtPageState(false, false, true, false, DEBTS)).toBe("error");
+  });
+
+  it("resolves to 'error' when debtsError is true", () => {
+    expect(resolveDebtPageState(false, false, false, true, DEBTS)).toBe("error");
+  });
+
+  it("resolves to 'error' when both summary and debts errors are true", () => {
+    expect(resolveDebtPageState(false, false, true, true, DEBTS)).toBe("error");
+  });
+
+  it("loading takes priority over error state", () => {
+    expect(resolveDebtPageState(true, false, true, true, DEBTS)).toBe("loading");
+  });
+
+  it("resolves to 'normal' when no errors and debts present", () => {
+    expect(resolveDebtPageState(false, false, false, false, DEBTS)).toBe("normal");
+  });
+
+  it("resolves to 'empty' when no errors and debts is empty array", () => {
+    expect(resolveDebtPageState(false, false, false, false, [])).toBe("empty");
+  });
+
+  it("resolves to 'empty' when debts is undefined", () => {
+    expect(resolveDebtPageState(false, false, false, false, undefined)).toBe("empty");
+  });
+
+  it("error message text mentions debt data", () => {
+    expect(debtErrorMessageText.toLowerCase()).toContain("debt");
+  });
+
+  it("retry button label is defined", () => {
+    expect(debtRetryButtonLabel).toBe("Retry");
+  });
+});

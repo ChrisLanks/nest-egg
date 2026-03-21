@@ -426,6 +426,118 @@ describe('canAddTransaction', () => {
   });
 });
 
+// ── include_in_networth toggle ────────────────────────────────────────────
+
+/**
+ * The toggle appears in the main Account Settings panel for every account
+ * type EXCEPT vehicle (vehicles have their own dedicated section for it).
+ */
+const showIncludeInNetworthInSettings = (accountType: string) =>
+  accountType !== "vehicle";
+
+describe("include_in_networth toggle in Account Settings", () => {
+  it("is present for checking accounts", () => {
+    expect(showIncludeInNetworthInSettings("checking")).toBe(true);
+  });
+
+  it("is present for savings accounts", () => {
+    expect(showIncludeInNetworthInSettings("savings")).toBe(true);
+  });
+
+  it("is present for brokerage accounts", () => {
+    expect(showIncludeInNetworthInSettings("brokerage")).toBe(true);
+  });
+
+  it("is present for credit_card accounts", () => {
+    expect(showIncludeInNetworthInSettings("credit_card")).toBe(true);
+  });
+
+  it("is present for property accounts", () => {
+    expect(showIncludeInNetworthInSettings("property")).toBe(true);
+  });
+
+  it("is present for retirement_401k accounts", () => {
+    expect(showIncludeInNetworthInSettings("retirement_401k")).toBe(true);
+  });
+
+  it("is present for mortgage accounts", () => {
+    expect(showIncludeInNetworthInSettings("mortgage")).toBe(true);
+  });
+
+  it("is NOT shown for vehicle accounts (they have their own section)", () => {
+    expect(showIncludeInNetworthInSettings("vehicle")).toBe(false);
+  });
+});
+
+/**
+ * The checked state of the toggle reflects the account's include_in_networth
+ * value (defaulting to true when null).
+ */
+const toggleChecked = (includeInNetworth: boolean | null): boolean =>
+  includeInNetworth ?? true;
+
+describe("include_in_networth toggle — reflects current value", () => {
+  it("is checked when include_in_networth is true", () => {
+    expect(toggleChecked(true)).toBe(true);
+  });
+
+  it("is unchecked when include_in_networth is false", () => {
+    expect(toggleChecked(false)).toBe(false);
+  });
+
+  it("defaults to checked (true) when include_in_networth is null", () => {
+    expect(toggleChecked(null)).toBe(true);
+  });
+});
+
+/**
+ * The toggle calls updateAccount with the new boolean value on change.
+ * This mirrors handleToggleIncludeInNetworth in AccountDetailPage.
+ */
+const buildUpdatePayload = (checked: boolean) => ({
+  include_in_networth: checked,
+});
+
+describe("include_in_networth toggle — calls update on change", () => {
+  it("sends include_in_networth: true when toggled on", () => {
+    expect(buildUpdatePayload(true)).toEqual({ include_in_networth: true });
+  });
+
+  it("sends include_in_networth: false when toggled off", () => {
+    expect(buildUpdatePayload(false)).toEqual({ include_in_networth: false });
+  });
+});
+
+import { readFileSync } from "fs";
+
+describe("AccountDetailPage source — include_in_networth toggle wiring", () => {
+  const src = readFileSync("src/pages/AccountDetailPage.tsx", "utf-8");
+
+  it("declares handleToggleIncludeInNetworth handler", () => {
+    expect(src).toContain("handleToggleIncludeInNetworth");
+  });
+
+  it("renders Include in Net Worth label", () => {
+    expect(src).toContain("Include in Net Worth");
+  });
+
+  it("binds handler to the Switch onChange in Account Settings", () => {
+    expect(src).toContain("onChange={handleToggleIncludeInNetworth}");
+  });
+
+  it("uses include_in_networth ?? true as default for isChecked in settings", () => {
+    expect(src).toContain("include_in_networth ?? true");
+  });
+
+  it("shows the toggle only for non-vehicle accounts in settings", () => {
+    expect(src).toContain('account_type !== "vehicle"');
+  });
+
+  it("has helper text describing the net worth impact", () => {
+    expect(src).toContain("net worth");
+  });
+});
+
 // ── mutual exclusivity spot-checks ───────────────────────────────────────────
 
 describe('section mutual exclusivity', () => {

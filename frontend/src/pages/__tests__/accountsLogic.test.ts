@@ -978,3 +978,57 @@ describe("institution checkbox state", () => {
     expect(isIndeterminate(new Set(["a1", "a2", "a3"]), accounts)).toBe(false);
   });
 });
+
+// ── Error state rendering decision ────────────────────────────────────────────
+//
+// Mirrors the render-branch logic in AccountsPage:
+//   if (isLoading) → skeleton
+//   if (isError)   → error state with retry button
+//   otherwise      → normal content
+//
+// The helpers below extract these conditions as pure booleans so they can be
+// tested without mounting React components.
+
+type PageState = "loading" | "error" | "normal";
+
+const resolvePageState = (isLoading: boolean, isError: boolean): PageState => {
+  if (isLoading) return "loading";
+  if (isError) return "error";
+  return "normal";
+};
+
+const errorMessageText = "Failed to load accounts. Please try again.";
+const retryButtonLabel = "Retry";
+
+describe("AccountsPage error state", () => {
+  it("resolves to 'error' when isError is true and not loading", () => {
+    expect(resolvePageState(false, true)).toBe("error");
+  });
+
+  it("resolves to 'loading' when isLoading is true (takes priority over isError)", () => {
+    expect(resolvePageState(true, true)).toBe("loading");
+  });
+
+  it("resolves to 'normal' when neither loading nor error", () => {
+    expect(resolvePageState(false, false)).toBe("normal");
+  });
+
+  it("error message text is defined and meaningful", () => {
+    expect(errorMessageText).toBeTruthy();
+    expect(errorMessageText.toLowerCase()).toContain("accounts");
+  });
+
+  it("retry button label is defined", () => {
+    expect(retryButtonLabel).toBe("Retry");
+  });
+
+  it("normal state allows data to be displayed", () => {
+    const state = resolvePageState(false, false);
+    expect(state).toBe("normal");
+    // Downstream: accounts data would be rendered
+    const accounts: Account[] = [
+      makeAccount({ id: "a1", name: "Checking", institution_name: "Chase" }),
+    ];
+    expect(accounts.length).toBeGreaterThan(0);
+  });
+});

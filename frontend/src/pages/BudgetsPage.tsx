@@ -63,7 +63,7 @@ export default function BudgetsPage() {
   const isPartialSelection = isPartialMemberSelection;
   const currentUser = useAuthStore((s) => s.user);
 
-  const onboardingGoal = localStorage.getItem("nest-egg-onboarding-goal") ?? "";
+  const onboardingGoal = localStorage.getItem("nest-egg-onboarding-goal") || currentUser?.onboarding_goal || "";
 
   // Get all budgets
   const { data: budgets = [], isLoading, isError } = useQuery({

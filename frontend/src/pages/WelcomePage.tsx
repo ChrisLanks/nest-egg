@@ -241,13 +241,27 @@ export default function WelcomePage() {
     } catch {
       // Non-critical
     }
+    // Persist onboarding goal server-side — best-effort, don't block navigation
+    if (selectedGoal) {
+      try {
+        await api.patch("/settings/profile", { onboarding_goal: selectedGoal });
+      } catch {
+        // Non-critical
+      }
+    }
     try {
       await api.post("/onboarding/complete");
       if (user) {
         setUser({ ...user, onboarding_completed: true });
       }
     } catch {
-      // Best-effort — don't block navigation
+      toast({
+        title: "Failed to complete setup. Please try again.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
     }
     navigate(destination ?? "/overview");
   };
@@ -494,10 +508,8 @@ export default function WelcomePage() {
             )}
             <AddAccountModal
               isOpen={addAccountOpen}
-              onClose={() => {
-                setAddAccountOpen(false);
-                setAccountLinked(true);
-              }}
+              onClose={() => setAddAccountOpen(false)}
+              onSuccess={() => setAccountLinked(true)}
             />
           </VStack>
         )}

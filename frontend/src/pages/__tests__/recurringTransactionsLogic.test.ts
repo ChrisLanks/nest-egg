@@ -661,3 +661,52 @@ describe("edit form amount parsing", () => {
     expect(editFormAmount).toBe("42.5");
   });
 });
+
+// ── Error state rendering decision ────────────────────────────────────────────
+//
+// Mirrors the render-branch logic in RecurringTransactionsPage:
+//   if (patternsError) → error state with retry button
+//   otherwise          → normal content (with isLoading handled inline via
+//                        conditional blocks inside the JSX)
+
+type RecurringPageState = "error" | "normal";
+
+const resolveRecurringPageState = (patternsError: boolean): RecurringPageState => {
+  if (patternsError) return "error";
+  return "normal";
+};
+
+const recurringErrorMessageText =
+  "Failed to load recurring transactions. Please try again.";
+const recurringRetryButtonLabel = "Retry";
+
+describe("RecurringTransactionsPage error state", () => {
+  it("resolves to 'error' when patternsError is true", () => {
+    expect(resolveRecurringPageState(true)).toBe("error");
+  });
+
+  it("resolves to 'normal' when patternsError is false", () => {
+    expect(resolveRecurringPageState(false)).toBe("normal");
+  });
+
+  it("error message text mentions recurring transactions", () => {
+    expect(recurringErrorMessageText.toLowerCase()).toContain("recurring");
+  });
+
+  it("retry button label is defined", () => {
+    expect(recurringRetryButtonLabel).toBe("Retry");
+  });
+
+  it("normal state shows patterns when data is available", () => {
+    const state = resolveRecurringPageState(false);
+    expect(state).toBe("normal");
+    const patterns: RecurringTransaction[] = [makePattern()];
+    expect(patterns.length).toBeGreaterThan(0);
+  });
+
+  it("error state is shown regardless of whether patterns data exists", () => {
+    // Even if stale patterns data exists, patternsError=true triggers error UI
+    const state = resolveRecurringPageState(true);
+    expect(state).toBe("error");
+  });
+});

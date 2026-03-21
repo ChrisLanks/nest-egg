@@ -17,7 +17,7 @@ import {
   Spinner,
   Icon,
 } from "@chakra-ui/react";
-import { CheckCircleIcon, WarningIcon } from "@chakra-ui/icons";
+import { CheckCircleIcon, WarningIcon, EmailIcon } from "@chakra-ui/icons";
 import { authApi } from "../features/auth/services/authApi";
 import { useAuthStore } from "../features/auth/stores/authStore";
 import { isValidTokenFormat } from "../utils/errorHandling";
@@ -102,7 +102,42 @@ export const VerifyEmailPage: React.FC = () => {
           </VStack>
         )}
 
-        {(state === "error" || state === "no-token") && (
+        {state === "no-token" && (
+          <VStack spacing={5} textAlign="center">
+            <Icon as={EmailIcon} boxSize={16} color="blue.400" />
+            <Heading size="md">Check your email</Heading>
+            <Text color="text.secondary">
+              We sent a verification link to your email. Click the link to
+              verify your account.
+            </Text>
+
+            {resendDone ? (
+              <Alert status="success" borderRadius="md">
+                <AlertIcon />A new verification email has been sent. Check your
+                inbox.
+              </Alert>
+            ) : (
+              <Button
+                colorScheme="blue"
+                width="full"
+                isLoading={resending}
+                onClick={handleResend}
+              >
+                Resend verification email
+              </Button>
+            )}
+
+            <Button
+              variant="ghost"
+              width="full"
+              onClick={() => navigate("/overview")}
+            >
+              Back to app
+            </Button>
+          </VStack>
+        )}
+
+        {state === "error" && (
           <VStack spacing={5} textAlign="center">
             <Icon as={WarningIcon} boxSize={16} color="red.400" />
             <Heading size="md">Link invalid or expired</Heading>

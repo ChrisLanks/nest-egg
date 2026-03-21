@@ -55,6 +55,7 @@ class UserProfileResponse(BaseModel):
     notification_preferences: Optional[dict] = None
     default_currency: Optional[str] = None
     dashboard_layout: Optional[List[Any]] = None
+    onboarding_goal: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -145,6 +146,7 @@ async def get_user_profile(
         notification_preferences=current_user.notification_preferences,
         default_currency=org.default_currency if org else None,
         dashboard_layout=current_user.dashboard_layout,
+        onboarding_goal=current_user.onboarding_goal,
     )
 
 
@@ -175,6 +177,8 @@ async def update_user_profile(
         current_user.display_name = input_sanitization_service.sanitize_html(
             update_data.display_name
         )
+    if update_data.onboarding_goal is not None:
+        current_user.onboarding_goal = update_data.onboarding_goal
 
     if update_data.default_currency is not None and isinstance(update_data.default_currency, str):
         org_result = await db.execute(
@@ -255,6 +259,7 @@ async def update_user_profile(
         notification_preferences=current_user.notification_preferences,
         default_currency=org.default_currency if org else None,
         dashboard_layout=current_user.dashboard_layout,
+        onboarding_goal=current_user.onboarding_goal,
     )
 
 
