@@ -4,7 +4,7 @@ import asyncio
 import hashlib
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -453,7 +453,7 @@ async def _maybe_refresh_prices_on_login(organization_id) -> None:
 
     try:
         async with AsyncSessionLocal() as db:
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=STALE_AFTER_HOURS)
+            cutoff = utc_now() - timedelta(hours=STALE_AFTER_HOURS)
             # Check whether any holding in this org has a stale (or missing) price
             result = await db.execute(
                 select(Holding.id)
@@ -486,7 +486,7 @@ async def _maybe_refresh_prices_on_login(organization_id) -> None:
             quotes = await market_data.get_quotes_batch(symbols)
 
             updated = 0
-            now = datetime.now(timezone.utc)
+            now = utc_now()
             for h in stale_holdings:
                 if h.ticker and h.ticker in quotes:
                     q = quotes[h.ticker]
