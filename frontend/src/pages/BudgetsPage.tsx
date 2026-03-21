@@ -44,6 +44,8 @@ export default function BudgetsPage() {
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   const [prefillValues, setPrefillValues] =
     useState<Partial<BudgetCreate> | null>(null);
+  const [prefillProviderCategoryName, setPrefillProviderCategoryName] =
+    useState<string | null>(null);
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const {
     canWriteResource,
@@ -87,10 +89,10 @@ export default function BudgetsPage() {
       viewDefaults.shared_user_ids = null;
     } else if (selectedUserId && isOtherUserView) {
       // Viewing a specific other member → personal budget for that member
-      // (budget_service will assign user_id server-side based on context)
       viewDefaults.is_shared = false;
     }
     setPrefillValues(viewDefaults);
+    setPrefillProviderCategoryName(null);
     onOpen();
   };
 
@@ -110,12 +112,18 @@ export default function BudgetsPage() {
       category_id: suggestion.category_id ?? undefined,
       start_date: new Date().toISOString().split("T")[0],
     });
+    // If the suggestion is based on a provider category name (no UUID),
+    // pass it so the form pre-selects it in the category dropdown
+    setPrefillProviderCategoryName(
+      !suggestion.category_id ? suggestion.category_name : null,
+    );
     onOpen();
   };
 
   const handleClose = () => {
     setSelectedBudget(null);
     setPrefillValues(null);
+    setPrefillProviderCategoryName(null);
     onClose();
   };
 
@@ -369,11 +377,12 @@ export default function BudgetsPage() {
 
       {/* Budget form modal — key forces remount so defaultValues reset on each open */}
       <BudgetForm
-        key={selectedBudget?.id ?? prefillValues?.name ?? "new"}
+        key={selectedBudget?.id ?? prefillValues?.name ?? prefillProviderCategoryName ?? "new"}
         isOpen={isOpen}
         onClose={handleClose}
         budget={selectedBudget}
         initialValues={prefillValues}
+        initialProviderCategoryName={prefillProviderCategoryName}
       />
     </Container>
   );

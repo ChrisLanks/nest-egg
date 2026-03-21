@@ -551,7 +551,16 @@ async def get_household_summary(
 
     Returns total net worth, assets, liabilities, member count,
     and a per-member breakdown.
+
+    Guests are blocked: this endpoint exposes every member's individual
+    net worth, which guests should not be able to see.
     """
+    if getattr(current_user, "_is_guest", False):
+        raise HTTPException(
+            status_code=403,
+            detail="Guests cannot access household financial summaries.",
+        )
+
     org_id = current_user.organization_id
 
     # Debt account types for liability classification

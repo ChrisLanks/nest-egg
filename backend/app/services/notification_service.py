@@ -130,13 +130,16 @@ class NotificationService:
         await db.commit()
         await db.refresh(notification)
 
-        # Fire-and-forget email notification
+        # Email notification — track delivery status on the record
+        email_attempted = False
+        email_succeeded = False
         try:
             if email_service.is_configured and user_id:
                 # Look up the user to check email preference
                 user_result = await db.execute(select(User).where(User.id == user_id))
                 user = user_result.scalar_one_or_none()
                 if user and user.email_notifications_enabled and user.email:
+                    email_attempted = True
                     await email_service.send_notification_email(
                         to_email=user.email,
                         title=title,
@@ -144,8 +147,14 @@ class NotificationService:
                         action_url=action_url,
                         action_label=action_label,
                     )
+                    email_succeeded = True
         except Exception as e:
             logger.warning(f"Failed to send notification email: {e}")
+
+        # Persist delivery result so we have an audit trail
+        if email_attempted:
+            notification.email_sent = email_succeeded
+            await db.commit()
 
         return notification
 

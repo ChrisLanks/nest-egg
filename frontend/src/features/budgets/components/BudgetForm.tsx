@@ -52,6 +52,12 @@ interface BudgetFormProps {
   budget?: Budget | null;
   /** Pre-fill values for a new budget (e.g., from suggestions). Not edit mode. */
   initialValues?: Partial<BudgetCreate> | null;
+  /**
+   * When a suggestion has no UUID category (provider category like "Food And Drink"),
+   * pass the name here so the form pre-selects it in the category dropdown and
+   * auto-creates a custom category on save.
+   */
+  initialProviderCategoryName?: string | null;
 }
 
 type FilterBy = "all" | "category" | "label";
@@ -68,6 +74,7 @@ export default function BudgetForm({
   onClose,
   budget,
   initialValues,
+  initialProviderCategoryName,
 }: BudgetFormProps) {
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -110,11 +117,13 @@ export default function BudgetForm({
   // Tracks when a provider category (no UUID) is selected so we can auto-create it on save
   const [providerCategoryName, setProviderCategoryName] = useState<
     string | null
-  >(null);
+  >(budget ? null : (initialProviderCategoryName ?? null));
   // Whether the budget filters by "all", "category", or "label"
-  const [filterBy, setFilterBy] = useState<FilterBy>(
-    getInitialFilterBy(budget),
-  );
+  const [filterBy, setFilterBy] = useState<FilterBy>(() => {
+    if (budget) return getInitialFilterBy(budget);
+    if (initialValues?.category_id || initialProviderCategoryName) return "category";
+    return "all";
+  });
 
   // Reset form when the modal opens or the budget changes (defaultValues only applies on initial mount)
   useEffect(() => {
@@ -144,16 +153,19 @@ export default function BudgetForm({
               ...initialValues,
             },
       );
-      setProviderCategoryName(null);
+      // Set provider category name from prop (suggestion with no UUID)
+      setProviderCategoryName(
+        budget ? null : (initialProviderCategoryName ?? null),
+      );
       setFilterBy(
         budget
           ? getInitialFilterBy(budget)
-          : initialValues?.category_id
+          : initialValues?.category_id || initialProviderCategoryName
             ? "category"
             : "all",
       );
     }
-  }, [isOpen, budget, initialValues]);
+  }, [isOpen, budget, initialValues, initialProviderCategoryName]);
 
   // When filterBy changes, clear the other field
   const handleFilterByChange = (value: FilterBy) => {

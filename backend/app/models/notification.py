@@ -83,6 +83,9 @@ class Notification(Base):
     read_at = Column(DateTime, nullable=True)
     dismissed_at = Column(DateTime, nullable=True)
 
+    # Email delivery tracking (None = no email attempted, True = sent, False = failed)
+    email_sent = Column(Boolean, nullable=True, default=None)
+
     # Action URL (optional link for user to take action)
     action_url = Column(String(500), nullable=True)
     action_label = Column(String(100), nullable=True)
