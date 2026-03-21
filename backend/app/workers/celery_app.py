@@ -71,6 +71,7 @@ from app.workers.tasks import (
     retention_tasks,  # noqa: F401
     retirement_tasks,  # noqa: F401
     snapshot_tasks,  # noqa: F401
+    suggestion_tasks,  # noqa: F401
 )
 
 # Beat schedule (periodic tasks)
@@ -146,5 +147,11 @@ celery_app.conf.beat_schedule = {
     "send-bill-reminders": {
         "task": "send_bill_reminders",
         "schedule": crontab(hour=8, minute=0),  # 8am daily
+    },
+    # Pre-compute budget suggestions for all orgs — 2:05am daily
+    # (after recurring pattern detection at 2am, so categories are up-to-date)
+    "refresh-budget-suggestions": {
+        "task": "refresh_budget_suggestions",
+        "schedule": crontab(hour=2, minute=5),
     },
 }

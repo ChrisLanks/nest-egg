@@ -310,7 +310,11 @@ export default function BudgetsPage() {
               showAction={canEdit && (!isPartialSelection || isSelfView)}
             />
             {canEdit && (isSelfView || !selectedUserId) && (
-              <BudgetSuggestions onAccept={handleAcceptSuggestion} userId={selectedUserId} />
+              <BudgetSuggestions
+                onAccept={handleAcceptSuggestion}
+                userId={selectedUserId}
+                existingBudgetCount={0}
+              />
             )}
           </>
         )}
@@ -352,7 +356,11 @@ export default function BudgetsPage() {
           budgets.length <= 3 &&
           canEdit &&
           (isSelfView || !selectedUserId) && (
-            <BudgetSuggestions onAccept={handleAcceptSuggestion} userId={selectedUserId} />
+            <BudgetSuggestions
+              onAccept={handleAcceptSuggestion}
+              userId={selectedUserId}
+              existingBudgetCount={budgets.length}
+            />
           )}
 
         {/* Inactive budgets */}
