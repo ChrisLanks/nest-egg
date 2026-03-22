@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const getDaysInMonth = (year: number | null, month: number | null): number => {
   if (!month) return 31;
@@ -557,25 +557,31 @@ export default function PreferencesPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   // Fetch user profile
-  const { isLoading: profileLoading, isError: profileError } = useQuery({
+  const { data: profileData, isLoading: profileLoading, isError: profileError } = useQuery({
     queryKey: ["userProfile"],
     queryFn: async () => {
       const response = await api.get("/settings/profile");
-      const data = response.data;
-      // display_name is primary; fall back to first+last for existing users
-      setDisplayName(
-        data.display_name ||
-          `${data.first_name || ""} ${data.last_name || ""}`.trim() ||
-          "",
-      );
-      setEmail(data.email || "");
-      setBirthDay(data.birth_day || null);
-      setBirthMonth(data.birth_month || null);
-      setBirthYear(data.birth_year || null);
-      setDefaultCurrency(data.default_currency || "USD");
-      return data;
+      return response.data;
     },
   });
+
+  // Seed form state whenever profile data arrives (first load or cache hit).
+  // Using useEffect ensures the form populates even when React Query serves
+  // cached data without re-running the queryFn.
+  useEffect(() => {
+    if (!profileData) return;
+    // display_name is primary; fall back to first+last for existing users
+    setDisplayName(
+      profileData.display_name ||
+        `${profileData.first_name || ""} ${profileData.last_name || ""}`.trim() ||
+        "",
+    );
+    setEmail(profileData.email || "");
+    setBirthDay(profileData.birth_day || null);
+    setBirthMonth(profileData.birth_month || null);
+    setBirthYear(profileData.birth_year || null);
+    setDefaultCurrency(profileData.default_currency || "USD");
+  }, [profileData]);
 
   // Update profile mutation
   const updateProfileMutation = useMutation({

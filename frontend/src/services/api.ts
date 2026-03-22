@@ -8,10 +8,14 @@
  */
 
 import axios from "axios";
-import { createStandaloneToast } from "@chakra-ui/react";
 import { useAuthStore } from "../features/auth/stores/authStore";
 
-const { toast } = createStandaloneToast();
+// Dispatch a custom event so the in-tree ApiErrorToastListener (which has
+// access to Chakra's single ToastProvider) can show the toast.  Avoids the
+// duplicate-key warning caused by createStandaloneToast creating a second provider.
+function dispatchApiErrorToast(type: "rate-limit" | "server-error") {
+  window.dispatchEvent(new CustomEvent("api-error-toast", { detail: { type } }));
+}
 
 // In dev the Vite proxy rewrites /api → http://localhost:8000/api so cookies
 // are same-origin.  In production the backend and frontend share a domain.
@@ -322,25 +326,21 @@ api.interceptors.response.use(
 
     // Show a global toast for rate limiting and server errors so the user
     // always gets feedback even if the calling component has no error handler.
+    // Skip auth endpoints — those errors are handled by callers (login form etc.)
     const status = error.response?.status;
-    if (status === 429) {
-      toast({
-        title: "Too many requests",
-        description: "You're doing that too fast. Please wait a moment and try again.",
-        status: "warning",
-        duration: 5000,
-        isClosable: true,
-        id: "rate-limit-toast", // deduplicate
-      });
-    } else if (status && status >= 500) {
-      toast({
-        title: "Server error",
-        description: "Something went wrong on our end. Please try again.",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-        id: "server-error-toast",
-      });
+    const url = originalRequest?.url ?? "";
+    const isAuthEndpointError =
+      url.includes("/auth/login") ||
+      url.includes("/auth/register") ||
+      url.includes("/auth/refresh") ||
+      url.includes("/auth/forgot-password") ||
+      url.includes("/auth/reset-password");
+    if (!isAuthEndpointError) {
+      if (status === 429) {
+        dispatchApiErrorToast("rate-limit");
+      } else if (status && status >= 500) {
+        dispatchApiErrorToast("server-error");
+      }
     }
 
     return Promise.reject(error);

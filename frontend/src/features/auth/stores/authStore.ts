@@ -92,7 +92,12 @@ export const useAuthStore = create<AuthState>()(
             return true;
           }
           return false;
-        } catch {
+        } catch (err: any) {
+          // 429 means rate-limited — the session is still valid, don't log out.
+          // Any other error (401, network failure) means the session is gone.
+          if (err?.response?.status === 429) {
+            return false;
+          }
           get().logout();
           return false;
         }

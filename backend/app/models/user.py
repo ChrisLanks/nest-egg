@@ -163,7 +163,7 @@ class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     token_hash = Column(String(255), nullable=False, unique=True, index=True)
     expires_at = Column(DateTime, nullable=False)
     revoked_at = Column(DateTime)
@@ -193,11 +193,11 @@ class HouseholdInvitation(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(
-        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
     email = Column(String(255), nullable=False)
     invited_by_user_id = Column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     invitation_code = Column(String(64), nullable=False, unique=True, index=True)
     status = Column(
@@ -299,9 +299,10 @@ class AccountShare(Base):
     )
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False)
 
-    # Add unique constraint
     __table_args__ = (
         UniqueConstraint("account_id", "shared_with_user_id", name="uq_account_user_share"),
+        Index("ix_account_shares_account_id", "account_id"),
+        Index("ix_account_shares_shared_with_user_id", "shared_with_user_id"),
     )
 
     # Relationships

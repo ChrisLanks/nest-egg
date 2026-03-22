@@ -33,3 +33,38 @@ class TestFKIndexes:
         assert "ix_categories_parent_category_id" in indexes, (
             "Missing ix_categories_parent_category_id — run: alembic upgrade head"
         )
+
+    async def test_refresh_tokens_user_id_index_exists(self, db_session: AsyncSession):
+        """ix_refresh_tokens_user_id — speeds up token revocation by user."""
+        indexes = await _get_indexes(db_session, "refresh_tokens")
+        assert "ix_refresh_tokens_user_id" in indexes, (
+            "Missing ix_refresh_tokens_user_id — run: alembic upgrade head"
+        )
+
+    async def test_household_invitations_organization_id_index_exists(self, db_session: AsyncSession):
+        """ix_household_invitations_organization_id — speeds up listing pending invites per org."""
+        indexes = await _get_indexes(db_session, "household_invitations")
+        assert "ix_household_invitations_organization_id" in indexes, (
+            "Missing ix_household_invitations_organization_id — run: alembic upgrade head"
+        )
+
+    async def test_household_invitations_invited_by_user_id_index_exists(self, db_session: AsyncSession):
+        """ix_household_invitations_invited_by_user_id — speeds up cascade deletes by inviter."""
+        indexes = await _get_indexes(db_session, "household_invitations")
+        assert "ix_household_invitations_invited_by_user_id" in indexes, (
+            "Missing ix_household_invitations_invited_by_user_id — run: alembic upgrade head"
+        )
+
+    async def test_account_shares_account_id_index_exists(self, db_session: AsyncSession):
+        """ix_account_shares_account_id — speeds up loading shares for an account."""
+        indexes = await _get_indexes(db_session, "account_shares")
+        assert "ix_account_shares_account_id" in indexes, (
+            "Missing ix_account_shares_account_id — run: alembic upgrade head"
+        )
+
+    async def test_account_shares_shared_with_user_id_index_exists(self, db_session: AsyncSession):
+        """ix_account_shares_shared_with_user_id — speeds up loading accounts shared with a user."""
+        indexes = await _get_indexes(db_session, "account_shares")
+        assert "ix_account_shares_shared_with_user_id" in indexes, (
+            "Missing ix_account_shares_shared_with_user_id — run: alembic upgrade head"
+        )

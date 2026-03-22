@@ -17,6 +17,7 @@ import { RegisterPage } from "./features/auth/pages/RegisterPage";
 import { ProtectedRoute } from "./features/auth/components/ProtectedRoute";
 import { Layout } from "./components/Layout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { ApiErrorToastListener } from "./components/ApiErrorToastListener";
 
 // Lazy-loaded pages (code-split for performance)
 const DashboardPage = lazy(() =>
@@ -136,6 +137,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ChakraProvider theme={theme}>
+        <ApiErrorToastListener />
         <BrowserRouter>
           <CurrencyProvider>
           <UserViewProvider>
