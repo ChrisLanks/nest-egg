@@ -69,12 +69,20 @@ class LifeEventCreate(BaseModel):
     category: LifeEventCategory
     start_age: int = Field(ge=0, le=120)
     end_age: Optional[int] = Field(None, ge=0, le=120)
-    annual_cost: Optional[Decimal] = None
-    one_time_cost: Optional[Decimal] = None
+    annual_cost: Optional[Decimal] = Field(None, ge=0)
+    one_time_cost: Optional[Decimal] = Field(None, ge=0)
     income_change: Optional[Decimal] = None
     use_medical_inflation: bool = False
     custom_inflation_rate: Optional[Decimal] = Field(None, ge=0, le=50)
     sort_order: int = 0
+
+    @model_validator(mode="after")
+    def validate_age_range(self) -> "LifeEventCreate":
+        if self.end_age is not None and self.end_age <= self.start_age:
+            raise ValueError(
+                f"end_age ({self.end_age}) must be greater than start_age ({self.start_age})"
+            )
+        return self
 
 
 class LifeEventUpdate(BaseModel):
@@ -84,12 +92,20 @@ class LifeEventUpdate(BaseModel):
     category: Optional[LifeEventCategory] = None
     start_age: Optional[int] = Field(None, ge=0, le=120)
     end_age: Optional[int] = Field(None, ge=0, le=120)
-    annual_cost: Optional[Decimal] = None
-    one_time_cost: Optional[Decimal] = None
+    annual_cost: Optional[Decimal] = Field(None, ge=0)
+    one_time_cost: Optional[Decimal] = Field(None, ge=0)
     income_change: Optional[Decimal] = None
     use_medical_inflation: Optional[bool] = None
     custom_inflation_rate: Optional[Decimal] = Field(None, ge=0, le=50)
     sort_order: Optional[int] = None
+
+    @model_validator(mode="after")
+    def validate_age_range(self) -> "LifeEventUpdate":
+        if self.start_age is not None and self.end_age is not None and self.end_age <= self.start_age:
+            raise ValueError(
+                f"end_age ({self.end_age}) must be greater than start_age ({self.start_age})"
+            )
+        return self
 
 
 class LifeEventResponse(BaseModel):
@@ -183,9 +199,9 @@ class RetirementScenarioCreate(BaseModel):
     capital_gains_rate: Decimal = Field(default=FIRE.DEFAULT_CAPITAL_GAINS_RATE_PCT, ge=0, le=30)
 
     # Healthcare cost overrides (annual, None = use estimate)
-    healthcare_pre65_override: Optional[Decimal] = Field(None, ge=0)
-    healthcare_medicare_override: Optional[Decimal] = Field(None, ge=0)
-    healthcare_ltc_override: Optional[Decimal] = Field(None, ge=0)
+    healthcare_pre65_override: Optional[Decimal] = Field(None, ge=0, le=500000)
+    healthcare_medicare_override: Optional[Decimal] = Field(None, ge=0, le=500000)
+    healthcare_ltc_override: Optional[Decimal] = Field(None, ge=0, le=500000)
 
     # Config
     num_simulations: int = Field(default=FIRE.MC_DEFAULT_SIMS, ge=100, le=10000)
@@ -204,9 +220,39 @@ class RetirementScenarioCreate(BaseModel):
     excluded_account_ids: Optional[List[str]] = None
 
     @model_validator(mode="after")
-    def validate_spending_phases(self) -> "RetirementScenarioCreate":
+    def validate_scenario(self) -> "RetirementScenarioCreate":
+        # Validate spending phases
         if self.spending_phases is not None:
             self.spending_phases = _validate_spending_phases(self.spending_phases)
+            # Spending phases must not start before retirement age
+            for phase in self.spending_phases:
+                if phase.start_age < self.retirement_age:
+                    raise ValueError(
+                        f"Spending phase start_age ({phase.start_age}) must be"
+                        f" >= retirement_age ({self.retirement_age})"
+                    )
+            # Spending phases must not extend beyond life expectancy
+            last = self.spending_phases[-1]
+            if last.end_age is not None and last.end_age > self.life_expectancy:
+                raise ValueError(
+                    f"Last spending phase end_age ({last.end_age}) must be"
+                    f" <= life_expectancy ({self.life_expectancy})"
+                )
+        # SS claiming age must be <= life expectancy
+        if (
+            self.social_security_start_age is not None
+            and self.social_security_start_age > self.life_expectancy
+        ):
+            raise ValueError(
+                f"social_security_start_age ({self.social_security_start_age})"
+                f" must not exceed life_expectancy ({self.life_expectancy})"
+            )
+        # Retirement age must be < life expectancy
+        if self.retirement_age >= self.life_expectancy:
+            raise ValueError(
+                f"retirement_age ({self.retirement_age}) must be less than"
+                f" life_expectancy ({self.life_expectancy})"
+            )
         return self
 
 
@@ -243,9 +289,9 @@ class RetirementScenarioUpdate(BaseModel):
     state_tax_rate: Optional[Decimal] = Field(None, ge=0, le=20)
     capital_gains_rate: Optional[Decimal] = Field(None, ge=0, le=30)
 
-    healthcare_pre65_override: Optional[Decimal] = Field(None, ge=0)
-    healthcare_medicare_override: Optional[Decimal] = Field(None, ge=0)
-    healthcare_ltc_override: Optional[Decimal] = Field(None, ge=0)
+    healthcare_pre65_override: Optional[Decimal] = Field(None, ge=0, le=500000)
+    healthcare_medicare_override: Optional[Decimal] = Field(None, ge=0, le=500000)
+    healthcare_ltc_override: Optional[Decimal] = Field(None, ge=0, le=500000)
 
     num_simulations: Optional[int] = Field(None, ge=100, le=10000)
     inflation_adjusted: Optional[bool] = None
@@ -266,6 +312,15 @@ class RetirementScenarioUpdate(BaseModel):
     def validate_spending_phases(self) -> "RetirementScenarioUpdate":
         if self.spending_phases is not None:
             self.spending_phases = _validate_spending_phases(self.spending_phases)
+        # retirement_age < life_expectancy (only when both are provided)
+        retirement_age = self.retirement_age
+        life_expectancy = self.life_expectancy
+        if retirement_age is not None and life_expectancy is not None:
+            if retirement_age >= life_expectancy:
+                raise ValueError(
+                    f"retirement_age ({retirement_age}) must be less than"
+                    f" life_expectancy ({life_expectancy})"
+                )
         return self
 
 

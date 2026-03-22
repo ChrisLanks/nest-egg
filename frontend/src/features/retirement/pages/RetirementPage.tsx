@@ -1348,6 +1348,18 @@ export function RetirementPage() {
                         }
                         return null;
                       })()}
+                      {s.is_stale && (
+                        <Tooltip label="Household members have changed since this scenario was last simulated. Re-run the simulation to update.">
+                          <Badge
+                            colorScheme="orange"
+                            variant="subtle"
+                            fontSize="9px"
+                            px={1}
+                          >
+                            Stale
+                          </Badge>
+                        </Tooltip>
+                      )}
                       <Text as="span">
                         {s.name}
                         {isCombinedView &&
@@ -1501,6 +1513,13 @@ export function RetirementPage() {
             onEventClick={readOnly ? undefined : handleEditEvent}
             onDeleteEvent={readOnly ? undefined : handleDeleteEvent}
           />
+        )}
+
+        {/* Life events empty state */}
+        {scenario && scenario.life_events.length === 0 && (
+          <Text fontSize="sm" color={useColorModeValue("gray.400", "gray.500")} textAlign="center">
+            No life events added yet. Use &quot;+ Add Life Event&quot; to model major expenses like a home purchase, kids, or an inheritance.
+          </Text>
         )}
 
         {/* Add Life Event Buttons */}

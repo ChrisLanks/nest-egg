@@ -76,7 +76,7 @@ export function RetirementFanChart({
     return (
       <Box bg={bgColor} p={6} borderRadius="xl" shadow="sm" h="400px">
         <Text color={textColor} textAlign="center" pt="150px">
-          {isLoading ? "Running simulation..." : "No projection data yet"}
+          {isLoading ? "Running simulation..." : "No projection data yet — click Run Simulation below to generate your forecast."}
         </Text>
       </Box>
     );

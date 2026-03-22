@@ -161,9 +161,12 @@ async def list_scenarios(
     for summary, scenario in zip(summaries, scenarios):
         summary["include_all_members"] = scenario.include_all_members
         summary["is_archived"] = scenario.is_archived
-        summary["household_member_ids"] = (
-            json.loads(scenario.household_member_ids) if scenario.household_member_ids else None
-        )
+        try:
+            summary["household_member_ids"] = (
+                json.loads(scenario.household_member_ids) if scenario.household_member_ids else None
+            )
+        except (json.JSONDecodeError, ValueError):
+            summary["household_member_ids"] = None
 
         if scenario.is_archived:
             summary["is_stale"] = False
@@ -175,7 +178,10 @@ async def list_scenarios(
             and active_user_ids is not None
         ):
             # Selective scenario: stale if any member is inactive
-            stored = set(json.loads(scenario.household_member_ids))
+            try:
+                stored = set(json.loads(scenario.household_member_ids))
+            except (json.JSONDecodeError, ValueError):
+                stored = set()
             summary["is_stale"] = not stored.issubset(active_user_ids)
         else:
             summary["is_stale"] = False
@@ -225,7 +231,10 @@ async def get_scenario(
         is_stale = current_hash != scenario.household_member_hash
     elif not scenario.include_all_members and scenario.household_member_ids:
         # Selective: stale if any stored member is now inactive
-        stored = json.loads(scenario.household_member_ids)
+        try:
+            stored = json.loads(scenario.household_member_ids)
+        except (json.JSONDecodeError, ValueError):
+            stored = []
         active_result = await db.execute(
             sa_select(func.count(User.id)).where(
                 User.id.in_(stored),
@@ -238,13 +247,19 @@ async def get_scenario(
     # Parse household_member_ids from JSON
     household_member_ids = None
     if scenario.household_member_ids:
-        household_member_ids = json.loads(scenario.household_member_ids)
+        try:
+            household_member_ids = json.loads(scenario.household_member_ids)
+        except (json.JSONDecodeError, ValueError):
+            household_member_ids = None
 
     # Parse excluded_account_ids from JSON
     excluded_account_ids = None
     raw_excluded = getattr(scenario, "excluded_account_ids", None)
     if raw_excluded:
-        excluded_account_ids = json.loads(raw_excluded) if isinstance(raw_excluded, str) else raw_excluded
+        try:
+            excluded_account_ids = json.loads(raw_excluded) if isinstance(raw_excluded, str) else raw_excluded
+        except (json.JSONDecodeError, ValueError):
+            excluded_account_ids = None
 
     response = RetirementScenarioResponse.model_validate(scenario)
     response.is_stale = is_stale
@@ -410,7 +425,10 @@ async def refresh_household(
         scenario.household_member_ids = json.dumps(member_ids)
     else:
         # Selective: recompute hash for the stored member list
-        member_ids = json.loads(scenario.household_member_ids)
+        try:
+            member_ids = json.loads(scenario.household_member_ids)
+        except (json.JSONDecodeError, ValueError):
+            member_ids = []
         scenario.household_member_hash = RetirementPlannerService.compute_selective_member_hash(
             member_ids
         )
@@ -427,7 +445,7 @@ async def refresh_household(
 
     response = RetirementScenarioResponse.model_validate(scenario)
     response.is_stale = False
-    response.household_member_ids = member_ids
+    response.household_member_ids = member_ids if isinstance(member_ids, list) else None
     return response
 
 
@@ -464,7 +482,10 @@ async def archive_scenario(
 
     response = RetirementScenarioResponse.model_validate(scenario)
     if scenario.household_member_ids:
-        response.household_member_ids = json.loads(scenario.household_member_ids)
+        try:
+            response.household_member_ids = json.loads(scenario.household_member_ids)
+        except (json.JSONDecodeError, ValueError):
+            response.household_member_ids = None
     return response
 
 
@@ -498,7 +519,10 @@ async def unarchive_scenario(
     response = RetirementScenarioResponse.model_validate(scenario)
     response.is_stale = False
     if scenario.household_member_ids:
-        response.household_member_ids = json.loads(scenario.household_member_ids)
+        try:
+            response.household_member_ids = json.loads(scenario.household_member_ids)
+        except (json.JSONDecodeError, ValueError):
+            response.household_member_ids = None
     return response
 
 
@@ -661,9 +685,10 @@ async def get_social_security_estimate(
 
     # Determine salary for estimation
     salary = override_salary or 0
+    if salary == 0 and target_user.current_annual_income:
+        salary = float(target_user.current_annual_income)
     if salary == 0:
-        # TODO: Could pull from scenario or account data
-        salary = 75000  # Reasonable default
+        salary = 75000  # Fallback default when no income data available
 
     result = estimate_social_security(
         current_salary=salary,
@@ -885,26 +910,32 @@ async def compare_scenarios(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Compare multiple scenarios side-by-side."""
+    """Compare multiple scenarios side-by-side.
+
+    Scenarios without simulation results are skipped (partial comparison).
+    Returns 400 only if ALL requested scenarios lack results or are not found.
+    """
     items = []
+    skipped: list[str] = []
     for scenario_id in data.scenario_ids:
         scenario = await RetirementPlannerService.get_scenario(
             db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
         )
         if not scenario:
-            raise HTTPException(status_code=404, detail=f"Scenario {scenario_id} not found")
+            skipped.append(str(scenario_id))
+            continue
 
         result = await RetirementPlannerService.get_latest_result(db=db, scenario_id=scenario_id)
         if not result:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"No simulation results for scenario"
-                    f" '{scenario.name}'. Run simulation first."
-                ),
-            )
+            skipped.append(scenario.name)
+            continue
 
-        projections = json.loads(result.projections_json)
+        try:
+            projections = json.loads(result.projections_json)
+        except (json.JSONDecodeError, ValueError):
+            skipped.append(scenario.name)
+            continue
+
         items.append(
             ScenarioComparisonItem(
                 scenario_id=scenario.id,
@@ -917,6 +948,12 @@ async def compare_scenarios(
                 else None,
                 projections=[ProjectionDataPoint(**p) for p in projections],
             )
+        )
+
+    if not items:
+        raise HTTPException(
+            status_code=400,
+            detail="None of the selected scenarios have simulation results. Run simulations first.",
         )
 
     return ScenarioComparisonResponse(scenarios=items)
@@ -944,7 +981,10 @@ async def export_projections_csv(
             status_code=404, detail="No simulation results yet. Run a simulation first."
         )
 
-    projections = json.loads(result.projections_json)
+    try:
+        projections = json.loads(result.projections_json)
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(status_code=500, detail="Simulation result data is corrupted")
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -973,7 +1013,8 @@ async def export_projections_csv(
         )
 
     output.seek(0)
-    safe_name = scenario.name.replace(" ", "_").replace("/", "_")[:50]
+    import re
+    safe_name = re.sub(r'[^\w\-]', '_', scenario.name)[:50]
     filename = f"retirement_{safe_name}_projections.csv"
 
     return StreamingResponse(
@@ -988,10 +1029,16 @@ async def export_projections_csv(
 
 def _format_simulation_result(result) -> SimulationResultResponse:
     """Format a DB result into the API response."""
-    projections = json.loads(result.projections_json)
-    withdrawal_comparison = (
-        json.loads(result.withdrawal_comparison_json) if result.withdrawal_comparison_json else None
-    )
+    try:
+        projections = json.loads(result.projections_json)
+    except (json.JSONDecodeError, ValueError, AttributeError):
+        projections = []
+    try:
+        withdrawal_comparison = (
+            json.loads(result.withdrawal_comparison_json) if result.withdrawal_comparison_json else None
+        )
+    except (json.JSONDecodeError, ValueError):
+        withdrawal_comparison = None
 
     return SimulationResultResponse(
         id=result.id,

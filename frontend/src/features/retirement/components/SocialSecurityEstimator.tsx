@@ -171,16 +171,16 @@ export function SocialSecurityEstimator({
           </FormControl>
         )}
 
-        {/* Birthdate missing — prompt user to set it */}
+        {/* Error state: birthdate missing or API failure */}
         {!useManual && isError && (
           <Alert status="warning" borderRadius="md" fontSize="sm">
             <AlertIcon />
             <Text>
-              Please set your birthdate in{" "}
+              Could not load estimate. Please set your birthdate in{" "}
               <Link href="/settings/preferences" color="blue.500" textDecoration="underline">
                 Preferences
               </Link>{" "}
-              for accurate estimates.
+              or try refreshing.
             </Text>
           </Alert>
         )}

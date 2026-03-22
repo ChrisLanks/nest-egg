@@ -7,6 +7,8 @@
  */
 
 import {
+  Alert,
+  AlertIcon,
   Badge,
   Box,
   Checkbox,
@@ -108,7 +110,7 @@ export function AccountDataSummary({
     [onExcludedAccountsChange],
   );
 
-  const { data, isLoading } = useRetirementAccountData(
+  const { data, isLoading, isError } = useRetirementAccountData(
     userId,
     scenario?.include_all_members,
     scenario?.household_member_ids ?? undefined,
@@ -506,7 +508,14 @@ export function AccountDataSummary({
           </>
         )}
 
-        {!data && !isLoading && (
+        {isError && (
+          <Alert status="error" borderRadius="md" fontSize="sm">
+            <AlertIcon />
+            Unable to load account data. Please refresh and try again.
+          </Alert>
+        )}
+
+        {!data && !isLoading && !isError && (
           <Text fontSize="sm" color={labelColor}>
             No accounts found. Add accounts to see your portfolio breakdown.
           </Text>

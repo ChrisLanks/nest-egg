@@ -6,6 +6,8 @@
  */
 
 import {
+  Alert,
+  AlertIcon,
   Box,
   FormControl,
   FormLabel,
@@ -82,7 +84,7 @@ export function HealthcareEstimator({
     prevOverrideProps.current = { pre65: pre65Override, medicare: medicareOverride, ltc: ltcOverride };
   }, [pre65Override, medicareOverride, ltcOverride]);
 
-  const { data: estimate, isLoading } = useHealthcareEstimate(
+  const { data: estimate, isLoading, isError } = useHealthcareEstimate(
     retirementIncome,
     medicalInflationRate
   );
@@ -250,6 +252,13 @@ export function HealthcareEstimator({
               </NumberInput>
             </FormControl>
           </VStack>
+        )}
+
+        {isError && !isEditing && (
+          <Alert status="error" borderRadius="md" fontSize="sm">
+            <AlertIcon />
+            Unable to load healthcare estimates. Please set your birthdate in Preferences or try refreshing.
+          </Alert>
         )}
 
         {(estimate || isEditing) && (
