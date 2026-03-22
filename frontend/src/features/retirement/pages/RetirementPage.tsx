@@ -999,26 +999,16 @@ export function RetirementPage() {
               <Text fontSize="2xl" fontWeight="bold">
                 Retirement Planner
               </Text>
-              {filterUserId || isOtherUserView ? (
+              {isOtherUserView ? (
                 <Text color="gray.500" maxW="md">
                   {(() => {
-                    if (isOtherUserView && selectedUserId) {
-                      const member = householdMembers.find(
-                        (m) => m.id === selectedUserId,
-                      );
-                      const name =
-                        member?.display_name ||
-                        member?.first_name ||
-                        "This user";
-                      return `${name} doesn't have any retirement scenarios yet.`;
-                    }
                     const member = householdMembers.find(
-                      (m) => m.id === filterUserId,
+                      (m) => m.id === selectedUserId,
                     );
                     const name =
                       member?.display_name ||
                       member?.first_name ||
-                      "This member";
+                      "This user";
                     return `${name} doesn't have any retirement scenarios yet.`;
                   })()}
                 </Text>
