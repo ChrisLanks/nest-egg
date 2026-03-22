@@ -16,6 +16,7 @@ from app.dependencies import get_current_admin_user, get_current_user
 from app.models.account import Account
 from app.models.budget import Budget
 from app.models.notification import NotificationPriority, NotificationType
+from app.models.permission import PermissionGrant
 from app.models.savings_goal import SavingsGoal
 from app.models.transaction import Transaction
 from app.models.user import HouseholdInvitation, InvitationStatus, Organization, User
@@ -275,6 +276,17 @@ async def remove_member(
 
     # Soft delete by marking inactive
     user_to_remove.is_active = False
+
+    # Revoke all permission grants where this user is the grantor or grantee.
+    # The FK has ondelete=CASCADE but the user row is soft-deleted, so we must
+    # clean up grants explicitly to prevent dangling access.
+    await db.execute(
+        delete(PermissionGrant).where(
+            PermissionGrant.organization_id == current_user.organization_id,
+            (PermissionGrant.grantor_id == user_id)
+            | (PermissionGrant.grantee_id == user_id),
+        )
+    )
 
     # Archive selective retirement scenarios that include this member
     from app.services.retirement.retirement_planner_service import (

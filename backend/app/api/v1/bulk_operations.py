@@ -122,6 +122,22 @@ async def undo_bulk_operation(
             detail="This operation has already been undone",
         )
 
+    # Detect conflicts: if any transaction was manually edited after this bulk
+    # operation, undo would silently overwrite the manual change. Raise 409 so
+    # the caller can inform the user rather than lose their work.
+    conflicts = await _detect_undo_conflicts(db, operation)
+    if conflicts:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Cannot undo: {len(conflicts)} transaction(s) have been manually "
+                f"edited since this operation was performed. "
+                f"Undo would overwrite those changes. "
+                f"Affected IDs: {', '.join(conflicts[:5])}"
+                + (" …" if len(conflicts) > 5 else "")
+            ),
+        )
+
     # Restore previous state per operation type
     restored_count = await _restore_previous_state(db, operation, current_user)
 
@@ -151,6 +167,59 @@ _RESTORABLE_FIELDS = {
     "is_transfer",
     "is_hidden",
 }
+
+
+async def _detect_undo_conflicts(
+    db: AsyncSession,
+    operation: BulkOperationLog,
+) -> list[str]:
+    """Return IDs of transactions whose current values differ from new_state.
+
+    When new_state is a dict, we compare the current field values for all
+    affected rows against what the bulk operation set them to. Any row that no
+    longer matches has been manually edited and would be silently overwritten by
+    an undo — we surface these as conflicts instead.
+
+    Only fields in _RESTORABLE_FIELDS are checked (the same ones we'd restore).
+    Returns an empty list when new_state is a list (per-row state) or missing,
+    since verifying list-format conflicts would require per-row queries.
+    """
+    new_state = operation.new_state
+    affected_ids = operation.affected_ids or []
+
+    if not new_state or not isinstance(new_state, dict) or not affected_ids:
+        return []
+
+    check_fields = [k for k in _RESTORABLE_FIELDS if k in new_state]
+    if not check_fields:
+        return []
+
+    org_id = operation.organization_id
+    columns = [getattr(Transaction, f) for f in check_fields]
+    result = await db.execute(
+        select(Transaction.id, *columns).where(
+            Transaction.id.in_(affected_ids),
+            Transaction.organization_id == org_id,
+        )
+    )
+    rows = result.all()
+
+    conflicts: list[str] = []
+    for row in rows:
+        row_dict = dict(zip(["id"] + check_fields, row))
+        for field in check_fields:
+            expected = new_state.get(field)
+            actual = row_dict.get(field)
+            # Normalise UUID objects to str for comparison
+            if hasattr(actual, "hex"):
+                actual = str(actual)
+            if hasattr(expected, "hex"):
+                expected = str(expected)
+            if str(actual) != str(expected) if (actual is not None and expected is not None) else actual != expected:
+                conflicts.append(str(row_dict["id"]))
+                break
+
+    return conflicts
 
 
 async def _restore_previous_state(

@@ -812,3 +812,95 @@ class TestUpdatePricesPerTickerError:
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
             await _capture_snapshots_async()
+
+
+# ── cross-org ER contamination fix ────────────────────────────────────────────
+
+
+@pytest.mark.unit
+class TestCrossOrgErIsolation:
+    """Verify that expense_ratio enrichment is scoped per (ticker, org_id)."""
+
+    @pytest.mark.asyncio
+    async def test_org_with_er_does_not_block_other_org_enrichment(self):
+        """Org A having an ER for VTSAX must not prevent Org B from receiving one."""
+        org_a = uuid4()
+        org_b = uuid4()
+        # Org A has an ER; org B does not
+        h_a = _mock_holding("VTSAX", org_a, expense_ratio=Decimal("0.0003"))
+        h_b = _mock_holding("VTSAX", org_b, expense_ratio=None)
+
+        mock_db = AsyncMock()
+        scalars_mock = Mock()
+        scalars_mock.all.return_value = [h_a, h_b]
+        result_mock = Mock()
+        result_mock.scalars.return_value = scalars_mock
+        mock_db.execute.return_value = result_mock
+
+        metadata = _mock_metadata(
+            name="Vanguard Total Stock Market",
+            expense_ratio=Decimal("0.0003"),
+        )
+        mock_provider = AsyncMock()
+        mock_provider.get_holding_metadata = AsyncMock(return_value=metadata)
+        mock_provider.get_provider_name.return_value = "test"
+
+        execute_calls = []
+
+        async def record_execute(stmt):
+            execute_calls.append(stmt)
+            return result_mock
+
+        mock_db.execute = AsyncMock(side_effect=record_execute)
+        # First call is the SELECT; subsequent calls are UPDATEs
+        mock_db.execute.side_effect = [result_mock] + [result_mock] * 10
+
+        with (
+            patch("app.workers.utils.get_celery_session") as mock_factory,
+            patch(
+                "app.workers.tasks.holdings_tasks.get_market_data_provider",
+                return_value=mock_provider,
+            ),
+            patch("app.workers.tasks.holdings_tasks.cache_delete_pattern", AsyncMock()),
+        ):
+            mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+            await _enrich_metadata_async()
+
+        # Two UPDATE calls should have been made (one per org)
+        # execute call count = 1 (SELECT) + 2 (UPDATE per org) = 3
+        assert mock_db.execute.await_count >= 3
+
+    @pytest.mark.asyncio
+    async def test_both_orgs_have_er_no_enrichment_for_either(self):
+        """When both orgs already have an ER, neither should be updated."""
+        org_a = uuid4()
+        org_b = uuid4()
+        h_a = _mock_holding("VTSAX", org_a, expense_ratio=Decimal("0.0003"))
+        h_b = _mock_holding("VTSAX", org_b, expense_ratio=Decimal("0.0004"))
+
+        mock_db = AsyncMock()
+        scalars_mock = Mock()
+        scalars_mock.all.return_value = [h_a, h_b]
+        result_mock = Mock()
+        result_mock.scalars.return_value = scalars_mock
+        mock_db.execute.return_value = result_mock
+
+        metadata = _mock_metadata(name="Vanguard Total", expense_ratio=Decimal("0.0003"))
+        mock_provider = AsyncMock()
+        mock_provider.get_holding_metadata = AsyncMock(return_value=metadata)
+        mock_provider.get_provider_name.return_value = "test"
+
+        with (
+            patch("app.workers.utils.get_celery_session") as mock_factory,
+            patch(
+                "app.workers.tasks.holdings_tasks.get_market_data_provider",
+                return_value=mock_provider,
+            ),
+            patch("app.workers.tasks.holdings_tasks.cache_delete_pattern", AsyncMock()),
+        ):
+            mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+            await _enrich_metadata_async()
+
+        mock_db.commit.assert_awaited_once()

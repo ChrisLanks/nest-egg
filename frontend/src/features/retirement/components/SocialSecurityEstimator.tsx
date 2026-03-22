@@ -4,10 +4,13 @@
  */
 
 import {
+  Alert,
+  AlertIcon,
   Box,
   FormControl,
   FormLabel,
   HStack,
+  Link,
   NumberInput,
   NumberInputField,
   Slider,
@@ -54,7 +57,7 @@ export function SocialSecurityEstimator({
   const [useManual, setUseManual] = useState(!!manualOverride);
   const [manualAmount, setManualAmount] = useState(manualOverride ?? 2000);
 
-  const { data: estimate, isLoading } = useSocialSecurityEstimate(
+  const { data: estimate, isLoading, isError } = useSocialSecurityEstimate(
     localClaimingAge,
     currentIncome ?? undefined,
   );
@@ -168,6 +171,20 @@ export function SocialSecurityEstimator({
           </FormControl>
         )}
 
+        {/* Birthdate missing — prompt user to set it */}
+        {!useManual && isError && (
+          <Alert status="warning" borderRadius="md" fontSize="sm">
+            <AlertIcon />
+            <Text>
+              Please set your birthdate in{" "}
+              <Link href="/settings/preferences" color="blue.500" textDecoration="underline">
+                Preferences
+              </Link>{" "}
+              for accurate estimates.
+            </Text>
+          </Alert>
+        )}
+
         {/* Benefit estimates (only when not in manual mode) */}
         {!useManual && estimate && (
           <>
@@ -215,6 +232,9 @@ export function SocialSecurityEstimator({
             <Text fontSize="xs" color={labelColor}>
               PIA (Primary Insurance Amount):{" "}
               {formatMoney(estimate.estimated_pia)}/mo
+            </Text>
+            <Text fontSize="xs" color={labelColor}>
+              Based on birth year {estimate.birth_year}
             </Text>
           </>
         )}

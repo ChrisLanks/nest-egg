@@ -86,7 +86,10 @@ export const TransactionDetailModal = ({
 
   // Fetch account to resolve ownership — needed in combined and other-user views
   // to check if the current user owns the account or has a write grant from the owner.
-  const { data: account } = useQuery({
+  const {
+    data: account,
+    isError: accountFetchError,
+  } = useQuery({
     queryKey: ["account", transaction?.account_id],
     queryFn: async () => {
       if (!transaction?.account_id) return null;
@@ -94,11 +97,13 @@ export const TransactionDetailModal = ({
       return response.data;
     },
     enabled: !!transaction?.account_id && isOpen && !isSelfView,
+    retry: 1,
   });
 
   // Determine edit permission:
   // - Self view: all displayed transactions belong to the current user → always editable
   // - Other views: check ownership or write grant from the account owner
+  // - accountFetchError: account lookup failed; disable editing but surface reason to user
   const canEdit = isSelfView
     ? true
     : account
@@ -815,8 +820,9 @@ export const TransactionDetailModal = ({
                 </Button>
                 {!canEdit && (
                   <Text fontSize="xs" color="text.muted" textAlign="center">
-                    Read-only: This transaction belongs to another household
-                    member
+                    {accountFetchError
+                      ? "Could not verify account ownership — please refresh and try again."
+                      : "Read-only: This transaction belongs to another household member"}
                   </Text>
                 )}
               </VStack>

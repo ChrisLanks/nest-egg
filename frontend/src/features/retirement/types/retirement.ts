@@ -231,6 +231,7 @@ export interface SocialSecurityEstimate {
   fra_age: number;
   claiming_age: number;
   monthly_benefit: number;
+  birth_year: number;
 }
 
 // --- Healthcare ---

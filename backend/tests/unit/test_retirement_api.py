@@ -1407,3 +1407,70 @@ class TestCreateScenarioMemberIds:
 
         db.execute.assert_not_called()
         assert result.name == "Test Scenario"
+
+
+@pytest.mark.unit
+class TestSocialSecurityBirthYear:
+    """Test that the SS estimate response includes birth_year from user profile."""
+
+    @pytest.mark.asyncio
+    async def test_response_includes_birth_year_from_profile(self):
+        """birth_year in the response must match the user's profile birthdate year."""
+        user = _make_user(birthdate=date(1975, 3, 22))
+
+        with patch("app.api.v1.retirement.calculate_age", return_value=51):
+            with patch(
+                "app.api.v1.retirement.estimate_social_security",
+                return_value={
+                    "estimated_pia": 2500,
+                    "monthly_at_62": 1750,
+                    "monthly_at_fra": 2500,
+                    "monthly_at_70": 3100,
+                    "fra_age": 67.0,
+                    "claiming_age": 67,
+                    "monthly_benefit": 2500,
+                },
+            ):
+                result = await get_social_security_estimate(
+                    claiming_age=67,
+                    override_salary=None,
+                    override_pia=None,
+                    user_id=None,
+                    current_user=user,
+                    db=AsyncMock(),
+                )
+
+        assert result.birth_year == 1975
+
+    @pytest.mark.asyncio
+    async def test_different_birth_years_produce_different_birth_year_field(self):
+        """Two users with different birth years should get different birth_year in response."""
+        user_1990 = _make_user(birthdate=date(1990, 1, 1))
+        user_1960 = _make_user(birthdate=date(1960, 1, 1))
+
+        ss_return = {
+            "estimated_pia": 2000,
+            "monthly_at_62": 1400,
+            "monthly_at_fra": 2000,
+            "monthly_at_70": 2480,
+            "fra_age": 67.0,
+            "claiming_age": 67,
+            "monthly_benefit": 2000,
+        }
+
+        with patch("app.api.v1.retirement.calculate_age", return_value=35):
+            with patch("app.api.v1.retirement.estimate_social_security", return_value=ss_return):
+                result_1990 = await get_social_security_estimate(
+                    claiming_age=67, override_salary=None, override_pia=None,
+                    user_id=None, current_user=user_1990, db=AsyncMock(),
+                )
+
+        with patch("app.api.v1.retirement.calculate_age", return_value=65):
+            with patch("app.api.v1.retirement.estimate_social_security", return_value=ss_return):
+                result_1960 = await get_social_security_estimate(
+                    claiming_age=67, override_salary=None, override_pia=None,
+                    user_id=None, current_user=user_1960, db=AsyncMock(),
+                )
+
+        assert result_1990.birth_year == 1990
+        assert result_1960.birth_year == 1960

@@ -56,17 +56,18 @@ async def _enrich_metadata_async():
             # so the bulk update is scoped per-org (prevents cross-org metadata bleed
             # if two orgs happen to use the same custom ticker symbol).
             ticker_orgs: dict[str, set] = {}
-            # Track which holdings already have an expense_ratio stored so we
-            # don't overwrite manually-entered values.
-            ticker_has_er: dict[str, bool] = {}
+            # Track which (ticker, org_id) pairs already have an expense_ratio so we
+            # don't overwrite manually-entered values.  Keyed by (ticker, org_id) to
+            # prevent one org's ER from blocking enrichment in another org.
+            ticker_org_has_er: dict[tuple, bool] = {}
             for h in holdings:
                 key = h.ticker.upper()
                 ticker_orgs.setdefault(key, set()).add(h.organization_id)
-                # If ANY holding for this ticker already has an ER, mark it
+                org_key = (key, h.organization_id)
                 if h.expense_ratio is not None:
-                    ticker_has_er[key] = True
+                    ticker_org_has_er[org_key] = True
                 else:
-                    ticker_has_er.setdefault(key, False)
+                    ticker_org_has_er.setdefault(org_key, False)
 
             tickers = list(ticker_orgs.keys())
             logger.info(f"Enriching metadata for {len(tickers)} unique tickers")
@@ -98,37 +99,37 @@ async def _enrich_metadata_async():
                     if metadata.country is not None:
                         updates["country"] = metadata.country
 
-                    # Expense ratio: only write when not already stored
-                    if not ticker_has_er.get(ticker, False):
-                        er_to_store = None
-                        if metadata.expense_ratio is not None:
-                            # Provider returned a value — use it
-                            er_to_store = metadata.expense_ratio
-                        else:
-                            # Fall back to our static known-ER table
-                            known = KNOWN_EXPENSE_RATIOS.get(ticker)
-                            if known is not None:
-                                from decimal import Decimal as _Decimal
-
-                                er_to_store = _Decimal(str(known))
-
-                        if er_to_store is not None:
-                            updates["expense_ratio"] = er_to_store
-                            er_enriched_count += 1
-                            logger.debug(
-                                f"ER enriched for {ticker}: {er_to_store} "
-                                f"({'api' if metadata.expense_ratio is not None else 'static'})"
-                            )
-
                     if len(updates) > 1:  # More than just updated_at
                         for org_id in ticker_orgs[ticker]:
+                            # Build per-org update dict: only add expense_ratio when this
+                            # org doesn't already have one stored (prevents cross-org bleed).
+                            org_updates = dict(updates)
+                            if not ticker_org_has_er.get((ticker, org_id), False):
+                                er_to_store = None
+                                if metadata.expense_ratio is not None:
+                                    er_to_store = metadata.expense_ratio
+                                else:
+                                    known = KNOWN_EXPENSE_RATIOS.get(ticker)
+                                    if known is not None:
+                                        from decimal import Decimal as _Decimal
+
+                                        er_to_store = _Decimal(str(known))
+
+                                if er_to_store is not None:
+                                    org_updates["expense_ratio"] = er_to_store
+                                    er_enriched_count += 1
+                                    logger.debug(
+                                        f"ER enriched for {ticker} org={org_id}: {er_to_store} "
+                                        f"({'api' if metadata.expense_ratio is not None else 'static'})"
+                                    )
+
                             await db.execute(
                                 update(Holding)
                                 .where(
                                     Holding.ticker == ticker,
                                     Holding.organization_id == org_id,
                                 )
-                                .values(**updates)
+                                .values(**org_updates)
                             )
                         enriched_count += 1
                         logger.debug(f"Enriched {ticker}: {list(updates.keys())}")

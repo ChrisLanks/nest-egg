@@ -47,7 +47,7 @@ export const PermissionsPage = () => {
     queryFn: () => permissionsApi.listReceived(),
   });
 
-  const { data: audit = [] } = useQuery({
+  const { data: audit = [], isLoading: auditLoading } = useQuery({
     queryKey: ['permissions', 'audit'],
     queryFn: () => permissionsApi.listAudit(),
   });
@@ -96,7 +96,12 @@ export const PermissionsPage = () => {
       </Tabs>
 
       {/* Audit log — collapsed by default */}
-      {audit.length > 0 && (
+      {auditLoading && (
+        <Center py={4}>
+          <Spinner size="sm" />
+        </Center>
+      )}
+      {!auditLoading && audit.length > 0 && (
         <Box mt={8}>
           <Accordion allowToggle>
             <AccordionItem border="none">

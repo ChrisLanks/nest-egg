@@ -2309,3 +2309,37 @@ class TestGetPortfolioSummaryCaching:
         # Should return cached data without calling verify_household_member
         mock_db.execute.assert_not_called()
         assert result == cached_response
+
+
+@pytest.mark.unit
+class TestHoldingsTruncatedFlag:
+    """Test that holdings_truncated is set when the 10k limit is hit."""
+
+    def test_portfolio_summary_schema_has_holdings_truncated(self):
+        """PortfolioSummary schema must include holdings_truncated field."""
+        from app.schemas.holding import PortfolioSummary
+        assert hasattr(PortfolioSummary, "model_fields")
+        assert "holdings_truncated" in PortfolioSummary.model_fields
+
+    def test_holdings_truncated_defaults_to_false(self):
+        """holdings_truncated defaults to False."""
+        from app.schemas.holding import PortfolioSummary
+        from decimal import Decimal
+        summary = PortfolioSummary(
+            total_value=Decimal("0"),
+            holdings_by_ticker=[],
+            holdings_by_account=[],
+        )
+        assert summary.holdings_truncated is False
+
+    def test_holdings_truncated_can_be_set_true(self):
+        """holdings_truncated can be set to True."""
+        from app.schemas.holding import PortfolioSummary
+        from decimal import Decimal
+        summary = PortfolioSummary(
+            total_value=Decimal("0"),
+            holdings_by_ticker=[],
+            holdings_by_account=[],
+            holdings_truncated=True,
+        )
+        assert summary.holdings_truncated is True

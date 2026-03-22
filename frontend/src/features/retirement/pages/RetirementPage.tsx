@@ -796,8 +796,9 @@ export function RetirementPage() {
     results?.withdrawal_comparison as WithdrawalComparison | null;
 
   // In combined view with "All" selected, show household-wide scenarios
-  // or prompt to create one
-  if (isCombinedView && isAllSelected) {
+  // or prompt to create one. Single-user households fall through to the
+  // regular empty state so the "Create Your First Scenario" button appears.
+  if (isCombinedView && isAllSelected && householdMembers.length > 1) {
     if (!scenariosLoading && (!scenarios || scenarios.length === 0)) {
       return (
         <>

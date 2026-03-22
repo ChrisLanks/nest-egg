@@ -656,7 +656,7 @@ async def get_social_security_estimate(
         manual_pia_override=override_pia,
     )
 
-    return SocialSecurityEstimateResponse(**result)
+    return SocialSecurityEstimateResponse(**result, birth_year=birth_year)
 
 
 # --- Healthcare Cost Estimate ---

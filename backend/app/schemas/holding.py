@@ -160,6 +160,9 @@ class PortfolioSummary(BaseModel):
     # Fees
     total_annual_fees: Optional[Decimal] = None  # Sum of all annual fees across holdings
 
+    # Truncation warning: True when holdings were capped at the 10k safety-net limit
+    holdings_truncated: bool = False
+
 
 class FeeDragProjection(BaseModel):
     """Fee drag projection over time."""

@@ -130,17 +130,19 @@ async def get_portfolio_summary(
 
     # Fetch holdings for the filtered investment accounts (capped at 10 000 rows as
     # a safety net; no real portfolio should ever approach this limit)
+    _HOLDINGS_LIMIT = 10000
     if investment_account_ids:
         result = await db.execute(
             select(Holding)
             .join(Account)
             .where(Holding.account_id.in_(investment_account_ids))
             .options(selectinload(Holding.account))
-            .limit(10000)
+            .limit(_HOLDINGS_LIMIT)
         )
         holdings = result.scalars().all()
     else:
         holdings = []
+    holdings_truncated = len(holdings) == _HOLDINGS_LIMIT
 
     # Don't return early if no holdings - accounts may still have balances without detailed holdings
     # (e.g., investment accounts that haven't been synced yet or don't have holdings data)
@@ -280,6 +282,7 @@ async def get_portfolio_summary(
             treemap_data=None,
             sector_breakdown=None,
             total_annual_fees=total_annual_fees if total_annual_fees > 0 else None,
+            holdings_truncated=holdings_truncated,
         )
         await cache_setex(cache_key, 300, summary.model_dump(mode="json"))
         return summary
@@ -1127,6 +1130,12 @@ async def get_portfolio_summary(
     # Sort by account value (largest first)
     holdings_by_account_list.sort(key=lambda x: x.account_value, reverse=True)
 
+    if holdings_truncated:
+        logger.warning(
+            "Holdings result capped at %d rows for org %s — some holdings may be missing",
+            _HOLDINGS_LIMIT,
+            current_user.organization_id,
+        )
     logger.info(f"Returning portfolio summary with total value: {total_value}")
     summary = PortfolioSummary(
         total_value=total_value,
@@ -1146,6 +1155,7 @@ async def get_portfolio_summary(
         treemap_data=treemap_data,
         sector_breakdown=sector_breakdown,
         total_annual_fees=total_annual_fees if total_annual_fees > 0 else None,
+        holdings_truncated=holdings_truncated,
     )
 
     # Cache the serialized response (fail-open on Redis errors)

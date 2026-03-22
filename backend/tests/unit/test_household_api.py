@@ -1813,3 +1813,46 @@ class TestUpdateMemberRole:
                 user_id=uuid4(), body=body, current_user=admin_user, db=mock_db
             )
         assert exc_info.value.status_code == 404
+
+
+@pytest.mark.unit
+class TestRemoveMemberPermissionCleanup:
+    """Verify that permission grants are deleted when a member is removed."""
+
+    @pytest.mark.asyncio
+    async def test_permission_grants_deleted_on_removal(self):
+        """remove_member must DELETE PermissionGrant rows for the removed user."""
+        from unittest.mock import AsyncMock, Mock, call
+        from uuid import uuid4
+        from fastapi import HTTPException
+
+        admin = Mock(spec=User)
+        admin.id = uuid4()
+        admin.organization_id = uuid4()
+        admin.is_org_admin = True
+
+        user_id = uuid4()
+        member = Mock(spec=User)
+        member.id = user_id
+        member.is_primary_household_member = False
+        member.display_name = "Departed User"
+        member.first_name = "Departed"
+
+        db = AsyncMock()
+        select_result = Mock()
+        select_result.scalar_one_or_none.return_value = member
+        db.execute.return_value = select_result
+
+        with patch(
+            "app.services.retirement.retirement_planner_service.RetirementPlannerService.archive_scenarios_for_departed_member",
+            new_callable=AsyncMock,
+        ):
+            await remove_member(user_id=user_id, current_user=admin, db=db)
+
+        # db.execute should have been called at least twice:
+        # once for the SELECT, once for the DELETE of PermissionGrant rows
+        assert db.execute.await_count >= 2
+
+        # Verify member is marked inactive
+        assert member.is_active is False
+        assert db.commit.await_count >= 1

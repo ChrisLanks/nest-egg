@@ -470,6 +470,7 @@ class SocialSecurityEstimateResponse(BaseModel):
     fra_age: float
     claiming_age: int
     monthly_benefit: float
+    birth_year: int  # The birth year used for calculation (from user profile)
 
 
 # --- Healthcare ---
