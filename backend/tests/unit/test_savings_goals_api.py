@@ -2,7 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -69,6 +69,7 @@ class TestCreateGoal:
             return_value=expected_goal,
         ) as mock_create:
             result = await create_goal(
+                http_request=MagicMock(),
                 goal_data=goal_create_data,
                 current_user=mock_user,
                 db=mock_db,
@@ -87,6 +88,7 @@ class TestCreateGoal:
             return_value=expected_goal,
         ) as mock_create:
             await create_goal(
+                http_request=MagicMock(),
                 goal_data=goal_create_data,
                 current_user=mock_user,
                 db=mock_db,
@@ -271,6 +273,7 @@ class TestUpdateGoal:
             return_value=updated_goal,
         ):
             result = await update_goal(
+                http_request=MagicMock(),
                 goal_id=goal_id,
                 goal_data=update_data,
                 current_user=mock_user,
@@ -294,6 +297,7 @@ class TestUpdateGoal:
             return_value=updated_goal,
         ) as mock_update:
             await update_goal(
+                http_request=MagicMock(),
                 goal_id=goal_id,
                 goal_data=update_data,
                 current_user=mock_user,
@@ -316,6 +320,7 @@ class TestUpdateGoal:
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await update_goal(
+                    http_request=MagicMock(),
                     goal_id=goal_id,
                     goal_data=update_data,
                     current_user=mock_user,
@@ -350,6 +355,7 @@ class TestDeleteGoal:
             return_value=True,
         ):
             result = await delete_goal(
+                http_request=MagicMock(),
                 goal_id=goal_id,
                 current_user=mock_user,
                 db=mock_db,
@@ -368,6 +374,7 @@ class TestDeleteGoal:
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await delete_goal(
+                    http_request=MagicMock(),
                     goal_id=goal_id,
                     current_user=mock_user,
                     db=mock_db,
@@ -785,6 +792,7 @@ class TestSharedGoalFields:
             return_value=expected_goal,
         ) as mock_create:
             await create_goal(
+                http_request=MagicMock(),
                 goal_data=goal_data,
                 current_user=mock_user,
                 db=mock_db,
@@ -809,6 +817,7 @@ class TestSharedGoalFields:
             return_value=updated_goal,
         ) as mock_update:
             await update_goal(
+                http_request=MagicMock(),
                 goal_id=goal_id,
                 goal_data=update_data,
                 current_user=mock_user,

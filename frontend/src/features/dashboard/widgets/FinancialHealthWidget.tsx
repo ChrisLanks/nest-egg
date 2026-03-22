@@ -73,6 +73,7 @@ const FinancialHealthWidgetBase: React.FC = () => {
       return response.data;
     },
     retry: false,
+    staleTime: 60_000,
   });
 
   if (isLoading) {

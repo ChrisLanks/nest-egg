@@ -28,6 +28,8 @@ import {
   Badge,
   Progress,
   useColorModeValue,
+  Alert,
+  AlertIcon,
 } from "@chakra-ui/react";
 import {
   AreaChart,
@@ -392,7 +394,7 @@ export default function EducationPlanningPage() {
     ? memberEffectiveUserId
     : selectedUserId;
 
-  const { data: plansData, isLoading } = useQuery<EducationPlansResponse>({
+  const { data: plansData, isLoading, isError } = useQuery<EducationPlansResponse>({
     queryKey: ["education-plans", effectiveUserId, selectedMemberIdsKey],
     queryFn: () => educationApi.getPlans(effectiveUserId || undefined),
   });
@@ -416,6 +418,14 @@ export default function EducationPlanningPage() {
           <Center py={12}>
             <Spinner size="xl" />
           </Center>
+        )}
+
+        {/* Error */}
+        {isError && !isLoading && (
+          <Alert status="error" borderRadius="md">
+            <AlertIcon />
+            Failed to load education plans. Please refresh and try again.
+          </Alert>
         )}
 
         {/* Empty state */}

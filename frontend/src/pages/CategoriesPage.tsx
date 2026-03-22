@@ -37,6 +37,8 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   AlertDialogCloseButton,
+  Alert,
+  AlertIcon,
 } from "@chakra-ui/react";
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -94,7 +96,7 @@ export const CategoriesPage = () => {
     onClose: onDeleteAlertClose,
   } = useDisclosure();
 
-  const { data: categories, isLoading } = useQuery({
+  const { data: categories, isLoading, isError } = useQuery({
     queryKey: ["categories", selectedUserId],
     queryFn: async () => {
       const params: Record<string, string> = {};
@@ -409,6 +411,17 @@ export const CategoriesPage = () => {
           <Heading size="lg">Categories</Heading>
           <TableSkeleton />
         </VStack>
+      </Container>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Container maxW="container.xl" py={8}>
+        <Alert status="error" borderRadius="md">
+          <AlertIcon />
+          Failed to load categories. Please refresh and try again.
+        </Alert>
       </Container>
     );
   }

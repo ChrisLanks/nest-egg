@@ -34,6 +34,7 @@ const SavingsGoalsWidgetBase: React.FC = () => {
         is_completed: false,
         ...(selectedUserId ? { user_id: selectedUserId } : {}),
       }),
+    staleTime: 60_000,
   });
 
   if (isLoading) {

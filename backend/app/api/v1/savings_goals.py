@@ -5,7 +5,7 @@ from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +23,7 @@ from app.schemas.savings_goal import (
 )
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.savings_goal_service import savings_goal_service
+from app.services.rate_limit_service import rate_limit_service
 from app.utils.datetime_utils import utc_now
 
 
@@ -47,10 +48,14 @@ router = APIRouter()
 @router.post("/", response_model=SavingsGoalResponse, status_code=201)
 async def create_goal(
     goal_data: SavingsGoalCreate,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new savings goal."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=3600, identifier=str(current_user.id)
+    )
     # Sanitize user text input
     sanitized = goal_data.model_dump()
     if sanitized.get("name"):
@@ -178,10 +183,14 @@ async def get_goal(
 async def update_goal(
     goal_id: UUID,
     goal_data: SavingsGoalUpdate,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Update a savings goal."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=60, window_seconds=3600, identifier=str(current_user.id)
+    )
     # Sanitize user text input
     sanitized = goal_data.model_dump(exclude_unset=True)
     if sanitized.get("name"):
@@ -206,10 +215,14 @@ async def update_goal(
 @router.delete("/{goal_id}", status_code=204)
 async def delete_goal(
     goal_id: UUID,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a savings goal."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=20, window_seconds=3600, identifier=str(current_user.id)
+    )
     success = await savings_goal_service.delete_goal(
         db=db,
         goal_id=goal_id,

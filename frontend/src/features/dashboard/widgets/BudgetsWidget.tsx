@@ -45,6 +45,7 @@ const BudgetsWidgetBase: React.FC = () => {
         is_active: true,
         ...(selectedUserId ? { user_id: selectedUserId } : {}),
       }),
+    staleTime: 60_000,
   });
 
   const topBudgets = (budgets ?? []).slice(0, 5);

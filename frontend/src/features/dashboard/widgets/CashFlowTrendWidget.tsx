@@ -40,6 +40,7 @@ const CashFlowTrendWidgetBase: React.FC = () => {
       const response = await api.get("/dashboard/", { params });
       return response.data;
     },
+    staleTime: 60_000,
   });
 
   const cashFlowTrend = data?.cash_flow_trend;

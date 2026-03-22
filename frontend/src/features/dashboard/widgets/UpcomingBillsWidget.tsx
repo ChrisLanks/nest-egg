@@ -65,6 +65,7 @@ const UpcomingBillsWidgetBase: React.FC = () => {
         30,
         selectedUserId || undefined,
       ),
+    staleTime: 60_000,
   });
 
   if (isLoading) {

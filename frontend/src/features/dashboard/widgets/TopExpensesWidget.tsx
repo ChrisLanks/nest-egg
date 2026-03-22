@@ -31,6 +31,7 @@ const TopExpensesWidgetBase: React.FC = () => {
       const response = await api.get("/dashboard/", { params });
       return response.data;
     },
+    staleTime: 60_000,
   });
 
   const topExpenses = data?.top_expenses;

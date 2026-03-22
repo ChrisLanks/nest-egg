@@ -38,6 +38,7 @@ async def _send_weekly_recaps_async():
         orgs_result = await db.execute(select(Organization).where(Organization.is_active.is_(True)))
         orgs = orgs_result.scalars().all()
 
+        failed = []
         for org in orgs:
             try:
                 await _generate_org_recap(db, org)
@@ -45,7 +46,14 @@ async def _send_weekly_recaps_async():
                 logger.error(
                     "weekly_recap_failed",
                     extra={"org_id": str(org.id), "error": str(exc)},
+                    exc_info=True,
                 )
+                failed.append(str(org.id))
+
+        if failed:
+            raise RuntimeError(
+                f"weekly_recap failed for {len(failed)} org(s): {', '.join(failed)}"
+            )
 
 
 async def _generate_org_recap(db, org) -> None:

@@ -1,7 +1,7 @@
 """Unit tests for transaction splits API endpoints."""
 
 from decimal import Decimal
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -65,6 +65,7 @@ class TestCreateTransactionSplits:
             return_value=expected_splits,
         ) as mock_create:
             result = await create_transaction_splits(
+                http_request=MagicMock(),
                 split_request=split_request,
                 current_user=mock_user,
                 db=mock_db,
@@ -99,6 +100,7 @@ class TestCreateTransactionSplits:
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await create_transaction_splits(
+                    http_request=MagicMock(),
                     split_request=split_request,
                     current_user=mock_user,
                     db=mock_db,
@@ -200,6 +202,7 @@ class TestUpdateSplit:
             return_value=mock_split,
         ) as mock_update:
             result = await update_split(
+                http_request=MagicMock(),
                 split_id=split_id,
                 split_data=update_data,
                 current_user=mock_user,
@@ -228,6 +231,7 @@ class TestUpdateSplit:
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await update_split(
+                    http_request=MagicMock(),
                     split_id=split_id,
                     split_data=update_data,
                     current_user=mock_user,
@@ -250,6 +254,7 @@ class TestUpdateSplit:
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await update_split(
+                    http_request=MagicMock(),
                     split_id=split_id,
                     split_data=update_data,
                     current_user=mock_user,
@@ -286,6 +291,7 @@ class TestDeleteTransactionSplits:
             return_value=True,
         ) as mock_delete:
             result = await delete_transaction_splits(
+                http_request=MagicMock(),
                 transaction_id=transaction_id,
                 current_user=mock_user,
                 db=mock_db,
@@ -310,6 +316,7 @@ class TestDeleteTransactionSplits:
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await delete_transaction_splits(
+                    http_request=MagicMock(),
                     transaction_id=transaction_id,
                     current_user=mock_user,
                     db=mock_db,
@@ -361,6 +368,7 @@ class TestSplitSumValidation:
             return_value=[mock_split, mock_split],
         ):
             result = await create_transaction_splits(
+                http_request=MagicMock(),
                 split_request=split_request,
                 current_user=mock_user,
                 db=mock_db,
@@ -391,6 +399,7 @@ class TestSplitSumValidation:
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await create_transaction_splits(
+                    http_request=MagicMock(),
                     split_request=split_request,
                     current_user=mock_user,
                     db=mock_db,
@@ -420,6 +429,7 @@ class TestSplitSumValidation:
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await create_transaction_splits(
+                    http_request=MagicMock(),
                     split_request=split_request,
                     current_user=mock_user,
                     db=mock_db,

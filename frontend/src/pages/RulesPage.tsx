@@ -27,6 +27,8 @@ import {
   AlertDialogHeader,
   AlertDialogContent,
   AlertDialogOverlay,
+  Alert,
+  AlertIcon,
   Input,
   Table,
   Thead,
@@ -130,7 +132,7 @@ export const RulesPage = () => {
     onConfirmOpen();
   };
 
-  const { data: rules, isLoading } = useQuery({
+  const { data: rules, isLoading, isError } = useQuery({
     queryKey: ["rules"],
     queryFn: async () => {
       const response = await api.get<Rule[]>("/rules");
@@ -302,6 +304,17 @@ export const RulesPage = () => {
       <Center h="100vh">
         <Spinner size="xl" color="brand.500" />
       </Center>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Container maxW="container.xl" py={8}>
+        <Alert status="error" borderRadius="md">
+          <AlertIcon />
+          Failed to load rules. Please refresh and try again.
+        </Alert>
+      </Container>
     );
   }
 

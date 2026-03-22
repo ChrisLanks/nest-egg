@@ -38,6 +38,8 @@ import {
   Select,
   IconButton,
   useBreakpointValue,
+  Alert,
+  AlertIcon,
 } from "@chakra-ui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -109,7 +111,7 @@ export default function ReportsPage() {
   const [chartType, setChartType] = useState<"bar" | "pie" | "table">("bar");
 
   // Fetch templates
-  const { data: templates, isLoading: templatesLoading } = useQuery<
+  const { data: templates, isLoading: templatesLoading, isError: templatesError } = useQuery<
     ReportTemplate[]
   >({
     queryKey: ["report-templates"],
@@ -279,6 +281,17 @@ export default function ReportsPage() {
         <Center py={20}>
           <Spinner size="xl" color="brand.500" />
         </Center>
+      </Container>
+    );
+  }
+
+  if (templatesError) {
+    return (
+      <Container maxW="container.xl" py={8}>
+        <Alert status="error" borderRadius="md">
+          <AlertIcon />
+          Failed to load report templates. Please refresh and try again.
+        </Alert>
       </Container>
     );
   }

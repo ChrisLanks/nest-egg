@@ -36,6 +36,8 @@ import {
   VStack,
   FormHelperText,
   HStack,
+  Alert,
+  AlertIcon,
 } from "@chakra-ui/react";
 import { ChevronDownIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { FiSun, FiMoon, FiMonitor } from "react-icons/fi";
@@ -555,7 +557,7 @@ export default function PreferencesPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   // Fetch user profile
-  const { isLoading: profileLoading } = useQuery({
+  const { isLoading: profileLoading, isError: profileError } = useQuery({
     queryKey: ["userProfile"],
     queryFn: async () => {
       const response = await api.get("/settings/profile");
@@ -763,6 +765,17 @@ export default function PreferencesPage() {
           <Skeleton height="40px" />
           <Skeleton height="40px" />
         </VStack>
+      </Container>
+    );
+  }
+
+  if (profileError) {
+    return (
+      <Container maxW="container.lg" py={8}>
+        <Alert status="error" borderRadius="md">
+          <AlertIcon />
+          Failed to load preferences. Please refresh and try again.
+        </Alert>
       </Container>
     );
   }

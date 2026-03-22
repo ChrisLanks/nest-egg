@@ -37,6 +37,7 @@ const AssetAllocationWidgetBase: React.FC = () => {
   const { data: portfolio, isLoading } = useQuery({
     queryKey: ["portfolio-widget", selectedUserId],
     queryFn: () => holdingsApi.getPortfolioSummary(selectedUserId || undefined),
+    staleTime: 60_000,
   });
 
   if (isLoading) {

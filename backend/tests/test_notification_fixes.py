@@ -256,9 +256,15 @@ class TestExportLabels:
     """Tests that CSV export uses real label names, not repr strings."""
 
     @pytest.mark.asyncio
-    async def test_export_labels_are_readable(self, authenticated_client, db, test_account):
+    async def test_export_labels_are_readable(self, authenticated_client, db, test_account, monkeypatch):
         """CSV export should contain label name, not '<TransactionLabel ...>'."""
         from app.models.transaction import Label, Transaction, TransactionLabel
+        import app.api.v1.settings as settings_mod
+
+        async def _noop_rate_limit(*args, **kwargs):
+            pass
+
+        monkeypatch.setattr(settings_mod.rate_limit_service, "check_rate_limit", _noop_rate_limit)
 
         # Create a label
         label = Label(

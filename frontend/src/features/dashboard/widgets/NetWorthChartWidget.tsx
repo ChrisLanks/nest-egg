@@ -76,6 +76,7 @@ const NetWorthChartWidgetBase: React.FC = () => {
       const response = await api.get("/dashboard/", { params });
       return response.data;
     },
+    staleTime: 60_000,
   });
 
   const {
@@ -152,6 +153,7 @@ const NetWorthChartWidgetBase: React.FC = () => {
       const response = await api.get("/holdings/historical", { params });
       return response.data;
     },
+    staleTime: 60_000,
   });
 
   const setRange = (range: TimeRange) => {

@@ -4,7 +4,7 @@ from datetime import date
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,7 @@ from app.schemas.transaction import LabelCreate, LabelResponse, LabelUpdate
 from app.services.hierarchy_validation_service import hierarchy_validation_service
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.tax_service import TaxService
+from app.services.rate_limit_service import rate_limit_service
 
 router = APIRouter()
 
@@ -188,10 +189,14 @@ async def get_label(
 @router.post("/", response_model=LabelResponse, status_code=201)
 async def create_label(
     label_data: LabelCreate,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new label."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=3600, identifier=str(current_user.id)
+    )
     # Prevent creating "Transfer" label (reserved for system)
     if label_data.name.lower() == "transfer":
         raise HTTPException(
@@ -230,10 +235,14 @@ async def create_label(
 async def update_label(
     label_id: UUID,
     label_data: LabelUpdate,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Update a label."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=60, window_seconds=3600, identifier=str(current_user.id)
+    )
     result = await db.execute(
         select(Label).where(
             Label.id == label_id,
@@ -301,10 +310,14 @@ async def update_label(
 @router.delete("/{label_id}", status_code=204)
 async def delete_label(
     label_id: UUID,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a label."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=20, window_seconds=3600, identifier=str(current_user.id)
+    )
     result = await db.execute(
         select(Label).where(
             Label.id == label_id,

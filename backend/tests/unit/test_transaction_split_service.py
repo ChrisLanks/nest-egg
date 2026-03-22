@@ -72,11 +72,16 @@ class TestCreateSplits:
     @pytest.mark.asyncio
     async def test_successful_split_creation(self, mock_user, mock_db):
         txn = _make_transaction(mock_user.organization_id, amount=Decimal("-100.00"))
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = txn
+        txn_result = MagicMock()
+        txn_result.scalar_one_or_none.return_value = txn
 
-        # The method calls execute multiple times: find txn, delete old splits (2x), then commit
-        mock_db.execute = AsyncMock(return_value=mock_result)
+        # Simulate the batch reload result (last execute call after commit)
+        split_mocks = [MagicMock(), MagicMock()]
+        reload_result = MagicMock()
+        reload_result.scalars.return_value.all.return_value = split_mocks
+
+        # execute is called: 1) find txn, 2) select existing splits, 3) delete existing splits, 4) batch reload
+        mock_db.execute = AsyncMock(side_effect=[txn_result, txn_result, txn_result, reload_result])
 
         splits_data = [
             {"amount": "60.00", "description": "Groceries"},
@@ -93,9 +98,14 @@ class TestCreateSplits:
     @pytest.mark.asyncio
     async def test_split_with_category_id(self, mock_user, mock_db):
         txn = _make_transaction(mock_user.organization_id, amount=Decimal("-50.00"))
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = txn
-        mock_db.execute = AsyncMock(return_value=mock_result)
+        txn_result = MagicMock()
+        txn_result.scalar_one_or_none.return_value = txn
+
+        split_mock = MagicMock()
+        reload_result = MagicMock()
+        reload_result.scalars.return_value.all.return_value = [split_mock]
+
+        mock_db.execute = AsyncMock(side_effect=[txn_result, txn_result, txn_result, reload_result])
 
         cat_id = uuid4()
         splits_data = [{"amount": "50.00", "category_id": cat_id}]
@@ -252,3 +262,42 @@ class TestUpdateSplit:
             mock_db, split.id, category_id=new_cat, user=mock_user
         )
         assert split.category_id == new_cat
+
+
+@pytest.mark.unit
+class TestCreateSplitsNPlusOne:
+    """Regression tests: create_splits must reload splits in one query, not N refreshes."""
+
+    @pytest.mark.asyncio
+    async def test_batch_reload_not_individual_refreshes(self):
+        """After commit, splits must be reloaded with a single SELECT IN query, not N db.refresh calls."""
+        user = Mock(spec=User)
+        user.id = uuid4()
+        user.organization_id = uuid4()
+
+        txn = _make_transaction(user.organization_id, amount=Decimal("-300.00"))
+        txn_result = MagicMock()
+        txn_result.scalar_one_or_none.return_value = txn
+
+        # 3 splits: each would previously trigger a separate db.refresh
+        split_mocks = [MagicMock(), MagicMock(), MagicMock()]
+        reload_result = MagicMock()
+        reload_result.scalars.return_value.all.return_value = split_mocks
+
+        db = AsyncMock()
+        db.commit = AsyncMock()
+        db.add = MagicMock()
+        db.execute = AsyncMock(side_effect=[txn_result, txn_result, txn_result, reload_result])
+
+        splits_data = [
+            {"amount": "100.00"},
+            {"amount": "100.00"},
+            {"amount": "100.00"},
+        ]
+        result = await TransactionSplitService.create_splits(db, txn.id, splits_data, user)
+
+        # Must never call db.refresh (that would be the N+1 pattern)
+        db.refresh.assert_not_called()
+        # Must call db.execute exactly 4 times: find txn, select old splits, delete old splits, batch reload
+        assert db.execute.call_count == 4
+        assert len(result) == 3

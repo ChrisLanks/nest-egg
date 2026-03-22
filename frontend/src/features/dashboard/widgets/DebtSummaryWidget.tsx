@@ -48,6 +48,7 @@ const DebtSummaryWidgetBase: React.FC = () => {
       const response = await api.get("/dashboard/", { params });
       return response.data;
     },
+    staleTime: 60_000,
   });
 
   const debtAccounts = (data?.account_balances ?? []).filter(

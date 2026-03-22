@@ -32,6 +32,7 @@ interface UseInfiniteTransactionsParams {
 interface UseInfiniteTransactionsReturn {
   transactions: Transaction[];
   isLoading: boolean;
+  isError: boolean;
   isLoadingMore: boolean;
   hasMore: boolean;
   total: number;
@@ -133,6 +134,7 @@ export const useInfiniteTransactions = ({
   const {
     data,
     isLoading,
+    isError,
     refetch: queryRefetch,
   } = useQuery({
     queryKey: [
@@ -195,6 +197,7 @@ export const useInfiniteTransactions = ({
   return {
     transactions: state.allTransactions,
     isLoading,
+    isError,
     isLoadingMore: state.isLoadingMore,
     hasMore: state.hasMore,
     total: state.total,

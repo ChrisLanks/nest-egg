@@ -7,6 +7,8 @@
  */
 
 import {
+  Alert,
+  AlertIcon,
   Badge,
   Box,
   Button,
@@ -157,7 +159,7 @@ export const DashboardPage = () => {
     onClose: onAddAccountClose,
   } = useDisclosure();
 
-  const { data: accounts } = useQuery({
+  const { data: accounts, isError: accountsError } = useQuery({
     queryKey: ["accounts"],
     queryFn: async () => {
       const res = await api.get("/accounts");
@@ -266,11 +268,18 @@ export const DashboardPage = () => {
 
       <GoalContextBanner />
 
-      {accounts !== undefined && accounts.length === 0 && (
+      {accountsError && (
+        <Alert status="error" borderRadius="md">
+          <AlertIcon />
+          Could not load account data. Some widgets may be unavailable — please refresh the page.
+        </Alert>
+      )}
+
+      {!accountsError && accounts !== undefined && accounts.length === 0 && (
         <GettingStartedEmptyState onConnectBank={onAddAccountOpen} />
       )}
 
-      {(accounts === undefined || accounts.length > 0) && (
+      {(accountsError || accounts === undefined || accounts.length > 0) && (
         <DashboardGrid
           layout={layout}
           isEditing={isEditing}

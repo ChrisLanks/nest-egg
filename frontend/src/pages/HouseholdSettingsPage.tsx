@@ -201,7 +201,7 @@ export const HouseholdSettingsPage: React.FC = () => {
   };
 
   // Fetch household members
-  const { data: members, isLoading: loadingMembers } = useQuery<
+  const { data: members, isLoading: loadingMembers, isError: membersError } = useQuery<
     HouseholdMember[]
   >({
     queryKey: ["household-members"],
@@ -604,6 +604,11 @@ export const HouseholdSettingsPage: React.FC = () => {
               <HStack justify="center" py={8}>
                 <Spinner />
               </HStack>
+            ) : membersError ? (
+              <Alert status="error" borderRadius="md">
+                <AlertIcon />
+                Failed to load household members. Please refresh and try again.
+              </Alert>
             ) : (
               <VStack spacing={4} align="stretch">
                 {members?.map((member) => (

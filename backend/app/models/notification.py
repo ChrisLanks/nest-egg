@@ -3,7 +3,7 @@
 import enum
 import uuid
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -93,6 +93,14 @@ class Notification(Base):
     # Timestamps
     created_at = Column(DateTime, default=utc_now_lambda, nullable=False, index=True)
     expires_at = Column(DateTime, nullable=True)  # Auto-dismiss after this time
+
+    __table_args__ = (
+        # Composite indexes for common query patterns
+        Index("ix_notifications_user_created", "user_id", "created_at"),
+        Index("ix_notifications_org_created", "organization_id", "created_at"),
+        Index("ix_notifications_user_is_read", "user_id", "is_read"),
+        Index("ix_notifications_org_dismissed", "organization_id", "is_dismissed"),
+    )
 
     # Relationships
     organization = relationship("Organization")

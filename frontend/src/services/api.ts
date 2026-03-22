@@ -8,7 +8,10 @@
  */
 
 import axios from "axios";
+import { createStandaloneToast } from "@chakra-ui/react";
 import { useAuthStore } from "../features/auth/stores/authStore";
+
+const { toast } = createStandaloneToast();
 
 // In dev the Vite proxy rewrites /api → http://localhost:8000/api so cookies
 // are same-origin.  In production the backend and frontend share a domain.
@@ -315,6 +318,29 @@ api.interceptors.response.use(
         window.location.href = "/login";
         return Promise.reject(refreshError);
       }
+    }
+
+    // Show a global toast for rate limiting and server errors so the user
+    // always gets feedback even if the calling component has no error handler.
+    const status = error.response?.status;
+    if (status === 429) {
+      toast({
+        title: "Too many requests",
+        description: "You're doing that too fast. Please wait a moment and try again.",
+        status: "warning",
+        duration: 5000,
+        isClosable: true,
+        id: "rate-limit-toast", // deduplicate
+      });
+    } else if (status && status >= 500) {
+      toast({
+        title: "Server error",
+        description: "Something went wrong on our end. Please try again.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+        id: "server-error-toast",
+      });
     }
 
     return Promise.reject(error);

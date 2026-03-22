@@ -2,7 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -177,6 +177,7 @@ class TestCreateLabel:
         ):
             with patch("app.api.v1.labels.Label", return_value=mock_label_instance):
                 await create_label(
+                    http_request=MagicMock(),
                     label_data=mock_label_data,
                     current_user=mock_user,
                     db=mock_db,
@@ -196,6 +197,7 @@ class TestCreateLabel:
 
         with pytest.raises(HTTPException) as exc_info:
             await create_label(
+                http_request=MagicMock(),
                 label_data=label_data,
                 current_user=mock_user,
                 db=mock_db,
@@ -215,6 +217,7 @@ class TestCreateLabel:
 
         with pytest.raises(HTTPException) as exc_info:
             await create_label(
+                http_request=MagicMock(),
                 label_data=label_data,
                 current_user=mock_user,
                 db=mock_db,
@@ -239,6 +242,7 @@ class TestCreateLabel:
             return_value=None,
         ) as mock_validate:
             await create_label(
+                http_request=MagicMock(),
                 label_data=label_data,
                 current_user=mock_user,
                 db=mock_db,
@@ -291,6 +295,7 @@ class TestUpdateLabel:
         mock_db.execute.return_value = label_result
 
         result = await update_label(
+            http_request=MagicMock(),
             label_id=label_id,
             label_data=update_data,
             current_user=mock_user,
@@ -312,6 +317,7 @@ class TestUpdateLabel:
 
         with pytest.raises(HTTPException) as exc_info:
             await update_label(
+                http_request=MagicMock(),
                 label_id=label_id,
                 label_data=update_data,
                 current_user=mock_user,
@@ -333,6 +339,7 @@ class TestUpdateLabel:
 
         with pytest.raises(HTTPException) as exc_info:
             await update_label(
+                http_request=MagicMock(),
                 label_id=label_id,
                 label_data=update_data,
                 current_user=mock_user,
@@ -354,6 +361,7 @@ class TestUpdateLabel:
 
         with pytest.raises(HTTPException) as exc_info:
             await update_label(
+                http_request=MagicMock(),
                 label_id=label_id,
                 label_data=update_data,
                 current_user=mock_user,
@@ -382,6 +390,7 @@ class TestUpdateLabel:
 
         with pytest.raises(HTTPException) as exc_info:
             await update_label(
+                http_request=MagicMock(),
                 label_id=label_id,
                 label_data=update_data,
                 current_user=mock_user,
@@ -413,6 +422,7 @@ class TestUpdateLabel:
             new_callable=AsyncMock,
         ):
             result = await update_label(
+                http_request=MagicMock(),
                 label_id=label_id,
                 label_data=update_data,
                 current_user=mock_user,
@@ -436,6 +446,7 @@ class TestUpdateLabel:
         mock_db.execute.return_value = label_result
 
         result = await update_label(
+            http_request=MagicMock(),
             label_id=label_id,
             label_data=update_data,
             current_user=mock_user,
@@ -475,6 +486,7 @@ class TestDeleteLabel:
         mock_db.execute.return_value = label_result
 
         result = await delete_label(
+            http_request=MagicMock(),
             label_id=label_id,
             current_user=mock_user,
             db=mock_db,
@@ -495,6 +507,7 @@ class TestDeleteLabel:
 
         with pytest.raises(HTTPException) as exc_info:
             await delete_label(
+                http_request=MagicMock(),
                 label_id=label_id,
                 current_user=mock_user,
                 db=mock_db,
@@ -517,6 +530,7 @@ class TestDeleteLabel:
 
         with pytest.raises(HTTPException) as exc_info:
             await delete_label(
+                http_request=MagicMock(),
                 label_id=label_id,
                 current_user=mock_user,
                 db=mock_db,

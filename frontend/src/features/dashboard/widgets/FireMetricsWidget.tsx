@@ -36,6 +36,7 @@ const FireMetricsWidgetBase: React.FC = () => {
         selectedUserId ? { user_id: selectedUserId } : undefined,
       ),
     retry: false,
+    staleTime: 60_000,
   });
 
   if (isLoading) {

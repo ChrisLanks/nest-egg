@@ -89,11 +89,12 @@ class TransactionSplitService:
 
         await db.commit()
 
-        # Refresh all splits
-        for split in splits:
-            await db.refresh(split)
-
-        return splits
+        # Reload all splits in a single query instead of N individual refreshes
+        split_ids = [s.id for s in splits]
+        result = await db.execute(
+            select(TransactionSplit).where(TransactionSplit.id.in_(split_ids))
+        )
+        return list(result.scalars().all())
 
     @staticmethod
     async def get_transaction_splits(

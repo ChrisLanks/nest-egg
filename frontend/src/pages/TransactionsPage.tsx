@@ -38,6 +38,8 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   AlertDialogCloseButton,
+  Alert,
+  AlertIcon,
   Card,
   CardBody,
   useBreakpointValue,
@@ -740,6 +742,7 @@ export const TransactionsPage = () => {
   const {
     transactions: allTransactions,
     isLoading,
+    isError: transactionsError,
     isLoadingMore,
     hasMore,
     total,
@@ -1696,6 +1699,17 @@ export const TransactionsPage = () => {
 
   if (isLoading) {
     return <TransactionsSkeleton />;
+  }
+
+  if (transactionsError) {
+    return (
+      <Container maxW="container.xl" py={8}>
+        <Alert status="error" borderRadius="md">
+          <AlertIcon />
+          Failed to load transactions. Please refresh and try again.
+        </Alert>
+      </Container>
+    );
   }
 
   const formatCurrency = (amount: number) => {

@@ -3,7 +3,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +18,7 @@ from app.models.user import User
 from app.schemas.transaction import CategoryCreate, CategoryResponse, CategoryUpdate
 from app.services.hierarchy_validation_service import hierarchy_validation_service
 from app.services.input_sanitization_service import input_sanitization_service
+from app.services.rate_limit_service import rate_limit_service
 
 router = APIRouter()
 
@@ -123,10 +124,14 @@ async def list_categories(
 @router.post("/", response_model=CategoryResponse, status_code=201)
 async def create_category(
     category_data: CategoryCreate,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new category."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=30, window_seconds=3600, identifier=str(current_user.id)
+    )
     # Validate parent if provided
     await hierarchy_validation_service.validate_parent(
         category_data.parent_category_id,
@@ -157,10 +162,14 @@ async def create_category(
 async def update_category(
     category_id: UUID,
     category_data: CategoryUpdate,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Update a category."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=60, window_seconds=3600, identifier=str(current_user.id)
+    )
     result = await db.execute(
         select(Category).where(
             Category.id == category_id,
@@ -221,10 +230,14 @@ async def update_category(
 @router.delete("/{category_id}", status_code=204)
 async def delete_category(
     category_id: UUID,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a category."""
+    await rate_limit_service.check_rate_limit(
+        request=http_request, max_requests=20, window_seconds=3600, identifier=str(current_user.id)
+    )
     result = await db.execute(
         select(Category).where(
             Category.id == category_id,

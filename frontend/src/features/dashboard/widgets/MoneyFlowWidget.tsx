@@ -474,6 +474,7 @@ const MoneyFlowWidgetBase: React.FC = () => {
       const response = await api.get("/income-expenses/summary", { params });
       return response.data;
     },
+    staleTime: 60_000,
   });
 
   const sankeyData = summary ? buildSankeyData(summary) : null;

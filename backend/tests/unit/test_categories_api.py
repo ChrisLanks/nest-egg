@@ -1,7 +1,7 @@
 """Unit tests for categories API endpoints."""
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -230,6 +230,7 @@ class TestCreateCategory:
             return_value=None,
         ):
             result = await create_category(
+                http_request=MagicMock(),
                 category_data=category_create_data,
                 current_user=mock_user,
                 db=mock_db,
@@ -256,6 +257,7 @@ class TestCreateCategory:
             return_value=None,
         ) as mock_validate:
             await create_category(
+                http_request=MagicMock(),
                 category_data=category_data,
                 current_user=mock_user,
                 db=mock_db,
@@ -308,6 +310,7 @@ class TestUpdateCategory:
         mock_db.execute.return_value = category_result
 
         result = await update_category(
+            http_request=MagicMock(),
             category_id=category_id,
             category_data=update_data,
             current_user=mock_user,
@@ -329,6 +332,7 @@ class TestUpdateCategory:
 
         with pytest.raises(HTTPException) as exc_info:
             await update_category(
+                http_request=MagicMock(),
                 category_id=category_id,
                 category_data=update_data,
                 current_user=mock_user,
@@ -350,6 +354,7 @@ class TestUpdateCategory:
 
         with pytest.raises(HTTPException) as exc_info:
             await update_category(
+                http_request=MagicMock(),
                 category_id=category_id,
                 category_data=update_data,
                 current_user=mock_user,
@@ -378,6 +383,7 @@ class TestUpdateCategory:
 
         with pytest.raises(HTTPException) as exc_info:
             await update_category(
+                http_request=MagicMock(),
                 category_id=category_id,
                 category_data=update_data,
                 current_user=mock_user,
@@ -409,6 +415,7 @@ class TestUpdateCategory:
             return_value=None,
         ):
             result = await update_category(
+                http_request=MagicMock(),
                 category_id=category_id,
                 category_data=update_data,
                 current_user=mock_user,
@@ -432,6 +439,7 @@ class TestUpdateCategory:
         mock_db.execute.return_value = category_result
 
         result = await update_category(
+            http_request=MagicMock(),
             category_id=category_id,
             category_data=update_data,
             current_user=mock_user,
@@ -470,6 +478,7 @@ class TestDeleteCategory:
         mock_db.execute.return_value = category_result
 
         result = await delete_category(
+            http_request=MagicMock(),
             category_id=category_id,
             current_user=mock_user,
             db=mock_db,
@@ -490,6 +499,7 @@ class TestDeleteCategory:
 
         with pytest.raises(HTTPException) as exc_info:
             await delete_category(
+                http_request=MagicMock(),
                 category_id=category_id,
                 current_user=mock_user,
                 db=mock_db,

@@ -49,6 +49,7 @@ const RetirementReadinessWidgetBase: React.FC = () => {
       return data;
     },
     retry: false,
+    staleTime: 60_000,
   });
 
   if (isLoading) {

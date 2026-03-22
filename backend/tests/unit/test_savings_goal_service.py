@@ -32,8 +32,11 @@ def _make_account(account_id, balance):
 
 def _make_db(goals, accounts_list):
     """
-    Mock db.execute to return goals on the first call, accounts on the second.
-    db.commit and db.refresh are no-ops.
+    Mock db.execute to return:
+      1. goals (initial fetch by org)
+      2. accounts (balance lookup)
+      3. goals again (post-commit batch reload — replaces N individual db.refresh calls)
+    db.commit is a no-op.
     """
     db = AsyncMock()
 
@@ -43,7 +46,11 @@ def _make_db(goals, accounts_list):
     accounts_result = MagicMock()
     accounts_result.scalars.return_value.all.return_value = accounts_list
 
-    db.execute.side_effect = [goals_result, accounts_result]
+    # 3rd execute: batch reload of updated goals (avoids N+1 db.refresh loop)
+    reload_result = MagicMock()
+    reload_result.scalars.return_value.all.return_value = goals
+
+    db.execute.side_effect = [goals_result, accounts_result, reload_result]
     return db
 
 
@@ -815,3 +822,46 @@ class TestReorderGoals:
         service = SavingsGoalService()
         result = await service.reorder_goals(db, test_user, goal_ids=[])
         assert result is True
+
+
+@pytest.mark.unit
+class TestAllocateBalancesNPlusOne:
+    """Regression tests: allocate_balances must reload goals in one query, not N refreshes."""
+
+    @pytest.mark.asyncio
+    async def test_batch_reload_not_individual_refreshes(self):
+        """After commit, goals must be reloaded with a single SELECT IN query, not N db.refresh calls."""
+        account_id = uuid4()
+        goal_a = _make_goal(account_id, "1000.00", priority=1)
+        goal_b = _make_goal(account_id, "1000.00", priority=2)
+        goal_c = _make_goal(account_id, "1000.00", priority=3)
+
+        account = _make_account(account_id, "3000.00")
+        user = Mock(spec=User)
+        user.organization_id = uuid4()
+
+        db = _make_db([goal_a, goal_b, goal_c], [account])
+
+        await SavingsGoalService.auto_sync_goals(db, user, method="proportional")
+
+        # Must never call db.refresh (that would be the N+1 pattern)
+        db.refresh.assert_not_called()
+        # Must call db.execute exactly 3 times: fetch goals, fetch accounts, batch reload
+        assert db.execute.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_no_goals_skips_reload_query(self):
+        """When there are no goals to update, the batch reload query should not be issued."""
+        user = Mock(spec=User)
+        user.organization_id = uuid4()
+
+        db = AsyncMock()
+        empty_result = MagicMock()
+        empty_result.scalars.return_value.all.return_value = []
+        db.execute.return_value = empty_result
+
+        await SavingsGoalService.auto_sync_goals(db, user, method="proportional")
+
+        # Only 1 execute call: the initial goals fetch (no accounts fetch, no reload)
+        assert db.execute.call_count == 1
+        db.refresh.assert_not_called()

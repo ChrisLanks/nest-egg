@@ -45,6 +45,7 @@ const SubscriptionsWidgetBase: React.FC = () => {
   const { data, isLoading } = useQuery({
     queryKey: ["subscriptions-widget", selectedUserId],
     queryFn: () => subscriptionsApi.get(selectedUserId || undefined),
+    staleTime: 60_000,
   });
 
   if (isLoading) {

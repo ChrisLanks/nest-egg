@@ -401,8 +401,14 @@ class SavingsGoalService:
             goal.updated_at = now
 
         await db.commit()
-        for goal in updated_goals:
-            await db.refresh(goal)
+
+        # Reload all updated goals in a single query instead of N individual refreshes
+        if updated_goals:
+            goal_ids = [g.id for g in updated_goals]
+            result = await db.execute(
+                select(SavingsGoal).where(SavingsGoal.id.in_(goal_ids))
+            )
+            updated_goals = list(result.scalars().all())
 
         return updated_goals
 
