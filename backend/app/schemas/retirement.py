@@ -540,12 +540,26 @@ class ScenarioComparisonResponse(BaseModel):
 
 
 class RetirementAccountItem(BaseModel):
-    """Individual account in the portfolio."""
+    """Individual account in the portfolio breakdown.
 
+    Returned by the /account-data endpoint and embedded in simulation responses.
+    The ``excluded`` flag and ``bucket="excluded"`` mark accounts that the user
+    has opted out of the simulation — they are still returned so the UI can
+    display them greyed-out in AccountDataSummary with a re-include checkbox.
+
+    ``interest_rate`` is only set for cash-bucket accounts (checking/savings/
+    money-market).  It is the APR % stored on the Account model (e.g. 4.5 = 4.5%).
+    The simulation uses a weighted average of these rates as the cash growth rate
+    instead of the stochastic investment return.
+    """
+
+    id: str
     name: str
     balance: float
-    bucket: str  # "pre_tax", "roth", "taxable", "hsa", "cash"
+    bucket: str  # "pre_tax" | "roth" | "taxable" | "hsa" | "cash" | "excluded"
     account_type: str
+    interest_rate: Optional[float] = None  # APR %, cash accounts only (e.g. 4.5 = 4.5%)
+    excluded: bool = False  # True = user opted this account out of the simulation
 
 
 class RetirementAccountDataResponse(BaseModel):

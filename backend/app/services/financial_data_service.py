@@ -1,9 +1,16 @@
 """
 Financial data service for fetching market cap and security metadata.
 
-Uses free APIs with aggressive caching to stay within rate limits:
-- Alpha Vantage: 25 calls/day, 5/min (primary)
-- Finnhub: 60 calls/min (backup)
+Uses external APIs with aggressive caching to stay within rate limits:
+- Polygon.io /v3/reference/tickers — authoritative security type (stock/ETF/fund/bond)
+  Requires POLYGON_API_KEY. 7-day cache per ticker.
+- Alpha Vantage: 25 calls/day, 5/min — market cap / sector data (primary)
+- Finnhub: 60 calls/min — market cap fallback
+
+Asset type resolution chain (get_asset_type):
+  1. Cache hit → return immediately
+  2. Polygon.io lookup → authoritative, estimated=False
+  3. No provider / 404 / error → estimated=True fallback (NOT cached, retried next call)
 """
 
 import asyncio
