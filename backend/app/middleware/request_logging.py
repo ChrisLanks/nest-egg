@@ -227,7 +227,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         # Get request details
         user_id = getattr(request.state, "user_id", None) or "N/A"
         client_host = request.client.host if request.client else "unknown"
-        request_id = getattr(request.state, "request_id", "unknown")
+        request_id = getattr(request.state, "request_id", None) or str(uuid.uuid4())
 
         # Process request
         response = await call_next(request)

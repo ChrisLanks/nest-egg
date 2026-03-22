@@ -110,12 +110,17 @@ async def _persist_audit_log_async(
     duration_ms: Optional[int],
 ) -> None:
     """Async implementation — writes one AuditLog row per call."""
+    import uuid as _uuid
+
     from app.models.audit_log import AuditLog
     from app.workers.utils import get_celery_session
 
+    # Guard: request_id must never be null (NOT NULL constraint)
+    safe_request_id = request_id or str(_uuid.uuid4())
+
     async with get_celery_session() as session:
         entry = AuditLog(
-            request_id=request_id,
+            request_id=safe_request_id,
             action=action,
             method=method,
             path=path,
