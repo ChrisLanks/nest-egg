@@ -33,6 +33,9 @@ celery_app.conf.update(
     redbeat_redis_url=settings.CELERY_BROKER_URL,
     # Lock TTL: 5× the shortest schedule interval (1-minute check-budget runs at most hourly)
     redbeat_lock_timeout=300,
+    # Suppress CPendingDeprecationWarning in Celery 5.x: explicitly opt in to
+    # retrying broker connections on startup (behaviour unchanged from before).
+    broker_connection_retry_on_startup=True,
 )
 
 
