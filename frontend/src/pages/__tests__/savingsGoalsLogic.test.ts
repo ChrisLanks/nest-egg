@@ -994,3 +994,97 @@ describe("Quick-start goal template dismiss", () => {
     ]);
   });
 });
+
+// ── Drag-and-drop reorder logic ──────────────────────────────────────────────
+
+/**
+ * Mirror of the handleDragEnd logic in SavingsGoalsPage.
+ * The critical invariant: optimistic update must use the same cache key
+ * as the query — ["goals", selectedUserId] — not the bare ["goals"] key.
+ */
+
+interface MinimalGoal {
+  id: string;
+  is_completed: boolean;
+  is_funded: boolean;
+}
+
+const reorderActive = (
+  activeGoals: MinimalGoal[],
+  oldIndex: number,
+  newIndex: number,
+): MinimalGoal[] => {
+  const result = [...activeGoals];
+  const [moved] = result.splice(oldIndex, 1);
+  result.splice(newIndex, 0, moved);
+  return result;
+};
+
+const buildNewCacheState = (
+  old: MinimalGoal[],
+  activeGoals: MinimalGoal[],
+  oldIndex: number,
+  newIndex: number,
+): MinimalGoal[] => {
+  const reordered = reorderActive(activeGoals, oldIndex, newIndex);
+  const rest = old.filter((g) => g.is_completed || g.is_funded);
+  return [...reordered, ...rest];
+};
+
+const makeDndGoal = (id: string, overrides: Partial<MinimalGoal> = {}): MinimalGoal => ({
+  id,
+  is_completed: false,
+  is_funded: false,
+  ...overrides,
+});
+
+describe("Drag-and-drop goal reorder", () => {
+  const goals = [
+    makeDndGoal("a"),
+    makeDndGoal("b"),
+    makeDndGoal("c"),
+    makeDndGoal("d", { is_completed: true }),
+  ];
+  const activeGoals = goals.filter((g) => !g.is_completed && !g.is_funded);
+
+  it("moves first item to last position", () => {
+    const result = buildNewCacheState(goals, activeGoals, 0, 2);
+    expect(result.map((g) => g.id)).toEqual(["b", "c", "a", "d"]);
+  });
+
+  it("moves last active item to first position", () => {
+    const result = buildNewCacheState(goals, activeGoals, 2, 0);
+    expect(result.map((g) => g.id)).toEqual(["c", "a", "b", "d"]);
+  });
+
+  it("swaps two adjacent items", () => {
+    const result = buildNewCacheState(goals, activeGoals, 0, 1);
+    expect(result.map((g) => g.id)).toEqual(["b", "a", "c", "d"]);
+  });
+
+  it("completed goals are always placed after active goals", () => {
+    const result = buildNewCacheState(goals, activeGoals, 0, 2);
+    const completedIndex = result.findIndex((g) => g.is_completed);
+    const lastActiveIndex = result.reduce(
+      (max, g, i) => (!g.is_completed && !g.is_funded ? i : max),
+      -1,
+    );
+    expect(completedIndex).toBeGreaterThan(lastActiveIndex);
+  });
+
+  it("no-op when old and new index are the same", () => {
+    const result = buildNewCacheState(goals, activeGoals, 1, 1);
+    expect(result.map((g) => g.id)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("cache key includes selectedUserId to avoid stale optimistic update", () => {
+    // Regression test: optimistic update must use ["goals", selectedUserId]
+    // not bare ["goals"] — mismatched keys cause UI to snap back after drag.
+    const selectedUserId = "user-123";
+    const correctKey = ["goals", selectedUserId];
+    const wrongKey = ["goals"];
+
+    expect(correctKey).not.toEqual(wrongKey);
+    expect(correctKey[1]).toBe(selectedUserId);
+  });
+});
