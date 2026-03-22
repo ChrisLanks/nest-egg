@@ -50,17 +50,21 @@ function getCurrencySymbol(currency: string): string {
 }
 
 export const CurrencyProvider = ({ children }: { children: ReactNode }) => {
-  const { isAuthenticated } = useAuthStore();
+  const { accessToken } = useAuthStore();
 
   // Re-uses the ["userProfile"] cache key — same as PreferencesPage and useNavDefaults,
   // so this never causes an extra network request.
+  //
+  // Gate on accessToken (in-memory), NOT isAuthenticated (persisted flag).
+  // isAuthenticated survives a hard refresh but the token does not — firing the
+  // query while the token is being restored via /auth/refresh causes a 401.
   const { data: profile } = useQuery({
     queryKey: ["userProfile"],
     queryFn: async () => {
       const res = await api.get("/settings/profile");
       return res.data as { default_currency?: string | null };
     },
-    enabled: isAuthenticated,
+    enabled: !!accessToken,
     staleTime: 5 * 60 * 1000,
   });
 

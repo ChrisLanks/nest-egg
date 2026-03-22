@@ -52,7 +52,7 @@ import {
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FiArchive, FiEdit2, FiRotateCcw, FiUsers, FiX } from "react-icons/fi";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../../../services/api";
 import { useUserView } from "../../../contexts/UserViewContext";
 import { AccountDataSummary } from "../components/AccountDataSummary";
@@ -112,6 +112,24 @@ export function RetirementPage() {
   } = useUserView();
   const queryClient = useQueryClient();
   const readOnly = !canWriteResource("retirement_scenario");
+
+  // Derive current user's age from the shared profile cache (no extra request).
+  // Social Security planning is only relevant from ~55 onwards.
+  const SS_SHOW_AGE = 55;
+  const { data: userProfile } = useQuery<{ birthdate?: string | null }>({
+    queryKey: ["userProfile"],
+    enabled: false, // never fetch here — just read from cache populated by CurrencyContext / PreferencesPage
+  });
+  const currentUserAge = useMemo(() => {
+    if (!userProfile?.birthdate) return null;
+    const birth = new Date(userProfile.birthdate);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return age;
+  }, [userProfile?.birthdate]);
+  const showSocialSecurity = currentUserAge === null || currentUserAge >= SS_SHOW_AGE;
 
   const selectedIds = selectedMemberIds;
 
@@ -1596,20 +1614,28 @@ export function RetirementPage() {
 
           {/* Right column: SS, Healthcare, Withdrawal, Results */}
           <VStack spacing={4} align="stretch">
-            {/* Social Security Estimator */}
-            <SocialSecurityEstimator
-              currentIncome={scenario?.current_annual_income}
-              claimingAge={scenario?.social_security_start_age ?? 67}
-              manualOverride={scenario?.social_security_monthly}
-              onClaimingAgeChange={handleSsClaimingAgeChange}
-              onManualOverrideChange={(amount) =>
-                handleUpdate({
-                  social_security_monthly: amount,
-                  use_estimated_pia: amount === null,
-                })
-              }
-              readOnly={readOnly}
-            />
+            {/* Social Security Estimator — shown at 55+ when planning is actionable */}
+            {showSocialSecurity ? (
+              <SocialSecurityEstimator
+                currentIncome={scenario?.current_annual_income}
+                claimingAge={scenario?.social_security_start_age ?? 67}
+                manualOverride={scenario?.social_security_monthly}
+                onClaimingAgeChange={handleSsClaimingAgeChange}
+                onManualOverrideChange={(amount) =>
+                  handleUpdate({
+                    social_security_monthly: amount,
+                    use_estimated_pia: amount === null,
+                  })
+                }
+                readOnly={readOnly}
+              />
+            ) : (
+              <Tooltip label="Social Security planning becomes relevant around age 55. We'll show this section when you're closer to claiming age.">
+                <Text fontSize="xs" color={useColorModeValue("gray.400", "gray.500")} textAlign="center" cursor="help">
+                  Social Security estimator available at age {SS_SHOW_AGE}+
+                </Text>
+              </Tooltip>
+            )}
 
             {/* Healthcare Estimator */}
             <HealthcareEstimator
