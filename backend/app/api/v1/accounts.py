@@ -983,10 +983,8 @@ async def refresh_equity_price(
             "Only stock_options and private_equity accounts are supported.",
         )
 
-    # Require a ticker symbol — used as the lookup key
-    ticker = account.name.strip() if not account.institution_name else None
-    # Prefer institution_name as ticker if it looks like a stock symbol
-    # Fall back to checking name for short uppercase strings
+    # Prefer institution_name as ticker if it looks like a stock symbol (1-5 uppercase letters).
+    # Fall back to checking name, then use whichever field is present as a search query.
     if account.institution_name and re.match(r"^[A-Z]{1,5}$", account.institution_name.strip()):
         ticker = account.institution_name.strip()
     elif account.name and re.match(r"^[A-Z]{1,5}$", account.name.strip()):

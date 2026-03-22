@@ -9,9 +9,9 @@ an identical reminder was already sent today (deduplication guard).
 import asyncio
 import logging
 import random
-from datetime import timedelta
+from datetime import datetime, timedelta
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, select
 
 from app.models.notification import Notification, NotificationPriority, NotificationType
 from app.models.recurring_transaction import RecurringTransaction
@@ -119,8 +119,11 @@ async def _process_org_bills(db, org) -> None:
             continue
 
         # Deduplication: skip if a bill reminder notification for this recurring
-        # transaction already exists today for this org (same entity_id + type + date)
-        today_str = today.isoformat()
+        # transaction already exists today for this org (same entity_id + type + date).
+        # Use a timestamp range [day_start, day_end) rather than casting to date so that
+        # the comparison stays index-friendly and avoids implicit string casting.
+        day_start = datetime.combine(today, datetime.min.time())
+        day_end = day_start + timedelta(days=1)
         existing_result = await db.execute(
             select(Notification.id)
             .where(
@@ -128,7 +131,8 @@ async def _process_org_bills(db, org) -> None:
                     Notification.organization_id == org.id,
                     Notification.type == _BILL_REMINDER_TYPE,
                     Notification.related_entity_id == bill.id,
-                    func.date(Notification.created_at) == today_str,
+                    Notification.created_at >= day_start,
+                    Notification.created_at < day_end,
                 )
             )
             .limit(1)
