@@ -19,7 +19,7 @@ class BulkOperationLog(Base):
     organization_id = Column(
         UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     operation_type = Column(String(50), nullable=False)  # "categorize", "merge", "delete", "split"
     affected_ids = Column(JSON, nullable=False)  # list of transaction/account IDs
     previous_state = Column(JSON, nullable=False)  # snapshot before change

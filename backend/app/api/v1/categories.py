@@ -189,7 +189,10 @@ async def update_category(
 
         # Check if this category has children - if so, can't make it a child
         children_result = await db.execute(
-            select(Category.id).where(Category.parent_category_id == category_id).limit(1)
+            select(Category.id).where(
+                Category.parent_category_id == category_id,
+                Category.organization_id == current_user.organization_id,
+            ).limit(1)
         )
         has_children = children_result.scalar_one_or_none() is not None
 

@@ -450,6 +450,73 @@ class TestUpdateCategory:
         assert result.color == "#00FF00"
         assert result.plaid_category_name == "New Plaid Category"
 
+    @pytest.mark.asyncio
+    async def test_children_check_is_scoped_to_organization(self, mock_db, mock_user, mock_category):
+        """Children check must filter by organization_id to prevent cross-org probing.
+
+        Security fix: the WHERE clause used to only filter on parent_category_id.
+        Without the org scope, an attacker could discover whether category IDs from
+        other organizations have children by passing arbitrary UUIDs as parent_category_id.
+
+        We verify this by inspecting the WHERE clauses of the SQLAlchemy statement
+        passed to db.execute — the children check (second call) must reference the
+        organization_id column in addition to parent_category_id.
+        """
+        from sqlalchemy import inspect as sa_inspect
+
+        category_id = mock_category.id
+        parent_id = uuid4()
+        update_data = CategoryUpdate(parent_category_id=parent_id)
+
+        # Mock category lookup
+        category_result = Mock()
+        category_result.scalar_one_or_none.return_value = mock_category
+
+        # Mock children check - has children
+        children_result = Mock()
+        children_result.scalar_one_or_none.return_value = uuid4()
+
+        captured_statements: list = []
+
+        # Replace execute with a side_effect that captures the stmt before returning the mock result
+        results = [category_result, children_result]
+        call_count = 0
+
+        async def capturing_execute(stmt):
+            nonlocal call_count
+            captured_statements.append(stmt)
+            result = results[call_count]
+            call_count += 1
+            return result
+
+        mock_db.execute = capturing_execute
+
+        with pytest.raises(HTTPException):
+            await update_category(
+                http_request=MagicMock(),
+                category_id=category_id,
+                category_data=update_data,
+                current_user=mock_user,
+                db=mock_db,
+            )
+
+        # The second execute call is the children check
+        assert len(captured_statements) >= 2
+        children_stmt = captured_statements[1]
+
+        # Walk the WHERE clause column names to confirm organization_id is present
+        where_columns: set[str] = set()
+        for clause in children_stmt.whereclause.clauses:
+            try:
+                where_columns.add(clause.left.key)
+            except AttributeError:
+                pass
+
+        assert "organization_id" in where_columns, (
+            "Children check WHERE clause must include organization_id to prevent cross-org probing. "
+            f"Found columns: {where_columns}"
+        )
+
 
 @pytest.mark.unit
 class TestDeleteCategory:

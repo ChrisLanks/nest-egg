@@ -118,7 +118,7 @@ class Category(Base):
     name = Column(String(100), nullable=False)
     color = Column(String(7), nullable=True)  # Hex color code
     parent_category_id = Column(
-        UUID(as_uuid=True), ForeignKey("categories.id", ondelete="CASCADE"), nullable=True
+        UUID(as_uuid=True), ForeignKey("categories.id", ondelete="CASCADE"), nullable=True, index=True
     )
 
     # Link to provider category for automatic mapping

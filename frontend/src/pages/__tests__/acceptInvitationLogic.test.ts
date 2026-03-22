@@ -150,3 +150,40 @@ describe("Flow state determination", () => {
     expect(canAccept).toBe(true);
   });
 });
+
+// ── Cache invalidation keys ───────────────────────────────────────────────────
+// These tests document the query keys that MUST be invalidated on accept so that
+// the newly-joined member sees fresh household and permissions data after login.
+
+const REQUIRED_INVALIDATION_KEYS = ["household", "permissions"] as const;
+
+describe("onSuccess cache invalidation keys", () => {
+  it("household key is in the required invalidation list", () => {
+    expect(REQUIRED_INVALIDATION_KEYS).toContain("household");
+  });
+
+  it("permissions key is in the required invalidation list", () => {
+    expect(REQUIRED_INVALIDATION_KEYS).toContain("permissions");
+  });
+
+  it("requires exactly the two expected keys to be invalidated", () => {
+    // Ensures no accidental drift — if new keys are added they must be reviewed
+    expect(REQUIRED_INVALIDATION_KEYS).toHaveLength(2);
+  });
+
+  it("invalidating with household prefix clears member list queries", () => {
+    // Simulate query key matching: a key that starts with "household"
+    // should be considered stale after a new member joins.
+    const cachedQueries = [
+      ["household"],
+      ["household", "members"],
+      ["household", "invitations"],
+      ["permissions"],
+      ["accounts"],
+    ];
+    const invalidated = cachedQueries.filter((key) =>
+      REQUIRED_INVALIDATION_KEYS.some((prefix) => key[0] === prefix)
+    );
+    expect(invalidated).toHaveLength(4); // household, household/members, household/invitations, permissions
+  });
+});

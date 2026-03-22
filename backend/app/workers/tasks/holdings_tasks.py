@@ -75,6 +75,7 @@ async def _enrich_metadata_async():
             enriched_count = 0
             failed_count = 0
             er_enriched_count = 0
+            failed_tickers: list[str] = []
 
             for ticker in tickers:
                 try:
@@ -137,6 +138,7 @@ async def _enrich_metadata_async():
                 except Exception as e:
                     logger.error(f"Error enriching metadata for {ticker}: {e}")
                     failed_count += 1
+                    failed_tickers.append(ticker)
 
             await db.commit()
 
@@ -151,6 +153,12 @@ async def _enrich_metadata_async():
                 f"Failed: {failed_count}, Total tickers: {len(tickers)} "
                 f"(Provider: {market_data.get_provider_name()})"
             )
+
+            if failed_tickers:
+                raise RuntimeError(
+                    f"Holdings metadata enrichment failed for {len(failed_tickers)} ticker(s): "
+                    f"{', '.join(failed_tickers)}"
+                )
 
         except Exception as e:
             logger.error(f"Error in holdings metadata enrichment task: {str(e)}", exc_info=True)

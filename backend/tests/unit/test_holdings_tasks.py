@@ -125,8 +125,8 @@ class TestEnrichMetadataAsync:
         mock_db.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_handles_provider_error_gracefully(self):
-        """Provider errors for individual tickers don't crash the task."""
+    async def test_handles_provider_error_raises_after_all_tickers(self):
+        """Provider errors for individual tickers are collected; task re-raises after all tickers processed."""
         org_id = uuid4()
         h = _mock_holding("BAD", org_id)
 
@@ -150,9 +150,54 @@ class TestEnrichMetadataAsync:
         ):
             mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
             mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
-            await _enrich_metadata_async()
+            with pytest.raises(RuntimeError, match="BAD"):
+                await _enrich_metadata_async()
 
-        # Should still commit (with 0 enriched, 1 failed)
+        # Should still commit before raising (other work may have succeeded)
+        mock_db.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_partial_failure_includes_all_failed_tickers_in_message(self):
+        """When multiple tickers fail, all are listed in the RuntimeError message."""
+        org1 = uuid4()
+        org2 = uuid4()
+        h_bad1 = _mock_holding("FAIL1", org1)
+        h_bad2 = _mock_holding("FAIL2", org2)
+        h_good = _mock_holding("AAPL", org1)
+
+        mock_db = AsyncMock()
+        scalars_mock = Mock()
+        scalars_mock.all.return_value = [h_bad1, h_bad2, h_good]
+        result_mock = Mock()
+        result_mock.scalars.return_value = scalars_mock
+        mock_db.execute.return_value = result_mock
+
+        good_metadata = _mock_metadata()
+
+        def metadata_side_effect(ticker):
+            if ticker in ("FAIL1", "FAIL2"):
+                raise Exception(f"API error for {ticker}")
+            return good_metadata
+
+        mock_provider = AsyncMock()
+        mock_provider.get_holding_metadata = AsyncMock(side_effect=metadata_side_effect)
+        mock_provider.get_provider_name.return_value = "test_provider"
+
+        with (
+            patch("app.workers.utils.get_celery_session") as mock_factory,
+            patch(
+                "app.workers.tasks.holdings_tasks.get_market_data_provider",
+                return_value=mock_provider,
+            ),
+        ):
+            mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+            mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+            with pytest.raises(RuntimeError) as exc_info:
+                await _enrich_metadata_async()
+
+        assert "FAIL1" in str(exc_info.value)
+        assert "FAIL2" in str(exc_info.value)
+        # Commit still happened (good ticker was enriched before raise)
         mock_db.commit.assert_awaited_once()
 
     @pytest.mark.asyncio

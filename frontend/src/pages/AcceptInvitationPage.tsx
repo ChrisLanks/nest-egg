@@ -25,7 +25,7 @@ import {
 import { CheckCircleIcon, WarningIcon } from "@chakra-ui/icons";
 import { FiBarChart2, FiEye, FiShield, FiUsers } from "react-icons/fi";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import api from "../services/api";
 import { getErrorMessage, isValidTokenFormat } from "../utils/errorHandling";
@@ -41,6 +41,7 @@ interface InvitationDetails {
 export const AcceptInvitationPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const invitationCode = searchParams.get("code");
   const [accepted, setAccepted] = useState(false);
 
@@ -66,6 +67,9 @@ export const AcceptInvitationPage: React.FC = () => {
       return response.data;
     },
     onSuccess: () => {
+      // Invalidate household and permissions caches so the new member sees fresh data on login
+      queryClient.invalidateQueries({ queryKey: ["household"] });
+      queryClient.invalidateQueries({ queryKey: ["permissions"] });
       setAccepted(true);
       // Redirect to login after 3 seconds
       setTimeout(() => {
