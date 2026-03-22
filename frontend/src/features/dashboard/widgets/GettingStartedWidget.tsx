@@ -73,6 +73,7 @@ const Step: React.FC<StepProps> = ({ label, hint, to, done }) => {
 };
 
 const WHAT_NEXT_DISMISSED_KEY = "nest-egg-what-next-dismissed";
+const WHAT_NEXT_HIDDEN_ITEMS_KEY = "nest-egg-what-next-hidden";
 
 const WHAT_NEXT_ITEMS: Record<
   string,
@@ -152,13 +153,40 @@ const WhatNextCard: React.FC = () => {
   const [dismissed, setDismissed] = useState<boolean>(
     () => localStorage.getItem(WHAT_NEXT_DISMISSED_KEY) === "true",
   );
+  const [hiddenItems, setHiddenItems] = useState<Set<string>>(
+    () =>
+      new Set(
+        JSON.parse(
+          localStorage.getItem(WHAT_NEXT_HIDDEN_ITEMS_KEY) || "[]",
+        ) as string[],
+      ),
+  );
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
 
   if (dismissed) return null;
 
-  const goal = localStorage.getItem("nest-egg-onboarding-goal") || user?.onboarding_goal || "default";
-  const items = WHAT_NEXT_ITEMS[goal] ?? WHAT_NEXT_ITEMS.default;
+  const goal =
+    localStorage.getItem("nest-egg-onboarding-goal") ||
+    user?.onboarding_goal ||
+    "default";
+  const allItems = WHAT_NEXT_ITEMS[goal] ?? WHAT_NEXT_ITEMS.default;
+  const visibleItems = allItems.filter((item) => !hiddenItems.has(item.label));
+
+  const handleHideItem = (label: string) => {
+    const next = new Set(hiddenItems).add(label);
+    setHiddenItems(next);
+    localStorage.setItem(
+      WHAT_NEXT_HIDDEN_ITEMS_KEY,
+      JSON.stringify([...next]),
+    );
+  };
+
+  // Auto-dismiss the card when all items have been hidden
+  if (visibleItems.length === 0) {
+    localStorage.setItem(WHAT_NEXT_DISMISSED_KEY, "true");
+    return null;
+  }
 
   return (
     <Card h="100%" borderColor="brand.200" borderWidth="1px">
@@ -187,26 +215,49 @@ const WhatNextCard: React.FC = () => {
             The basics are covered. Here are a few things worth exploring next:
           </Text>
           <VStack align="stretch" spacing={2}>
-            {items.map((item) => (
+            {visibleItems.map((item) => (
               <HStack
                 key={item.label}
                 p={3}
                 bg="bg.subtle"
                 borderRadius="md"
                 spacing={3}
-                cursor="pointer"
-                onClick={() => navigate(item.path)}
-                _hover={{ bg: "bg.hover" }}
+                role="group"
               >
-                <VStack align="start" spacing={0} flex={1}>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {item.label}
-                  </Text>
-                  <Text fontSize="xs" color="text.muted">
-                    {item.desc}
-                  </Text>
-                </VStack>
-                <Icon as={FiArrowRight} color="text.muted" boxSize={4} />
+                <HStack
+                  flex={1}
+                  spacing={3}
+                  cursor="pointer"
+                  onClick={() => navigate(item.path)}
+                  _hover={{ "& p": { color: "brand.500" } }}
+                >
+                  <VStack align="start" spacing={0} flex={1}>
+                    <Text fontSize="sm" fontWeight="medium">
+                      {item.label}
+                    </Text>
+                    <Text fontSize="xs" color="text.muted">
+                      {item.desc}
+                    </Text>
+                  </VStack>
+                  <Icon as={FiArrowRight} color="text.muted" boxSize={4} />
+                </HStack>
+                <IconButton
+                  aria-label={`Remove "${item.label}" suggestion`}
+                  icon={
+                    <Text fontSize="md" lineHeight={1}>
+                      ×
+                    </Text>
+                  }
+                  variant="ghost"
+                  size="xs"
+                  color="text.muted"
+                  opacity={0}
+                  _groupHover={{ opacity: 1 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleHideItem(item.label);
+                  }}
+                />
               </HStack>
             ))}
           </VStack>
