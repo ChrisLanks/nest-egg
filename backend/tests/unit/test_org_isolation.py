@@ -179,6 +179,7 @@ class TestBudgetServiceCategoryOrgIsolation:
         mock_budget.label_id = None
         mock_budget.period = "monthly"
         mock_budget.amount = Decimal("500.00")
+        mock_budget.rollover_unused = False
 
         mock_user = Mock()
         mock_user.organization_id = org_a

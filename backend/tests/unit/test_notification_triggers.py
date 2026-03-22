@@ -36,7 +36,7 @@ class TestNewNotificationTypes:
 
     def test_all_notification_types_count(self):
         """Ensure we have the expected number of notification types."""
-        assert len(NotificationType) == 15
+        assert len(NotificationType) == 20
 
 
 class TestHouseholdNotifications:

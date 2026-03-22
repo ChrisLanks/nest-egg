@@ -40,11 +40,11 @@ class TestValidateCorsOrigins:
             )
         assert result == ["http://localhost:3000", "http://localhost:5173"]
 
-    def test_allows_localhost_origins_in_staging(self):
-        """Staging (non-production) should allow localhost origins."""
+    def test_rejects_localhost_origins_in_staging(self):
+        """Staging should also reject localhost origins (same as production)."""
         with patch.dict(os.environ, {"ENVIRONMENT": "staging"}):
-            result = Settings.validate_cors_origins(["http://localhost:3000"])
-        assert result == ["http://localhost:3000"]
+            with pytest.raises(ValueError, match="localhost"):
+                Settings.validate_cors_origins(["http://localhost:3000"])
 
     def test_mixed_origins_with_localhost_in_production(self):
         """Production should reject when any origin is localhost, even if others are valid."""

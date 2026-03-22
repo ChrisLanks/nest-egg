@@ -39,6 +39,8 @@ def _make_user(**overrides):
         "birthdate": None,
         "created_at": datetime(2025, 1, 1),
         "updated_at": datetime(2025, 1, 1),
+        "login_count": 0,
+        "onboarding_goal": None,
     }
     defaults.update(overrides)
     user = Mock()
@@ -58,6 +60,8 @@ def _make_attachment(**overrides):
         "content_type": "application/pdf",
         "file_size": 50000,
         "created_at": datetime(2025, 6, 1, 12, 0, 0),
+        "ocr_status": None,
+        "ocr_data": None,
     }
     defaults.update(overrides)
     att = Mock()
@@ -307,6 +311,7 @@ class TestAttachmentService:
         mock_file.filename = "huge.pdf"
         mock_file.size = len(big_content)
         mock_file.read = AsyncMock(return_value=big_content)
+        mock_file.seek = AsyncMock()
 
         with pytest.raises(HTTPException) as exc_info:
             await upload_attachment(
@@ -1055,7 +1060,7 @@ class TestInvestmentsPageCopy:
         src = _read_investments_page()
         # Find the empty state block
         empty_block_match = re.search(
-            r"No investment accounts yet.*?Add investment accounts",
+            r"No investment accounts yet.*?Connect an Investment Account",
             src,
             re.DOTALL,
         )
@@ -1076,7 +1081,7 @@ class TestInvestmentsPageCopy:
         """Empty state should explain stocks vs bonds in plain terms."""
         src = _read_investments_page()
         empty_block_match = re.search(
-            r"No investment accounts yet.*?Add investment accounts",
+            r"No investment accounts yet.*?Connect an Investment Account",
             src,
             re.DOTALL,
         )

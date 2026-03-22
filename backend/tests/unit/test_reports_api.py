@@ -51,6 +51,7 @@ def _make_template(user, *, is_shared=False, creator_id=None):
     template.created_by_user_id = creator_id or user.id
     template.created_at = datetime(2024, 1, 1, 12, 0, 0)
     template.updated_at = datetime(2024, 1, 15, 12, 0, 0)
+    template.scheduled_delivery = None
     return template
 
 

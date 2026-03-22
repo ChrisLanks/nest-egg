@@ -2672,6 +2672,8 @@ class TestRefreshAdditional:
         mock_user.last_login_at = datetime.now()
         mock_user.created_at = datetime.now()
         mock_user.updated_at = datetime.now()
+        mock_user.login_count = 1
+        mock_user.onboarding_goal = None
 
         with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", new=AsyncMock()):
             with patch("app.api.v1.auth.decode_token", return_value=mock_payload):

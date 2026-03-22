@@ -62,27 +62,38 @@ class TestMarketDataEndpoints:
         assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
 
     def test_get_quote_rate_limited(self, client, auth_headers, mock_provider):
-        """Should enforce rate limiting (per-user: 60/min)."""
-        # Reset rate limiters to ensure a clean slate for this test
-        from app.core.rate_limiter import api_limiter, user_api_limiter
+        """Should enforce rate limiting on market data endpoint."""
+        from time import time
 
-        api_limiter._memory_calls.clear()
-        user_api_limiter._memory_calls.clear()
+        from app.core.rate_limiter import market_data_limiter
+
+        # Pre-fill the in-memory calls to just below the limit so a single
+        # additional request tips it over.  This avoids sending 100+ HTTP
+        # requests in the test while still exercising the enforcement path.
+        limit = market_data_limiter.calls_per_minute
+        now = time()
+        # Decode the user id from the auth header to build the correct key
+        import base64, json as _json
+
+        token = auth_headers["Authorization"].split(" ")[1]
+        payload_b64 = token.split(".")[1]
+        # Pad for base64
+        payload_b64 += "=" * (-len(payload_b64) % 4)
+        user_id = _json.loads(base64.urlsafe_b64decode(payload_b64))["sub"]
+        key = f"user:{user_id}"
+
+        market_data_limiter._memory_calls.clear()
+        market_data_limiter._memory_calls[key] = [now - i * 0.001 for i in range(limit)]
+        # Force Redis fallback for this test
+        market_data_limiter._redis_failed_at = now
 
         with patch("app.api.v1.market_data.get_market_data_provider", return_value=mock_provider):
-            for i in range(62):
-                response = client.get("/api/v1/market-data/quote/AAPL", headers=auth_headers)
+            response = client.get("/api/v1/market-data/quote/AAPL", headers=auth_headers)
+            assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
 
-                if i < 60:
-                    assert response.status_code in [
-                        status.HTTP_200_OK,
-                        status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        status.HTTP_404_NOT_FOUND,
-                    ]  # May fail for other reasons
-                else:
-                    # 61st+ request should be rate limited
-                    assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
-                    break
+        # Cleanup
+        market_data_limiter._memory_calls.clear()
+        market_data_limiter._redis_failed_at = None
 
     def test_get_quotes_batch(self, client, auth_headers, mock_provider):
         """Should fetch multiple quotes in batch."""

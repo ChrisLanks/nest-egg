@@ -81,7 +81,7 @@ class TestUpdateGoalNotifications:
         db = _make_db_with_goal(goal)
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
                 new_callable=AsyncMock,
@@ -93,8 +93,6 @@ class TestUpdateGoalNotifications:
 
             db.refresh.side_effect = fake_refresh
 
-            # Manually drive the logic: set is_completed = True after get_goal
-            goal.is_completed = True  # will be set by setattr inside update_goal
             await SavingsGoalService.update_goal(db, goal.id, user, is_completed=True)
 
         mock_notify.assert_called_once()
@@ -114,14 +112,12 @@ class TestUpdateGoalNotifications:
         db = _make_db_with_goal(goal)
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
                 new_callable=AsyncMock,
             ) as mock_notify,
         ):
-            # Simulate amount being set to target by update_goal's setattr
-            goal.current_amount = Decimal("5000.00")
             await SavingsGoalService.update_goal(
                 db, goal.id, user, current_amount=Decimal("5000.00")
             )
@@ -142,7 +138,7 @@ class TestUpdateGoalNotifications:
         db = _make_db_with_goal(goal)
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
                 new_callable=AsyncMock,
@@ -160,7 +156,7 @@ class TestUpdateGoalNotifications:
         db = _make_db_with_goal(goal)
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
                 new_callable=AsyncMock,
@@ -179,7 +175,7 @@ class TestUpdateGoalNotifications:
         db = _make_db_with_goal(goal)
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
                 new_callable=AsyncMock,
@@ -200,7 +196,7 @@ class TestUpdateGoalNotifications:
         db = _make_db_with_goal(goal)
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
                 new_callable=AsyncMock,
@@ -217,7 +213,7 @@ class TestUpdateGoalNotifications:
         db = AsyncMock()
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=None),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=None)),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
                 new_callable=AsyncMock,
@@ -269,13 +265,12 @@ class TestSyncGoalNotifications:
         db.execute.return_value = account_result_inner
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
                 new_callable=AsyncMock,
             ) as mock_notify,
         ):
-            goal.current_amount = Decimal("10500.00")  # simulates what service sets
             await SavingsGoalService.sync_goal_from_account(db, goal.id, user)
 
         mock_notify.assert_called_once()
@@ -307,7 +302,7 @@ class TestSyncGoalNotifications:
         db.execute.return_value = account_result
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
                 new_callable=AsyncMock,
@@ -342,7 +337,7 @@ class TestSyncGoalNotifications:
         db.execute.return_value = account_result
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
                 new_callable=AsyncMock,
@@ -377,7 +372,7 @@ class TestSyncGoalNotifications:
         db.execute.return_value = account_result
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
                 new_callable=AsyncMock,
@@ -396,7 +391,7 @@ class TestSyncGoalNotifications:
         db = AsyncMock()
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
                 new_callable=AsyncMock,
@@ -427,7 +422,7 @@ class TestFundGoalNotifications:
         db.refresh = AsyncMock(side_effect=lambda obj: None)
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch.object(SavingsGoalService, "auto_sync_goals", new_callable=AsyncMock),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
@@ -452,7 +447,7 @@ class TestFundGoalNotifications:
         db = AsyncMock()
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=None),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=None)),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
                 new_callable=AsyncMock,
@@ -475,7 +470,7 @@ class TestFundGoalNotifications:
         db.refresh = AsyncMock(side_effect=lambda obj: None)
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch.object(SavingsGoalService, "auto_sync_goals", new_callable=AsyncMock),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
@@ -498,7 +493,7 @@ class TestFundGoalNotifications:
         db.refresh = AsyncMock(side_effect=lambda obj: None)
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch.object(
                 SavingsGoalService, "auto_sync_goals", new_callable=AsyncMock
             ) as mock_sync,
@@ -536,13 +531,12 @@ class TestNotificationContent:
             captured_kwargs.update(kwargs)
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",
                 side_effect=capture,
             ),
         ):
-            goal.is_completed = True
             await SavingsGoalService.update_goal(db, goal.id, user, is_completed=True)
 
         assert "Test Goal" in captured_kwargs.get("title", "")
@@ -565,7 +559,7 @@ class TestNotificationContent:
             captured_kwargs.update(kwargs)
 
         with (
-            patch.object(SavingsGoalService, "get_goal", return_value=goal),
+            patch.object(SavingsGoalService, "get_goal", new=AsyncMock(return_value=goal)),
             patch.object(SavingsGoalService, "auto_sync_goals", new_callable=AsyncMock),
             patch(
                 "app.services.savings_goal_service.NotificationService.create_notification",

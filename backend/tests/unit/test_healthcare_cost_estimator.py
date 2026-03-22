@@ -40,18 +40,18 @@ class TestGetIRMAASurcharge:
 
     def test_tier_1(self):
         b, d = get_irmaa_surcharge(120000)
-        assert b == 70.90
-        assert d == 12.90
+        assert b == 81.20
+        assert d == 14.50
 
     def test_tier_2(self):
         b, d = get_irmaa_surcharge(150000)
-        assert b == 161.40
-        assert d == 33.30
+        assert b == 202.90
+        assert d == 37.40
 
     def test_highest_tier(self):
         b, d = get_irmaa_surcharge(600000)
-        assert b == 395.60
-        assert d == 81.00
+        assert b == 487.00
+        assert d == 91.00
 
     def test_married_doubles_thresholds(self):
         # $120K single → Tier 1 surcharge

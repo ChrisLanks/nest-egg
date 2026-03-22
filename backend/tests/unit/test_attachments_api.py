@@ -30,6 +30,8 @@ def _make_attachment(**overrides):
         "content_type": "image/jpeg",
         "file_size": 204800,
         "created_at": datetime.now(timezone.utc),
+        "ocr_status": None,
+        "ocr_data": None,
     }
     defaults.update(overrides)
     obj = Mock()

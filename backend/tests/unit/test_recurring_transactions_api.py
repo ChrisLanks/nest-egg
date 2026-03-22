@@ -190,6 +190,10 @@ class TestCreateRecurringTransaction:
             average_amount=Decimal("9.99"),
         )
 
+        count_result = Mock()
+        count_result.scalar_one.return_value = 0
+        mock_db.execute = AsyncMock(return_value=count_result)
+
         with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.create_manual_recurring = AsyncMock(return_value=pattern)
 
@@ -216,6 +220,10 @@ class TestCreateRecurringTransaction:
             is_bill=True,
             reminder_days_before=5,
         )
+
+        count_result = Mock()
+        count_result.scalar_one.return_value = 0
+        mock_db.execute = AsyncMock(return_value=count_result)
 
         with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
             mock_svc.create_manual_recurring = AsyncMock(return_value=pattern)

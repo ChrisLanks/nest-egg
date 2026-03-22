@@ -160,6 +160,7 @@ class TestListGuests:
         guest.is_active = True
         guest.created_at = utc_now()
         guest.revoked_at = None
+        guest.expires_at = None
 
         mock_result = Mock()
         mock_result.all.return_value = [(guest, guest_user_email)]
@@ -246,6 +247,7 @@ class TestAcceptInvitation:
         invitation.invited_by_id = uuid4()
         invitation.role = GuestRole.VIEWER
         invitation.label = "My Daughter"
+        invitation.access_expires_days = None
 
         # First execute: find invitation
         mock_result1 = Mock()
@@ -278,6 +280,7 @@ class TestAcceptInvitation:
         invitation.invited_by_id = uuid4()
         invitation.role = GuestRole.ADVISOR
         invitation.label = "Financial Advisor"
+        invitation.access_expires_days = None
 
         # Existing revoked guest
         existing_guest = Mock(spec=HouseholdGuest)
@@ -420,6 +423,7 @@ class TestUpdateGuest:
         guest.is_active = True
         guest.created_at = utc_now()
         guest.revoked_at = None
+        guest.expires_at = None
 
         # First query: find guest
         mock_result1 = Mock()

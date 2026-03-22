@@ -218,6 +218,9 @@ class TestTransactionListCaching:
                     end_date=None,
                     search=None,
                     flagged=None,
+                    min_amount=None,
+                    max_amount=None,
+                    is_income=None,
                     current_user=mock_user,
                     db=mock_db,
                 )
@@ -266,6 +269,9 @@ class TestTransactionListCaching:
                     end_date=None,
                     search=None,
                     flagged=None,
+                    min_amount=None,
+                    max_amount=None,
+                    is_income=None,
                     current_user=mock_user,
                     db=mock_db,
                 )
@@ -292,6 +298,9 @@ class TestTransactionListCaching:
                 end_date=None,
                 search="coffee",
                 flagged=None,
+                min_amount=None,
+                max_amount=None,
+                is_income=None,
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -316,6 +325,9 @@ class TestTransactionListCaching:
                 end_date=None,
                 search=None,
                 flagged=True,
+                min_amount=None,
+                max_amount=None,
+                is_income=None,
                 current_user=mock_user,
                 db=mock_db,
             )
@@ -724,8 +736,8 @@ class TestNotificationTypesComplete:
     """Verify all notification types including new ones."""
 
     def test_all_15_notification_types_exist(self):
-        """Should have 15 total notification types."""
-        assert len(NotificationType) == 15
+        """Should have 20 total notification types."""
+        assert len(NotificationType) == 20
 
     def test_account_connected_type_exists(self):
         """ACCOUNT_CONNECTED should exist (was missing from prior migration)."""

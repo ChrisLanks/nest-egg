@@ -309,13 +309,20 @@ async def test_user_with_tokens(db_session: AsyncSession, test_user: User) -> tu
 @pytest_asyncio.fixture
 async def authenticated_client(override_get_db, test_user: User) -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client with authentication."""
-    from app.dependencies import get_current_user
+    from app.dependencies import get_current_user, get_organization_scoped_user
 
     async def mock_get_current_user():
         return test_user
 
+    async def mock_get_organization_scoped_user():
+        test_user._home_org_id = test_user.organization_id
+        test_user._is_guest = False
+        test_user._guest_role = None
+        return test_user
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = mock_get_current_user
+    app.dependency_overrides[get_organization_scoped_user] = mock_get_organization_scoped_user
 
     async with AsyncClient(app=app, base_url="http://test", follow_redirects=True) as ac:
         yield ac

@@ -290,6 +290,8 @@ def _make_user_with_birthdate(birthdate=None, *, is_org_admin: bool = False) -> 
     user.organization_id = uuid4()
     user.email_notifications_enabled = True
     user.notification_preferences = None
+    user.onboarding_goal = None
+    user.login_count = 0
     return user
 
 
@@ -492,6 +494,7 @@ class TestEmailChangeVerification:
         user.organization_id = uuid4()
         user.email_notifications_enabled = True
         user.notification_preferences = None
+        user.onboarding_goal = None
         return user
 
     @pytest.mark.asyncio
@@ -505,6 +508,9 @@ class TestEmailChangeVerification:
         update.birth_day = None
         update.birth_month = None
         update.birth_year = None
+        update.onboarding_goal = None
+        update.default_currency = None
+        update.dashboard_layout = None
 
         user = self._make_user()
         mock_request = Mock()
@@ -545,6 +551,9 @@ class TestEmailChangeVerification:
         update.birth_day = None
         update.birth_month = None
         update.birth_year = None
+        update.onboarding_goal = None
+        update.default_currency = None
+        update.dashboard_layout = None
 
         user = self._make_user()
         mock_request = Mock()
@@ -584,6 +593,9 @@ class TestEmailChangeVerification:
         update.birth_day = None
         update.birth_month = None
         update.birth_year = None
+        update.onboarding_goal = None
+        update.default_currency = None
+        update.dashboard_layout = None
 
         user = self._make_user()
         mock_request = Mock()
@@ -1035,6 +1047,8 @@ class TestUpdateUserProfileExtendedBranches:
         update.birth_day = None
         update.birth_month = None
         update.birth_year = None
+        update.onboarding_goal = None
+        update.dashboard_layout = None
 
         mock_request = Mock()
 

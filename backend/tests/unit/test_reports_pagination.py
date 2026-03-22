@@ -24,6 +24,7 @@ class TestListReportTemplatesPagination:
         t.created_by_user_id = uuid4()
         t.created_at = datetime.now(timezone.utc).replace(tzinfo=None)
         t.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        t.scheduled_delivery = None
         return t
 
     @pytest.mark.asyncio
