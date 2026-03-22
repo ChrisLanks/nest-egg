@@ -4,7 +4,7 @@
  * grouping by account, and formatting helpers.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 
 // ── Types (mirrored from savings-goal.ts and GoalCard.tsx) ──────────────────
 
@@ -904,5 +904,93 @@ describe("GoalCard delete confirmation dialog", () => {
 
     confirmDelete();
     expect(mutationFired).toBe(true); // mutation fires only after confirmation
+  });
+});
+
+// ── Quick-start template dismiss logic ───────────────────────────────────────
+
+const ALL_TEMPLATE_KEYS = [
+  "emergency_fund",
+  "vacation_fund",
+  "home_down_payment",
+  "debt_payoff_reserve",
+];
+
+/**
+ * Pure implementation of the dismiss logic from SavingsGoalsPage,
+ * extracted so it can be tested without a DOM/localStorage environment.
+ */
+const makeDismissStore = () => {
+  let store: string[] = [];
+  const load = (): Set<string> => new Set(store);
+  const dismiss = (key: string): Set<string> => {
+    const next = new Set(store).add(key);
+    store = [...next];
+    return next;
+  };
+  const reset = () => { store = []; };
+  return { load, dismiss, reset, getRaw: () => store };
+};
+
+describe("Quick-start goal template dismiss", () => {
+  const ds = makeDismissStore();
+  beforeEach(() => ds.reset());
+
+  it("no templates dismissed by default", () => {
+    expect(ds.load().size).toBe(0);
+  });
+
+  it("dismissing a template adds it to the store", () => {
+    ds.dismiss("emergency_fund");
+    expect(ds.load().has("emergency_fund")).toBe(true);
+  });
+
+  it("dismissed template is excluded from visible list", () => {
+    ds.dismiss("emergency_fund");
+    const visible = ALL_TEMPLATE_KEYS.filter((k) => !ds.load().has(k));
+    expect(visible).not.toContain("emergency_fund");
+    expect(visible).toHaveLength(3);
+  });
+
+  it("dismissing multiple templates accumulates correctly", () => {
+    ds.dismiss("emergency_fund");
+    ds.dismiss("vacation_fund");
+    const dismissed = ds.load();
+    expect(dismissed.has("emergency_fund")).toBe(true);
+    expect(dismissed.has("vacation_fund")).toBe(true);
+    expect(dismissed.has("home_down_payment")).toBe(false);
+    expect(dismissed.has("debt_payoff_reserve")).toBe(false);
+  });
+
+  it("dismissing all templates leaves an empty visible list", () => {
+    ALL_TEMPLATE_KEYS.forEach((k) => ds.dismiss(k));
+    const visible = ALL_TEMPLATE_KEYS.filter((k) => !ds.load().has(k));
+    expect(visible).toHaveLength(0);
+  });
+
+  it("dismissing the same key twice does not duplicate it in the store", () => {
+    ds.dismiss("home_down_payment");
+    ds.dismiss("home_down_payment");
+    expect(ds.getRaw().filter((k) => k === "home_down_payment")).toHaveLength(1);
+    expect(ds.load().size).toBe(1);
+  });
+
+  it("dismissed state persists across re-reads of the store", () => {
+    ds.dismiss("debt_payoff_reserve");
+    const reloaded = ds.load();
+    expect(reloaded.has("debt_payoff_reserve")).toBe(true);
+  });
+
+  it("template hidden by existing goal is excluded regardless of dismissed state", () => {
+    const templates = ALL_TEMPLATE_KEYS.map((key) => ({
+      key,
+      hidden: key === "emergency_fund",
+    }));
+    const dismissed = new Set<string>(["vacation_fund"]);
+    const visible = templates.filter((t) => !t.hidden && !dismissed.has(t.key));
+    expect(visible.map((t) => t.key)).toEqual([
+      "home_down_payment",
+      "debt_payoff_reserve",
+    ]);
   });
 });
