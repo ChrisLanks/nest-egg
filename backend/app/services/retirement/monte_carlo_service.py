@@ -9,10 +9,13 @@ Ported from frontend/src/utils/monteCarloSimulation.ts with additions:
 
 import hashlib
 import json
+import logging
 import math
 import random
 import time
 from decimal import Decimal
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -964,7 +967,9 @@ class RetirementMonteCarloService:
                 except (ValueError, TypeError):
                     pass
 
-            # Employer match
+            # Employer match: company matches employee contributions up to
+            # min(match_pct, limit_pct) of salary.
+            # e.g. 50% match up to 6% of salary → effective rate = min(0.50, 0.06) = 0.06
             if account.employer_match_percent and account.annual_salary:
                 try:
                     salary = Decimal(str(account.annual_salary))
@@ -972,9 +977,13 @@ class RetirementMonteCarloService:
                     limit_pct = (account.employer_match_limit_percent or Decimal(100)) / Decimal(
                         100
                     )
-                    employer_match_annual += salary * min(match_pct, limit_pct) * match_pct
-                except (ValueError, TypeError):
-                    pass
+                    employer_match_annual += salary * min(match_pct, limit_pct)
+                except (ValueError, TypeError) as exc:
+                    logger.warning(
+                        "monte_carlo: could not compute employer match for account=%s: %s",
+                        account.id,
+                        exc,
+                    )
 
         # Fetch active contributions
         result = await db.execute(
