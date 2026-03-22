@@ -239,7 +239,11 @@ async def update_user_profile(
                 ),
             )
         except Exception:
-            pass  # Never fail a profile update because of email sending
+            logger.warning(
+                "Failed to send profile update email for user %s",
+                current_user.id,
+                exc_info=True,
+            )
 
     org_result = await db.execute(
         select(Organization).where(Organization.id == current_user.organization_id)
@@ -517,7 +521,9 @@ async def export_data(
                                 label_names.append(name)
                         labels = ",".join(label_names)
                 except Exception:
-                    pass
+                    logger.debug(
+                        "Failed to resolve labels for transaction %s in CSV export", t.id, exc_info=True
+                    )
                 txn_writer.writerow(
                     [
                         txn_date,

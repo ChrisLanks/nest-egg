@@ -22,6 +22,24 @@ from app.models.holding import Holding
 logger = logging.getLogger(__name__)
 
 
+# Polygon.io type codes → our asset_type values
+_POLYGON_TYPE_MAP: dict[str, str] = {
+    "CS": "stock",       # Common Stock
+    "ETF": "etf",        # Exchange-Traded Fund
+    "ETN": "etf",        # Exchange-Traded Note (similar to ETF)
+    "FUND": "mutual_fund",
+    "BOND": "bond",
+    "PFD": "stock",      # Preferred Stock
+    "ADRC": "stock",     # ADR
+    "ADRP": "stock",
+    "ADRR": "stock",
+    "UNIT": "other",
+    "RIGHT": "other",
+    "WARRANT": "other",
+    "INDEX": "other",
+}
+
+
 class FinancialDataService:
     """Service for fetching financial data with multiple API fallbacks."""
 
@@ -31,6 +49,9 @@ class FinancialDataService:
         )
         self.finnhub_key = (
             settings.FINNHUB_API_KEY if hasattr(settings, "FINNHUB_API_KEY") else None
+        )
+        self.polygon_key = (
+            settings.POLYGON_API_KEY if hasattr(settings, "POLYGON_API_KEY") else None
         )
         self.cache_ttl = 86400 * 7  # 7 days for market cap data (changes rarely)
 
@@ -75,6 +96,58 @@ class FinancialDataService:
             logger.info(f"Cached metadata for {ticker}")
 
         return metadata
+
+    async def get_asset_type(self, ticker: str) -> Dict[str, Any]:
+        """
+        Look up the authoritative asset type for a ticker.
+
+        Returns:
+            {
+                'asset_type': str,   # 'stock' | 'etf' | 'mutual_fund' | 'bond' | 'cash' | 'other'
+                'estimated': bool,   # True when falling back to name/pattern heuristics
+                'source': str,       # 'polygon' | 'estimated'
+            }
+
+        Provider chain:
+          1. Polygon.io /v3/reference/tickers/{ticker} — returns authoritative type codes
+             (CS=stock, ETF=etf, FUND=mutual_fund, BOND=bond, …)
+          2. Estimated fallback (caller should warn user values are approximate)
+        """
+        cache_key = f"asset_type:{ticker.upper()}"
+        cached = await cache.get(cache_key)
+        if cached:
+            return cached
+
+        if self.polygon_key:
+            result = await self._fetch_asset_type_from_polygon(ticker)
+            if result:
+                await cache.setex(cache_key, self.cache_ttl, result)
+                return result
+
+        # No provider returned a result — signal caller to use heuristics
+        fallback = {"asset_type": None, "estimated": True, "source": "estimated"}
+        # Don't cache the fallback — try again next time
+        return fallback
+
+    async def _fetch_asset_type_from_polygon(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """Fetch security type from Polygon.io /v3/reference/tickers/{ticker}."""
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                url = f"https://api.polygon.io/v3/reference/tickers/{ticker.upper()}"
+                response = await client.get(url, params={"apiKey": self.polygon_key})
+                if response.status_code == 404:
+                    return None
+                response.raise_for_status()
+                data = response.json()
+                polygon_type = data.get("results", {}).get("type", "")
+                asset_type = _POLYGON_TYPE_MAP.get(polygon_type, "other")
+                return {"asset_type": asset_type, "estimated": False, "source": "polygon"}
+        except httpx.HTTPError as e:
+            logger.warning("Polygon.io HTTP error for %s: %s", ticker, e)
+            return None
+        except Exception as e:
+            logger.warning("Polygon.io lookup failed for %s: %s", ticker, e)
+            return None
 
     async def _fetch_from_alpha_vantage(self, ticker: str) -> Optional[Dict[str, Any]]:
         """

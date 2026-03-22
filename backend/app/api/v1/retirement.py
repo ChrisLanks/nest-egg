@@ -95,6 +95,11 @@ async def create_scenario(
                 detail="One or more member_ids do not belong to your organization",
             )
 
+    # Serialize excluded_account_ids to JSON for storage
+    excluded_account_ids = sanitized.pop("excluded_account_ids", None)
+    if excluded_account_ids is not None:
+        sanitized["excluded_account_ids"] = json.dumps(excluded_account_ids)
+
     scenario = await RetirementPlannerService.create_scenario(
         db=db,
         organization_id=str(current_user.organization_id),
@@ -235,9 +240,16 @@ async def get_scenario(
     if scenario.household_member_ids:
         household_member_ids = json.loads(scenario.household_member_ids)
 
+    # Parse excluded_account_ids from JSON
+    excluded_account_ids = None
+    raw_excluded = getattr(scenario, "excluded_account_ids", None)
+    if raw_excluded:
+        excluded_account_ids = json.loads(raw_excluded) if isinstance(raw_excluded, str) else raw_excluded
+
     response = RetirementScenarioResponse.model_validate(scenario)
     response.is_stale = is_stale
     response.household_member_ids = household_member_ids
+    response.excluded_account_ids = excluded_account_ids
     return response
 
 
@@ -272,6 +284,11 @@ async def update_scenario(
                 [p if isinstance(p, dict) else p.dict() for p in sp],
                 default=str,
             )
+
+    # Handle excluded_account_ids update — serialize to JSON
+    new_excluded = updates.pop("excluded_account_ids", None)
+    if new_excluded is not None:
+        updates["excluded_account_ids"] = json.dumps(new_excluded) if new_excluded else None
 
     # Handle member_ids update
     new_member_ids = updates.pop("member_ids", None)

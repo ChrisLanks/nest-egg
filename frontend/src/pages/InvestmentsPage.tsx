@@ -151,6 +151,8 @@ interface PortfolioSummary {
   geographic_breakdown: GeographicBreakdown | null;
   treemap_data: TreemapNode | null;
   total_annual_fees: number | null;
+  holdings_truncated?: boolean;
+  asset_classification_estimated?: boolean;
 }
 
 // ─── Memoized row components for .map() rendering ────────────────────────────
@@ -1558,6 +1560,14 @@ export const InvestmentsPage = () => {
             <Box>
               {selectedTabIndex === 0 && (
                 <VStack align="stretch" spacing={6}>
+                  {portfolio.asset_classification_estimated && (
+                    <Alert status="info" borderRadius="md" fontSize="sm">
+                      <AlertIcon />
+                      Some holdings couldn't be confirmed with a financial data provider — asset type
+                      classifications are estimated. For precise allocations, add a Polygon.io API key
+                      in settings.
+                    </Alert>
+                  )}
                   {portfolio.treemap_data && (
                     <AssetAllocationTreemap
                       key={`treemap-${hiddenAccountIds.join("-")}`}

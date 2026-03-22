@@ -106,6 +106,7 @@ export interface RetirementScenario {
   include_all_members: boolean;
   is_stale: boolean;
   household_member_ids: string[] | null;
+  excluded_account_ids: string[] | null;
 
   is_archived: boolean;
   archived_at: string | null;
@@ -259,10 +260,13 @@ export interface HealthcareCostEstimate {
 // --- Account Data ---
 
 export interface RetirementAccountItem {
+  id: string;
   name: string;
   balance: number;
-  bucket: "pre_tax" | "roth" | "taxable" | "hsa" | "cash";
+  bucket: "pre_tax" | "roth" | "taxable" | "hsa" | "cash" | "excluded";
   account_type: string;
+  interest_rate?: number;   // APR % for cash accounts (e.g. 4.5 = 4.5%)
+  excluded: boolean;
 }
 
 export interface RetirementAccountData {

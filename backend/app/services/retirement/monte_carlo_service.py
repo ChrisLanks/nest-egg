@@ -289,11 +289,21 @@ class RetirementMonteCarloService:
                 if len(stored_ids) > 1:
                     household_user_ids = stored_ids
 
+            # Parse excluded account IDs from scenario
+            excluded_ids: list[str] | None = None
+            raw_excluded = getattr(scenario, "excluded_account_ids", None)
+            if raw_excluded and isinstance(raw_excluded, str):
+                import json as _json2
+                excluded_ids = _json2.loads(raw_excluded)
+            elif isinstance(raw_excluded, list):
+                excluded_ids = raw_excluded
+
             account_data = await RetirementMonteCarloService._gather_account_data(
                 db,
                 str(scenario.organization_id),
                 str(scenario.user_id),
                 user_ids=household_user_ids,
+                excluded_account_ids=excluded_ids,
             )
 
         if scenario_hash is None:
@@ -333,6 +343,13 @@ class RetirementMonteCarloService:
         total_annual_additions = annual_contributions + employer_match
         current_portfolio = float(account_data["total_portfolio"])
         pension_monthly = float(account_data["pension_monthly"])
+
+        # Split portfolio into investment and cash for separate growth rates.
+        # Cash earns its account-level interest rate (default 0%); investment
+        # accounts earn the scenario's pre/post-retirement return.
+        current_cash = float(account_data.get("cash_balance", 0))
+        cash_growth_rate = float(account_data.get("cash_growth_rate", 0.0))
+        current_investment = max(current_portfolio - current_cash, 0.0)
 
         # Social Security — use PIA estimator if enabled and no manual override
         ss_monthly = 0.0
@@ -416,6 +433,9 @@ class RetirementMonteCarloService:
 
         for _ in range(num_sims):
             path = [current_portfolio]
+            # Track investment and cash separately within each simulation path
+            sim_investment = current_investment
+            sim_cash = current_cash
             depleted = False
             depletion_year = total_years + 1  # Infinity equivalent
 
@@ -427,7 +447,7 @@ class RetirementMonteCarloService:
                 age = current_age + year
                 is_retired = age >= retirement_age
 
-                # Determine return for this year
+                # Investment return (stochastic) — applied only to investment balance
                 mean_return = post_return if is_retired else pre_return
                 if dist_type == DistributionType.LOG_NORMAL:
                     annual_return = _generate_lognormal_return(mean_return, vol)
@@ -476,8 +496,20 @@ class RetirementMonteCarloService:
 
                     total_income = ss_income + spouse_ss_income + pension_income
                     net_withdrawal = adjusted_spending + adjusted_hc + event_cost - total_income
+                    net_withdrawal = max(net_withdrawal, 0)
 
-                    new_value = prev_value * (1 + annual_return) - max(net_withdrawal, 0)
+                    # Grow investment and cash separately, then withdraw from total
+                    new_investment = sim_investment * (1 + annual_return)
+                    new_cash = sim_cash * (1 + cash_growth_rate)
+                    new_value = max(new_investment + new_cash - net_withdrawal, 0.0)
+                    # Prorate deduction across buckets for next year's split
+                    if (new_investment + new_cash) > 0:
+                        cash_fraction = new_cash / (new_investment + new_cash)
+                        sim_cash = max(new_value * cash_fraction, 0.0)
+                        sim_investment = max(new_value * (1 - cash_fraction), 0.0)
+                    else:
+                        sim_cash = 0.0
+                        sim_investment = 0.0
                 else:
                     # Accumulation phase
                     # Life event costs during accumulation
@@ -486,9 +518,11 @@ class RetirementMonteCarloService:
                         infl = med_inflation if use_med_infl else inflation
                         event_cost += cost * ((1 + infl) ** year)
 
-                    new_value = (
-                        prev_value * (1 + annual_return) + total_annual_additions - event_cost
-                    )
+                    new_investment = sim_investment * (1 + annual_return) + total_annual_additions - event_cost
+                    new_cash = sim_cash * (1 + cash_growth_rate)
+                    new_value = new_investment + new_cash
+                    sim_investment = max(new_investment, 0.0)
+                    sim_cash = max(new_cash, 0.0)
 
                 if new_value <= 0:
                     new_value = 0.0
@@ -802,18 +836,29 @@ class RetirementMonteCarloService:
 
         return schedule
 
+    _CASH_ACCOUNT_TYPES = frozenset([
+        AccountType.CHECKING,
+        AccountType.SAVINGS,
+        AccountType.MONEY_MARKET,
+    ])
+
     @staticmethod
     async def _gather_account_data(
         db: AsyncSession,
         organization_id: str,
         user_id: str,
         user_ids: list[str] | None = None,
+        excluded_account_ids: list[str] | None = None,
     ) -> dict:
         """Gather current account balances and contributions for simulation.
 
         When user_ids is provided with multiple entries, accounts for all listed
         users are aggregated (household-wide retirement planning).
+
+        excluded_account_ids: accounts to skip entirely (user opted them out).
         """
+        excluded_set = set(str(eid) for eid in (excluded_account_ids or []))
+
         # Fetch active accounts
         if user_ids and len(user_ids) > 1:
             result = await db.execute(
@@ -835,7 +880,9 @@ class RetirementMonteCarloService:
                     )
                 )
             )
-        accounts = result.scalars().all()
+        all_accounts = result.scalars().all()
+        # Apply exclusions
+        accounts = [a for a in all_accounts if str(a.id) not in excluded_set]
 
         total_portfolio = Decimal(0)
         taxable_balance = Decimal(0)
@@ -847,6 +894,9 @@ class RetirementMonteCarloService:
         employer_match_annual = Decimal(0)
         annual_income = Decimal(0)
         account_items: list[dict] = []
+
+        # Track cash account interest rates for weighted-average cash growth rate
+        cash_weighted_interest = Decimal(0)  # sum(balance * rate)
 
         for account in accounts:
             balance = account.current_balance or Decimal(0)
@@ -871,29 +921,33 @@ class RetirementMonteCarloService:
                 if balance > 0:
                     account_items.append(
                         {
+                            "id": str(account.id),
                             "name": account.name or account.account_type.value,
                             "balance": float(balance),
                             "bucket": bucket,
                             "account_type": account.account_type.value,
+                            "excluded": False,
                         }
                     )
 
             # Cash accounts count too
-            if account.account_type in (
-                AccountType.CHECKING,
-                AccountType.SAVINGS,
-                AccountType.MONEY_MARKET,
-            ):
+            if account.account_type in RetirementMonteCarloService._CASH_ACCOUNT_TYPES:
                 total_portfolio += balance
                 taxable_balance += balance
                 cash_balance += balance
+                # Per-account interest rate (stored as APR %, e.g. 4.50 = 4.5%)
+                rate = account.interest_rate or Decimal(0)
+                cash_weighted_interest += balance * (rate / Decimal(100))
                 if balance > 0:
                     account_items.append(
                         {
+                            "id": str(account.id),
                             "name": account.name or account.account_type.value,
                             "balance": float(balance),
                             "bucket": "cash",
                             "account_type": account.account_type.value,
+                            "interest_rate": float(rate),
+                            "excluded": False,
                         }
                     )
 
@@ -947,6 +1001,30 @@ class RetirementMonteCarloService:
             }.get(freq, 12)
             annual_contributions += contrib.amount * multiplier
 
+        # Weighted-average cash growth rate (APR decimal, e.g. 0.045 = 4.5%)
+        # Falls back to 0 when no cash accounts or none have an interest rate set.
+        cash_growth_rate = (
+            float(cash_weighted_interest / cash_balance)
+            if cash_balance > 0
+            else 0.0
+        )
+
+        # Include excluded accounts in the list (marked excluded=True) so the
+        # frontend can show them as greyed-out in AccountDataSummary.
+        for account in all_accounts:
+            if str(account.id) in excluded_set:
+                balance = account.current_balance or Decimal(0)
+                account_items.append(
+                    {
+                        "id": str(account.id),
+                        "name": account.name or account.account_type.value,
+                        "balance": float(balance),
+                        "bucket": "excluded",
+                        "account_type": account.account_type.value,
+                        "excluded": True,
+                    }
+                )
+
         return {
             "total_portfolio": total_portfolio,
             "taxable_balance": taxable_balance,
@@ -954,6 +1032,7 @@ class RetirementMonteCarloService:
             "roth_balance": roth_balance,
             "hsa_balance": hsa_balance,
             "cash_balance": cash_balance,
+            "cash_growth_rate": cash_growth_rate,
             "pension_monthly": pension_monthly,
             "annual_contributions": annual_contributions,
             "employer_match_annual": employer_match_annual,

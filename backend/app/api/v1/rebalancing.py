@@ -64,11 +64,9 @@ async def create_target_allocation(
     If the new allocation would be active (default), deactivate any existing
     active allocation for this user first.
     """
-    # Deactivate existing active allocations for this user
-    await RebalancingService.deactivate_other_allocations(
-        db, current_user.organization_id, current_user.id
-    )
-
+    # Build the new allocation and add it to the session first, then
+    # deactivate existing ones in the same transaction to eliminate the
+    # race window between deactivate and insert.
     allocation = TargetAllocation(
         id=uuid.uuid4(),
         organization_id=current_user.organization_id,
@@ -78,8 +76,12 @@ async def create_target_allocation(
         drift_threshold=payload.drift_threshold,
         is_active=True,
     )
-
     db.add(allocation)
+
+    await RebalancingService.deactivate_other_allocations(
+        db, current_user.organization_id, current_user.id, exclude_id=allocation.id
+    )
+
     await db.commit()
     await db.refresh(allocation)
     return allocation
@@ -108,11 +110,6 @@ async def create_from_preset(
             detail=f"Unknown preset key. Valid keys: {valid_keys}",
         )
 
-    # Deactivate existing active allocations
-    await RebalancingService.deactivate_other_allocations(
-        db, current_user.organization_id, current_user.id
-    )
-
     allocation = TargetAllocation(
         id=uuid.uuid4(),
         organization_id=current_user.organization_id,
@@ -122,8 +119,12 @@ async def create_from_preset(
         drift_threshold=Decimal("5.0"),
         is_active=True,
     )
-
     db.add(allocation)
+
+    await RebalancingService.deactivate_other_allocations(
+        db, current_user.organization_id, current_user.id, exclude_id=allocation.id
+    )
+
     await db.commit()
     await db.refresh(allocation)
     return allocation

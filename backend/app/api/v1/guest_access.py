@@ -85,6 +85,7 @@ class GuestInvitationResponse(BaseModel):
     expires_at: datetime
     created_at: datetime
     join_url: str
+    email_delivered: bool = True
 
     class Config:
         from_attributes = True
@@ -204,8 +205,7 @@ async def invite_guest(
 
     join_url = f"{settings.APP_BASE_URL}/guest-access/accept/{invitation_code}"
 
-    # Best-effort email — uses the existing invitation email template.
-    # If the email service doesn't support guest invitations yet, silently skip.
+    email_delivered = True
     try:
         org_name_result = await db.execute(
             select(Organization.name).where(Organization.id == admin.organization_id)
@@ -218,6 +218,7 @@ async def invite_guest(
             household_name=household_name,
         )
     except Exception:
+        email_delivered = False
         logger.warning(
             "Failed to send guest invitation email to %s for org %s",
             body.email,
@@ -234,6 +235,7 @@ async def invite_guest(
         expires_at=invitation.expires_at,
         created_at=invitation.created_at,
         join_url=join_url,
+        email_delivered=email_delivered,
     )
 
 

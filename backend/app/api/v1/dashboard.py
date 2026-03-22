@@ -196,7 +196,7 @@ async def get_dashboard_data(
         if cached is not None:
             return cached
     except Exception:
-        pass  # Cache miss or Redis down - continue with normal query
+        logger.debug("Dashboard cache read failed for key %s", cache_key, exc_info=True)
 
     # Get accounts based on user filter
     if user_id:
@@ -464,7 +464,7 @@ async def get_financial_health(
         if cached is not None:
             return cached
     except Exception:
-        pass
+        logger.debug("Financial-health cache read failed for key %s", cache_key, exc_info=True)
 
     # Get accounts based on user filter
     if user_id:
@@ -811,7 +811,7 @@ async def get_year_in_review(
         if cached is not None:
             return cached
     except Exception:
-        pass
+        logger.debug("Year-in-review cache read failed for key %s", cache_key, exc_info=True)
 
     month_names = [
         "January",

@@ -138,6 +138,10 @@ class RetirementScenario(Base):
     household_member_hash = Column(String(64), nullable=True)
     household_member_ids = Column(Text, nullable=True)  # JSON array of member UUIDs
 
+    # Account-level overrides
+    # JSON array of account UUIDs to exclude from this scenario's simulation
+    excluded_account_ids = Column(Text, nullable=True)  # JSON: ["<uuid>", ...]
+
     # Spending phases (variable spending across retirement)
     spending_phases = Column(
         Text, nullable=True

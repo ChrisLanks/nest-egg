@@ -2,10 +2,14 @@
  * Displays current account data relevant to retirement planning.
  * Shows portfolio breakdown by tax treatment bucket, with cash split out.
  * Optionally shows editable tax rates from the scenario.
+ * Each account has an include/exclude toggle — excluded accounts are shown
+ * greyed out and not counted in the simulation.
  */
 
 import {
+  Badge,
   Box,
+  Checkbox,
   HStack,
   IconButton,
   NumberInput,
@@ -13,6 +17,7 @@ import {
   Progress,
   Spinner,
   Text,
+  Tooltip,
   useColorModeValue,
   VStack,
 } from "@chakra-ui/react";
@@ -29,6 +34,7 @@ interface AccountDataSummaryProps {
     state_tax_rate?: number;
     capital_gains_rate?: number;
   }) => void;
+  onExcludedAccountsChange?: (excludedIds: string[]) => void;
   readOnly?: boolean;
 }
 
@@ -36,17 +42,24 @@ export function AccountDataSummary({
   scenario,
   userId,
   onTaxRateChange,
+  onExcludedAccountsChange,
   readOnly,
 }: AccountDataSummaryProps) {
   const bgColor = useColorModeValue("white", "gray.800");
   const labelColor = useColorModeValue("gray.500", "gray.400");
   const borderColor = useColorModeValue("gray.100", "gray.700");
   const editBg = useColorModeValue("gray.50", "gray.700");
+  const excludedBg = useColorModeValue("gray.50", "gray.750");
 
   const [isEditingTax, setIsEditingTax] = useState(false);
   const [localFederal, setLocalFederal] = useState(0);
   const [localState, setLocalState] = useState(0);
   const [localCapGains, setLocalCapGains] = useState(0);
+
+  // Locally track excluded accounts so toggle is immediate
+  const [localExcluded, setLocalExcluded] = useState<Set<string>>(
+    () => new Set(scenario?.excluded_account_ids ?? []),
+  );
 
   const handleToggleTaxEdit = useCallback(() => {
     if (isEditingTax) {
@@ -79,6 +92,22 @@ export function AccountDataSummary({
     onTaxRateChange,
   ]);
 
+  const handleToggleAccount = useCallback(
+    (accountId: string, checked: boolean) => {
+      setLocalExcluded((prev) => {
+        const next = new Set(prev);
+        if (checked) {
+          next.delete(accountId); // include
+        } else {
+          next.add(accountId); // exclude
+        }
+        onExcludedAccountsChange?.([...next]);
+        return next;
+      });
+    },
+    [onExcludedAccountsChange],
+  );
+
   const { data, isLoading } = useRetirementAccountData(
     userId,
     scenario?.include_all_members,
@@ -94,47 +123,25 @@ export function AccountDataSummary({
 
   const buckets = useMemo(() => {
     if (!data) return [];
-    const total = data.total_portfolio || 1;
-    const brokerageBalance = data.taxable_balance - (data.cash_balance || 0);
+    // Exclude excluded accounts from totals
+    const includedAccounts = data.accounts?.filter((a) => !localExcluded.has(a.id)) ?? [];
+    const total = includedAccounts.reduce((s, a) => s + (a.bucket !== "excluded" ? a.balance : 0), 0) || 1;
+    const preTax = includedAccounts.filter((a) => a.bucket === "pre_tax").reduce((s, a) => s + a.balance, 0);
+    const roth = includedAccounts.filter((a) => a.bucket === "roth").reduce((s, a) => s + a.balance, 0);
+    const hsa = includedAccounts.filter((a) => a.bucket === "hsa").reduce((s, a) => s + a.balance, 0);
+    const cash = includedAccounts.filter((a) => a.bucket === "cash").reduce((s, a) => s + a.balance, 0);
+    const taxable = includedAccounts.filter((a) => a.bucket === "taxable").reduce((s, a) => s + a.balance, 0);
+    const brokerage = taxable - cash;
+
     const items = [
-      {
-        key: "pre_tax",
-        label: "Pre-Tax (401k, IRA)",
-        value: data.pre_tax_balance,
-        pct: (data.pre_tax_balance / total) * 100,
-        color: "blue",
-      },
-      {
-        key: "roth",
-        label: "Roth",
-        value: data.roth_balance,
-        pct: (data.roth_balance / total) * 100,
-        color: "green",
-      },
-      {
-        key: "taxable",
-        label: "Taxable (Brokerage)",
-        value: brokerageBalance,
-        pct: (brokerageBalance / total) * 100,
-        color: "orange",
-      },
-      {
-        key: "hsa",
-        label: "HSA",
-        value: data.hsa_balance,
-        pct: (data.hsa_balance / total) * 100,
-        color: "teal",
-      },
-      {
-        key: "cash",
-        label: "Cash (Checking/Savings)",
-        value: data.cash_balance || 0,
-        pct: ((data.cash_balance || 0) / total) * 100,
-        color: "purple",
-      },
+      { key: "pre_tax", label: "Pre-Tax (401k, IRA)", value: preTax, pct: (preTax / total) * 100, color: "blue" },
+      { key: "roth", label: "Roth", value: roth, pct: (roth / total) * 100, color: "green" },
+      { key: "taxable", label: "Taxable (Brokerage)", value: brokerage, pct: (brokerage / total) * 100, color: "orange" },
+      { key: "hsa", label: "HSA", value: hsa, pct: (hsa / total) * 100, color: "teal" },
+      { key: "cash", label: "Cash (Checking/Savings)", value: cash, pct: (cash / total) * 100, color: "purple" },
     ];
     return items.filter((b) => b.value > 0);
-  }, [data]);
+  }, [data, localExcluded]);
 
   return (
     <Box bg={bgColor} p={5} borderRadius="xl" shadow="sm">
@@ -149,10 +156,14 @@ export function AccountDataSummary({
         {data && (
           <>
             <Text fontSize="2xl" fontWeight="bold">
-              {formatMoney(data.total_portfolio)}
+              {formatMoney(
+                (data.accounts ?? [])
+                  .filter((a) => !localExcluded.has(a.id) && a.bucket !== "excluded")
+                  .reduce((s, a) => s + a.balance, 0),
+              )}
             </Text>
 
-            {/* Bucket breakdown with individual accounts */}
+            {/* Bucket breakdown with individual accounts + exclude toggles */}
             <VStack spacing={3} align="stretch">
               {buckets.map((bucket) => {
                 const bucketAccounts =
@@ -173,25 +184,113 @@ export function AccountDataSummary({
                     />
                     {bucketAccounts.length > 0 && (
                       <VStack spacing={0} align="stretch" pl={3} mt={1}>
-                        {bucketAccounts.map((acct, idx) => (
-                          <HStack
-                            key={`${acct.name}-${idx}`}
-                            justify="space-between"
-                            fontSize="2xs"
-                          >
-                            <Text color={labelColor} noOfLines={1}>
-                              {acct.name}
-                            </Text>
-                            <Text color={labelColor} flexShrink={0}>
-                              {formatMoney(acct.balance)}
-                            </Text>
-                          </HStack>
-                        ))}
+                        {bucketAccounts.map((acct) => {
+                          const isExcluded = localExcluded.has(acct.id);
+                          return (
+                            <HStack
+                              key={acct.id}
+                              justify="space-between"
+                              fontSize="2xs"
+                              opacity={isExcluded ? 0.45 : 1}
+                              bg={isExcluded ? excludedBg : undefined}
+                              borderRadius="sm"
+                              px={isExcluded ? 1 : 0}
+                            >
+                              {!readOnly && (
+                                <Tooltip
+                                  label={
+                                    isExcluded
+                                      ? "Include in simulation"
+                                      : "Exclude from simulation"
+                                  }
+                                  placement="top"
+                                  hasArrow
+                                >
+                                  <Checkbox
+                                    size="xs"
+                                    isChecked={!isExcluded}
+                                    onChange={(e) =>
+                                      handleToggleAccount(acct.id, e.target.checked)
+                                    }
+                                    mr={1}
+                                  />
+                                </Tooltip>
+                              )}
+                              <Text color={labelColor} noOfLines={1} flex={1}>
+                                {acct.name}
+                              </Text>
+                              <HStack spacing={1} flexShrink={0}>
+                                {acct.bucket === "cash" && acct.interest_rate != null && (
+                                  <Tooltip
+                                    label={
+                                      acct.interest_rate > 0
+                                        ? `Earns ${acct.interest_rate.toFixed(2)}% APR — used as growth rate`
+                                        : "No interest rate set — grows at 0% (like cash under a sofa)"
+                                    }
+                                    placement="top"
+                                    hasArrow
+                                  >
+                                    <Badge
+                                      fontSize="2xs"
+                                      colorScheme={acct.interest_rate > 0 ? "green" : "gray"}
+                                      variant="subtle"
+                                    >
+                                      {acct.interest_rate > 0
+                                        ? `${acct.interest_rate.toFixed(2)}%`
+                                        : "0%"}
+                                    </Badge>
+                                  </Tooltip>
+                                )}
+                                <Text color={labelColor}>
+                                  {formatMoney(acct.balance)}
+                                </Text>
+                              </HStack>
+                            </HStack>
+                          );
+                        })}
                       </VStack>
                     )}
                   </Box>
                 );
               })}
+
+              {/* Excluded accounts section */}
+              {data.accounts?.some((a) => localExcluded.has(a.id)) && (
+                <Box>
+                  <Text fontSize="2xs" color={labelColor} mb={1}>
+                    Excluded from simulation
+                  </Text>
+                  <VStack spacing={0} align="stretch" pl={3}>
+                    {data.accounts
+                      .filter((a) => localExcluded.has(a.id))
+                      .map((acct) => (
+                        <HStack
+                          key={acct.id}
+                          justify="space-between"
+                          fontSize="2xs"
+                          opacity={0.45}
+                        >
+                          {!readOnly && (
+                            <Checkbox
+                              size="xs"
+                              isChecked={false}
+                              onChange={(e) =>
+                                handleToggleAccount(acct.id, e.target.checked)
+                              }
+                              mr={1}
+                            />
+                          )}
+                          <Text color={labelColor} noOfLines={1} flex={1}>
+                            {acct.name}
+                          </Text>
+                          <Text color={labelColor} flexShrink={0}>
+                            {formatMoney(acct.balance)}
+                          </Text>
+                        </HStack>
+                      ))}
+                  </VStack>
+                </Box>
+              )}
             </VStack>
 
             {/* Income & Contributions */}

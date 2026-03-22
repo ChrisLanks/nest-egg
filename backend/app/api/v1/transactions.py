@@ -3,12 +3,15 @@
 import base64
 import csv
 import json
+import logging
 import re
 from datetime import date, datetime
 from decimal import Decimal
 from io import StringIO
 from typing import Optional
 from uuid import UUID, uuid4
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -332,7 +335,7 @@ async def list_transactions(
             if cached is not None:
                 return cached
         except Exception:
-            pass  # fail-open on Redis errors
+            logger.debug("Transaction list cache read failed for key %s", cache_key, exc_info=True)
 
     # Validate user_id belongs to the same household
     if user_id:

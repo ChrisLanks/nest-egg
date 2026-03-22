@@ -57,6 +57,7 @@ class UndoResponse(BaseModel):
 @router.get("/", response_model=List[BulkOperationResponse])
 async def list_bulk_operations(
     limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -68,6 +69,7 @@ async def list_bulk_operations(
             BulkOperationLog.user_id == current_user.id,
         )
         .order_by(BulkOperationLog.created_at.desc())
+        .offset(offset)
         .limit(limit)
     )
     operations = result.scalars().all()
@@ -215,7 +217,11 @@ async def _detect_undo_conflicts(
                 actual = str(actual)
             if hasattr(expected, "hex"):
                 expected = str(expected)
-            if str(actual) != str(expected) if (actual is not None and expected is not None) else actual != expected:
+            if actual is not None and expected is not None:
+                is_conflict = str(actual) != str(expected)
+            else:
+                is_conflict = actual != expected
+            if is_conflict:
                 conflicts.append(str(row_dict["id"]))
                 break
 

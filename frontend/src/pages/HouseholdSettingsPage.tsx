@@ -434,14 +434,25 @@ export const HouseholdSettingsPage: React.FC = () => {
       role: "viewer" | "advisor";
       label?: string;
     }) => guestAccessApi.invite(data),
-    onSuccess: () => {
-      toast({
-        title: "Guest invitation sent",
-        description:
-          "The guest will receive an email with instructions to join.",
-        status: "success",
-        duration: 5000,
-      });
+    onSuccess: (result) => {
+      if (result.email_delivered) {
+        toast({
+          title: "Guest invitation sent",
+          description:
+            "The guest will receive an email with instructions to join.",
+          status: "success",
+          duration: 5000,
+        });
+      } else {
+        toast({
+          title: "Invitation created — email delivery failed",
+          description:
+            "The invitation was created but we couldn't send the email. Share the join link manually.",
+          status: "warning",
+          duration: 10000,
+          isClosable: true,
+        });
+      }
       setGuestEmail("");
       setGuestRole("viewer");
       setGuestLabel("");

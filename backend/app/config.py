@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     ALPHA_VANTAGE_API_KEY: Optional[str] = None  # Free: 500 calls/day, 25/min
     FINNHUB_API_KEY: Optional[str] = None  # Free: 60 calls/min
     COINGECKO_API_KEY: Optional[str] = None  # Optional: 500 calls/min (free key tier)
+    POLYGON_API_KEY: Optional[str] = None  # Polygon.io: security type lookup (CS/ETF/FUND/BOND)
     # How long before holdings prices are considered stale (login + daily task throttle)
     PRICE_REFRESH_COOLDOWN_HOURS: int = 6
 

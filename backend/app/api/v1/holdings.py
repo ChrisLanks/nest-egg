@@ -53,6 +53,7 @@ from app.schemas.holding import (
 )
 from app.schemas.rmd import AccountRMD, RMDSummary
 from app.services.deduplication_service import deduplication_service
+from app.services.financial_data_service import financial_data_service
 from app.services.fund_fee_analyzer_service import resolve_expense_ratio
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.market_data import get_market_data_provider
@@ -264,6 +265,8 @@ async def get_portfolio_summary(
 
     # Fast path: summary mode skips heavy breakdowns (treemap, sector, geographic, per-account)
     if detail_level == "summary":
+        # Flag if any holding has no provider-confirmed asset_type
+        summary_estimated = any(not row.asset_type for row in aggregated_rows)
         summary = PortfolioSummary(
             total_value=total_value,
             total_cost_basis=total_cost_basis if total_cost_basis else None,
@@ -283,6 +286,7 @@ async def get_portfolio_summary(
             sector_breakdown=None,
             total_annual_fees=total_annual_fees if total_annual_fees > 0 else None,
             holdings_truncated=holdings_truncated,
+            asset_classification_estimated=summary_estimated,
         )
         await cache_setex(cache_key, 300, summary.model_dump(mode="json"))
         return summary
@@ -442,8 +446,12 @@ async def get_portfolio_summary(
     cash_dict = {}
     other_dict = {}
 
-    # TODO: Replace with external financial data API (Alpha Vantage, Polygon.io, etc.)
-    # and store classifications in holding.market_cap and holding.asset_class columns
+    # Asset type resolution order:
+    #   1. holding.asset_type already set (e.g., synced from Plaid) — use as-is, no estimate
+    #   2. Polygon.io /v3/reference/tickers/{ticker} — authoritative, no estimate
+    #   3. Name/ticker heuristics — estimated, set asset_classification_estimated flag
+    # Track whether any holding fell back to heuristics.
+    asset_classification_estimated = False
 
     # Common ticker patterns (used as fallback, not exhaustive)
     # Primary classification uses fund name parsing
@@ -555,11 +563,33 @@ async def get_portfolio_summary(
 
         return False
 
+    # Pre-resolve asset types for holdings that have none (manual holdings not from Plaid).
+    # Batch the Polygon lookups so we don't block per-holding inside the loop.
+    untyped_tickers = list({
+        h.ticker.upper()
+        for h in all_investment_holdings
+        if not h.asset_type
+    })
+    resolved_asset_types: dict[str, tuple[str, bool]] = {}  # ticker -> (asset_type, estimated)
+    for untyped_ticker in untyped_tickers:
+        result = await financial_data_service.get_asset_type(untyped_ticker)
+        if result.get("asset_type"):
+            resolved_asset_types[untyped_ticker] = (result["asset_type"], result.get("estimated", True))
+        else:
+            resolved_asset_types[untyped_ticker] = ("", True)  # will fall through to heuristics
+
     for holding in all_investment_holdings:
         ticker = holding.ticker.upper()
         value = holding.current_total_value
         name = holding.name or ""
-        asset_type = holding.asset_type or ""
+        # Use Plaid-supplied type if available; otherwise use Polygon result
+        if holding.asset_type:
+            asset_type = holding.asset_type
+        else:
+            resolved_type, resolved_estimated = resolved_asset_types.get(ticker, ("", True))
+            asset_type = resolved_type
+            if resolved_estimated:
+                asset_classification_estimated = True
         asset_class = (holding.asset_class or "").lower()
         country = holding.country or ""
 
@@ -1156,6 +1186,7 @@ async def get_portfolio_summary(
         sector_breakdown=sector_breakdown,
         total_annual_fees=total_annual_fees if total_annual_fees > 0 else None,
         holdings_truncated=holdings_truncated,
+        asset_classification_estimated=asset_classification_estimated,
     )
 
     # Cache the serialized response (fail-open on Redis errors)

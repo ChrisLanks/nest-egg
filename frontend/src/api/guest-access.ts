@@ -13,6 +13,7 @@ export interface GuestInvitation {
   expires_at: string;
   created_at: string;
   join_url: string;
+  email_delivered: boolean;
 }
 
 export interface GuestRecord {

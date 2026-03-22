@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class HoldingBase(BaseModel):
@@ -13,8 +13,10 @@ class HoldingBase(BaseModel):
 
     ticker: str
     name: Optional[str] = None
-    shares: Decimal
-    cost_basis_per_share: Optional[Decimal] = None
+    shares: Decimal = Field(ge=0, description="Number of shares (must be non-negative)")
+    cost_basis_per_share: Optional[Decimal] = Field(
+        default=None, ge=0, description="Cost basis per share (must be non-negative)"
+    )
     asset_type: Optional[str] = None  # 'stock', 'bond', 'etf', 'mutual_fund', 'cash', 'other'
     sector: Optional[str] = None  # Financial sector (e.g., 'Technology', 'Healthcare')
     industry: Optional[str] = None  # Industry within sector (e.g., 'Software', 'Biotechnology')
@@ -35,9 +37,15 @@ class HoldingUpdate(BaseModel):
 
     ticker: Optional[str] = None
     name: Optional[str] = None
-    shares: Optional[Decimal] = None
-    cost_basis_per_share: Optional[Decimal] = None
-    current_price_per_share: Optional[Decimal] = None
+    shares: Optional[Decimal] = Field(
+        default=None, ge=0, description="Number of shares (must be non-negative)"
+    )
+    cost_basis_per_share: Optional[Decimal] = Field(
+        default=None, ge=0, description="Cost basis per share (must be non-negative)"
+    )
+    current_price_per_share: Optional[Decimal] = Field(
+        default=None, ge=0, description="Current price per share (must be non-negative)"
+    )
     asset_type: Optional[str] = None
 
 
@@ -162,6 +170,11 @@ class PortfolioSummary(BaseModel):
 
     # Truncation warning: True when holdings were capped at the 10k safety-net limit
     holdings_truncated: bool = False
+
+    # True when any holding's asset type was estimated via heuristics rather than
+    # confirmed by a third-party data provider (e.g., Polygon.io). Frontend should
+    # show a disclaimer that allocation percentages are approximate.
+    asset_classification_estimated: bool = False
 
 
 class FeeDragProjection(BaseModel):
