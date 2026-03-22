@@ -36,6 +36,7 @@ import {
   AccordionPanel,
   AccordionIcon,
   useColorModeValue,
+  IconButton,
 } from "@chakra-ui/react";
 import { AddIcon } from "@chakra-ui/icons";
 import {
@@ -354,6 +355,22 @@ export default function SavingsGoalsPage() {
     },
   });
 
+  const DISMISSED_TEMPLATES_KEY = "nest-egg-dismissed-goal-templates";
+  const [dismissedTemplates, setDismissedTemplates] = useState<Set<string>>(
+    () =>
+      new Set(
+        JSON.parse(
+          localStorage.getItem(DISMISSED_TEMPLATES_KEY) || "[]",
+        ) as string[],
+      ),
+  );
+
+  const dismissTemplate = (key: string) => {
+    const next = new Set(dismissedTemplates).add(key);
+    setDismissedTemplates(next);
+    localStorage.setItem(DISMISSED_TEMPLATES_KEY, JSON.stringify([...next]));
+  };
+
   const GOAL_TEMPLATES: {
     key: GoalTemplateKey;
     label: string;
@@ -394,7 +411,9 @@ export default function SavingsGoalsPage() {
     },
   ];
 
-  const visibleTemplates = GOAL_TEMPLATES.filter((t) => !t.hidden);
+  const visibleTemplates = GOAL_TEMPLATES.filter(
+    (t) => !t.hidden && !dismissedTemplates.has(t.key),
+  );
 
   // Group active goals by account_id for the "By Account" view
   const goalsByAccount = (() => {
@@ -636,6 +655,7 @@ export default function SavingsGoalsPage() {
                   size="sm"
                   _hover={{ borderColor: "brand.300", shadow: "sm" }}
                   transition="all 0.15s"
+                  role="group"
                 >
                   <CardBody>
                     <HStack justify="space-between" flexWrap="wrap" spacing={3}>
@@ -655,6 +675,7 @@ export default function SavingsGoalsPage() {
                           </Text>
                         </VStack>
                       </HStack>
+                      <HStack spacing={1}>
                       <Button
                         colorScheme={accent}
                         size="sm"
@@ -670,6 +691,17 @@ export default function SavingsGoalsPage() {
                       >
                         Create
                       </Button>
+                      <IconButton
+                        aria-label={`Dismiss ${tmpl.label} suggestion`}
+                        icon={<Text fontSize="md" lineHeight={1}>×</Text>}
+                        variant="ghost"
+                        size="sm"
+                        color="text.muted"
+                        opacity={0}
+                        _groupHover={{ opacity: 1 }}
+                        onClick={() => dismissTemplate(tmpl.key)}
+                      />
+                      </HStack>
                     </HStack>
                   </CardBody>
                 </Card>
