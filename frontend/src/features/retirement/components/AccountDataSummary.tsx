@@ -134,11 +134,16 @@ export function AccountDataSummary({
     const brokerage = taxable - cash;
 
     const items = [
-      { key: "pre_tax", label: "Pre-Tax (401k, IRA)", value: preTax, pct: (preTax / total) * 100, color: "blue" },
-      { key: "roth", label: "Roth", value: roth, pct: (roth / total) * 100, color: "green" },
-      { key: "taxable", label: "Taxable (Brokerage)", value: brokerage, pct: (brokerage / total) * 100, color: "orange" },
-      { key: "hsa", label: "HSA", value: hsa, pct: (hsa / total) * 100, color: "teal" },
-      { key: "cash", label: "Cash (Checking/Savings)", value: cash, pct: (cash / total) * 100, color: "purple" },
+      { key: "pre_tax", label: "Pre-Tax (401k, IRA)", value: preTax, pct: (preTax / total) * 100, color: "blue",
+        tooltip: "Traditional 401(k), IRA, and similar accounts. Contributions were tax-deductible; withdrawals are taxed as ordinary income in retirement." },
+      { key: "roth", label: "Roth", value: roth, pct: (roth / total) * 100, color: "green",
+        tooltip: "Roth 401(k) and Roth IRA accounts. Contributions were after-tax; qualified withdrawals in retirement are completely tax-free." },
+      { key: "taxable", label: "Taxable (Brokerage)", value: brokerage, pct: (brokerage / total) * 100, color: "orange",
+        tooltip: "Regular brokerage accounts. No special tax advantages — gains are taxed each year and when you sell." },
+      { key: "hsa", label: "HSA", value: hsa, pct: (hsa / total) * 100, color: "teal",
+        tooltip: "Health Savings Account. Triple tax advantage: contributions are pre-tax, growth is tax-free, and withdrawals for qualified medical expenses are tax-free." },
+      { key: "cash", label: "Cash (Checking/Savings)", value: cash, pct: (cash / total) * 100, color: "purple",
+        tooltip: "Checking, savings, and money market accounts. Grows at the account's interest rate (shown per account), not the investment return rate." },
     ];
     return items.filter((b) => b.value > 0);
   }, [data, localExcluded]);
@@ -147,9 +152,15 @@ export function AccountDataSummary({
     <Box bg={bgColor} p={5} borderRadius="xl" shadow="sm">
       <VStack spacing={4} align="stretch">
         <HStack justify="space-between">
-          <Text fontSize="lg" fontWeight="semibold">
-            Your Portfolio
-          </Text>
+          <Tooltip
+            label="Total value of all included investment and cash accounts. Toggle individual accounts below to include or exclude them from the simulation."
+            placement="top"
+            hasArrow
+          >
+            <Text fontSize="lg" fontWeight="semibold" cursor="help">
+              Your Portfolio
+            </Text>
+          </Tooltip>
           {isLoading && <Spinner size="sm" />}
         </HStack>
 
@@ -171,7 +182,9 @@ export function AccountDataSummary({
                 return (
                   <Box key={bucket.key}>
                     <HStack justify="space-between" fontSize="xs" mb={1}>
-                      <Text color={labelColor}>{bucket.label}</Text>
+                      <Tooltip label={bucket.tooltip} placement="top" hasArrow>
+                        <Text color={labelColor} cursor="help">{bucket.label}</Text>
+                      </Tooltip>
                       <Text fontWeight="medium">
                         {formatMoney(bucket.value)} ({bucket.pct.toFixed(0)}%)
                       </Text>
@@ -257,9 +270,11 @@ export function AccountDataSummary({
               {/* Excluded accounts section */}
               {data.accounts?.some((a) => localExcluded.has(a.id)) && (
                 <Box>
-                  <Text fontSize="2xs" color={labelColor} mb={1}>
-                    Excluded from simulation
-                  </Text>
+                  <Tooltip label="These accounts are not counted in the simulation. Check the box next to any account to re-include it." placement="top" hasArrow>
+                    <Text fontSize="2xs" color={labelColor} mb={1} cursor="help">
+                      Excluded from simulation
+                    </Text>
+                  </Tooltip>
                   <VStack spacing={0} align="stretch" pl={3}>
                     {data.accounts
                       .filter((a) => localExcluded.has(a.id))
@@ -303,7 +318,9 @@ export function AccountDataSummary({
             >
               {data.annual_income > 0 && (
                 <HStack justify="space-between" fontSize="xs">
-                  <Text color={labelColor}>Annual Income</Text>
+                  <Tooltip label="Your current annual salary — used to estimate future contributions and Social Security benefits" placement="top" hasArrow>
+                    <Text color={labelColor} cursor="help">Annual Income</Text>
+                  </Tooltip>
                   <Text fontWeight="medium">
                     {formatMoney(data.annual_income)}
                   </Text>
@@ -311,7 +328,9 @@ export function AccountDataSummary({
               )}
               {data.annual_contributions > 0 && (
                 <HStack justify="space-between" fontSize="xs">
-                  <Text color={labelColor}>Annual Contributions</Text>
+                  <Tooltip label="How much you're contributing to retirement accounts each year (401k, IRA, etc.)" placement="top" hasArrow>
+                    <Text color={labelColor} cursor="help">Annual Contributions</Text>
+                  </Tooltip>
                   <Text fontWeight="medium">
                     {formatMoney(data.annual_contributions)}
                   </Text>
@@ -319,7 +338,9 @@ export function AccountDataSummary({
               )}
               {data.employer_match_annual > 0 && (
                 <HStack justify="space-between" fontSize="xs">
-                  <Text color={labelColor}>Employer Match</Text>
+                  <Tooltip label="Free money from your employer — added on top of your own contributions in the simulation" placement="top" hasArrow>
+                    <Text color={labelColor} cursor="help">Employer Match</Text>
+                  </Tooltip>
                   <Text fontWeight="medium">
                     {formatMoney(data.employer_match_annual)}
                   </Text>
@@ -327,7 +348,9 @@ export function AccountDataSummary({
               )}
               {data.pension_monthly > 0 && (
                 <HStack justify="space-between" fontSize="xs">
-                  <Text color={labelColor}>Pension</Text>
+                  <Tooltip label="Guaranteed monthly income from a pension plan — added to your income in retirement alongside Social Security" placement="top" hasArrow>
+                    <Text color={labelColor} cursor="help">Pension</Text>
+                  </Tooltip>
                   <Text fontWeight="medium">
                     {formatMoney(data.pension_monthly)}/mo
                   </Text>
@@ -335,7 +358,9 @@ export function AccountDataSummary({
               )}
               {data.annual_income > 0 && data.annual_contributions > 0 && (
                 <HStack justify="space-between" fontSize="xs" pt={1}>
-                  <Text color={labelColor}>Savings Rate</Text>
+                  <Tooltip label="Percentage of income going toward retirement. 15%+ (including employer match) is generally recommended" placement="top" hasArrow>
+                    <Text color={labelColor} cursor="help">Savings Rate</Text>
+                  </Tooltip>
                   <Text
                     fontWeight="medium"
                     color={
@@ -368,9 +393,11 @@ export function AccountDataSummary({
                 borderColor={borderColor}
               >
                 <HStack justify="space-between">
-                  <Text fontSize="xs" fontWeight="semibold" color={labelColor}>
-                    Tax Assumptions
-                  </Text>
+                  <Tooltip label="These rates are used to estimate taxes on withdrawals during retirement. They affect how much of each withdrawal you actually keep." placement="top" hasArrow>
+                    <Text fontSize="xs" fontWeight="semibold" color={labelColor} cursor="help">
+                      Tax Assumptions
+                    </Text>
+                  </Tooltip>
                   {!readOnly && (
                     <IconButton
                       aria-label={
@@ -392,7 +419,9 @@ export function AccountDataSummary({
                     borderRadius="md"
                   >
                     <HStack justify="space-between" fontSize="xs">
-                      <Text color={labelColor}>Federal Tax Rate</Text>
+                      <Tooltip label="Your expected federal income tax bracket in retirement. Pre-tax (401k/IRA) withdrawals are taxed at this rate." placement="top" hasArrow>
+                        <Text color={labelColor} cursor="help">Federal Tax Rate</Text>
+                      </Tooltip>
                       <NumberInput
                         value={localFederal}
                         min={0}
@@ -408,7 +437,9 @@ export function AccountDataSummary({
                       </NumberInput>
                     </HStack>
                     <HStack justify="space-between" fontSize="xs">
-                      <Text color={labelColor}>State Tax Rate</Text>
+                      <Tooltip label="Your expected state income tax rate in retirement. Varies by state — some states have no income tax." placement="top" hasArrow>
+                        <Text color={labelColor} cursor="help">State Tax Rate</Text>
+                      </Tooltip>
                       <NumberInput
                         value={localState}
                         min={0}
@@ -424,7 +455,9 @@ export function AccountDataSummary({
                       </NumberInput>
                     </HStack>
                     <HStack justify="space-between" fontSize="xs">
-                      <Text color={labelColor}>Capital Gains Rate</Text>
+                      <Tooltip label="Tax rate applied to investment gains in taxable (brokerage) accounts. Long-term capital gains are typically taxed at 0%, 15%, or 20% depending on income." placement="top" hasArrow>
+                        <Text color={labelColor} cursor="help">Capital Gains Rate</Text>
+                      </Tooltip>
                       <NumberInput
                         value={localCapGains}
                         min={0}
@@ -443,19 +476,25 @@ export function AccountDataSummary({
                 ) : (
                   <>
                     <HStack justify="space-between" fontSize="xs">
-                      <Text color={labelColor}>Federal Tax Rate</Text>
+                      <Tooltip label="Your expected federal income tax bracket in retirement. Pre-tax (401k/IRA) withdrawals are taxed at this rate." placement="top" hasArrow>
+                        <Text color={labelColor} cursor="help">Federal Tax Rate</Text>
+                      </Tooltip>
                       <Text fontWeight="medium">
                         {scenario.federal_tax_rate}%
                       </Text>
                     </HStack>
                     <HStack justify="space-between" fontSize="xs">
-                      <Text color={labelColor}>State Tax Rate</Text>
+                      <Tooltip label="Your expected state income tax rate in retirement. Varies by state — some states have no income tax." placement="top" hasArrow>
+                        <Text color={labelColor} cursor="help">State Tax Rate</Text>
+                      </Tooltip>
                       <Text fontWeight="medium">
                         {scenario.state_tax_rate}%
                       </Text>
                     </HStack>
                     <HStack justify="space-between" fontSize="xs">
-                      <Text color={labelColor}>Capital Gains Rate</Text>
+                      <Tooltip label="Tax rate applied to investment gains in taxable (brokerage) accounts. Long-term capital gains are typically taxed at 0%, 15%, or 20% depending on income." placement="top" hasArrow>
+                        <Text color={labelColor} cursor="help">Capital Gains Rate</Text>
+                      </Tooltip>
                       <Text fontWeight="medium">
                         {scenario.capital_gains_rate}%
                       </Text>

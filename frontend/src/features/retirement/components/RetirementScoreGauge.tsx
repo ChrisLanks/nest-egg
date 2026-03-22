@@ -3,7 +3,7 @@
  * Color: red (<40), orange (40-59), yellow (60-79), green (80+).
  */
 
-import { Box, Text, useColorModeValue, VStack } from '@chakra-ui/react';
+import { Box, Text, Tooltip, useColorModeValue, VStack } from '@chakra-ui/react';
 
 interface RetirementScoreGaugeProps {
   score: number | null;
@@ -112,13 +112,25 @@ export function RetirementScoreGauge({ score, successRate, isLoading }: Retireme
             {label}
           </text>
         </svg>
-        <Text fontSize="xl" fontWeight="bold" color={textColor}>
-          Retirement Readiness
-        </Text>
-        {successRate !== null && successRate !== undefined && (
-          <Text fontSize="sm" color={textColor}>
-            {successRate.toFixed(0)}% chance of not running out of money
+        <Tooltip
+          label="A 0–100 score combining your success rate, savings rate, and how close you are to your retirement goal. 80+ is on track; below 60 needs attention."
+          placement="bottom"
+          hasArrow
+        >
+          <Text fontSize="xl" fontWeight="bold" color={textColor} cursor="help">
+            Retirement Readiness
           </Text>
+        </Tooltip>
+        {successRate !== null && successRate !== undefined && (
+          <Tooltip
+            label="Out of thousands of simulated market scenarios, this is the percentage where your money lasted through your entire plan. 85%+ is generally considered safe."
+            placement="bottom"
+            hasArrow
+          >
+            <Text fontSize="sm" color={textColor} cursor="help">
+              {successRate.toFixed(0)}% chance of not running out of money
+            </Text>
+          </Tooltip>
         )}
       </VStack>
     </Box>

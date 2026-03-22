@@ -3,7 +3,7 @@
  * Percentile bands (p10-p90) with median line and retirement age marker.
  */
 
-import { Box, Text, useColorModeValue } from "@chakra-ui/react";
+import { Box, Text, Tooltip, useColorModeValue } from "@chakra-ui/react";
 import {
   Area,
   CartesianGrid,
@@ -101,9 +101,15 @@ export function RetirementFanChart({
       role="img"
       aria-label="Retirement projection fan chart"
     >
-      <Text fontSize="md" fontWeight="semibold" mb={3} color={textColor}>
-        Portfolio Projection
-      </Text>
+      <Tooltip
+        label="Shows how your portfolio might grow across thousands of simulated market scenarios. The shaded band represents the range of outcomes — from unlucky (bottom 10%) to lucky (top 10%). The line is the median (middle outcome)."
+        placement="top"
+        hasArrow
+      >
+        <Text fontSize="md" fontWeight="semibold" mb={3} color={textColor} cursor="help" display="inline-block">
+          Portfolio Projection
+        </Text>
+      </Tooltip>
       <ResponsiveContainer width="100%" height={380}>
         <ComposedChart
           data={chartData}

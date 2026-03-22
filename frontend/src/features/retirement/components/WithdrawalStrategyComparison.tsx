@@ -9,6 +9,7 @@ import {
   HStack,
   SimpleGrid,
   Text,
+  Tooltip,
   useColorModeValue,
   VStack,
 } from '@chakra-ui/react';
@@ -53,9 +54,15 @@ export function WithdrawalStrategyComparison({
   return (
     <Box bg={bgColor} p={5} borderRadius="xl" shadow="sm">
       <VStack spacing={4} align="stretch">
-        <Text fontSize="lg" fontWeight="semibold">
-          Withdrawal Strategy Comparison
-        </Text>
+        <Tooltip
+          label="Compare two approaches to taking money out in retirement. Click a card to use that strategy in your simulation."
+          placement="top"
+          hasArrow
+        >
+          <Text fontSize="lg" fontWeight="semibold" cursor="help">
+            Withdrawal Strategy Comparison
+          </Text>
+        </Tooltip>
 
         <SimpleGrid columns={2} spacing={4}>
           {/* Tax-Optimized Column */}
@@ -71,9 +78,11 @@ export function WithdrawalStrategyComparison({
           >
             <VStack spacing={2} align="stretch">
               <HStack justify="space-between">
-                <Text fontSize="sm" fontWeight="bold">
-                  Tax-Optimized
-                </Text>
+                <Tooltip label="Withdraw from taxable accounts first, then pre-tax (401k/IRA), and preserve Roth accounts as long as possible to minimize lifetime taxes." placement="top" hasArrow>
+                  <Text fontSize="sm" fontWeight="bold" cursor="help">
+                    Tax-Optimized
+                  </Text>
+                </Tooltip>
                 <HStack spacing={1}>
                   {isTaxOptSelected && (
                     <Badge colorScheme="blue" size="sm">
@@ -92,11 +101,15 @@ export function WithdrawalStrategyComparison({
               </Text>
 
               <HStack justify="space-between" fontSize="xs">
-                <Text color={labelColor}>Final Portfolio</Text>
+                <Tooltip label="Projected portfolio value remaining at the end of your plan" placement="top" hasArrow>
+                  <Text color={labelColor} cursor="help">Final Portfolio</Text>
+                </Tooltip>
                 <Text fontWeight="medium">{formatMoney(tax_optimized.final_portfolio)}</Text>
               </HStack>
               <HStack justify="space-between" fontSize="xs">
-                <Text color={labelColor}>Total Taxes</Text>
+                <Tooltip label="Estimated total taxes paid on all withdrawals over the course of retirement" placement="top" hasArrow>
+                  <Text color={labelColor} cursor="help">Total Taxes</Text>
+                </Tooltip>
                 <Text fontWeight="medium">{formatMoney(tax_optimized.total_taxes_paid)}</Text>
               </HStack>
               {tax_optimized.depleted_age && (
@@ -123,9 +136,11 @@ export function WithdrawalStrategyComparison({
           >
             <VStack spacing={2} align="stretch">
               <HStack justify="space-between">
-                <Text fontSize="sm" fontWeight="bold">
-                  {withdrawalRate}% Rule
-                </Text>
+                <Tooltip label={`Withdraw a fixed ${withdrawalRate}% of your starting portfolio each year, adjusted for inflation. Simple and predictable, but doesn't optimize for taxes.`} placement="top" hasArrow>
+                  <Text fontSize="sm" fontWeight="bold" cursor="help">
+                    {withdrawalRate}% Rule
+                  </Text>
+                </Tooltip>
                 <HStack spacing={1}>
                   {isSimpleSelected && (
                     <Badge colorScheme="blue" size="sm">
@@ -144,11 +159,15 @@ export function WithdrawalStrategyComparison({
               </Text>
 
               <HStack justify="space-between" fontSize="xs">
-                <Text color={labelColor}>Final Portfolio</Text>
+                <Tooltip label="Projected portfolio value remaining at the end of your plan" placement="top" hasArrow>
+                  <Text color={labelColor} cursor="help">Final Portfolio</Text>
+                </Tooltip>
                 <Text fontWeight="medium">{formatMoney(simple_rate.final_portfolio)}</Text>
               </HStack>
               <HStack justify="space-between" fontSize="xs">
-                <Text color={labelColor}>Total Taxes</Text>
+                <Tooltip label="Estimated total taxes paid on all withdrawals over the course of retirement" placement="top" hasArrow>
+                  <Text color={labelColor} cursor="help">Total Taxes</Text>
+                </Tooltip>
                 <Text fontWeight="medium">{formatMoney(simple_rate.total_taxes_paid)}</Text>
               </HStack>
               {simple_rate.depleted_age && (
