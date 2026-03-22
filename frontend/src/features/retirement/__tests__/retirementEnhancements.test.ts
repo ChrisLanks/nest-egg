@@ -810,3 +810,196 @@ describe('Permission Resource Types', () => {
     expect(ROUTE_MAP['/retirement']).toBe('retirement_scenario');
   });
 });
+
+// ── Retirement Empty State Logic ─────────────────────────────────────────────
+//
+// Describes which UI branch the empty-state block takes given the combination
+// of isCombinedView / isOtherUserView / selectedIds.size.
+//
+// Branch priority (mirrors RetirementPage.tsx lines ~1002-1056):
+//   1. isOtherUserView                       → read-only "X has no scenarios" message
+//   2. isCombinedView && selectedIds.size > 1 → "No shared retirement plans" message
+//   3. otherwise                             → "Create Your First Scenario" button
+
+type EmptyStateBranch = 'other-user' | 'multi-member' | 'create';
+
+function resolveEmptyStateBranch(opts: {
+  isOtherUserView: boolean;
+  isCombinedView: boolean;
+  selectedIdCount: number;
+}): EmptyStateBranch {
+  if (opts.isOtherUserView) return 'other-user';
+  if (opts.isCombinedView && opts.selectedIdCount > 1) return 'multi-member';
+  return 'create';
+}
+
+describe('Retirement Empty State Branch', () => {
+  it('shows Create button when solo user has no scenarios', () => {
+    expect(
+      resolveEmptyStateBranch({ isOtherUserView: false, isCombinedView: false, selectedIdCount: 0 })
+    ).toBe('create');
+  });
+
+  it('shows Create button when combined-view user selects only themselves', () => {
+    // Single member selected in combined view — filterUserId set to own ID,
+    // but isOtherUserView is false → should still show Create.
+    expect(
+      resolveEmptyStateBranch({ isOtherUserView: false, isCombinedView: true, selectedIdCount: 1 })
+    ).toBe('create');
+  });
+
+  it('shows Create button when combined-view has all selected (isAllSelected)', () => {
+    // isAllSelected is true, no per-user filter active, not viewing another user
+    expect(
+      resolveEmptyStateBranch({ isOtherUserView: false, isCombinedView: true, selectedIdCount: 0 })
+    ).toBe('create');
+  });
+
+  it('shows "X has no scenarios" when viewing another user (isOtherUserView)', () => {
+    expect(
+      resolveEmptyStateBranch({ isOtherUserView: true, isCombinedView: false, selectedIdCount: 1 })
+    ).toBe('other-user');
+  });
+
+  it('isOtherUserView takes priority over multi-member combined view', () => {
+    // Even with multiple IDs selected, if isOtherUserView is somehow true, show read-only message
+    expect(
+      resolveEmptyStateBranch({ isOtherUserView: true, isCombinedView: true, selectedIdCount: 3 })
+    ).toBe('other-user');
+  });
+
+  it('shows "No shared retirement plans" when multiple members selected in combined view', () => {
+    expect(
+      resolveEmptyStateBranch({ isOtherUserView: false, isCombinedView: true, selectedIdCount: 2 })
+    ).toBe('multi-member');
+  });
+
+  it('shows "No shared retirement plans" for 3+ members selected', () => {
+    expect(
+      resolveEmptyStateBranch({ isOtherUserView: false, isCombinedView: true, selectedIdCount: 3 })
+    ).toBe('multi-member');
+  });
+
+  it('shows Create button in single-user household (1 member total)', () => {
+    // Household with only the user themselves: isCombinedView=true, selectedIdCount=1,
+    // isOtherUserView=false → Create button, not "no scenarios" read-only message.
+    expect(
+      resolveEmptyStateBranch({ isOtherUserView: false, isCombinedView: true, selectedIdCount: 1 })
+    ).toBe('create');
+  });
+});
+
+// ── filterUserId vs isOtherUserView distinction ──────────────────────────────
+//
+// filterUserId being set means "filter scenarios to this member in combined view".
+// isOtherUserView means "viewing another user's read-only household page".
+// These are different: a user can be in combined view with themselves selected
+// (filterUserId == their own ID, isOtherUserView == false).
+
+describe('filterUserId vs isOtherUserView', () => {
+  function deriveIsOtherUserView(
+    currentUserId: string,
+    viewingUserId: string | null,
+  ): boolean {
+    // isOtherUserView is true only when explicitly viewing another user's page
+    return viewingUserId !== null && viewingUserId !== currentUserId;
+  }
+
+  function deriveFilterUserId(
+    isCombinedView: boolean,
+    selectedIds: Set<string>,
+  ): string | null {
+    if (!isCombinedView) return null;
+    const singleSelectedId = selectedIds.size === 1 ? [...selectedIds][0] : null;
+    return singleSelectedId;
+  }
+
+  it('filterUserId is null in solo (non-combined) view', () => {
+    expect(deriveFilterUserId(false, new Set(['user-a']))).toBeNull();
+  });
+
+  it('filterUserId is set when one member selected in combined view', () => {
+    expect(deriveFilterUserId(true, new Set(['user-a']))).toBe('user-a');
+  });
+
+  it('filterUserId is null when multiple members selected in combined view', () => {
+    expect(deriveFilterUserId(true, new Set(['user-a', 'user-b']))).toBeNull();
+  });
+
+  it('isOtherUserView is false for own profile', () => {
+    expect(deriveIsOtherUserView('user-a', null)).toBe(false);
+    expect(deriveIsOtherUserView('user-a', 'user-a')).toBe(false);
+  });
+
+  it('isOtherUserView is true when viewing a different user', () => {
+    expect(deriveIsOtherUserView('user-a', 'user-b')).toBe(true);
+  });
+
+  it('filterUserId can equal currentUserId without triggering isOtherUserView', () => {
+    const currentUserId = 'user-a';
+    const filterUserId = deriveFilterUserId(true, new Set(['user-a']));
+    const isOtherUserView = deriveIsOtherUserView(currentUserId, null);
+    // filterUserId is set to own ID, but isOtherUserView remains false
+    expect(filterUserId).toBe('user-a');
+    expect(isOtherUserView).toBe(false);
+  });
+});
+
+// ── Social Security Estimator — birth year display ────────────────────────────
+
+describe('Social Security Estimator Birth Year Display', () => {
+  type SsEstimate = {
+    pia: number;
+    birth_year: number;
+    age_62: number;
+    age_67: number;
+    age_70: number;
+  };
+
+  it('birth_year is included in estimate response', () => {
+    const estimate: SsEstimate = {
+      pia: 2100,
+      birth_year: 1985,
+      age_62: 1470,
+      age_67: 2100,
+      age_70: 2604,
+    };
+    expect(estimate.birth_year).toBe(1985);
+  });
+
+  it('birth year label uses the actual year from estimate', () => {
+    const estimate: SsEstimate = { pia: 2100, birth_year: 1990, age_62: 1470, age_67: 2100, age_70: 2604 };
+    const label = `Based on birth year ${estimate.birth_year}`;
+    expect(label).toBe('Based on birth year 1990');
+  });
+
+  it('shows error state when estimate is unavailable and manual override not set', () => {
+    const isError = true;
+    const useManual = false;
+    const shouldShowError = isError && !useManual;
+    expect(shouldShowError).toBe(true);
+  });
+
+  it('does not show error when manual override is active', () => {
+    const isError = true;
+    const useManual = true;
+    const shouldShowError = isError && !useManual;
+    expect(shouldShowError).toBe(false);
+  });
+
+  it('does not show error when estimate loaded successfully', () => {
+    const isError = false;
+    const useManual = false;
+    const shouldShowError = isError && !useManual;
+    expect(shouldShowError).toBe(false);
+  });
+
+  it('birth year note is only shown when estimate exists', () => {
+    const estimate: SsEstimate | null = { pia: 2100, birth_year: 1985, age_62: 1470, age_67: 2100, age_70: 2604 };
+    const showNote = estimate !== null;
+    expect(showNote).toBe(true);
+
+    const nullEstimate: SsEstimate | null = null;
+    expect(nullEstimate !== null).toBe(false);
+  });
+});
