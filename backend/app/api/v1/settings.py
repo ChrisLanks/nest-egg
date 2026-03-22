@@ -29,6 +29,7 @@ from app.models.transaction import Transaction, TransactionLabel
 from app.models.user import Organization, RefreshToken, User
 from app.schemas.user import OrganizationUpdate, UserUpdate
 from app.services.email_service import create_verification_token, email_service
+from app.services.fx_service import SUPPORTED_CURRENCIES
 from app.services.input_sanitization_service import input_sanitization_service
 from app.services.password_validation_service import password_validation_service
 from app.services.rate_limit_service import get_rate_limit_service
@@ -90,10 +91,17 @@ class NotificationPreferencesResponse(BaseModel):
     crypto_alerts: Optional[bool] = True
 
 
+class DashboardWidget(BaseModel):
+    """A single dashboard widget position entry."""
+
+    id: str = Field(..., min_length=1, max_length=64)
+    span: Literal[1, 2]
+
+
 class DashboardLayoutUpdate(BaseModel):
     """Request body for updating dashboard widget layout."""
 
-    layout: List[Any]  # list of {id: str, span: 1|2} objects
+    layout: List[DashboardWidget] = Field(..., max_length=30)
 
 
 class ChangePasswordRequest(BaseModel):
@@ -181,12 +189,19 @@ async def update_user_profile(
         current_user.onboarding_goal = update_data.onboarding_goal
 
     if update_data.default_currency is not None and isinstance(update_data.default_currency, str):
+        currency_upper = update_data.default_currency.upper()[:3]
+        if currency_upper not in SUPPORTED_CURRENCIES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported currency '{currency_upper}'. "
+                f"Supported currencies: {', '.join(SUPPORTED_CURRENCIES)}",
+            )
         org_result = await db.execute(
             select(Organization).where(Organization.id == current_user.organization_id)
         )
         org = org_result.scalar_one_or_none()
         if org:
-            org.default_currency = update_data.default_currency.upper()[:3]
+            org.default_currency = currency_upper
 
     # Update birthday (requires day, month, and year together)
     birthday_fields = (update_data.birth_day, update_data.birth_month, update_data.birth_year)
