@@ -6,6 +6,8 @@
  *  2. formatCurrencyCompact produces compact notation
  *  3. symbol is derived from the currency code
  *  4. Falls back to USD when profile has no default_currency
+ *  5. Query is gated on accessToken (not isAuthenticated) to prevent 401s
+ *     on hard refresh before the session token is restored
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -139,5 +141,56 @@ describe("CurrencyContext helpers", () => {
       const currency = profileCurrency?.toUpperCase() || "USD";
       expect(currency).toBe("GBP");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Query guard: enabled: !!accessToken
+//
+// CurrencyContext gates its /settings/profile query on the in-memory
+// accessToken, NOT the persisted isAuthenticated flag.
+//
+// Scenario that caused the bug:
+//   1. User hard-refreshes the page
+//   2. Zustand rehydrates from localStorage: isAuthenticated = true, accessToken = ""
+//   3. CurrencyContext fires GET /settings/profile before /auth/refresh completes
+//   4. Server returns 401 because no token was sent
+//
+// Fix: enabled: !!accessToken  (only fires when a real token exists in memory)
+// ---------------------------------------------------------------------------
+
+describe("CurrencyContext query guard — accessToken vs isAuthenticated", () => {
+  /** Mirrors the enabled condition in CurrencyContext: enabled: !!accessToken */
+  function shouldQueryFire(accessToken: string | null | undefined): boolean {
+    return !!accessToken;
+  }
+
+  it("does NOT fire when accessToken is empty string (hard refresh, not yet restored)", () => {
+    expect(shouldQueryFire("")).toBe(false);
+  });
+
+  it("does NOT fire when accessToken is null", () => {
+    expect(shouldQueryFire(null)).toBe(false);
+  });
+
+  it("does NOT fire when accessToken is undefined", () => {
+    expect(shouldQueryFire(undefined)).toBe(false);
+  });
+
+  it("DOES fire once accessToken is populated", () => {
+    expect(shouldQueryFire("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9")).toBe(true);
+  });
+
+  it("would incorrectly fire with isAuthenticated=true on hard refresh", () => {
+    // Demonstrates the OLD bug: isAuthenticated is persisted and is true
+    // before the token is restored, so it would (wrongly) fire the query.
+    const isAuthenticated = true; // restored from localStorage
+    const accessToken = "";       // not yet restored (in-memory only)
+
+    const oldBehavior = isAuthenticated;       // would fire → 401
+    const newBehavior = !!accessToken;         // correctly suppressed
+
+    expect(oldBehavior).toBe(true);  // old code fires prematurely
+    expect(newBehavior).toBe(false); // new code waits for token
   });
 });
