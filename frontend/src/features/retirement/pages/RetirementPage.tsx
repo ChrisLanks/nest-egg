@@ -407,7 +407,10 @@ export function RetirementPage() {
     simulateMutation
       .mutateAsync(selectedScenarioId)
       .then(() => setSettingsDirty(false))
-      .catch(() => {}); // Swallow errors for auto-simulate
+      .catch((err: unknown) => {
+        // Auto-simulate failure is non-blocking; log so it's visible in dev tools
+        console.warn("[autoSimulate] simulation failed:", err);
+      });
   }, [selectedScenarioId, simulateMutation]);
 
   // Handle tab selection
@@ -709,7 +712,9 @@ export function RetirementPage() {
               setSettingsDirty(false);
             }
           })
-          .catch(() => {});
+          .catch((err: unknown) => {
+            console.warn("[autoSimulate] post-member-change simulation failed:", err);
+          });
       }
     } catch (err: any) {
       toast({

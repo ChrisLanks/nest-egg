@@ -31,8 +31,11 @@ celery_app.conf.update(
     # so only one beat process runs each task at its scheduled time.
     beat_scheduler="redbeat.RedBeatScheduler",
     redbeat_redis_url=settings.CELERY_BROKER_URL,
-    # Lock TTL: 5× the shortest schedule interval (1-minute check-budget runs at most hourly)
-    redbeat_lock_timeout=300,
+    # Lock TTL must exceed task_time_limit to prevent LockNotOwnedError.
+    # If the lock expires while the beat scheduling cycle is still running,
+    # Redis raises LockNotOwnedError when beat tries to extend/release the lock.
+    # Set to task_time_limit (300s) + 60s buffer = 360s.
+    redbeat_lock_timeout=360,
     # Suppress CPendingDeprecationWarning in Celery 5.x: explicitly opt in to
     # retrying broker connections on startup (behaviour unchanged from before).
     broker_connection_retry_on_startup=True,
