@@ -6,7 +6,13 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from app.api.v1.csv_import import import_csv, preview_csv_import, validate_csv, validate_csv_file
+from app.api.v1.csv_import import (
+    check_csv_row_limit,
+    import_csv,
+    preview_csv_import,
+    validate_csv,
+    validate_csv_file,
+)
 from app.models.user import User
 
 
@@ -42,6 +48,35 @@ def _make_upload_file(
     f.read = AsyncMock(return_value=content)
     f.seek = AsyncMock(return_value=None)
     return f
+
+
+class TestCheckCsvRowLimit:
+    """Tests for check_csv_row_limit helper."""
+
+    def test_passes_when_under_limit(self):
+        csv_content = "date,amount\n" + "2024-01-01,50\n" * 100
+        check_csv_row_limit(csv_content)  # Should not raise
+
+    def test_passes_for_exactly_max_rows(self):
+        from app.api.v1.csv_import import MAX_CSV_ROWS
+        csv_content = "date,amount\n" + "2024-01-01,50\n" * MAX_CSV_ROWS
+        check_csv_row_limit(csv_content)  # Should not raise
+
+    def test_raises_400_when_exceeds_limit(self):
+        from app.api.v1.csv_import import MAX_CSV_ROWS
+        csv_content = "date,amount\n" + "2024-01-01,50\n" * (MAX_CSV_ROWS + 1)
+        with pytest.raises(HTTPException) as exc_info:
+            check_csv_row_limit(csv_content)
+        assert exc_info.value.status_code == 400
+        assert "too large" in exc_info.value.detail.lower()
+
+    def test_blank_lines_are_not_counted(self):
+        # Only 2 real data rows; extra blank lines should not count
+        csv_content = "date,amount\n2024-01-01,50\n\n2024-01-02,60\n\n"
+        check_csv_row_limit(csv_content)  # Should not raise
+
+    def test_empty_csv_passes(self):
+        check_csv_row_limit("")  # Should not raise
 
 
 class TestValidateCsvFile:

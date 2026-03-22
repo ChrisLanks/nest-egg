@@ -38,6 +38,7 @@ rate_limit_service = get_rate_limit_service()
 
 GUEST_INVITATION_EXPIRY_DAYS = 7
 MAX_GUEST_INVITATIONS_PER_HOUR = 5
+MAX_GUEST_REVOCATIONS_PER_HOUR = 20  # Prevent bulk-revocation abuse
 
 
 # ─── Schemas ───────────────────────────────────────────────────────────────
@@ -277,6 +278,17 @@ async def revoke_guest(
     db: AsyncSession = Depends(get_db),
 ):
     """Revoke a guest's access (admin only). Takes effect immediately."""
+    # Rate limit: 20 revocations per hour to prevent bulk-locking out collaborators
+    rate_key = f"guest_revoke:{admin.id}"
+    allowed = await rate_limit_service.check_rate_limit(
+        rate_key, MAX_GUEST_REVOCATIONS_PER_HOUR, 3600
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many revocation requests. Please try again later.",
+        )
+
     result = await db.execute(
         select(HouseholdGuest).where(
             HouseholdGuest.id == guest_id,

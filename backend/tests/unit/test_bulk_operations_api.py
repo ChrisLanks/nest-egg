@@ -89,11 +89,21 @@ class TestUndoBulkOperation:
     async def test_successfully_undoes_operation(self):
         db = AsyncMock()
         user = _make_user()
-        op = _make_operation(user, is_undone=False, affected_ids=["id1", "id2"])
+        # Use a restorable field (category_id) so _restore_previous_state builds a valid patch
+        op = _make_operation(
+            user,
+            is_undone=False,
+            affected_ids=["id1", "id2"],
+            previous_state={"category_id": "old-cat-id"},
+        )
 
-        result_mock = MagicMock()
-        result_mock.scalar_one_or_none.return_value = op
-        db.execute.return_value = result_mock
+        # First execute call (SELECT) returns scalar_one_or_none = op
+        select_result = MagicMock()
+        select_result.scalar_one_or_none.return_value = op
+        # Second execute call (UPDATE) returns rowcount = 2
+        update_result = MagicMock()
+        update_result.rowcount = 2
+        db.execute.side_effect = [select_result, update_result]
 
         operation_id = op.id
         result = await undo_bulk_operation(operation_id=operation_id, current_user=user, db=db)

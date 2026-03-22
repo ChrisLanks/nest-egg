@@ -1,6 +1,7 @@
 """Celery tasks for budget alerts."""
 
 import logging
+import random
 
 from sqlalchemy import select
 
@@ -12,15 +13,31 @@ from app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name="check_budget_alerts")
-def check_budget_alerts_task():
+def _retry_countdown(retries: int) -> float:
+    """Exponential back-off with full jitter (thundering-herd prevention)."""
+    base = (2 ** retries) * 60
+    return base * (0.5 + random.random())
+
+
+@celery_app.task(
+    name="check_budget_alerts",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    retry_backoff=False,
+)
+def check_budget_alerts_task(self=None):
     """
     Check all active budgets and create notifications.
     Runs daily at midnight.
     """
     import asyncio
 
-    asyncio.run(_check_budget_alerts_async())
+    try:
+        asyncio.run(_check_budget_alerts_async())
+    except Exception as exc:
+        retries = check_budget_alerts_task.request.retries if self else 0
+        logger.warning("check_budget_alerts retry %d/3: %s", retries + 1, exc)
+        raise check_budget_alerts_task.retry(exc=exc, countdown=_retry_countdown(retries))
 
 
 async def _check_budget_alerts_async():

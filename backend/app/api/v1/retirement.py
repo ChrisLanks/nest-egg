@@ -78,8 +78,22 @@ async def create_scenario(
             default=str,
         )
 
-    # Extract member_ids before passing to service
+    # Extract member_ids before passing to service; validate they belong to this org
     member_ids = sanitized.pop("member_ids", None)
+    if member_ids:
+        valid_ids_result = await db.execute(
+            sa_select(User.id).where(
+                User.id.in_(member_ids),
+                User.organization_id == current_user.organization_id,
+            )
+        )
+        valid_ids = {str(row[0]) for row in valid_ids_result.all()}
+        invalid = [mid for mid in member_ids if mid not in valid_ids]
+        if invalid:
+            raise HTTPException(
+                status_code=403,
+                detail="One or more member_ids do not belong to your organization",
+            )
 
     scenario = await RetirementPlannerService.create_scenario(
         db=db,

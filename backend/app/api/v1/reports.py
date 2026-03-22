@@ -55,6 +55,32 @@ VALID_REPORT_TYPES = {
 
 VALID_DELIVERY_FREQUENCIES = {"daily", "weekly", "monthly"}
 
+# Required config keys per report type.  "custom" has no mandatory keys.
+_REQUIRED_CONFIG_KEYS: Dict[str, set] = {
+    "income_expense": {"start_date", "end_date"},
+    "cash_flow": {"start_date", "end_date"},
+    "net_worth": set(),
+    "category_breakdown": {"start_date", "end_date"},
+    "tax_summary": {"tax_year"},
+    "investment_performance": set(),
+    "custom": set(),
+}
+
+
+def _validate_config(report_type: str, config: Dict[str, Any]) -> None:
+    """Raise ValueError if config is missing required keys for report_type."""
+    required = _REQUIRED_CONFIG_KEYS.get(report_type, set())
+    missing = required - config.keys()
+    if missing:
+        raise ValueError(
+            f"config is missing required keys for report_type '{report_type}': "
+            f"{', '.join(sorted(missing))}"
+        )
+    # Reject suspiciously large configs (DoS guard)
+    import json as _json
+    if len(_json.dumps(config)) > 4096:
+        raise ValueError("config must not exceed 4096 characters")
+
 
 class ReportTemplateCreate(BaseModel):
     """Schema for creating a report template."""
@@ -75,6 +101,18 @@ class ReportTemplateCreate(BaseModel):
             )
         return v
 
+    @field_validator("config")
+    @classmethod
+    def validate_config_not_empty(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Config must be a dict (non-null); per-type key validation runs in model_validator."""
+        if not isinstance(v, dict):
+            raise ValueError("config must be a JSON object")
+        return v
+
+    def model_post_init(self, __context: Any) -> None:
+        """Cross-field validation: check required config keys for the given report_type."""
+        _validate_config(self.report_type, self.config)
+
 
 class ReportTemplateUpdate(BaseModel):
     """Schema for updating a report template."""
@@ -82,6 +120,7 @@ class ReportTemplateUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = None
     config: Optional[Dict[str, Any]] = None
+    report_type: Optional[str] = None
     is_shared: Optional[bool] = None
     scheduled_delivery: Optional[Dict[str, Any]] = None
 
@@ -96,6 +135,17 @@ class ReportTemplateUpdate(BaseModel):
             raise ValueError(
                 f"scheduled_delivery.frequency must be one of: {', '.join(sorted(VALID_DELIVERY_FREQUENCIES))}"
             )
+        return v
+
+    @field_validator("config")
+    @classmethod
+    def validate_config_size(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Reject suspiciously large config payloads on update."""
+        if v is None:
+            return v
+        import json as _json
+        if len(_json.dumps(v)) > 4096:
+            raise ValueError("config must not exceed 4096 characters")
         return v
 
 

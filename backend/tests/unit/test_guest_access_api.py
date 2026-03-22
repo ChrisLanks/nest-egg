@@ -190,8 +190,11 @@ class TestRevokeGuest:
     """Test DELETE /guest-access/guests/{id}."""
 
     @pytest.mark.asyncio
-    async def test_revoke_success(self):
+    @patch("app.api.v1.guest_access.rate_limit_service")
+    async def test_revoke_success(self, mock_rate):
         from app.api.v1.guest_access import revoke_guest
+
+        mock_rate.check_rate_limit = AsyncMock(return_value=True)
 
         admin = _make_user(is_admin=True)
         db = AsyncMock()
@@ -213,8 +216,25 @@ class TestRevokeGuest:
         assert guest.revoked_by_id == admin.id
 
     @pytest.mark.asyncio
-    async def test_revoke_not_found(self):
+    @patch("app.api.v1.guest_access.rate_limit_service")
+    async def test_revoke_rate_limited(self, mock_rate):
         from app.api.v1.guest_access import revoke_guest
+
+        mock_rate.check_rate_limit = AsyncMock(return_value=False)
+
+        admin = _make_user(is_admin=True)
+        db = AsyncMock()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await revoke_guest(uuid4(), admin, db)
+        assert exc_info.value.status_code == 429
+
+    @pytest.mark.asyncio
+    @patch("app.api.v1.guest_access.rate_limit_service")
+    async def test_revoke_not_found(self, mock_rate):
+        from app.api.v1.guest_access import revoke_guest
+
+        mock_rate.check_rate_limit = AsyncMock(return_value=True)
 
         admin = _make_user(is_admin=True)
         db = AsyncMock()

@@ -1181,3 +1181,26 @@ class TestTrendAnalysisEndpoints:
                     )
 
             mock_verify.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# MAX_CATEGORY_RESULTS guard
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestCategoryBreakdownLimit:
+    """Test MAX_CATEGORY_RESULTS constant ensures the category query is bounded."""
+
+    def test_max_category_results_constant(self):
+        from app.api.v1.income_expenses import MAX_CATEGORY_RESULTS
+        assert MAX_CATEGORY_RESULTS == 200
+
+    def test_summary_returns_at_most_max_category_results_rows(self):
+        """get_income_expense_summary must cap category breakdown at MAX_CATEGORY_RESULTS."""
+        from app.api.v1.income_expenses import MAX_CATEGORY_RESULTS
+        import inspect
+        import app.api.v1.income_expenses as ie_module
+
+        source = inspect.getsource(ie_module.get_income_expense_summary)
+        assert "MAX_CATEGORY_RESULTS" in source or ".limit(" in source

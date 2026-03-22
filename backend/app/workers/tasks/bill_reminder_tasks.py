@@ -8,6 +8,7 @@ an identical reminder was already sent today (deduplication guard).
 
 import asyncio
 import logging
+import random
 from datetime import timedelta
 
 from sqlalchemy import and_, func, select
@@ -26,10 +27,26 @@ logger = logging.getLogger(__name__)
 _BILL_REMINDER_TYPE = NotificationType.LARGE_TRANSACTION
 
 
-@celery_app.task(name="send_bill_reminders")
-def send_bill_reminders_task():
+def _retry_countdown(retries: int) -> float:
+    """Exponential back-off with full jitter (thundering-herd prevention)."""
+    base = (2 ** retries) * 60
+    return base * (0.5 + random.random())
+
+
+@celery_app.task(
+    name="send_bill_reminders",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    retry_backoff=False,
+)
+def send_bill_reminders_task(self=None):
     """Send bill payment reminders to all active households. Runs at 8 AM daily."""
-    asyncio.run(_send_bill_reminders_async())
+    try:
+        asyncio.run(_send_bill_reminders_async())
+    except Exception as exc:
+        retries = send_bill_reminders_task.request.retries if self else 0
+        logger.warning("send_bill_reminders retry %d/3: %s", retries + 1, exc)
+        raise send_bill_reminders_task.retry(exc=exc, countdown=_retry_countdown(retries))
 
 
 async def _send_bill_reminders_async():

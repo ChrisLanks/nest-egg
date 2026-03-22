@@ -1,6 +1,7 @@
 """Celery tasks for recurring transaction detection."""
 
 import logging
+import random
 
 from sqlalchemy import select
 
@@ -11,15 +12,41 @@ from app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name="detect_recurring_patterns")
-def detect_recurring_patterns_task():
+def _retry_countdown(retries: int) -> float:
+    """Exponential back-off with full jitter: 2^n * 60s ± 50 %.
+
+    Keeps retry bursts from all workers hitting the DB simultaneously
+    (thundering-herd prevention).
+    """
+    base = (2 ** retries) * 60  # 60s, 120s, 240s …
+    return base * (0.5 + random.random())  # jitter: 50–150 % of base
+
+
+@celery_app.task(
+    name="detect_recurring_patterns",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    retry_backoff=False,  # We apply our own jittered countdown
+)
+def detect_recurring_patterns_task(self=None):
     """
     Auto-detect recurring transactions for all organizations.
     Runs weekly on Monday at 2am.
     """
     import asyncio
 
-    asyncio.run(_detect_recurring_async())
+    try:
+        asyncio.run(_detect_recurring_async())
+    except Exception as exc:
+        retries = detect_recurring_patterns_task.request.retries if self else 0
+        logger.warning(
+            "detect_recurring_patterns retry %d/3: %s",
+            retries + 1,
+            exc,
+        )
+        raise detect_recurring_patterns_task.retry(
+            exc=exc, countdown=_retry_countdown(retries)
+        )
 
 
 async def _detect_recurring_async():

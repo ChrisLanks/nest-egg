@@ -1332,3 +1332,78 @@ class TestFormatSimulationResult:
         assert formatted.median_portfolio_at_retirement is None
         assert formatted.median_portfolio_at_end is None
         assert formatted.estimated_pia is None
+
+
+# ---------------------------------------------------------------------------
+# member_ids org validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestCreateScenarioMemberIds:
+    """Test that member_ids are validated against the current org in create_scenario."""
+
+    @pytest.mark.asyncio
+    async def test_cross_org_member_ids_raises_403(self):
+        """Providing member_ids that don't belong to the current org must raise 403."""
+        user = _make_user()
+        db = AsyncMock()
+
+        foreign_member_id = str(uuid4())
+        data = Mock()
+        data.model_dump.return_value = {"name": "Plan", "member_ids": [foreign_member_id]}
+
+        # DB returns no rows — foreign user not found in org
+        valid_ids_result = Mock()
+        valid_ids_result.all.return_value = []
+        db.execute.return_value = valid_ids_result
+
+        with pytest.raises(HTTPException) as exc_info:
+            await create_scenario(data=data, current_user=user, db=db)
+        assert exc_info.value.status_code == 403
+        assert "member_ids" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_valid_org_member_ids_allowed(self):
+        """member_ids that all belong to the current org should pass validation."""
+        user = _make_user()
+        db = AsyncMock()
+        scenario = _make_scenario(user)
+
+        valid_member_id = str(uuid4())
+        data = Mock()
+        data.model_dump.return_value = {"name": "Plan", "member_ids": [valid_member_id]}
+
+        # DB returns the member as valid
+        valid_ids_result = Mock()
+        valid_ids_result.all.return_value = [(valid_member_id,)]
+        db.execute.return_value = valid_ids_result
+
+        with patch(
+            "app.api.v1.retirement.RetirementPlannerService.create_scenario",
+            new_callable=AsyncMock,
+            return_value=scenario,
+        ):
+            result = await create_scenario(data=data, current_user=user, db=db)
+
+        assert result.name == "Test Scenario"
+
+    @pytest.mark.asyncio
+    async def test_no_member_ids_skips_validation(self):
+        """Omitting member_ids should not trigger the DB validation query."""
+        user = _make_user()
+        db = AsyncMock()
+        scenario = _make_scenario(user)
+
+        data = Mock()
+        data.model_dump.return_value = {"name": "Solo Plan"}
+
+        with patch(
+            "app.api.v1.retirement.RetirementPlannerService.create_scenario",
+            new_callable=AsyncMock,
+            return_value=scenario,
+        ):
+            result = await create_scenario(data=data, current_user=user, db=db)
+
+        db.execute.assert_not_called()
+        assert result.name == "Test Scenario"

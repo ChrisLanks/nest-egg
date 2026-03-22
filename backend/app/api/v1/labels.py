@@ -21,20 +21,38 @@ from app.services.rate_limit_service import rate_limit_service
 router = APIRouter()
 
 
+_MAX_LABEL_DEPTH = 2  # 0 = root, 1 = child, 2 = grandchild
+
+
 async def get_label_depth(label_id: UUID, db: AsyncSession) -> int:
-    """Get the depth of a label in the hierarchy (0 = root, 1 = child, 2 = grandchild)."""
+    """Return the depth of a label in the hierarchy (0 = root).
+
+    Traverses at most _MAX_LABEL_DEPTH + 1 levels.  Raises HTTPException 400
+    if the actual depth would exceed _MAX_LABEL_DEPTH, so callers always get
+    an accurate count within the allowed range or an explicit error.
+    """
+    from fastapi import HTTPException
+
     depth = 0
     current_id = label_id
 
-    while current_id and depth < 3:  # Safety limit
+    while current_id:
         result = await db.execute(select(Label.parent_label_id).where(Label.id == current_id))
         parent_id = result.scalar_one_or_none()
 
-        if parent_id:
-            depth += 1
-            current_id = parent_id
-        else:
+        if parent_id is None:
             break
+
+        depth += 1
+        if depth > _MAX_LABEL_DEPTH:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Label hierarchy exceeds the maximum depth of {_MAX_LABEL_DEPTH}. "
+                    "Labels support at most parent → child → grandchild nesting."
+                ),
+            )
+        current_id = parent_id
 
     return depth
 

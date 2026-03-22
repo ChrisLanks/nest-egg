@@ -1,6 +1,7 @@
 """Celery tasks for cash flow forecast alerts."""
 
 import logging
+import random
 
 from sqlalchemy import select
 
@@ -11,15 +12,31 @@ from app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name="check_cash_flow_forecast")
-def check_cash_flow_forecast_task():
+def _retry_countdown(retries: int) -> float:
+    """Exponential back-off with full jitter (thundering-herd prevention)."""
+    base = (2 ** retries) * 60
+    return base * (0.5 + random.random())
+
+
+@celery_app.task(
+    name="check_cash_flow_forecast",
+    autoretry_for=(Exception,),
+    max_retries=3,
+    retry_backoff=False,
+)
+def check_cash_flow_forecast_task(self=None):
     """
     Check for negative balance projections and create alerts.
     Runs daily at 6:30am.
     """
     import asyncio
 
-    asyncio.run(_check_forecast_async())
+    try:
+        asyncio.run(_check_forecast_async())
+    except Exception as exc:
+        retries = check_cash_flow_forecast_task.request.retries if self else 0
+        logger.warning("check_cash_flow_forecast retry %d/3: %s", retries + 1, exc)
+        raise check_cash_flow_forecast_task.retry(exc=exc, countdown=_retry_countdown(retries))
 
 
 async def _check_forecast_async():

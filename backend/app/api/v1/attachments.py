@@ -144,13 +144,21 @@ async def download_attachment(
 
     # Local storage: stream the file bytes
     data = await storage.load(info["storage_key"])
-    filename = info["filename"]
+    # Sanitize filename for Content-Disposition: strip quotes and backslashes
+    # that could break the header, then percent-encode for RFC 5987.
+    raw_filename = info["filename"]
+    safe_filename = raw_filename.replace('"', "").replace("\\", "").replace("\n", "").replace("\r", "")
+    from urllib.parse import quote as _urlquote
+    encoded_filename = _urlquote(safe_filename, safe="")
 
     return StreamingResponse(
         iter([data]),
         media_type=info["content_type"],
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": (
+                f'attachment; filename="{safe_filename}"; '
+                f"filename*=UTF-8''{encoded_filename}"
+            ),
             "Content-Length": str(len(data)),
         },
     )

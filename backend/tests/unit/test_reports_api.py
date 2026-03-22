@@ -12,6 +12,7 @@ from app.api.v1.reports import (
     ExecuteReportRequest,
     ReportTemplateCreate,
     ReportTemplateUpdate,
+    _validate_config,
     create_report_template,
     delete_report_template,
     execute_report,
@@ -123,7 +124,7 @@ class TestCreateReportTemplate:
             name="New Report",
             description="A new report",
             report_type="income_expense",
-            config={"period": "quarterly"},
+            config={"start_date": "2024-01-01", "end_date": "2024-12-31"},
             is_shared=False,
         )
 
@@ -1011,3 +1012,61 @@ class TestGuestUserIdFilterBlocked:
                     )
 
         assert result == {"data": []}
+
+
+# ---------------------------------------------------------------------------
+# Config validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestValidateConfig:
+    """Tests for _validate_config and ReportTemplateCreate config validation."""
+
+    def test_passes_for_income_expense_with_required_keys(self):
+        _validate_config("income_expense", {"start_date": "2024-01-01", "end_date": "2024-12-31"})
+
+    def test_raises_for_income_expense_missing_end_date(self):
+        with pytest.raises(ValueError, match="end_date"):
+            _validate_config("income_expense", {"start_date": "2024-01-01"})
+
+    def test_raises_for_cash_flow_missing_start_date(self):
+        with pytest.raises(ValueError, match="start_date"):
+            _validate_config("cash_flow", {"end_date": "2024-12-31"})
+
+    def test_raises_for_tax_summary_missing_tax_year(self):
+        with pytest.raises(ValueError, match="tax_year"):
+            _validate_config("tax_summary", {})
+
+    def test_passes_for_net_worth_no_required_keys(self):
+        _validate_config("net_worth", {})
+
+    def test_passes_for_custom_no_required_keys(self):
+        _validate_config("custom", {"whatever": "value"})
+
+    def test_raises_when_config_exceeds_4096_chars(self):
+        large_config = {"key": "x" * 5000}
+        with pytest.raises(ValueError, match="4096"):
+            _validate_config("custom", large_config)
+
+    def test_report_template_create_rejects_missing_keys(self):
+        import pydantic
+        with pytest.raises((ValueError, pydantic.ValidationError)):
+            ReportTemplateCreate(
+                name="Test",
+                report_type="income_expense",
+                config={},  # missing start_date and end_date
+            )
+
+    def test_report_template_create_accepts_valid_config(self):
+        t = ReportTemplateCreate(
+            name="Test",
+            report_type="income_expense",
+            config={"start_date": "2024-01-01", "end_date": "2024-12-31"},
+        )
+        assert t.name == "Test"
+
+    def test_report_template_update_rejects_oversized_config(self):
+        import pydantic
+        with pytest.raises((ValueError, pydantic.ValidationError)):
+            ReportTemplateUpdate(config={"key": "x" * 5000})

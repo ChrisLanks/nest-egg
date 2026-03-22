@@ -243,7 +243,7 @@ class TestDownloadAttachment:
         mock_storage.load.assert_awaited_once_with("attachments/abc123.jpg")
         assert isinstance(result, StreamingResponse)
         assert result.media_type == "image/jpeg"
-        assert result.headers["content-disposition"] == 'attachment; filename="test.jpg"'
+        assert result.headers["content-disposition"] == "attachment; filename=\"test.jpg\"; filename*=UTF-8''test.jpg"
         assert result.headers["content-length"] == str(len(file_bytes))
 
 

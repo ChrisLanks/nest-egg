@@ -23,6 +23,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Safety cap: a single CSV must not exceed this many data rows.
+# Prevents memory exhaustion from maliciously crafted files (many tiny rows).
+MAX_CSV_ROWS = 10_000
+
 
 def validate_csv_file(file: UploadFile) -> None:
     """
@@ -59,6 +63,24 @@ def validate_csv_file(file: UploadFile) -> None:
             )
 
     # File size check is handled by RequestSizeLimitMiddleware (10MB limit)
+
+
+def check_csv_row_limit(csv_content: str) -> None:
+    """Raise 400 if the CSV exceeds MAX_CSV_ROWS data rows.
+
+    Counts non-blank lines excluding the header so the limit applies to
+    actual data, not the column names row.
+
+    Raises:
+        HTTPException: 400 if row count exceeds MAX_CSV_ROWS.
+    """
+    lines = [ln for ln in csv_content.splitlines() if ln.strip()]
+    data_rows = max(0, len(lines) - 1)  # subtract header row
+    if data_rows > MAX_CSV_ROWS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"CSV file too large: {data_rows:,} rows exceeds the {MAX_CSV_ROWS:,}-row limit.",
+        )
 
 
 async def validate_csv_content(file: UploadFile) -> None:
@@ -119,6 +141,8 @@ async def validate_csv(
         logger.error("Failed to read CSV file: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Failed to read file")
 
+    check_csv_row_limit(csv_content)
+
     validation = csv_import_service.validate_csv_format(csv_content)
 
     if not validation["is_valid"]:
@@ -157,6 +181,8 @@ async def preview_csv_import(
     except Exception as e:
         logger.error("Failed to read CSV file: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Failed to read file")
+
+    check_csv_row_limit(csv_content)
 
     preview = await csv_import_service.preview_csv(
         csv_content=csv_content,
@@ -217,6 +243,8 @@ async def import_csv(
     except Exception as e:
         logger.error("Failed to read CSV file: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Failed to read file")
+
+    check_csv_row_limit(csv_content)
 
     # Validate CSV
     validation = csv_import_service.validate_csv_format(csv_content)

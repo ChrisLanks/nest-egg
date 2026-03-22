@@ -27,6 +27,10 @@ from app.utils.date_validation import validate_date_range
 
 router = APIRouter()
 
+# Cap on category breakdown rows returned.  Prevents unbounded responses for
+# orgs with hundreds of distinct categories.
+MAX_CATEGORY_RESULTS = 200
+
 # Initialize logger and services
 logger = logging.getLogger(__name__)
 deduplication_service = DeduplicationService()
@@ -171,6 +175,7 @@ async def get_income_expense_summary(
             (Transaction.category_id.isnot(None)) | (Transaction.category_primary.isnot(None)),
         )
         .group_by(category_name_expr)
+        .limit(MAX_CATEGORY_RESULTS)
     )
 
     income_categories = []

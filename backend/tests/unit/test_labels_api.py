@@ -84,6 +84,28 @@ class TestGetLabelDepth:
         depth = await get_label_depth(label_id, mock_db)
         assert depth == 2
 
+    @pytest.mark.asyncio
+    async def test_raises_400_when_depth_exceeds_max(self, mock_db):
+        """Should raise HTTP 400 when label hierarchy exceeds max depth of 2."""
+        label_id = uuid4()
+        parent_id = uuid4()
+        grandparent_id = uuid4()
+        great_grandparent_id = uuid4()
+
+        # Chain of 4 queries — depth would be 3, exceeding _MAX_LABEL_DEPTH=2
+        results = []
+        for parent in [parent_id, grandparent_id, great_grandparent_id]:
+            r = Mock()
+            r.scalar_one_or_none.return_value = parent
+            results.append(r)
+
+        mock_db.execute.side_effect = results
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_label_depth(label_id, mock_db)
+        assert exc_info.value.status_code == 400
+        assert "depth" in exc_info.value.detail.lower()
+
 
 @pytest.mark.unit
 class TestListLabels:
