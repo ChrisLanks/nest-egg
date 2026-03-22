@@ -456,8 +456,8 @@ export default function SavingsGoalsPage() {
 
     const newIds = arrayMove(activeGoals, oldIndex, newIndex).map((g) => g.id);
 
-    // Optimistic update
-    queryClient.setQueryData<SavingsGoal[]>(["goals"], (old) => {
+    // Optimistic update — must use the same cache key as the query
+    queryClient.setQueryData<SavingsGoal[]>(["goals", selectedUserId], (old) => {
       if (!old) return old;
       const reordered = arrayMove(activeGoals, oldIndex, newIndex);
       const rest = old.filter((g) => g.is_completed || g.is_funded);
@@ -465,7 +465,7 @@ export default function SavingsGoalsPage() {
     });
 
     savingsGoalsApi.reorder(newIds).catch(() => {
-      queryClient.invalidateQueries({ queryKey: ["goals"] });
+      queryClient.invalidateQueries({ queryKey: ["goals", selectedUserId] });
     });
   };
 
