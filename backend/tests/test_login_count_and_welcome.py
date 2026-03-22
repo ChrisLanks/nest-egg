@@ -1,4 +1,4 @@
-"""Tests for login_count tracking and first-login welcome behavior."""
+"""Tests for login_count tracking, onboarding_goal, and first-login welcome behavior."""
 
 import pytest
 import pytest_asyncio
@@ -146,3 +146,123 @@ class TestWelcomeMessageLogic:
 
     def test_many_logins_shows_welcome_back(self):
         assert self._greeting(50) == "Welcome back"
+
+
+# ---------------------------------------------------------------------------
+# onboarding_goal column
+# ---------------------------------------------------------------------------
+
+class TestOnboardingGoalModel:
+    def test_field_exists_on_model(self):
+        assert hasattr(User, "onboarding_goal")
+
+    def test_defaults_to_none(self, fresh_user: User):
+        assert fresh_user.onboarding_goal is None
+
+    @pytest.mark.asyncio
+    async def test_can_be_set_and_persisted(self, db_session: AsyncSession, fresh_user: User):
+        from sqlalchemy import update as sa_update
+        from app.models.user import User as UserModel
+
+        await db_session.execute(
+            sa_update(UserModel)
+            .where(UserModel.id == fresh_user.id)
+            .values(onboarding_goal="savings")
+        )
+        await db_session.commit()
+        await db_session.refresh(fresh_user)
+        assert fresh_user.onboarding_goal == "savings"
+
+    @pytest.mark.asyncio
+    async def test_accepts_all_valid_goal_values(self, db_session: AsyncSession, org: Organization):
+        """Each supported onboarding goal string should round-trip through the DB."""
+        from sqlalchemy import update as sa_update
+        from app.models.user import User as UserModel
+
+        valid_goals = ["savings", "debt", "investments", "budgeting", "retirement"]
+        for goal in valid_goals:
+            u = User(
+                id=uuid4(),
+                email=f"goal_{goal}@example.com",
+                password_hash=hash_password("pw"),
+                organization_id=org.id,
+                is_active=True,
+                is_org_admin=False,
+                failed_login_attempts=0,
+                locked_until=None,
+                onboarding_goal=goal,
+            )
+            db_session.add(u)
+            await db_session.commit()
+            await db_session.refresh(u)
+            assert u.onboarding_goal == goal, f"Expected {goal}, got {u.onboarding_goal}"
+
+    @pytest.mark.asyncio
+    async def test_can_be_cleared(self, db_session: AsyncSession, fresh_user: User):
+        from sqlalchemy import update as sa_update
+        from app.models.user import User as UserModel
+
+        await db_session.execute(
+            sa_update(UserModel)
+            .where(UserModel.id == fresh_user.id)
+            .values(onboarding_goal="debt")
+        )
+        await db_session.commit()
+        await db_session.execute(
+            sa_update(UserModel)
+            .where(UserModel.id == fresh_user.id)
+            .values(onboarding_goal=None)
+        )
+        await db_session.commit()
+        await db_session.refresh(fresh_user)
+        assert fresh_user.onboarding_goal is None
+
+
+class TestOnboardingGoalSchema:
+    def test_onboarding_goal_in_user_indb(self):
+        from app.schemas.user import UserInDB
+        assert "onboarding_goal" in UserInDB.model_fields
+
+    def test_onboarding_goal_defaults_to_none_in_schema(self):
+        from app.schemas.user import UserInDB
+        field = UserInDB.model_fields["onboarding_goal"]
+        assert field.default is None
+
+    def test_onboarding_goal_in_user_update(self):
+        from app.schemas.user import UserUpdate
+        assert "onboarding_goal" in UserUpdate.model_fields
+
+    def test_onboarding_goal_accepts_none_in_update(self):
+        from app.schemas.user import UserUpdate
+        patch = UserUpdate(onboarding_goal=None)
+        assert patch.onboarding_goal is None
+
+    def test_onboarding_goal_accepts_string_in_update(self):
+        from app.schemas.user import UserUpdate
+        patch = UserUpdate(onboarding_goal="savings")
+        assert patch.onboarding_goal == "savings"
+
+
+# ---------------------------------------------------------------------------
+# DB migration: both columns actually exist in the live schema
+# (uses SQLite PRAGMA — compatible with the test DB)
+# ---------------------------------------------------------------------------
+
+class TestMigrationApplied:
+    """Verify the columns are present in the test DB (catches 'migration not run')."""
+
+    @pytest.mark.asyncio
+    async def test_login_count_column_exists_in_db(self, db_session: AsyncSession):
+        from sqlalchemy import text
+        result = await db_session.execute(text("PRAGMA table_info(users)"))
+        columns = {row[1] for row in result.fetchall()}
+        assert "login_count" in columns, \
+            "login_count column missing — run: alembic upgrade head"
+
+    @pytest.mark.asyncio
+    async def test_onboarding_goal_column_exists_in_db(self, db_session: AsyncSession):
+        from sqlalchemy import text
+        result = await db_session.execute(text("PRAGMA table_info(users)"))
+        columns = {row[1] for row in result.fetchall()}
+        assert "onboarding_goal" in columns, \
+            "onboarding_goal column missing — run: alembic upgrade head"
