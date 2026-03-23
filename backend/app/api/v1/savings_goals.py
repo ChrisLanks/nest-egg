@@ -313,15 +313,8 @@ async def record_contribution(
 
     Updates the member_contributions JSON and increments current_amount.
     """
-    result = await db.execute(
-        select(SavingsGoal).where(
-            and_(
-                SavingsGoal.id == goal_id,
-                SavingsGoal.organization_id == current_user.organization_id,
-            )
-        )
-    )
-    goal = result.scalar_one_or_none()
+    # Use get_goal so that ownership/sharing rules are enforced consistently
+    goal = await savings_goal_service.get_goal(db, goal_id, current_user)
 
     if not goal:
         raise HTTPException(status_code=404, detail="Savings goal not found")

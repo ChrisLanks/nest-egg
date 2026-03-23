@@ -343,7 +343,8 @@ class SavingsGoalService:
         - waterfall: goals in priority order each claim up to their target
         - proportional: balance split proportionally by target amounts
         """
-        # Get all active auto-sync goals with an account linked, ordered by priority
+        # Get auto-sync goals the requesting user owns or has shared access to.
+        # Scoping to user_id prevents leaking other org members' private goals.
         result = await db.execute(
             select(SavingsGoal)
             .where(
@@ -353,6 +354,16 @@ class SavingsGoalService:
                     SavingsGoal.is_funded == False,  # noqa: E712
                     SavingsGoal.auto_sync == True,  # noqa: E712
                     SavingsGoal.account_id.is_not(None),
+                    or_(
+                        SavingsGoal.user_id == user.id,
+                        and_(
+                            SavingsGoal.is_shared.is_(True),
+                            or_(
+                                SavingsGoal.shared_user_ids.is_(None),
+                                SavingsGoal.shared_user_ids.contains(str(user.id)),
+                            ),
+                        ),
+                    ),
                 )
             )
             .order_by(SavingsGoal.priority.asc().nullslast())
@@ -437,12 +448,23 @@ class SavingsGoalService:
         if not goal_ids:
             return True
 
-        # Fetch all matching goals in one query
+        # Fetch only goals the user owns or has shared access to, preventing
+        # a user from reordering another user's private goals.
         result = await db.execute(
             select(SavingsGoal).where(
                 and_(
                     SavingsGoal.id.in_(goal_ids),
                     SavingsGoal.organization_id == user.organization_id,
+                    or_(
+                        SavingsGoal.user_id == user.id,
+                        and_(
+                            SavingsGoal.is_shared.is_(True),
+                            or_(
+                                SavingsGoal.shared_user_ids.is_(None),
+                                SavingsGoal.shared_user_ids.contains(str(user.id)),
+                            ),
+                        ),
+                    ),
                 )
             )
         )
