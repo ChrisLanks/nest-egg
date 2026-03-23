@@ -863,11 +863,11 @@ async def forgot_password(
     Request a password reset email.
 
     Always returns 200 regardless of whether the email is registered — this
-    prevents user enumeration. Rate limited to 5 requests per hour per IP.
-    In development+debug mode, the raw token is included in the response for
-    testing without a real SMTP server.
+    prevents user enumeration. Rate limited to 3 requests per hour per IP to
+    prevent email flooding. In development+debug mode, the raw token is
+    included in the response for testing without a real SMTP server.
     """
-    await rate_limit_service.check_rate_limit(request=request, max_requests=5, window_seconds=3600)
+    await rate_limit_service.check_rate_limit(request=request, max_requests=3, window_seconds=3600)
 
     result = await db.execute(
         select(User).where(User.email == data.email, User.is_active.is_(True))
@@ -903,7 +903,7 @@ async def reset_password(
     Reset a user's password using a token from the forgot-password email.
 
     Validates the token, updates the password, clears any account lockout,
-    and marks the token as used. Rate limited to 10 requests per 15 minutes per IP.
+    and marks the token as used. Rate limited to 3 requests per hour per IP.
     """
     await rate_limit_service.check_rate_limit(request=request, max_requests=3, window_seconds=3600)
 
