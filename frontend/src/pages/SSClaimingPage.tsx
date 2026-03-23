@@ -101,7 +101,10 @@ export const SSClaimingPage = () => {
   );
   const [manualPia, setManualPia] = useLocalStorage("ss-manual-pia", "");
   const [spousePia, setSpousePia] = useLocalStorage("ss-spouse-pia", "");
-  const [submitted, setSubmitted] = useState(false);
+  // Auto-submit on load if persisted salary exists (returning users see results immediately)
+  const [submitted, setSubmitted] = useState(
+    () => (parseFloat(localStorage.getItem("ss-salary") ?? "") || 0) > 0,
+  );
 
   const salaryNum = parseFloat(salary) || 0;
   const birthYearNum = parseInt(birthYear) || CURRENT_YEAR - 58;
@@ -234,7 +237,7 @@ export const SSClaimingPage = () => {
                 }}
                 isDisabled={salaryNum <= 0}
               >
-                Analyse
+                Analyze
               </Button>
             </VStack>
           </CardBody>
