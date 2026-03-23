@@ -40,7 +40,7 @@ import {
   Alert,
   AlertIcon,
 } from "@chakra-ui/react";
-import { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DeleteIcon, EditIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { useNavigate } from "react-router-dom";
@@ -333,8 +333,8 @@ export const CategoriesPage = () => {
     const isPlaid = !category.is_custom;
 
     return (
-      <>
-        <Tr key={category.id || category.name} _hover={{ bg: "bg.subtle" }}>
+      <React.Fragment key={category.id || category.name}>
+        <Tr _hover={{ bg: "bg.subtle" }}>
           <Td>
             <HStack spacing={2}>
               {isChild && <ChevronRightIcon ml={4} color="text.muted" />}
@@ -400,7 +400,7 @@ export const CategoriesPage = () => {
         {category.children?.map((child: CategoryWithChildren) =>
           renderCategoryRow(child, true),
         )}
-      </>
+      </React.Fragment>
     );
   };
 

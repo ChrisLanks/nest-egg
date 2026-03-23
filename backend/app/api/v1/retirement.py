@@ -684,11 +684,7 @@ async def get_social_security_estimate(
     birth_year = target_user.birthdate.year
 
     # Determine salary for estimation
-    salary = override_salary or 0
-    if salary == 0 and target_user.current_annual_income:
-        salary = float(target_user.current_annual_income)
-    if salary == 0:
-        salary = 75000  # Fallback default when no income data available
+    salary = override_salary or 75000  # Default when no override provided
 
     result = estimate_social_security(
         current_salary=salary,

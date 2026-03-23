@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import Budget, BudgetPeriod
@@ -247,7 +247,7 @@ class BudgetService:
                             Budget.is_shared.is_(True),
                             or_(
                                 Budget.shared_user_ids.is_(None),  # shared with all org members
-                                Budget.shared_user_ids.contains(str(user.id)),
+                                cast(Budget.shared_user_ids, String).contains(str(user.id)),
                             ),
                         ),
                     ),

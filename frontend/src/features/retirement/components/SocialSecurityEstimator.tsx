@@ -177,7 +177,7 @@ export function SocialSecurityEstimator({
             <AlertIcon />
             <Text>
               Could not load estimate. Please set your birthdate in{" "}
-              <Link href="/settings/preferences" color="blue.500" textDecoration="underline">
+              <Link href="/preferences" color="blue.500" textDecoration="underline">
                 Preferences
               </Link>{" "}
               or try refreshing.
