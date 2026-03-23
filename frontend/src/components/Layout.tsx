@@ -705,11 +705,21 @@ export const Layout = () => {
         "/tax-deductible",
       );
     }
+    // Nudge users who have accounts but haven't turned on advanced features
+    if (!showAdvancedNav && (has529 || hasRental || hasInvestments || hasLinkedAccounts)) {
+      announce(
+        "advanced-nav-hint",
+        "Advanced features available",
+        "FIRE planning, Tax Projection, and more are hidden by default. Enable them in Preferences → Display.",
+        "/preferences",
+      );
+    }
   }, [
     has529,
     hasRental,
     hasLinkedAccounts,
     hasInvestments,
+    showAdvancedNav,
     accountsLoading,
     toast,
   ]);
@@ -1163,26 +1173,6 @@ export const Layout = () => {
                 onNavigate={navigateWithParams}
               />
 
-              {/* Advanced features hint — shown only when advanced nav is disabled */}
-              {!showAdvancedNav && (
-                <Tooltip
-                  label="FIRE planning, Tax Projection and more are hidden. Enable Advanced Features in Preferences → Display."
-                  hasArrow
-                  placement="bottom"
-                >
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    color="text.muted"
-                    fontWeight="normal"
-                    fontSize="xs"
-                    onClick={() => navigateWithParams("/preferences")}
-                    _hover={{ color: "brand.500" }}
-                  >
-                    + Advanced
-                  </Button>
-                </Tooltip>
-              )}
 
               {/* Investments */}
               <TopNavItem
