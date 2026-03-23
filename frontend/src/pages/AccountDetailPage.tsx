@@ -906,10 +906,16 @@ export const AccountDetailPage = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate(-1)}
+              onClick={() => {
+                if (window.history.length > 1) {
+                  navigate(-1);
+                } else {
+                  navigate("/accounts");
+                }
+              }}
               mb={2}
             >
-              ← Back
+              ← Back to Accounts
             </Button>
             {isEditingName ? (
               <HStack spacing={2} mb={1}>

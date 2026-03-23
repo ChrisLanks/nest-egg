@@ -427,8 +427,9 @@ function NavigationVisibilitySection() {
             Show advanced features
           </Text>
           <Text fontSize="xs" color="text.muted">
-            FIRE planning, Tax Projection — hidden by default for new users.
-            Smart auto-show still applies based on your accounts and age.
+            Unlocks FIRE planning (Financial Independence / Retire Early), Tax Projection,
+            Roth Conversion analyzer, and more. Hidden by default to keep things simple
+            for new users — enable when you're ready to go deeper.
           </Text>
         </Box>
         <Switch
