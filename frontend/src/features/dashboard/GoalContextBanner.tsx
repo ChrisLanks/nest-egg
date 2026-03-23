@@ -70,6 +70,14 @@ const INVESTMENTS_NO_ACCOUNTS_CONFIG: GoalConfig = {
   path: "/accounts",
 };
 
+// When goal=spending but no accounts exist yet, redirect to Accounts
+// instead of an empty budgets page (budgets need transactions to be useful).
+const SPENDING_NO_ACCOUNTS_CONFIG: GoalConfig = {
+  intro: "You said you want to track your spending.",
+  cta: "Connect an account first",
+  path: "/accounts",
+};
+
 export const GoalContextBanner = () => {
   const [dismissed, setDismissed] = useState(() => {
     // Permanently dismissed if user clicked the CTA (visited their goal page)
@@ -99,24 +107,25 @@ export const GoalContextBanner = () => {
     }
   }, [location.pathname, goal, dismissed]);
 
-  // Fetch accounts to detect the "investments goal, no accounts" scenario.
-  // Only runs when goal=investments and not yet dismissed.
+  // Fetch accounts to detect the "no accounts yet" scenario for investments + spending goals.
   const { data: accounts } = useQuery({
     queryKey: ["goal-banner-accounts"],
     queryFn: () => api.get("/accounts").then((r) => r.data as Array<unknown>),
-    enabled: goal === "investments" && !dismissed,
+    enabled: (goal === "investments" || goal === "spending") && !dismissed,
     staleTime: 60_000,
   });
 
   // Hide if dismissed, no goal stored, or goal is unrecognised
   if (dismissed || !goal || !GOAL_CONFIGS[goal]) return null;
 
-  const hasNoAccounts =
-    goal === "investments" && Array.isArray(accounts) && accounts.length === 0;
+  const noAccountsYet = Array.isArray(accounts) && accounts.length === 0;
+  const hasNoAccounts = noAccountsYet && (goal === "investments" || goal === "spending");
 
-  const config = hasNoAccounts
+  const config = hasNoAccounts && goal === "investments"
     ? INVESTMENTS_NO_ACCOUNTS_CONFIG
-    : GOAL_CONFIGS[goal];
+    : hasNoAccounts && goal === "spending"
+      ? SPENDING_NO_ACCOUNTS_CONFIG
+      : GOAL_CONFIGS[goal];
 
   /** CTA click: mark permanently dismissed (user reached their goal page). */
   const handleCtaClick = () => {

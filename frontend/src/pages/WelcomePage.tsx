@@ -11,9 +11,9 @@
 
 import { useState, useEffect } from "react";
 import {
+  Badge,
   Box,
   Button,
-  Checkbox,
   Container,
   Heading,
   HStack,
@@ -181,7 +181,6 @@ export default function WelcomePage() {
   const [addAccountOpen, setAddAccountOpen] = useState(false);
   const [accountLinked, setAccountLinked] = useState(false);
   const [inviteSent, setInviteSent] = useState(false);
-  const [showAdvancedNav, setShowAdvancedNav] = useState(false);
   const navigate = useNavigate();
   const toast = useToast();
   const { user, setUser } = useAuthStore();
@@ -247,8 +246,6 @@ export default function WelcomePage() {
     if (selectedGoal) {
       localStorage.setItem("nest-egg-onboarding-goal", selectedGoal);
     }
-    // Persist advanced nav preference
-    localStorage.setItem("nest-egg-show-advanced-nav", String(showAdvancedNav));
     // Save chosen dashboard layout — best-effort, don't block navigation
     try {
       const layout =
@@ -280,6 +277,19 @@ export default function WelcomePage() {
       return;
     }
     navigate(destination ?? "/overview");
+    // Hint about advanced features for users who might benefit
+    if (selectedGoal === "investments" || selectedGoal === "retirement") {
+      setTimeout(() => {
+        toast({
+          title: "Advanced features available",
+          description: "Head to Settings → Preferences to unlock FIRE planning, Tax Projection, and more.",
+          status: "info",
+          duration: 8000,
+          isClosable: true,
+          position: "bottom-right",
+        });
+      }, 1500);
+    }
   };
 
   const next = () => {
@@ -421,28 +431,6 @@ export default function WelcomePage() {
               </Text>
             </FormControl>
 
-            {/* Advanced features opt-in */}
-            <Box
-              p={3}
-              bg="bg.subtle"
-              borderRadius="md"
-              border="1px solid"
-              borderColor="border.default"
-            >
-              <Checkbox
-                isChecked={showAdvancedNav}
-                onChange={(e) => setShowAdvancedNav(e.target.checked)}
-                colorScheme="brand"
-              >
-                <Text fontSize="sm" fontWeight="medium">
-                  I&apos;m an experienced investor — show advanced features
-                </Text>
-              </Checkbox>
-              <Text fontSize="xs" color="text.muted" mt={1} ml={6}>
-                Unlocks FIRE planning, Tax Projection, and more. You can turn
-                this on or off anytime in Settings.
-              </Text>
-            </Box>
           </VStack>
         )}
 
@@ -639,8 +627,13 @@ export default function WelcomePage() {
             <VStack spacing={2}>
               <Heading size="lg">How do you want your dashboard?</Heading>
               <Text color="text.secondary" textAlign="center">
-                Choose how much you want to see when you first log in. You can
-                always add or remove panels later.
+                {selectedGoal === "retirement"
+                  ? "We'll pre-load your retirement planner and savings widgets. You can add or remove anything later."
+                  : selectedGoal === "investments"
+                    ? "We'll pre-load your portfolio overview and investment widgets. You can add or remove anything later."
+                    : selectedGoal === "spending"
+                      ? "We'll pre-load your budgets and spending breakdown widgets. You can add or remove anything later."
+                      : "Choose how much you want to see when you first log in. You can always add or remove panels later."}
               </Text>
             </VStack>
             <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
@@ -675,7 +668,19 @@ export default function WelcomePage() {
                   )}
                   <VStack spacing={3} align="start">
                     <VStack spacing={0} align="start">
-                      <Text fontWeight="semibold">{opt.title}</Text>
+                      <HStack spacing={2} align="center">
+                        <Text fontWeight="semibold">{opt.title}</Text>
+                        {opt.id === "simple" && (
+                          <Badge colorScheme="green" fontSize="2xs">
+                            Start here
+                          </Badge>
+                        )}
+                        {opt.id === "advanced" && (
+                          <Badge colorScheme="purple" fontSize="2xs">
+                            Experienced investors
+                          </Badge>
+                        )}
+                      </HStack>
                       <Text fontSize="xs" color="text.secondary">
                         {opt.desc}
                       </Text>
@@ -761,6 +766,7 @@ export default function WelcomePage() {
             rightIcon={<FiArrowRight />}
             onClick={next}
             size="lg"
+            isDisabled={step === 0 && !selectedGoal}
           >
             Continue
           </Button>
