@@ -128,7 +128,7 @@ const GettingStartedEmptyState = ({
   };
   const subtext: Record<string, string> = {
     spending:
-      "In about 2 minutes you'll see your full financial picture — net worth, spending by category, and where your money goes.",
+      "Connect an account and your transactions import automatically — then you'll see spending by category, net worth, and where your money goes.",
     retirement:
       "Connect an account and set up your first scenario to see when you could retire — and what it takes to get there.",
     investments:

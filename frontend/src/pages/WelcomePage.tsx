@@ -311,13 +311,21 @@ export default function WelcomePage() {
 
   const progressPercent = ((step + 1) / STEPS.length) * 100;
 
-  const primaryCtaLabel = selectedGoal
-    ? GOAL_CTA_LABEL[selectedGoal]
-    : "Set a monthly budget";
+  // When spending goal + no account linked, redirect to Accounts instead of Budgets
+  // so users don't land on an empty budgets page with no transactions.
+  const primaryCtaLabel =
+    selectedGoal === "spending" && !accountLinked
+      ? "Connect an Account"
+      : selectedGoal
+        ? GOAL_CTA_LABEL[selectedGoal]
+        : "Set a monthly budget";
 
-  const primaryCtaDestination = selectedGoal
-    ? GOAL_DESTINATION[selectedGoal]
-    : "/budgets";
+  const primaryCtaDestination =
+    selectedGoal === "spending" && !accountLinked
+      ? "/accounts"
+      : selectedGoal
+        ? GOAL_DESTINATION[selectedGoal]
+        : "/budgets";
 
   return (
     <Container maxW="container.md" py={12}>

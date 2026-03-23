@@ -627,7 +627,9 @@ export default function SavingsGoalsPage() {
                 ? "You said you want to plan for retirement — start by building an emergency fund so unexpected costs don't derail your progress."
                 : onboardingGoal === "investments"
                   ? "Goals work alongside your investments. Set a savings target to fund your next contribution or build a cash buffer."
-                  : "Set savings goals to track progress toward vacations, emergency funds, down payments, and more."
+                  : onboardingGoal === "spending"
+                    ? "You said you want to track spending — pair that with a savings goal so you know what you're saving toward each month."
+                    : "Set savings goals to track progress toward vacations, emergency funds, down payments, and more."
             }
             actionLabel="Create Your First Goal"
             onAction={handleCreate}
