@@ -15,7 +15,7 @@
  *   lock users out forever.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Alert,
   AlertDescription,
@@ -26,7 +26,7 @@ import {
   HStack,
   Text,
 } from "@chakra-ui/react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import api from "../../services/api";
 import { useAuthStore } from "../../features/auth/stores/authStore";
@@ -82,9 +82,22 @@ export const GoalContextBanner = () => {
     return count >= MAX_SOFT_DISMISSALS;
   });
   const navigate = useNavigate();
+  const location = useLocation();
   const user = useAuthStore((s) => s.user);
 
   const goal = localStorage.getItem(GOAL_KEY) || user?.onboarding_goal || null;
+
+  // Auto-dismiss permanently when the user navigates to their goal page
+  // (e.g. via the sidebar rather than the banner CTA)
+  useEffect(() => {
+    if (dismissed || !goal) return;
+    const config = GOAL_CONFIGS[goal];
+    if (!config) return;
+    if (location.pathname === config.path || location.pathname.startsWith(config.path + "/")) {
+      localStorage.setItem(DISMISSED_KEY, "true");
+      setDismissed(true);
+    }
+  }, [location.pathname, goal, dismissed]);
 
   // Fetch accounts to detect the "investments goal, no accounts" scenario.
   // Only runs when goal=investments and not yet dismissed.

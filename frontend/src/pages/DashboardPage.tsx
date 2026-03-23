@@ -289,7 +289,7 @@ export const DashboardPage = () => {
       <HStack justify="space-between" mb={8} align="start">
         <Box>
           <Heading size="lg">
-            {(user?.login_count ?? 1) <= 1 ? "Welcome" : "Welcome back"},{" "}
+            {(user?.login_count ?? 0) <= 1 ? "Welcome" : "Welcome back"},{" "}
             {user?.display_name ||
               user?.first_name ||
               user?.email?.split("@")[0] ||

@@ -175,7 +175,7 @@ export default function WelcomePage() {
   const [selectedGoal, setSelectedGoal] = useState<string | null>(null);
   const [selectedDashboard, setSelectedDashboard] = useState<
     "simple" | "advanced" | null
-  >(null);
+  >("simple");
   const [householdName, setHouseholdName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [addAccountOpen, setAddAccountOpen] = useState(false);
@@ -737,24 +737,26 @@ export default function WelcomePage() {
         )}
       </Box>
 
-      {/* Navigation buttons */}
-      <HStack justify="space-between" mt={6}>
-        <Button
-          variant="ghost"
-          onClick={step === 0 ? () => finish() : () => setStep(step - 1)}
-          size="sm"
-        >
-          {step === 0 ? "Skip for now" : "Back"}
-        </Button>
-        <Button
-          colorScheme="brand"
-          rightIcon={step === STEPS.length - 1 ? <FiCheck /> : <FiArrowRight />}
-          onClick={next}
-          size="lg"
-        >
-          {step === STEPS.length - 1 ? primaryCtaLabel : "Continue"}
-        </Button>
-      </HStack>
+      {/* Navigation buttons — hidden on final step (card has its own CTAs) */}
+      {step < STEPS.length - 1 && (
+        <HStack justify="space-between" mt={6}>
+          <Button
+            variant="ghost"
+            onClick={step === 0 ? () => finish() : () => setStep(step - 1)}
+            size="sm"
+          >
+            {step === 0 ? "Skip for now" : "Back"}
+          </Button>
+          <Button
+            colorScheme="brand"
+            rightIcon={<FiArrowRight />}
+            onClick={next}
+            size="lg"
+          >
+            Continue
+          </Button>
+        </HStack>
+      )}
     </Container>
   );
 }
