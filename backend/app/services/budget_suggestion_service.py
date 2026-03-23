@@ -356,6 +356,7 @@ class BudgetSuggestionService:
                 c["category_id"],
                 c["category_name"],
                 lookback,
+                user.organization_id,
             )
 
             month_count = len(spending_by_month)
@@ -498,6 +499,7 @@ class BudgetSuggestionService:
         category_id: Optional[str],
         category_name: str,
         since: date,
+        organization_id: Optional[UUID] = None,
     ) -> dict[str, float]:
         """Get spending broken down by YYYY-MM for a category."""
         month_label = func.to_char(Transaction.date, "YYYY-MM")
@@ -518,9 +520,16 @@ class BudgetSuggestionService:
         )
 
         if category_id:
-            children_result = await db.execute(
-                select(Category.id).where(Category.parent_category_id == category_id)
+            # Scope child-category lookup to the requesting org so we never
+            # pull in category IDs from another organisation.
+            child_query = select(Category.id).where(
+                Category.parent_category_id == category_id
             )
+            if organization_id is not None:
+                child_query = child_query.where(
+                    Category.organization_id == organization_id
+                )
+            children_result = await db.execute(child_query)
             child_ids = [row[0] for row in children_result.all()]
             all_ids = [category_id] + [str(cid) for cid in child_ids]
             query = query.where(Transaction.category_id.in_(all_ids))
