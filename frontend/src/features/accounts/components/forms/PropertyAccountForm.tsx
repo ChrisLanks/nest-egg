@@ -194,7 +194,7 @@ export const PropertyAccountForm = ({
           />
           <FormErrorMessage>{errors.mortgage_balance?.message}</FormErrorMessage>
           <Text fontSize="xs" color="text.secondary" mt={1}>
-            Leave blank if you own the property outright
+            Leave blank if you own the property outright. If provided, a linked mortgage account will be created automatically.
           </Text>
         </FormControl>
 

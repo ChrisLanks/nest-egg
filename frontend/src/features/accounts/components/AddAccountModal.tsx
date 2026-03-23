@@ -289,6 +289,69 @@ export const AddAccountModal = ({ isOpen, onClose, onSuccess }: AddAccountModalP
     },
   });
 
+  // Property account mutation — creates property + optional mortgage account in sequence
+  const createPropertyAccountMutation = useMutation({
+    mutationFn: async (data: PropertyAccountFormData) => {
+      await api.post("/accounts/manual", {
+        name: data.name,
+        account_type: "property",
+        property_type: data.property_classification,
+        balance: data.value,
+        institution: data.address,
+        property_address: data.address,
+        property_zip: data.zip_code,
+        valuation_adjustment_pct: data.valuation_adjustment_pct,
+        account_source: "manual",
+      });
+      if (data.mortgage_balance && data.mortgage_balance > 0) {
+        await api.post("/accounts/manual", {
+          name: `${data.name} Mortgage`,
+          account_type: "mortgage",
+          // Backend negates debt balances automatically; pass positive value
+          balance: Math.abs(data.mortgage_balance),
+          institution: data.address,
+          property_address: data.address,
+          property_zip: data.zip_code,
+          account_source: "manual",
+        });
+      }
+    },
+    onSuccess: (_, data) => {
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      const withMortgage = data.mortgage_balance && data.mortgage_balance > 0;
+      toast({
+        title: withMortgage ? "Property & mortgage added" : "Account created",
+        description: withMortgage
+          ? `Added your property and a linked mortgage account for ${data.name}.`
+          : "Your account has been added successfully.",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      onSuccess?.();
+      handleClose();
+    },
+    onError: (error: any) => {
+      let errorMessage = "An error occurred while creating the account.";
+      if (error.response?.data?.detail) {
+        if (Array.isArray(error.response.data.detail)) {
+          errorMessage = error.response.data.detail
+            .map((err: any) => err.msg)
+            .join(", ");
+        } else if (typeof error.response.data.detail === "string") {
+          errorMessage = error.response.data.detail;
+        }
+      }
+      toast({
+        title: "Error creating account",
+        description: errorMessage,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    },
+  });
+
   // Handle manual account form submissions
   const handleBasicManualAccountSubmit = (data: BasicManualAccountFormData) => {
     createManualAccountMutation.mutate(data);
@@ -307,15 +370,7 @@ export const AddAccountModal = ({ isOpen, onClose, onSuccess }: AddAccountModalP
   };
 
   const handlePropertyAccountSubmit = (data: PropertyAccountFormData) => {
-    createManualAccountMutation.mutate({
-      name: data.name,
-      account_type: "property" as any,
-      property_type: data.property_classification as any, // Map classification to backend property_type
-      balance: data.value,
-      institution: data.address,
-      property_address: data.address,
-      property_zip: data.zip_code,
-    } as any);
+    createPropertyAccountMutation.mutate(data);
   };
 
   const handleVehicleAccountSubmit = (data: VehicleAccountFormData) => {
@@ -458,7 +513,7 @@ export const AddAccountModal = ({ isOpen, onClose, onSuccess }: AddAccountModalP
               <PropertyAccountForm
                 onSubmit={handlePropertyAccountSubmit}
                 onBack={handleBackToTypeSelection}
-                isLoading={createManualAccountMutation.isPending}
+                isLoading={createPropertyAccountMutation.isPending}
               />
             )}
 
