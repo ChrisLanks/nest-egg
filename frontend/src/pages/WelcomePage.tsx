@@ -210,7 +210,7 @@ export default function WelcomePage() {
 
   const updateHouseholdMutation = useMutation({
     mutationFn: async (name: string) => {
-      await api.patch("/household/settings", { name });
+      await api.patch("/settings/organization", { name });
     },
     onError: () => {
       // Non-critical — don't block onboarding
