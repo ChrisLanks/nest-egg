@@ -66,22 +66,22 @@ const HOUSEHOLD_BENEFITS = [
   {
     icon: FiBarChart2,
     title: "Combined net worth",
-    desc: "See your total assets minus debts in one number — across both of your accounts",
+    desc: "See everyone's total assets minus debts in one number — across all connected accounts",
   },
   {
     icon: FiDollarSign,
     title: "Shared budgets",
-    desc: "Track spending across both of your accounts in one budget",
+    desc: "Track spending across all accounts in one budget, or keep budgets separate per person",
   },
   {
     icon: FiZap,
     title: "Retirement planning together",
-    desc: "See if you can both retire when you want — using your combined savings and income",
+    desc: "See when each person could retire — and how combined savings changes the picture",
   },
   {
     icon: FiTrendingUp,
     title: "Joint retirement projections",
-    desc: "Model different scenarios: what if one of you stops working early, or you save more?",
+    desc: "Model different scenarios: what if someone stops working early, or you save more?",
   },
   {
     icon: FiShield,
@@ -402,18 +402,14 @@ export default function WelcomePage() {
 
             <FormControl>
               <FormLabel>
-                {selectedGoal === "spending" || selectedGoal === "investments"
+                {selectedGoal
                   ? "What should we call your finances?"
                   : "Household name"}
               </FormLabel>
               <Input
                 value={householdName}
                 onChange={(e) => setHouseholdName(e.target.value)}
-                placeholder={
-                  selectedGoal === "spending" || selectedGoal === "investments"
-                    ? "e.g. Jane's Finances"
-                    : "e.g. Jane's Finances or The Smith Family"
-                }
+                placeholder="e.g. Jane's Finances or The Smith Family"
                 size="lg"
               />
               <Text fontSize="xs" color="text.muted" mt={1}>
@@ -541,11 +537,11 @@ export default function WelcomePage() {
         {step === 2 && (
           <VStack spacing={6} align="stretch">
             <VStack spacing={2}>
-              <Heading size="lg">Build Your Household</Heading>
+              <Heading size="lg">Invite Someone? (Optional)</Heading>
               <Text color="text.secondary" textAlign="center">
-                Nest Egg is built for couples and families managing money
-                together. Add up to 5 members — partners, adult children, or
-                anyone who shares your financial life:
+                Nest Egg supports households with multiple members — partners,
+                adult children, or anyone who shares your financial life. Skip
+                this if you're managing finances on your own.
               </Text>
             </VStack>
             <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3}>
@@ -589,13 +585,13 @@ export default function WelcomePage() {
               </VStack>
             ) : (
               <FormControl>
-                <FormLabel>Partner&apos;s email address</FormLabel>
+                <FormLabel>Their email address</FormLabel>
                 <HStack>
                   <Input
                     type="email"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="partner@example.com"
+                    placeholder="email@example.com"
                   />
                   <Button
                     colorScheme="brand"

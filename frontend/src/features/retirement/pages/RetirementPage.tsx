@@ -1044,10 +1044,10 @@ export function RetirementPage() {
               ) : (
                 <>
                   <Text color="gray.500" maxW="md">
-                    Plan your retirement by modeling different scenarios with
-                    Monte Carlo simulation. See how different retirement ages,
-                    spending levels, and life events affect your financial
-                    future.
+                    {localStorage.getItem("nest-egg-onboarding-goal") ===
+                    "retirement"
+                      ? "You said you want to plan for retirement — let's build your first scenario. See when you could stop working and what you need to save to get there."
+                      : "Plan your retirement by modeling different scenarios with Monte Carlo simulation. See how different retirement ages, spending levels, and life events affect your financial future."}
                   </Text>
                   <HStack spacing={3}>
                     <Button

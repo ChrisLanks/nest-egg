@@ -1126,6 +1126,27 @@ export const Layout = () => {
                 onNavigate={navigateWithParams}
               />
 
+              {/* Advanced features hint — shown only when advanced nav is disabled */}
+              {!showAdvancedNav && (
+                <Tooltip
+                  label="FIRE planning, Tax Projection and more are hidden. Enable Advanced Features in Preferences → Display."
+                  hasArrow
+                  placement="bottom"
+                >
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    color="text.muted"
+                    fontWeight="normal"
+                    fontSize="xs"
+                    onClick={() => navigateWithParams("/preferences")}
+                    _hover={{ color: "brand.500" }}
+                  >
+                    + Advanced
+                  </Button>
+                </Tooltip>
+              )}
+
               {/* Investments */}
               <TopNavItem
                 label="Investments"
