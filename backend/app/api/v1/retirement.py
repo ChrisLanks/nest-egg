@@ -925,6 +925,12 @@ async def compare_scenarios(
             skipped.append(str(scenario_id))
             continue
 
+        # Enforce ownership — compare is read-only but still must not expose
+        # another household member's scenario data to the current user.
+        if str(scenario.user_id) != str(current_user.id):
+            skipped.append(str(scenario_id))
+            continue
+
         result = await RetirementPlannerService.get_latest_result(db=db, scenario_id=scenario_id)
         if not result:
             skipped.append(scenario.name)
