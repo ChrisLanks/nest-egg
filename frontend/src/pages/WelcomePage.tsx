@@ -241,6 +241,11 @@ export default function WelcomePage() {
     },
   });
 
+  /** Navigate away without completing onboarding — wizard will re-appear next login. */
+  const skipToApp = () => {
+    navigate("/overview");
+  };
+
   const finish = async (destination?: string) => {
     // Persist selected goal so the dashboard can show a contextual reminder
     if (selectedGoal) {
@@ -276,20 +281,18 @@ export default function WelcomePage() {
       });
       return;
     }
-    navigate(destination ?? "/overview");
-    // Hint about advanced features for users who might benefit
+    // Hint about advanced features before navigating so the component is still mounted
     if (selectedGoal === "investments" || selectedGoal === "retirement") {
-      setTimeout(() => {
-        toast({
-          title: "Advanced features available",
-          description: "Head to Settings → Preferences to unlock FIRE planning, Tax Projection, and more.",
-          status: "info",
-          duration: 8000,
-          isClosable: true,
-          position: "bottom-right",
-        });
-      }, 1500);
+      toast({
+        title: "Advanced features available",
+        description: "Head to Settings → Preferences to unlock FIRE planning, Tax Projection, and more.",
+        status: "info",
+        duration: 8000,
+        isClosable: true,
+        position: "bottom-right",
+      });
     }
+    navigate(destination ?? "/overview");
   };
 
   const next = () => {
@@ -714,7 +717,7 @@ export default function WelcomePage() {
         {step === 4 && (
           <VStack spacing={6} align="center">
             <Box
-              bg="green.50"
+              bg="green.subtle"
               borderRadius="full"
               p={4}
               display="inline-flex"
@@ -756,7 +759,7 @@ export default function WelcomePage() {
         <HStack justify="space-between" mt={6}>
           <Button
             variant="ghost"
-            onClick={step === 0 ? () => finish() : () => setStep(step - 1)}
+            onClick={step === 0 ? skipToApp : () => setStep(step - 1)}
             size="sm"
           >
             {step === 0 ? "Skip for now" : "Back"}

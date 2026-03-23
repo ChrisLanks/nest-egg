@@ -297,7 +297,13 @@ export const DashboardPage = () => {
             !
           </Heading>
           <Text color="text.secondary" mt={1}>
-            Here's your financial overview
+            {onboardingGoal === "retirement"
+              ? "Here's where your retirement stands"
+              : onboardingGoal === "investments"
+                ? "Here's your investment overview"
+                : onboardingGoal === "spending"
+                  ? "Here's where your money is going"
+                  : "Here's your financial overview"}
           </Text>
         </Box>
 
