@@ -266,13 +266,20 @@ class NotificationService:
         db: AsyncSession,
         user: User,
     ) -> int:
-        """Mark all user notifications as read."""
+        """Mark all of the requesting user's personal notifications as read.
+
+        Org-wide notifications (user_id=NULL) share a single is_read flag across
+        all household members. Bulk-updating them here would mark them as read for
+        every member, not just the caller. We intentionally scope this to
+        user_id == user.id only; org-wide notifications can be dismissed
+        individually via the per-notification endpoint.
+        """
         stmt = (
             update(Notification)
             .where(
                 and_(
                     Notification.organization_id == user.organization_id,
-                    or_(Notification.user_id == user.id, Notification.user_id.is_(None)),
+                    Notification.user_id == user.id,
                     Notification.is_read.is_(False),
                 )
             )
