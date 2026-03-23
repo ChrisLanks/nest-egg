@@ -285,22 +285,28 @@ export function AccountDataSummary({
                           key={acct.id}
                           justify="space-between"
                           fontSize="2xs"
-                          opacity={0.45}
                         >
                           {!readOnly && (
-                            <Checkbox
-                              size="xs"
-                              isChecked={false}
-                              onChange={(e) =>
-                                handleToggleAccount(acct.id, e.target.checked)
-                              }
-                              mr={1}
-                            />
+                            <Tooltip
+                              label="Re-include in simulation"
+                              placement="top"
+                              hasArrow
+                            >
+                              <Checkbox
+                                size="sm"
+                                isChecked={false}
+                                onChange={(e) =>
+                                  handleToggleAccount(acct.id, e.target.checked)
+                                }
+                                mr={1}
+                                colorScheme="blue"
+                              />
+                            </Tooltip>
                           )}
-                          <Text color={labelColor} noOfLines={1} flex={1}>
+                          <Text color={labelColor} noOfLines={1} flex={1} opacity={0.45}>
                             {acct.name}
                           </Text>
-                          <Text color={labelColor} flexShrink={0}>
+                          <Text color={labelColor} flexShrink={0} opacity={0.45}>
                             {formatMoney(acct.balance)}
                           </Text>
                         </HStack>
