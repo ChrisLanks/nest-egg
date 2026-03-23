@@ -1546,8 +1546,7 @@ export const AccountDetailPage = () => {
                         fontFamily="mono"
                       />
                       <Text fontSize="xs" color="text.muted" mt={1}>
-                        17-character VIN enables automatic market value updates
-                        via MarketCheck API.
+                        17-character VIN enables automatic market value updates.
                       </Text>
                     </FormControl>
 
