@@ -62,6 +62,19 @@ def run_retirement_simulation(scenario_id: str, user_id: str):
                 )
                 return
 
+            # Guard against cross-org data access: scenario and user must belong
+            # to the same organization before we run any simulation.
+            if scenario.organization_id != user.organization_id:
+                logger.warning(
+                    "run_retirement_simulation: scenario %s (org %s) does not belong "
+                    "to user %s (org %s), skipping",
+                    scenario_id,
+                    scenario.organization_id,
+                    user_id,
+                    user.organization_id,
+                )
+                return
+
             if not user.birthdate:
                 logger.warning(
                     "run_retirement_simulation: user %s has no birthdate, skipping",
