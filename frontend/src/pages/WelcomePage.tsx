@@ -541,9 +541,9 @@ export default function WelcomePage() {
             <VStack spacing={2}>
               <Heading size="lg">Invite Someone? (Optional)</Heading>
               <Text color="text.secondary" textAlign="center">
-                Nest Egg supports households with multiple members — partners,
-                adult children, or anyone who shares your financial life. Skip
-                this if you're managing finances on your own.
+                {selectedGoal === "spending"
+                  ? "Managing finances solo? Just skip this — everything works great for one person. Or invite a partner if you share expenses."
+                  : "Nest Egg supports households with multiple members — partners, adult children, or anyone who shares your financial life. Skip this if you're managing finances on your own."}
               </Text>
             </VStack>
             <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3}>

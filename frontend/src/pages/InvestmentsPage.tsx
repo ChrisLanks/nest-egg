@@ -842,6 +842,11 @@ export const InvestmentsPage = () => {
             borderLeft="4px solid"
             borderLeftColor="brand.500"
           >
+            {isCombinedView && (
+              <Text fontSize="xs" color="text.muted" mb={1} fontWeight="medium">
+                Combined portfolio across all selected members
+              </Text>
+            )}
             <Text fontSize="sm" color="text.secondary">
               {(() => {
                 const parts: string[] = [];

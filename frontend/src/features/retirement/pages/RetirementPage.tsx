@@ -52,6 +52,7 @@ import {
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FiArchive, FiEdit2, FiRotateCcw, FiUsers, FiX } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import api from "../../../services/api";
 import { useUserView } from "../../../contexts/UserViewContext";
@@ -112,6 +113,7 @@ export function RetirementPage() {
     matchesMemberFilter,
   } = useUserView();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const readOnly = !canWriteResource("retirement_scenario");
 
   // Derive current user's age from the shared profile cache (no extra request).
@@ -1201,6 +1203,25 @@ export function RetirementPage() {
   return (
     <Container maxW="container.xl" py={6}>
       <VStack spacing={6} align="stretch">
+        {/* Preemptive birthdate prompt — shown when birthdate is missing so users
+            understand upfront why scenario creation will fail */}
+        {!userProfile?.birthdate && (
+          <Alert status="warning" borderRadius="lg" variant="subtle">
+            <AlertIcon />
+            <AlertDescription>
+              Add your birthdate in{" "}
+              <Button
+                variant="link"
+                colorScheme="orange"
+                size="sm"
+                onClick={() => navigate("/preferences")}
+              >
+                Preferences
+              </Button>{" "}
+              to enable retirement projections.
+            </AlertDescription>
+          </Alert>
+        )}
         {/* Header */}
         <HStack justify="space-between" align="center" wrap="wrap" gap={2}>
           <Text fontSize="2xl" fontWeight="bold">
