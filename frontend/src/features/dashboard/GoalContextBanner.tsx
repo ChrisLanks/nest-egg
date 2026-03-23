@@ -8,7 +8,11 @@
  * - For "investments" goal with no accounts connected yet, the CTA redirects
  *   to Accounts (to add one) instead of the empty investments page.
  * - Reads goal from localStorage (set in WelcomePage on finish).
- * - Disappears permanently once the user dismisses it.
+ * - Dismissed permanently only after the user visits their goal page OR
+ *   explicitly closes it after having visited. Clicking the CTA button
+ *   marks it visited+dismissed. Closing without visiting re-shows the banner
+ *   on the next session (up to 3 times), so accidental dismissal doesn't
+ *   lock users out forever.
  */
 
 import { useState } from "react";
@@ -28,7 +32,11 @@ import api from "../../services/api";
 import { useAuthStore } from "../../features/auth/stores/authStore";
 
 const DISMISSED_KEY = "nest-egg-goal-banner-dismissed";
+const DISMISS_COUNT_KEY = "nest-egg-goal-banner-dismiss-count";
 const GOAL_KEY = "nest-egg-onboarding-goal";
+
+// Max times the user can soft-dismiss before it stops re-appearing
+const MAX_SOFT_DISMISSALS = 3;
 
 interface GoalConfig {
   intro: string;
@@ -63,9 +71,16 @@ const INVESTMENTS_NO_ACCOUNTS_CONFIG: GoalConfig = {
 };
 
 export const GoalContextBanner = () => {
-  const [dismissed, setDismissed] = useState(
-    () => localStorage.getItem(DISMISSED_KEY) === "true",
-  );
+  const [dismissed, setDismissed] = useState(() => {
+    // Permanently dismissed if user clicked the CTA (visited their goal page)
+    if (localStorage.getItem(DISMISSED_KEY) === "true") return true;
+    // Soft-dismissed too many times — stop showing
+    const count = parseInt(
+      localStorage.getItem(DISMISS_COUNT_KEY) ?? "0",
+      10,
+    );
+    return count >= MAX_SOFT_DISMISSALS;
+  });
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
 
@@ -90,8 +105,28 @@ export const GoalContextBanner = () => {
     ? INVESTMENTS_NO_ACCOUNTS_CONFIG
     : GOAL_CONFIGS[goal];
 
-  const handleDismiss = () => {
+  /** CTA click: mark permanently dismissed (user reached their goal page). */
+  const handleCtaClick = () => {
     localStorage.setItem(DISMISSED_KEY, "true");
+    setDismissed(true);
+    navigate(config.path);
+  };
+
+  /**
+   * X click: soft-dismiss. Banner will re-appear on subsequent sessions
+   * until MAX_SOFT_DISMISSALS is reached, so accidental closes don't
+   * permanently hide the nudge.
+   */
+  const handleDismiss = () => {
+    const prev = parseInt(
+      localStorage.getItem(DISMISS_COUNT_KEY) ?? "0",
+      10,
+    );
+    const next = prev + 1;
+    localStorage.setItem(DISMISS_COUNT_KEY, String(next));
+    if (next >= MAX_SOFT_DISMISSALS) {
+      localStorage.setItem(DISMISSED_KEY, "true");
+    }
     setDismissed(true);
   };
 
@@ -117,10 +152,7 @@ export const GoalContextBanner = () => {
               size="xs"
               colorScheme="blue"
               variant="solid"
-              onClick={() => {
-                handleDismiss();
-                navigate(config.path);
-              }}
+              onClick={handleCtaClick}
             >
               {config.cta} →
             </Button>

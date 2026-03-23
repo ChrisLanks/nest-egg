@@ -303,7 +303,9 @@ export default function BudgetsPage() {
                   ? "You said you want to track spending — a budget is the best place to start. Pick a category below and set a monthly limit."
                   : onboardingGoal === "retirement"
                     ? "Budgets help you free up money to save for retirement. Start with your biggest spending category."
-                    : "Create budgets to track spending by category and stay on top of your financial goals."
+                    : onboardingGoal === "investments"
+                      ? "Keeping spending in check leaves more to invest. Set a budget for your biggest category to boost your savings rate."
+                      : "Create budgets to track spending by category and stay on top of your financial goals."
               }
               actionLabel="Create Your First Budget"
               onAction={handleCreate}

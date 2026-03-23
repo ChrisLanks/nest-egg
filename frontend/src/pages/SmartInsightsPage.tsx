@@ -9,12 +9,14 @@
 import {
   Badge,
   Box,
+  Button,
   Card,
   CardBody,
   Center,
   Container,
   Heading,
   HStack,
+  Icon,
   SimpleGrid,
   Spinner,
   Text,
@@ -25,10 +27,13 @@ import {
   Wrap,
   WrapItem,
 } from "@chakra-ui/react";
+import { FiLink } from "react-icons/fi";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { smartInsightsApi, type InsightItem } from "../api/smartInsights";
 import { useUserView } from "../contexts/UserViewContext";
+import api from "../services/api";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -122,6 +127,7 @@ function InsightCard({ insight }: { insight: InsightItem }) {
 export const SmartInsightsPage = () => {
   const { selectedUserId } = useUserView();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["smart-insights", selectedUserId],
@@ -130,6 +136,12 @@ export const SmartInsightsPage = () => {
         user_id: selectedUserId || undefined,
         max_insights: 20,
       }),
+  });
+
+  const { data: accounts } = useQuery({
+    queryKey: ["accounts-insights-check"],
+    queryFn: () => api.get("/accounts").then((r) => r.data as Array<unknown>),
+    staleTime: 30_000,
   });
 
   if (isLoading) {
@@ -192,7 +204,7 @@ export const SmartInsightsPage = () => {
             {/* "All" pill */}
             <WrapItem>
               <Badge
-                colorScheme={selectedCategory === null ? "gray" : "gray"}
+                colorScheme={selectedCategory === null ? "brand" : "gray"}
                 px={3}
                 py={1}
                 borderRadius="full"
@@ -226,14 +238,45 @@ export const SmartInsightsPage = () => {
           </Wrap>
         )}
 
-        {/* Empty state */}
-        {insights.length === 0 && (
+        {/* Empty state — no accounts connected yet */}
+        {insights.length === 0 && Array.isArray(accounts) && accounts.length === 0 && (
+          <Box
+            p={8}
+            borderRadius="xl"
+            bg="bg.surface"
+            border="1px dashed"
+            borderColor="border.default"
+            textAlign="center"
+          >
+            <VStack spacing={4} maxW="sm" mx="auto">
+              <Icon as={FiLink} boxSize={10} color="brand.500" />
+              <VStack spacing={1}>
+                <Text fontWeight="semibold">No insights yet</Text>
+                <Text fontSize="sm" color="text.secondary">
+                  Connect a bank or investment account and we'll automatically
+                  surface personalized recommendations — no manual input needed.
+                </Text>
+              </VStack>
+              <Button
+                colorScheme="brand"
+                size="sm"
+                leftIcon={<FiLink />}
+                onClick={() => navigate("/accounts")}
+              >
+                Connect an Account
+              </Button>
+            </VStack>
+          </Box>
+        )}
+
+        {/* Empty state — has accounts but no insights triggered */}
+        {insights.length === 0 && Array.isArray(accounts) && accounts.length > 0 && (
           <Alert status="success" borderRadius="lg">
             <AlertIcon />
             <VStack align="start" spacing={0}>
               <Text fontWeight="semibold">All clear!</Text>
               <Text fontSize="sm">
-                No action items found. Add more accounts and transactions to
+                No action items right now. Add more accounts and transactions to
                 unlock additional insights.
               </Text>
             </VStack>
