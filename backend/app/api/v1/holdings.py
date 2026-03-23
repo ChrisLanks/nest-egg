@@ -1486,11 +1486,7 @@ async def get_historical_snapshots(
 
     # If user_id provided, verify they belong to the same household
     if user_id is not None:
-        await verify_household_member(
-            user_id=user_id,
-            organization_id=current_user.organization_id,
-            db=db,
-        )
+        await verify_household_member(db, user_id, current_user.organization_id)
 
     snapshots = await snapshot_service.get_snapshots(
         db=db,
@@ -2498,11 +2494,7 @@ async def get_allocation_history(
 
     # If user_id provided, verify they belong to the same household
     if user_id is not None:
-        await verify_household_member(
-            user_id=user_id,
-            organization_id=current_user.organization_id,
-            db=db,
-        )
+        await verify_household_member(db, user_id, current_user.organization_id)
 
     snapshots = await snapshot_service.get_snapshots(
         db=db,
