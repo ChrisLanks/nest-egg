@@ -523,8 +523,9 @@ export default function WelcomePage() {
                     : "Connect a Bank Account"}
                 </Button>
                 <Text fontSize="xs" color="text.muted" textAlign="center">
-                  Prefer to enter accounts manually? You can skip this step and
-                  add them by hand from the Accounts page.
+                  {selectedGoal === "spending"
+                    ? "Note: budgets and spending tracking require at least one connected account."
+                    : "Prefer to enter accounts manually? You can skip this step and add them by hand from the Accounts page."}
                 </Text>
               </VStack>
             )}
@@ -729,9 +730,11 @@ export default function WelcomePage() {
             <Heading size="lg">You&apos;re all set!</Heading>
             <Text color="text.secondary" textAlign="center" maxW="md">
               Your dashboard is ready.{" "}
-              {selectedGoal
-                ? GOAL_NEXT_SENTENCE[selectedGoal]
-                : GOAL_NEXT_SENTENCE["spending"]}
+              {selectedGoal === "spending" && !accountLinked
+                ? "Connect a bank account first — budgets need transactions to be useful."
+                : selectedGoal
+                  ? GOAL_NEXT_SENTENCE[selectedGoal]
+                  : GOAL_NEXT_SENTENCE["spending"]}
             </Text>
             <VStack maxW="sm" w="full" mx="auto" spacing={3}>
               <Button

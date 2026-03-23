@@ -25,6 +25,7 @@ import { FiLock, FiDollarSign } from "react-icons/fi";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { budgetsApi } from "../api/budgets";
+import api from "../services/api";
 import type { Budget, BudgetSuggestion } from "../types/budget";
 import { BudgetPeriod } from "../types/budget";
 import type { BudgetCreate } from "../types/budget";
@@ -73,6 +74,15 @@ export default function BudgetsPage() {
         selectedUserId ? { user_id: selectedUserId } : undefined,
       ),
   });
+
+  // Check if user has any accounts — used to tailor empty-state copy for spending goal
+  const { data: accounts } = useQuery({
+    queryKey: ["budgets-page-accounts"],
+    queryFn: () => api.get("/accounts").then((r) => r.data as Array<unknown>),
+    enabled: onboardingGoal === "spending",
+    staleTime: 60_000,
+  });
+  const hasNoAccounts = onboardingGoal === "spending" && Array.isArray(accounts) && accounts.length === 0;
 
   const handleEdit = (budget: Budget) => {
     setSelectedBudget(budget);
@@ -299,7 +309,9 @@ export default function BudgetsPage() {
                     : "No budgets yet"
               }
               description={
-                onboardingGoal === "spending"
+                hasNoAccounts
+                  ? "Connect a bank account first — budgets are most useful once your transactions are imported automatically."
+                  : onboardingGoal === "spending"
                   ? "You said you want to track spending — a budget is the best place to start. Pick a category below and set a monthly limit."
                   : onboardingGoal === "retirement"
                     ? "Budgets help you free up money to save for retirement. Start with your biggest spending category."

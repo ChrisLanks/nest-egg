@@ -45,6 +45,7 @@ import {
   useColorModeValue,
 } from "@chakra-ui/react";
 import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   ChevronRightIcon,
@@ -379,6 +380,7 @@ export const IncomeExpensesPage = () => {
     ? (multiEffectiveUserId ?? null)
     : selectedUserId;
   const tooltipBg = useColorModeValue("#FFFFFF", "#2D3748");
+  const navigate = useNavigate();
 
   // Utility functions defined first to avoid hoisting issues
   const formatCurrency = (amount: number) => {
@@ -3473,7 +3475,16 @@ export const IncomeExpensesPage = () => {
                   No transactions found for the selected date range
                 </Text>
                 <Text color="text.muted" mt={2}>
-                  Try selecting a different date range or add some transactions
+                  Try selecting a different date range, or{" "}
+                  <Button
+                    variant="link"
+                    colorScheme="brand"
+                    size="sm"
+                    onClick={() => navigate("/accounts")}
+                  >
+                    connect an account
+                  </Button>{" "}
+                  to import transactions automatically.
                 </Text>
               </CardBody>
             </Card>
