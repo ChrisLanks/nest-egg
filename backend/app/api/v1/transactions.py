@@ -341,6 +341,18 @@ async def list_transactions(
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
 
+    # Validate account_id is accessible to the requesting user.
+    # Without this check, any user in the org can pass a foreign account_id and
+    # read another household member's transactions.
+    if account_id:
+        if user_id:
+            scoped_accounts = await get_user_accounts(db, user_id, current_user.organization_id)
+        else:
+            scoped_accounts = await get_all_household_accounts(db, current_user.organization_id)
+        scoped_account_ids = [acc.id for acc in scoped_accounts]
+        if account_id not in scoped_account_ids:
+            raise HTTPException(status_code=403, detail="Account not accessible")
+
     # Parse date strings if provided
     start_date_obj = None
     end_date_obj = None
