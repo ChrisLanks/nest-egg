@@ -761,7 +761,7 @@ export const Layout = () => {
       announce(
         "investments-nav",
         "Investment features unlocked",
-        "With investment accounts you now have access to Tax Deductible and Investment Health under Analytics.",
+        "With investment accounts you now have access to Tax Deductible under Analytics, and fund fee/expense ratio analysis on the Investments page.",
         "/tax-deductible",
       );
     }
