@@ -354,10 +354,13 @@ class RecurringDetectionService:
     ) -> Optional[RecurringTransaction]:
         """Update a recurring transaction pattern."""
         result = await db.execute(
-            select(RecurringTransaction).where(
+            select(RecurringTransaction)
+            .join(Account, Account.id == RecurringTransaction.account_id)
+            .where(
                 and_(
                     RecurringTransaction.id == recurring_id,
                     RecurringTransaction.organization_id == user.organization_id,
+                    Account.user_id == user.id,
                 )
             )
         )
@@ -385,10 +388,13 @@ class RecurringDetectionService:
     ) -> bool:
         """Delete a recurring transaction pattern."""
         result = await db.execute(
-            select(RecurringTransaction).where(
+            select(RecurringTransaction)
+            .join(Account, Account.id == RecurringTransaction.account_id)
+            .where(
                 and_(
                     RecurringTransaction.id == recurring_id,
                     RecurringTransaction.organization_id == user.organization_id,
+                    Account.user_id == user.id,
                 )
             )
         )

@@ -11,6 +11,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db, get_user_accounts, verify_household_member
+from app.models.account import Account
 from app.models.recurring_transaction import RecurringFrequency, RecurringTransaction
 from app.models.user import User
 from app.schemas.recurring_transaction import (
@@ -285,10 +286,13 @@ async def apply_label_to_recurring(
     Creates the 'Recurring Bill' label for the org if one isn't set on the pattern.
     """
     result = await db.execute(
-        select(RecurringTransaction).where(
+        select(RecurringTransaction)
+        .join(Account, Account.id == RecurringTransaction.account_id)
+        .where(
             and_(
                 RecurringTransaction.id == recurring_id,
                 RecurringTransaction.organization_id == current_user.organization_id,
+                Account.user_id == current_user.id,
             )
         )
     )
@@ -327,10 +331,13 @@ async def preview_label_matches(
 ):
     """Return count of transactions that would be labelled for this recurring pattern."""
     result = await db.execute(
-        select(RecurringTransaction).where(
+        select(RecurringTransaction)
+        .join(Account, Account.id == RecurringTransaction.account_id)
+        .where(
             and_(
                 RecurringTransaction.id == recurring_id,
                 RecurringTransaction.organization_id == current_user.organization_id,
+                Account.user_id == current_user.id,
             )
         )
     )
