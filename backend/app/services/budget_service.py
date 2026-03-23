@@ -235,12 +235,22 @@ class BudgetService:
         budget_id: UUID,
         user: User,
     ) -> Optional[Budget]:
-        """Get a specific budget."""
+        """Get a specific budget owned by or shared with the requesting user."""
         result = await db.execute(
             select(Budget).where(
                 and_(
                     Budget.id == budget_id,
                     Budget.organization_id == user.organization_id,
+                    or_(
+                        Budget.user_id == user.id,
+                        and_(
+                            Budget.is_shared.is_(True),
+                            or_(
+                                Budget.shared_user_ids.is_(None),  # shared with all org members
+                                Budget.shared_user_ids.contains(str(user.id)),
+                            ),
+                        ),
+                    ),
                 )
             )
         )

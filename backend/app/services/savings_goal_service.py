@@ -115,12 +115,22 @@ class SavingsGoalService:
         goal_id: UUID,
         user: User,
     ) -> Optional[SavingsGoal]:
-        """Get a specific savings goal."""
+        """Get a specific savings goal owned by or shared with the requesting user."""
         result = await db.execute(
             select(SavingsGoal).where(
                 and_(
                     SavingsGoal.id == goal_id,
                     SavingsGoal.organization_id == user.organization_id,
+                    or_(
+                        SavingsGoal.user_id == user.id,
+                        and_(
+                            SavingsGoal.is_shared.is_(True),
+                            or_(
+                                SavingsGoal.shared_user_ids.is_(None),  # shared with all org members
+                                SavingsGoal.shared_user_ids.contains(str(user.id)),
+                            ),
+                        ),
+                    ),
                 )
             )
         )

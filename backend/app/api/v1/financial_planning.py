@@ -183,15 +183,23 @@ async def _get_mortgage_account(
     organization_id: UUID,
     user_id: Optional[UUID],
     account_id: Optional[UUID],
+    current_user_id: Optional[UUID] = None,
 ) -> Optional[Account]:
-    """Fetch the first (or specified) mortgage account."""
+    """Fetch the first (or specified) mortgage account.
+
+    When account_id is provided without an explicit user_id, ownership is
+    scoped to current_user_id to prevent cross-member account exposure.
+    """
     conditions = [
         Account.organization_id == organization_id,
         Account.is_active.is_(True),
         Account.account_type == AccountType.MORTGAGE,
     ]
-    if user_id:
-        conditions.append(Account.user_id == user_id)
+    # Resolve effective owner: explicit user_id takes priority, then fall back
+    # to the requesting user when looking up a specific account.
+    effective_user_id = user_id or (current_user_id if account_id else None)
+    if effective_user_id:
+        conditions.append(Account.user_id == effective_user_id)
     if account_id:
         conditions.append(Account.id == account_id)
 
@@ -226,7 +234,7 @@ async def get_mortgage_analysis(
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
 
-    account = await _get_mortgage_account(db, current_user.organization_id, user_id, account_id)
+    account = await _get_mortgage_account(db, current_user.organization_id, user_id, account_id, current_user_id=current_user.id)
 
     if account is None:
         return MortgageAnalysisResponse(
