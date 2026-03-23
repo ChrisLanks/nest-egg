@@ -219,7 +219,7 @@ const GettingStartedEmptyState = ({
           <Text as="span" fontWeight="medium">
             Accounts
           </Text>{" "}
-          page in the sidebar.
+          page in the top navigation.
         </Text>
       </VStack>
     </Box>

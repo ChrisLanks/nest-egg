@@ -330,15 +330,15 @@ export const SSClaimingPage = () => {
                       </Th>
                       <Th isNumeric>Annual</Th>
                       <Th isNumeric>
-                        Lifetime (die 78)
+                        Lifetime (to 78)
                         <InfoTip label="Total Social Security income if you live to age 78 — a pessimistic scenario. Shorter lifespans favor claiming earlier to collect more years of payments." />
                       </Th>
                       <Th isNumeric>
-                        Lifetime (die 85)
+                        Lifetime (to 85)
                         <InfoTip label="Total Social Security income if you live to age 85 — the average U.S. life expectancy. This is the base scenario used to determine the optimal claiming age." />
                       </Th>
                       <Th isNumeric>
-                        Lifetime (die 92)
+                        Lifetime (to 92)
                         <InfoTip label="Total Social Security income if you live to age 92 — an optimistic scenario. Longer lifespans strongly favor delaying to 70 for the highest monthly amount." />
                       </Th>
                       <Th isNumeric>

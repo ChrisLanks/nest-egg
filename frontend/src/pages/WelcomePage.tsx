@@ -472,7 +472,7 @@ export default function WelcomePage() {
                   Account connected successfully!
                 </Text>
                 <Text fontSize="sm" color="text.secondary">
-                  You can add more accounts anytime from the sidebar.
+                  You can add more accounts anytime from the Accounts page.
                 </Text>
               </VStack>
             ) : (

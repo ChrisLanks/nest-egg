@@ -813,7 +813,7 @@ export const InvestmentsPage = () => {
                   Connect an Investment Account
                 </Button>
                 <Text fontSize="xs" color="text.muted">
-                  You can also add accounts from the sidebar or Accounts page.
+                  You can also add accounts from the Accounts page.
                 </Text>
               </VStack>
             </CardBody>
