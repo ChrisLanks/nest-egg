@@ -400,7 +400,7 @@ async def get_price_increases(
     Supports household view scoping via user_id.
     """
     if user_id:
-        await verify_household_member(user_id, current_user, db)
+        await verify_household_member(db, user_id, current_user.organization_id)
 
     from app.services.subscription_insights_service import SubscriptionInsightsService
 

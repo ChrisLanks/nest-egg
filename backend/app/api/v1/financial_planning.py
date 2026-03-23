@@ -492,7 +492,7 @@ async def get_savings_rate(
 ) -> SavingsRateResponse:
     """Monthly savings rate trend for the last N calendar months."""
     if user_id:
-        await verify_household_member(user_id, current_user, db)
+        await verify_household_member(db, user_id, current_user.organization_id)
     from app.services.savings_rate_service import SavingsRateService
 
     summary = await SavingsRateService.get_savings_trend(
@@ -526,7 +526,7 @@ async def get_debt_cost(
 ) -> DebtCostResponse:
     """True monthly and annual interest cost breakdown across all debt accounts."""
     if user_id:
-        await verify_household_member(user_id, current_user, db)
+        await verify_household_member(db, user_id, current_user.organization_id)
     from app.services.debt_cost_service import DebtCostService
 
     summary = await DebtCostService.get_debt_cost(
@@ -563,7 +563,7 @@ async def get_mortgage_rates(
     comparison against the user's linked mortgage account rate.
     """
     if user_id:
-        await verify_household_member(user_id, current_user, db)
+        await verify_household_member(db, user_id, current_user.organization_id)
     from app.services.mortgage_rate_service import get_current_mortgage_rates
 
     rates = await get_current_mortgage_rates()
