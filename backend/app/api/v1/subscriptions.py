@@ -14,6 +14,7 @@ from app.dependencies import (
     get_current_user,
     verify_household_member,
 )
+from app.models.account import Account
 from app.models.user import User
 from app.models.recurring_transaction import RecurringTransaction
 from app.services.recurring_detection_service import RecurringDetectionService
@@ -94,12 +95,16 @@ async def deactivate_subscription(
     db: AsyncSession = Depends(get_db),
 ):
     """Mark subscription as inactive (not a subscription)."""
-    # Get subscription
+    # Verify the subscription belongs to the requesting user by joining through
+    # Account.user_id — prevents a household member deactivating another's subscriptions.
     result = await db.execute(
-        select(RecurringTransaction).where(
+        select(RecurringTransaction)
+        .join(Account, Account.id == RecurringTransaction.account_id)
+        .where(
             and_(
                 RecurringTransaction.id == subscription_id,
                 RecurringTransaction.organization_id == current_user.organization_id,
+                Account.user_id == current_user.id,
             )
         )
     )
