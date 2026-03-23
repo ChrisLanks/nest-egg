@@ -253,7 +253,7 @@ export default function PerformanceTrendsChart({
         <AlertIcon />
         <AlertTitle>No historical data yet</AlertTitle>
         <AlertDescription>
-          Performance trends will appear once portfolio snapshots are captured.
+          Performance trends will appear after your portfolio has been tracked for a few days.
         </AlertDescription>
       </Alert>
     );
