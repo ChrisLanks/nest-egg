@@ -1,9 +1,13 @@
 """Celery application configuration."""
 
+import logging
+
 from celery import Celery
 from celery.schedules import crontab
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Create Celery app
 celery_app = Celery(
@@ -29,7 +33,9 @@ celery_app.conf.update(
     # Distributed beat scheduler: prevents multiple beat workers from firing the
     # same task when scaled horizontally. RedBeat uses Redis as a distributed lock
     # so only one beat process runs each task at its scheduled time.
-    beat_scheduler="redbeat.RedBeatScheduler",
+    # Uses our ResilientRedBeatScheduler subclass (defined below) that re-acquires
+    # the lock when it expires due to container freeze / GC pause (LockNotOwnedError).
+    beat_scheduler="app.workers.celery_app.ResilientRedBeatScheduler",
     redbeat_redis_url=settings.CELERY_BROKER_URL,
     # Lock TTL must exceed task_time_limit to prevent LockNotOwnedError.
     # If the lock expires while the beat scheduling cycle is still running,
@@ -60,6 +66,71 @@ class RetryableTask(celery_app.Task):
 
 
 celery_app.Task = RetryableTask
+
+
+class ResilientRedBeatScheduler:
+    """
+    RedBeat scheduler subclass that survives LockNotOwnedError.
+
+    When a container is frozen (OOM pause, live-migration, GC stop-the-world)
+    the beat process can be suspended for longer than redbeat_lock_timeout.
+    Redis expires the distributed lock while beat is paused; on resume,
+    self.lock.extend() raises LockNotOwnedError and Celery beat crashes.
+
+    This subclass catches LockNotOwnedError in tick(), re-acquires the lock,
+    and continues scheduling without restarting the beat process.
+    """
+
+    # Defined as a lazy import wrapper so the class is only resolved when
+    # celery-beat actually starts — avoids importing redbeat at import time
+    # (which would fail in environments without Redis).
+    _scheduler_cls = None
+
+    def __new__(cls, *args, **kwargs):
+        # Resolve the real scheduler class on first instantiation
+        from redbeat.schedulers import RedBeatScheduler, get_redis
+
+        class _Impl(RedBeatScheduler):
+            def tick(self, min=min, **kwargs):  # type: ignore[override]
+                if self.lock_key and self.lock is not None:
+                    try:
+                        self.lock.extend(int(self.lock_timeout))
+                    except Exception as exc:
+                        # LockNotOwnedError: lock expired while beat was paused.
+                        # Re-acquire and continue — do NOT crash.
+                        logger.warning(
+                            "beat: Lost distributed lock (%s). Re-acquiring...", exc
+                        )
+                        try:
+                            redis_client = get_redis(self.app)
+                            new_lock = redis_client.lock(
+                                self.lock_key,
+                                timeout=self.lock_timeout,
+                                sleep=0.1,
+                            )
+                            new_lock.acquire(blocking=True, blocking_timeout=5)
+                            self.lock = new_lock
+                            logger.info("beat: Re-acquired distributed lock.")
+                        except Exception as reacquire_exc:
+                            logger.error(
+                                "beat: Failed to re-acquire lock: %s. "
+                                "Skipping this tick to avoid duplicate task firing.",
+                                reacquire_exc,
+                            )
+                            return self.max_interval
+
+                remaining_times = []
+                try:
+                    for entry in self.schedule.values():
+                        next_time_to_run = self.maybe_due(entry, **self._maybe_due_kwargs)
+                        if next_time_to_run:
+                            remaining_times.append(next_time_to_run)
+                except RuntimeError:
+                    pass
+
+                return min(remaining_times + [self.max_interval])
+
+        return _Impl(*args, **kwargs)
 
 
 # Import tasks here as they're created
