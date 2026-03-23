@@ -22,12 +22,23 @@ services:
     networks:
       - nestegg-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   # Redis (for Celery broker and caching)
   redis:
     image: redis:7-alpine
     container_name: nestegg-redis
-    command: redis-server --appendonly yes
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --auto-aof-rewrite-percentage 100
+      --auto-aof-rewrite-min-size 64mb
     volumes:
       - redis_data:/data
     ports:
@@ -40,6 +51,11 @@ services:
     networks:
       - nestegg-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # FastAPI Backend
   backend:
@@ -117,6 +133,11 @@ services:
     networks:
       - nestegg-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
 
   # Celery Worker (background tasks)
   celery-worker:
@@ -174,6 +195,11 @@ services:
     networks:
       - nestegg-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
 
   # Celery Beat (scheduled tasks)
   celery-beat:
@@ -214,6 +240,11 @@ services:
     networks:
       - nestegg-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
 
   # Celery Flower (monitoring UI)
   celery-flower:
@@ -256,6 +287,11 @@ services:
     networks:
       - nestegg-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   nestegg-network:

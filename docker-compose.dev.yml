@@ -28,6 +28,11 @@ services:
       retries: 5
     networks:
       - nestegg-dev-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
 
   # Redis (for Celery broker and caching)
   redis:
@@ -51,6 +56,11 @@ services:
       retries: 5
     networks:
       - nestegg-dev-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # FastAPI Backend with hot-reload
   backend:
@@ -129,6 +139,11 @@ services:
         condition: service_healthy
     networks:
       - nestegg-dev-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   # Celery Worker
   celery-worker:
@@ -174,6 +189,11 @@ services:
         condition: service_started
     networks:
       - nestegg-dev-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   # Celery Beat (Scheduler)
   celery-beat:
@@ -211,6 +231,11 @@ services:
         condition: service_healthy
     networks:
       - nestegg-dev-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
 
   # Flower (Celery monitoring)
   celery-flower:
@@ -231,6 +256,11 @@ services:
         condition: service_started
     networks:
       - nestegg-dev-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # React Frontend (Vite dev server)
   frontend:
@@ -253,6 +283,11 @@ services:
         condition: service_started
     networks:
       - nestegg-dev-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   nestegg-dev-network:
