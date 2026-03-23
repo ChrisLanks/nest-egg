@@ -254,7 +254,7 @@ export const SmartInsightsPage = () => {
                 <Text fontWeight="semibold">No insights yet</Text>
                 <Text fontSize="sm" color="text.secondary">
                   Connect a bank or investment account and we'll automatically
-                  surface personalized recommendations — no manual input needed.
+                  generate personalized recommendations — no manual input needed.
                 </Text>
               </VStack>
               <Button

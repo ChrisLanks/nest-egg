@@ -349,7 +349,7 @@ export const CategoriesPage = () => {
               </Text>
               {isPlaid && (
                 <Text fontSize="xs" color="text.muted">
-                  (from provider)
+                  (from your bank)
                 </Text>
               )}
             </HStack>
