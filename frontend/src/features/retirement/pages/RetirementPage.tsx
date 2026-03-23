@@ -127,7 +127,10 @@ export function RetirementPage() {
     if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
     return age;
   }, [userProfile?.birthdate]);
-  const showSocialSecurity = currentUserAge === null || currentUserAge >= SS_SHOW_AGE;
+  // Show SS estimator only when age is known AND >= 55. When age is unknown
+  // (new user, no birthdate yet) we hide it — defaulting to visible would
+  // show it to every new user and defeat the gate.
+  const showSocialSecurity = currentUserAge !== null && currentUserAge >= SS_SHOW_AGE;
 
   const selectedIds = selectedMemberIds;
 

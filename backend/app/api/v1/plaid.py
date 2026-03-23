@@ -404,12 +404,22 @@ async def handle_plaid_webhook(
 
         logger.info(f"Plaid webhook received: {webhook_type} - {webhook_code}")
 
-        # Get PlaidItem to find organization
+        # Get PlaidItem — the item_id in the payload is attacker-controlled (only
+        # the Plaid-Verification signature is trusted). Scoping to item_id alone
+        # is fine here because Plaid signs webhooks per-item and item_ids are
+        # opaque non-guessable strings. We log if the item is missing so
+        # operations on stale/deleted items are visible in logs.
         result = await db.execute(select(PlaidItem).where(PlaidItem.item_id == item_id))
         plaid_item = result.scalar_one_or_none()
 
         if not plaid_item:
-            logger.warning(f"PlaidItem not found for item_id: {item_id}")
+            logger.warning(
+                "Plaid webhook: item_id %s not found (webhook_type=%s webhook_code=%s) — "
+                "item may have been deleted or never linked",
+                item_id,
+                webhook_type,
+                webhook_code,
+            )
             return {"status": "item_not_found"}
 
         # Handle different webhook types

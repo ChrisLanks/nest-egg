@@ -789,6 +789,9 @@ async def refresh_account_valuation(
     }
 
 
+_BULK_DELETE_MAX = 500
+
+
 @router.post("/bulk-delete")
 async def bulk_delete_accounts(
     account_ids: List[UUID],
@@ -799,8 +802,13 @@ async def bulk_delete_accounts(
     """Delete multiple accounts at once.
 
     Only deletes accounts the user owns or has
-    'delete' grant for.
+    'delete' grant for. Maximum 500 IDs per request.
     """
+    if len(account_ids) > _BULK_DELETE_MAX:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many IDs: maximum {_BULK_DELETE_MAX} accounts per bulk-delete request.",
+        )
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=10,
