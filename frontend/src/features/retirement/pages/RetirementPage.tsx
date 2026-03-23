@@ -843,13 +843,18 @@ export function RetirementPage() {
                   their individual scenarios.
                 </Text>
                 {!readOnly && householdMembers.length >= 2 && (
-                  <Button
-                    colorScheme="blue"
-                    size="lg"
-                    onClick={handleOpenMemberPicker}
+                  <Tooltip
+                    label="Create a combined retirement plan that merges all selected household members' accounts into one shared projection"
+                    placement="top"
                   >
-                    Create Household Plan
-                  </Button>
+                    <Button
+                      colorScheme="blue"
+                      size="lg"
+                      onClick={handleOpenMemberPicker}
+                    >
+                      Create Household Plan
+                    </Button>
+                  </Tooltip>
                 )}
                 {archivedScenarios && archivedScenarios.length > 0 && (
                   <Box w="full" maxW="md">
@@ -1065,15 +1070,20 @@ export function RetirementPage() {
                       Create Your First Scenario
                     </Button>
                     {householdMembers.length >= 2 && (
-                      <Button
-                        size="lg"
-                        variant="outline"
-                        colorScheme="blue"
-                        leftIcon={<FiUsers />}
-                        onClick={handleOpenMemberPicker}
+                      <Tooltip
+                        label="Create a combined retirement plan that merges all selected household members' accounts into one shared projection"
+                        placement="top"
                       >
-                        Household Plan
-                      </Button>
+                        <Button
+                          size="lg"
+                          variant="outline"
+                          colorScheme="blue"
+                          leftIcon={<FiUsers />}
+                          onClick={handleOpenMemberPicker}
+                        >
+                          Household Plan
+                        </Button>
+                      </Tooltip>
                     )}
                   </HStack>
                   <Alert status="info" borderRadius="md" maxW="md">

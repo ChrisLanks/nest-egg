@@ -625,17 +625,50 @@ export const Layout = () => {
       /* ignore */
     }
 
-    const announce = (key: string, title: string, description: string) => {
+    const announce = (key: string, title: string, description: string, path: string) => {
       if (!shown[key]) {
         shown[key] = true;
         localStorage.setItem(DISCOVERY_KEY, JSON.stringify(shown));
         toast({
-          title,
-          description,
-          status: "info",
           duration: 6000,
           isClosable: true,
           position: "bottom-right",
+          render: ({ onClose }) => (
+            <Box
+              bg="blue.600"
+              color="white"
+              px={4}
+              py={3}
+              borderRadius="md"
+              boxShadow="lg"
+            >
+              <HStack justify="space-between" align="start" spacing={3}>
+                <Box flex={1}>
+                  <Text fontWeight="semibold" fontSize="sm">{title}</Text>
+                  <Text fontSize="xs" mt={0.5} opacity={0.9}>{description}</Text>
+                </Box>
+                <HStack spacing={2} flexShrink={0}>
+                  <Button
+                    size="xs"
+                    colorScheme="whiteAlpha"
+                    variant="solid"
+                    onClick={() => { navigate(path); onClose(); }}
+                  >
+                    Go →
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    color="white"
+                    _hover={{ bg: "whiteAlpha.200" }}
+                    onClick={onClose}
+                  >
+                    ✕
+                  </Button>
+                </HStack>
+              </HStack>
+            </Box>
+          ),
         });
       }
     };
@@ -645,6 +678,7 @@ export const Layout = () => {
         "education",
         "Education Planning unlocked",
         "You added a 529 account — visit Education Planning under Planning to project college costs.",
+        "/education",
       );
     }
     if (hasRental) {
@@ -652,6 +686,7 @@ export const Layout = () => {
         "rental-properties",
         "Rental Properties unlocked",
         "You have a rental property account — visit Rental Properties under Analytics for income tracking.",
+        "/rental-properties",
       );
     }
     if (hasLinkedAccounts) {
@@ -659,6 +694,7 @@ export const Layout = () => {
         "linked-accounts",
         "Recurring & Bills unlocked",
         "Your bank is connected — Recurring and Bills are now visible under Spending.",
+        "/recurring",
       );
     }
     if (hasInvestments) {
@@ -666,6 +702,7 @@ export const Layout = () => {
         "investments-nav",
         "More features unlocked",
         "With investment accounts you now have access to Tax Deductible and Investment Health.",
+        "/tax-deductible",
       );
     }
   }, [

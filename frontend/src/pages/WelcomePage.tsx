@@ -409,7 +409,11 @@ export default function WelcomePage() {
               <Input
                 value={householdName}
                 onChange={(e) => setHouseholdName(e.target.value)}
-                placeholder="e.g. Jane's Finances or The Smith Family"
+                placeholder={
+                  selectedGoal
+                    ? "e.g. Jane's Finances"
+                    : "e.g. Jane's Finances or The Smith Family"
+                }
                 size="lg"
               />
               <Text fontSize="xs" color="text.muted" mt={1}>
