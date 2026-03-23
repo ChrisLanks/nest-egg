@@ -87,7 +87,9 @@ async def get_property_pnl(
         year = date.today().year
 
     service = RentalPropertyService(db)
-    result = await service.get_property_pnl(current_user.organization_id, account_id, year)
+    result = await service.get_property_pnl(
+        current_user.organization_id, account_id, year, user_id=current_user.id
+    )
 
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
@@ -122,6 +124,7 @@ async def update_rental_fields(
         is_rental_property=body.is_rental_property,
         rental_monthly_income=body.rental_monthly_income,
         rental_address=sanitized_address,
+        user_id=current_user.id,
     )
 
     if "error" in result:

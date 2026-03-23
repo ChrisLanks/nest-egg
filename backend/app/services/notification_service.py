@@ -221,6 +221,7 @@ class NotificationService:
                 and_(
                     Notification.id == notification_id,
                     Notification.organization_id == user.organization_id,
+                    Notification.user_id == user.id,
                 )
             )
         )
@@ -246,6 +247,7 @@ class NotificationService:
                 and_(
                     Notification.id == notification_id,
                     Notification.organization_id == user.organization_id,
+                    Notification.user_id == user.id,
                 )
             )
         )

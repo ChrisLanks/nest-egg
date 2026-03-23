@@ -78,6 +78,7 @@ class RentalPropertyService:
         organization_id: UUID,
         account_id: UUID,
         year: int,
+        user_id: Optional[UUID] = None,
     ) -> Dict[str, Any]:
         """Get P&L for a rental property for a given year.
 
@@ -86,15 +87,16 @@ class RentalPropertyService:
         Groups expenses by their custom category name, mapping to the nearest
         Schedule E category when possible.
         """
-        # Verify the account belongs to this org and is a rental
+        # Verify the account belongs to this org and user (when user_id provided)
+        conditions = [
+            Account.id == account_id,
+            Account.organization_id == organization_id,
+            Account.is_active.is_(True),
+        ]
+        if user_id is not None:
+            conditions.append(Account.user_id == user_id)
         acct_result = await self.db.execute(
-            select(Account).where(
-                and_(
-                    Account.id == account_id,
-                    Account.organization_id == organization_id,
-                    Account.is_active.is_(True),
-                )
-            )
+            select(Account).where(and_(*conditions))
         )
         account = acct_result.scalar_one_or_none()
         if account is None:
@@ -244,16 +246,18 @@ class RentalPropertyService:
         is_rental_property: Optional[bool] = None,
         rental_monthly_income: Optional[Decimal] = None,
         rental_address: Optional[str] = None,
+        user_id: Optional[UUID] = None,
     ) -> Dict[str, Any]:
         """Update rental-specific fields on an account."""
+        conditions = [
+            Account.id == account_id,
+            Account.organization_id == organization_id,
+            Account.is_active.is_(True),
+        ]
+        if user_id is not None:
+            conditions.append(Account.user_id == user_id)
         result = await self.db.execute(
-            select(Account).where(
-                and_(
-                    Account.id == account_id,
-                    Account.organization_id == organization_id,
-                    Account.is_active.is_(True),
-                )
-            )
+            select(Account).where(and_(*conditions))
         )
         account = result.scalar_one_or_none()
         if account is None:
