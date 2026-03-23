@@ -917,8 +917,8 @@ export const AccountsPage = () => {
                                   !canModifyAccount(account)
                                     ? "No permission to modify this account"
                                     : account.exclude_from_cash_flow
-                                      ? "Include in budgets & cash flow"
-                                      : "Exclude from budgets & cash flow"
+                                      ? "Include in budgets & cash flow — currently excluded (transactions won't affect your spending totals)"
+                                      : "Exclude from budgets & cash flow — useful to prevent double-counting, e.g. a mortgage payment already tracked in your checking account"
                                 }
                               >
                                 <IconButton
@@ -1040,7 +1040,17 @@ export const AccountsPage = () => {
               {deleteTarget === "selected"
                 ? `${selectedAccounts.size} account${selectedAccounts.size > 1 ? "s" : ""}`
                 : "this account"}{" "}
-              and all associated data. This action cannot be undone.
+              and all associated data (transactions, holdings, history). This action cannot be undone.
+              {deleteTarget === "selected" && selectedAccounts.size > 0 && (
+                <Box mt={3} p={2} bg="red.50" borderRadius="md" fontSize="sm">
+                  {Array.from(selectedAccounts)
+                    .map((id) => accounts?.find((a) => a.id === id)?.name)
+                    .filter(Boolean)
+                    .map((name) => (
+                      <Box key={name}>• {name}</Box>
+                    ))}
+                </Box>
+              )}
             </AlertDialogBody>
 
             <AlertDialogFooter>

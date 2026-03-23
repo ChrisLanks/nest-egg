@@ -1211,8 +1211,9 @@ export const HouseholdSettingsPage: React.FC = () => {
                   <option value="advisor">Advisor (can edit)</option>
                 </Select>
                 <FormHelperText>
-                  Viewers can see your data but cannot make changes. Advisors
-                  can also create and edit records.
+                  {guestRole === "viewer"
+                    ? "Viewers can see balances, transactions, and budgets — but cannot add, edit, or delete anything. Good for family members who want to stay informed."
+                    : "Advisors can view everything and also add or edit accounts, transactions, and budgets. They cannot delete data or change household settings. Good for accountants or financial advisors."}
                 </FormHelperText>
               </FormControl>
               <FormControl>
