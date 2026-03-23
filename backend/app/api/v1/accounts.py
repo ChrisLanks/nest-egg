@@ -294,6 +294,29 @@ async def export_accounts_csv(
     )
 
 
+@router.get("/valuation-providers")
+async def get_valuation_providers(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Return the lists of configured valuation providers.
+
+    The frontend uses this to decide whether to show/hide the "Refresh
+    Valuation" button and, when multiple providers are available, render
+    a provider selector.
+
+    Response shape:
+        {
+            "property": ["rentcast", "attom"],   # zero or more
+            "vehicle":  ["marketcheck"]           # zero or more
+        }
+    """
+    return {
+        "property": get_available_property_providers(),
+        "vehicle": get_available_vehicle_providers(),
+    }
+
+
 @router.get("/{account_id}", response_model=AccountSchema)
 async def get_account(
     account: Account = Depends(get_verified_account),
@@ -616,29 +639,6 @@ async def update_account(
     await cache_delete_pattern(f"accounts:list:{current_user.organization_id}")
 
     return account
-
-
-@router.get("/valuation-providers")
-async def get_valuation_providers(
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Return the lists of configured valuation providers.
-
-    The frontend uses this to decide whether to show/hide the "Refresh
-    Valuation" button and, when multiple providers are available, render
-    a provider selector.
-
-    Response shape:
-        {
-            "property": ["rentcast", "attom"],   # zero or more
-            "vehicle":  ["marketcheck"]           # zero or more
-        }
-    """
-    return {
-        "property": get_available_property_providers(),
-        "vehicle": get_available_vehicle_providers(),
-    }
 
 
 @router.post("/{account_id}/refresh-valuation")

@@ -872,6 +872,15 @@ class RetirementMonteCarloService:
         AccountType.MONEY_MARKET,
     ])
 
+    # Best-guess APY fallbacks when the account has no interest_rate set.
+    # Used only for retirement projections — the user can override via the
+    # account detail page. Values are conservative averages (not HYSA peaks).
+    _CASH_DEFAULT_APY: dict = {
+        AccountType.CHECKING: Decimal("0.50"),     # typical national avg
+        AccountType.SAVINGS: Decimal("1.00"),       # conservative HYSA floor
+        AccountType.MONEY_MARKET: Decimal("2.00"),  # typical MM fund average
+    }
+
     @staticmethod
     async def _gather_account_data(
         db: AsyncSession,
@@ -973,8 +982,16 @@ class RetirementMonteCarloService:
                 total_portfolio += balance
                 taxable_balance += balance
                 cash_balance += balance
-                # Per-account interest rate (stored as APR %, e.g. 4.50 = 4.5%)
-                rate = account.interest_rate or Decimal(0)
+                # Per-account interest rate (stored as APY %, e.g. 4.50 = 4.5%).
+                # Fall back to a conservative type-specific estimate when the
+                # user hasn't set one; they can override on the account detail page.
+                rate = (
+                    account.interest_rate
+                    if account.interest_rate is not None
+                    else RetirementMonteCarloService._CASH_DEFAULT_APY.get(
+                        account.account_type, Decimal("0.50")
+                    )
+                )
                 cash_weighted_interest += balance * (rate / Decimal(100))
                 if balance > 0:
                     account_items.append(

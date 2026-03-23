@@ -120,6 +120,7 @@ interface Account {
 }
 
 const LOAN_ACCOUNT_TYPES = ["mortgage", "loan", "student_loan"];
+const CASH_ACCOUNT_TYPES = ["checking", "savings", "money_market"];
 
 export const AccountDetailPage = () => {
   const { accountId } = useParams<{ accountId: string }>();
@@ -173,6 +174,7 @@ export const AccountDetailPage = () => {
   const [loanInterestRate, setLoanInterestRate] = useState("");
   const [loanTermYears, setLoanTermYears] = useState("");
   const [loanOriginationDate, setLoanOriginationDate] = useState("");
+  const [cashApyRate, setCashApyRate] = useState("");
   // Employer match editing state
   const [empMatchPct, setEmpMatchPct] = useState("");
   const [empMatchLimitPct, setEmpMatchLimitPct] = useState("");
@@ -746,6 +748,16 @@ export const AccountDetailPage = () => {
         },
       });
     }
+  };
+
+  const handleSaveCashApy = () => {
+    if (cashApyRate === "") return;
+    const rate = parseFloat(cashApyRate);
+    if (isNaN(rate) || rate < 0 || rate > 100) return;
+    updateAccountMutation.mutate(
+      { interest_rate: rate },
+      { onSuccess: () => setCashApyRate("") },
+    );
   };
 
   const handleSaveEmployerMatch = () => {
@@ -1953,6 +1965,71 @@ export const AccountDetailPage = () => {
                       Save Loan Details
                     </Button>
                   </>
+                )}
+              </VStack>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* APY / Interest Rate Section - For cash accounts (checking, savings, money market) */}
+        {CASH_ACCOUNT_TYPES.includes(account.account_type) && (
+          <Card>
+            <CardBody>
+              <Heading size="md" mb={1}>
+                APY / Interest Rate
+              </Heading>
+              <Text fontSize="sm" color="text.muted" mb={4}>
+                Enter your account's annual percentage yield (APY). Used in
+                retirement projections and cash-flow forecasts. Plaid, Teller,
+                and MX don't always provide this — you can enter it manually.
+              </Text>
+              <VStack spacing={4} align="stretch">
+                {account.interest_rate != null && (
+                  <HStack>
+                    <Box>
+                      <Text fontSize="xs" color="text.muted">Current APY</Text>
+                      <Text fontWeight="semibold">{account.interest_rate}%</Text>
+                    </Box>
+                  </HStack>
+                )}
+                {canEditAccount && (
+                  <HStack>
+                    <NumberInput
+                      value={cashApyRate}
+                      onChange={setCashApyRate}
+                      precision={3}
+                      step={0.1}
+                      min={0}
+                      max={100}
+                      size="sm"
+                      w="160px"
+                    >
+                      <NumberInputField placeholder={account.interest_rate != null ? `${account.interest_rate}` : "e.g. 4.50"} />
+                    </NumberInput>
+                    <Text fontSize="sm" color="text.muted">%</Text>
+                    <Button
+                      size="sm"
+                      colorScheme="blue"
+                      onClick={handleSaveCashApy}
+                      isLoading={updateAccountMutation.isPending}
+                      isDisabled={!cashApyRate}
+                    >
+                      Save
+                    </Button>
+                    {account.interest_rate != null && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        colorScheme="red"
+                        onClick={() =>
+                          updateAccountMutation.mutate({ interest_rate: null })
+                        }
+                        isLoading={updateAccountMutation.isPending}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </HStack>
                 )}
               </VStack>
             </CardBody>
