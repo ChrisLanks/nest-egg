@@ -327,6 +327,29 @@ class RetirementMonteCarloService:
 
         pre_return = float(scenario.pre_retirement_return) / 100
         post_return = float(scenario.post_retirement_return) / 100
+
+        # If some investment accounts have an explicit interest rate, blend them
+        # into the scenario return using a balance-weighted average.
+        # Accounts without a rate use the scenario's global return; those with one
+        # override only their own slice. The result replaces pre/post return for
+        # the entire investment bucket (simplified — full per-account simulation
+        # would require restructuring the Monte Carlo loop).
+        inv_override = account_data.get("investment_override_rate")
+        if inv_override is not None:
+            _total_portfolio = float(account_data.get("total_portfolio", 0))
+            _cash_balance = float(account_data.get("cash_balance", 0))
+            _current_investment = max(_total_portfolio - _cash_balance, 0.0)
+            if _current_investment > 0:
+                _inv_balance_with_rate = sum(
+                    a["balance"]
+                    for a in account_data.get("accounts", [])
+                    if a.get("bucket") != "cash"
+                    and not a.get("excluded")
+                    and a.get("interest_rate") is not None
+                )
+                _weight = _inv_balance_with_rate / _current_investment
+                pre_return = (1 - _weight) * pre_return + _weight * inv_override
+                post_return = (1 - _weight) * post_return + _weight * inv_override
         vol = float(scenario.volatility) / 100
         inflation = float(scenario.inflation_rate) / 100
         med_inflation = float(scenario.medical_inflation_rate) / 100
@@ -904,6 +927,9 @@ class RetirementMonteCarloService:
 
         # Track cash account interest rates for weighted-average cash growth rate
         cash_weighted_interest = Decimal(0)  # sum(balance * rate)
+        # Track investment accounts that have an explicit interest rate set
+        inv_weighted_interest = Decimal(0)   # sum(balance * rate) for accounts with rate set
+        inv_balance_with_rate = Decimal(0)   # total balance of such accounts
 
         for account in accounts:
             balance = account.current_balance or Decimal(0)
@@ -925,6 +951,10 @@ class RetirementMonteCarloService:
                 else:
                     taxable_balance += balance
                     bucket = "taxable"
+                inv_rate = account.interest_rate  # APR % or None
+                if inv_rate is not None and balance > 0:
+                    inv_weighted_interest += balance * (inv_rate / Decimal(100))
+                    inv_balance_with_rate += balance
                 if balance > 0:
                     account_items.append(
                         {
@@ -933,6 +963,7 @@ class RetirementMonteCarloService:
                             "balance": float(balance),
                             "bucket": bucket,
                             "account_type": account.account_type.value,
+                            "interest_rate": float(inv_rate) if inv_rate is not None else None,
                             "excluded": False,
                         }
                     )
@@ -1022,6 +1053,15 @@ class RetirementMonteCarloService:
             else 0.0
         )
 
+        # Weighted-average override return for investment accounts that have an
+        # explicit interest_rate set (e.g. CDs, bond funds, fixed-rate accounts).
+        # None means no accounts had an explicit rate — scenario default is used.
+        investment_override_rate = (
+            float(inv_weighted_interest / inv_balance_with_rate)
+            if inv_balance_with_rate > 0
+            else None
+        )
+
         # Include excluded accounts in the list (marked excluded=True) so the
         # frontend can show them as greyed-out in AccountDataSummary.
         for account in all_accounts:
@@ -1046,6 +1086,7 @@ class RetirementMonteCarloService:
             "hsa_balance": hsa_balance,
             "cash_balance": cash_balance,
             "cash_growth_rate": cash_growth_rate,
+            "investment_override_rate": investment_override_rate,
             "pension_monthly": pension_monthly,
             "annual_contributions": annual_contributions,
             "employer_match_annual": employer_match_annual,

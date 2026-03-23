@@ -52,7 +52,7 @@ import {
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FiArchive, FiEdit2, FiRotateCcw, FiUsers, FiX } from "react-icons/fi";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import api from "../../../services/api";
 import { useUserView } from "../../../contexts/UserViewContext";
 import { AccountDataSummary } from "../components/AccountDataSummary";
@@ -99,6 +99,7 @@ import type {
 export function RetirementPage() {
   const toast = useToast();
   const cardBg = useColorModeValue("white", "gray.800");
+  const mutedTextColor = useColorModeValue("gray.400", "gray.500");
   const {
     isCombinedView,
     isOtherUserView,
@@ -116,10 +117,7 @@ export function RetirementPage() {
   // Derive current user's age from the shared profile cache (no extra request).
   // Social Security planning is only relevant from ~55 onwards.
   const SS_SHOW_AGE = 55;
-  const { data: userProfile } = useQuery<{ birthdate?: string | null }>({
-    queryKey: ["userProfile"],
-    enabled: false, // never fetch here — just read from cache populated by CurrencyContext / PreferencesPage
-  });
+  const userProfile = queryClient.getQueryData<{ birthdate?: string | null }>(["userProfile"]);
   const currentUserAge = useMemo(() => {
     if (!userProfile?.birthdate) return null;
     const birth = new Date(userProfile.birthdate);
@@ -1540,7 +1538,7 @@ export function RetirementPage() {
 
         {/* Life events empty state */}
         {scenario && scenario.life_events.length === 0 && (
-          <Text fontSize="sm" color={useColorModeValue("gray.400", "gray.500")} textAlign="center">
+          <Text fontSize="sm" color={mutedTextColor} textAlign="center">
             No life events added yet. Use &quot;+ Add Life Event&quot; to model major expenses like a home purchase, kids, or an inheritance.
           </Text>
         )}
@@ -1636,7 +1634,7 @@ export function RetirementPage() {
               />
             ) : (
               <Tooltip label="Social Security planning becomes relevant around age 55. We'll show this section when you're closer to claiming age.">
-                <Text fontSize="xs" color={useColorModeValue("gray.400", "gray.500")} textAlign="center" cursor="help">
+                <Text fontSize="xs" color={mutedTextColor} textAlign="center" cursor="help">
                   Social Security estimator available at age {SS_SHOW_AGE}+
                 </Text>
               </Tooltip>
