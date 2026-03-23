@@ -501,7 +501,7 @@ export default function WelcomePage() {
                       },
                       {
                         icon: FiLink,
-                        text: "We support 11,000+ banks and credit unions. You can disconnect at any time from Account Settings.",
+                        text: "We support 11,000+ banks and credit unions. You can disconnect at any time from the Accounts page.",
                       },
                     ].map((item) => (
                       <HStack key={item.text} spacing={3} align="start">
@@ -726,7 +726,7 @@ export default function WelcomePage() {
         {step === 4 && (
           <VStack spacing={6} align="center">
             <Box
-              bg="green.subtle"
+              bg="bg.success"
               borderRadius="full"
               p={4}
               display="inline-flex"
