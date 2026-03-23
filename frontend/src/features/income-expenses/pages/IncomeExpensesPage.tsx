@@ -3093,7 +3093,7 @@ export const IncomeExpensesPage = () => {
                             <Text color="text.muted" maxW="md" mx="auto">
                               No income transactions found for the selected date
                               range. Try selecting a different date range or
-                              check if income transactions have been imported.
+                              add transactions to your account.
                             </Text>
                           </CardBody>
                         </Card>
@@ -3450,8 +3450,7 @@ export const IncomeExpensesPage = () => {
                             <Text color="text.muted" maxW="md" mx="auto">
                               No expense transactions found for the selected
                               date range. Try selecting a different date range
-                              or check if expense transactions have been
-                              imported.
+                              or add transactions to your account.
                             </Text>
                           </CardBody>
                         </Card>
