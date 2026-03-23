@@ -845,7 +845,8 @@ class TestDeleteAccount:
                 )
 
         db.delete.assert_called_once_with(mock_org)
-        db.commit.assert_called_once()
+        # commit called twice: once for token revocation, once for deletion
+        assert db.commit.await_count == 2
 
     @pytest.mark.asyncio
     async def test_household_member_deletes_only_user(self):
@@ -873,7 +874,52 @@ class TestDeleteAccount:
                 )
 
         db.delete.assert_called_once_with(user)
-        db.commit.assert_called_once()
+        # commit called twice: once for token revocation, once for deletion
+        assert db.commit.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_refresh_tokens_revoked_before_deletion(self):
+        """Refresh tokens must be explicitly revoked before account deletion
+        to eliminate the race window between response and FK cascade."""
+        from app.api.v1.settings import DeleteAccountRequest, delete_account
+
+        user = self._make_user()
+        data = DeleteAccountRequest(password="correctpassword")
+        mock_request = Mock()
+
+        db = AsyncMock()
+        count_scalar = Mock()
+        count_scalar.scalar.return_value = 1
+        db.execute = AsyncMock(return_value=count_scalar)
+        db.get = AsyncMock(return_value=Mock(spec=Organization))
+
+        call_order: list[str] = []
+
+        async def track_execute(*args, **kwargs):
+            call_order.append("execute")
+            return count_scalar
+
+        async def track_commit():
+            call_order.append("commit")
+
+        db.execute = AsyncMock(side_effect=track_execute)
+        db.commit = AsyncMock(side_effect=track_commit)
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.settings.verify_password", return_value=True):
+                await delete_account(
+                    data=data,
+                    http_request=mock_request,
+                    http_response=Mock(),
+                    current_user=user,
+                    db=db,
+                )
+
+        # execute(revoke), commit, execute(count), ..., commit
+        assert call_order[0] == "execute", "token revocation execute must come first"
+        assert call_order[1] == "commit", "token revocation must be committed before deletion"
+        assert db.execute.await_count >= 2
+        assert db.commit.await_count == 2
 
     @pytest.mark.asyncio
     async def test_rate_limit_enforced(self):

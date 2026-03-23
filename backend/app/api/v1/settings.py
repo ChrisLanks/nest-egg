@@ -800,6 +800,15 @@ async def delete_account(
     if not verify_password(data.password, current_user.password_hash):
         raise HTTPException(status_code=401, detail="Incorrect password")
 
+    # Explicitly revoke all refresh tokens before deletion to eliminate the race
+    # window between the response being sent and the FK cascade completing.
+    await db.execute(
+        sa_update(RefreshToken)
+        .where(RefreshToken.user_id == current_user.id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=utc_now())
+    )
+    await db.commit()
+
     # Count active members in the organization
     count_result = await db.execute(
         select(func.count())
