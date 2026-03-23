@@ -1282,10 +1282,10 @@ export const HouseholdSettingsPage: React.FC = () => {
             <VStack spacing={5} align="center">
               <CheckCircleIcon w={16} h={16} color="green.400" />
               <Heading size="lg" textAlign="center">
-                Your Household Is Growing!
+                Invitation Sent!
               </Heading>
               <Text color="text.secondary" textAlign="center">
-                You just sent your first invitation to{" "}
+                We sent an invitation to{" "}
                 <Text as="span" fontWeight="semibold">
                   {celebrationEmail}
                 </Text>
@@ -1313,7 +1313,7 @@ export const HouseholdSettingsPage: React.FC = () => {
                 <HStack spacing={2}>
                   <CheckCircleIcon color="green.400" />
                   <Text fontSize="sm">
-                    Control data visibility with granular permissions
+                    Choose what each person can see and edit
                   </Text>
                 </HStack>
               </VStack>

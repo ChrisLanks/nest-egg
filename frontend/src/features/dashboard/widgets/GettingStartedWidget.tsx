@@ -65,7 +65,7 @@ const Step: React.FC<StepProps> = ({ label, hint, to, done }) => {
           flexShrink={0}
           onClick={() => navigate(to)}
         >
-          → Do it now
+          Open →
         </Button>
       )}
     </HStack>

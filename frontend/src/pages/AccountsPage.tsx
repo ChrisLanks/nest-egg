@@ -269,9 +269,9 @@ export const AccountsPage = () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       if (data.updated_count === 0) {
         toast({
-          title: "No accounts updated",
+          title: "No changes made",
           description:
-            "No accounts were changed — you may not have permission to modify these accounts.",
+            "These accounts belong to another household member. Only they can modify them.",
           status: "warning",
           duration: 5000,
         });
@@ -493,8 +493,8 @@ export const AccountsPage = () => {
 
     if (modifiableAccounts.length === 0) {
       toast({
-        title: "No accounts to modify",
-        description: "You do not have permission to modify these accounts",
+        title: "No changes made",
+        description: "These accounts belong to another household member. Only they can modify them.",
         status: "warning",
         duration: 3000,
       });
@@ -516,8 +516,8 @@ export const AccountsPage = () => {
 
     if (ownedAccountIds.length === 0) {
       toast({
-        title: "No accounts to modify",
-        description: "You do not have permission to modify these accounts",
+        title: "No changes made",
+        description: "These accounts belong to another household member. Only they can modify them.",
         status: "warning",
         duration: 3000,
       });
@@ -538,8 +538,8 @@ export const AccountsPage = () => {
 
     if (ownedAccountIds.length === 0) {
       toast({
-        title: "No accounts to modify",
-        description: "You do not have permission to modify these accounts",
+        title: "No changes made",
+        description: "These accounts belong to another household member. Only they can modify them.",
         status: "warning",
         duration: 3000,
       });
