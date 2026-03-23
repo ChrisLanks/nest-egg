@@ -268,6 +268,12 @@ class Account(AccountBase):
     # Interest accrual tracking
     last_interest_accrued_at: Optional[date] = None
 
+    # Sync status (populated from linked provider items)
+    last_synced_at: Optional[datetime] = None
+    last_error_code: Optional[str] = None
+    last_error_message: Optional[str] = None
+    needs_reauth: Optional[bool] = None
+
     model_config = {"from_attributes": True}
 
 

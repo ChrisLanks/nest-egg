@@ -63,20 +63,27 @@ async def _detect_recurring_async():
 
             total_patterns = 0
             for org_id in org_ids:
-                # Get any user from org for auth context
-                user_result = await db.execute(
-                    select(User).where(User.organization_id == org_id).limit(1)
-                )
-                user = user_result.scalar_one_or_none()
-
-                if user:
-                    # Detect patterns using existing service
-                    # Look back 180 days, require 3+ occurrences
-                    patterns = await RecurringDetectionService.detect_recurring_patterns(
-                        db, user, min_occurrences=3, lookback_days=180
+                try:
+                    # Get any user from org for auth context
+                    user_result = await db.execute(
+                        select(User).where(User.organization_id == org_id).limit(1)
                     )
-                    total_patterns += len(patterns)
-                    logger.info(f"Detected {len(patterns)} recurring patterns for org {org_id}")
+                    user = user_result.scalar_one_or_none()
+
+                    if user:
+                        # Detect patterns using existing service
+                        # Look back 180 days, require 3+ occurrences
+                        patterns = await RecurringDetectionService.detect_recurring_patterns(
+                            db, user, min_occurrences=3, lookback_days=180
+                        )
+                        total_patterns += len(patterns)
+                        logger.info(f"Detected {len(patterns)} recurring patterns for org {org_id}")
+                except Exception as org_exc:
+                    logger.error(
+                        f"Error detecting recurring patterns for org {org_id}: {org_exc}",
+                        exc_info=True,
+                    )
+                    continue
 
             logger.info(
                 f"Recurring pattern detection complete. Total patterns detected: {total_patterns}"

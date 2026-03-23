@@ -326,6 +326,20 @@ async def get_account(
     # Strip sensitive financial fields for guest users
     if getattr(current_user, "_is_guest", False):
         account.annual_salary = None
+
+    # Populate provider-agnostic sync status from eager-loaded relationships
+    # (these fields are not direct columns — they come from plaid_item/teller_enrollment)
+    if account.account_source.value == "plaid" and account.plaid_item:
+        account.last_synced_at = account.plaid_item.last_synced_at
+        account.last_error_code = account.plaid_item.last_error_code
+        account.last_error_message = account.plaid_item.last_error_message
+        account.needs_reauth = account.plaid_item.needs_reauth
+    elif account.account_source.value == "teller" and account.teller_enrollment:
+        account.last_synced_at = account.teller_enrollment.last_synced_at
+        account.last_error_code = account.teller_enrollment.last_error_code
+        account.last_error_message = account.teller_enrollment.last_error_message
+        account.needs_reauth = False
+
     return account
 
 
