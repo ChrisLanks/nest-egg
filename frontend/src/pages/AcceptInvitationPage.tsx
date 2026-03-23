@@ -38,7 +38,7 @@ interface InvitationDetails {
   status: string;
 }
 
-export const AcceptInvitationPage: React.FC = () => {
+export const AcceptInvitationPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

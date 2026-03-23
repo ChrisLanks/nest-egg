@@ -70,6 +70,7 @@ import { useRetirementAccountData } from "../features/retirement/hooks/useRetire
 import HelpHint from "../components/HelpHint";
 import { helpContent } from "../constants/helpContent";
 import { AddAccountModal } from "../features/accounts/components/AddAccountModal";
+import { useAuthStore } from "../features/auth/stores/authStore";
 
 interface Holding {
   id: string;
@@ -282,6 +283,8 @@ export const InvestmentsPage = () => {
     selectedMemberIdsKey,
   } = useUserView();
   const canEdit = canWriteResource("holding");
+  const currentUser = useAuthStore((s) => s.user);
+  const onboardingGoal = localStorage.getItem("nest-egg-onboarding-goal") || currentUser?.onboarding_goal || "";
   const multiEffectiveUserId = memberEffectiveUserId;
   const selectedIdsKey = selectedMemberIdsKey;
 
@@ -754,10 +757,15 @@ export const InvestmentsPage = () => {
             <CardBody>
               <VStack spacing={6} py={6}>
                 <VStack spacing={2}>
-                  <Heading size="md">No investment accounts yet</Heading>
+                  <Heading size="md">
+                    {onboardingGoal === "investments"
+                      ? "Let's look at your investments"
+                      : "No investment accounts yet"}
+                  </Heading>
                   <Text color="text.secondary" textAlign="center" maxW="md">
-                    Connect a brokerage, 401(k), or IRA to see your complete
-                    investment picture in one place.
+                    {onboardingGoal === "investments"
+                      ? "You said you want to understand your investments — connect a brokerage, 401(k), or IRA to see your portfolio, expense ratios, and how your money is split."
+                      : "Connect a brokerage, 401(k), or IRA to see your complete investment picture in one place."}
                   </Text>
                 </VStack>
                 <SimpleGrid
