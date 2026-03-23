@@ -588,39 +588,41 @@ export default function WelcomePage() {
                 </Text>
               </VStack>
             ) : (
-              <FormControl>
-                <FormLabel>Their email address</FormLabel>
-                <HStack>
-                  <Input
-                    type="email"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="email@example.com"
-                  />
-                  <Button
-                    colorScheme="brand"
-                    onClick={() => inviteMutation.mutate(inviteEmail)}
-                    isLoading={inviteMutation.isPending}
-                    isDisabled={!validateEmail(inviteEmail).valid}
-                  >
-                    Invite
-                  </Button>
-                </HStack>
-                <Text fontSize="xs" color="text.muted" mt={2}>
-                  Each person keeps their own login. You control what they can
-                  view and edit from Household Settings → Permissions. You can
-                  invite more members anytime.
-                </Text>
-              </FormControl>
-              <Button
-                variant="ghost"
-                size="sm"
-                color="text.muted"
-                alignSelf="center"
-                onClick={() => setStep(3)}
-              >
-                Continue without inviting
-              </Button>
+              <>
+                <FormControl>
+                  <FormLabel>Their email address</FormLabel>
+                  <HStack>
+                    <Input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      placeholder="email@example.com"
+                    />
+                    <Button
+                      colorScheme="brand"
+                      onClick={() => inviteMutation.mutate(inviteEmail)}
+                      isLoading={inviteMutation.isPending}
+                      isDisabled={!validateEmail(inviteEmail).valid}
+                    >
+                      Invite
+                    </Button>
+                  </HStack>
+                  <Text fontSize="xs" color="text.muted" mt={2}>
+                    Each person keeps their own login. You control what they can
+                    view and edit from Household Settings → Permissions. You can
+                    invite more members anytime.
+                  </Text>
+                </FormControl>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  color="text.muted"
+                  alignSelf="center"
+                  onClick={next}
+                >
+                  Continue without inviting
+                </Button>
+              </>
             )}
           </VStack>
         )}
