@@ -449,10 +449,15 @@ export default function WelcomePage() {
         {step === 1 && (
           <VStack spacing={6} align="stretch">
             <VStack spacing={2}>
-              <Heading size="lg">Connect Your Accounts</Heading>
+              <Heading size="lg">
+                {selectedGoal === "investments"
+                  ? "Connect Your Investment Account"
+                  : "Connect Your Accounts"}
+              </Heading>
               <Text color="text.secondary" textAlign="center">
-                Link a bank account to automatically import transactions and
-                track your net worth in real time.
+                {selectedGoal === "investments"
+                  ? "Link your 401(k), IRA, or brokerage to see your full portfolio, expense ratios, and how your money is allocated."
+                  : "Link a bank account to automatically import transactions and track your net worth in real time."}
               </Text>
             </VStack>
             {accountLinked ? (
@@ -522,7 +527,9 @@ export default function WelcomePage() {
                   w="full"
                   onClick={() => setAddAccountOpen(true)}
                 >
-                  Connect a Bank Account
+                  {selectedGoal === "investments"
+                    ? "Connect an Investment Account"
+                    : "Connect a Bank Account"}
                 </Button>
                 <Text fontSize="xs" color="text.muted" textAlign="center">
                   Prefer to enter accounts manually? You can skip this step and
