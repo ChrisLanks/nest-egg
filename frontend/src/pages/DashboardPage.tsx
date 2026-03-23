@@ -252,7 +252,7 @@ export const DashboardPage = () => {
     onClose: onAddAccountClose,
   } = useDisclosure();
 
-  const { data: accounts, isError: accountsError } = useQuery({
+  const { data: accounts, isLoading: accountsLoading, isError: accountsError } = useQuery({
     queryKey: ["accounts"],
     queryFn: async () => {
       const res = await api.get("/accounts");
@@ -368,11 +368,11 @@ export const DashboardPage = () => {
         </Alert>
       )}
 
-      {!accountsError && accounts !== undefined && accounts.length === 0 && (
+      {!accountsLoading && !accountsError && accounts !== undefined && accounts.length === 0 && (
         <GettingStartedEmptyState onConnectBank={onAddAccountOpen} goal={onboardingGoal} onNavigate={navigate} />
       )}
 
-      {(accountsError || accounts === undefined || accounts.length > 0) && (
+      {(accountsError || (!accountsLoading && accounts !== undefined && accounts.length > 0)) && (
         <DashboardGrid
           layout={layout}
           isEditing={isEditing}
