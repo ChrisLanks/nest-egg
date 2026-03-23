@@ -197,8 +197,9 @@ export default function WelcomePage() {
       const STEP_MAP: Record<string, number> = {
         profile: 0,
         accounts: 1,
+        household: 2,
         budget: 3,
-        goals: 3,
+        goals: 4,
       };
       const restored = STEP_MAP[user.onboarding_step];
       if (restored !== undefined) {
@@ -400,11 +401,19 @@ export default function WelcomePage() {
             </VStack>
 
             <FormControl>
-              <FormLabel>Household name</FormLabel>
+              <FormLabel>
+                {selectedGoal === "spending" || selectedGoal === "investments"
+                  ? "What should we call your finances?"
+                  : "Household name"}
+              </FormLabel>
               <Input
                 value={householdName}
                 onChange={(e) => setHouseholdName(e.target.value)}
-                placeholder="e.g. Jane's Finances or The Smith Family"
+                placeholder={
+                  selectedGoal === "spending" || selectedGoal === "investments"
+                    ? "e.g. Jane's Finances"
+                    : "e.g. Jane's Finances or The Smith Family"
+                }
                 size="lg"
               />
               <Text fontSize="xs" color="text.muted" mt={1}>
@@ -603,6 +612,15 @@ export default function WelcomePage() {
                   invite more members anytime.
                 </Text>
               </FormControl>
+              <Button
+                variant="ghost"
+                size="sm"
+                color="text.muted"
+                alignSelf="center"
+                onClick={() => setStep(3)}
+              >
+                Just me — skip for now
+              </Button>
             )}
           </VStack>
         )}
