@@ -290,8 +290,8 @@ export default function BudgetCard({
 
           {/* Remaining amount */}
           <HStack justify="space-between">
-            <Text fontSize="sm" color="text.secondary">
-              Remaining
+            <Text fontSize="sm" color={spending?.remaining != null && spending.remaining < 0 ? "finance.negative" : "text.secondary"}>
+              {spending?.remaining != null && spending.remaining < 0 ? "Over budget" : "Remaining"}
             </Text>
             {spendingLoading ? (
               <Skeleton height="16px" width="80px" />
@@ -305,7 +305,9 @@ export default function BudgetCard({
                     : "finance.positive"
                 }
               >
-                {formatCurrency(spending?.remaining ?? budget.amount)}
+                {spending?.remaining != null && spending.remaining < 0
+                  ? formatCurrency(Math.abs(spending.remaining))
+                  : formatCurrency(spending?.remaining ?? budget.amount)}
               </Text>
             )}
           </HStack>

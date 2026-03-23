@@ -832,17 +832,28 @@ export const AccountsPage = () => {
                           </Td>
                           <Td>
                             <VStack align="start" spacing={1}>
-                              <Badge
-                                colorScheme={
-                                  account.is_active ? "green" : "gray"
+                              <Tooltip
+                                label={
+                                  account.is_active
+                                    ? "This account appears in your net worth, budgets, and charts"
+                                    : "Hidden accounts are excluded from your net worth, budgets, and all charts"
                                 }
                               >
-                                {account.is_active ? "Visible" : "Hidden"}
-                              </Badge>
-                              {account.exclude_from_cash_flow && (
-                                <Badge colorScheme="orange" fontSize="xs">
-                                  Excluded from Cash Flow
+                                <Badge
+                                  colorScheme={
+                                    account.is_active ? "green" : "gray"
+                                  }
+                                  cursor="help"
+                                >
+                                  {account.is_active ? "Visible" : "Hidden"}
                                 </Badge>
+                              </Tooltip>
+                              {account.exclude_from_cash_flow && (
+                                <Tooltip label="Transactions from this account don't count toward your budgets or spending totals — useful when payments are tracked elsewhere (e.g. mortgage in checking)">
+                                  <Badge colorScheme="orange" fontSize="xs" cursor="help">
+                                    Excluded from Cash Flow
+                                  </Badge>
+                                </Tooltip>
                               )}
                               {account.needs_reauth && (
                                 <Tooltip label="Reconnect your account to resume syncing">
