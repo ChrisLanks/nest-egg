@@ -221,6 +221,15 @@ async def update_user_profile(
     # Email update — track whether it changed so we can send verification afterwards
     email_changed = False
     if update_data.email is not None and update_data.email != current_user.email:
+        # Require current password to prevent account takeover via a stolen access token
+        if not update_data.current_password:
+            raise HTTPException(
+                status_code=400,
+                detail="current_password is required to change your email address",
+            )
+        if not verify_password(update_data.current_password, current_user.password_hash):
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
+
         # Check if email is already taken
         result = await db.execute(select(User).where(User.email == update_data.email))
         existing_user = result.scalar_one_or_none()

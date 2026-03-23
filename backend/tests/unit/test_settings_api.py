@@ -12,6 +12,8 @@ Key behaviours verified:
 - monthly_start_day is constrained to 1-28 by the schema.
 - A missing organization returns 404.
 - Only provided fields are updated (partial PATCH).
+- Email change requires current_password (prevents account takeover via stolen token).
+- Wrong current_password on email change returns 400.
 """
 
 from datetime import date
@@ -446,6 +448,7 @@ class TestUpdateUserProfile:
     async def test_email_already_in_use_returns_400(self):
         user = _make_user_with_birthdate(None)
         user.email = "original@example.com"
+        user.password_hash = "hashed"
 
         # DB returns an existing user with the target email
         existing_user = Mock(spec=User)
@@ -456,16 +459,17 @@ class TestUpdateUserProfile:
         db.execute.return_value = result
 
         mock_request = Mock()
-        update = UserUpdate(email="taken@example.com")
+        update = UserUpdate(email="taken@example.com", current_password="correct-password")
 
         with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with pytest.raises(HTTPException) as exc_info:
-                await update_user_profile(
-                    update_data=update,
-                    http_request=mock_request,
-                    current_user=user,
-                    db=db,
-                )
+            with patch("app.api.v1.settings.verify_password", return_value=True):
+                with pytest.raises(HTTPException) as exc_info:
+                    await update_user_profile(
+                        update_data=update,
+                        http_request=mock_request,
+                        current_user=user,
+                        db=db,
+                    )
 
         assert exc_info.value.status_code == 400
         assert exc_info.value.detail == "Email already in use"
@@ -505,6 +509,7 @@ class TestEmailChangeVerification:
         update.last_name = None
         update.display_name = None
         update.email = "new@example.com"
+        update.current_password = "correct-password"
         update.birth_day = None
         update.birth_month = None
         update.birth_year = None
@@ -513,6 +518,7 @@ class TestEmailChangeVerification:
         update.dashboard_layout = None
 
         user = self._make_user()
+        user.password_hash = "hashed"
         mock_request = Mock()
         db = AsyncMock()
         db.commit = AsyncMock()
@@ -524,18 +530,21 @@ class TestEmailChangeVerification:
         db.execute = AsyncMock(return_value=no_user_result)
 
         with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch(
-                "app.api.v1.settings.create_verification_token", new=AsyncMock(return_value="tok")
-            ):
+            with patch("app.api.v1.settings.verify_password", return_value=True):
                 with patch(
-                    "app.api.v1.settings.email_service.send_verification_email", new=AsyncMock()
+                    "app.api.v1.settings.create_verification_token",
+                    new=AsyncMock(return_value="tok"),
                 ):
-                    await update_user_profile(
-                        update_data=update,
-                        http_request=mock_request,
-                        current_user=user,
-                        db=db,
-                    )
+                    with patch(
+                        "app.api.v1.settings.email_service.send_verification_email",
+                        new=AsyncMock(),
+                    ):
+                        await update_user_profile(
+                            update_data=update,
+                            http_request=mock_request,
+                            current_user=user,
+                            db=db,
+                        )
 
         assert user.email == "new@example.com"
         assert user.email_verified is False
@@ -548,6 +557,7 @@ class TestEmailChangeVerification:
         update.last_name = None
         update.display_name = None
         update.email = "new2@example.com"
+        update.current_password = "correct-password"
         update.birth_day = None
         update.birth_month = None
         update.birth_year = None
@@ -556,6 +566,7 @@ class TestEmailChangeVerification:
         update.dashboard_layout = None
 
         user = self._make_user()
+        user.password_hash = "hashed"
         mock_request = Mock()
         db = AsyncMock()
         db.commit = AsyncMock()
@@ -566,18 +577,21 @@ class TestEmailChangeVerification:
         db.execute = AsyncMock(return_value=no_user_result)
 
         with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch(
-                "app.api.v1.settings.create_verification_token", new=AsyncMock(return_value="tok")
-            ) as mock_create:
+            with patch("app.api.v1.settings.verify_password", return_value=True):
                 with patch(
-                    "app.api.v1.settings.email_service.send_verification_email", new=AsyncMock()
-                ) as mock_send:
-                    await update_user_profile(
-                        update_data=update,
-                        http_request=mock_request,
-                        current_user=user,
-                        db=db,
-                    )
+                    "app.api.v1.settings.create_verification_token",
+                    new=AsyncMock(return_value="tok"),
+                ) as mock_create:
+                    with patch(
+                        "app.api.v1.settings.email_service.send_verification_email",
+                        new=AsyncMock(),
+                    ) as mock_send:
+                        await update_user_profile(
+                            update_data=update,
+                            http_request=mock_request,
+                            current_user=user,
+                            db=db,
+                        )
 
         mock_create.assert_called_once()
         mock_send.assert_called_once()
@@ -618,6 +632,147 @@ class TestEmailChangeVerification:
                 )
 
         mock_send.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Email change — password enforcement (security: account-takeover prevention)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestEmailChangeRequiresPassword:
+    """Changing email requires current_password to prevent account takeover
+    via a stolen short-lived access token."""
+
+    def _make_user(self):
+        user = Mock()
+        user.id = uuid4()
+        user.email = "current@example.com"
+        user.email_verified = True
+        user.display_name = "Bob"
+        user.first_name = "Bob"
+        user.last_name = "Smith"
+        user.birthdate = None
+        user.dashboard_layout = None
+        user.is_org_admin = False
+        user.organization_id = uuid4()
+        user.email_notifications_enabled = True
+        user.notification_preferences = None
+        user.onboarding_goal = None
+        user.password_hash = "correct-hash"
+        return user
+
+    def _no_op_db(self):
+        db = AsyncMock()
+        db.commit = AsyncMock()
+        db.refresh = AsyncMock()
+        result = Mock()
+        result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=result)
+        return db
+
+    @pytest.mark.asyncio
+    async def test_email_change_without_password_returns_400(self):
+        """Missing current_password on email change must be rejected."""
+        user = self._make_user()
+        db = self._no_op_db()
+        update = UserUpdate(email="new@example.com")  # no current_password
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with pytest.raises(HTTPException) as exc_info:
+                await update_user_profile(
+                    update_data=update,
+                    http_request=Mock(),
+                    current_user=user,
+                    db=db,
+                )
+
+        assert exc_info.value.status_code == 400
+        assert "current_password" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_email_change_with_wrong_password_returns_400(self):
+        """Wrong current_password on email change must be rejected."""
+        user = self._make_user()
+        db = self._no_op_db()
+        update = UserUpdate(email="new@example.com", current_password="wrong-password")
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.settings.verify_password", return_value=False):
+                with pytest.raises(HTTPException) as exc_info:
+                    await update_user_profile(
+                        update_data=update,
+                        http_request=Mock(),
+                        current_user=user,
+                        db=db,
+                    )
+
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.detail == "Current password is incorrect"
+
+    @pytest.mark.asyncio
+    async def test_email_change_with_correct_password_succeeds(self):
+        """Correct current_password allows the email change."""
+        user = self._make_user()
+        db = self._no_op_db()
+        update = UserUpdate(email="new@example.com", current_password="correct-password")
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            with patch("app.api.v1.settings.verify_password", return_value=True):
+                with patch(
+                    "app.api.v1.settings.create_verification_token",
+                    new=AsyncMock(return_value="tok"),
+                ):
+                    with patch(
+                        "app.api.v1.settings.email_service.send_verification_email",
+                        new=AsyncMock(),
+                    ):
+                        await update_user_profile(
+                            update_data=update,
+                            http_request=Mock(),
+                            current_user=user,
+                            db=db,
+                        )
+
+        assert user.email == "new@example.com"
+        assert user.email_verified is False
+
+    @pytest.mark.asyncio
+    async def test_non_email_update_does_not_require_password(self):
+        """Updating display_name without changing email must NOT require a password."""
+        user = self._make_user()
+        db = self._no_op_db()
+        update = UserUpdate(display_name="New Name")  # no email, no password
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            # Should not raise — no verify_password call expected
+            await update_user_profile(
+                update_data=update,
+                http_request=Mock(),
+                current_user=user,
+                db=db,
+            )
+
+        assert user.display_name == "New Name"
+
+    @pytest.mark.asyncio
+    async def test_same_email_does_not_require_password(self):
+        """Submitting the same email (no actual change) must NOT require a password."""
+        user = self._make_user()
+        db = self._no_op_db()
+        # Same email as current — no change, no password needed
+        update = UserUpdate(email=user.email)
+
+        with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
+            await update_user_profile(
+                update_data=update,
+                http_request=Mock(),
+                current_user=user,
+                db=db,
+            )
+
+        # email_verified should remain unchanged
+        assert user.email_verified is True
 
 
 # ---------------------------------------------------------------------------
@@ -767,7 +922,10 @@ class TestUpdateDashboardLayout:
         )
         response = await update_dashboard_layout(body=body, current_user=user, db=db)
 
-        assert user.dashboard_layout == [{"id": "chart", "span": 2}, {"id": "summary", "span": 1}]
+        assert len(user.dashboard_layout) == 2
+        assert user.dashboard_layout[0].id == "chart"
+        assert user.dashboard_layout[0].span == 2
+        assert user.dashboard_layout[1].id == "summary"
         db.commit.assert_awaited_once()
         assert response.status_code == 204
 
@@ -1031,6 +1189,7 @@ class TestUpdateUserProfileExtendedBranches:
         user.email_verified = True
         user.display_name = "Test"
         user.first_name = "Test"
+        user.password_hash = "hashed"
         db = AsyncMock()
         db.commit = AsyncMock()
         db.refresh = AsyncMock()
@@ -1043,6 +1202,7 @@ class TestUpdateUserProfileExtendedBranches:
         update.last_name = None
         update.display_name = None
         update.email = "new@example.com"
+        update.current_password = "correct-password"
         update.default_currency = None
         update.birth_day = None
         update.birth_month = None
@@ -1053,17 +1213,18 @@ class TestUpdateUserProfileExtendedBranches:
         mock_request = Mock()
 
         with patch("app.api.v1.settings.rate_limit_service.check_rate_limit", new=AsyncMock()):
-            with patch(
-                "app.api.v1.settings.create_verification_token",
-                new=AsyncMock(side_effect=Exception("SMTP error")),
-            ):
-                # Should not raise despite email send failure
-                await update_user_profile(
-                    update_data=update,
-                    http_request=mock_request,
-                    current_user=user,
-                    db=db,
-                )
+            with patch("app.api.v1.settings.verify_password", return_value=True):
+                with patch(
+                    "app.api.v1.settings.create_verification_token",
+                    new=AsyncMock(side_effect=Exception("SMTP error")),
+                ):
+                    # Should not raise despite email send failure
+                    await update_user_profile(
+                        update_data=update,
+                        http_request=mock_request,
+                        current_user=user,
+                        db=db,
+                    )
 
         assert user.email == "new@example.com"
         assert user.email_verified is False

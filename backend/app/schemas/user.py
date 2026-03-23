@@ -33,6 +33,8 @@ class UserUpdate(BaseModel):
     last_name: Optional[str] = None
     display_name: Optional[str] = None
     email: Optional[EmailStr] = None
+    # Required when changing email — prevents account takeover via stolen access token
+    current_password: Optional[str] = None
     birth_day: Optional[int] = Field(None, ge=1, le=31)
     birth_month: Optional[int] = Field(None, ge=1, le=12)
     birth_year: Optional[int] = Field(None, ge=1900, le=2100)

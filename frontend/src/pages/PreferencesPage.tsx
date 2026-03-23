@@ -59,6 +59,7 @@ import { helpContent } from "../constants/helpContent";
 interface UpdateProfileData {
   display_name?: string;
   email?: string;
+  current_password?: string;
   birth_day?: number | null;
   birth_month?: number | null;
   birth_year?: number | null;
@@ -547,6 +548,8 @@ export default function PreferencesPage() {
 
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
+  const [originalEmail, setOriginalEmail] = useState("");
+  const [emailConfirmPassword, setEmailConfirmPassword] = useState("");
   const [birthDay, setBirthDay] = useState<number | null>(null);
   const [birthMonth, setBirthMonth] = useState<number | null>(null);
   const [birthYear, setBirthYear] = useState<number | null>(null);
@@ -578,6 +581,7 @@ export default function PreferencesPage() {
         "",
     );
     setEmail(profileData.email || "");
+    setOriginalEmail(profileData.email || "");
     setBirthDay(profileData.birth_day || null);
     setBirthMonth(profileData.birth_month || null);
     setBirthYear(profileData.birth_year || null);
@@ -590,8 +594,12 @@ export default function PreferencesPage() {
       const response = await api.patch("/settings/profile", data);
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["userProfile"] });
+      if (variables.email && variables.email !== originalEmail) {
+        setOriginalEmail(variables.email);
+        setEmailConfirmPassword("");
+      }
       toast({
         title: "Profile updated",
         status: "success",
@@ -730,9 +738,20 @@ export default function PreferencesPage() {
   };
 
   const handleUpdateProfile = () => {
+    const emailChanged = email !== originalEmail;
+    if (emailChanged && !emailConfirmPassword) {
+      toast({
+        title: "Password required",
+        description: "Enter your current password to confirm the email change.",
+        status: "error",
+        duration: 4000,
+      });
+      return;
+    }
     updateProfileMutation.mutate({
       display_name: displayName,
       email: email,
+      current_password: emailChanged ? emailConfirmPassword : undefined,
       birth_day: birthDay,
       birth_month: birthMonth,
       birth_year: birthYear,
@@ -816,6 +835,22 @@ export default function PreferencesPage() {
                 placeholder="Email"
               />
             </FormControl>
+
+            {email !== originalEmail && (
+              <FormControl isRequired>
+                <FormLabel>Confirm password to change email</FormLabel>
+                <Input
+                  type="password"
+                  value={emailConfirmPassword}
+                  onChange={(e) => setEmailConfirmPassword(e.target.value)}
+                  placeholder="Your current password"
+                  autoComplete="current-password"
+                />
+                <FormHelperText>
+                  For security, confirm your password before changing your email address.
+                </FormHelperText>
+              </FormControl>
+            )}
 
             <FormControl>
               <FormLabel>Birthday</FormLabel>
