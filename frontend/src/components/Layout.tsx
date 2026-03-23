@@ -552,6 +552,15 @@ export const Layout = () => {
     }
   });
 
+  // Advanced nav preference — set during onboarding or in Preferences
+  const showAdvancedNav = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("nest-egg-show-advanced-nav") === "true";
+    } catch {
+      return false;
+    }
+  })[0];
+
   const [collapsedSections, setCollapsedSections] = useState<
     Record<string, boolean>
   >(() => {
@@ -819,7 +828,9 @@ export const Layout = () => {
       advanced?: boolean;
     }[],
   ): { label: string; path: string; tooltip?: string }[] =>
-    items.filter((item) => isNavVisible(item.path));
+    items.filter(
+      (item) => isNavVisible(item.path) && (!item.advanced || showAdvancedNav),
+    );
 
   const spendingMenuItems = filterVisible(allSpendingItems);
   const analyticsMenuItems = filterVisible(allAnalyticsItems);

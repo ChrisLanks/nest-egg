@@ -175,8 +175,8 @@ export function buildConditionalDefaults(
   );
   const hasAnyAccounts = accounts.length > 0;
 
-  // Show SS optimizer for users 50+ or when age is unknown (no birthdate set)
-  const showSsOptimizer = userAge === null || userAge >= 50;
+  // Show SS optimizer only for users 50+ (hide for new users with no birthdate)
+  const showSsOptimizer = userAge !== null && userAge >= 50;
   // FIRE: show if user is under 50 AND has investment accounts
   const showFireSmart = hasInvestments && userAge !== null && userAge < 50;
   // Tax Projection: show if user has investment accounts (capital gains relevant)

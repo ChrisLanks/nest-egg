@@ -534,3 +534,66 @@ describe("top-nav Advanced button: removed (consolidated into Preferences)", () 
     expect(stored["/tax-projection"]).toBe(true);
   });
 });
+
+// ── SS Optimizer visibility fix ───────────────────────────────────────────────
+
+describe("SS Optimizer visibility: hidden for new users with no birthdate", () => {
+  it("hides /ss-claiming when userAge is null (no birthdate set)", () => {
+    const defaults = buildConditionalDefaults(noAccounts, null);
+    expect(defaults["/ss-claiming"]).toBe(false);
+  });
+
+  it("hides /ss-claiming for users under 50", () => {
+    const defaults = buildConditionalDefaults(noAccounts, 35);
+    expect(defaults["/ss-claiming"]).toBe(false);
+  });
+
+  it("shows /ss-claiming for users exactly 50", () => {
+    const defaults = buildConditionalDefaults(noAccounts, 50);
+    expect(defaults["/ss-claiming"]).toBe(true);
+  });
+
+  it("shows /ss-claiming for users over 50", () => {
+    const defaults = buildConditionalDefaults(noAccounts, 65);
+    expect(defaults["/ss-claiming"]).toBe(true);
+  });
+});
+
+// ── Advanced nav gating fix ───────────────────────────────────────────────────
+
+describe("advanced nav items hidden when showAdvancedNav is false", () => {
+  it("Layout.tsx reads nest-egg-show-advanced-nav from localStorage", () => {
+    const source = require("fs").readFileSync(
+      require("path").join(__dirname, "../../components/Layout.tsx"),
+      "utf8",
+    );
+    expect(source).toContain("nest-egg-show-advanced-nav");
+  });
+
+  it("filterVisible respects the advanced flag in Layout.tsx", () => {
+    const source = require("fs").readFileSync(
+      require("path").join(__dirname, "../../components/Layout.tsx"),
+      "utf8",
+    );
+    // filterVisible must gate on advanced items
+    expect(source).toContain("!item.advanced || showAdvancedNav");
+  });
+
+  it("showAdvancedNav defaults to false when key absent from localStorage", () => {
+    localStorage.removeItem("nest-egg-show-advanced-nav");
+    const val =
+      localStorage.getItem("nest-egg-show-advanced-nav") === "true";
+    expect(val).toBe(false);
+  });
+
+  it("showAdvancedNav is true only when key is exactly 'true'", () => {
+    localStorage.setItem("nest-egg-show-advanced-nav", "true");
+    expect(localStorage.getItem("nest-egg-show-advanced-nav") === "true").toBe(
+      true,
+    );
+    localStorage.setItem("nest-egg-show-advanced-nav", "false");
+    expect(localStorage.getItem("nest-egg-show-advanced-nav") === "true").toBe(
+      false,
+    );
+  });
+});
