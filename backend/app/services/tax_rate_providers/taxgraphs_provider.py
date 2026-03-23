@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import httpx
@@ -78,7 +78,7 @@ class TaxGraphsProvider(StateTaxProvider):
         return "taxgraphs_github"
 
     def tax_year(self) -> int:
-        return datetime.now().year
+        return datetime.now(timezone.utc).year
 
     # ── Redis helpers ───────────────────────────────────────────────────────
 
@@ -165,7 +165,7 @@ class TaxGraphsProvider(StateTaxProvider):
           4. Try HTTP for current year - 1
           5. Return None (caller will use static fallback)
         """
-        current_year = datetime.now().year
+        current_year = datetime.now(timezone.utc).year
 
         for year in (current_year, current_year - 1):
             # Cache first

@@ -413,10 +413,44 @@ class RetirementPlannerService:
         db: AsyncSession,
         scenarios: List[RetirementScenario],
     ) -> list[dict]:
-        """Enrich scenarios with latest readiness scores for list view."""
+        """Enrich scenarios with latest readiness scores for list view.
+
+        Uses a single batch query (one per scenario_id via subquery max) instead
+        of N individual get_latest_result() calls.
+        """
+        if not scenarios:
+            return []
+
+        scenario_ids = [s.id for s in scenarios]
+
+        # Subquery: max computed_at per scenario_id
+        latest_ts_sq = (
+            select(
+                RetirementSimulationResult.scenario_id,
+                func.max(RetirementSimulationResult.computed_at).label("max_computed_at"),
+            )
+            .where(RetirementSimulationResult.scenario_id.in_(scenario_ids))
+            .group_by(RetirementSimulationResult.scenario_id)
+            .subquery()
+        )
+
+        # Join back to get the full row
+        rows = await db.execute(
+            select(RetirementSimulationResult).join(
+                latest_ts_sq,
+                and_(
+                    RetirementSimulationResult.scenario_id == latest_ts_sq.c.scenario_id,
+                    RetirementSimulationResult.computed_at == latest_ts_sq.c.max_computed_at,
+                ),
+            )
+        )
+        results_by_scenario: dict[UUID, RetirementSimulationResult] = {
+            r.scenario_id: r for r in rows.scalars().all()
+        }
+
         summaries = []
         for scenario in scenarios:
-            latest = await RetirementPlannerService.get_latest_result(db, scenario.id)
+            latest = results_by_scenario.get(scenario.id)
             summaries.append(
                 {
                     "id": scenario.id,
