@@ -615,7 +615,7 @@ export default function WelcomePage() {
                 alignSelf="center"
                 onClick={() => setStep(3)}
               >
-                Just me — skip for now
+                Continue without inviting
               </Button>
             )}
           </VStack>

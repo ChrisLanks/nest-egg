@@ -25,6 +25,7 @@ import {
 import { AddIcon, EditIcon, RepeatIcon } from "@chakra-ui/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ElementType, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { FiLink, FiDollarSign, FiBarChart2 } from "react-icons/fi";
 import { useAuthStore } from "../features/auth/stores/authStore";
 import { DashboardGrid } from "../features/dashboard/DashboardGrid";
@@ -38,7 +39,7 @@ import { GoalContextBanner } from "../features/dashboard/GoalContextBanner";
 
 const GOAL_STEPS: Record<
   string,
-  { label: string; hint: string; icon: ElementType; action: boolean }[]
+  { label: string; hint: string; icon: ElementType; action: boolean; path?: string }[]
 > = {
   spending: [
     {
@@ -52,12 +53,14 @@ const GOAL_STEPS: Record<
       label: "Set your first budget",
       hint: "Pick one spending category and give it a monthly limit.",
       action: false,
+      path: "/budgets",
     },
     {
       icon: FiBarChart2,
       label: "Check your spending breakdown",
       hint: "See exactly where your money goes each month.",
       action: false,
+      path: "/income-expenses",
     },
   ],
   retirement: [
@@ -72,12 +75,14 @@ const GOAL_STEPS: Record<
       label: "Set your birthdate in Preferences",
       hint: "Required for accurate retirement projections.",
       action: false,
+      path: "/preferences",
     },
     {
       icon: FiBarChart2,
       label: "Create your first retirement scenario",
       hint: "See when you could retire and what you need to get there.",
       action: false,
+      path: "/retirement",
     },
   ],
   investments: [
@@ -92,12 +97,14 @@ const GOAL_STEPS: Record<
       label: "Review your holdings",
       hint: "See what you're invested in and your expense ratios.",
       action: false,
+      path: "/investments",
     },
     {
       icon: FiBarChart2,
       label: "Check your net worth",
       hint: "Your investments plus all other assets, minus debts.",
       action: false,
+      path: "/overview",
     },
   ],
 };
@@ -107,9 +114,11 @@ const DEFAULT_STEPS = GOAL_STEPS.spending;
 const GettingStartedEmptyState = ({
   onConnectBank,
   goal,
+  onNavigate,
 }: {
   onConnectBank: () => void;
   goal: string | null;
+  onNavigate: (path: string) => void;
 }) => {
   const steps = (goal && GOAL_STEPS[goal]) || DEFAULT_STEPS;
   const headings: Record<string, string> = {
@@ -156,10 +165,15 @@ const GettingStartedEmptyState = ({
               borderRadius="md"
               spacing={3}
               align="start"
+              cursor={step.path ? "pointer" : "default"}
+              onClick={step.path ? () => onNavigate(step.path!) : undefined}
+              _hover={step.path ? { bg: "bg.hover", borderColor: "brand.200" } : undefined}
+              border="1px solid transparent"
+              transition="all 0.15s"
             >
               <Icon
                 as={step.icon}
-                color={step.action ? "brand.500" : "text.muted"}
+                color={step.action ? "brand.500" : step.path ? "brand.400" : "text.muted"}
                 boxSize={5}
                 mt="2px"
                 flexShrink={0}
@@ -168,20 +182,23 @@ const GettingStartedEmptyState = ({
                 <Text
                   fontSize="sm"
                   fontWeight="medium"
-                  color={step.action ? "text.primary" : "text.muted"}
+                  color={step.action ? "text.primary" : step.path ? "text.primary" : "text.muted"}
                   textAlign="left"
                 >
                   {i + 1}. {step.label}
                 </Text>
-                {step.action && (
-                  <Text fontSize="xs" color="text.secondary" textAlign="left">
-                    {step.hint}
-                  </Text>
-                )}
+                <Text fontSize="xs" color="text.secondary" textAlign="left">
+                  {step.hint}
+                </Text>
               </VStack>
               {step.action && (
                 <Badge colorScheme="brand" fontSize="xs" flexShrink={0}>
                   Start here
+                </Badge>
+              )}
+              {step.path && !step.action && (
+                <Badge colorScheme="gray" fontSize="xs" flexShrink={0} variant="outline">
+                  Go →
                 </Badge>
               )}
             </HStack>
@@ -211,6 +228,7 @@ const GettingStartedEmptyState = ({
 
 export const DashboardPage = () => {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const onboardingGoal =
     localStorage.getItem("nest-egg-onboarding-goal") ||
     user?.onboarding_goal ||
@@ -351,7 +369,7 @@ export const DashboardPage = () => {
       )}
 
       {!accountsError && accounts !== undefined && accounts.length === 0 && (
-        <GettingStartedEmptyState onConnectBank={onAddAccountOpen} goal={onboardingGoal} />
+        <GettingStartedEmptyState onConnectBank={onAddAccountOpen} goal={onboardingGoal} onNavigate={navigate} />
       )}
 
       {(accountsError || accounts === undefined || accounts.length > 0) && (

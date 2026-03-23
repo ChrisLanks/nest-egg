@@ -597,7 +597,7 @@ export function RetirementPage() {
   const handleOpenMemberPicker = useCallback(() => {
     setMemberPickerMode("all");
     setSelectedMemberIdsForCreate(new Set());
-    setNewScenarioName("Our Retirement Plan");
+    setNewScenarioName("Household Retirement Plan");
     memberPicker.onOpen();
   }, [memberPicker]);
 
@@ -948,13 +948,18 @@ export function RetirementPage() {
                         setNewScenarioName(
                           mode === "just_me"
                             ? "My Retirement Plan"
-                            : "Our Retirement Plan",
+                            : "Household Retirement Plan",
                         );
                       }}
                     >
                       <VStack align="start" spacing={2}>
                         <Radio value="just_me">Just me</Radio>
-                        <Radio value="all">All household members</Radio>
+                        <VStack align="start" spacing={0}>
+                          <Radio value="all">All household members</Radio>
+                          <Text fontSize="xs" color="text.muted" pl={6}>
+                            Combines everyone's accounts into one shared projection
+                          </Text>
+                        </VStack>
                         <Radio value="select">Select specific members</Radio>
                       </VStack>
                     </RadioGroup>
@@ -1113,7 +1118,7 @@ export function RetirementPage() {
                       setNewScenarioName(
                         mode === "just_me"
                           ? "My Retirement Plan"
-                          : "Our Retirement Plan",
+                          : "Household Retirement Plan",
                       );
                     }}
                   >
@@ -1226,8 +1231,14 @@ export function RetirementPage() {
                 </Button>
               </Tooltip>
             )}
-            {scenarios && scenarios.length >= 2 && (
-              <Tooltip label="View all scenarios side by side">
+            {scenarios && scenarios.length > 0 && (
+              <Tooltip
+                label={
+                  scenarios.length < 2
+                    ? "Create a second scenario to compare them side by side"
+                    : "View all scenarios side by side"
+                }
+              >
                 <Button
                   size="sm"
                   variant={showComparison ? "solid" : "outline"}
@@ -1236,6 +1247,7 @@ export function RetirementPage() {
                     showComparison ? setShowComparison(false) : handleCompare()
                   }
                   isLoading={comparisonMutation.isPending}
+                  isDisabled={scenarios.length < 2}
                 >
                   {showComparison ? "Hide Comparison" : "Compare Scenarios"}
                 </Button>
@@ -1951,7 +1963,7 @@ export function RetirementPage() {
                     setNewScenarioName(
                       mode === "just_me"
                         ? "My Retirement Plan"
-                        : "Our Retirement Plan",
+                        : "Household Retirement Plan",
                     );
                   }}
                 >
