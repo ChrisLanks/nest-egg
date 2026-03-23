@@ -583,7 +583,7 @@ export const Layout = () => {
   };
 
   // ── Nav visibility: centralized defaults from useNavDefaults hook ──
-  const { accounts, accountsLoading, conditionalDefaults } =
+  const { accounts, accountsLoading, userAge, conditionalDefaults } =
     useNavDefaults(selectedUserId);
 
   // Derived flags still needed for feature-discovery toasts
@@ -604,6 +604,11 @@ export const Layout = () => {
       "crypto",
     ].includes(a.account_type),
   );
+  const hasMortgage = accounts.some((a) => a.account_type === "mortgage");
+  const hasDebt = accounts.some((a) =>
+    ["credit_card", "loan", "student_loan", "mortgage"].includes(a.account_type),
+  );
+  const isSsAge = userAge !== null && userAge >= 50;
 
   // Helper: check if a nav item is visible
   // Priority: per-item override (navOverridesState) > account-based default
@@ -619,6 +624,57 @@ export const Layout = () => {
 
   // Feature discovery: toast once when conditional nav items first unlock
   const toast = useToast();
+
+  // First-login view orientation — fires once on the very first session
+  useEffect(() => {
+    if (!user) return;
+    if ((user.login_count ?? 0) !== 1) return;
+    const FIRST_LOGIN_KEY = "nest-egg-first-login-view-shown";
+    if (localStorage.getItem(FIRST_LOGIN_KEY)) return;
+    localStorage.setItem(FIRST_LOGIN_KEY, "true");
+    const viewLabel = isCombinedView
+      ? "Combined (all household members)"
+      : isOtherUserView
+        ? "another member's view"
+        : "your personal view";
+    toast({
+      duration: 10000,
+      isClosable: true,
+      position: "bottom-right",
+      render: ({ onClose }) => (
+        <Box bg="purple.600" color="white" px={4} py={3} borderRadius="md" boxShadow="lg">
+          <HStack justify="space-between" align="start" spacing={3}>
+            <Box flex={1}>
+              <Text fontWeight="semibold" fontSize="sm">Welcome to Nest Egg!</Text>
+              <Text fontSize="xs" mt={0.5} opacity={0.9}>
+                You're viewing data in <strong>{viewLabel}</strong>. Change this anytime from the view switcher in the top bar, or customize which tabs appear in Preferences → Display.
+              </Text>
+            </Box>
+            <HStack spacing={2} flexShrink={0}>
+              <Button
+                size="xs"
+                colorScheme="whiteAlpha"
+                variant="solid"
+                onClick={() => { navigate("/preferences"); onClose(); }}
+              >
+                Preferences →
+              </Button>
+              <Button
+                size="xs"
+                variant="ghost"
+                color="white"
+                _hover={{ bg: "whiteAlpha.200" }}
+                onClick={onClose}
+              >
+                ✕
+              </Button>
+            </HStack>
+          </HStack>
+        </Box>
+      ),
+    });
+  }, [user, isCombinedView, isOtherUserView, toast]);
+
   useEffect(() => {
     if (accountsLoading) return;
     const DISCOVERY_KEY = "nest-egg-feature-discovery-shown";
@@ -634,7 +690,7 @@ export const Layout = () => {
         shown[key] = true;
         localStorage.setItem(DISCOVERY_KEY, JSON.stringify(shown));
         toast({
-          duration: 6000,
+          duration: 8000,
           isClosable: true,
           position: "bottom-right",
           render: ({ onClose }) => (
@@ -689,7 +745,7 @@ export const Layout = () => {
       announce(
         "rental-properties",
         "Rental Properties unlocked",
-        "You have a rental property account — visit Rental Properties under Analytics for income tracking.",
+        "You added a rental property — Rental Properties is now in your Analytics menu for income tracking.",
         "/rental-properties",
       );
     }
@@ -704,9 +760,33 @@ export const Layout = () => {
     if (hasInvestments) {
       announce(
         "investments-nav",
-        "More features unlocked",
-        "With investment accounts you now have access to Tax Deductible and Investment Health.",
+        "Investment features unlocked",
+        "With investment accounts you now have access to Tax Deductible and Investment Health under Analytics.",
         "/tax-deductible",
+      );
+    }
+    if (hasMortgage) {
+      announce(
+        "mortgage-nav",
+        "Mortgage Planner unlocked",
+        "You have a mortgage — Mortgage is now in your Planning menu for amortization and refinance analysis.",
+        "/mortgage",
+      );
+    }
+    if (hasDebt) {
+      announce(
+        "debt-payoff-nav",
+        "Debt Payoff unlocked",
+        "You have loans or credit card debt — Debt Payoff is now in Planning to model your fastest payoff strategy.",
+        "/debt-payoff",
+      );
+    }
+    if (isSsAge) {
+      announce(
+        "ss-optimizer-nav",
+        "SS Optimizer unlocked",
+        "Based on your age, Social Security planning is now available under Planning — find the best age to claim.",
+        "/ss-claiming",
       );
     }
     // Nudge users who have accounts but haven't turned on advanced features
@@ -723,6 +803,9 @@ export const Layout = () => {
     hasRental,
     hasLinkedAccounts,
     hasInvestments,
+    hasMortgage,
+    hasDebt,
+    isSsAge,
     showAdvancedNav,
     accountsLoading,
     toast,
