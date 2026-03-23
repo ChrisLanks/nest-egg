@@ -608,9 +608,19 @@ export const Layout = () => {
   // Helper: check if a nav item is visible
   // Priority: per-item override (navOverridesState) > account-based default
   const isNavVisible = (path: string): boolean => {
+    if (accountsLoading) return true; // show while loading to avoid flicker
+    // For data-gated paths, the account-based condition must be met regardless
+    // of any user override — prevents stale overrides from showing e.g. Rental
+    // Properties when the user has no rental accounts.
+    if (path in conditionalDefaults) {
+      const conditionMet = conditionalDefaults[path];
+      if (!conditionMet) return false;
+      // Condition met — user override can hide it but not required to show it
+      return navOverridesState[path] ?? true;
+    }
+    // Non-conditional path — user override wins, default true
     if (path in navOverridesState) return navOverridesState[path];
-    if (accountsLoading) return true; // show while loading
-    return conditionalDefaults[path] ?? true;
+    return true;
   };
 
   // Feature discovery: toast once when conditional nav items first unlock
