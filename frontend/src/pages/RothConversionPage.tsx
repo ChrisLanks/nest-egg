@@ -270,7 +270,7 @@ export const RothConversionPage = () => {
         <Box>
           <Heading size="lg">Roth Conversion Optimizer</Heading>
           <Text color="text.secondary" mt={1}>
-            See how much to convert each year to minimise lifetime taxes.
+            See how much to convert each year to minimize lifetime taxes.
             Balances are pulled from your connected accounts automatically.
           </Text>
         </Box>

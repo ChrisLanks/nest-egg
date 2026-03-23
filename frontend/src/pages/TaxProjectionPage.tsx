@@ -214,8 +214,8 @@ export const TaxProjectionPage = () => {
               </FormControl>
               <FormControl>
                 <FormLabel fontSize="xs">
-                  Prior Year Total Tax (for safe harbour)
-                  <InfoTip label="The total federal tax you paid last year (from your prior year Form 1040, line 24). The IRS 'safe harbour' rule says you won't owe a penalty if you pay at least 100% of last year's tax (110% if your income exceeds $150k). Enter this to see if your projected payments are on track." />
+                  Prior Year Total Tax (for safe harbor)
+                  <InfoTip label="The total federal tax you paid last year (from your prior year Form 1040, line 24). The IRS 'safe harbor' rule says you won't owe a penalty if you pay at least 100% of last year's tax (110% if your income exceeds $150k). Enter this to see if your projected payments are on track." />
                 </FormLabel>
                 <InputGroup size="sm">
                   <InputLeftAddon>$</InputLeftAddon>
@@ -373,7 +373,7 @@ export const TaxProjectionPage = () => {
               <Text fontSize="sm">{data.summary}</Text>
             </Alert>
 
-            {/* Safe harbour */}
+            {/* Safe harbor */}
             {data.safe_harbour_amount != null && (
               <Alert
                 status={data.safe_harbour_met ? "success" : "warning"}
@@ -382,11 +382,11 @@ export const TaxProjectionPage = () => {
               >
                 <AlertIcon />
                 <Text fontSize="sm">
-                  Safe harbour amount (100% of prior year):{" "}
+                  Safe harbor amount (100% of prior year):{" "}
                   {fmt(data.safe_harbour_amount)}.{" "}
                   {data.safe_harbour_met
-                    ? "Your projected tax is within safe harbour — no underpayment penalty expected."
-                    : "Your projected tax exceeds safe harbour — consider increasing quarterly payments."}
+                    ? "Your projected tax is within safe harbor — no underpayment penalty expected."
+                    : "Your projected tax exceeds safe harbor — consider increasing quarterly payments."}
                 </Text>
               </Alert>
             )}
