@@ -45,6 +45,8 @@ celery_app.conf.update(
     # Suppress CPendingDeprecationWarning in Celery 5.x: explicitly opt in to
     # retrying broker connections on startup (behaviour unchanged from before).
     broker_connection_retry_on_startup=True,
+    # Auto-expire task results in Redis after 1 hour to prevent unbounded growth.
+    result_expires=3600,
 )
 
 
