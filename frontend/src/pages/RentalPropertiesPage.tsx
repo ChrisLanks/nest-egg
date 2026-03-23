@@ -180,7 +180,7 @@ export const RentalPropertiesPage = () => {
           <EmptyState
             icon={FiHome}
             title="No Rental Properties"
-            description='Mark a property account as a rental in the account settings to see P&L data here. Set "Is Rental Property" to true on any property account.'
+            description='Add a property account and set its classification to "Investment Property" to track rental income, expenses, and net operating income here.'
           />
         ) : (
           <>
