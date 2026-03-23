@@ -9,11 +9,19 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 
+_MAX_TRANSACTION_AMOUNT = Decimal("999999999.99")  # $999M — covers any personal finance amount
+
+
 class TransactionBase(BaseModel):
     """Base transaction schema."""
 
     date: date
-    amount: Decimal
+    amount: Decimal = Field(
+        ...,
+        ge=-_MAX_TRANSACTION_AMOUNT,
+        le=_MAX_TRANSACTION_AMOUNT,
+        description="Transaction amount in account currency. Negative = debit, positive = credit.",
+    )
     merchant_name: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = Field(None, max_length=255)
     category_primary: Optional[str] = None
