@@ -319,6 +319,7 @@ class TaxLotService:
         db: AsyncSession,
         org_id: UUID,
         tax_year: int,
+        account_id: Optional[UUID] = None,
     ) -> dict:
         """Get short-term vs long-term realized gains for a tax year.
 
@@ -326,17 +327,24 @@ class TaxLotService:
             db: Database session
             org_id: Organization ID
             tax_year: Tax year to summarize
+            account_id: When provided, restrict results to this account only.
+                        Required when called from a per-account endpoint to
+                        prevent cross-member data exposure in shared households.
 
         Returns:
             Dictionary with realized gains summary
         """
+        conditions = [
+            TaxLot.organization_id == org_id,
+            TaxLot.is_closed.is_(True),
+            TaxLot.closed_at.isnot(None),
+            extract("year", TaxLot.closed_at) == tax_year,
+        ]
+        if account_id is not None:
+            conditions.append(TaxLot.account_id == account_id)
+
         result = await db.execute(
-            select(TaxLot).where(
-                TaxLot.organization_id == org_id,
-                TaxLot.is_closed.is_(True),
-                TaxLot.closed_at.isnot(None),
-                extract("year", TaxLot.closed_at) == tax_year,
-            )
+            select(TaxLot).where(*conditions)
         )
         lots = result.scalars().all()
 

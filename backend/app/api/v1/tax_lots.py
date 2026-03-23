@@ -228,7 +228,7 @@ async def get_realized_gains(
         raise HTTPException(status_code=404, detail="Account not found")
 
     summary = await tax_lot_service.get_realized_gains_summary(
-        db, current_user.organization_id, year
+        db, current_user.organization_id, year, account_id=account_id
     )
     return summary
 
