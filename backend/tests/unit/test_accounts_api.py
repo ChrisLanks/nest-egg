@@ -1488,6 +1488,7 @@ class TestRefreshValuationAdditional:
                 )
 
         assert exc_info.value.status_code == 422
+        assert "Auto-valuation is only supported" in exc_info.value.detail
 
     @pytest.mark.asyncio
     async def test_property_missing_address_raises_422(self, mock_user):
@@ -2220,3 +2221,61 @@ class TestGetMigrationHistoryAdditional:
             account_id=account.id,
             organization_id=user.organization_id,
         )
+
+
+# ---------------------------------------------------------------------------
+# Bulk operation size limits — security: prevent large-payload DoS
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestBulkSizeLimits:
+    """Bulk endpoints must reject requests with too many IDs."""
+
+    def test_bulk_visibility_rejects_over_limit(self):
+        """BulkVisibilityUpdate must reject lists longer than _BULK_VISIBILITY_MAX."""
+        from app.api.v1.accounts import _BULK_VISIBILITY_MAX
+        from pydantic import ValidationError
+
+        over_limit_ids = [uuid4() for _ in range(_BULK_VISIBILITY_MAX + 1)]
+        with pytest.raises(ValidationError):
+            BulkVisibilityUpdate(account_ids=over_limit_ids, is_active=True)
+
+    def test_bulk_visibility_accepts_at_limit(self):
+        """Exactly _BULK_VISIBILITY_MAX IDs must be accepted."""
+        from app.api.v1.accounts import _BULK_VISIBILITY_MAX
+
+        at_limit_ids = [uuid4() for _ in range(_BULK_VISIBILITY_MAX)]
+        obj = BulkVisibilityUpdate(account_ids=at_limit_ids, is_active=False)
+        assert len(obj.account_ids) == _BULK_VISIBILITY_MAX
+
+    def test_bulk_visibility_accepts_small_list(self):
+        ids = [uuid4(), uuid4(), uuid4()]
+        obj = BulkVisibilityUpdate(account_ids=ids, is_active=True)
+        assert len(obj.account_ids) == 3
+
+    @pytest.mark.asyncio
+    async def test_bulk_delete_rejects_over_500(self):
+        """Bulk delete endpoint raises 400 when account_ids exceeds _BULK_DELETE_MAX."""
+        from app.api.v1.accounts import _BULK_DELETE_MAX, bulk_delete_accounts
+
+        user = Mock()
+        user.id = uuid4()
+        user.organization_id = uuid4()
+        db = AsyncMock()
+        over_limit_ids = [uuid4() for _ in range(_BULK_DELETE_MAX + 1)]
+
+        with patch(
+            "app.api.v1.accounts.rate_limit_service.check_rate_limit",
+            new_callable=AsyncMock,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await bulk_delete_accounts(
+                    account_ids=over_limit_ids,
+                    http_request=Mock(),
+                    current_user=user,
+                    db=db,
+                )
+
+        assert exc_info.value.status_code == 400
+        assert str(_BULK_DELETE_MAX) in exc_info.value.detail

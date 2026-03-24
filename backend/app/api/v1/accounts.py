@@ -9,7 +9,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -74,10 +74,12 @@ class ProviderAvailability(BaseModel):
     mx: bool
 
 
+_BULK_VISIBILITY_MAX = 500
+
 class BulkVisibilityUpdate(BaseModel):
     """Request model for bulk visibility updates."""
 
-    account_ids: List[UUID]
+    account_ids: List[UUID] = Field(..., max_length=_BULK_VISIBILITY_MAX)
     is_active: bool
 
 
