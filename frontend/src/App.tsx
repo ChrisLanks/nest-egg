@@ -138,7 +138,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ChakraProvider theme={theme}>
         <ApiErrorToastListener />
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <CurrencyProvider>
           <UserViewProvider>
             <ErrorBoundary>
