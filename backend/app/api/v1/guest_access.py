@@ -445,10 +445,19 @@ async def my_guest_households(
 @router.post("/accept/{code}")
 async def accept_guest_invitation(
     code: str,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Accept a guest invitation using the invitation code."""
+    # Rate-limit: prevent brute-force enumeration of invitation codes (10/hr per user)
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=3600,
+        identifier=str(current_user.id),
+    )
+
     # Lock the invitation row to prevent concurrent acceptance
     result = await db.execute(
         select(HouseholdGuestInvitation)
@@ -539,10 +548,19 @@ async def accept_guest_invitation(
 @router.post("/decline/{code}")
 async def decline_guest_invitation(
     code: str,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Decline a guest invitation."""
+    # Rate-limit: prevent brute-force enumeration of invitation codes (10/hr per user)
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=3600,
+        identifier=str(current_user.id),
+    )
+
     result = await db.execute(
         select(HouseholdGuestInvitation).where(
             HouseholdGuestInvitation.invitation_code == code,

@@ -661,6 +661,7 @@ async def update_account(
 @router.post("/{account_id}/refresh-valuation")
 async def refresh_account_valuation(
     account_id: UUID,
+    http_request: Request,
     provider: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -673,6 +674,14 @@ async def refresh_account_valuation(
         provider=rentcast|attom|marketcheck
     When omitted, the first available configured provider is used.
     """
+    # Rate-limit: external valuation APIs are expensive; cap at 10/hour per user
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=3600,
+        identifier=str(current_user.id),
+    )
+
     if provider is not None and provider not in _ALLOWED_VALUATION_PROVIDERS:
         raise HTTPException(status_code=400, detail="Invalid provider")
 

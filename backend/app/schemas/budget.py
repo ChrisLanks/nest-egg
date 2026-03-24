@@ -28,7 +28,7 @@ class BudgetCreate(BudgetBase):
     """Schema for creating a budget."""
 
     is_shared: bool = False
-    shared_user_ids: Optional[List[str]] = None
+    shared_user_ids: Optional[List[str]] = Field(default=None, max_length=20)
 
     @model_validator(mode="after")
     def validate_date_range(self) -> "BudgetCreate":
@@ -52,7 +52,7 @@ class BudgetUpdate(BaseModel):
     alert_threshold: Optional[Decimal] = Field(None, ge=0, le=1)
     is_active: Optional[bool] = None
     is_shared: Optional[bool] = None
-    shared_user_ids: Optional[List[str]] = None
+    shared_user_ids: Optional[List[str]] = Field(default=None, max_length=20)
 
     @model_validator(mode="after")
     def validate_date_range(self) -> "BudgetUpdate":

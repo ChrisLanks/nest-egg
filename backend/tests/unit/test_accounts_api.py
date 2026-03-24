@@ -1,7 +1,7 @@
 """Unit tests for accounts API endpoints."""
 
 from decimal import Decimal
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -1091,6 +1091,14 @@ class TestBulkDeleteAccounts:
 class TestValuationProviderWhitelist:
     """Test that refresh_account_valuation enforces the provider allowlist."""
 
+    @pytest.fixture(autouse=True)
+    def patch_rate_limit(self):
+        with patch(
+            "app.services.rate_limit_service.rate_limit_service.check_rate_limit",
+            new_callable=AsyncMock,
+        ):
+            yield
+
     @pytest.fixture
     def mock_db(self):
         return AsyncMock()
@@ -1112,6 +1120,7 @@ class TestValuationProviderWhitelist:
         with pytest.raises(HTTPException) as exc_info:
             await refresh_account_valuation(
                 account_id=uuid4(),
+                http_request=MagicMock(),
                 provider="evil_provider",
                 current_user=mock_user,
                 db=mock_db,
@@ -1132,6 +1141,7 @@ class TestValuationProviderWhitelist:
         with pytest.raises(HTTPException) as exc_info:
             await refresh_account_valuation(
                 account_id=uuid4(),
+                http_request=MagicMock(),
                 provider=None,
                 current_user=mock_user,
                 db=mock_db,
@@ -1150,6 +1160,7 @@ class TestValuationProviderWhitelist:
             with pytest.raises(HTTPException) as exc_info:
                 await refresh_account_valuation(
                     account_id=uuid4(),
+                    http_request=MagicMock(),
                     provider=provider,
                     current_user=mock_user,
                     db=mock_db,
@@ -1422,6 +1433,14 @@ class TestGetValuationProviders:
 class TestRefreshValuationAdditional:
     """Additional tests for refresh_account_valuation branches."""
 
+    @pytest.fixture(autouse=True)
+    def patch_rate_limit(self):
+        with patch(
+            "app.services.rate_limit_service.rate_limit_service.check_rate_limit",
+            new_callable=AsyncMock,
+        ):
+            yield
+
     @pytest.fixture
     def mock_user(self):
         user = Mock(spec=User)
@@ -1436,6 +1455,7 @@ class TestRefreshValuationAdditional:
         with pytest.raises(HTTPException) as exc_info:
             await refresh_account_valuation(
                 account_id=uuid4(),
+                http_request=MagicMock(),
                 provider="invalid_provider",
                 current_user=mock_user,
                 db=db,
@@ -1454,6 +1474,7 @@ class TestRefreshValuationAdditional:
         with pytest.raises(HTTPException) as exc_info:
             await refresh_account_valuation(
                 account_id=uuid4(),
+                http_request=MagicMock(),
                 provider=None,
                 current_user=mock_user,
                 db=db,
@@ -1482,6 +1503,7 @@ class TestRefreshValuationAdditional:
             with pytest.raises(HTTPException) as exc_info:
                 await refresh_account_valuation(
                     account_id=account.id,
+                    http_request=MagicMock(),
                     provider=None,
                     current_user=mock_user,
                     db=db,
@@ -1513,6 +1535,7 @@ class TestRefreshValuationAdditional:
             with pytest.raises(HTTPException) as exc_info:
                 await refresh_account_valuation(
                     account_id=account.id,
+                    http_request=MagicMock(),
                     provider=None,
                     current_user=mock_user,
                     db=db,
@@ -1542,6 +1565,7 @@ class TestRefreshValuationAdditional:
                 with pytest.raises(HTTPException) as exc_info:
                     await refresh_account_valuation(
                         account_id=account.id,
+                        http_request=MagicMock(),
                         provider=None,
                         current_user=mock_user,
                         db=db,
@@ -2005,6 +2029,14 @@ class TestUpdateAccountExtendedFields:
 class TestRefreshValuationVehicle:
     """Cover vehicle valuation branch and adjustment logic."""
 
+    @pytest.fixture(autouse=True)
+    def patch_rate_limit(self):
+        with patch(
+            "app.services.rate_limit_service.rate_limit_service.check_rate_limit",
+            new_callable=AsyncMock,
+        ):
+            yield
+
     @pytest.fixture
     def mock_user(self):
         user = Mock(spec=User)
@@ -2042,6 +2074,7 @@ class TestRefreshValuationVehicle:
                     with pytest.raises(HTTPException) as exc_info:
                         await refresh_account_valuation(
                             account_id=account.id,
+                            http_request=MagicMock(),
                             provider=None,
                             current_user=mock_user,
                             db=db,
@@ -2065,6 +2098,7 @@ class TestRefreshValuationVehicle:
                 with pytest.raises(HTTPException) as exc_info:
                     await refresh_account_valuation(
                         account_id=account.id,
+                        http_request=MagicMock(),
                         provider=None,
                         current_user=mock_user,
                         db=db,
@@ -2104,6 +2138,7 @@ class TestRefreshValuationVehicle:
                     ):
                         result = await refresh_account_valuation(
                             account_id=account.id,
+                            http_request=MagicMock(),
                             provider=None,
                             current_user=mock_user,
                             db=db,
@@ -2146,6 +2181,7 @@ class TestRefreshValuationVehicle:
                     ):
                         result = await refresh_account_valuation(
                             account_id=account.id,
+                            http_request=MagicMock(),
                             provider=None,
                             current_user=mock_user,
                             db=db,
@@ -2175,6 +2211,7 @@ class TestRefreshValuationVehicle:
                 with pytest.raises(HTTPException) as exc_info:
                     await refresh_account_valuation(
                         account_id=account.id,
+                        http_request=MagicMock(),
                         provider=None,
                         current_user=mock_user,
                         db=db,

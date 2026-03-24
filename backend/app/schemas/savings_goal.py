@@ -25,7 +25,7 @@ class SavingsGoalCreate(SavingsGoalBase):
     current_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
     auto_sync: bool = False
     is_shared: bool = False
-    shared_user_ids: Optional[List[str]] = None
+    shared_user_ids: Optional[List[str]] = Field(default=None, max_length=20)
 
 
 class SavingsGoalUpdate(BaseModel):
@@ -41,7 +41,7 @@ class SavingsGoalUpdate(BaseModel):
     auto_sync: Optional[bool] = None
     is_completed: Optional[bool] = None
     is_shared: Optional[bool] = None
-    shared_user_ids: Optional[List[str]] = None
+    shared_user_ids: Optional[List[str]] = Field(default=None, max_length=20)
 
 
 class SavingsGoalResponse(SavingsGoalBase):
@@ -91,4 +91,4 @@ class AutoSyncRequest(BaseModel):
 class ReorderRequest(BaseModel):
     """Request body for reordering goals."""
 
-    goal_ids: List[UUID]
+    goal_ids: List[UUID] = Field(..., max_length=100)

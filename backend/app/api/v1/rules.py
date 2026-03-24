@@ -5,7 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -38,7 +38,7 @@ rate_limit_service = get_rate_limit_service()
 class ApplyRuleRequest(BaseModel):
     """Request to apply a rule to transactions."""
 
-    transaction_ids: Optional[List[str]] = None  # If None, applies to all transactions
+    transaction_ids: Optional[List[str]] = Field(default=None, max_length=500)  # If None, applies to all transactions
 
 
 class RuleTemplate(str, Enum):
