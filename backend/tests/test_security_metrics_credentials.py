@@ -56,7 +56,11 @@ def _make_fake_settings(**overrides):
     s.ALLOWED_HOSTS = overrides.get("ALLOWED_HOSTS", ["app.example.com"])
     s.PLAID_CLIENT_ID = overrides.get("PLAID_CLIENT_ID", "plaid_client_id_val")
     s.PLAID_SECRET = overrides.get("PLAID_SECRET", "plaid_secret_val")
-    s.PLAID_WEBHOOK_SECRET = overrides.get("PLAID_WEBHOOK_SECRET", "webhook_val")
+    s.PLAID_WEBHOOK_SECRET = overrides.get("PLAID_WEBHOOK_SECRET", "webhook_val_long_enough_here")
+    s.TELLER_WEBHOOK_SECRET = overrides.get("TELLER_WEBHOOK_SECRET", "teller_webhook_val_long")
+    s.REDIS_URL = overrides.get("REDIS_URL", None)  # no Redis by default
+    s.SMTP_HOST = overrides.get("SMTP_HOST", None)  # no SMTP by default
+    s.SMTP_PASSWORD = overrides.get("SMTP_PASSWORD", None)
     s.METRICS_PASSWORD = overrides.get("METRICS_PASSWORD", "xK9mP2qL7nR4wZ8v")  # 16 chars  # pragma: allowlist secret
     s.METRICS_USERNAME = overrides.get("METRICS_USERNAME", "metrics_reader")
     return s
