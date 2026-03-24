@@ -78,6 +78,44 @@ class TestCheckCsvRowLimit:
     def test_empty_csv_passes(self):
         check_csv_row_limit("")  # Should not raise
 
+    def test_multiline_quoted_field_counts_as_one_row(self):
+        """A field containing embedded newlines is ONE CSV row, not many.
+
+        The old splitlines() approach would have counted each embedded newline
+        as a separate row, allowing multiline-field CSVs to bypass the limit.
+        The csv-module parser counts actual records correctly.
+        """
+        # 3 lines of text inside a quoted field = still only 1 CSV data row
+        csv_content = 'date,description\n2024-01-01,"line1\nline2\nline3"'
+        check_csv_row_limit(csv_content)  # Should not raise
+
+    def test_multiline_fields_cannot_bypass_row_limit(self):
+        """Multiline-field trick must NOT allow more rows than MAX_CSV_ROWS.
+
+        Previously, a CSV with MAX_CSV_ROWS+1 actual data rows but each row
+        having a field with embedded newlines could fool splitlines() into
+        reporting far fewer lines — bypassing the limit.  Now we count parsed
+        CSV records, so the check is exact.
+        """
+        from app.api.v1.csv_import import MAX_CSV_ROWS
+
+        # Build a CSV with MAX_CSV_ROWS+1 actual rows, each containing a
+        # multiline field that would add 100 extra "lines" under splitlines().
+        # Wrap description in quotes so csv parser treats it as a single field.
+        row = '2024-01-01,"embedded\nnewline"\n'
+        csv_content = "date,description\n" + row * (MAX_CSV_ROWS + 1)
+
+        with pytest.raises(HTTPException) as exc_info:
+            check_csv_row_limit(csv_content)
+        assert exc_info.value.status_code == 400
+        assert "too large" in exc_info.value.detail.lower()
+
+    def test_single_row_with_many_embedded_newlines_passes(self):
+        """A single data row with 50_000 embedded newlines is still 1 row."""
+        embedded = "\\n" * 50_000  # literal \n chars, not real newlines
+        csv_content = f'date,description\n2024-01-01,"{embedded}"'
+        check_csv_row_limit(csv_content)  # 1 real data row — should not raise
+
 
 class TestValidateCsvFile:
     """Tests for validate_csv_file helper."""

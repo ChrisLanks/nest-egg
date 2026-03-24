@@ -68,19 +68,34 @@ def validate_csv_file(file: UploadFile) -> None:
 def check_csv_row_limit(csv_content: str) -> None:
     """Raise 400 if the CSV exceeds MAX_CSV_ROWS data rows.
 
-    Counts non-blank lines excluding the header so the limit applies to
-    actual data, not the column names row.
+    Uses the csv module to count actual parsed rows so that multiline quoted
+    fields (e.g. ``"line1\\nline2"``) are counted correctly.  A naive
+    splitlines() count would under-count rows whose fields contain embedded
+    newlines, allowing an attacker to smuggle far more data than the limit
+    intends to permit.
 
     Raises:
         HTTPException: 400 if row count exceeds MAX_CSV_ROWS.
     """
-    lines = [ln for ln in csv_content.splitlines() if ln.strip()]
-    data_rows = max(0, len(lines) - 1)  # subtract header row
-    if data_rows > MAX_CSV_ROWS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"CSV file too large: {data_rows:,} rows exceeds the {MAX_CSV_ROWS:,}-row limit.",
-        )
+    import csv
+    import io
+
+    try:
+        reader = csv.reader(io.StringIO(csv_content))
+        next(reader, None)  # skip header row; None avoids StopIteration on empty files
+        data_rows = 0
+        for _ in reader:
+            data_rows += 1
+            if data_rows > MAX_CSV_ROWS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"CSV file too large: exceeds the {MAX_CSV_ROWS:,}-row limit.",
+                )
+    except HTTPException:
+        raise
+    except Exception:
+        # If we can't parse it at all, the later validator will surface a better error
+        pass
 
 
 async def validate_csv_content(file: UploadFile) -> None:

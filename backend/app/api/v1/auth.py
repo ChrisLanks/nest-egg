@@ -339,12 +339,18 @@ async def login(
                     ),
                 )
 
-            # If lockout period has expired, reset failed attempts
+            # If lockout period has expired, reset failed attempts atomically.
+            # Using a single UPDATE avoids a TOCTOU race where two concurrent
+            # login requests both see the expired lock and both proceed past it
+            # before either can commit the reset.
             if locked_until and locked_until <= utc_now():
-                if hasattr(user, "failed_login_attempts"):
-                    user.failed_login_attempts = 0
-                    user.locked_until = None
-                    await db.commit()
+                await db.execute(
+                    sa_update(User)
+                    .where(User.id == user.id)
+                    .values(failed_login_attempts=0, locked_until=None)
+                )
+                await db.commit()
+                await db.refresh(user)
 
         logger.info("User found, verifying password...")
 

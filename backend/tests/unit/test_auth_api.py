@@ -911,7 +911,12 @@ class TestLoginEndpoint:
 
     @pytest.mark.asyncio
     async def test_login_resets_expired_lockout(self):
-        """Should reset lockout if period has expired."""
+        """Should atomically reset lockout via DB UPDATE when lockout period has expired.
+
+        The reset must use sa_update (not ORM attribute mutation) to avoid a
+        TOCTOU race where two concurrent login attempts both see the expired
+        lock before either can write the reset.
+        """
         from app.api.v1.auth import login
 
         mock_request = Mock()
@@ -932,14 +937,29 @@ class TestLoginEndpoint:
             with patch(
                 "app.api.v1.auth.user_crud.get_by_email", new=AsyncMock(return_value=mock_user)
             ):
-                with patch("app.api.v1.auth.verify_password", return_value=True):
-                    with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
-                        with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
-                            await login(mock_request, Mock(), mock_data, mock_db)
+                with patch("app.api.v1.auth.settings") as mock_settings:
+                    mock_settings.ENFORCE_ACCOUNT_LOCKOUT = True
+                    mock_settings.ENFORCE_MFA = False
+                    mock_settings.ENVIRONMENT = "test"
+                    mock_settings.ENFORCE_JTI_REDIS_CHECK = False
+                    with patch("app.api.v1.auth.verify_password", return_value=True):
+                        with patch("app.api.v1.auth.user_crud.update_last_login", new=AsyncMock()):
+                            with patch("app.api.v1.auth.create_auth_response", new=AsyncMock()):
+                                await login(mock_request, Mock(), mock_data, mock_db)
 
-                            # Should reset failed attempts
-                            assert mock_user.failed_login_attempts == 0
-                            assert mock_user.locked_until is None
+                    # The reset must go via db.execute (atomic UPDATE), not via ORM
+                    # attribute mutation — verifies the TOCTOU fix is in place.
+                    execute_calls = mock_db.execute.call_args_list
+                    # At least one execute call must be an UPDATE statement (not SELECT)
+                    update_calls = [
+                        c for c in execute_calls
+                        if hasattr(c.args[0], "is_update") and c.args[0].is_update
+                    ]
+                    assert len(update_calls) >= 1, (
+                        "Lockout reset must use an atomic DB UPDATE, not ORM mutation"
+                    )
+                    # db.refresh must be called to reload the user after the UPDATE
+                    mock_db.refresh.assert_awaited()
 
     @pytest.mark.asyncio
     async def test_login_increments_failed_attempts_on_wrong_password(self):
