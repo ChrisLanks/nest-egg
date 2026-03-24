@@ -149,6 +149,7 @@ from app.workers.tasks import (
     report_tasks,  # noqa: F401
     retention_tasks,  # noqa: F401
     retirement_tasks,  # noqa: F401
+    scf_benchmark_tasks,  # noqa: F401
     snapshot_tasks,  # noqa: F401
     suggestion_tasks,  # noqa: F401
 )
@@ -232,5 +233,12 @@ celery_app.conf.beat_schedule = {
     "refresh-budget-suggestions": {
         "task": "refresh_budget_suggestions",
         "schedule": crontab(hour=2, minute=5),
+    },
+    # Refresh SCF net-worth benchmark data annually (Jan 1 5am UTC).
+    # Only scrapes when data is stale (>3 years old); otherwise no-ops.
+    # Falls back gracefully to static table in financial.py on failure.
+    "refresh-scf-benchmarks": {
+        "task": "refresh_scf_benchmarks",
+        "schedule": crontab(hour=5, minute=0, month_of_year=1, day_of_month=1),
     },
 }
