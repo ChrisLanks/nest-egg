@@ -154,7 +154,7 @@ async def handle_teller_webhook(
         elif event_type == "balance.updated":
             await _handle_balance_updated(db, enrollment, payload)
         else:
-            logger.info(f"Unhandled webhook type: {event_type}")
+            logger.warning("Unhandled Teller webhook event_type=%r — may need a handler", event_type)
 
         return {"status": "acknowledged"}
 

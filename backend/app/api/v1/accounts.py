@@ -937,7 +937,10 @@ async def migrate_account(
         )
 
     except MigrationError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Log internally but return a generic message — MigrationError may contain
+        # DB internals (e.g. "Migration failed: <sqlalchemy error>").
+        logger.warning("Account migration failed: %s", e)
+        raise HTTPException(status_code=400, detail="Account migration failed. Please try again.")
 
 
 @router.get(

@@ -81,7 +81,8 @@ async def update_split(
             **split_data.model_dump(exclude_unset=True),
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Use generic message — split service errors may contain stored amounts
+        raise HTTPException(status_code=400, detail="Invalid split update")
 
     if not split:
         raise HTTPException(status_code=404, detail="Split not found")

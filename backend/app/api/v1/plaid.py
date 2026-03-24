@@ -432,6 +432,12 @@ async def handle_plaid_webhook(
             await _handle_transactions_webhook(db, plaid_item, webhook_code, webhook_data)
         elif webhook_type == "AUTH":
             await _handle_auth_webhook(db, plaid_item, webhook_code, webhook_data)
+        else:
+            logger.warning(
+                "Unhandled Plaid webhook type=%r code=%r — may need a handler",
+                webhook_type,
+                webhook_code,
+            )
 
         return {"status": "acknowledged"}
 

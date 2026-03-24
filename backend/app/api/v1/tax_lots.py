@@ -141,8 +141,8 @@ async def record_sale(
             method=method,
             specific_lot_ids=body.specific_lot_ids,
         )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Insufficient shares or invalid sale parameters")
 
     await db.commit()
     # Refresh lot details after commit
