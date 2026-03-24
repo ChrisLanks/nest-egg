@@ -4,7 +4,7 @@ import logging
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +13,7 @@ from app.dependencies import get_current_user, verify_household_member
 from app.models.user import User
 from app.services.fire_service import FireService
 from app.services.permission_service import permission_service
+from app.services.rate_limit_service import rate_limit_service
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ class FireMetricsResponse(BaseModel):
 
 @router.get("/metrics", response_model=FireMetricsResponse)
 async def get_fire_metrics(
+    http_request: Request,
     user_id: Optional[UUID] = Query(
         None, description="Filter by user. None = combined household view"
     ),
@@ -93,6 +95,14 @@ async def get_fire_metrics(
 
     Returns FI ratio, savings rate, years to FI, and Coast FI calculations.
     """
+    # Rate-limit: multi-account aggregation computation (30/min per user)
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=30,
+        window_seconds=60,
+        identifier=str(current_user.id),
+    )
+
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)
         await permission_service.require(
