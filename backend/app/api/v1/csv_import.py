@@ -123,11 +123,12 @@ async def validate_csv(
     Validate CSV file format and security.
     Rate limited to 20 requests per minute.
     """
-    # Rate limit: 20 validation requests per minute per IP
+    # Rate limit: 20 validation requests per minute per user
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=20,
         window_seconds=60,
+        identifier=str(current_user.id),
     )
 
     # Validate file upload security
@@ -164,11 +165,12 @@ async def preview_csv_import(
 
     Returns detected columns, sample rows, and row count.
     """
-    # Rate limit: 15 preview requests per minute per IP
+    # Rate limit: 15 preview requests per minute per user
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=15,
         window_seconds=60,
+        identifier=str(current_user.id),
     )
 
     # Validate file upload security
@@ -215,11 +217,12 @@ async def import_csv(
     Returns:
         Import statistics (imported, skipped, errors)
     """
-    # Rate limit: 10 imports/hour per IP (resource-intensive)
+    # Rate limit: 10 imports/hour per user (resource-intensive)
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=10,
         window_seconds=3600,  # 1 hour
+        identifier=str(current_user.id),
     )
 
     # Verify account belongs to current user's organization (IDOR prevention)

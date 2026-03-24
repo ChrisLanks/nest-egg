@@ -169,11 +169,12 @@ async def update_user_profile(
     Update current user's profile.
     Rate limited to 10 updates per hour to prevent abuse.
     """
-    # Rate limit: 10 profile updates per hour per IP
+    # Rate limit: 10 profile updates per hour per user
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=10,
         window_seconds=3600,  # 1 hour
+        identifier=str(current_user.id),
     )
 
     # Update fields (sanitize to prevent stored XSS — these render in UI)
@@ -315,11 +316,12 @@ async def change_password(
     Rate limited to 10 password changes per hour to allow for legitimate
     retries (wrong current password, validation failures) while preventing abuse.
     """
-    # Rate limit: 10 password changes per hour per IP
+    # Rate limit: 10 password changes per hour per user
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=10,
         window_seconds=3600,  # 1 hour
+        identifier=str(current_user.id),
     )
 
     # Verify current password
@@ -439,6 +441,7 @@ async def export_data(
         request=http_request,
         max_requests=5,
         window_seconds=3600,
+        identifier=str(current_user.id),
     )
 
     org_id = current_user.organization_id
@@ -795,6 +798,7 @@ async def delete_account(
         request=http_request,
         max_requests=3,
         window_seconds=3600,
+        identifier=str(current_user.id),
     )
 
     if not verify_password(data.password, current_user.password_hash):

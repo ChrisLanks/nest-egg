@@ -55,11 +55,12 @@ async def create_link_token(
 
     For test@test.com users, returns a dummy token.
     """
-    # Rate limit: 10 link token requests per minute per IP
+    # Rate limit: 10 link token requests per minute per user
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=10,
         window_seconds=60,
+        identifier=str(current_user.id),
     )
 
     plaid_service = PlaidService()
@@ -89,11 +90,12 @@ async def exchange_public_token(
 
     For test@test.com users, creates accounts with dummy data.
     """
-    # Rate limit: 5 token exchanges per minute per IP
+    # Rate limit: 5 token exchanges per minute per user
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=5,
         window_seconds=60,
+        identifier=str(current_user.id),
     )
 
     plaid_service = PlaidService()
@@ -293,11 +295,12 @@ async def sync_plaid_holdings(
     Fetches the latest holdings data from Plaid and upserts them into the
     local holdings table.
     """
-    # Rate limit: 5 holdings sync requests per minute per IP
+    # Rate limit: 5 holdings sync requests per minute per user
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=5,
         window_seconds=60,
+        identifier=str(current_user.id),
     )
 
     # Fetch account and verify ownership
@@ -453,11 +456,12 @@ async def sync_transactions(
     - Manual refresh
     - Testing
     """
-    # Rate limit: 5 sync requests per minute per IP
+    # Rate limit: 5 sync requests per minute per user
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=5,
         window_seconds=60,
+        identifier=str(current_user.id),
     )
 
     # Get PlaidItem and verify ownership

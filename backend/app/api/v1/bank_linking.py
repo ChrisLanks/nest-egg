@@ -103,6 +103,7 @@ async def create_link_token(
         request=http_request,
         max_requests=10,
         window_seconds=60,
+        identifier=str(current_user.id),
     )
 
     try:
@@ -179,6 +180,7 @@ async def exchange_token(
         request=http_request,
         max_requests=5,
         window_seconds=60,
+        identifier=str(current_user.id),
     )
 
     try:
@@ -349,6 +351,7 @@ async def sync_transactions(
         request=http_request,
         max_requests=5,
         window_seconds=60,
+        identifier=str(current_user.id),
     )
 
     # Get account and verify ownership
@@ -452,6 +455,7 @@ async def sync_holdings(
         request=http_request,
         max_requests=5,
         window_seconds=60,
+        identifier=str(current_user.id),
     )
 
     result = await db.execute(
@@ -522,6 +526,7 @@ async def disconnect_account(
         request=http_request,
         max_requests=5,
         window_seconds=60,
+        identifier=str(current_user.id),
     )
 
     result = await db.execute(

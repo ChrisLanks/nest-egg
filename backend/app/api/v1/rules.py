@@ -78,11 +78,12 @@ async def create_rule(
     Create a new rule.
     Rate limited to 20 rule creations per hour to prevent abuse.
     """
-    # Rate limit: 20 rule creations per hour per IP
+    # Rate limit: 20 rule creations per hour per user
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=20,
         window_seconds=3600,  # 1 hour
+        identifier=str(current_user.id),
     )
 
     # Sanitize user text input
@@ -216,11 +217,12 @@ async def update_rule(
     Update a rule.
     Rate limited to 30 rule updates per hour to prevent abuse.
     """
-    # Rate limit: 30 rule updates per hour per IP
+    # Rate limit: 30 rule updates per hour per user
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=30,
         window_seconds=3600,  # 1 hour
+        identifier=str(current_user.id),
     )
 
     result = await db.execute(
@@ -308,11 +310,12 @@ async def delete_rule(
     Delete a rule.
     Rate limited to 20 rule deletions per hour to prevent abuse.
     """
-    # Rate limit: 20 rule deletions per hour per IP
+    # Rate limit: 20 rule deletions per hour per user
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=20,
         window_seconds=3600,  # 1 hour
+        identifier=str(current_user.id),
     )
 
     result = await db.execute(
@@ -342,11 +345,12 @@ async def apply_rule(
     Apply a rule to transactions.
     Rate limited to 10 rule applications per hour to prevent abuse.
     """
-    # Rate limit: 10 rule applications per hour per IP
+    # Rate limit: 10 rule applications per hour per user
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=10,
         window_seconds=3600,  # 1 hour
+        identifier=str(current_user.id),
     )
 
     # Get the rule with conditions and actions

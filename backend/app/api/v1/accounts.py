@@ -481,11 +481,12 @@ async def bulk_update_visibility(
     Rate limited to 30 requests per minute.
     Only updates accounts the current user owns or has 'update' grant for.
     """
-    # Rate limit: 30 bulk update requests per minute per IP
+    # Rate limit: 30 bulk update requests per minute per user
     await rate_limit_service.check_rate_limit(
         request=http_request,
         max_requests=30,
         window_seconds=60,
+        identifier=str(current_user.id),
     )
 
     # Fetch all requested accounts that are within the org
@@ -829,6 +830,7 @@ async def bulk_delete_accounts(
         request=http_request,
         max_requests=10,
         window_seconds=60,
+        identifier=str(current_user.id),
     )
     # Fetch all requested accounts within the org
     fetch_result = await db.execute(
@@ -887,6 +889,7 @@ async def migrate_account(
         request=http_request,
         max_requests=5,
         window_seconds=60,
+        identifier=str(current_user.id),
     )
 
     await permission_service.require(
