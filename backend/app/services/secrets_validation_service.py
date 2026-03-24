@@ -103,7 +103,21 @@ class SecretsValidationService:
         if not settings.PLAID_SECRET:
             warnings.append("PLAID_SECRET not set - Plaid integration will not work")
         if not settings.PLAID_WEBHOOK_SECRET:
-            warnings.append("PLAID_WEBHOOK_SECRET not set - webhook verification disabled")
+            warnings.append("PLAID_WEBHOOK_SECRET not set - Plaid webhook verification disabled")
+        elif len(settings.PLAID_WEBHOOK_SECRET) < 20:
+            errors.append(
+                "PLAID_WEBHOOK_SECRET is too short (minimum 20 characters) — "
+                "a weak webhook secret allows signature forgery"
+            )
+
+        # Optional but recommended: Teller secrets
+        if not settings.TELLER_WEBHOOK_SECRET:
+            warnings.append("TELLER_WEBHOOK_SECRET not set - Teller webhook verification disabled")
+        elif len(settings.TELLER_WEBHOOK_SECRET) < 20:
+            errors.append(
+                "TELLER_WEBHOOK_SECRET is too short (minimum 20 characters) — "
+                "a weak webhook secret allows signature forgery"
+            )
 
         # Redis URL validation — weak embedded password is exploitable for cache poisoning /
         # session hijack if Redis is exposed outside the container network.

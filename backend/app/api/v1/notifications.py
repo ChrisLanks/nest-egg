@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Dict, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -146,10 +146,18 @@ async def dismiss_notification(
 
 @router.post("/mark-all-read")
 async def mark_all_notifications_read(
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Mark all notifications as read."""
+    from app.services.rate_limit_service import rate_limit_service as _rls
+    await _rls.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=60,
+        identifier=str(current_user.id),
+    )
     count = await notification_service.mark_all_as_read(db=db, user=current_user)
     return {"marked_read": count}
 

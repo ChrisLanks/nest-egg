@@ -4,7 +4,7 @@ import re
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -405,6 +405,7 @@ async def delete_report_template(
 @router.post("/execute")
 async def execute_report(
     request: ExecuteReportRequest,
+    http_request: Request,
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -414,6 +415,13 @@ async def execute_report(
 
     Does not save the report - use for preview/one-time reports.
     """
+    from app.services.rate_limit_service import rate_limit_service as _rls
+    await _rls.check_rate_limit(
+        request=http_request,
+        max_requests=20,
+        window_seconds=60,
+        identifier=str(current_user.id),
+    )
     # Get accounts based on user filter
     if user_id:
         if getattr(current_user, "_is_guest", False):
@@ -441,11 +449,19 @@ async def execute_report(
 @router.get("/templates/{template_id}/execute")
 async def execute_saved_report(
     template_id: UUID,
+    http_request: Request,
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Execute a saved report template."""
+    from app.services.rate_limit_service import rate_limit_service as _rls
+    await _rls.check_rate_limit(
+        request=http_request,
+        max_requests=20,
+        window_seconds=60,
+        identifier=str(current_user.id),
+    )
     # Load template
     result = await db.execute(
         select(ReportTemplate).where(
@@ -499,11 +515,19 @@ async def execute_saved_report(
 @router.get("/templates/{template_id}/export")
 async def export_report_csv(
     template_id: UUID,
+    http_request: Request,
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Export a saved report as CSV."""
+    from app.services.rate_limit_service import rate_limit_service as _rls
+    await _rls.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=3600,
+        identifier=str(current_user.id),
+    )
     # Load and authorize template first
     result = await db.execute(
         select(ReportTemplate).where(

@@ -153,7 +153,8 @@ class TestValidateProductionSecrets:
         s.ALLOWED_HOSTS = overrides.get("ALLOWED_HOSTS", ["app.example.com"])
         s.PLAID_CLIENT_ID = overrides.get("PLAID_CLIENT_ID", "plaid_client_id_val")
         s.PLAID_SECRET = overrides.get("PLAID_SECRET", "plaid_secret_val")
-        s.PLAID_WEBHOOK_SECRET = overrides.get("PLAID_WEBHOOK_SECRET", "webhook_val")
+        s.PLAID_WEBHOOK_SECRET = overrides.get("PLAID_WEBHOOK_SECRET", "plaid_wh_secret_strong_v1")  # pragma: allowlist secret
+        s.TELLER_WEBHOOK_SECRET = overrides.get("TELLER_WEBHOOK_SECRET", "teller_wh_secret_strong_1")  # pragma: allowlist secret
         s.METRICS_PASSWORD = overrides.get("METRICS_PASSWORD", "strong_metrics_pw_2024")
         s.METRICS_USERNAME = overrides.get("METRICS_USERNAME", "metrics_reader")
         s.REDIS_URL = overrides.get(
@@ -345,7 +346,8 @@ class TestGenerateSecurityChecklist:
         s.ALLOWED_HOSTS = overrides.get("ALLOWED_HOSTS", ["app.example.com"])
         s.PLAID_CLIENT_ID = overrides.get("PLAID_CLIENT_ID", "plaid_client_id_val")
         s.PLAID_SECRET = overrides.get("PLAID_SECRET", "plaid_secret_val")
-        s.PLAID_WEBHOOK_SECRET = overrides.get("PLAID_WEBHOOK_SECRET", "webhook_val")
+        s.PLAID_WEBHOOK_SECRET = overrides.get("PLAID_WEBHOOK_SECRET", "plaid_wh_secret_strong_v1")  # pragma: allowlist secret
+        s.TELLER_WEBHOOK_SECRET = overrides.get("TELLER_WEBHOOK_SECRET", "teller_wh_secret_strong_1")  # pragma: allowlist secret
         s.METRICS_PASSWORD = overrides.get("METRICS_PASSWORD", "strong_metrics_pw_2024")
         s.METRICS_USERNAME = overrides.get("METRICS_USERNAME", "metrics_reader")
         s.REDIS_URL = overrides.get(
@@ -550,7 +552,8 @@ class TestRedisAndSmtpProductionValidation:
         s.ALLOWED_HOSTS = ["app.example.com"]
         s.PLAID_CLIENT_ID = "plaid_client_id_val"
         s.PLAID_SECRET = "plaid_secret_val"
-        s.PLAID_WEBHOOK_SECRET = "webhook_val"
+        s.PLAID_WEBHOOK_SECRET = overrides.get("PLAID_WEBHOOK_SECRET", "plaid_wh_secret_strong_v1")  # pragma: allowlist secret
+        s.TELLER_WEBHOOK_SECRET = overrides.get("TELLER_WEBHOOK_SECRET", "teller_wh_secret_strong_1")  # pragma: allowlist secret
         s.METRICS_PASSWORD = "strong_metrics_pw_2024"
         s.METRICS_USERNAME = "metrics_reader"
         s.REDIS_URL = overrides.get(
@@ -631,3 +634,59 @@ class TestRedisAndSmtpProductionValidation:
         ):
             result = SecretsValidationService.validate_production_secrets()
         assert not any("SMTP" in e for e in result["errors"])
+
+    def test_plaid_webhook_short_secret_error(self):
+        """PLAID_WEBHOOK_SECRET shorter than 20 chars must be an error."""
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(PLAID_WEBHOOK_SECRET="tooshort"),  # pragma: allowlist secret
+        ):
+            result = SecretsValidationService.validate_production_secrets()
+        assert any("PLAID_WEBHOOK_SECRET" in e for e in result["errors"])
+
+    def test_plaid_webhook_missing_is_warning_not_error(self):
+        """Missing PLAID_WEBHOOK_SECRET is a warning (optional integration)."""
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(PLAID_WEBHOOK_SECRET=""),
+        ):
+            result = SecretsValidationService.validate_production_secrets()
+        assert any("PLAID_WEBHOOK_SECRET" in w for w in result["warnings"])
+        assert not any("PLAID_WEBHOOK_SECRET" in e for e in result["errors"])
+
+    def test_plaid_webhook_strong_secret_no_error(self):
+        """A sufficiently long PLAID_WEBHOOK_SECRET must not produce errors."""
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(PLAID_WEBHOOK_SECRET="plaid_wh_secret_strong_v1"),  # pragma: allowlist secret
+        ):
+            result = SecretsValidationService.validate_production_secrets()
+        assert not any("PLAID_WEBHOOK_SECRET" in e for e in result["errors"])
+
+    def test_teller_webhook_short_secret_error(self):
+        """TELLER_WEBHOOK_SECRET shorter than 20 chars must be an error."""
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(TELLER_WEBHOOK_SECRET="weak"),  # pragma: allowlist secret
+        ):
+            result = SecretsValidationService.validate_production_secrets()
+        assert any("TELLER_WEBHOOK_SECRET" in e for e in result["errors"])
+
+    def test_teller_webhook_missing_is_warning_not_error(self):
+        """Missing TELLER_WEBHOOK_SECRET is a warning (optional integration)."""
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(TELLER_WEBHOOK_SECRET=""),
+        ):
+            result = SecretsValidationService.validate_production_secrets()
+        assert any("TELLER_WEBHOOK_SECRET" in w for w in result["warnings"])
+        assert not any("TELLER_WEBHOOK_SECRET" in e for e in result["errors"])
+
+    def test_teller_webhook_strong_secret_no_error(self):
+        """A sufficiently long TELLER_WEBHOOK_SECRET must not produce errors."""
+        with patch(
+            "app.services.secrets_validation_service.settings",
+            self._make_settings(TELLER_WEBHOOK_SECRET="teller_wh_secret_strong_1"),  # pragma: allowlist secret
+        ):
+            result = SecretsValidationService.validate_production_secrets()
+        assert not any("TELLER_WEBHOOK_SECRET" in e for e in result["errors"])
