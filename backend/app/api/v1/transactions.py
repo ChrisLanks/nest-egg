@@ -1008,6 +1008,7 @@ class _NLPRequest(BaseModel):
 @router.post("/search/natural", response_model=NLPSearchResponse)
 async def natural_language_search(
     body: _NLPRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -1022,6 +1023,14 @@ async def natural_language_search(
     - "income this year"           → is_income=true, this-year date range
     - "rent over $1000"            → search=rent, min_amount=1000
     """
+    # Rate limit: 60 NLP parses per minute per user (lightweight regex parsing, but cap abuse)
+    from app.services.rate_limit_service import rate_limit_service as _rls
+    await _rls.check_rate_limit(
+        request=http_request,
+        max_requests=60,
+        window_seconds=60,
+        identifier=str(current_user.id),
+    )
     # Sanitize input
     raw = input_sanitization_service.sanitize_html(body.query or "").strip()
     if not raw:

@@ -821,7 +821,12 @@ async def resend_verification(
     Resend an email verification link to the currently authenticated user.
     Rate limited to 3 requests per hour per user to prevent abuse.
     """
-    await rate_limit_service.check_rate_limit(request=request, max_requests=3, window_seconds=3600)
+    await rate_limit_service.check_rate_limit(
+        request=request,
+        max_requests=3,
+        window_seconds=3600,
+        identifier=str(current_user.id),
+    )
 
     if current_user.email_verified:
         raise HTTPException(

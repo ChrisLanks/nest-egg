@@ -30,7 +30,7 @@ MAGIC_BYTES = {
     b'GIF87a': 'image/gif',
     b'GIF89a': 'image/gif',
     b'%PDF': 'application/pdf',
-    b'RIFF': 'image/webp',  # needs further check
+    # NOTE: WebP is detected separately below (RIFF container needs FourCC check)
 }
 async def _verify_transaction_access(
     db: AsyncSession,
@@ -131,6 +131,11 @@ async def upload_attachment(
         if file_header[:len(magic)] == magic:
             detected_type = mime
             break
+    # WebP: RIFF container — bytes 0-3 are b'RIFF', bytes 8-11 must be b'WEBP'
+    # to distinguish from AVI (b'AVI '), WAV (b'WAVE'), and other RIFF sub-types.
+    if detected_type is None and len(file_header) >= 12:
+        if file_header[:4] == b'RIFF' and file_header[8:12] == b'WEBP':
+            detected_type = 'image/webp'
 
     if detected_type is None or detected_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(

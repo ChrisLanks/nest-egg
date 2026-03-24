@@ -62,7 +62,7 @@ def create_access_token(data: dict[str, Any], expires_delta: Optional[timedelta]
     else:
         expire = utc_now() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode.update({"exp": expire, "type": "access"})
+    to_encode.update({"exp": expire, "type": "access", "iss": "nest-egg", "aud": "nest-egg"})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
     return encoded_jwt
@@ -71,7 +71,7 @@ def create_access_token(data: dict[str, Any], expires_delta: Optional[timedelta]
 def create_mfa_pending_token(user_id: str, expires_delta: timedelta) -> str:
     """Create a short-lived token for MFA verification (NOT a valid access token)."""
     expire = utc_now() + expires_delta
-    data = {"sub": user_id, "exp": expire, "type": "mfa_pending"}
+    data = {"sub": user_id, "exp": expire, "type": "mfa_pending", "iss": "nest-egg", "aud": "nest-egg"}
     return jwt.encode(data, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -93,6 +93,8 @@ def create_refresh_token(user_id: str) -> tuple[str, str, datetime]:
         "exp": expire,
         "type": "refresh",
         "jti": jti,
+        "iss": "nest-egg",
+        "aud": "nest-egg",
     }
 
     token = jwt.encode(data, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -113,7 +115,13 @@ def decode_token(token: str) -> dict[str, Any]:
     Raises:
         JWTError: If token is invalid or expired
     """
-    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    payload = jwt.decode(
+        token,
+        settings.SECRET_KEY,
+        algorithms=[settings.ALGORITHM],
+        audience="nest-egg",
+        issuer="nest-egg",
+    )
     return payload
 
 
