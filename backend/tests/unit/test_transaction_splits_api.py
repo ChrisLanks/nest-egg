@@ -262,7 +262,8 @@ class TestUpdateSplit:
                 )
 
             assert exc_info.value.status_code == 400
-            assert "Split amounts exceed transaction total" in exc_info.value.detail
+            # Generic message — specific error details are not exposed to clients
+            assert "Invalid split update" in exc_info.value.detail
 
 
 @pytest.mark.unit

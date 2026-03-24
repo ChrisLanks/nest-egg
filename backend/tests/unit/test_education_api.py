@@ -1,6 +1,6 @@
 """Unit tests for education planning and FIRE API endpoint functionality."""
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -325,6 +325,11 @@ class TestGetEducationProjection:
 class TestGetFireMetrics:
     """Tests for get_fire_metrics endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def mock_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
+
     @pytest.mark.asyncio
     async def test_returns_all_metric_sections(self):
         """Should return fi_ratio, savings_rate, years_to_fi, coast_fi."""
@@ -335,6 +340,7 @@ class TestGetFireMetrics:
         with patch("app.api.v1.fire.FireService") as MockService:
             MockService.return_value.get_fire_dashboard = AsyncMock(return_value=metrics)
             result = await get_fire_metrics(
+                http_request=MagicMock(),
                 user_id=None,
                 withdrawal_rate=0.04,
                 expected_return=0.07,
@@ -373,6 +379,7 @@ class TestGetFireMetrics:
         with patch("app.api.v1.fire.FireService") as MockService:
             MockService.return_value.get_fire_dashboard = AsyncMock(return_value=metrics)
             await get_fire_metrics(
+                http_request=MagicMock(),
                 user_id=None,
                 withdrawal_rate=0.05,
                 expected_return=0.08,
@@ -406,6 +413,7 @@ class TestGetFireMetrics:
         ):
             MockService.return_value.get_fire_dashboard = AsyncMock(return_value=metrics)
             await get_fire_metrics(
+                http_request=MagicMock(),
                 user_id=target_id,
                 withdrawal_rate=0.04,
                 expected_return=0.07,
@@ -436,6 +444,7 @@ class TestGetFireMetrics:
         with patch("app.api.v1.fire.FireService") as MockService:
             MockService.return_value.get_fire_dashboard = AsyncMock(return_value=metrics)
             result = await get_fire_metrics(
+                http_request=MagicMock(),
                 user_id=None,
                 withdrawal_rate=0.04,
                 expected_return=0.07,

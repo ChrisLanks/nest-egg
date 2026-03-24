@@ -1,7 +1,7 @@
 """Unit tests for attachments API endpoints."""
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -44,6 +44,11 @@ def _make_attachment(**overrides):
 class TestUploadAttachment:
     """Tests for upload_attachment endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def mock_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
+
     @pytest.fixture
     def mock_db(self):
         return AsyncMock()
@@ -70,6 +75,7 @@ class TestUploadAttachment:
 
         result = await upload_attachment(
             transaction_id=transaction_id,
+            http_request=MagicMock(),
             file=mock_file,
             current_user=mock_user,
             db=mock_db,

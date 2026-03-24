@@ -1,6 +1,6 @@
 """Unit tests for enrichment API endpoints."""
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -22,6 +22,11 @@ def _mock_user():
 
 @pytest.mark.unit
 class TestEnrichHoldings:
+    @pytest.fixture(autouse=True)
+    def mock_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
+
     @pytest.mark.asyncio
     async def test_enrich_returns_count(self):
         mock_db = AsyncMock()
@@ -33,6 +38,7 @@ class TestEnrichHoldings:
             mock_svc.enrich_holdings_batch = AsyncMock(return_value=5)
             result = await enrich_holdings(
                 request=request,
+                http_request=MagicMock(),
                 background_tasks=background_tasks,
                 db=mock_db,
                 current_user=user,
@@ -51,6 +57,7 @@ class TestEnrichHoldings:
             mock_svc.enrich_holdings_batch = AsyncMock(return_value=0)
             await enrich_holdings(
                 request=request,
+                http_request=MagicMock(),
                 background_tasks=Mock(),
                 db=mock_db,
                 current_user=user,

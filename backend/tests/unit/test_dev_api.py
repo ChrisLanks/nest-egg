@@ -116,24 +116,14 @@ class TestDebugTransactions:
 
     @pytest.mark.asyncio
     @patch("app.api.v1.dev.settings")
-    async def test_allowed_in_staging(self, mock_settings, mock_user, mock_db):
-        """Should return data in staging environment."""
+    async def test_blocked_in_staging(self, mock_settings, mock_user, mock_db):
+        """Should return 404 in staging environment (only development/test allowed)."""
         mock_settings.ENVIRONMENT = "staging"
 
-        mock_txn_count = Mock()
-        mock_txn_count.scalar.return_value = 0
+        with pytest.raises(HTTPException) as exc_info:
+            await debug_transactions(current_user=mock_user, db=mock_db)
 
-        mock_acc_count = Mock()
-        mock_acc_count.scalar.return_value = 0
-
-        mock_txns_result = Mock()
-        mock_txns_result.scalars.return_value.all.return_value = []
-
-        mock_db.execute.side_effect = [mock_txn_count, mock_acc_count, mock_txns_result]
-
-        result = await debug_transactions(current_user=mock_user, db=mock_db)
-
-        assert result["transaction_count"] == 0
+        assert exc_info.value.status_code == 404
 
 
 @pytest.mark.unit

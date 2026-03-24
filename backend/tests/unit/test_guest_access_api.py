@@ -1,6 +1,6 @@
 """Functional tests for guest access API endpoints."""
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -251,6 +251,11 @@ class TestRevokeGuest:
 class TestAcceptInvitation:
     """Test POST /guest-access/accept/{code}."""
 
+    @pytest.fixture(autouse=True)
+    def mock_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
+
     @pytest.mark.asyncio
     async def test_accept_creates_guest_record(self):
         from app.api.v1.guest_access import accept_guest_invitation
@@ -279,7 +284,7 @@ class TestAcceptInvitation:
         db.execute.side_effect = [mock_result1, mock_result2]
         db.commit = AsyncMock()
 
-        result = await accept_guest_invitation("valid-code", user, db)
+        result = await accept_guest_invitation("valid-code", MagicMock(), user, db)
         assert result["detail"] == "Guest access granted successfully"
         assert db.add.called
         assert invitation.status == GuestInvitationStatus.ACCEPTED
@@ -315,7 +320,7 @@ class TestAcceptInvitation:
         db.execute.side_effect = [mock_result1, mock_result2]
         db.commit = AsyncMock()
 
-        await accept_guest_invitation("valid-code", user, db)
+        await accept_guest_invitation("valid-code", MagicMock(), user, db)
         assert existing_guest.is_active is True
         assert existing_guest.role == GuestRole.ADVISOR
         assert existing_guest.revoked_at is None
@@ -323,6 +328,11 @@ class TestAcceptInvitation:
 
 class TestDeclineInvitation:
     """Test POST /guest-access/decline/{code}."""
+
+    @pytest.fixture(autouse=True)
+    def mock_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
 
     @pytest.mark.asyncio
     async def test_decline_success(self):
@@ -340,7 +350,7 @@ class TestDeclineInvitation:
         db.execute.return_value = mock_result
         db.commit = AsyncMock()
 
-        await decline_guest_invitation("some-code", user, db)
+        await decline_guest_invitation("some-code", MagicMock(), user, db)
         assert invitation.status == GuestInvitationStatus.DECLINED
 
 

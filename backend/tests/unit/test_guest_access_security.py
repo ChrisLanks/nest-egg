@@ -4,7 +4,7 @@ These tests verify the defense-in-depth layers that prevent unauthorized
 cross-household data access.
 """
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -309,6 +309,11 @@ class TestGuestContextResolution:
 class TestGuestInvitationSecurity:
     """Test invitation acceptance security."""
 
+    @pytest.fixture(autouse=True)
+    def mock_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
+
     @pytest.mark.asyncio
     async def test_wrong_email_cannot_accept_invitation(self):
         """User cannot accept an invitation sent to a different email."""
@@ -331,7 +336,7 @@ class TestGuestInvitationSecurity:
         db.execute.return_value = mock_result
 
         with pytest.raises(HTTPException) as exc_info:
-            await accept_guest_invitation("some-code", user, db)
+            await accept_guest_invitation("some-code", MagicMock(), user, db)
         assert exc_info.value.status_code == 403
         assert "different email" in exc_info.value.detail
 
@@ -357,7 +362,7 @@ class TestGuestInvitationSecurity:
         db.execute.return_value = mock_result
 
         with pytest.raises(HTTPException) as exc_info:
-            await accept_guest_invitation("some-code", user, db)
+            await accept_guest_invitation("some-code", MagicMock(), user, db)
         assert exc_info.value.status_code == 400
         assert "expired" in exc_info.value.detail.lower()
 
@@ -382,7 +387,7 @@ class TestGuestInvitationSecurity:
         db.execute.return_value = mock_result
 
         with pytest.raises(HTTPException) as exc_info:
-            await accept_guest_invitation("some-code", user, db)
+            await accept_guest_invitation("some-code", MagicMock(), user, db)
         assert exc_info.value.status_code == 400
 
     @pytest.mark.asyncio
@@ -407,7 +412,7 @@ class TestGuestInvitationSecurity:
         db.execute.return_value = mock_result
 
         with pytest.raises(HTTPException) as exc_info:
-            await accept_guest_invitation("some-code", user, db)
+            await accept_guest_invitation("some-code", MagicMock(), user, db)
         assert exc_info.value.status_code == 400
         assert "already a member" in exc_info.value.detail
 
@@ -427,7 +432,7 @@ class TestGuestInvitationSecurity:
         db.execute.return_value = mock_result
 
         with pytest.raises(HTTPException) as exc_info:
-            await accept_guest_invitation("bad-code", user, db)
+            await accept_guest_invitation("bad-code", MagicMock(), user, db)
         assert exc_info.value.status_code == 404
 
 

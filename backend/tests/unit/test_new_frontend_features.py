@@ -8,7 +8,7 @@ Tests for newly added frontend features:
 
 import uuid
 from datetime import date, datetime
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -78,6 +78,11 @@ def _make_attachment(**overrides):
 class TestFireAPIEndpoint:
     """Tests for the /fire/metrics endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def mock_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
+
     @pytest.mark.asyncio
     async def test_get_fire_metrics_returns_all_sections(self):
         """Endpoint returns fi_ratio, savings_rate, years_to_fi, coast_fi."""
@@ -125,6 +130,7 @@ class TestFireAPIEndpoint:
             instance.get_fire_dashboard = AsyncMock(return_value=mock_metrics)
 
             result = await get_fire_metrics(
+                http_request=MagicMock(),
                 user_id=None,
                 withdrawal_rate=0.04,
                 expected_return=0.07,
@@ -191,6 +197,7 @@ class TestFireAPIEndpoint:
             instance.get_fire_dashboard = AsyncMock(return_value=mock_metrics)
 
             await get_fire_metrics(
+                http_request=MagicMock(),
                 user_id=target_user_id,
                 withdrawal_rate=0.04,
                 expected_return=0.07,
@@ -248,6 +255,7 @@ class TestFireAPIEndpoint:
             instance.get_fire_dashboard = AsyncMock(return_value=mock_metrics)
 
             result = await get_fire_metrics(
+                http_request=MagicMock(),
                 user_id=None,
                 withdrawal_rate=0.04,
                 expected_return=0.07,

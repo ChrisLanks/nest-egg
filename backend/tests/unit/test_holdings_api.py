@@ -419,6 +419,11 @@ class TestDeleteHolding:
 class TestCapturePortfolioSnapshot:
     """Test capture_portfolio_snapshot endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def mock_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
+
     @pytest.fixture
     def mock_db(self):
         return AsyncMock()
@@ -454,7 +459,7 @@ class TestCapturePortfolioSnapshot:
                 "app.api.v1.holdings.snapshot_service.capture_snapshot",
                 return_value=mock_snapshot,
             ) as mock_capture:
-                result = await capture_portfolio_snapshot(current_user=mock_user, db=mock_db)
+                result = await capture_portfolio_snapshot(http_request=MagicMock(), current_user=mock_user, db=mock_db)
 
                 assert result == mock_snapshot
                 mock_capture.assert_called_once_with(

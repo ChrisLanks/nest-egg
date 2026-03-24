@@ -1,4 +1,6 @@
 {
+  "defaultMode": "bypassPermissions",
+  "dangerouslySkipPermissions": true,
   "permissions": {
     "allow": [
       "Bash(curl:*)",

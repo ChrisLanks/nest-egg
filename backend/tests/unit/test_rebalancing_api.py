@@ -303,6 +303,11 @@ class TestDeleteTargetAllocation:
 class TestGetRebalancingAnalysis:
     """Test get_rebalancing_analysis endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def mock_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
+
     @pytest.mark.asyncio
     async def test_no_active_allocation_404(self):
         db = AsyncMock()
@@ -316,7 +321,7 @@ class TestGetRebalancingAnalysis:
             return_value=None,
         ):
             with pytest.raises(HTTPException) as exc_info:
-                await get_rebalancing_analysis(current_user=user, db=db)
+                await get_rebalancing_analysis(http_request=MagicMock(), current_user=user, db=db)
             assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
@@ -395,7 +400,7 @@ class TestGetRebalancingAnalysis:
                 "app.api.v1.rebalancing.RebalancingService.calculate_drift",
                 return_value=(mock_drift_items, mock_trade_recs, True, Decimal("10.0")),
             ):
-                result = await get_rebalancing_analysis(current_user=user, db=db)
+                result = await get_rebalancing_analysis(http_request=MagicMock(), current_user=user, db=db)
 
                 assert result.target_allocation_id == mock_allocation.id
                 assert result.portfolio_total == Decimal("100000")
@@ -434,7 +439,7 @@ class TestGetRebalancingAnalysis:
                 "app.api.v1.rebalancing.RebalancingService.calculate_drift",
                 return_value=([], [], False, Decimal("0")),
             ):
-                result = await get_rebalancing_analysis(current_user=user, db=db)
+                result = await get_rebalancing_analysis(http_request=MagicMock(), current_user=user, db=db)
                 assert result.portfolio_total == Decimal("50000")
 
     @pytest.mark.asyncio
@@ -468,5 +473,5 @@ class TestGetRebalancingAnalysis:
                 "app.api.v1.rebalancing.RebalancingService.calculate_drift",
                 return_value=([], [], False, Decimal("0")),
             ):
-                result = await get_rebalancing_analysis(current_user=user, db=db)
+                result = await get_rebalancing_analysis(http_request=MagicMock(), current_user=user, db=db)
                 assert result.portfolio_total == Decimal("0")

@@ -1,6 +1,6 @@
 """Tests for permission checks on education and FIRE endpoints."""
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -102,6 +102,11 @@ class TestEducationPermissions:
 class TestFirePermissions:
     """Permission checks for FIRE metrics endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def mock_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
+
     @pytest.mark.asyncio
     async def test_own_data_no_permission_check(self):
         """Accessing own data (user_id=None) should not trigger permission check."""
@@ -153,6 +158,7 @@ class TestFirePermissions:
         ):
             MockService.return_value.get_fire_dashboard = AsyncMock(return_value=mock_metrics)
             await get_fire_metrics(
+                http_request=MagicMock(),
                 user_id=None,
                 withdrawal_rate=0.04,
                 expected_return=0.07,
@@ -211,6 +217,7 @@ class TestFirePermissions:
         ):
             MockService.return_value.get_fire_dashboard = AsyncMock(return_value=mock_metrics)
             await get_fire_metrics(
+                http_request=MagicMock(),
                 user_id=target_id,
                 withdrawal_rate=0.04,
                 expected_return=0.07,
@@ -245,6 +252,7 @@ class TestFirePermissions:
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await get_fire_metrics(
+                    http_request=MagicMock(),
                     user_id=target_id,
                     withdrawal_rate=0.04,
                     expected_return=0.07,
