@@ -20,6 +20,7 @@ import {
   SimpleGrid,
   Spinner,
   Text,
+  Tooltip,
   VStack,
   Alert,
   AlertIcon,
@@ -68,6 +69,8 @@ const categoryColor: Record<string, string> = {
 // ── Insight Card ──────────────────────────────────────────────────────────
 
 function InsightCard({ insight }: { insight: InsightItem }) {
+  const showStaleBadge = insight.data_is_stale === true && insight.data_vintage != null;
+
   return (
     <Card
       variant="outline"
@@ -83,7 +86,24 @@ function InsightCard({ insight }: { insight: InsightItem }) {
                 {insight.title}
               </Text>
             </HStack>
-            <HStack spacing={2}>
+            <HStack spacing={2} flexWrap="wrap">
+              {showStaleBadge && (
+                <Tooltip
+                  label={`Benchmark data is from the ${insight.data_vintage} Federal Reserve Survey of Consumer Finances. New data is typically released every 3 years — an update may be in progress.`}
+                  placement="top"
+                  hasArrow
+                >
+                  <Badge
+                    colorScheme="yellow"
+                    size="sm"
+                    variant="subtle"
+                    cursor="help"
+                    data-testid="stale-data-badge"
+                  >
+                    Data as of {insight.data_vintage} · update in progress
+                  </Badge>
+                </Tooltip>
+              )}
               <Badge
                 colorScheme={categoryColor[insight.category]}
                 size="sm"

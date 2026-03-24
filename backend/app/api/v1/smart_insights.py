@@ -76,6 +76,11 @@ class InsightItem(BaseModel):
     icon: str
     priority_score: float
     amount: Optional[float] = None
+    # data_vintage / data_is_stale are only set for insights that use
+    # periodically-updated reference data (e.g. net_worth_benchmark).
+    # null on all other insight types.
+    data_vintage: Optional[str] = None
+    data_is_stale: Optional[bool] = None
 
 
 class SmartInsightsResponse(BaseModel):

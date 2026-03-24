@@ -43,6 +43,7 @@ INSIGHT_LTCG_OPPORTUNITY = "ltcg_opportunity"
 INSIGHT_IRMAA_CLIFF = "irmaa_cliff"
 INSIGHT_ROTH_OPPORTUNITY = "roth_opportunity"
 INSIGHT_HSA_OPPORTUNITY = "hsa_opportunity"
+INSIGHT_NET_WORTH_BENCHMARK = "net_worth_benchmark"
 
 # ── Account type groupings ─────────────────────────────────────────────────
 LIQUID_ACCOUNT_TYPES = frozenset(
@@ -79,6 +80,8 @@ class _Insight:
         "icon",
         "priority_score",
         "amount",
+        "data_vintage",  # Optional[str] – ISO year string, set when insight uses static/stale data
+        "data_is_stale",  # Optional[bool] – True when data source is outdated
     )
 
     def __init__(
@@ -92,6 +95,8 @@ class _Insight:
         icon: str,
         priority_score: float,
         amount: Optional[float] = None,
+        data_vintage: Optional[str] = None,
+        data_is_stale: Optional[bool] = None,
     ) -> None:
         self.type = insight_type
         self.title = title
@@ -102,6 +107,8 @@ class _Insight:
         self.icon = icon
         self.priority_score = priority_score
         self.amount = amount
+        self.data_vintage = data_vintage
+        self.data_is_stale = data_is_stale
 
     def to_dict(self) -> dict:
         return {
@@ -114,6 +121,8 @@ class _Insight:
             "icon": self.icon,
             "priority_score": self.priority_score,
             "amount": self.amount,
+            "data_vintage": self.data_vintage,
+            "data_is_stale": self.data_is_stale,
         }
 
 
@@ -183,6 +192,7 @@ class SmartInsightsService:
             self._check_irmaa_cliff(account_ids, user_birthdate),
             self._check_roth_opportunity_sync(accounts, user_birthdate),
             self._check_hsa_opportunity_sync(accounts),
+            self._check_net_worth_benchmark(accounts, account_ids, user_birthdate),
         ]
 
         insights: list[_Insight] = []
@@ -607,4 +617,114 @@ class SmartInsightsService:
             icon="🏥",
             priority_score=35,
             amount=round(gap, 2),
+        )
+
+    async def _check_net_worth_benchmark(
+        self,
+        accounts: list[Account],
+        account_ids: list[UUID],
+        user_birthdate: Optional[date],
+    ) -> Optional[_Insight]:
+        """Compare the user's net worth to Federal Reserve SCF age-group medians.
+
+        Requires birthdate to determine the correct age bucket.  Skips silently
+        when birthdate is absent or net worth is zero/negative.
+
+        Uses dynamic SCF data when available (scraped from the Fed website and
+        cached locally), with automatic fallback to the static table in
+        financial.py.  Sets data_is_stale=True when the survey data is more
+        than 3 years old so the frontend can show a notice.
+        """
+        if user_birthdate is None:
+            return None
+
+        age = (date.today() - user_birthdate).days // 365
+        if age < 18:
+            return None
+
+        # ── Net worth = all account balances (assets minus liabilities) ──
+        net_worth = sum(float(a.current_balance or 0) for a in accounts)
+        if net_worth <= 0:
+            return None
+
+        # ── Benchmark data (dynamic → cached → static fallback) ──────────
+        from app.services.scf_benchmark_service import age_bucket, fidelity_target, get_benchmarks
+
+        benchmarks = get_benchmarks()
+        bucket = age_bucket(age)
+        median_nw = benchmarks["median"].get(bucket)
+        if median_nw is None:
+            return None
+
+        is_stale: bool = benchmarks.get("is_stale", False)
+        survey_year: int = benchmarks.get("survey_year", 2022)
+        vintage_label = str(survey_year)
+
+        # ── Annual income estimate for Fidelity milestone ────────────────
+        annual_income = float(await self._annual_income_estimate(account_ids))
+        fidelity_tgt = fidelity_target(age, annual_income)
+
+        # ── Determine how the user stacks up ─────────────────────────────
+        pct_of_median = net_worth / median_nw  # e.g. 0.8 = 80 % of median
+
+        if pct_of_median >= 2.0:
+            # Well above median — no action needed, skip the insight
+            return None
+
+        # Build comparison message
+        if pct_of_median >= 1.0:
+            comparison = (
+                f"Your net worth of ${net_worth:,.0f} is "
+                f"{pct_of_median:.0%} of the median for your age group "
+                f"(${median_nw:,.0f} for ages {bucket})."
+            )
+            priority = "low"
+            priority_score = 30.0
+        elif pct_of_median >= 0.5:
+            gap = median_nw - net_worth
+            comparison = (
+                f"Your net worth of ${net_worth:,.0f} is below the median "
+                f"of ${median_nw:,.0f} for ages {bucket} by ${gap:,.0f}."
+            )
+            priority = "medium"
+            priority_score = 55.0
+        else:
+            gap = median_nw - net_worth
+            comparison = (
+                f"Your net worth of ${net_worth:,.0f} is significantly below "
+                f"the median of ${median_nw:,.0f} for ages {bucket} (${gap:,.0f} gap)."
+            )
+            priority = "high"
+            priority_score = 72.0
+
+        # Add Fidelity milestone context when income is available
+        fidelity_note = ""
+        if fidelity_tgt is not None:
+            fidelity_pct = net_worth / fidelity_tgt
+            fidelity_note = (
+                f" Fidelity's rule of thumb targets ${fidelity_tgt:,.0f} "
+                f"at age {age} ({fidelity_pct:.0%} of that target)."
+            )
+
+        stale_note = (
+            f" (Benchmark data from {survey_year} SCF — update may be available.)"
+            if is_stale
+            else ""
+        )
+
+        return _Insight(
+            insight_type=INSIGHT_NET_WORTH_BENCHMARK,
+            title=f"Net worth vs. peers (ages {bucket})",
+            message=comparison + fidelity_note + stale_note,
+            action=(
+                "Review your savings rate, investment allocation, and debt payoff plan "
+                "to close the gap over time."
+            ),
+            priority=priority,
+            category="retirement",
+            icon="📊",
+            priority_score=priority_score,
+            amount=round(net_worth, 2),
+            data_vintage=vintage_label,
+            data_is_stale=is_stale,
         )

@@ -72,6 +72,8 @@ class TestInsightClass:
             "icon",
             "priority_score",
             "amount",
+            "data_vintage",
+            "data_is_stale",
         }
         assert required == set(d.keys())
 
@@ -557,3 +559,387 @@ class TestGetInsights:
         # HSA check should still run
         hsa_insights = [r for r in result if r["type"] == "hsa_opportunity"]
         assert len(hsa_insights) == 1
+
+
+# ── _Insight data_vintage / data_is_stale fields ──────────────────────────
+
+
+class TestInsightDataVintage:
+    """data_vintage and data_is_stale are included in to_dict() output."""
+
+    def _make(self, **kwargs):
+        defaults = dict(
+            insight_type="net_worth_benchmark",
+            title="T",
+            message="M",
+            action="A",
+            priority="medium",
+            category="retirement",
+            icon="📊",
+            priority_score=50.0,
+        )
+        defaults.update(kwargs)
+        return _Insight(**defaults)
+
+    def test_data_vintage_defaults_to_none(self):
+        d = self._make().to_dict()
+        assert d["data_vintage"] is None
+
+    def test_data_is_stale_defaults_to_none(self):
+        d = self._make().to_dict()
+        assert d["data_is_stale"] is None
+
+    def test_data_vintage_set(self):
+        d = self._make(data_vintage="2022").to_dict()
+        assert d["data_vintage"] == "2022"
+
+    def test_data_is_stale_set_true(self):
+        d = self._make(data_is_stale=True).to_dict()
+        assert d["data_is_stale"] is True
+
+    def test_data_is_stale_set_false(self):
+        d = self._make(data_is_stale=False).to_dict()
+        assert d["data_is_stale"] is False
+
+
+# ── TestCheckNetWorthBenchmark ─────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+class TestCheckNetWorthBenchmark:
+    """Tests for _check_net_worth_benchmark insight check."""
+
+    def _svc(self):
+        return SmartInsightsService(db=AsyncMock())
+
+    def _birthdate(self, age: int):
+        return date.today() - timedelta(days=365 * age)
+
+    def _accounts(self, total_balance: float):
+        return [_fake_account(AccountType.CHECKING, total_balance)]
+
+    def _mock_benchmarks(self, survey_year: int, is_stale: bool):
+        return {
+            "survey_year": survey_year,
+            "scraped_at": None,
+            "median": {
+                "under 35": 39_000,
+                "35-44": 135_600,
+                "45-54": 247_200,
+                "55-64": 364_270,
+                "65-74": 409_900,
+                "75+": 335_600,
+            },
+            "mean": {
+                "under 35": 183_500,
+                "35-44": 549_600,
+                "45-54": 1_166_100,
+                "55-64": 1_787_600,
+                "65-74": 1_794_600,
+                "75+": 1_624_100,
+            },
+            "is_stale": is_stale,
+            "source": "static_fallback",
+        }
+
+    async def test_no_birthdate_returns_none(self):
+        from unittest.mock import patch
+        accounts = self._accounts(100_000)
+        svc = self._svc()
+        svc._annual_income_estimate = AsyncMock(return_value=Decimal("80000"))
+        result = await svc._check_net_worth_benchmark(accounts, [], None)
+        assert result is None
+
+    async def test_zero_net_worth_returns_none(self):
+        from unittest.mock import patch
+        accounts = self._accounts(0)
+        svc = self._svc()
+        svc._annual_income_estimate = AsyncMock(return_value=Decimal("80000"))
+        with patch(
+            "app.services.scf_benchmark_service.get_benchmarks",
+            return_value=self._mock_benchmarks(2022, False),
+        ):
+            result = await svc._check_net_worth_benchmark(
+                accounts, [], self._birthdate(40)
+            )
+        assert result is None
+
+    async def test_minor_under_18_returns_none(self):
+        accounts = self._accounts(50_000)
+        svc = self._svc()
+        svc._annual_income_estimate = AsyncMock(return_value=Decimal("0"))
+        result = await svc._check_net_worth_benchmark(
+            accounts, [], self._birthdate(16)
+        )
+        assert result is None
+
+    async def test_well_above_median_returns_none(self):
+        from unittest.mock import patch
+        # Median for 45-54 is $247,200 — give them $600,000 (>2x)
+        accounts = self._accounts(600_000)
+        svc = self._svc()
+        svc._annual_income_estimate = AsyncMock(return_value=Decimal("100000"))
+        with patch(
+            "app.services.scf_benchmark_service.get_benchmarks",
+            return_value=self._mock_benchmarks(2022, False),
+        ):
+            result = await svc._check_net_worth_benchmark(
+                accounts, [], self._birthdate(50)
+            )
+        assert result is None
+
+    async def test_below_median_returns_insight(self):
+        from unittest.mock import patch
+        # Median for 45-54 is $247,200 — give them $50,000
+        accounts = self._accounts(50_000)
+        svc = self._svc()
+        svc._annual_income_estimate = AsyncMock(return_value=Decimal("80000"))
+        with patch(
+            "app.services.scf_benchmark_service.get_benchmarks",
+            return_value=self._mock_benchmarks(2022, False),
+        ):
+            result = await svc._check_net_worth_benchmark(
+                accounts, [], self._birthdate(50)
+            )
+        assert result is not None
+        assert result.type == "net_worth_benchmark"
+        assert result.category == "retirement"
+
+    async def test_below_50pct_of_median_is_high_priority(self):
+        from unittest.mock import patch
+        # Median for 35-44 is $135,600; give them $50,000 (37%)
+        accounts = self._accounts(50_000)
+        svc = self._svc()
+        svc._annual_income_estimate = AsyncMock(return_value=Decimal("80000"))
+        with patch(
+            "app.services.scf_benchmark_service.get_benchmarks",
+            return_value=self._mock_benchmarks(2022, False),
+        ):
+            result = await svc._check_net_worth_benchmark(
+                accounts, [], self._birthdate(40)
+            )
+        assert result is not None
+        assert result.priority == "high"
+
+    async def test_between_50_and_100pct_is_medium_priority(self):
+        from unittest.mock import patch
+        # Median for 35-44 is $135,600; give them $80,000 (59%)
+        accounts = self._accounts(80_000)
+        svc = self._svc()
+        svc._annual_income_estimate = AsyncMock(return_value=Decimal("80000"))
+        with patch(
+            "app.services.scf_benchmark_service.get_benchmarks",
+            return_value=self._mock_benchmarks(2022, False),
+        ):
+            result = await svc._check_net_worth_benchmark(
+                accounts, [], self._birthdate(40)
+            )
+        assert result is not None
+        assert result.priority == "medium"
+
+    async def test_above_median_below_2x_is_low_priority(self):
+        from unittest.mock import patch
+        # Median for 35-44 is $135,600; give them $200,000 (148%)
+        accounts = self._accounts(200_000)
+        svc = self._svc()
+        svc._annual_income_estimate = AsyncMock(return_value=Decimal("80000"))
+        with patch(
+            "app.services.scf_benchmark_service.get_benchmarks",
+            return_value=self._mock_benchmarks(2022, False),
+        ):
+            result = await svc._check_net_worth_benchmark(
+                accounts, [], self._birthdate(40)
+            )
+        assert result is not None
+        assert result.priority == "low"
+
+    async def test_stale_data_sets_flags(self):
+        from unittest.mock import patch
+        accounts = self._accounts(80_000)
+        svc = self._svc()
+        svc._annual_income_estimate = AsyncMock(return_value=Decimal("80000"))
+        with patch(
+            "app.services.scf_benchmark_service.get_benchmarks",
+            return_value=self._mock_benchmarks(2019, True),
+        ):
+            result = await svc._check_net_worth_benchmark(
+                accounts, [], self._birthdate(40)
+            )
+        assert result is not None
+        assert result.data_is_stale is True
+        assert result.data_vintage == "2019"
+        assert "2019" in result.message
+
+    async def test_fresh_data_not_stale(self):
+        from unittest.mock import patch
+        accounts = self._accounts(80_000)
+        svc = self._svc()
+        svc._annual_income_estimate = AsyncMock(return_value=Decimal("80000"))
+        with patch(
+            "app.services.scf_benchmark_service.get_benchmarks",
+            return_value=self._mock_benchmarks(2022, False),
+        ):
+            result = await svc._check_net_worth_benchmark(
+                accounts, [], self._birthdate(40)
+            )
+        assert result is not None
+        assert result.data_is_stale is False
+
+    async def test_amount_is_users_net_worth(self):
+        from unittest.mock import patch
+        accounts = self._accounts(80_000)
+        svc = self._svc()
+        svc._annual_income_estimate = AsyncMock(return_value=Decimal("80000"))
+        with patch(
+            "app.services.scf_benchmark_service.get_benchmarks",
+            return_value=self._mock_benchmarks(2022, False),
+        ):
+            result = await svc._check_net_worth_benchmark(
+                accounts, [], self._birthdate(40)
+            )
+        assert result is not None
+        assert result.amount == pytest.approx(80_000.0)
+
+    async def test_fidelity_in_message_when_income_known(self):
+        from unittest.mock import patch
+        accounts = self._accounts(80_000)
+        svc = self._svc()
+        svc._annual_income_estimate = AsyncMock(return_value=Decimal("100000"))
+        with patch(
+            "app.services.scf_benchmark_service.get_benchmarks",
+            return_value=self._mock_benchmarks(2022, False),
+        ):
+            result = await svc._check_net_worth_benchmark(
+                accounts, [], self._birthdate(40)
+            )
+        assert result is not None
+        assert "Fidelity" in result.message
+
+    async def test_no_fidelity_note_when_income_zero(self):
+        from unittest.mock import patch
+        accounts = self._accounts(80_000)
+        svc = self._svc()
+        svc._annual_income_estimate = AsyncMock(return_value=Decimal("0"))
+        with patch(
+            "app.services.scf_benchmark_service.get_benchmarks",
+            return_value=self._mock_benchmarks(2022, False),
+        ):
+            result = await svc._check_net_worth_benchmark(
+                accounts, [], self._birthdate(40)
+            )
+        if result is not None:
+            assert "Fidelity" not in result.message
+
+
+# ── TestScfBenchmarkService ────────────────────────────────────────────────
+
+
+class TestScfBenchmarkService:
+    """Tests for scf_benchmark_service module-level helpers."""
+
+    def test_age_bucket_under_35(self):
+        from app.services.scf_benchmark_service import age_bucket
+        assert age_bucket(25) == "under 35"
+        assert age_bucket(34) == "under 35"
+
+    def test_age_bucket_35_44(self):
+        from app.services.scf_benchmark_service import age_bucket
+        assert age_bucket(35) == "35-44"
+        assert age_bucket(44) == "35-44"
+
+    def test_age_bucket_45_54(self):
+        from app.services.scf_benchmark_service import age_bucket
+        assert age_bucket(45) == "45-54"
+        assert age_bucket(54) == "45-54"
+
+    def test_age_bucket_55_64(self):
+        from app.services.scf_benchmark_service import age_bucket
+        assert age_bucket(55) == "55-64"
+        assert age_bucket(64) == "55-64"
+
+    def test_age_bucket_65_74(self):
+        from app.services.scf_benchmark_service import age_bucket
+        assert age_bucket(65) == "65-74"
+        assert age_bucket(74) == "65-74"
+
+    def test_age_bucket_75_plus(self):
+        from app.services.scf_benchmark_service import age_bucket
+        assert age_bucket(75) == "75+"
+        assert age_bucket(90) == "75+"
+
+    def test_fidelity_target_at_40_salary_100k(self):
+        from app.services.scf_benchmark_service import fidelity_target
+        result = fidelity_target(40, 100_000)
+        assert result == pytest.approx(300_000.0)
+
+    def test_fidelity_target_at_50_salary_80k(self):
+        from app.services.scf_benchmark_service import fidelity_target
+        result = fidelity_target(50, 80_000)
+        assert result == pytest.approx(480_000.0)
+
+    def test_fidelity_target_zero_income_returns_none(self):
+        from app.services.scf_benchmark_service import fidelity_target
+        assert fidelity_target(40, 0) is None
+
+    def test_fidelity_target_age_below_milestones_returns_none(self):
+        from app.services.scf_benchmark_service import fidelity_target
+        assert fidelity_target(25, 50_000) is None
+
+    def test_static_fallback_has_all_buckets(self):
+        from app.services.scf_benchmark_service import _static_fallback
+        data = _static_fallback()
+        assert "median" in data
+        assert "mean" in data
+        for bucket in ["under 35", "35-44", "45-54", "55-64", "65-74", "75+"]:
+            assert bucket in data["median"], f"Missing bucket: {bucket}"
+            assert bucket in data["mean"], f"Missing bucket: {bucket}"
+
+    def test_static_fallback_source_label(self):
+        from app.services.scf_benchmark_service import _static_fallback
+        data = _static_fallback()
+        assert data["source"] == "static_fallback"
+
+    def test_is_stale_old_year(self):
+        from app.services.scf_benchmark_service import _is_stale
+        assert _is_stale(2015) is True
+
+    def test_is_stale_recent_year(self):
+        from app.services.scf_benchmark_service import _is_stale
+        from datetime import date as _date
+        current_year = _date.today().year
+        assert _is_stale(current_year) is False
+        assert _is_stale(current_year - 2) is False
+
+    def test_parse_dollar_thousands(self):
+        from app.services.scf_benchmark_service import _parse_dollar
+        assert _parse_dollar("409.9") == pytest.approx(409_900.0)
+
+    def test_parse_dollar_already_full(self):
+        from app.services.scf_benchmark_service import _parse_dollar
+        assert _parse_dollar("247200") == pytest.approx(247_200.0)
+
+    def test_get_benchmarks_returns_required_keys(self):
+        from app.services.scf_benchmark_service import get_benchmarks
+        from unittest.mock import patch
+        with patch("app.services.scf_benchmark_service._load_cache", return_value=None):
+            with patch("app.services.scf_benchmark_service._scrape", return_value=None):
+                data = get_benchmarks()
+        for key in ("survey_year", "scraped_at", "median", "mean", "is_stale", "source"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_get_benchmarks_uses_fresh_cache_without_scraping(self):
+        from app.services.scf_benchmark_service import get_benchmarks
+        from datetime import date as _date
+        from unittest.mock import patch, MagicMock
+        fresh_cache = {
+            "survey_year": _date.today().year,
+            "scraped_at": "2025-01-01T00:00:00+00:00",
+            "median": {"under 35": 39_000},
+            "mean": {"under 35": 183_500},
+        }
+        with patch("app.services.scf_benchmark_service._load_cache", return_value=fresh_cache):
+            with patch("app.services.scf_benchmark_service._scrape") as mock_scrape:
+                data = get_benchmarks()
+                mock_scrape.assert_not_called()
+        assert data["source"] == "cache"
+        assert data["is_stale"] is False

@@ -24,6 +24,20 @@ values, so adding an exact entry for a future year overrides any estimate.
 
 YTD resets are handled dynamically in services (date-based), not here.
 ===========================================================================
+TRIENNIAL DATA UPDATES (every 3 years)
+===========================================================================
+NET_WORTH_BENCHMARKS — Federal Reserve Survey of Consumer Finances (SCF)
+The Fed releases new SCF data every 3 years (2022, 2025, 2028 …).
+
+  Automated:  python -m app.services.scf_benchmark_service --scrape
+              Updates NET_WORTH_BENCHMARKS and writes backend/app/constants/scf_cache.json
+
+  Manual:     See the large comment block above the NET_WORTH_BENCHMARKS
+              class at the bottom of this file.
+
+The UI automatically shows a "Data as of YYYY — update in progress" notice
+when SURVEY_YEAR is more than 3 years old.
+===========================================================================
 """
 
 import datetime
@@ -970,4 +984,102 @@ class SAVINGS_GOALS:
 
     # Debt payoff reserve: fraction of total debt to set aside
     DEBT_PAYOFF_RESERVE_RATE = Decimal("0.10")  # 10% of total debt
+
+
+# =========================================================================
+# NET WORTH BENCHMARKS  ← UPDATE EVERY 3 YEARS (Federal Reserve SCF)
+# =========================================================================
+#
+# Source:  Federal Reserve Survey of Consumer Finances (SCF)
+#          https://www.federalreserve.gov/econres/scfindex.htm
+#
+# How to update
+# -------------
+# The Fed publishes new SCF data every 3 years (2022, 2025, 2028 …).
+# When new data is released:
+#
+#   1. Run the scraper first — it will attempt to pull the latest tables:
+#          python -m app.services.scf_benchmark_service --scrape
+#      If scraping succeeds, a JSON cache is written to
+#          backend/app/constants/scf_cache.json
+#      and the SCRAPED_AT / SURVEY_YEAR fields below are auto-updated.
+#
+#   2. If the scraper cannot reach the Fed website, update this file
+#      manually:
+#        a. Download the SCF summary tables from the URL above.
+#        b. Find Table 2: "Family Net Worth, by Selected Characteristics".
+#        c. Update SURVEY_YEAR, SCRAPED_AT, and the MEDIAN / MEAN dicts
+#           for each age bracket.
+#        d. Update FIDELITY_MILESTONES if new guidance has been published
+#           (https://www.fidelity.com/viewpoints/retirement/how-much-money-should-I-have-saved).
+#
+# Data format
+# -----------
+# MEDIAN / MEAN:  Dict[age_bucket_label, net_worth_in_2022_dollars]
+# Age buckets match the SCF publication: "under 35", "35-44", "45-54",
+# "55-64", "65-74", "75+".
+#
+# FIDELITY_MILESTONES: Dict[age, multiple_of_salary]
+# These are Fidelity's published "salary multiple" targets, used as a
+# secondary "rule of thumb" benchmark.
+# =========================================================================
+
+
+class NET_WORTH_BENCHMARKS:
+    """
+    Age-adjusted net worth benchmarks for the 'Am I on track?' insight.
+
+    DATA SOURCE: Federal Reserve Survey of Consumer Finances (SCF), 2022
+    SURVEY_YEAR: The year the underlying survey data was collected.
+    SCRAPED_AT:  ISO-8601 timestamp of the last successful automated
+                 scrape, or None if only static data has ever been used.
+
+    *** See the header comment above for update instructions. ***
+    """
+
+    SURVEY_YEAR: int = 2022
+    SCRAPED_AT: str | None = None  # Set by scf_benchmark_service when scraped
+
+    # ── SCF median net worth by age bracket (2022 dollars) ─────────────────
+    # Source: SCF 2022 Table 2 – Median value of family net worth
+    # https://www.federalreserve.gov/econres/scfindex.htm
+    MEDIAN: Dict[str, float] = {
+        "under 35":  39_000,
+        "35-44":    135_600,
+        "45-54":    247_200,
+        "55-64":    364_270,
+        "65-74":    409_900,
+        "75+":      335_600,
+    }
+
+    # ── SCF mean net worth by age bracket (2022 dollars) ───────────────────
+    MEAN: Dict[str, float] = {
+        "under 35":  183_500,
+        "35-44":    549_600,
+        "45-54":  1_166_100,
+        "55-64":  1_787_600,
+        "65-74":  1_794_600,
+        "75+":    1_624_100,
+    }
+
+    # ── Fidelity salary-multiple milestones ────────────────────────────────
+    # Source: Fidelity "How much money should I have saved by age?"
+    # https://www.fidelity.com/viewpoints/retirement/how-much-money-should-I-have-saved
+    # Format: {age: target_multiple_of_gross_annual_salary}
+    FIDELITY_MILESTONES: Dict[int, float] = {
+        30: 1.0,
+        35: 2.0,
+        40: 3.0,
+        45: 4.0,
+        50: 6.0,
+        55: 7.0,
+        60: 8.0,
+        67: 10.0,
+    }
+
+    # ── Scrape config ───────────────────────────────────────────────────────
+    # URL of the Fed SCF landing page (scraped for data-table links)
+    SCF_URL: str = "https://www.federalreserve.gov/econres/scfindex.htm"
+    # How many years before the static data is considered stale for UI warning
+    STALE_AFTER_YEARS: int = 3
     DEBT_PAYOFF_RESERVE_MIN = Decimal("1000")  # Minimum reserve regardless of debt size
