@@ -141,6 +141,10 @@ class EmailService:
             )
             return False
 
+        # Strip CR/LF to prevent email header injection via Subject or To fields.
+        subject = subject.replace("\r", "").replace("\n", "")
+        to_email = to_email.replace("\r", "").replace("\n", "")
+
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"] = f"{self._from_name} <{self._from_email}>"

@@ -94,6 +94,94 @@ class TestSendEmail:
 
 
 # ---------------------------------------------------------------------------
+# Email header injection prevention
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+class TestEmailHeaderInjection:
+    """Verify that CR/LF in subject/to_email cannot inject extra headers."""
+
+    async def _captured_msg(self, svc, subject, to_email):
+        """Send an email and return the MIMEMultipart message passed to aiosmtplib."""
+        captured = {}
+
+        async def fake_send(msg, **kwargs):
+            captured["msg"] = msg
+
+        with patch("app.services.email_service.aiosmtplib.send", side_effect=fake_send):
+            await svc.send_email(to_email, subject, "<p>hi</p>", "hi")
+        return captured.get("msg")
+
+    async def test_subject_crlf_stripped(self):
+        svc = _make_service(smtp_host="smtp.example.com")
+        msg = await self._captured_msg(
+            svc,
+            subject="Legit\r\nBcc: attacker@evil.com",
+            to_email="user@example.com",
+        )
+        assert msg is not None
+        subject_val = msg["Subject"]
+        # CRLF must be stripped — without them the "Bcc:" text is harmless (not a header)
+        assert "\r" not in subject_val
+        assert "\n" not in subject_val
+
+    async def test_subject_lf_only_stripped(self):
+        svc = _make_service(smtp_host="smtp.example.com")
+        msg = await self._captured_msg(
+            svc,
+            subject="Hello\nBcc: evil@attacker.com",
+            to_email="user@example.com",
+        )
+        assert msg is not None
+        assert "\n" not in msg["Subject"]
+
+    async def test_to_email_crlf_stripped(self):
+        svc = _make_service(smtp_host="smtp.example.com")
+        msg = await self._captured_msg(
+            svc,
+            subject="Normal Subject",
+            to_email="user@example.com\r\nBcc: attacker@evil.com",
+        )
+        assert msg is not None
+        to_val = msg["To"]
+        assert "\r" not in to_val
+        assert "\n" not in to_val
+
+    async def test_clean_subject_unchanged(self):
+        svc = _make_service(smtp_host="smtp.example.com")
+        msg = await self._captured_msg(
+            svc,
+            subject="Nest Egg: Your weekly summary",
+            to_email="user@example.com",
+        )
+        assert msg is not None
+        assert msg["Subject"] == "Nest Egg: Your weekly summary"
+
+    async def test_send_notification_email_subject_sanitized(self):
+        """End-to-end: notification title with newlines must not inject headers."""
+        svc = _make_service(smtp_host="smtp.example.com")
+        captured = {}
+
+        async def fake_send(msg, **kwargs):
+            captured["msg"] = msg
+
+        with patch("app.services.email_service.aiosmtplib.send", side_effect=fake_send):
+            await svc.send_notification_email(
+                to_email="user@example.com",
+                title="Alert\r\nBcc: attacker@evil.com",
+                message="Something happened",
+            )
+
+        msg = captured.get("msg")
+        assert msg is not None
+        # CRLF must be stripped — that eliminates the header injection vector
+        assert "\r" not in msg["Subject"]
+        assert "\n" not in msg["Subject"]
+
+
+# ---------------------------------------------------------------------------
 # send_verification_email
 # ---------------------------------------------------------------------------
 
