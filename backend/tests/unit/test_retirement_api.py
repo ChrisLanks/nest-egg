@@ -3,7 +3,7 @@
 import json
 from datetime import date, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -967,6 +967,11 @@ class TestGetAccountData:
 class TestRunSimulation:
     """Test run_simulation endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def _patch_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
+
     @pytest.mark.asyncio
     async def test_run_simulation_success(self):
         user = _make_user(birthdate=date(1980, 6, 15))
@@ -984,7 +989,7 @@ class TestRunSimulation:
                 new_callable=AsyncMock,
                 return_value=sim_result,
             ):
-                result = await run_simulation(scenario_id=scenario.id, current_user=user, db=db)
+                result = await run_simulation(http_request=MagicMock(), scenario_id=scenario.id, current_user=user, db=db)
 
         assert result.success_rate == 85.5
         db.commit.assert_awaited_once()
@@ -1000,7 +1005,7 @@ class TestRunSimulation:
             return_value=None,
         ):
             with pytest.raises(HTTPException) as exc_info:
-                await run_simulation(scenario_id=uuid4(), current_user=user, db=db)
+                await run_simulation(http_request=MagicMock(), scenario_id=uuid4(), current_user=user, db=db)
 
         assert exc_info.value.status_code == 404
 
@@ -1017,7 +1022,7 @@ class TestRunSimulation:
             return_value=scenario,
         ):
             with pytest.raises(HTTPException) as exc_info:
-                await run_simulation(scenario_id=scenario.id, current_user=user, db=db)
+                await run_simulation(http_request=MagicMock(), scenario_id=scenario.id, current_user=user, db=db)
 
         assert exc_info.value.status_code == 400
 
@@ -1093,6 +1098,11 @@ class TestGetLatestResults:
 class TestQuickSimulate:
     """Test quick_simulate endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def _patch_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
+
     @pytest.mark.asyncio
     async def test_quick_simulate_success(self):
         user = _make_user()
@@ -1132,7 +1142,7 @@ class TestQuickSimulate:
             "app.api.v1.retirement.RetirementMonteCarloService.run_quick_simulation",
             return_value=mock_result,
         ):
-            result = await quick_simulate(data=data, current_user=user)
+            result = await quick_simulate(http_request=MagicMock(), data=data, current_user=user)
 
         assert result.success_rate == 87.5
         assert result.readiness_score == 80

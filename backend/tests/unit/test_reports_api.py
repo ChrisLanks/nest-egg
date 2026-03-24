@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -342,6 +342,11 @@ class TestDeleteReportTemplate:
 class TestExecuteReport:
     """Test execute_report endpoint."""
 
+    @pytest.fixture(autouse=True)
+    def _patch_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
+
     @pytest.mark.asyncio
     async def test_execute_report_no_user_filter(self):
         user = _make_user()
@@ -366,6 +371,7 @@ class TestExecuteReport:
                     return_value={"data": []},
                 ):
                     result = await execute_report(
+                        http_request=MagicMock(),
                         request=request, user_id=None, current_user=user, db=db
                     )
 
@@ -396,6 +402,7 @@ class TestExecuteReport:
                     return_value={"data": []},
                 ):
                     await execute_report(
+                        http_request=MagicMock(),
                         request=request,
                         user_id=target_user_id,
                         current_user=user,
@@ -413,6 +420,11 @@ class TestExecuteReport:
 @pytest.mark.unit
 class TestExecuteSavedReport:
     """Test execute_saved_report endpoint."""
+
+    @pytest.fixture(autouse=True)
+    def _patch_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
 
     @pytest.mark.asyncio
     async def test_execute_saved_success(self):
@@ -437,6 +449,7 @@ class TestExecuteSavedReport:
                     return_value={"data": [{"total": 1000}]},
                 ):
                     result = await execute_saved_report(
+                        http_request=MagicMock(),
                         template_id=template.id,
                         user_id=None,
                         current_user=user,
@@ -453,6 +466,7 @@ class TestExecuteSavedReport:
 
         with pytest.raises(HTTPException) as exc_info:
             await execute_saved_report(
+                http_request=MagicMock(),
                 template_id=uuid4(),
                 user_id=None,
                 current_user=user,
@@ -470,6 +484,7 @@ class TestExecuteSavedReport:
 
         with pytest.raises(HTTPException) as exc_info:
             await execute_saved_report(
+                http_request=MagicMock(),
                 template_id=template.id,
                 user_id=None,
                 current_user=user,
@@ -487,6 +502,11 @@ class TestExecuteSavedReport:
 @pytest.mark.unit
 class TestExportReportCsv:
     """Test export_report_csv endpoint."""
+
+    @pytest.fixture(autouse=True)
+    def _patch_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
 
     @pytest.mark.asyncio
     async def test_export_csv_success(self):
@@ -511,6 +531,7 @@ class TestExportReportCsv:
                     return_value="Date,Amount\n2024-01-01,100",
                 ):
                     result = await export_report_csv(
+                        http_request=MagicMock(),
                         template_id=template.id,
                         user_id=None,
                         current_user=user,
@@ -526,6 +547,7 @@ class TestExportReportCsv:
 
         with pytest.raises(HTTPException) as exc_info:
             await export_report_csv(
+                http_request=MagicMock(),
                 template_id=uuid4(),
                 user_id=None,
                 current_user=user,
@@ -543,6 +565,7 @@ class TestExportReportCsv:
 
         with pytest.raises(HTTPException) as exc_info:
             await export_report_csv(
+                http_request=MagicMock(),
                 template_id=template.id,
                 user_id=None,
                 current_user=user,
@@ -575,6 +598,7 @@ class TestExportReportCsv:
                 ):
                     with pytest.raises(HTTPException) as exc_info:
                         await export_report_csv(
+                            http_request=MagicMock(),
                             template_id=template.id,
                             user_id=None,
                             current_user=user,
@@ -885,6 +909,11 @@ class TestGuestUserIdFilterBlocked:
     detail that the guest would not otherwise see through any UI flow.
     """
 
+    @pytest.fixture(autouse=True)
+    def _patch_rate_limit(self):
+        with patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
+            yield
+
     @pytest.mark.asyncio
     async def test_execute_report_guest_with_user_id_raises_403(self):
         guest = _make_guest_user()
@@ -893,6 +922,7 @@ class TestGuestUserIdFilterBlocked:
 
         with pytest.raises(HTTPException) as exc_info:
             await execute_report(
+                http_request=MagicMock(),
                 request=request,
                 user_id=uuid4(),
                 current_user=guest,
@@ -909,6 +939,7 @@ class TestGuestUserIdFilterBlocked:
 
         with pytest.raises(HTTPException) as exc_info:
             await execute_saved_report(
+                http_request=MagicMock(),
                 template_id=template.id,
                 user_id=uuid4(),
                 current_user=guest,
@@ -925,6 +956,7 @@ class TestGuestUserIdFilterBlocked:
 
         with pytest.raises(HTTPException) as exc_info:
             await export_report_csv(
+                http_request=MagicMock(),
                 template_id=template.id,
                 user_id=uuid4(),
                 current_user=guest,
@@ -971,6 +1003,7 @@ class TestGuestUserIdFilterBlocked:
                     return_value={"data": []},
                 ):
                     result = await execute_report(
+                        http_request=MagicMock(),
                         request=request,
                         user_id=None,
                         current_user=guest,
@@ -1005,6 +1038,7 @@ class TestGuestUserIdFilterBlocked:
                     return_value={"data": []},
                 ):
                     result = await execute_report(
+                        http_request=MagicMock(),
                         request=request,
                         user_id=target_user_id,
                         current_user=user,

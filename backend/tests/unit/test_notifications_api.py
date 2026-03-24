@@ -1,7 +1,7 @@
 """Unit tests for notification API endpoints."""
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -187,9 +187,10 @@ class TestMarkAllNotificationsRead:
         mock_db = AsyncMock()
         user = _mock_user()
 
-        with patch("app.api.v1.notifications.notification_service") as mock_svc:
+        with patch("app.api.v1.notifications.notification_service") as mock_svc, \
+             patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
             mock_svc.mark_all_as_read = AsyncMock(return_value=10)
-            result = await mark_all_notifications_read(current_user=user, db=mock_db)
+            result = await mark_all_notifications_read(http_request=MagicMock(), current_user=user, db=mock_db)
 
         assert result == {"marked_read": 10}
 

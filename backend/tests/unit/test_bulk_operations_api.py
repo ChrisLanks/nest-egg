@@ -50,7 +50,7 @@ class TestListBulkOperations:
         result_mock.scalars.return_value = scalars_mock
         db.execute.return_value = result_mock
 
-        result = await list_bulk_operations(limit=20, current_user=user, db=db)
+        result = await list_bulk_operations(limit=20, offset=0, current_user=user, db=db)
 
         assert result == []
         db.execute.assert_called_once()
@@ -69,7 +69,7 @@ class TestListBulkOperations:
         result_mock.scalars.return_value = scalars_mock
         db.execute.return_value = result_mock
 
-        result = await list_bulk_operations(limit=20, current_user=user, db=db)
+        result = await list_bulk_operations(limit=20, offset=0, current_user=user, db=db)
 
         assert len(result) == 2
         assert result[0].id == op1.id
