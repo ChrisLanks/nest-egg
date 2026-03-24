@@ -20,7 +20,7 @@ class TransactionMergeRequest(BaseModel):
     """Request schema for merging transactions."""
 
     primary_transaction_id: UUID
-    duplicate_transaction_ids: List[UUID]
+    duplicate_transaction_ids: List[UUID] = Field(..., max_length=50)
     merge_reason: Optional[str] = None
 
 

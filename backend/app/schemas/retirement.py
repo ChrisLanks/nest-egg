@@ -214,10 +214,10 @@ class RetirementScenarioCreate(BaseModel):
 
     # Household-wide
     include_all_members: bool = False
-    member_ids: Optional[List[str]] = None  # Explicit member selection
+    member_ids: Optional[List[str]] = Field(default=None, max_length=20)  # Explicit member selection
 
     # Account-level exclusions: account IDs to skip in this scenario's simulation
-    excluded_account_ids: Optional[List[str]] = None
+    excluded_account_ids: Optional[List[str]] = Field(default=None, max_length=200)
 
     @model_validator(mode="after")
     def validate_scenario(self) -> "RetirementScenarioCreate":
@@ -303,10 +303,10 @@ class RetirementScenarioUpdate(BaseModel):
 
     # Household-wide
     include_all_members: Optional[bool] = None
-    member_ids: Optional[List[str]] = None
+    member_ids: Optional[List[str]] = Field(default=None, max_length=20)
 
     # Account-level exclusions
-    excluded_account_ids: Optional[List[str]] = None
+    excluded_account_ids: Optional[List[str]] = Field(default=None, max_length=200)
 
     @model_validator(mode="after")
     def validate_spending_phases(self) -> "RetirementScenarioUpdate":
