@@ -77,11 +77,14 @@ class TestDetectRecurringPatterns:
     async def test_returns_detected_count_and_patterns(self, mock_user, mock_db):
         """Should return detected_patterns count and patterns list."""
         patterns = [_make_pattern(org_id=mock_user.organization_id) for _ in range(3)]
+        mock_request = MagicMock()
 
-        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc, \
+             patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
             mock_svc.detect_recurring_patterns = AsyncMock(return_value=patterns)
 
             result = await detect_recurring_patterns(
+                http_request=mock_request,
                 min_occurrences=3,
                 lookback_days=180,
                 user_id=None,
@@ -95,10 +98,14 @@ class TestDetectRecurringPatterns:
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_patterns(self, mock_user, mock_db):
         """Should return zero count when no patterns detected."""
-        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
+        mock_request = MagicMock()
+
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc, \
+             patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
             mock_svc.detect_recurring_patterns = AsyncMock(return_value=[])
 
             result = await detect_recurring_patterns(
+                http_request=mock_request,
                 min_occurrences=3,
                 lookback_days=180,
                 user_id=None,
@@ -112,10 +119,14 @@ class TestDetectRecurringPatterns:
     @pytest.mark.asyncio
     async def test_passes_params_to_service(self, mock_user, mock_db):
         """Should pass min_occurrences and lookback_days through to service."""
-        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc:
+        mock_request = MagicMock()
+
+        with patch("app.api.v1.recurring_transactions.recurring_detection_service") as mock_svc, \
+             patch("app.services.rate_limit_service.rate_limit_service.check_rate_limit", new_callable=AsyncMock):
             mock_svc.detect_recurring_patterns = AsyncMock(return_value=[])
 
             await detect_recurring_patterns(
+                http_request=mock_request,
                 min_occurrences=5,
                 lookback_days=365,
                 user_id=None,
@@ -139,28 +150,31 @@ class TestDetectRecurringPatterns:
         acc1.id = uuid4()
         acc2 = Mock()
         acc2.id = uuid4()
+        mock_request = MagicMock()
 
         with patch(
             "app.api.v1.recurring_transactions.verify_household_member",
             new_callable=AsyncMock,
-        ) as mock_verify:
-            with patch(
-                "app.api.v1.recurring_transactions.get_user_accounts",
-                new_callable=AsyncMock,
-                return_value=[acc1, acc2],
-            ) as mock_get_accs:
-                with patch(
-                    "app.api.v1.recurring_transactions.recurring_detection_service"
-                ) as mock_svc:
-                    mock_svc.detect_recurring_patterns = AsyncMock(return_value=[])
+        ) as mock_verify, patch(
+            "app.api.v1.recurring_transactions.get_user_accounts",
+            new_callable=AsyncMock,
+            return_value=[acc1, acc2],
+        ) as mock_get_accs, patch(
+            "app.api.v1.recurring_transactions.recurring_detection_service"
+        ) as mock_svc, patch(
+            "app.services.rate_limit_service.rate_limit_service.check_rate_limit",
+            new_callable=AsyncMock,
+        ):
+            mock_svc.detect_recurring_patterns = AsyncMock(return_value=[])
 
-                    await detect_recurring_patterns(
-                        min_occurrences=3,
-                        lookback_days=180,
-                        user_id=target_user_id,
-                        current_user=mock_user,
-                        db=mock_db,
-                    )
+            await detect_recurring_patterns(
+                http_request=mock_request,
+                min_occurrences=3,
+                lookback_days=180,
+                user_id=target_user_id,
+                current_user=mock_user,
+                db=mock_db,
+            )
 
         mock_verify.assert_awaited_once_with(mock_db, target_user_id, mock_user.organization_id)
         mock_get_accs.assert_awaited_once_with(mock_db, target_user_id, mock_user.organization_id)

@@ -6,7 +6,7 @@ import json
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy import select as sa_select
@@ -820,10 +820,18 @@ async def get_account_data(
 @router.post("/scenarios/{scenario_id}/simulate", response_model=SimulationResultResponse)
 async def run_simulation(
     scenario_id: UUID,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Run Monte Carlo simulation for a scenario (or return cached if unchanged)."""
+    from app.services.rate_limit_service import rate_limit_service as _rls
+    await _rls.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=60,
+        identifier=str(current_user.id),
+    )
     scenario = await RetirementPlannerService.get_scenario(
         db=db, scenario_id=scenario_id, organization_id=str(current_user.organization_id)
     )
@@ -871,9 +879,17 @@ async def get_latest_results(
 @router.post("/quick-simulate", response_model=QuickSimulationResponse)
 async def quick_simulate(
     data: QuickSimulationRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
 ):
     """Lightweight simulation for real-time slider exploration. No DB persistence."""
+    from app.services.rate_limit_service import rate_limit_service as _rls
+    await _rls.check_rate_limit(
+        request=http_request,
+        max_requests=30,
+        window_seconds=60,
+        identifier=str(current_user.id),
+    )
     result = RetirementMonteCarloService.run_quick_simulation(
         current_portfolio=float(data.current_portfolio),
         annual_contributions=float(data.annual_contributions),

@@ -222,12 +222,17 @@ class TestAutoDetectAndMergeDuplicates:
         dups2 = [MagicMock()]
         mock_matches = [(primary1, dups1), (primary2, dups2)]
 
+        mock_request = MagicMock()
         with patch(
             "app.api.v1.transaction_merges.transaction_merge_service.auto_detect_and_merge_duplicates",
             new_callable=AsyncMock,
             return_value=mock_matches,
-        ) as mock_auto:
+        ) as mock_auto, patch(
+            "app.services.rate_limit_service.rate_limit_service.check_rate_limit",
+            new_callable=AsyncMock,
+        ):
             result = await auto_detect_and_merge_duplicates(
+                http_request=mock_request,
                 dry_run=True,
                 date_window_days=3,
                 current_user=user,
@@ -255,12 +260,17 @@ class TestAutoDetectAndMergeDuplicates:
         user.id = uuid4()
         user.organization_id = uuid4()
 
+        mock_request = MagicMock()
         with patch(
             "app.api.v1.transaction_merges.transaction_merge_service.auto_detect_and_merge_duplicates",
             new_callable=AsyncMock,
             return_value=[],
+        ), patch(
+            "app.services.rate_limit_service.rate_limit_service.check_rate_limit",
+            new_callable=AsyncMock,
         ):
             result = await auto_detect_and_merge_duplicates(
+                http_request=mock_request,
                 dry_run=True,
                 date_window_days=5,
                 current_user=user,
@@ -280,12 +290,17 @@ class TestAutoDetectAndMergeDuplicates:
 
         mock_matches = [(MagicMock(), [MagicMock()])]
 
+        mock_request = MagicMock()
         with patch(
             "app.api.v1.transaction_merges.transaction_merge_service.auto_detect_and_merge_duplicates",
             new_callable=AsyncMock,
             return_value=mock_matches,
-        ) as mock_auto:
+        ) as mock_auto, patch(
+            "app.services.rate_limit_service.rate_limit_service.check_rate_limit",
+            new_callable=AsyncMock,
+        ):
             result = await auto_detect_and_merge_duplicates(
+                http_request=mock_request,
                 dry_run=False,
                 date_window_days=3,
                 current_user=user,

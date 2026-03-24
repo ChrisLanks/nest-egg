@@ -5,7 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from dateutil.relativedelta import relativedelta
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -92,6 +92,7 @@ def _expand_occurrences(
 
 @router.post("/detect")
 async def detect_recurring_patterns(
+    http_request: Request,
     min_occurrences: int = Query(3, ge=2, le=50),
     lookback_days: int = Query(180, ge=30, le=730),
     user_id: Optional[UUID] = Query(None, description="Filter by user"),
@@ -99,6 +100,13 @@ async def detect_recurring_patterns(
     db: AsyncSession = Depends(get_db),
 ):
     """Auto-detect recurring transaction patterns."""
+    from app.services.rate_limit_service import rate_limit_service as _rls
+    await _rls.check_rate_limit(
+        request=http_request,
+        max_requests=10,
+        window_seconds=60,
+        identifier=str(current_user.id),
+    )
     account_ids = None
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)

@@ -3,7 +3,7 @@
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
@@ -82,6 +82,7 @@ async def get_merge_history(
 
 @router.post("/auto-detect")
 async def auto_detect_and_merge_duplicates(
+    http_request: Request,
     dry_run: bool = True,
     date_window_days: int = 3,
     current_user: User = Depends(get_current_user),
@@ -92,6 +93,13 @@ async def auto_detect_and_merge_duplicates(
 
     Set dry_run=False to actually perform merges.
     """
+    from app.services.rate_limit_service import rate_limit_service as _rls
+    await _rls.check_rate_limit(
+        request=http_request,
+        max_requests=5,
+        window_seconds=60,
+        identifier=str(current_user.id),
+    )
     matches = await transaction_merge_service.auto_detect_and_merge_duplicates(
         db=db,
         user=current_user,
