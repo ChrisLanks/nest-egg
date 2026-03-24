@@ -578,6 +578,33 @@ class TestGetOrganizationScopedUser:
         assert result.__dict__["organization_id"] == foreign_org
 
     @pytest.mark.asyncio
+    async def test_expired_guest_record_raises_403(self):
+        """An expired guest record (expires_at in the past) must be rejected.
+
+        The dependency now enforces expires_at at the DB query level via a SQL
+        ``or_(expires_at IS NULL, expires_at > now())`` clause.  When the DB
+        returns no row (simulating an expired record being filtered out), the
+        dependency must raise 403 — NOT grant access.
+        """
+        user = self._make_user()
+        foreign_org = uuid4()
+        request = self._make_request(header_value=str(foreign_org))
+        request.method = "GET"
+        creds = self._make_credentials()
+        db = AsyncMock()
+
+        # Simulate DB filtering out the expired record — returns None.
+        no_result = Mock()
+        no_result.scalar_one_or_none = Mock(return_value=None)
+        db.execute = AsyncMock(return_value=no_result)
+
+        with patch("app.dependencies.get_current_user", new_callable=AsyncMock, return_value=user):
+            with pytest.raises(HTTPException) as exc_info:
+                await get_organization_scoped_user(request=request, credentials=creds, db=db)
+
+        assert exc_info.value.status_code == 403
+
+    @pytest.mark.asyncio
     async def test_advisor_write_allowed(self):
         user = self._make_user()
         foreign_org = uuid4()

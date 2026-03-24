@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException, Path, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -126,12 +126,18 @@ async def get_organization_scoped_user(
     if target_org_id == user.organization_id:
         return user
 
-    # Validate guest record
+    # Validate guest record — also enforce expires_at at the DB level so
+    # expired guests cannot access the host household even if is_active is
+    # still True (e.g. before the background cleanup task has run).
     result = await db.execute(
         select(HouseholdGuest).where(
             HouseholdGuest.user_id == user.id,
             HouseholdGuest.organization_id == target_org_id,
             HouseholdGuest.is_active.is_(True),
+            or_(
+                HouseholdGuest.expires_at.is_(None),
+                HouseholdGuest.expires_at > func.now(),
+            ),
         )
     )
     guest_record = result.scalar_one_or_none()
