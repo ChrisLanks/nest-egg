@@ -5,7 +5,7 @@ from datetime import date
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -21,6 +21,7 @@ from app.schemas.dividend import (
 )
 from app.services.dividend_detection_service import DividendDetectionService
 from app.services.dividend_income_service import DividendIncomeService
+from app.services.rate_limit_service import rate_limit_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -100,6 +101,7 @@ async def create_dividend_income(
 
 @router.post("/detect", status_code=200)
 async def detect_dividend_transactions(
+    http_request: Request,
     user_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -110,6 +112,14 @@ async def detect_dividend_transactions(
     Newly synced transactions are auto-detected during sync.
     If user_id is provided, only scans that user's accounts.
     """
+    # Rate-limit: full-org transaction scan is expensive (5/hr per user)
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=5,
+        window_seconds=3600,
+        identifier=str(current_user.id),
+    )
+
     account_ids = None
     if user_id:
         await verify_household_member(db, user_id, current_user.organization_id)

@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +21,7 @@ from app.schemas.target_allocation import (
     TargetAllocationResponse,
     TargetAllocationUpdate,
 )
+from app.services.rate_limit_service import rate_limit_service
 from app.services.rebalancing_service import PRESET_PORTFOLIOS, RebalancingService
 
 router = APIRouter()
@@ -201,6 +202,7 @@ async def delete_target_allocation(
 
 @router.get("/analysis", response_model=RebalancingAnalysis)
 async def get_rebalancing_analysis(
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -211,6 +213,13 @@ async def get_rebalancing_analysis(
     Returns drift items, trade recommendations, and rebalancing flag.
     Scoped to the current user's accounts only.
     """
+    # Rate-limit: portfolio scan + drift computation is expensive (30/min per user)
+    await rate_limit_service.check_rate_limit(
+        request=http_request,
+        max_requests=30,
+        window_seconds=60,
+        identifier=str(current_user.id),
+    )
     # Get active allocation
     active = await RebalancingService.get_active_allocation(
         db, current_user.organization_id, current_user.id
