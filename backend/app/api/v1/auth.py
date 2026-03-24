@@ -6,6 +6,8 @@ import logging
 import secrets
 from datetime import timedelta
 
+import jwt
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
@@ -548,13 +550,34 @@ async def verify_mfa_challenge(
     Called after /login returns mfa_required=true. Accepts the short-lived
     mfa_token from that response together with a 6-digit TOTP code (or a
     XXXX-XXXX backup code). Returns a full TokenResponse on success.
-    Rate limited to 3 attempts per minute per IP.
+    Rate limited to 3 attempts per minute per IP, and 5 per 15 minutes per
+    user ID embedded in the MFA token (prevents distributed IP bypass).
     """
+    # Primary IP-based rate limit
     await rate_limit_service.check_rate_limit(
         request=request,
         max_requests=3,
         window_seconds=60,
     )
+
+    # Secondary per-user rate limit: extract user_id from mfa_token without
+    # full signature verification (verification happens below). This prevents
+    # distributed-IP bypass where many IPs share the same mfa_pending token.
+    try:
+        unverified = jwt.decode(
+            data.mfa_token,
+            options={"verify_signature": False},
+            algorithms=[settings.ALGORITHM],
+        )
+        if token_sub := unverified.get("sub"):
+            await rate_limit_service.check_rate_limit(
+                request=request,
+                max_requests=5,
+                window_seconds=900,  # 15 minutes
+                identifier=f"mfa_user:{token_sub}",
+            )
+    except Exception:
+        pass  # Full decode below will reject invalid tokens
 
     try:
         payload = decode_token(data.mfa_token)

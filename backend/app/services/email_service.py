@@ -90,7 +90,7 @@ async def create_password_reset_token(db: AsyncSession, user_id: UUID) -> str:
     token_record = PasswordResetToken(
         user_id=user_id,
         token_hash=hash_token(raw_token),
-        expires_at=utc_now() + timedelta(hours=1),
+        expires_at=utc_now() + timedelta(minutes=15),  # 15 min: short window limits leaked-email replay
     )
     db.add(token_record)
     await db.commit()

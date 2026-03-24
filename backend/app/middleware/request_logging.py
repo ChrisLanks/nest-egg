@@ -177,6 +177,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         "/api/v1/teller/webhook": "TELLER_WEBHOOK",
         "/api/v1/csv-import": "CSV_IMPORT",
         "/api/v1/settings/delete": "ACCOUNT_DELETE",
+        "/api/v1/settings/profile/change-password": "PASSWORD_CHANGE",  # must precede /profile
         "/api/v1/settings/profile": "PROFILE_UPDATE",
     }
 

@@ -2236,6 +2236,63 @@ class TestVerifyMfaChallenge:
 
         assert exc_info.value.status_code == 429
 
+    @pytest.mark.asyncio
+    async def test_per_user_rate_limit_applied_when_token_has_sub(self):
+        """Per-user rate limit uses mfa_user:<sub> identifier when token carries a sub claim."""
+        import jwt as pyjwt
+        from app.api.v1.auth import MFAVerifyRequest, verify_mfa_challenge
+        from app.config import settings
+
+        user_id = str(uuid4())
+        # Build a token with a sub so the per-user rate limit path is exercised.
+        # We don't need a valid signature — the unverified decode only needs the claims.
+        mfa_token = pyjwt.encode(
+            {"sub": user_id, "type": "mfa_pending"},
+            settings.SECRET_KEY,
+            algorithm=settings.ALGORITHM,
+        )
+        data = MFAVerifyRequest(mfa_token=mfa_token, code="123456")
+
+        rate_limit_calls = []
+
+        async def capture_rate_limit(**kwargs):
+            rate_limit_calls.append(kwargs.get("identifier"))
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", side_effect=capture_rate_limit):
+            with patch("app.api.v1.auth.decode_token", side_effect=Exception("expired")):
+                with pytest.raises(HTTPException):
+                    await verify_mfa_challenge(
+                        request=Mock(), response=Mock(), data=data, db=AsyncMock()
+                    )
+
+        # First call has no identifier (IP-based), second call uses mfa_user:<sub>
+        assert len(rate_limit_calls) == 2
+        assert rate_limit_calls[0] is None  # IP-based limit
+        assert rate_limit_calls[1] == f"mfa_user:{user_id}"
+
+    @pytest.mark.asyncio
+    async def test_per_user_rate_limit_skipped_when_token_has_no_sub(self):
+        """Per-user rate limit is skipped gracefully when mfa_token is unparseable."""
+        from app.api.v1.auth import MFAVerifyRequest, verify_mfa_challenge
+
+        data = MFAVerifyRequest(mfa_token="not.a.jwt", code="123456")
+
+        rate_limit_calls = []
+
+        async def capture_rate_limit(**kwargs):
+            rate_limit_calls.append(kwargs.get("identifier"))
+
+        with patch("app.api.v1.auth.rate_limit_service.check_rate_limit", side_effect=capture_rate_limit):
+            with patch("app.api.v1.auth.decode_token", side_effect=Exception("bad")):
+                with pytest.raises(HTTPException):
+                    await verify_mfa_challenge(
+                        request=Mock(), response=Mock(), data=data, db=AsyncMock()
+                    )
+
+        # Only the IP-based call happens; per-user is skipped for invalid tokens
+        assert len(rate_limit_calls) == 1
+        assert rate_limit_calls[0] is None
+
 
 # ---------------------------------------------------------------------------
 # UserConsent capture at registration

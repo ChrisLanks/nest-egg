@@ -345,8 +345,8 @@ class TestCreatePasswordResetToken:
         assert stored_record.token_hash == hash_token(raw)
         assert stored_record.user_id == user_id
 
-    async def test_expires_in_one_hour(self):
-        """Password reset tokens expire in 1 hour (shorter than email verify's 24h)."""
+    async def test_expires_in_fifteen_minutes(self):
+        """Password reset tokens expire in 15 minutes to limit leaked-email replay window."""
         user_id = uuid4()
         stored_record = None
 
@@ -362,12 +362,11 @@ class TestCreatePasswordResetToken:
 
         before = utc_now()
         await create_password_reset_token(db, user_id)
-        utc_now()
 
         assert stored_record is not None
-        # Should expire roughly 1 hour from now (between 59 and 61 minutes)
+        # Should expire roughly 15 minutes from now (between 14 and 16 minutes)
         delta = stored_record.expires_at - before
-        assert timedelta(minutes=59) < delta < timedelta(minutes=61)
+        assert timedelta(minutes=14) < delta < timedelta(minutes=16)
 
 
 # ---------------------------------------------------------------------------
