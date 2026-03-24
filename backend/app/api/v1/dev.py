@@ -324,6 +324,9 @@ async def list_all_users(
     db: AsyncSession = Depends(get_db),
 ):
     """List all users in the current organization. Admin only, dev only."""
+    if settings.ENVIRONMENT not in ("development", "test"):
+        raise HTTPException(status_code=404, detail="Not found")
+
     result = await db.execute(
         select(User)
         .where(User.organization_id == current_user.organization_id)
@@ -347,6 +350,9 @@ async def create_random_users(
     db: AsyncSession = Depends(get_db),
 ):
     """Create N random test users in the current org. Dev only."""
+    if settings.ENVIRONMENT not in ("development", "test"):
+        raise HTTPException(status_code=404, detail="Not found")
+
     if body.count < 1 or body.count > 50:
         raise HTTPException(status_code=400, detail="count must be 1-50")
 
@@ -396,6 +402,9 @@ async def hard_delete_user(
     If the user is the sole member of their org, deletes the org too.
     Cannot delete yourself or the primary household member.
     """
+    if settings.ENVIRONMENT not in ("development", "test"):
+        raise HTTPException(status_code=404, detail="Not found")
+
     result = await db.execute(
         select(User).where(
             User.id == user_id,

@@ -186,3 +186,72 @@ class TestSeedMockDataInternal:
         assert mock_db.flush.await_count == 2
         # 2 accounts + 25 transactions = 27 add calls
         assert mock_db.add.call_count == 27
+
+
+@pytest.mark.unit
+class TestDevUserEndpointsEnvironmentGuard:
+    """User-management dev endpoints must be blocked outside development/test."""
+
+    @pytest.mark.asyncio
+    @patch("app.api.v1.dev.settings")
+    async def test_list_users_blocked_in_production(self, mock_settings, mock_user, mock_db):
+        from app.api.v1.dev import list_all_users
+
+        mock_settings.ENVIRONMENT = "production"
+        with pytest.raises(HTTPException) as exc_info:
+            await list_all_users(current_user=mock_user, db=mock_db)
+        assert exc_info.value.status_code == 404
+        mock_db.execute.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("app.api.v1.dev.settings")
+    async def test_list_users_blocked_in_staging(self, mock_settings, mock_user, mock_db):
+        from app.api.v1.dev import list_all_users
+
+        mock_settings.ENVIRONMENT = "staging"
+        with pytest.raises(HTTPException) as exc_info:
+            await list_all_users(current_user=mock_user, db=mock_db)
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    @patch("app.api.v1.dev.settings")
+    async def test_create_random_users_blocked_in_production(self, mock_settings, mock_user, mock_db):
+        from app.api.v1.dev import CreateRandomUsersRequest, create_random_users
+
+        mock_settings.ENVIRONMENT = "production"
+        with pytest.raises(HTTPException) as exc_info:
+            await create_random_users(
+                body=CreateRandomUsersRequest(count=1),
+                current_user=mock_user,
+                db=mock_db,
+            )
+        assert exc_info.value.status_code == 404
+        mock_db.flush.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("app.api.v1.dev.settings")
+    async def test_hard_delete_user_blocked_in_production(self, mock_settings, mock_user, mock_db):
+        from app.api.v1.dev import hard_delete_user
+
+        mock_settings.ENVIRONMENT = "production"
+        with pytest.raises(HTTPException) as exc_info:
+            await hard_delete_user(
+                user_id=uuid4(),
+                current_user=mock_user,
+                db=mock_db,
+            )
+        assert exc_info.value.status_code == 404
+        mock_db.execute.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("app.api.v1.dev.settings")
+    async def test_list_users_allowed_in_development(self, mock_settings, mock_user, mock_db):
+        from app.api.v1.dev import list_all_users
+
+        mock_settings.ENVIRONMENT = "development"
+        result_mock = Mock()
+        result_mock.scalars.return_value.all.return_value = []
+        mock_db.execute.return_value = result_mock
+
+        result = await list_all_users(current_user=mock_user, db=mock_db)
+        assert result == []
